@@ -6,24 +6,31 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
+import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
@@ -42,10 +49,19 @@ import cl.fadiaz.dictionary.core.Suggestion
  * La pantalla de busqueda. Es la app: D-026 dice que la busqueda vive aca adentro porque ni los
  * tiles ni los widgets aceptan text input.
  *
- * Dos entradas de texto, y el orden no es estetico. La voz va primero porque es la forma
- * natural de escribir en una muñeca, y es la razon de que la busqueda tenga un nivel tolerante
- * a errores: el dictado produce texto que no coincide exactamente con ningun lema. El teclado
- * queda de fallback, y es el que ejercita la busqueda incremental con debounce.
+ * EL DISEÑO ESTA GOBERNADO POR UN PRESUPUESTO DE 192 dp
+ *
+ * La pantalla son 384x384 px a 320 dpi, o sea **192x192 dp**, y la guia de Wear OS pide 48 dp
+ * minimos de area tocable. Eso da cuatro filas y nada mas: cada dp que gasta el encabezado es un
+ * resultado que el usuario no ve. De ahi las dos decisiones que se ven raras sueltas:
+ *
+ * - **La entrada de texto cambia de tamaño.** Con la busqueda vacia, el boton de voz ocupa lo
+ *   que tiene que ocupar: es el camino principal en una muñeca (`app/CLAUDE.md`) y no hay nada
+ *   que compita con el. En cuanto hay algo escrito se colapsa a una fila, porque a partir de
+ *   ahi lo que importa son los resultados.
+ * - **Las filas son de una linea y truncan.** Los refranes del Wikcionario son entradas y
+ *   llegan a 96 caracteres; una fila que creciera para mostrarlos enteros se comeria media
+ *   pantalla por un caso raro. El lema completo esta a un toque.
  */
 @Composable
 fun SearchScreen(
@@ -55,6 +71,7 @@ fun SearchScreen(
     onOpenAttribution: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
+    val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 
     val voz = rememberLauncherForActivityResult(
@@ -69,19 +86,22 @@ fun SearchScreen(
     }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
-        TransformingLazyColumn(contentPadding = contentPadding, state = listState) {
-            item {
-                ListHeader(
-                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                    transformation = SurfaceTransformation(spec),
-                ) { Text(state.packName.ifEmpty { "Diccionario" }) }
-            }
-
+        TransformingLazyColumn(
+            contentPadding = contentPadding,
+            state = listState,
+            // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
+            // esta leyendo. No viene cableada por defecto.
+            modifier = Modifier.rotaryScrollable(
+                RotaryScrollableDefaults.behavior(listState),
+                focusRequester,
+            ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
                     Cargando(
                         mensaje = if (status == SearchState.Status.Installing) {
-                            "Instalando el diccionario. Solo pasa la primera vez."
+                            "Instalando el diccionario.\nSolo pasa la primera vez."
                         } else {
                             "Abriendo el diccionario…"
                         },
@@ -89,66 +109,176 @@ fun SearchScreen(
                 }
 
                 is SearchState.Status.Failed -> item {
-                    Text(
-                        text = status.message,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = state.packName.ifEmpty { "Diccionario" },
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            text = status.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
 
                 SearchState.Status.Ready -> {
-                    item {
-                        Button(
-                            onClick = { voz.launch(intentDeVoz()) },
-                            modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                            transformation = SurfaceTransformation(spec),
-                        ) { Text("Decir una palabra") }
+                    // Con la busqueda vacia el encabezado puede permitirse existir; en cuanto
+                    // hay resultados, cada fila de chrome es un resultado menos.
+                    if (state.query.isEmpty()) {
+                        item {
+                            ListHeader(
+                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                transformation = SurfaceTransformation(spec),
+                            ) { Text(state.packName.ifEmpty { "Diccionario" }) }
+                        }
+                        item {
+                            Button(
+                                onClick = { voz.launch(intentDeVoz()) },
+                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                transformation = SurfaceTransformation(spec),
+                            ) { Text("Decir una palabra") }
+                        }
                     }
-                    item { CampoDeTexto(state.query, onQueryChange) }
+
+                    item { BarraDeBusqueda(state.query, onQueryChange) { voz.launch(intentDeVoz()) } }
 
                     if (state.query.isNotBlank() && state.results.isEmpty()) {
                         item {
                             Text(
                                 text = "Sin resultados para “${state.query}”",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             )
                         }
                     }
 
                     items(count = state.results.size) { indice ->
-                        val sugerencia = state.results[indice]
-                        Button(
-                            onClick = { onOpenEntry(sugerencia) },
-                            modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                            transformation = SurfaceTransformation(spec),
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(sugerencia.headword)
-                                val detalle = listOfNotNull(
-                                    sugerencia.partOfSpeech?.let(::posEnEspanol),
-                                    etiquetaDeNivel(sugerencia.matchKind),
-                                ).joinToString(" · ")
-                                if (detalle.isNotEmpty()) {
-                                    Text(
-                                        text = detalle,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
+                        FilaDeResultado(state.results[indice]) { onOpenEntry(state.results[indice]) }
                     }
 
                     item {
-                        Button(
-                            onClick = onOpenAttribution,
-                            modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                            transformation = SurfaceTransformation(spec),
-                        ) { Text("Sobre estos datos") }
+                        Text(
+                            text = "Sobre estos datos",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onOpenAttribution)
+                                .heightIn(min = TOUCH_TARGET)
+                                .padding(top = 14.dp),
+                        )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Una fila de resultado: 48 dp, una linea, el lema manda y la categoria acompaña.
+ *
+ * No usa `Button` de Wear Compose a proposito: su alto minimo es 52 dp y con el encabezado no
+ * entraban cuatro filas. 48 dp es el minimo que pide la guia de Wear OS para un area tocable, y
+ * bajar de ahi seria ganar densidad rompiendo algo peor.
+ */
+@Composable
+private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .heightIn(min = TOUCH_TARGET)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = sugerencia.headword,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        val detalle = etiquetaDeNivel(sugerencia.matchKind)
+            ?: sugerencia.partOfSpeech?.let(::posEnEspanol)
+        if (detalle != null) {
+            Text(
+                text = detalle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Teclado y voz en una sola fila.
+ *
+ * Es `BasicTextField` y no un componente de Wear Compose porque **Wear Compose no trae campo de
+ * texto**: la libreria asume que el input entra por voz o por el activity del sistema. Y es el
+ * teclado el que ejercita la busqueda incremental: la voz entrega la frase entera de una vez.
+ */
+@Composable
+private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVoz: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .heightIn(min = TOUCH_TARGET)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            if (query.isEmpty()) {
+                Text(
+                    text = "escribir…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        // Con algo escrito el boton grande de voz desaparece, pero la voz no puede desaparecer
+        // con el: sigue siendo el camino principal en una muñeca.
+        if (query.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .clickable(onClick = onVoz)
+                    .heightIn(min = TOUCH_TARGET)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = "voz",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
             }
         }
     }
@@ -157,44 +287,15 @@ fun SearchScreen(
 @Composable
 private fun Cargando(mensaje: String) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         CircularProgressIndicator()
-        Text(text = mensaje, textAlign = TextAlign.Center)
-    }
-}
-
-/**
- * Teclado. Es `BasicTextField` y no un componente de Wear Compose porque Wear Compose no trae
- * campo de texto: la libreria asume que el input entra por voz o por el activity del sistema.
- */
-@Composable
-private fun CampoDeTexto(query: String, onQueryChange: (String) -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        if (query.isEmpty()) {
-            Text(
-                text = "o escribir…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            singleLine = true,
-            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(),
-            modifier = Modifier.fillMaxSize(),
+        Text(
+            text = mensaje,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -209,6 +310,9 @@ private fun intentDeVoz(): Intent =
         // del sistema: un reloj en ingles dictando "perro" devolveria cualquier cosa.
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es")
     }
+
+/** Minimo que pide la guia de Wear OS para algo que se toca. */
+private val TOUCH_TARGET = 48.dp
 
 /**
  * El pack guarda el `pos` con el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
@@ -233,7 +337,13 @@ internal fun posEnEspanol(pos: String): String = when (pos) {
     else -> pos
 }
 
-/** Solo se etiquetan los niveles que sorprenden: que salga por prefijo es lo esperado. */
+/**
+ * Solo se etiquetan los niveles que sorprenden.
+ *
+ * Que un resultado salga por prefijo es lo esperado y no merece una palabra en una pantalla de
+ * 192 dp. Que salga por una forma flexionada o por parecido si: explica por que aparece algo
+ * que el usuario no escribio.
+ */
 private fun etiquetaDeNivel(kind: MatchKind): String? = when (kind) {
     MatchKind.PREFIX -> null
     MatchKind.INFLECTED_FORM -> "forma"
