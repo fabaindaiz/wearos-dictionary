@@ -19,6 +19,31 @@ Formato:
 
 ---
 
+## 2026-09-17 — `devicePrecheck` y `dict-data/CLAUDE.md`
+
+**Qué.** Tarea Gradle que diagnostica si se pueden correr los tests instrumentados antes de
+intentarlo, y un `CLAUDE.md` anidado para `:dict-data`.
+
+**Áreas.** `dict-data/build.gradle.kts`, `dict-data/CLAUDE.md`, `CLAUDE.md`, skill `verify`.
+
+**Por qué.** Se preguntó cómo integrarse con Android Studio. **La premisa era incorrecta: el
+plugin oficial de Claude Code para JetBrains soporta Android Studio explícitamente**, la
+documentación lo nombra. Lo que sí faltaba era que el paso pendiente —correr los tests en
+dispositivo— no se trabara en un error críptico.
+
+**Arquitectura.** ✅ Cumple.
+
+**Medido.** Al revisar el entorno: **no hay ningún AVD creado ni imagen de Wear OS instalada**
+en esta máquina. `~/.android/avd/` está vacío, el SDK no tiene `system-images/`, solo la
+platform `android-37.0`. Sin eso los 16 tests instrumentados no se pueden correr, y todo lo que
+el repo afirma sobre Android sigue siendo ASSUMPTION.
+
+El `doLast` volvió a romper el configuration cache, esta vez por referenciar una función
+declarada a nivel de build script. Es el mismo error que con el `copy {}` de la sesión anterior,
+así que quedó documentado en `dict-data/CLAUDE.md` para no tropezar una tercera vez.
+
+---
+
 ## 2026-09-17 — `SqlitePackSource`: la cascada de cinco consultas
 
 **Qué.** Implementación de `DictionarySource` sobre SQLite, con los cinco caminos de búsqueda y

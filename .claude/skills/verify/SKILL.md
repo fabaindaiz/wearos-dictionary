@@ -45,10 +45,12 @@ algo ya venía fallando, nombralo para que no se presente como nuevo.
 ## Los tests en dispositivo, que el gate no corre
 
 ```bash
-./gradlew :dict-data:connectedDebugAndroidTest
+./gradlew :dict-data:devicePrecheck             # ¿hay con qué? Dice qué falta si no
+./gradlew :dict-data:connectedDebugAndroidTest  # los 16 tests
 ```
 
-Necesitan un emulador o un reloj conectado, por eso están fuera del gate. Son los únicos que
+Necesitan un emulador o un reloj conectado, por eso están fuera del gate. `devicePrecheck`
+existe porque sin dispositivo Gradle falla con un error que no dice qué hacer. Son los únicos que
 cierran las asunciones sobre Android: que el SQLite empacado traiga FTS5, que el prefijo use el
 covering index en ese dispositivo, y sobre todo que `norm()` dé lo mismo en el reloj que en el
 builder.
