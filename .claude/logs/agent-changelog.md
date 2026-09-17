@@ -19,6 +19,41 @@ Formato:
 
 ---
 
+## 2026-09-17 — Fases de optimización; el emulador parte la clase de bug en dos
+
+**Qué.** Se agregó `docs/roadmap.md` §Optimización con cinco fases (O-1 a O-5), el `benchmark`
+skill, tres filas de decisión sobre rendimiento y batería, y tres entradas de referencia de
+fuente primaria.
+
+**Áreas.** `docs/roadmap.md`, `docs/decisions.md`, `docs/references.md`, `CLAUDE.md`,
+`app/CLAUDE.md`, `.claude/skills/benchmark/`.
+
+**Por qué.** Se pidió que la app sea eficiente, rápida y que no gaste batería, y se informó que
+hay Android Studio con emulador y acceso a un reloj físico.
+
+**Arquitectura.** ✅ Cumple. No se tocó código: las dos correcciones que aparecieron son
+decisiones abiertas, no cambios aplicados.
+
+**Medido.** Nada todavía, y ese es justamente el punto: **cero de los cuatro presupuestos de
+rendimiento tiene una medición detrás**. O-1 existe para arreglar eso antes que nada.
+
+Dos hallazgos contra fuente primaria, los dos heredados del template y ninguno decidido:
+
+- **R8 está desactivado** en release, y la guía oficial de Wear OS lo nombra como una de las dos
+  herramientas de rendimiento más efectivas, junto con baseline profiles.
+- **La complication refresca cada hora**; la guía oficial pide 2 horas o más, o desactivar el
+  refresco.
+
+Tercero: **Battery Historian ya no se mantiene** — es lo que recomienda casi toda la guía de
+terceros, así que sin registrarlo cada sesión futura lo iba a redescubrir.
+
+El acceso a un emulador y a un reloj parte la clase de bug que el repo no podía observar: el
+emulador cierra **correctitud** (trae el ICU y el SQLite de su nivel de API), el reloj físico
+cierra **rendimiento y batería**. Usar el emulador para medir rendimiento sería peor que no
+medir, porque da un número que parece real.
+
+---
+
 ## 2026-09-17 — Bootstrap del sistema de instrucciones
 
 **Qué.** Se creó el sistema completo de instrucciones para trabajo asistido por agentes:

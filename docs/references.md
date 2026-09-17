@@ -55,6 +55,54 @@ Si una de esas entradas va a sostener una decisión, leé la fuente antes.
 
   Produjo: D-030.
 
+- **[Rendimiento de Compose en Wear OS](https://developer.android.com/training/wearables/compose/performance)**
+  — *(fuente primaria, leída)*
+
+  **Qué establece:** *"Start with the most effective performance tool types: baseline profiles
+  (including startup profiles) and the R8 code optimizer."* Y el motivo de fondo: *"many Wear OS
+  devices have limited CPU and GPU resources compared to larger mobile devices"*.
+
+  **Qué contradice directamente:** `app/build.gradle.kts` tiene **R8 desactivado**
+  (`optimization { enable = false }`), heredado del template. La guía oficial lo nombra como una
+  de las dos palancas principales y nosotros la tenemos apagada sin haberlo decidido.
+
+  **Qué corrige de nuestro plan:** *"Run all final performance tests on a suite of physical Wear
+  OS devices"*. El emulator sirve para correctitud, no para cerrar el rendimiento.
+
+  **Sin aplicar:** startup profiles. La página advierte que aumentan el tamaño del APK, y ya
+  sumamos ~1–1,5 MB por ABI de SQLite nativo.
+
+  Produjo: D-042, D-043. Abrió dos decisiones abiertas (R8, startup profile).
+
+- **[Conservar energía y batería en Wear OS](https://developer.android.com/training/wearables/apps/power)**
+  — *(fuente primaria, leída)*
+
+  **Qué confirma:** que diferir descargas hasta que el reloj cargue no es una precaución sino la
+  guía (D-029). El acceso a red está clasificado *very high impact*, por encima de encender la
+  pantalla.
+
+  **Qué contradice:** *"Disable automatic refresh, or increase the refresh rate to 2 hours or
+  longer"* para tiles y complications. El manifest tiene hoy `UPDATE_PERIOD_SECONDS = 3600` —
+  una hora, la mitad del mínimo recomendado. También viene del template.
+
+  **Qué corrige de la intuición:** el gasto no está donde uno lo busca. Para esta app el orden
+  real es red, después pantalla, y recién después CPU — y nuestro trabajo de CPU dura
+  milisegundos.
+
+  **Sin aplicar:** *"Batch any related operations, to maximize the time that your app's process
+  is idle"*. Relevante para el instalador de packs cuando exista.
+
+  Produjo: confirma D-029; abrió la decisión del período de refresco.
+
+- **Battery Historian está sin mantenimiento** — **ASSUMPTION**, de resumen citando su propia
+  documentación, que recomienda *"system tracing, the Macrobenchmark power metric, or the Power
+  Profiler"*.
+
+  **Por qué esta entrada existe:** casi toda la guía de terceros sobre batería en Android empieza
+  por Battery Historian. Sin esta nota, cada sesión futura lo va a redescubrir y proponer.
+
+  Produjo: D-044.
+
 ## Datos lexicográficos
 
 - **[kaikki.org / wiktextract](https://kaikki.org/eswiktionary/index.html)** — *(fuente
@@ -157,4 +205,6 @@ Si una de esas entradas va a sostener una decisión, leé la fuente antes.
 | La compresión | la entrada de GoldenDict | No hay medición que respalde por-fila vs bloques |
 | Las fuentes de datos | la entrada de kaikki | Wikcionario ≠ Wiktionary inglés. CC BY-SA obliga atribución |
 | Cualquier cosa de Wear OS | `app/CLAUDE.md` | `glance-wear-tiles` está deprecado y sale primero al buscar |
+| Rendimiento o arranque | la página de rendimiento de Wear OS | R8 está apagado hoy; el emulador no mide rendimiento |
+| Batería | la página de energía de Wear OS | Battery Historian ya no se mantiene; el gasto está en la red, no en la CPU |
 | Descargas | los principios de Wear OS | "cargando **y** Wi-Fi", no solo Wi-Fi |
