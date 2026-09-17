@@ -119,7 +119,11 @@ def records():
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
             rendered_senses.append(
-                {"gloss": gloss, "examples": list(examples), "translations": list(sense_translations)}
+                {
+                    "gloss": gloss,
+                    "examples": list(examples),
+                    "translations": list(sense_translations),
+                }
             )
             translations.extend(sense_translations)
         yield Record(

@@ -19,6 +19,38 @@ Formato:
 
 ---
 
+## 2026-09-17 — Entorno Hatch para el tooling; el builder es independiente de la versión de Python
+
+**Qué.** `pyproject.toml` con tres entornos Hatch (default, matrix, lint), ruff configurado, y
+el tooling documentado en `tools/CLAUDE.md` y el README.
+
+**Áreas.** `pyproject.toml`, `tools/CLAUDE.md`, `README.md`, `.gitignore`, `docs/decisions.md`,
+y arreglos de lint en 10 archivos de `tools/`.
+
+**Por qué.** Se pidió definir el entorno con Hatch y documentarlo.
+
+**Arquitectura.** ✅ Cumple. **El gate sigue sin depender de Hatch** (D-046): `./gradlew check`
+corre `python3 -m unittest` a secas, para que un clone limpio se verifique solo. Hatch es la
+capa de desarrollo.
+
+**Medido.**
+
+- **El builder es independiente de la versión de Python.** Los 35 tests pasan idénticos bajo
+  Python 3.9 (Unicode 13.0) y 3.14 (Unicode 16.0), y `norm()` da salida byte a byte igual —
+  incluido `ab\u0870cd` → `ab cd`, el caso exacto que divergía antes de fijar el repertorio.
+  Esto cierra una incógnita que quedó abierta en la evaluación inicial: **Python 3.9 EOL no es
+  una restricción para correr el builder**, solo para regenerar el repertorio.
+- El guardián de `gen_repertoire.py` funciona: bajo Python 3.14 se niega con exit 1 y explica
+  por qué.
+- **Primera corrida de ruff: 89 hallazgos.** 69 eran una sola regla estilística (`UP031`,
+  f-strings en vez de `%`). Se desactivó con ese número como razón (D-049): un linter que grita
+  69 veces por una preferencia se apaga entero. Los 20 restantes se arreglaron, salvo dos
+  `noqa` con su motivo escrito en el código.
+- El formateador movió **8 líneas en 3 archivos**: el código ya estaba cerca de su estilo, así
+  que no hubo reformateo masivo de código que funciona.
+
+---
+
 ## 2026-09-17 — Fases de optimización; el emulador parte la clase de bug en dos
 
 **Qué.** Se agregó `docs/roadmap.md` §Optimización con cinco fases (O-1 a O-5), el `benchmark`

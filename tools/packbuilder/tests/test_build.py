@@ -14,10 +14,11 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import build  # noqa: E402
 import normalize  # noqa: E402
 import verify_pack  # noqa: E402
 from sources import toy  # noqa: E402
+
+import build  # noqa: E402
 
 BASE_META = {
     "pack_id": "test",
@@ -128,7 +129,9 @@ class StructureTest(BuilderTestCase):
     def test_fts_rowid_matches_entry_id(self):
         # fts_def es contentless: el rowid es lo unico que devuelve, asi que si no coincide con
         # entry.id la busqueda de texto libre apunta a entradas equivocadas.
-        db = self.build([record("correr", gloss="moverse rapidamente"), record("casa", gloss="edificio")])
+        db = self.build(
+            [record("correr", gloss="moverse rapidamente"), record("casa", gloss="edificio")]
+        )
         entry_id = db.execute("SELECT id FROM entry WHERE headword='correr'").fetchone()[0]
         rows = [row[0] for row in db.execute(
             "SELECT rowid FROM fts_def WHERE fts_def MATCH ?", ('"rapidamente"',))]
@@ -151,9 +154,8 @@ class FailureModeTest(BuilderTestCase):
             build.PackBuilder(self.path, metadata)
 
     def test_empty_pack_is_rejected(self):
-        with self.assertRaises(ValueError):
-            with build.PackBuilder(self.path, dict(BASE_META)):
-                pass
+        with self.assertRaises(ValueError), build.PackBuilder(self.path, dict(BASE_META)):
+            pass
 
     def test_failure_leaves_no_half_built_pack(self):
         # Un pack a medias es peor que ninguno: se abriria sin error y devolveria resultados
@@ -161,7 +163,9 @@ class FailureModeTest(BuilderTestCase):
         class Boom(Exception):
             pass
 
-        with self.assertRaises(Boom):
+        # noqa de SIM117 a proposito: assertRaises no es un peer del otro context manager,
+        # afirma SOBRE el. Combinarlos en un solo `with` los mostraria como iguales.
+        with self.assertRaises(Boom):  # noqa: SIM117
             with build.PackBuilder(self.path, dict(BASE_META)) as builder:
                 builder.add(record("correr"))
                 raise Boom()
@@ -176,7 +180,11 @@ class DeterminismTest(BuilderTestCase):
                 for item in toy.records():
                     builder.add(item)
             db = sqlite3.connect(path)
-            entries = list(db.execute("SELECT id, headword, norm, fuzzy, pos, rank, payload FROM entry ORDER BY id"))
+            entries = list(
+                db.execute(
+                    "SELECT id, headword, norm, fuzzy, pos, rank, payload FROM entry ORDER BY id"
+                )
+            )
             meta = dict(db.execute("SELECT key, value FROM meta"))
             meta.pop("built_at")  # unico campo que cambia entre corridas, a proposito
             db.close()

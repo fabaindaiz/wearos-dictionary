@@ -31,6 +31,13 @@ dict-data/src/androidTest/assets/*.db
 __pycache__/
 *.py[cod]
 
+# Entornos y cache de Hatch / ruff. pyproject.toml SI va al repo.
+.venv/
+.hatch/
+.ruff_cache/
+*.egg-info/
+dist/
+
 # --- Java ---
 *.class
 *.log
