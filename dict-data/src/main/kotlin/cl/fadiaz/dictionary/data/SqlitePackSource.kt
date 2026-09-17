@@ -88,9 +88,9 @@ class SqlitePackSource(
         val upper = PrefixRange.upperBound(normalized)
         val sql = if (upper != null) {
             "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" +
-                " ORDER BY norm, rank DESC LIMIT ?"
+                " ORDER BY norm, rank LIMIT ?"
         } else {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ? ORDER BY norm, rank DESC LIMIT ?"
+            "SELECT id, headword, pos FROM entry WHERE norm >= ? ORDER BY norm, rank LIMIT ?"
         }
 
         return pack.connection().prepare(sql).use { statement ->

@@ -123,13 +123,17 @@ rowids, que es exactamente lo que hace falta porque `fts_def.rowid == entry.id`.
 ## Índices
 
 ```sql
-CREATE INDEX idx_entry_norm  ON entry (norm, rank DESC, headword, pos);
+CREATE INDEX idx_entry_norm  ON entry (norm, rank, headword, pos);
 CREATE INDEX idx_entry_fuzzy ON entry (fuzzy, norm);
 ```
 
 `idx_entry_norm` es **de cobertura**: tiene las cuatro columnas que la lista de resultados
 necesita, así que SQLite responde la búsqueda por prefijo sin tocar la tabla y sin leer un solo
-payload. El orden `(norm, rank DESC)` además satisface el `ORDER BY` sin paso de sort. `id` no
+payload. El orden `(norm, rank)` además satisface el `ORDER BY` sin paso de sort — y es
+**ascendente** porque en `rank` menor es más común. Estuvo en `DESC` hasta `schema_version 3`:
+el síntoma solo se ve con un pack real, donde "escrit" devolvía *escrito / Participio de
+escribir* antes que el sustantivo. Si el índice y el `ORDER BY` se separan, SQLite agrega
+`USE TEMP B-TREE` y la consulta deja de ser de cobertura. `id` no
 se incluye porque, al ser alias de rowid, ya está en todo índice.
 
 `idx_entry_fuzzy` es deliberadamente angosto: incluye `norm` para poder reordenar los candidatos
@@ -148,7 +152,7 @@ latencia y nada más lo notaría.
 ```sql
 SELECT id, headword, pos FROM entry
 WHERE norm >= :q AND norm < :qUpper
-ORDER BY norm, rank DESC LIMIT 30;
+ORDER BY norm, rank LIMIT 30;
 ```
 
 `:qUpper` es el sucesor lexicográfico que calcula `PrefixRange.upperBound`. Se usa el rango
