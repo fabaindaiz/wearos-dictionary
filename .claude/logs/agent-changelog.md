@@ -1,0 +1,94 @@
+# Changelog de sesiones
+
+**Cada sesión escribe su entrada acá, arriba de todo, antes de ofrecer commits.**
+
+Existe porque **dos sesiones en paralelo no se ven entre sí**. Son baratas de correr al mismo
+tiempo, ninguna sabe de la otra, y el conflicto se descubre al compilar — o peor, al revisar.
+Con un agente vale más que con un equipo: las personas se cruzan en un pasillo, las sesiones no.
+
+Formato:
+
+```
+## AAAA-MM-DD — <título de una línea>
+**Qué.** Concretamente qué cambió.
+**Áreas.** Archivos o carpetas.
+**Por qué.** El motivo, incluyendo el pedido que lo originó.
+**Arquitectura.** ✅ Cumple · ⚠️ Desviación · REVISAR — y por qué.
+**Medido.** El número, si se afirmó algo.
+```
+
+---
+
+## 2026-09-17 — Bootstrap del sistema de instrucciones
+
+**Qué.** Se creó el sistema completo de instrucciones para trabajo asistido por agentes:
+`CLAUDE.md` raíz más tres anidados, cinco skills, `docs/decisions.md` con 41 filas,
+`docs/references.md`, `docs/roadmap.md`, `docs/architecture.md`, `.claude/settings.json`,
+`.editorconfig`, y `tools/audit_dictionary.py` cableado al gate.
+
+**Áreas.** Raíz, `.claude/`, `docs/`, `tools/`, `dict-core/CLAUDE.md`, `tools/CLAUDE.md`,
+`app/CLAUDE.md`.
+
+**Por qué.** Pedido explícito, siguiendo el método de `docs/agents/bootstrap-prompt.md`. El repo
+no tenía ninguna instrucción de agente: cada sesión re-derivaba las mismas restricciones y
+re-abría las mismas preguntas cerradas.
+
+**Arquitectura.** ✅ Cumple. No se cambió código de producto: solo dependencias, la auditoría y
+su cableado.
+
+Se agregó además un hook `PostToolUse` que corre los vectores compartidos cuando se edita
+`TextNormalizer.kt` o `normalize.py`, silencioso en éxito y bloqueante (exit 2) en fallo. Es la
+única regla que se automatizó: el gate completo tarda demasiado para correr en cada edición, y un
+hook lento se termina desactivando.
+
+**Medido.**
+- El hook se verificó introduciendo una divergencia real (`ß → sz` solo en Python): detecta y
+  nombra el caso exacto, `norm('Straße')` dio `'strasze'` en vez de `'strasse'`.
+- La auditoría **falló en su primera corrida**, con 4 fallas reales: tres punteros a un
+  changelog que todavía no existía y uno a `TextNormalizer.kt`, una abreviación
+  con puntos suspensivos que a un humano le parece correcta y es un puntero muerto.
+- **14 de 41 decisiones no tienen enforcer** y se pueden romper en silencio. Casi todas son de
+  plataforma Wear OS, cuyo código todavía no existe.
+- Gate: ~1m26s en frío, ~40s templado.
+
+---
+
+## 2026-09-17 — Dependencias a stable; se elimina play-services-wearable
+
+**Qué.** Bump de tiles 1.5.0→1.6.2, protolayout 1.3.0→1.4.2, wear compose 1.5.6→1.6.2,
+complications 1.2.1→1.3.0, activity-compose 1.8.0→1.13.0, compose-bom 2025.12.00→2026.09.00,
+guava 33.2.1→33.7.1. Se reservan en el catálogo las versiones de `:dict-data`.
+
+**Áreas.** `gradle/libs.versions.toml`, `app/build.gradle.kts`.
+
+**Por qué.** Se pidió confirmar qué dependencias se adaptan mejor al proyecto. Versiones
+verificadas contra Google Maven y Maven Central, no contra memoria.
+
+**Arquitectura.** ✅ Cumple. Todo stable: `sqlite 2.8.0-alpha01` y `work 2.12.0-rc01` existen y
+se descartaron por estar en el camino crítico (D-032).
+
+**Medido.** `play-services-wearable` estaba declarado desde el template con **cero usos** en el
+código. El bump de wear compose era el único con riesgo real —`MainActivity` usa APIs
+recientes— y compiló sin cambios. Gate en 42s.
+
+---
+
+## 2026-09-17 — Repertorio Unicode fijado; `:dict-core` portable
+
+**Qué.** La clasificación de code points pasó de `Character.getType`/`unicodedata.category` a una
+tabla propia generada. Toda API de JVM se movió a `PlatformJvm.kt`, con `ArchitectureTest` que
+lo hace verificable. `NORM_VERSION` 1→2.
+
+**Áreas.** `dict-core/`, `tools/unicode/`, `tools/packbuilder/normalize.py`.
+
+**Por qué.** Al investigar viabilidad de KMP apareció que `java.text.Normalizer` es solo JVM. Eso
+llevó a revisar el caso propio, donde el problema **ya existía sin KMP de por medio**.
+
+**Arquitectura.** ✅ Cumple. Es el mecanismo que sostiene el invariante central.
+
+**Medido.**
+- **14.773 code points** se clasificaban distinto entre Python 3.9 (Unicode 13) y Java 26
+  (Unicode 16), todos asignados después de Unicode 13.
+- **0 diferencias** en NFD y en `lowercase()` sobre los 133.730 code points del repertorio: es
+  la medición que permite seguir delegando esas dos operaciones en la plataforma.
+- La tabla son 1.010 rangos, 6,2 KB.
