@@ -40,11 +40,16 @@ una estaba mal y se corrigió sin gastar un emulador.
 **Lo que sigue sin medirse es el reloj físico.** El emulador cierra correctitud; rendimiento y
 batería, no (D-043).
 
+**Hecho en escritorio, sin tocar Android todavía: el pack real existe.** 146.194 entradas,
+72,2 MB, construido el 2026-09-17 desde el Wikcionario. Pasa `verify_pack.py` entero. Pero
+**nunca se abrió en un emulador ni en un reloj**: los 22 instrumentados siguen corriendo contra
+el toy pack de 53 KB, así que todo lo que el pack real podría romper a escala —planes de
+consulta, latencia, memoria al abrir— sigue sin observarse.
+
 **Sin empezar.** `:app` sigue siendo el template de Android Studio: nada de la app usa
 `:dict-data` todavía. **`SearchRepository` no existe** —estaba nombrado en este documento como si
-existiera— así que la capa que fusiona varios packs está entera por escribir. No existe ningún
-pack real, así que los umbrales del nivel tolerante (D-052) siguen siendo números elegidos a
-priori.
+existiera— así que la capa que fusiona varios packs está entera por escribir. Los umbrales del
+nivel tolerante (D-052) **ya se pueden** ajustar contra el pack real; siguen sin ajustarse.
 
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
 los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
@@ -61,7 +66,7 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 |---|---|---|---|
 | 1 | ~~**Correr los tests instrumentados** en el emulador~~ **HECHO 2026-09-17** | Convirtió el comportamiento en Android de ASSUMPTION a verificado: 20/20 en API 33 y API 37.0 | ~~Todo lo que toque el reloj~~ desbloqueado |
 | 2 | ~~**Decidir el join key entre packs**~~ **HECHO 2026-09-17** | Se midió y se decidió: `entry.uid`, columna aparte sin índice (D-055 a D-058). Ya está en el formato | ~~Composición, y el pack real~~ desbloqueado |
-| 3 | **Construir el pack real y pesarlo** | Es la medición que decide si el formato aguanta. Sin ella, cuatro presupuestos son intuiciones | O-2, O-3, O-4 y el alcance del producto |
+| 3 | ~~**Construir el pack real y pesarlo**~~ **HECHO 2026-09-17** | Se midió: **146.194 entradas, 72,2 MB**, un 44 % por encima del presupuesto blando de D-028. Y leerlo destapó el problema de orden de abajo | ~~O-3 y el alcance del producto~~ desbloqueados; O-2 y O-4 siguen esperando el reloj |
 
 ---
 
@@ -69,21 +74,62 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 
 ### Construir el pack real de español monolingüe
 
-**Estado.** Planificado. Es el item 3 de la lista de arriba y no depende de nadie: hay que medirlo.
+**Estado.** **Hecho** (2026-09-17). Existe `tools/packbuilder/sources/kaikki_es.py` y
+`build_es.py`; el pack pasa `verify_pack.py` entero.
 
-Podar el Wikcionario a definiciones y pesarlo. **Es el primer item por una razón: es la medición
-que decide si el formato aguanta.**
+**En qué quedó.** **146.194 entradas, 72.212.480 bytes (68,9 MiB)**, desde el dump de kaikki.org
+del 2026-09-15. Build: 53,9 s y 214 MB de RSS. El desglose por objeto vive en
+`docs/formato-pack.md` §Presupuestos, que es el documento que posee ese número.
 
-**Con qué choca.** Con D-028, el presupuesto blando de 50 MB, que hoy **no tiene ninguna
-medición detrás**. La sección Español del Wikcionario son 1.036.458 senses; el pack de juguete
-tiene 22 entradas. No hay nada entre esos dos puntos.
+**La medición que lo cerró, y lo que mató.** D-028 pedía ≤ 50 MB: **se pasa en un 44 %**. El
+46,3 % del pack es la tabla `form` (33,4 MB, 1.487.695 filas, 93,5 % conjugaciones de verbos),
+y eso no es grasa: es el precio de que "corriendo" encuentre "correr". La poda ya descarta el
+82,33 % de los registros del dump (D-065).
 
-**Qué hay ya a favor.** `PackBuilder` es de dos pasadas y trabaja en streaming, así que el
-tamaño de la fuente no es el problema. `verify_pack.py` valida el resultado. La compresión con
-diccionario compartido ya funciona end-to-end.
+**Qué sigue faltando.**
+- **El pack no está en ningún reloj ni emulador.** Pesarlo no es abrirlo en Android: los 22
+  tests instrumentados siguen corriendo contra el toy pack de 53 KB. Una regresión de plan de
+  consulta a 146.194 entradas no la ve nadie todavía.
+- **El orden de los resultados no sirve**, y es la entrada nueva de acá abajo.
+- Los umbrales del nivel tolerante (D-052) ya se **pueden** ajustar con este pack; no se hizo.
+- `pos` se guarda con el código de kaikki (`noun`, `verb`, `adj`). Mostrarlo en español es una
+  decisión de UI que nadie tomó.
+- 3.137 pares `(headword, pos)` aparecen más de una vez —`hacer` cinco veces, por etimología—.
+  Son entradas legítimas y `uid` las separa bien, pero la lista las muestra repetidas.
 
-**Qué hay que decidir antes.** Nada. Hay que medirlo. Todo lo demás de esta lista se decide
-mejor con ese número.
+### El orden de la lista de resultados
+
+**Estado.** Planificado, y es **lo más importante que destapó el pack real**. Lo que falta es
+una decisión de producto, no mecanismo.
+
+El prefijo ordena `(norm, rank)`: alfabético primero, y `rank` solo desempata **dentro de un
+mismo `norm`**. Con 22 entradas de juguete eso es invisible. Con 146.194, escribir tres letras
+entierra la palabra que buscabas:
+
+| Escribís | Entradas que empiezan así | En qué posición sale la palabra obvia |
+|---|---|---|
+| `per` | 782 | **`perro`: 619** |
+| `sal` | 496 | `salir`: 206 |
+| `dec` | 286 | `decir`: 154 |
+| `com` | 738 | `comer`: 131 |
+| `hac` | 230 | `hacer`: 17 |
+| `cas` | 334 | `casa`: 1 |
+
+La lista muestra 30. Cinco de esas seis búsquedas no contienen la palabra buscada.
+
+**Qué hay ya a favor.** El proxy de `rank` (D-067) **alcanza para arreglarlo**, y está medido:
+ordenando `(rank, norm)`, `perro` sube de la posición 619 a la **5**, y `hac`/`com` encabezan
+con `hacer` y `comer`. No hace falta una lista de frecuencia externa para el primer intento.
+
+**Con qué choca.** Con D-012 y el covering index. Hoy `(norm, rank, headword, pos)` sirve el
+rango **y** el orden sin sort. Ordenar por `rank` primero obliga a ordenar el rango entero: son
+782 filas para `per`, barato en un escritorio y **sin medir en un reloj**. Es exactamente el
+tipo de número que O-1 existe para dar, y O-1 está bloqueado afuera.
+
+**Qué hay que decidir antes.** Tres cosas, y son de producto:
+1. `(rank, norm)` puro, o híbrido (la coincidencia exacta primero, después por rank).
+2. Qué se hace con los 3.137 headwords repetidos: fundirlos en la lista o mostrarlos separados.
+3. Si el proxy se reemplaza alguna vez por frecuencia real, que suma una fuente y una licencia.
 
 ### Composición entre packs
 
@@ -222,14 +268,28 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
-**Estado.** Planificado. Espera el número de O-1 y el pack real.
+**Estado.** Planificado, y **ya no espera al pack real: está pesado**. 72,2 MB contra un
+presupuesto blando de 50 (D-028). Sigue esperando el número de latencia de O-1 para saber qué
+se puede sacrificar sin romper la búsqueda.
 
-Con el número real de O-1, recién ahí se deciden las opciones que hoy están abiertas:
-`detail=none` (achica el índice FTS, mata las consultas de frase), `columnsize=0` (achica más,
-rompe una comprobación de `verify_pack.py`), y compresión por fila vs bloques de 50–64 kB.
+**Dónde está el peso, medido** (desglose completo en `docs/formato-pack.md` §Presupuestos):
+
+| Objeto | MB | Parte | ¿Se puede recortar? |
+|---|---|---|---|
+| `form` | 33,4 | 46,3 % | **Es el 93,5 % conjugaciones de verbos.** Recortar acá es *falta una palabra* |
+| `entry` | 17,8 | 24,6 % | Los ejemplos de uso son el 17,9 % del texto y promedian 152 bytes. Bajar a 0 ejemplos es el único recorte grande que no pierde ninguna palabra — a cambio de perder el desambiguador de la acepción |
+| `fts_def_data` + `docsize` | 10,0 | 13,8 % | Acá viven `detail=none` y `columnsize=0` |
+| `idx_entry_norm` + `idx_entry_fuzzy` | 9,2 | 12,9 % | `idx_entry_fuzzy` es el precio del nivel tolerante |
+
+**El recorte obvio no existe.** Las tres opciones abiertas de `docs/decisions.md`
+(`detail=none`, `columnsize=0`, bloques vs fila) juntas atacan el 13,8 % del pack; el 46,3 %
+está en una tabla que no se puede tocar sin romper la búsqueda por forma flexionada. Si 72 MB
+resulta inaceptable, la palanca real es **de producto, no de formato**: cuántas de las 146.194
+entradas se envían. Las 32.305 de `pos = name` (apellidos y topónimos, 22 % de las entradas) son
+el primer candidato a mirar, y nadie decidió todavía si un diccionario de muñeca las quiere.
 
 **Con qué choca.** Con D-028 (50 MB blandos) y con las tres decisiones abiertas de
-`docs/decisions.md`. Ninguna se puede cerrar sin medir.
+`docs/decisions.md`. Ninguna se puede cerrar sin el número de latencia de O-1.
 
 **Por qué importa para la batería y no solo para el disco.** El pack se descarga por red, que es
 lo que más gasta. Cada MB que se ahorra es tiempo de radio que no se paga.
@@ -332,8 +392,11 @@ que diga **cuál** sección.
 **El arreglo.** Que el check imprima el conteo por `##` cuando falla o avisa. Es una función
 corta dentro de `check_root_budget`, sin dependencias nuevas.
 
-**Visto en.** 2026-09-17 (bootstrap, el archivo nació en 158) y 2026-09-17 (update a método v7,
-dos relocalizaciones seguidas).
+**Visto en.** 2026-09-17 (bootstrap, el archivo nació en 158), 2026-09-17 (update a método v7,
+dos relocalizaciones seguidas) y 2026-09-17 (el pack real: **`build_es.py` no se pudo agregar a
+§Comandos** y terminó solo en el `pack-workflow` skill). El tercer golpe es el primero donde el
+costo no es tiempo sino documentación que no se escribió: el archivo raíz ya no puede nombrar un
+comando nuevo.
 
 ---
 
