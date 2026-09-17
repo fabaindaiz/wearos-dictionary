@@ -46,7 +46,7 @@ algo ya venía fallando, nombralo para que no se presente como nuevo.
 
 ```bash
 ./gradlew :dict-data:devicePrecheck             # ¿hay con qué? Dice qué falta si no
-./gradlew :dict-data:connectedDebugAndroidTest  # los 16 tests
+./gradlew :dict-data:connectedDebugAndroidTest  # los 20 tests
 ```
 
 Necesitan un emulador o un reloj conectado, por eso están fuera del gate. `devicePrecheck`

@@ -101,12 +101,16 @@ class PlatformAssumptionsTest {
 
         // La inversa DEBE deduplicar: el rango matchea varias claves de la misma entrada
         // ("to", "to run", "to pass") y sin esto sale repetida.
+        // La cota se escribe como la calcula PrefixRange.upperBound: incrementando el ultimo
+        // code point del prefijo ("run" -> "ruo"), no agregandole una letra.
         assertEquals("la inversa devolvio la entrada repetida", 1, contar(connection,
             "SELECT COUNT(*) FROM entry e WHERE e.id IN" +
-                " (SELECT entry_id FROM trans WHERE norm >= 'run' AND norm < 'rus')"))
+                " (SELECT entry_id FROM trans WHERE norm >= 'run' AND norm < 'ruo')"))
 
+        // "kore" es el prefijo fuzzy de "correr", cuya clave es "korer". La cota es "korf":
+        // con "koref" el rango excluye justo "korer", porque 'r' > 'f'.
         assertTrue("vecindario tolerante", contar(connection,
-            "SELECT COUNT(*) FROM (SELECT id FROM entry WHERE fuzzy >= 'kore' AND fuzzy < 'koref'" +
+            "SELECT COUNT(*) FROM (SELECT id FROM entry WHERE fuzzy >= 'kore' AND fuzzy < 'korf'" +
                 " LIMIT 200)") > 0)
 
         // D-011: fts_def es contentless y su rowid ES entry.id. Si se desalinean, la busqueda
