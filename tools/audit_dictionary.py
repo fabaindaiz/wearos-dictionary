@@ -343,6 +343,45 @@ def check_forbidden_mirror(report):
                                 )
 
 
+def check_app_logic_is_jvm_testable(report):
+    """Regla: la logica de :app no importa android.*; lo de Android entra por parametro. (D-072)
+
+    `:app` estuvo sin un solo test hasta el 2026-09-17, y la razon no fue pereza: el ViewModel
+    extendia AndroidViewModel y construia el pack desde un Context, asi que **no habia forma de
+    correrlo en la JVM**. Retrofitear un test ahi costo un refactor, que es exactamente el precio
+    que este check existe para no volver a pagar.
+
+    Los archivos vigilados son los que tienen logica de verdad --el ViewModel y el resultado de
+    abrir un pack--, no las pantallas: un Composable es Android por definicion y se prueba en un
+    dispositivo. La frontera es `PackLoad`, que no conoce Android y por eso deja pasar un fake.
+    """
+    vigilados = (
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "presentation", "SearchViewModel.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "PackLoad.kt"),
+    )
+    for relativo in vigilados:
+        path = os.path.join(ROOT, relativo)
+        if not os.path.isfile(path):
+            report.failure(
+                "la logica de :app dejo de ser testeable en la JVM",
+                "%s no existe. Si se renombro, mover tambien este check: sin el, el proximo "
+                "ViewModel vuelve a nacer atado a un Context y sin tests." % relativo,
+            )
+            continue
+        with open(path, encoding="utf-8") as handle:
+            for number, line in enumerate(handle, start=1):
+                code = line.split("//")[0]
+                if re.match(r"\s*import\s+android\.", code):
+                    report.failure(
+                        "la logica de :app dejo de ser testeable en la JVM",
+                        "%s:%d importa android.*. Eso saca sus tests del gate y los manda al "
+                        "dispositivo: lo que necesite Android tiene que entrar por parametro, "
+                        "como `abrirPack` (D-072)." % (relativo, number),
+                    )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -438,6 +477,7 @@ CHECKS = [
     check_forbidden_dependency,
     check_shadowed_extensions,
     check_forbidden_mirror,
+    check_app_logic_is_jvm_testable,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,

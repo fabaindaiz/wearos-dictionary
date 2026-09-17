@@ -10,6 +10,28 @@ sale el pack.
 
 Las reglas de acá son preventivas: son caras de descubrir tarde.
 
+## El test va primero, y acá eso tiene una condición técnica
+
+`:app` nació sin tests y retrofitearlos costó un refactor. **La causa no fue pereza**:
+`SearchViewModel` extendía `AndroidViewModel` y construía el pack desde un `Context`, así que
+no había forma de correrlo en la JVM. Un test que necesita dispositivo no entra al gate, y uno
+que no entra al gate no se corre.
+
+De ahí la regla, que es D-072 y la enforcea el audit: **la lógica de `:app` no importa
+`android.*`**. Lo que necesita Android entra por parámetro —`SearchViewModel` recibe `abrirPack`,
+no un `Context`— y la frontera es `PackLoad`, un tipo sin Android por el que pasa un fake.
+
+Las **pantallas están fuera de la regla**: un Composable es Android por definición. Lo que se
+prueba de ellas se prueba en dispositivo, y hoy no se prueba nada.
+
+```sh
+./gradlew :app:testDebugUnitTest    # 17 tests, milisegundos, dentro del gate
+```
+
+Lo que cubren es lo que **no da error**: resultados de una consulta vieja pisando a la actual,
+una consulta por pulsación drenando la batería, la búsqueda muerta mientras el pack carga, y un
+pack a medio copiar —que se abre sin quejarse y devuelve menos palabras de las que tiene.
+
 ## Tiles y widgets no aceptan text input
 
 La búsqueda vive **obligatoriamente dentro de la app**. La superficie glanceable sirve para word
