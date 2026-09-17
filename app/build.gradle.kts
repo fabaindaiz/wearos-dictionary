@@ -36,8 +36,14 @@ android {
 }
 
 dependencies {
+    implementation(project(":dict-data"))
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)
+    implementation(libs.coroutines.android)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.wear.compose.navigation)
+    implementation(libs.wear.input)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling)

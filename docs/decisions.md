@@ -71,6 +71,7 @@ encuentra.
 | D-030 | `android:dataExtractionRules`, no `fullBackupContent` | Con `minSdk 33`, `fullBackupContent` es el mecanismo de Android 11 e inferiores. Sin esto, Drive sube decenas de MB regenerables | — *(lint ya reporta `DataExtractionRules`)* |
 | D-032 | Dependencias en stable; nada alpha ni rc en el camino crítico | `sqlite 2.8.0-alpha01` y `work 2.12.0-rc01` existen y no se usan | `gradle/libs.versions.toml` |
 | D-033 | Kotlin queda en 2.2.10, no sube a 2.4.20 | `:dict-core` tiene `allWarningsAsErrors`: un bump de compilador convierte cualquier warning nuevo en build roto, y nada del roadmap necesita 2.4 | `gradle/libs.versions.toml` |
+| D-071 | ⚠️ **Desviación consciente**: el pack viaja como asset del APK y se extrae a `filesDir/packs/` al primer arranque | Duplica el pack en disco —36,0 MB comprimidos en el APK más 69 MB extraídos— que es **el mismo costo por el que se descartó Room** (D-039). No hay alternativa técnica: `BundledSQLiteDriver.open()` recibe un *path* y un asset vive dentro del zip del APK. Se aceptó, con el costo sobre la mesa, para que instalar la app deje un diccionario funcionando sin `adb`. **Se revierte cuando exista el instalador**; mientras tanto `PackStore` prefiere siempre lo que ya haya en `filesDir/packs/` | `app/CLAUDE.md` *(no hay enforcer: es una decisión de producto con fecha de vencimiento)* |
 
 ## Capa de consulta
 

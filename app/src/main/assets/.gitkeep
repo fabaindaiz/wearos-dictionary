@@ -1,0 +1,6 @@
+Acá va el pack. No está en el repo: pesa decenas de MB y se reconstruye.
+
+    python3 tools/packbuilder/build_es.py <kaikki-es.jsonl> app/src/main/assets/es-def-wikc.db
+
+Sin él la app compila y arranca igual, y muestra "No hay ningún diccionario instalado."
+Ver app/CLAUDE.md y el skill pack-workflow.

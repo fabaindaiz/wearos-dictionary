@@ -57,3 +57,8 @@ replay_pid*
 # puede correr ./gradlew. La regla *.jar de mas arriba lo excluia, y por eso nunca estuvo
 # trackeado en este repo.
 !gradle/wrapper/gradle-wrapper.jar
+
+# El pack real pesa decenas de MB y se construye con tools/packbuilder/build_es.py.
+# No va al repo: se copia a mano o con el script del skill pack-workflow.
+app/src/main/assets/*.db
+!app/src/main/assets/.gitkeep
