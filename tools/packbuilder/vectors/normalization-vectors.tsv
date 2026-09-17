@@ -1,0 +1,108 @@
+# Vectores de normalizacion: el contrato compartido entre las dos implementaciones.
+#
+#   Python: tools/packbuilder/normalize.py
+#   Kotlin: dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/TextNormalizer.kt
+#
+# Los dos lados corren ESTE MISMO archivo como test. Si divergen, el indice del pack deja de
+# matchear lo que escribe el usuario y el sintoma es solo "falta esa palabra": ningun error.
+#
+# Formato, separado por tabs:  funcion <TAB> perfil <TAB> entrada <TAB> esperado
+# El perfil es "-" para las filas de norm. Las lineas que empiezan con # y las vacias se ignoran.
+# No se incluyen entradas con espacios al inicio o al final: no sobreviven a un editor que
+# recorta whitespace. Ese caso se cubre en los tests unitarios de cada lado.
+
+# --- norm: minusculas y diacriticos ---
+norm	-	Correr	correr
+norm	-	CORRER	correr
+norm	-	Ärztin	arztin
+norm	-	café	cafe
+norm	-	niño	nino
+norm	-	ÑOÑO	nono
+
+# --- norm: letras que NFD no descompone ---
+norm	-	Straße	strasse
+norm	-	ÆON	aeon
+norm	-	Œuvre	oeuvre
+norm	-	Ø	o
+norm	-	Þor	thor
+norm	-	Łódź	lodz
+norm	-	ĐANG	dang
+norm	-	ﬁn	fin
+
+# --- norm: la I turca baja a "i" + punto combinante, y el punto es un diacritico ---
+norm	-	İstanbul	istanbul
+
+# --- norm: separadores. La puntuacion se vuelve espacio, no se borra ---
+norm	-	self-made	self made
+norm	-	a.b	a b
+norm	-	Saint-Étienne	saint etienne
+norm	-	—	
+norm	-	!!!	
+
+# --- norm: digitos si, otras categorias numericas no ---
+norm	-	1000	1000
+norm	-	e²	e
+norm	-	COVID-19	covid 19
+
+# --- norm: repertorio Unicode fijado (el bug que motivo NORM_VERSION 2) ---
+# Estos code points se asignaron DESPUES de Unicode 13, el piso al que esta fijada la tabla.
+# Antes los clasificaba la plataforma y cada una respondia distinto: Java 26 (Unicode 16) los
+# trataba como letra y los conservaba, Python 3.9 (Unicode 13) los veia sin asignar y los volvia
+# separador. Ahora los dos consultan tools/unicode/repertoire.txt y responden separador.
+# Si alguien sube la version de Unicode sin pensarlo, estas lineas fallan en los dos lados.
+norm	-	abࡰcd	ab cd
+norm	-	ab𝼥cd	ab cd
+norm	-	ab𐻽cd	ab cd
+norm	-	ࡰ	
+# Y estos, asignados mucho antes del piso, tienen que seguir funcionando igual
+norm	-	abñcd	abncd
+norm	-	ab中cd	ab中cd
+
+# --- fuzzy es: seseo, b/v, y/ll, h muda, u muda ---
+fuzzy	es	llave	iabe
+fuzzy	es	yave	iabe
+fuzzy	es	vaca	baka
+fuzzy	es	baka	baka
+fuzzy	es	cerrar	serar
+fuzzy	es	serrar	serar
+fuzzy	es	hola	ola
+fuzzy	es	ola	ola
+fuzzy	es	queso	keso
+fuzzy	es	keso	keso
+fuzzy	es	guerra	gera
+fuzzy	es	zapato	sapato
+fuzzy	es	sapato	sapato
+fuzzy	es	examen	esamen
+fuzzy	es	correr	korer
+fuzzy	es	corer	korer
+# "ch" se protege antes de borrar la h y se restaura despues
+fuzzy	es	chico	chiko
+# limitacion conocida y aceptada: x de Mexico no colisiona con j
+fuzzy	es	México	mesiko
+fuzzy	es	Méjico	mejiko
+
+# --- fuzzy en: digrafos mudos, ph/f, c blanda, x/ks ---
+fuzzy	en	knight	nit
+fuzzy	en	night	nit
+fuzzy	en	phone	fone
+fuzzy	en	fone	fone
+fuzzy	en	queen	kwen
+fuzzy	en	city	siti
+fuzzy	en	box	boks
+fuzzy	en	back	bak
+fuzzy	en	write	rite
+
+# --- fuzzy de: sch/s, v/f, w/v, z/ts ---
+fuzzy	de	Schule	sule
+fuzzy	de	Straße	strase
+fuzzy	de	Vater	fater
+fuzzy	de	Wagen	vagen
+fuzzy	de	Zeit	tseit
+fuzzy	de	Theater	teater
+
+# --- fuzzy generic: solo colapso de letras repetidas ---
+fuzzy	generic	aabbcc	abc
+fuzzy	generic	Ärztin	arztin
+fuzzy	generic	correr	corer
+# los digitos no se colapsan: "1000" no debe volverse "10"
+fuzzy	generic	1000	1000
