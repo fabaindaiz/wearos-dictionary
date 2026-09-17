@@ -382,6 +382,44 @@ def check_app_logic_is_jvm_testable(report):
                     )
 
 
+def check_attribution_screen(report):
+    """Regla: la atribucion se muestra, y sale del pack. (D-031)
+
+    El contenido es CC BY-SA y mostrar de donde sale es la **condicion de uso de los datos**, no
+    una cortesia. Si alguien borra esa pantalla para ganar espacio, nada mas en el repo lo dice.
+
+    Este check es **barato y limitado a proposito**: comprueba que el archivo exista y que lo que
+    muestra venga de `meta`, no de una constante en el codigo. Que los pixeles aparezcan lo
+    prueba `PantallasTest.laAtribucionMuestraLaLicenciaYLaFuente`, que necesita un dispositivo y
+    por lo tanto no corre en el gate. Los dos juntos son el enforcer; ninguno solo alcanza.
+    """
+    pantalla = os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                            "presentation", "AttributionScreen.kt")
+    path = os.path.join(ROOT, pantalla)
+    if not os.path.isfile(path):
+        report.failure(
+            "la pantalla de atribucion desaparecio",
+            "%s no existe. El contenido es CC BY-SA: mostrar la fuente y la licencia es la "
+            "condicion de uso de los datos (D-031), no una pantalla opcional." % pantalla,
+        )
+        return
+    with open(path, encoding="utf-8") as handle:
+        texto = handle.read()
+    for parametro in ("attribution", "license"):
+        if parametro not in texto:
+            report.failure(
+                "la pantalla de atribucion dejo de mostrar %s" % parametro,
+                "%s no menciona `%s`. Tiene que salir de meta del pack abierto: un pack de otra "
+                "fuente trae otra licencia, y una constante en el codigo mostraria la "
+                "equivocada (D-031)." % (pantalla, parametro),
+            )
+    if "SearchViewModel" not in texto and "attribution:" not in texto:
+        report.advisory(
+            "la atribucion podria no venir del pack",
+            "%s no recibe la atribucion por parametro. Revisar que no sea una constante." % pantalla,
+        )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -478,6 +516,7 @@ CHECKS = [
     check_shadowed_extensions,
     check_forbidden_mirror,
     check_app_logic_is_jvm_testable,
+    check_attribution_screen,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,
