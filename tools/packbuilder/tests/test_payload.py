@@ -66,7 +66,8 @@ class CompressionTest(unittest.TestCase):
         )
 
     def test_round_trip(self):
-        text = payload.render("verb", [{"gloss": "moverse rapidamente", "translations": ["to run"]}])
+        senses = [{"gloss": "moverse rapidamente", "translations": ["to run"]}]
+        text = payload.render("verb", senses)
         blob = payload.compress(text, self.dictionary)
         self.assertEqual(text, payload.decompress(blob, self.dictionary))
 
@@ -83,7 +84,8 @@ class CompressionTest(unittest.TestCase):
         comportamiento: si una version futura de zlib empezara a detectarlo, queremos enterarnos
         antes de sacar la verificacion por hash pensando que es redundante.
         """
-        text = payload.render("verb", [{"gloss": "moverse rapidamente", "translations": ["to run"]}])
+        senses = [{"gloss": "moverse rapidamente", "translations": ["to run"]}]
+        text = payload.render("verb", senses)
         blob = payload.compress(text, self.dictionary)
         wrong = b"un diccionario que no corresponde en nada" * 3
 
@@ -121,9 +123,12 @@ class CompressionTest(unittest.TestCase):
     def test_dictionary_actually_helps(self):
         # Si el diccionario no mejorara nada, no valdria la pena el campo en meta ni la
         # complejidad del codec.
+        def sample(gloss, translation):
+            return payload.render("verb", [{"gloss": gloss, "translations": [translation]}])
+
         samples = [
-            payload.render("verb", [{"gloss": "dicho de una persona que se mueve", "translations": ["to move"]}]),
-            payload.render("verb", [{"gloss": "dicho de una persona que se queda", "translations": ["to stay"]}]),
+            sample("dicho de una persona que se mueve", "to move"),
+            sample("dicho de una persona que se queda", "to stay"),
         ] * 20
         dictionary = payload.build_dictionary(samples)
         text = payload.render(

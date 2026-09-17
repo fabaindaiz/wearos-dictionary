@@ -1,0 +1,119 @@
+# Entorno del tooling Python de este repo (tools/).
+#
+# QUE ES Y QUE NO ES
+#
+# El builder de packs NO tiene dependencias de terceros: usa solo la stdlib (sqlite3, zlib,
+# unicodedata). Eso es deliberado y se quiere conservar -- ver [tool.hatch.envs.default], que
+# declara `dependencies = []` a proposito.
+#
+# Hatch esta aca por tres cosas que la stdlib no da:
+#
+#   1. LA MATRIZ DE VERSIONES. Es el motivo principal. El builder escribe claves de busqueda que
+#      el reloj vuelve a calcular, asi que que se comporte igual en todo Python no es una
+#      comodidad: es el invariante central del proyecto. Medido en 2026-09-17: los 35 tests
+#      pasan identicos bajo Python 3.9 (Unicode 13.0) y 3.14 (Unicode 16.0), incluido el caso
+#      U+0870 que antes divergia.
+#   2. Un linter y un formateador, que el repo no tenia para Python.
+#   3. Alias de comandos, para que no haya dos formas de correr lo mismo.
+#
+# EL GATE NO DEPENDE DE HATCH. `./gradlew check` corre `python3 -m unittest` a secas, para que
+# un clone limpio funcione sin instalar nada. Hatch es la capa de desarrollo; si alguna vez el
+# gate empezara a necesitarlo, se perderia esa propiedad.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wearos-dictionary-tools"
+version = "0.1.0"
+description = "Pipeline que construye los packs de diccionario que consume la app Wear OS"
+readme = "tools/CLAUDE.md"
+license = { file = "LICENSE" }
+
+# 3.9 es el piso REAL y no una precaucion: tools/unicode/gen_repertoire.py exige exactamente
+# Unicode 13.0.0, que es lo que trae 3.9.x. Ver el encabezado de ese archivo.
+#
+# Pero eso solo aplica a REGENERAR la tabla. Construir packs y correr los tests funciona en
+# cualquier version moderna, y esta medido -- por eso el rango es abierto hacia arriba.
+requires-python = ">=3.9"
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/fabaindaiz/wearos-dictionary"
+
+[tool.hatch.build.targets.wheel]
+# No se publica como paquete: el tooling se corre desde el repo. Esto existe solo para que
+# hatchling tenga algo valido que mirar.
+packages = ["tools/packbuilder"]
+
+# --------------------------------------------------------------------------- entornos
+
+[tool.hatch.envs.default]
+# Vacio A PROPOSITO: el builder es stdlib pura y se quiere que siga siendolo.
+# Si alguna vez hay que agregar algo aca, pensalo dos veces y dejalo en docs/decisions.md.
+dependencies = []
+
+[tool.hatch.envs.default.scripts]
+# hatch corre los scripts desde la raiz del repo, pero los tests y los modulos del builder
+# se importan entre si por nombre, asi que hay que entrar al directorio.
+test = "cd tools/packbuilder && python -m unittest discover -s tests {args}"
+audit = "python tools/audit_dictionary.py"
+build-toy = "python tools/packbuilder/build_toy.py {args}"
+verify = "python tools/packbuilder/verify_pack.py {args}"
+gen-fixture = "python tools/packbuilder/gen_payload_fixture.py"
+gen-repertoire = "python tools/unicode/gen_repertoire.py"
+# Todo lo que corre el gate, mas la matriz de versiones.
+all = ["test", "audit"]
+
+[tool.hatch.envs.default.env-vars]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tool.hatch.envs.matrix]
+# EL ENTORNO QUE MAS IMPORTA.
+#
+# Corre la suite bajo varias versiones de Python para comprobar que el builder produce las
+# MISMAS claves en todas. Si una version futura cambiara el resultado de norm(), los vectores
+# compartidos fallan aca antes de que un pack mal indexado llegue a un reloj.
+template = "default"
+
+[[tool.hatch.envs.matrix.matrix]]
+python = ["3.9", "3.14"]
+
+[tool.hatch.envs.lint]
+detached = true
+dependencies = ["ruff==0.15.3"]
+
+[tool.hatch.envs.lint.scripts]
+check = ["ruff check tools", "ruff format --check tools"]
+fix = ["ruff check --fix tools", "ruff format tools"]
+
+# --------------------------------------------------------------------------- ruff
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = ["tools/unicode/repertoire.txt"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    # El codigo del builder esta escrito para Python 3.9: no se moderniza sintaxis todavia,
+    # porque 3.9 es el piso que exige gen_repertoire.py.
+    "UP006", "UP007", "UP035",
+
+    # UP031 (usar f-strings en vez de %) se apaga A PROPOSITO, con el numero que lo decidio:
+    # de los 89 hallazgos de la primera corrida de ruff, 69 eran esta regla. Un linter que
+    # grita 69 veces por una preferencia de estilo se termina apagando entero.
+    #
+    # Y hay un motivo tecnico ademas del ruido: gen_repertoire.py emite una plantilla de Kotlin
+    # llena de llaves, que en un f-string habria que duplicar una por una. El % es la
+    # herramienta correcta ahi, y el resto del builder es consistente con eso.
+    "UP031",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests importan modulos locales despues de manipular sys.path; es intencional.
+"tools/packbuilder/tests/*" = ["E402"]
+"tools/packbuilder/sources/*" = ["E402"]

@@ -90,7 +90,10 @@ def parse(text):
         elif tag == TAG_EXAMPLE:
             if senses:
                 senses[-1]["examples"].append(value)
-        elif tag == TAG_TRANSLATION:
+        # noqa de SIM102 a proposito: las tres ramas con guarda (P, E, T) tienen la misma
+        # forma. Aplanar solo esta la volveria asimetrica respecto de las otras dos, que ruff
+        # no marca, y el paralelismo es lo que hace legible la cadena.
+        elif tag == TAG_TRANSLATION:  # noqa: SIM102
             if senses:
                 senses[-1]["translations"].append(value)
         # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar

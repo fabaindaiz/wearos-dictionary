@@ -81,7 +81,8 @@ def check_mirror_declarations(report):
     if found == 0:
         report.failure(
             "ningun espejo declarado",
-            "se esperaban declaraciones 'ESTE ARCHIVO TIENE UN ESPEJO'; el check no esta viendo nada",
+            "se esperaban declaraciones 'ESTE ARCHIVO TIENE UN ESPEJO';"
+            " el check no esta viendo nada",
         )
 
 
@@ -311,7 +312,10 @@ def main():
         print("FALLA  %s: %s" % (rule, detail))
 
     print("")
-    print("%d checks, %d fallas, %d avisos" % (len(CHECKS), len(report.failures), len(report.advisories)))
+    print(
+        "%d checks, %d fallas, %d avisos"
+        % (len(CHECKS), len(report.failures), len(report.advisories))
+    )
     return 1 if report.failures else 0
 
 
