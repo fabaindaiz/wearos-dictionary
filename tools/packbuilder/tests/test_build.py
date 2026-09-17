@@ -62,6 +62,92 @@ class ToyPackTest(BuilderTestCase):
         self.assertEqual(0, verify_pack.verify(self.path), "verify_pack encontro fallas")
 
 
+class ToyPackFixtureTest(BuilderTestCase):
+    """El pack de juguete tiene que seguir ejercitando los cinco caminos de busqueda.
+
+    Los tests instrumentados de :dict-data (SqlitePackSourceTest) dependen del CONTENIDO de
+    este pack: que "coreer" no lo encuentre el prefijo, que "c" de mas resultados que el umbral
+    del nivel tolerante, que "bajo" tenga dos homografos. Nada de eso es obvio al editar
+    sources/toy.py.
+
+    Sin estos tests, romper una de esas suposiciones no se notaria hasta conectar un emulador,
+    y el fallo se leeria como un bug del codigo y no del fixture.
+    """
+
+    # Espejo de SqlitePackSource.FUZZY_TRIGGER. Si cambia alla, cambia aca.
+    FUZZY_TRIGGER = 5
+
+    def setUp(self):
+        super().setUp()
+        with build.PackBuilder(self.path, dict(toy.METADATA)) as builder:
+            for item in toy.records():
+                builder.add(item)
+        self.db = sqlite3.connect(self.path)
+
+    def prefijo(self, texto):
+        clave = normalize.norm(texto)
+        upper = clave[:-1] + chr(ord(clave[-1]) + 1)
+        return [
+            row[0]
+            for row in self.db.execute(
+                "SELECT headword FROM entry WHERE norm >= ? AND norm < ?"
+                " ORDER BY norm, rank DESC LIMIT 30",
+                (clave, upper),
+            )
+        ]
+
+    def test_un_prefijo_productivo_supera_el_umbral_del_nivel_tolerante(self):
+        # Si esto baja del umbral, el test que comprueba que el nivel tolerante NO se dispara
+        # pasaria por el motivo equivocado.
+        self.assertGreaterEqual(len(self.prefijo("c")), self.FUZZY_TRIGGER)
+
+    def test_hay_un_tipeo_que_solo_alcanza_el_nivel_tolerante(self):
+        # "coreer" no debe ser alcanzable por prefijo ni por forma flexionada: si lo fuera, el
+        # test del nivel tolerante no probaria el nivel tolerante.
+        self.assertEqual([], self.prefijo("coreer"))
+        formas = self.db.execute(
+            "SELECT COUNT(*) FROM form WHERE norm = ?", (normalize.norm("coreer"),)
+        ).fetchone()[0]
+        self.assertEqual(0, formas)
+        # Pero si tiene que caer en el vecindario fuzzy.
+        clave = normalize.fuzzy("coreer", "es")[:4]
+        upper = clave[:-1] + chr(ord(clave[-1]) + 1)
+        vecinos = self.db.execute(
+            "SELECT COUNT(*) FROM entry WHERE fuzzy >= ? AND fuzzy < ?", (clave, upper)
+        ).fetchone()[0]
+        self.assertGreater(vecinos, 0)
+
+    def test_hay_homografos_con_pos_distinto(self):
+        filas = self.db.execute(
+            "SELECT pos FROM entry WHERE headword = 'bajo' ORDER BY pos"
+        ).fetchall()
+        self.assertEqual([("adjective",), ("preposition",)], filas)
+
+    def test_hay_una_forma_flexionada_y_una_traduccion_conocidas(self):
+        self.assertGreater(
+            self.db.execute(
+                "SELECT COUNT(*) FROM form f JOIN entry e ON e.id = f.entry_id"
+                " WHERE f.norm = 'corriendo' AND e.headword = 'correr'"
+            ).fetchone()[0],
+            0,
+        )
+        self.assertGreater(
+            self.db.execute(
+                "SELECT COUNT(*) FROM trans t JOIN entry e ON e.id = t.entry_id"
+                " WHERE t.norm = 'run' AND e.headword = 'correr'"
+            ).fetchone()[0],
+            0,
+        )
+
+    def test_hay_una_palabra_buscable_solo_por_su_definicion(self):
+        filas = self.db.execute(
+            "SELECT e.headword FROM fts_def f JOIN entry e ON e.id = f.rowid"
+            " WHERE fts_def MATCH ?",
+            ('"rapidamente"',),
+        ).fetchall()
+        self.assertIn(("correr",), filas)
+
+
 class IngestTest(BuilderTestCase):
     def test_headword_that_normalizes_to_empty_is_skipped(self):
         # "!!!" no se puede buscar por ningun camino; entrar al pack solo ocuparia lugar.

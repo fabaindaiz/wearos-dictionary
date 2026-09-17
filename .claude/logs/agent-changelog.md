@@ -19,6 +19,35 @@ Formato:
 
 ---
 
+## 2026-09-17 — `SqlitePackSource`: la cascada de cinco consultas
+
+**Qué.** Implementación de `DictionarySource` sobre SQLite, con los cinco caminos de búsqueda y
+su cascada. 13 tests instrumentados, más `ToyPackFixtureTest` en Python que protege lo que esos
+tests suponen del contenido del pack de juguete.
+
+**Áreas.** `dict-data/`, `tools/packbuilder/tests/test_build.py`, `docs/decisions.md`,
+`docs/roadmap.md`.
+
+**Por qué.** Era el item más grande que quedaba sin bloquear.
+
+**Arquitectura.** ✅ Cumple. Cuatro decisiones nuevas (D-050 a D-053), una de ellas marcada
+explícitamente como **sin medición**: los umbrales del nivel tolerante son números elegidos a
+priori y con un pack de 22 entradas no significan nada.
+
+**Medido.**
+
+- **Una expectativa de test estaba mal y se encontró antes de gastar un emulador.** Simulé la
+  cascada en Python contra el mismo pack: 18 expectativas, 1 incorrecta. El prefijo `"cor"` da
+  **4** resultados y `FUZZY_TRIGGER` es 5, así que el test que afirmaba "el nivel tolerante no
+  se dispara" habría fallado. Se cambió a `"c"`, que da 7.
+- Eso motivó `ToyPackFixtureTest`: los tests instrumentados dependen del **contenido** del pack
+  de juguete, y romper esa suposición editando `toy.py` no se notaría hasta conectar un
+  dispositivo — y el fallo se leería como un bug del código, no del fixture.
+
+**Sigue sin correr en Android.** Los 13 tests compilan. Nada de esto se ejecutó.
+
+---
+
 ## 2026-09-17 — `:dict-data` y los tests que cierran las asunciones sobre Android
 
 **Qué.** Módulo Android `:dict-data` con `PackFile` (abre read-only, valida `schema_version`,
