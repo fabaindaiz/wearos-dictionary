@@ -370,6 +370,63 @@ def check_rules_without_enforcer(report):
     )
 
 
+def check_method_digest(report):
+    """Regla: el set del metodo no se edita en el lugar; cambiarlo es forkear. (D-059)
+
+    El header de docs/agents/prompt-*.md declara un digest: el sha256 del set concatenado en
+    orden de nombre, con los bloques yaml del propio header sacados, cortado a 12 hex. Si el
+    contenido no da ese numero, alguien edito el metodo sin forkear ni recalcular, y la proxima
+    comparacion entre dos copias va a concluir "identicas" descartando un lado en silencio.
+
+    Degrada seguro: si la carpeta no esta, no hay nada que comprobar.
+    """
+    folder = os.path.join(ROOT, "docs/agents")
+    if not os.path.isdir(folder):
+        return
+    names = sorted(n for n in os.listdir(folder) if n.startswith("prompt-") and n.endswith(".md"))
+    if not names:
+        return
+
+    declared = set()
+    body = []
+    for name in names:
+        text = read(os.path.join("docs/agents", name))
+        inside = False
+        for line in text.splitlines(True):
+            stripped = line.rstrip("\n")
+            if not inside and stripped == "```yaml":
+                inside = True
+                continue
+            if inside:
+                if stripped == "```":
+                    inside = False
+                    continue
+                match = re.match(r'\s*digest:\s*"([0-9a-f]+)"', stripped)
+                if match:
+                    declared.add(match.group(1))
+                continue
+            body.append(line)
+
+    if not declared:
+        report.failure("el set del metodo no declara digest", ", ".join(names))
+        return
+    if len(declared) > 1:
+        report.failure(
+            "los headers del set no coinciden",
+            "digests distintos entre archivos: %s" % ", ".join(sorted(declared)),
+        )
+        return
+
+    actual = hashlib.sha256("".join(body).encode("utf-8")).hexdigest()[:12]
+    expected = declared.pop()
+    if actual != expected:
+        report.failure(
+            "el set del metodo no corresponde a su digest",
+            "declara %s y el contenido da %s. Editar el metodo es forkear (D-059): "
+            "nueva id opaca en ancestry, forked_at, y recalcular el digest" % (expected, actual),
+        )
+
+
 CHECKS = [
     check_mirror_declarations,
     check_version_constants,
@@ -382,6 +439,7 @@ CHECKS = [
     check_shadowed_extensions,
     check_forbidden_mirror,
     check_root_budget,
+    check_method_digest,
     check_rules_without_enforcer,
 ]
 
