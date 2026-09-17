@@ -108,7 +108,7 @@ class PlatformAssumptionsTest {
         val plan = explicar(
             abierto.connection(),
             "SELECT id, headword, pos FROM entry WHERE norm >= 'cor' AND norm < 'cos'" +
-                " ORDER BY norm, rank DESC LIMIT 30",
+                " ORDER BY norm, rank LIMIT 30",
         )
         assertTrue("el prefijo no usa el covering index. Plan: $plan",
             plan.contains("COVERING INDEX idx_entry_norm"))
@@ -123,7 +123,7 @@ class PlatformAssumptionsTest {
 
         assertTrue("prefijo", contar(connection,
             "SELECT COUNT(*) FROM (SELECT id FROM entry WHERE norm >= 'corr' AND norm < 'cors'" +
-                " ORDER BY norm, rank DESC LIMIT 30)") > 0)
+                " ORDER BY norm, rank LIMIT 30)") > 0)
 
         assertTrue("forma flexionada", contar(connection,
             "SELECT COUNT(*) FROM form f JOIN entry e ON e.id = f.entry_id" +

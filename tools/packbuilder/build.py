@@ -25,7 +25,7 @@ import unicodedata
 import normalize
 import payload as payload_codec
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Receta con la que se calcula entry.uid, la identidad LOGICA de una entrada (D-055).
 #
