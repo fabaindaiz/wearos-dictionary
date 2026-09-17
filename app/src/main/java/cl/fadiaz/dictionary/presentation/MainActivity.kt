@@ -5,8 +5,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import cl.fadiaz.dictionary.data.PackStore
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.wear.compose.material3.AppScaffold
@@ -31,7 +35,17 @@ fun DictionaryApp() {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
-            val viewModel: SearchViewModel = viewModel()
+            // El ViewModel recibe como abrir el pack en vez de construirlo: es lo unico que
+            // necesitaba de Android, y sacarlo lo deja testeable en la JVM (SearchViewModelTest).
+            // El applicationContext y no el de la Activity: el pack sobrevive a una rotacion.
+            val context = LocalContext.current.applicationContext
+            val viewModel: SearchViewModel = viewModel(
+                factory = viewModelFactory {
+                    initializer {
+                        SearchViewModel { onExtracting -> PackStore.open(context, onExtracting) }
+                    }
+                },
+            )
             val state by viewModel.state.collectAsStateWithLifecycle()
 
             SwipeDismissableNavHost(
