@@ -258,6 +258,90 @@ class FailureModeTest(BuilderTestCase):
         self.assertFalse(os.path.exists(self.path), "quedo un pack a medio construir")
 
 
+class LogicalIdentityTest(BuilderTestCase):
+    """entry.uid: la identidad que sobrevive a reconstruir el pack (D-055).
+
+    Es lo que hace posible que un pack auxiliar le sume informacion a una entrada de este. Si se
+    rompe, el auxiliar apunta a la entrada equivocada y no hay ningun error: se muestran los
+    sinonimos de otra palabra.
+    """
+
+    def _uids(self, records):
+        db = self.build(records)
+        out = {row[0]: (row[1], row[2]) for row in db.execute("SELECT headword, uid, id FROM entry")}
+        db.close()
+        return out
+
+    def test_el_uid_sobrevive_a_que_la_fuente_agregue_una_palabra_en_el_medio(self):
+        # El caso que motiva toda la decision: entry.id se corre, entry.uid no.
+        antes = self._uids([record("alfa"), record("gamma")])
+        self.setUp()
+        despues = self._uids([record("alfa"), record("beta"), record("gamma")])
+
+        self.assertNotEqual(
+            antes["gamma"][1], despues["gamma"][1], "entry.id deberia haberse corrido"
+        )
+        self.assertEqual(antes["alfa"][0], despues["alfa"][0])
+        self.assertEqual(
+            antes["gamma"][0], despues["gamma"][0], "entry.uid cambio al reconstruir el pack"
+        )
+
+    def test_el_uid_no_depende_de_la_normalizacion(self):
+        # Va sobre el headword crudo: subir NORM_VERSION no puede invalidar los packs auxiliares.
+        # Efecto colateral buscado: "arbol" y "árbol" normalizan igual y son entradas distintas.
+        uids = self._uids([record("arbol"), record("árbol")])
+        self.assertNotEqual(uids["arbol"][0], uids["árbol"][0])
+
+    def test_los_homografos_con_pos_distinto_tienen_uid_distinto(self):
+        uids = self._uids(
+            [record("bajo", part_of_speech="adjective"), record("bajo", part_of_speech="preposition")]
+        )
+        db = self.build(
+            [record("bajo", part_of_speech="adjective"), record("bajo", part_of_speech="preposition")]
+        )
+        distintos = db.execute("SELECT COUNT(DISTINCT uid) FROM entry").fetchone()[0]
+        db.close()
+        self.assertEqual(distintos, 2)
+        self.assertEqual(len(uids), 1)  # el dict los pisa: comparten headword, no uid
+
+    def test_dos_entradas_con_la_misma_identidad_hacen_fallar_el_build(self):
+        # Fundirlas seria peor: cualquier desempate por orden de insercion rompe justo la
+        # estabilidad entre rebuilds que el uid existe para dar.
+        with self.assertRaises(ValueError) as caught:
+            self.build([record("banco", part_of_speech="noun"), record("banco", part_of_speech="noun")])
+        self.assertIn("sense_key", str(caught.exception))
+        self.assertFalse(os.path.exists(self.path), "quedo un pack a medio construir")
+
+    def test_sense_key_separa_dos_entradas_que_de_otro_modo_colisionarian(self):
+        db = self.build(
+            [
+                record("banco", part_of_speech="noun", sense_key="et1"),
+                record("banco", part_of_speech="noun", sense_key="et2"),
+            ]
+        )
+        self.assertEqual(db.execute("SELECT COUNT(DISTINCT uid) FROM entry").fetchone()[0], 2)
+        db.close()
+
+    def test_el_uid_no_depende_del_pack_que_lo_escribe(self):
+        # Dos packs distintos del mismo idioma tienen que darle el mismo uid a la misma palabra:
+        # si dependiera del pack_id, ninguna composicion seria posible.
+        base = dict(BASE_META)
+        otro = dict(BASE_META, pack_id="otro", name="Otro")
+        primero = self.build([record("correr")])
+        uid_primero = primero.execute("SELECT uid FROM entry").fetchone()[0]
+        primero.close()
+        self.setUp()
+        segundo = self.build([record("correr")], metadata=otro)
+        uid_segundo = segundo.execute("SELECT uid FROM entry").fetchone()[0]
+        segundo.close()
+        self.assertEqual(uid_primero, uid_segundo)
+
+    def test_un_pack_sin_lang_src_se_rechaza(self):
+        sin_idioma = {k: v for k, v in BASE_META.items() if k != "lang_src"}
+        with self.assertRaises(ValueError):
+            self.build([record("correr")], metadata=sin_idioma)
+
+
 class DeterminismTest(BuilderTestCase):
     def test_two_builds_produce_the_same_data(self):
         # Determinista para que reconstruir un pack sin cambios no genere una descarga nueva.
@@ -268,7 +352,8 @@ class DeterminismTest(BuilderTestCase):
             db = sqlite3.connect(path)
             entries = list(
                 db.execute(
-                    "SELECT id, headword, norm, fuzzy, pos, rank, payload FROM entry ORDER BY id"
+                    "SELECT id, uid, headword, norm, fuzzy, pos, rank, payload"
+                    " FROM entry ORDER BY id"
                 )
             )
             meta = dict(db.execute("SELECT key, value FROM meta"))

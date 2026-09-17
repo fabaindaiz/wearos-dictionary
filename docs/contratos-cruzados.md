@@ -112,7 +112,33 @@ muestra resultados que no tienen nada que ver con lo buscado.
 Consecuencia asumida: sin `snippet()` ni `highlight()`. El resaltado se hace en Kotlin sobre el
 payload descomprimido de los pocos resultados que se muestran.
 
-## 5. Portabilidad de `:dict-core`
+## 5. La identidad de una entrada entre packs
+
+| | |
+|---|---|
+| **Archivos** | `tools/packbuilder/build.py` → `entry.uid` ⟷ el pack auxiliar que lo referencia |
+| **Acuerdo** | `entry.uid` identifica la misma palabra en dos packs distintos, y sobrevive a reconstruir el base |
+| **Protección** | `verify_pack.py` (unicidad + `meta.uid_recipe`) y `check_forbidden_mirror` en `audit_dictionary.py` |
+
+Un pack auxiliar —sinónimos, traducciones— le suma información a una entrada del pack base
+apuntándola por `uid`. Las dos formas de romperlo no producen error:
+
+- **`uid` repetido**: el auxiliar le pega a dos entradas a la vez y una muestra contenido ajeno.
+- **Otra receta de `uid`**: el auxiliar apunta a la entrada equivocada, o a ninguna. Por eso la
+  receta viaja en `meta.uid_recipe` y se compara.
+
+**Por qué esto no es un contrato entre dos lenguajes, y hay que mantenerlo así.** `uid` lo calcula
+únicamente el builder; la app lo lee de la columna. Mientras haya una sola implementación no
+puede divergir, y no hacen falta vectores compartidos. El día que alguien escriba un
+`TextNormalizer.uid()` —por conveniencia, para no leer la fila— vuelve la clase de bug del §1
+entera, y esta vez sin vectores que la atrapen. `audit_dictionary.py` rompe el build si aparece.
+
+**Por qué el build falla ante una colisión en vez de resolverla.** Cualquier criterio de desempate
+que dependa del orden de inserción rompe justo la estabilidad entre rebuilds que `uid` existe para
+dar: el mismo diccionario, reconstruido, repartiría las identidades distinto. La fuente entrega
+`sense_key` para separar homógrafos con mismo headword y mismo pos.
+
+## 6. Portabilidad de `:dict-core`
 
 | | |
 |---|---|
@@ -130,5 +156,5 @@ nunca se habría ejecutado, funcionando bien hoy y fallando recién al compilar 
 
 ## Cómo verificar todo de una vez
 
-`./gradlew check` corre los cinco mecanismos de arriba. Los comandos sueltos están en
+`./gradlew check` corre los seis mecanismos de arriba. Los comandos sueltos están en
 [CLAUDE.md](../CLAUDE.md); no se repiten acá para que no haya dos listas que diverjan.

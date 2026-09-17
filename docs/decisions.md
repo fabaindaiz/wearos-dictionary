@@ -36,6 +36,10 @@ encuentra.
 | D-014 | `trans` indexa la frase completa **y** cada palabra, con tope `TRANS_MAX_PER_KEY = 50` | Sin tokenizar, buscar "run" no encuentra "to run". Sin tope, "to" apuntaría a decenas de miles de entradas. Se topea en vez de descartar: buscar "to" sigue devolviendo algo útil | `test_build.py` |
 | D-016 | Los índices se crean al final, sobre las tablas ya pobladas | Mantenerlos durante la ingesta es mucho más lento | `test_build.py` (no queda staging) |
 | D-028 | Presupuesto **blando** de 50 MB por pack | Es un objetivo, no un límite duro. **Todavía sin medición**: el pack real de español son 1.036.458 senses y nunca se construyó | — *(lo mide `pack-workflow`)* |
+| D-055 | La clave de join entre packs es **`entry.uid`**, una columna aparte: `entry.id` sigue siendo el rowid secuencial | Medido sobre 200.000 entradas sintéticas: hacer que `entry.id` *fuera* el hash cuesta **+35,2 % de tamaño**, casi todo en `fts_def_data` (10,39 → 28,35 MB) porque FTS5 guarda **deltas** de rowid. La columna aparte cuesta **+2,3 %**. `(norm, pos)` costaría 0 pero funde homógrafos del mismo `pos` en silencio, y degenera con las entradas sin `pos` | `verify_pack.py` (unicidad + receta) + `PlatformAssumptionsTest` + `LogicalIdentityTest` |
+| D-056 | `uid` **no lleva índice** en el pack base | El join ocurre al **abrir** una entrada, cuando la fila ya se leyó entera, no en la lista de resultados —que la sirve el covering index sin tocar la tabla (D-012). El índice costaría +4,5 puntos porcentuales por un camino que nadie recorre. El índice vive en el pack auxiliar, que sí busca por `uid` | `PlatformAssumptionsTest.elUidEsUnicoYNoLlevaIndice` |
+| D-057 | `uid` lo calcula **solo el builder**, en Python; la app lo lee y nunca lo recalcula | A diferencia de `norm()`/`fuzzy()` no es un contrato espejado entre dos lenguajes, así que no puede divergir (D-005). Agregar un `TextNormalizer.uid()` reintroduciría esa clase de bug entera | `audit_dictionary.py` → `check_forbidden_mirror` |
+| D-058 | Dos entradas con la misma identidad lógica **hacen fallar el build**; no se funden ni se desempatan | Cualquier desempate que dependa del orden de inserción rompe justo la estabilidad entre rebuilds que `uid` existe para dar. La fuente entrega `sense_key` para separarlas | `LogicalIdentityTest` |
 
 ## Compresión del payload
 
@@ -129,7 +133,7 @@ Están acá para que no se propongan de nuevo. Son de las filas más útiles del
 
 | Tema | Qué hay que decidir | Por qué bloquea |
 |---|---|---|
-| Join key entre packs | `(norm, pos)` laxo, o `entry.id` como hash estable | Condiciona el formato del pack base, que es el primero que se va a construir. Ver `docs/roadmap.md` |
+| Granularidad de la composición | ¿El pack auxiliar se une a la **entrada** o a la **acepción**? Hoy `uid` es por entrada (D-055) | Un sinónimo es de una acepción, no de la palabra. Un join por acepción necesita un ordinal estable dentro de la entrada, y el ordinal se corre cuando la fuente agrega una acepción. **ASSUMPTION**: los senses de kaikki.org no traen id estable — se verifica al construir el pack real |
 | `detail=none` en `fts_def` | Achica el índice pero mata las consultas de frase | Con definiciones como contenido principal, buscar frases dentro puede ser *la* feature |
 | `columnsize=0` en `fts_def` | Achica más, pero `SELECT COUNT(*)` pasa a dar error | Rompería una comprobación de `verify_pack.py` |
 | Compresión por fila vs bloques de 50–64 kB | El dominio usa bloques (dictzip); nosotros por fila | Sin medición que lo decida a escala real |

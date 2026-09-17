@@ -35,6 +35,7 @@ REQUIRED_META = (
     "payload_dict",
     "payload_dict_sha256",
     "schema_version",
+    "uid_recipe",
 )
 
 REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
@@ -142,6 +143,45 @@ def verify(path):
             mismatched_fuzzy += 1
     report.check(mismatched_norm == 0, "entry.norm == norm(headword) en todas las filas")
     report.check(mismatched_fuzzy == 0, "entry.fuzzy == fuzzy(headword) en todas las filas")
+
+    print("\n[identidad logica: entry.uid]")
+    # entry.uid es la clave con la que un pack auxiliar le suma informacion a estas entradas
+    # (D-055). Si se repite, el auxiliar apunta a dos entradas a la vez; si no coincide con la
+    # receta, apunta a la equivocada. Ninguna de las dos cosas produce un error en el reloj.
+    report.check(
+        meta.get("uid_recipe") == build.UID_RECIPE,
+        "meta.uid_recipe es %s" % build.UID_RECIPE,
+    )
+    report.check(
+        db.execute("SELECT COUNT(*) FROM entry WHERE uid IS NULL OR uid <= 0").fetchone()[0] == 0,
+        "ninguna entrada tiene uid nulo o no positivo",
+    )
+    distinct_uid = db.execute("SELECT COUNT(DISTINCT uid) FROM entry").fetchone()[0]
+    report.check(distinct_uid == entry_count, "entry.uid es unico en las %d entradas" % entry_count)
+
+    # Se recalcula la receta solo donde se puede: el sense_key que desambigua homografos no se
+    # guarda en el pack, asi que las entradas que comparten (headword, pos) se saltean. En un
+    # pack real son una minoria y el resto queda cubierto.
+    lang = meta.get("lang_src", "")
+    ambiguous = {
+        row[0]
+        for row in db.execute(
+            "SELECT headword || '\x1f' || COALESCE(pos, '') FROM entry"
+            " GROUP BY headword, pos HAVING COUNT(*) > 1"
+        )
+    }
+    mismatched_uid = 0
+    checked_uid = 0
+    for row in db.execute("SELECT headword, pos, uid FROM entry"):
+        if (row["headword"] + "\x1f" + (row["pos"] or "")) in ambiguous:
+            continue
+        checked_uid += 1
+        if build.stable_uid(lang, row["headword"], row["pos"]) != row["uid"]:
+            mismatched_uid += 1
+    report.check(
+        mismatched_uid == 0,
+        "entry.uid == stable_uid(headword, pos) en las %d filas sin homografo exacto" % checked_uid,
+    )
 
     print("\n[payloads]")
     dictionary = bytes.fromhex(meta.get("payload_dict", ""))
