@@ -90,6 +90,15 @@ encuentra.
 | D-022 | `local.properties` no se trackea | Contiene la ruta absoluta al SDK de una máquina concreta | `.gitignore` |
 | D-035 | Cada commit queda verde por sí solo; se parten por dependencia, no por tamaño | Un historial no bisecable no sirve para encontrar cuándo se rompió algo | `commit` skill (verificación por worktree) |
 
+## Tooling de Python
+
+| # | Decisión | Por qué | Enforced in |
+|---|---|---|---|
+| D-045 | El builder no tiene dependencias de terceros: solo stdlib | Un pipeline que solo necesita `python3` se puede correr desde cualquier clone sin preparar nada | `pyproject.toml` → `dependencies = []` |
+| D-046 | **El gate no depende de Hatch.** `./gradlew check` corre `python3 -m unittest` a secas | Si el gate necesitara Hatch, un clone limpio dejaría de verificarse solo. Hatch es la capa de desarrollo | `tools/build.gradle.kts` |
+| D-047 | La matriz de versiones de Python es la razón principal de tener Hatch | El builder escribe claves que el reloj recalcula: que dé lo mismo en todo Python **es** el invariante central. Medido: 35 tests idénticos bajo Unicode 13.0 y 16.0 | `hatch run matrix:test` |
+| D-048 | `requires-python = ">=3.9"`, abierto hacia arriba | 3.9 es el piso solo para **regenerar** el repertorio (exige Unicode 13.0.0). Construir packs funciona en cualquier versión moderna, y está medido | `pyproject.toml`; el guardián de `gen_repertoire.py` |
+
 ## Decisiones descartadas, con el número que las descartó
 
 Están acá para que no se propongan de nuevo. Son de las filas más útiles del archivo.
@@ -102,6 +111,7 @@ Están acá para que no se propongan de nuevo. Son de las filas más útiles del
 | D-039 | **Room para leer los packs** | `createFromFile()` copia el archivo al directorio de Room, duplicando decenas de MB. Room se usa solo para los datos de la app |
 | D-040 | **OkHttp** para descargar packs | `HttpURLConnection` hace `Range` y progreso sin sumar un byte al APK, y ya se agrega ~1–1,5 MB por ABI de SQLite nativo. Se revisa si reintentos o TLS resultan insuficientes |
 | D-041 | **Extraer un parser de SQL** de `schema.sql` para separar los índices | Un comentario con un punto y coma rompía el split. Se resolvió con dos archivos, `schema.sql` e `indexes.sql`. Un parser de SQL hecho a mano se rompe así de nuevo |
+| D-049 | **La regla `UP031` de ruff** (usar f-strings en vez de `%`) | De los **89 hallazgos de la primera corrida, 69 eran esa sola regla**. Un linter que grita 69 veces por una preferencia se termina apagando entero. Además hay un motivo técnico: `gen_repertoire.py` emite una plantilla de Kotlin llena de llaves, que en un f-string habría que duplicar una por una |
 
 ## Decisiones abiertas
 

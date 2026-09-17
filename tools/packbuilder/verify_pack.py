@@ -14,9 +14,10 @@ import os
 import sqlite3
 import sys
 
-import build
 import normalize
 import payload as payload_codec
+
+import build
 
 REQUIRED_META = (
     "attribution",
@@ -215,7 +216,8 @@ def _verify_query_plans(db, report):
     plan = " ".join(
         row[-1]
         for row in db.execute(
-            "EXPLAIN QUERY PLAN SELECT id, norm FROM entry WHERE fuzzy >= ? AND fuzzy < ? LIMIT 200",
+            "EXPLAIN QUERY PLAN SELECT id, norm FROM entry"
+            " WHERE fuzzy >= ? AND fuzzy < ? LIMIT 200",
             ("kor", "kos"),
         )
     )
@@ -281,7 +283,10 @@ def _verify_search_paths(db, report, profile):
         "SELECT COUNT(*) FROM (SELECT id FROM entry WHERE fuzzy >= ? AND fuzzy < ? LIMIT 200)",
         (fuzzy_prefix, _upper_bound(fuzzy_prefix)),
     ).fetchone()[0]
-    report.check(found > 0, "el vecindario tolerante de %r trae candidatos (%d)" % (fuzzy_prefix, found))
+    report.check(
+        found > 0,
+        "el vecindario tolerante de %r trae candidatos (%d)" % (fuzzy_prefix, found),
+    )
 
     # Una palabra que exista en el texto indexado, tomada del propio pack.
     sample = db.execute("SELECT id, payload FROM entry ORDER BY rank LIMIT 1").fetchone()

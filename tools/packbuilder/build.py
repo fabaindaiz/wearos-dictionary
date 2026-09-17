@@ -128,7 +128,8 @@ class PackBuilder:
         self.count = 0
         self._sample = []
         self._sampled = 0
-        self._random = random.Random(0)  # determinista: dos builds del mismo input dan el mismo pack
+        # Determinista: dos builds del mismo input dan el mismo pack.
+        self._random = random.Random(0)
 
     def add(self, record):
         norm_key = normalize.norm(record.headword)
@@ -214,7 +215,9 @@ class PackBuilder:
         # cargar el staging completo en memoria.
         read = self.connection.cursor()
         write = self.connection.cursor()
-        read.execute("SELECT id, headword, norm, fuzzy, pos, rank, body, fts_body FROM staging ORDER BY id")
+        read.execute(
+            "SELECT id, headword, norm, fuzzy, pos, rank, body, fts_body FROM staging ORDER BY id"
+        )
         for row in read:
             entry_id, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
             write.execute(

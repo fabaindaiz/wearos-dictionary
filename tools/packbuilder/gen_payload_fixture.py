@@ -58,7 +58,7 @@ def main():
         "# java.util.zip descomprime exactamente lo que zlib comprimio, con el mismo diccionario",
         "# precargado. Sin esto, que los dos lados hagan 'deflate' es un supuesto sin verificar.",
         "#",
-        "# Formato:  descripcion <TAB> payload_comprimido_hex <TAB> texto_esperado_con_\\n_escapado",
+        "# Formato:  descripcion <TAB> hex_comprimido <TAB> texto_esperado_con_\\n_escapado",
         "# Las dos primeras lineas de datos son el diccionario precargado (DICTIONARY) y su",
         "# sha256 (DICTIONARY_SHA256), para comprobar que los dos lados lo hashean igual.",
         "",

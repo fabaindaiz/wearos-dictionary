@@ -10,8 +10,9 @@ nada (salvo meta.built_at).
 import os
 import sys
 
-from build import PackBuilder
 from sources import toy
+
+from build import PackBuilder
 
 DEFAULT_OUTPUT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

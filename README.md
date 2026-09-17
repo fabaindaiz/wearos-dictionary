@@ -34,6 +34,18 @@ python3 tools/packbuilder/verify_pack.py <pack>   # invariantes de un pack real
 
 El pack de juguete no está en el repo: es determinista y se regenera con el comando de arriba.
 
+**El gate no necesita nada instalado más allá de `python3`** — a propósito, para que un clone
+funcione solo. Para trabajar en el pipeline de packs hay un entorno Hatch opcional
+(`pyproject.toml`) que agrega linter y, sobre todo, la matriz de versiones de Python:
+
+```sh
+hatch run test           # los tests del builder
+hatch run matrix:test    # los mismos, bajo cada versión de Python soportada
+hatch run lint:check     # ruff
+```
+
+Está documentado en [tools/CLAUDE.md](tools/CLAUDE.md).
+
 ## Estructura
 
 ```
