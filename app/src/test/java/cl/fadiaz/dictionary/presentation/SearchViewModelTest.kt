@@ -24,7 +24,8 @@ import kotlinx.coroutines.test.setMain
  * una consulta por pulsacion drenando la bateria, y la busqueda muerta hasta que el usuario
  * borra y vuelve a escribir.
  *
- * Son de CARACTERIZACION: el comportamiento ya existia y esto lo fija.
+ * TDD: el de la carrera al abrir el pack se escribio **antes** del arreglo y fallo. Los demas
+ * son de CARACTERIZACION -- el comportamiento ya existia y esto lo fija.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
@@ -38,6 +39,28 @@ class SearchViewModelTest {
     fun despues() = Dispatchers.resetMain()
 
     private fun conPack(source: FakeDictionary) = SearchViewModel { PackLoad.Ready(source) }
+
+    // --- La carrera al abrir el pack (TDD: este fallaba) -------------------------------------
+
+    @Test
+    fun loQueSeEscribeMientrasElPackCargaSeBuscaCuandoTermina() = runTest {
+        // El pack de español pesa 69 MB y tarda en abrir; la pantalla ya acepta texto. Si lo
+        // escrito durante ese rato no se vuelve a consultar, la busqueda queda MUERTA: el
+        // usuario ve "Sin resultados" para siempre, hasta que borra una letra y la reescribe.
+        val diferido = PackDiferido()
+        val fake = FakeDictionary()
+        val vm = SearchViewModel(diferido::abrir)
+
+        vm.onQueryChange("per")
+        advanceUntilIdle()
+        assertTrue(fake.consultas.isEmpty(), "no hay pack todavia: no deberia haber consultado")
+
+        diferido.completarCon(PackLoad.Ready(fake))
+        advanceUntilIdle()
+
+        assertEquals(listOf("per"), fake.consultas, "al abrir el pack tiene que buscar lo escrito")
+        assertEquals(listOf("per"), vm.state.value.results.map { it.headword })
+    }
 
     @Test
     fun siElPackNoSePuedeAbrirLaPantallaLoDice() = runTest {

@@ -11,7 +11,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
@@ -49,7 +49,15 @@ class SearchViewModel(
     private val abrirPack: suspend (onExtracting: () -> Unit) -> PackLoad,
 ) : ViewModel() {
 
-    private var source: DictionarySource? = null
+    /**
+     * El pack es un flow y no un `var`, y esa es la diferencia entre buscar y no buscar.
+     *
+     * El pack de español pesa 69 MB y tarda en abrir, mientras la pantalla ya acepta texto. Con
+     * un `var`, lo escrito durante ese rato se consultaba contra `null`, devolvia vacio y
+     * **nada lo volvia a intentar**: la busqueda quedaba muerta hasta que el usuario borraba una
+     * letra. Siendo un flow, abrir el pack es un evento que vuelve a disparar la consulta.
+     */
+    private val source = MutableStateFlow<DictionarySource?>(null)
 
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
@@ -60,7 +68,7 @@ class SearchViewModel(
             when (val result = abrirPack { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
                 is PackLoad.Ready -> {
                     val meta = result.source.metadata
-                    source = result.source
+                    source.value = result.source
                     _state.update {
                         it.copy(
                             status = SearchState.Status.Ready,
@@ -84,9 +92,12 @@ class SearchViewModel(
         }
 
         viewModelScope.launch {
-            // El debounce es de bateria antes que de rendimiento: en un reloj, disparar una
-            // consulta por pulsacion mantiene la CPU despierta durante toda la frase.
-            queries.debounce(DEBOUNCE_MS).map { text -> text to source }
+            combine(
+                // El debounce es de bateria antes que de rendimiento: en un reloj, disparar una
+                // consulta por pulsacion mantiene la CPU despierta durante toda la frase.
+                queries.debounce(DEBOUNCE_MS),
+                source,
+            ) { text, pack -> text to pack }
                 // mapLatest cancela la busqueda anterior en cuanto llega una tecla nueva. La
                 // cascada chequea cancelacion fila por fila, asi que la vieja se corta de verdad
                 // en vez de terminar y descartarse.
@@ -112,12 +123,12 @@ class SearchViewModel(
         queries.value = text
     }
 
-    suspend fun entry(entryId: Long): Entry? = source?.entry(entryId)
+    suspend fun entry(entryId: Long): Entry? = source.value?.entry(entryId)
 
     /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
     fun cerrar() {
-        source?.close()
-        source = null
+        source.value?.close()
+        source.value = null
     }
 
     override fun onCleared() = cerrar()
