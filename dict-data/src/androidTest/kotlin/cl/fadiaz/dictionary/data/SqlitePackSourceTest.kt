@@ -166,6 +166,35 @@ class SqlitePackSourceTest {
     }
 
     @Test
+    fun laCoincidenciaExactaEncabezaAunqueRankeePeor() = runTest {
+        // "sol" rankea 500 y "soler" rankea 50, asi que por rank solo "soler" iria primero.
+        // Escribir una palabra entera y no verla es el peor resultado posible de un buscador.
+        // En el pack real este caso esta a escala: "per" enterraba "perro" en la posicion 619.
+        val lemas = source.suggest("sol").map { it.headword }
+        assertEquals("la coincidencia exacta tiene que encabezar: $lemas", "sol", lemas.first())
+        assertTrue("y 'soler' tiene que seguir estando: $lemas", lemas.contains("soler"))
+    }
+
+    @Test
+    fun elPrefijoOrdenaPorRankYNoAlfabeticamente() = runTest {
+        // Con prefijo "c" el pack tiene siete lemas. El orden tiene que ser por rank --menor es
+        // mas comun-- y no alfabetico: "correr" (10) antes que "casa" (15) antes que "cazar"
+        // (200). Ordenado alfabeticamente, "casa" y "cazar" encabezarian.
+        val lemas = source.suggest("c", limit = 7).map { it.headword }
+        assertEquals("correr", lemas.first())
+        assertTrue("'cazar' es el menos comun y deberia ir ultimo: $lemas", lemas.last() == "cazar")
+    }
+
+    @Test
+    fun noRepiteElMismoLemaConElMismoPos() = runTest {
+        // "vela" esta dos veces como sustantivo, separadas solo por etimologia: son entradas
+        // legitimas y uid las distingue, pero la lista no puede mostrar "vela" dos veces. Es el
+        // caso "hacer" del Wikcionario, que aparece cinco veces.
+        val velas = source.suggest("vela").filter { it.headword == "vela" }
+        assertEquals("'vela' tiene que aparecer una sola vez: $velas", 1, velas.size)
+    }
+
+    @Test
     fun losHomografosSalenComoEntradasDistintas() = runTest {
         // "bajo" esta dos veces en el pack de juguete, adjetivo y preposicion. La lista tiene
         // que poder distinguirlos, que es para lo que existe la columna pos.

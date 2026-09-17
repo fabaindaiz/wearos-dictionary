@@ -99,37 +99,39 @@ y eso no es grasa: es el precio de que "corriendo" encuentre "correr". La poda y
 
 ### El orden de la lista de resultados
 
-**Estado.** Planificado, y es **lo más importante que destapó el pack real**. Lo que falta es
-una decisión de producto, no mecanismo.
+**Estado.** **Hecho** (2026-09-17). Era lo que destapó el pack real y lo que hacía inusable el MVP.
 
-El prefijo ordena `(norm, rank)`: alfabético primero, y `rank` solo desempata **dentro de un
-mismo `norm`**. Con 22 entradas de juguete eso es invisible. Con 146.194, escribir tres letras
-entierra la palabra que buscabas:
+**En qué quedó.** El prefijo ordena `(coincidencia exacta, rank, norm)` y la cascada deduplica
+por `(headword, pos)` al final, con over-fetch ×3 (D-068, D-069).
 
-| Escribís | Entradas que empiezan así | En qué posición sale la palabra obvia |
+**La medición que lo cerró.** Antes, con el orden alfabético:
+
+| Escribís | Empiezan así | Posición de la palabra obvia |
 |---|---|---|
 | `per` | 782 | **`perro`: 619** |
 | `sal` | 496 | `salir`: 206 |
 | `dec` | 286 | `decir`: 154 |
 | `com` | 738 | `comer`: 131 |
-| `hac` | 230 | `hacer`: 17 |
-| `cas` | 334 | `casa`: 1 |
 
-La lista muestra 30. Cinco de esas seis búsquedas no contienen la palabra buscada.
+La lista muestra 30: cuatro de esas cuatro búsquedas no contenían la palabra buscada. Después,
+`per` devuelve **perder, permitir, perseguir, permanecer, perro** — verificado en el emulador
+contra el pack real, no solo en escritorio.
 
-**Qué hay ya a favor.** El proxy de `rank` (D-067) **alcanza para arreglarlo**, y está medido:
-ordenando `(rank, norm)`, `perro` sube de la posición 619 a la **5**, y `hac`/`com` encabezan
-con `hacer` y `comer`. No hace falta una lista de frecuencia externa para el primer intento.
+**Qué costó.** El covering index sigue sirviendo el rango pero ya **no** el orden: SQLite agrega
+`USE TEMP B-TREE`. Medido en escritorio, **1,8 ms p95** en el peor caso (una letra, 22.358
+filas) contra 0,01 ms, con un presupuesto de 20 ms. **El número de reloj no existe** y es
+exactamente lo que O-1 existe para dar: si en un reloj físico ese peor caso se acerca a 20 ms,
+esta decisión se revisa.
 
-**Con qué choca.** Con D-012 y el covering index. Hoy `(norm, rank, headword, pos)` sirve el
-rango **y** el orden sin sort. Ordenar por `rank` primero obliga a ordenar el rango entero: son
-782 filas para `per`, barato en un escritorio y **sin medir en un reloj**. Es exactamente el
-tipo de número que O-1 existe para dar, y O-1 está bloqueado afuera.
-
-**Qué hay que decidir antes.** Tres cosas, y son de producto:
-1. `(rank, norm)` puro, o híbrido (la coincidencia exacta primero, después por rank).
-2. Qué se hace con los 3.137 headwords repetidos: fundirlos en la lista o mostrarlos separados.
-3. Si el proxy se reemplaza alguna vez por frecuencia real, que suma una fuente y una licencia.
+**Qué sigue faltando.**
+- El proxy de `rank` favorece a los verbos, porque las formas flexionadas pesan en el puntaje y
+  un verbo trae hasta 222. Se ve: `cas` devuelve *castigar, cascar, casar* antes que `casa`
+  (posición 6). Bajar el peso de las formas cuesta un rebuild de 54 s y no se probó.
+- El prefijo de **una letra** sigue siendo malo: `a` devuelve *a, A, -a, a-, á*. Son entradas
+  legítimas (prefijos, sufijos, la letra) pero nadie busca eso.
+- La deduplicación es por `(headword, pos)`, así que `perro` sale dos veces si es sustantivo y
+  adjetivo. Se respetó a propósito: hay un test que exige que los homógrafos de distinto `pos`
+  se distingan. Si eso se revisa, se revisa ese test primero.
 
 ### Composición entre packs
 

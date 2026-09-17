@@ -93,8 +93,8 @@ class ToyPackFixtureTest(BuilderTestCase):
             row[0]
             for row in self.db.execute(
                 "SELECT headword FROM entry WHERE norm >= ? AND norm < ?"
-                " ORDER BY norm, rank LIMIT 30",
-                (clave, upper),
+                " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT 30",
+                (clave, upper, clave),
             )
         ]
 
@@ -140,6 +140,29 @@ class ToyPackFixtureTest(BuilderTestCase):
             ).fetchone()[0],
             0,
         )
+
+    def test_hay_un_lema_exacto_que_rankea_peor_que_uno_que_lo_extiende(self):
+        """Sin esta trampa, la regla de exacta-primero no tiene nada que probar.
+
+        "sol" es la coincidencia exacta y rankea 500; "soler" solo lo tiene de prefijo y rankea
+        50. Ordenando solo por rank, escribir "sol" no devuelve "sol".
+        """
+        filas = dict(self.db.execute(
+            "SELECT headword, rank FROM entry WHERE headword IN ('sol', 'soler')"))
+        self.assertEqual({"sol": 500, "soler": 50}, filas)
+        self.assertEqual("sol", self.prefijo("sol")[0])
+
+    def test_hay_dos_entradas_con_el_mismo_headword_y_el_mismo_pos(self):
+        """Es el caso "hacer" del Wikcionario, que aparece cinco veces por etimologia.
+
+        Son entradas distintas y legitimas --uid las separa-- pero una lista que las muestra
+        todas repite la misma palabra. La deduplicacion vive en SqlitePackSource, no aca; esto
+        solo garantiza que el fixture siga teniendo el caso.
+        """
+        velas = self.db.execute(
+            "SELECT pos, COUNT(*), COUNT(DISTINCT uid) FROM entry WHERE headword = 'vela'"
+            " GROUP BY pos").fetchall()
+        self.assertEqual([("noun", 2, 2)], velas)
 
     def test_hay_una_palabra_buscable_solo_por_su_definicion(self):
         filas = self.db.execute(

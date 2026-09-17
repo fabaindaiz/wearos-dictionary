@@ -97,6 +97,24 @@ _DATA = [
     ("self-made", "adjective", 800, [
         ("prestamo del ingles: hecho por si mismo", [], ["self-made"]),
     ], []),
+    # Trampa de orden: "sol" es la coincidencia EXACTA y rankea peor que "soler", que solo la
+    # tiene de prefijo. Sin la regla de exacta-primero, escribir "sol" no devuelve "sol".
+    # El pack real tiene este caso a escala: "per" no devolvia "perro" hasta la posicion 619.
+    ("sol", "noun", 500, [
+        ("estrella del sistema solar", [], ["sun"]),
+    ], ["soles"]),
+    ("soler", "verb", 50, [
+        ("tener costumbre de hacer algo", [], ["to use to"]),
+    ], ["suele", "solia"]),
+    # Trampa de duplicados: mismo headword Y mismo pos, separados solo por etimologia. En el
+    # Wikcionario esto es comun --"hacer" aparece cinco veces-- y una lista que los muestra
+    # todos repite la misma palabra. sense_key es lo que les da uid distinto (D-058).
+    ("vela", "noun", 300, [
+        ("cilindro de cera con mecha", [], ["candle"]),
+    ], ["velas"], "cera"),
+    ("vela", "noun", 310, [
+        ("lona que impulsa una embarcacion", [], ["sail"]),
+    ], ["velas"], "nautica"),
 ]
 
 METADATA = {
@@ -114,7 +132,11 @@ METADATA = {
 
 
 def records():
-    for headword, pos, rank, senses, forms in _DATA:
+    for item in _DATA:
+        # La sexta posicion es opcional: solo la llevan los homografos que comparten headword
+        # Y pos, que sin sense_key harian fallar el build por identidad repetida.
+        headword, pos, rank, senses, forms = item[:5]
+        sense_key = item[5] if len(item) > 5 else None
         translations = []
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
@@ -133,4 +155,5 @@ def records():
             rank=rank,
             forms=forms,
             translations=translations,
+            sense_key=sense_key,
         )
