@@ -33,6 +33,25 @@ Voz vía `RecognizerIntent` como camino principal, teclado como fallback. Eso no
 preferencia de producto: es la razón por la que la búsqueda tiene un nivel tolerante a errores —
 el dictado por voz produce entradas que no coinciden exactamente con ningún lema.
 
+## Dos cosas del template que hay que resolver antes de publicar
+
+Ninguna se decidió; se heredaron:
+
+- **R8 está desactivado** (`optimization { enable = false }`). La guía oficial de rendimiento de
+  Wear OS lo nombra como una de las dos palancas principales. Activarlo reintroduce la clase de
+  bug que solo aparece en release, así que va atado a probar en dispositivo. Roadmap O-2.
+- **La complication refresca cada hora** (`UPDATE_PERIOD_SECONDS = 3600`). La guía oficial pide
+  *"2 hours or longer"*, o desactivar el refresco. Se decide junto con qué muestra el Tile: si es
+  "últimas búsquedas", no necesita refresco programado en absoluto.
+
+## Rendimiento
+
+Muchos relojes tienen CPU y GPU bastante más limitadas que un teléfono. Minimizá animaciones, y
+si hay un loop dejá una pausa al menos tan larga como la animación.
+
+Medí en **reloj físico**, nunca en el emulador: el emulador sirve para correctitud, no para
+rendimiento. Ver el `benchmark` skill.
+
 ## Descargas
 
 Se difieren a **cargando y con Wi-Fi**, con WorkManager. Es la guía oficial de Wear OS, y con

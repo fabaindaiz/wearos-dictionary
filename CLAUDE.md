@@ -100,6 +100,10 @@ Después de tocar `norm()`, `fuzzy()` o el formato del pack, además:
 **Una claim necesita una medición.** No escribas un número en un documento sin decir cómo se
 obtuvo, y si la medición mata una creencia, esa es la entrada más valiosa del changelog.
 
+**Emulador y reloj no miden lo mismo** (D-043): el emulador cierra correctitud —normalización,
+FTS5, planes de consulta—, porque trae el ICU y el SQLite de su nivel de API. Rendimiento y
+batería solo valen medidos en **reloj físico**. Ver el `benchmark` skill.
+
 ## Commits
 
 Se ofrecen cuando el trabajo está terminado, nunca por iniciativa propia a mitad de tarea.
@@ -138,6 +142,7 @@ compilar, o peor, al revisar.
 | ¿Cómo es el `.db` por dentro? ¿Qué consulta uso? | `docs/formato-pack.md` |
 | ¿Dónde va un archivo nuevo? ¿Cuáles son las capas? | `docs/architecture.md` |
 | ¿Qué sigue? ¿Con qué choca lo que quiero hacer? | `docs/roadmap.md` |
+| ¿Cómo mido esto? ¿Está lento? ¿Cuánto gasta? | `benchmark` skill, y `docs/roadmap.md` §Optimización |
 | ¿Esto ya lo investigamos? ¿Qué dice la fuente oficial? | `docs/references.md` |
 | ¿Qué cambió y por qué, en las últimas sesiones? | `.claude/logs/agent-changelog.md` |
 | ¿Qué es este proyecto? (para alguien de afuera) | `README.md` |

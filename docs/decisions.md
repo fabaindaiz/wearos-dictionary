@@ -65,6 +65,14 @@ encuentra.
 | D-032 | Dependencias en stable; nada alpha ni rc en el camino crítico | `sqlite 2.8.0-alpha01` y `work 2.12.0-rc01` existen y no se usan | `gradle/libs.versions.toml` |
 | D-033 | Kotlin queda en 2.2.10, no sube a 2.4.20 | `:dict-core` tiene `allWarningsAsErrors`: un bump de compilador convierte cualquier warning nuevo en build roto, y nada del roadmap necesita 2.4 | `gradle/libs.versions.toml` |
 
+## Rendimiento y batería
+
+| # | Decisión | Por qué | Enforced in |
+|---|---|---|---|
+| D-042 | No se optimiza nada sin una medición previa | Hoy los cuatro presupuestos de `docs/formato-pack.md` son objetivos escritos a priori, sin un solo número real detrás | `CLAUDE.md` §Verificación; `benchmark` skill |
+| D-043 | La correctitud se verifica en **emulador**; el rendimiento y la batería, en **reloj físico** | La imagen del emulador trae el ICU y el SQLite de su nivel de API, así que sirve para normalización y planes de consulta. Para rendimiento la guía oficial pide *"physical Wear OS devices"* | — *(convención; la lleva el `benchmark` skill)* |
+| D-044 | La batería se mide con el power metric de Macrobenchmark, Perfetto o el Power Profiler | **Battery Historian ya no se mantiene**, según su propia documentación, y es lo que recomienda casi toda la guía de terceros | — |
+
 ## Contenido y licencias
 
 | # | Decisión | Por qué | Enforced in |
@@ -105,3 +113,6 @@ Están acá para que no se propongan de nuevo. Son de las filas más útiles del
 | `detail=none` en `fts_def` | Achica el índice pero mata las consultas de frase | Con definiciones como contenido principal, buscar frases dentro puede ser *la* feature |
 | `columnsize=0` en `fts_def` | Achica más, pero `SELECT COUNT(*)` pasa a dar error | Rompería una comprobación de `verify_pack.py` |
 | Compresión por fila vs bloques de 50–64 kB | El dominio usa bloques (dictzip); nosotros por fila | Sin medición que lo decida a escala real |
+| **R8 en release** | Hoy está **desactivado** (`optimization { enable = false }`), heredado del template | La guía oficial de Wear OS lo nombra como una de las dos herramientas más efectivas. Activarlo reintroduce la clase de bug que solo aparece en release, así que va atado a la comprobación en dispositivo. Ver roadmap O-2 |
+| **Período de refresco de la complication** | El manifest tiene `UPDATE_PERIOD_SECONDS = 3600`, heredado del template | La guía oficial pide *"2 hours or longer"*, o desactivar el refresco. Se decide junto con qué muestra la superficie glanceable |
+| Startup profile | Reduce latencia de arranque a cambio de tamaño de APK | Ya sumamos ~1–1,5 MB por ABI de SQLite nativo. Necesita el número de O-1 |
