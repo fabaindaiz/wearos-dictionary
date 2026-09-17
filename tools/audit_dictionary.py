@@ -236,11 +236,19 @@ def check_index_definitions(report):
         report.failure("indice duplicado", ", ".join(sorted(duplicates)))
 
 
-def check_forbidden_dependency(report):
-    """Regla: androidx.glance:glance-wear-tiles esta prohibido. (D-025, app/CLAUDE.md)
+# Dependencias que no pueden entrar, con la decision que lo dice.
+FORBIDDEN_DEPENDENCIES = {
+    "glance-wear-tiles": "D-025: deprecado y sera removido; NO es la libreria de Wear Widgets",
+    "androidx.glance.wear": "D-024: Wear Widgets esta pospuesto; los packages estan en alpha",
+    "androidx.compose.remote": "D-024: RemoteCompose esta en alpha y solo existe en Wear OS 7",
+}
 
-    Deprecado y sera removido. El naming confunde y es el primer resultado al buscar como
-    hacer un Tile con Glance.
+
+def check_forbidden_dependency(report):
+    """Regla: ciertas dependencias no entran. (D-024, D-025, app/CLAUDE.md)
+
+    glance-wear-tiles es el caso peligroso: es el PRIMER resultado al buscar como hacer un Tile
+    con Glance, y es el equivocado.
     """
     for base, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__", "docs")]
@@ -249,12 +257,44 @@ def check_forbidden_dependency(report):
                 continue
             path = os.path.join(base, name)
             with open(path, encoding="utf-8") as handle:
-                if "glance-wear-tiles" in handle.read():
+                text = handle.read()
+            for needle, reason in FORBIDDEN_DEPENDENCIES.items():
+                if needle in text:
                     report.failure(
                         "dependencia prohibida",
-                        "%s usa androidx.glance:glance-wear-tiles (D-025)"
-                        % os.path.relpath(path, ROOT),
+                        "%s usa %r -- %s" % (os.path.relpath(path, ROOT), needle, reason),
                     )
+
+
+# Miembros de la JVM que NO se pueden sombrear con una extension de Kotlin: en la JVM gana el
+# miembro nativo, asi que la extension nunca correria. Funcionaria hoy y fallaria el dia que el
+# modulo apunte a otro target. Ver D-019.
+SHADOWED_JVM_MEMBERS = ("appendCodePoint", "codePointAt", "codePointCount")
+
+
+def check_shadowed_extensions(report):
+    """Regla: un reemplazo portable de una API JVM lleva nombre distinto. (D-019)
+
+    Ya paso una vez: `StringBuilder.appendCodePoint` como extension nunca se habria ejecutado.
+    Se renombro a `appendUtf16`.
+    """
+    core = os.path.join(ROOT, "dict-core", "src", "main")
+    for base, _dirs, files in os.walk(core):
+        for name in files:
+            if not name.endswith(".kt"):
+                continue
+            path = os.path.join(base, name)
+            with open(path, encoding="utf-8") as handle:
+                for number, line in enumerate(handle, start=1):
+                    code = line.split("//")[0]
+                    for member in SHADOWED_JVM_MEMBERS:
+                        if re.search(r"fun\s+\w+\.%s\s*\(" % member, code):
+                            report.failure(
+                                "extension que sombrea un miembro de la JVM",
+                                "%s:%d define .%s() como extension: en la JVM gana el miembro "
+                                "nativo y este codigo nunca correria (D-019)"
+                                % (os.path.relpath(path, ROOT), number, member),
+                            )
 
 
 def check_root_budget(report):
@@ -293,6 +333,7 @@ CHECKS = [
     check_markdown_links,
     check_index_definitions,
     check_forbidden_dependency,
+    check_shadowed_extensions,
     check_root_budget,
     check_rules_without_enforcer,
 ]
