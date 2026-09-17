@@ -1,4 +1,4 @@
--- Esquema de un pack de diccionario. schema_version = 2
+-- Esquema de un pack de diccionario. schema_version = 3
 --
 -- El pack es inmutable y se abre siempre en modo read-only, asi que no hay migraciones: un
 -- pack con schema_version distinta se rechaza al abrirlo y se descarga de nuevo. Eso permite

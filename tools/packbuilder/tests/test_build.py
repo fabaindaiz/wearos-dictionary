@@ -194,6 +194,26 @@ class IngestTest(BuilderTestCase):
         dropped = db.execute("SELECT value FROM meta WHERE key='trans_dropped'").fetchone()[0]
         self.assertEqual(25, int(dropped), "meta.trans_dropped no refleja lo recortado")
 
+    def test_un_lema_cuyo_fuzzy_es_vacio_sigue_siendo_entrada(self):
+        """CARACTERIZACION: el builder ya se comportaba asi; este test fija la conducta.
+
+        `fuzzy("h")` es vacio: la hache es muda en el perfil español. La entrada igual existe.
+
+        `norm` vacio y `fuzzy` vacio no son el mismo problema. Sin `norm` la entrada es
+        inalcanzable y no tiene sentido guardarla. Sin `fuzzy` solo queda fuera del nivel
+        tolerante: se sigue encontrando por prefijo y exacta, que es como se busca una letra.
+
+        Lo encontro el primer pack real: "h" y "H" son entradas del Wikcionario (la letra) y
+        hacian fallar la invariante de verify_pack.py, que trataba los dos casos igual.
+        """
+        db = self.build([record("h", gloss="octava letra del abecedario español")])
+        row = db.execute("SELECT norm, fuzzy FROM entry WHERE headword='h'").fetchone()
+        self.assertEqual(("h", ""), row)
+        encontrada = db.execute(
+            "SELECT headword FROM entry WHERE norm >= ? AND norm < ? ORDER BY norm, rank",
+            ("h", "i")).fetchall()
+        self.assertIn(("h",), encontrada)
+
     def test_normalization_columns_match_normalize_module(self):
         db = self.build([record("Ärztin"), record("acción"), record("Straße")])
         for headword, norm_key, fuzzy_key in db.execute(
@@ -211,6 +231,36 @@ class StructureTest(BuilderTestCase):
         self.assertIn("idx_entry_fuzzy", names)
         self.assertNotIn("staging", names)
         self.assertNotIn("staging_trans", names)
+
+    def test_el_prefijo_devuelve_primero_la_entrada_mas_comun(self):
+        """rank es "menor es mas comun" (schema.sql) y el prefijo tiene que respetarlo.
+
+        No es teorico: en el primer pack real, buscar "escrit" devolvia
+        `escrito|verb` ("Participio de escribir", rank 994) **antes** que `escrito|noun`
+        (rank 988), porque la consulta ordenaba por `rank DESC`. Con 22 entradas de juguete
+        no se ve: rank solo desempata dentro de un mismo `norm`, y el toy pack casi no tiene.
+        En el pack real, 375 de 7.265 norms tienen mas de una entrada.
+        """
+        db = self.build([
+            record("escrito", gloss="participio de escribir", rank=994),
+            record("escrito", gloss="documento", rank=988, part_of_speech="noun"),
+        ])
+        rows = [row[0] for row in db.execute(
+            "SELECT rank FROM entry WHERE norm >= ? AND norm < ? ORDER BY norm, rank LIMIT 10",
+            ("escrit", "escriu"))]
+        self.assertEqual([988, 994], rows)
+
+    def test_el_indice_satisface_el_orden_del_prefijo_sin_ordenar(self):
+        """La consulta sale integra del covering index (D-012). Si el indice y el ORDER BY no
+        coinciden en la direccion de `rank`, SQLite agrega un sort: sigue siendo correcto, pero
+        deja de ser el plan que el diseno afirma, y en un pack de 150.000 entradas eso se paga.
+        """
+        db = self.build([record("escrito", rank=1), record("casa", rank=2)])
+        plan = " ".join(str(row) for row in db.execute(
+            "EXPLAIN QUERY PLAN SELECT id, headword, pos FROM entry"
+            " WHERE norm >= ? AND norm < ? ORDER BY norm, rank LIMIT 10", ("a", "b")))
+        self.assertIn("COVERING INDEX idx_entry_norm", plan)
+        self.assertNotIn("TEMP B-TREE", plan)
 
     def test_fts_rowid_matches_entry_id(self):
         # fts_def es contentless: el rowid es lo unico que devuelve, asi que si no coincide con

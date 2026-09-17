@@ -124,10 +124,20 @@ def verify(path):
             " (SELECT 1 FROM entry e WHERE e.id = t.entry_id)" % table
         ).fetchone()[0]
         report.check(orphans == 0, "%s no tiene entry_id huerfanos" % table)
+    # `norm` vacio y `fuzzy` vacio NO son el mismo problema, y tratarlos igual hacia fallar el
+    # primer pack real por dos entradas legitimas: "h" y "H", la letra. Sin `norm` la entrada es
+    # inalcanzable por cualquier camino. Sin `fuzzy` solo queda fuera del nivel tolerante, que es
+    # exactamente lo que corresponde a un lema de una letra muda.
     report.check(
-        db.execute("SELECT COUNT(*) FROM entry WHERE norm = '' OR fuzzy = ''").fetchone()[0] == 0,
-        "ninguna entrada tiene norm o fuzzy vacios",
+        db.execute("SELECT COUNT(*) FROM entry WHERE norm = ''").fetchone()[0] == 0,
+        "ninguna entrada tiene norm vacio",
     )
+    sin_fuzzy = db.execute("SELECT COUNT(*) FROM entry WHERE fuzzy = ''").fetchone()[0]
+    if sin_fuzzy:
+        report.note(
+            "%d entradas sin fuzzy: quedan fuera del nivel tolerante, se buscan por prefijo"
+            % sin_fuzzy
+        )
 
     print("\n[normalizacion: las columnas coinciden con normalize.py]")
     # La comprobacion mas importante del archivo. Si el pack se construyo con otra version de
@@ -243,7 +253,7 @@ def _verify_query_plans(db, report):
         row[-1]
         for row in db.execute(
             "EXPLAIN QUERY PLAN SELECT id, headword, pos FROM entry"
-            " WHERE norm >= ? AND norm < ? ORDER BY norm, rank DESC LIMIT 30",
+            " WHERE norm >= ? AND norm < ? ORDER BY norm, rank LIMIT 30",
             ("cor", "cos"),
         )
     )
@@ -287,7 +297,7 @@ def _verify_search_paths(db, report, profile):
 
     found = db.execute(
         "SELECT COUNT(*) FROM (SELECT id FROM entry WHERE norm >= ? AND norm < ?"
-        " ORDER BY norm, rank DESC LIMIT 30)",
+        " ORDER BY norm, rank LIMIT 30)",
         (prefix, _upper_bound(prefix)),
     ).fetchone()[0]
     report.check(found > 0, "prefijo %r encuentra resultados (%d)" % (prefix, found))
