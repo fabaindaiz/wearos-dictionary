@@ -47,9 +47,12 @@ en API 33 y 37.0.
 
 **Lo que eso NO cerró, y conviene no confundir.** El pack real se abrió en un **emulador**, no en
 un reloj: no hay un solo número de arranque, latencia ni batería (D-043). Los instrumentados
-siguen corriendo contra el **toy pack de 53 KB**, así que una regresión de plan de consulta a
-146.194 entradas tampoco la ve nadie. Y **`:app` no tiene ni un test**: todo lo que se verificó
-del MVP se verificó mirando la pantalla.
+siguen corriendo contra el **toy pack de 53 KB** — aunque el plan de consulta se midió en los dos
+tamaños y **es el mismo**, así que ese riesgo concreto está descartado.
+
+**El gate ya cubre la lógica de `:app`**: 17 tests JVM (2026-09-17) sobre la concurrencia de la
+búsqueda y la instalación del pack. Lo que sigue sin cubrir es **la UI**: que las tres pantallas
+dibujen lo que deben, atribución incluida.
 
 **Sin empezar.** **`SearchRepository` no existe**, así que la app abre **un** pack y la capa que
 fusiona varios está entera por escribir. El Tile y la Complication siguen siendo los del
@@ -194,14 +197,38 @@ entradas: buscar `per`, abrir `perro`, leer sus cuatro acepciones descomprimidas
 de licencia. Capturas en la sesión del changelog.
 
 **Qué sigue faltando, y es bastante.**
-- **`:app` no tiene un solo test.** Ni unitario ni instrumentado. Todo lo que se verificó se
-  verificó a mano, mirando la pantalla. Es la deuda más grande que deja este MVP.
+- ~~`:app` no tiene un solo test~~ **cerrado el 2026-09-17**: 17 tests JVM en el gate, sobre la
+  concurrencia de la búsqueda y la instalación atómica del pack. Lo que **sigue sin test es la
+  UI**: nada comprueba que las tres pantallas dibujen lo que deben, y eso incluye que la
+  atribución se muestre, que es ship-blocking (D-031). Necesita tests de Compose instrumentados,
+  que no entran al gate.
 - **Nunca corrió en un reloj físico**, así que no hay un número de arranque, latencia ni batería
   (D-043). El emulador no sirve para eso.
 - **El APK debug pesa 84 MB** (el asset comprime a 36,0 MB; el resto es tooling de debug). No se
   midió el release, que además tiene R8 desactivado (O-2).
 - `SearchRepository` sigue sin existir: la app abre **un** pack, no fusiona varios.
 - El Tile y la Complication siguen siendo los del template.
+
+### Tests de UI para las tres pantallas
+
+**Estado.** Planificado. Lo que falta es **mecanismo**: los tests de Compose necesitan
+dispositivo y este repo todavía no tiene una suite instrumentada en `:app`.
+
+Nada comprueba que las pantallas dibujen lo que el estado dice. El caso que más pesa es **la
+atribución (D-031)**: hoy su enforcer es parcial —un test JVM fija que el estado lleva la
+licencia *del pack* y no una constante— pero **nadie impide borrar la pantalla** y que el gate
+siga verde. Es la condición de uso de los datos, así que es ship-blocking.
+
+**Con qué choca.** Con que el gate no corre tests instrumentados: van a vivir donde ya viven los
+25 de `:dict-data`, fuera de `./gradlew check` y atados a que haya un emulador.
+
+**Qué hay ya a favor.** El `:app` de hoy es testeable por diseño (D-072) y `FakeDictionary` ya
+existe en el source set de test: un test de UI puede montar una pantalla con estado fijo sin
+abrir un pack de 69 MB.
+
+**Qué hay que decidir antes.** Si el enforcer de D-031 es un test de UI o algo más barato —una
+comprobación estructural en el audit de que la pantalla referencia `meta.attribution`—. Lo
+barato no prueba que se vea; lo caro no corre en el gate.
 
 ### Diseño de la interfaz
 
