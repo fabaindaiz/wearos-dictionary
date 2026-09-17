@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Los packs NO se respaldan. Son decenas de MB por idioma, se reconstruyen o se vuelven a
+  descargar, y subirlos a la nube del usuario gasta la red que este proyecto trata como el
+  recurso caro. Con minSdk 33, este archivo es el mecanismo: `fullBackupContent` no aplica.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="packs/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="packs/" />
+    </device-transfer>
+</data-extraction-rules>

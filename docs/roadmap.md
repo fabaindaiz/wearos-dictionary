@@ -40,16 +40,21 @@ una estaba mal y se corrigió sin gastar un emulador.
 **Lo que sigue sin medirse es el reloj físico.** El emulador cierra correctitud; rendimiento y
 batería, no (D-043).
 
-**Hecho en escritorio, sin tocar Android todavía: el pack real existe.** 146.194 entradas,
-72,2 MB, construido el 2026-09-17 desde el Wikcionario. Pasa `verify_pack.py` entero. Pero
-**nunca se abrió en un emulador ni en un reloj**: los 22 instrumentados siguen corriendo contra
-el toy pack de 53 KB, así que todo lo que el pack real podría romper a escala —planes de
-consulta, latencia, memoria al abrir— sigue sin observarse.
+**El MVP existe y corre en el emulador.** 146.194 entradas, 72,2 MB, construido el 2026-09-17
+desde el Wikcionario, empaquetado en el APK y abierto por la app: buscar, abrir una entrada y la
+pantalla de atribución, verificado a mano en API 33. Los 25 instrumentados de `:dict-data` pasan
+en API 33 y 37.0.
 
-**Sin empezar.** `:app` sigue siendo el template de Android Studio: nada de la app usa
-`:dict-data` todavía. **`SearchRepository` no existe** —estaba nombrado en este documento como si
-existiera— así que la capa que fusiona varios packs está entera por escribir. Los umbrales del
-nivel tolerante (D-052) **ya se pueden** ajustar contra el pack real; siguen sin ajustarse.
+**Lo que eso NO cerró, y conviene no confundir.** El pack real se abrió en un **emulador**, no en
+un reloj: no hay un solo número de arranque, latencia ni batería (D-043). Los instrumentados
+siguen corriendo contra el **toy pack de 53 KB**, así que una regresión de plan de consulta a
+146.194 entradas tampoco la ve nadie. Y **`:app` no tiene ni un test**: todo lo que se verificó
+del MVP se verificó mirando la pantalla.
+
+**Sin empezar.** **`SearchRepository` no existe**, así que la app abre **un** pack y la capa que
+fusiona varios está entera por escribir. El Tile y la Complication siguen siendo los del
+template. Los umbrales del nivel tolerante (D-052) **ya se pueden** ajustar contra el pack real;
+siguen sin ajustarse.
 
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
 los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
@@ -176,24 +181,33 @@ la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
 ### Conectar `:app` a `:dict-data`
 
-**Estado.** Planificado. La capa de abajo está hecha y verificada en emulador; `:app` sigue siendo el template.
+**Estado.** **Hecho** (2026-09-17). El MVP corre en el emulador contra el pack real.
 
-`:dict-data` está completo: `PackFile` valida y abre, `SqlitePackSource` implementa la cascada.
-Falta que la app lo use — un ViewModel con `debounce` y `mapLatest`, y una lista.
+**En qué quedó.** Tres pantallas —búsqueda, entrada y atribución— sobre `SearchViewModel`
+(`debounce` 120 ms + `mapLatest`) y `PackStore`, que abre el pack prefiriendo `filesDir/packs/`
+y extrayéndolo del asset del APK si no hay nada. Input por voz (`RecognizerIntent`, forzado a
+`es`) y teclado. La atribución sale de `meta.license` y `meta.attribution`, que es lo que D-031
+exige para poder distribuir.
 
-**Con qué choca.** Con el diseño de la interfaz, que es una decisión de producto abierta. Y con
-D-026: la búsqueda vive dentro de la app porque los tiles no aceptan text input.
+**La verificación que lo cerró.** Recorrido completo en el emulador API 33, sobre las 146.194
+entradas: buscar `per`, abrir `perro`, leer sus cuatro acepciones descomprimidas, y la pantalla
+de licencia. Capturas en la sesión del changelog.
 
-**Qué hay ya a favor.** Todo lo de abajo de la UI. `DictionarySource` es la única superficie que
-la app necesita conocer.
-
-**Qué hay que decidir antes.** Cómo se instala el primer pack, porque sin pack la app no tiene
-nada que mostrar. La opción barata para empezar: `adb push` a `filesDir/packs/` y una pantalla
-que liste lo que haya, dejando el instalador para después.
+**Qué sigue faltando, y es bastante.**
+- **`:app` no tiene un solo test.** Ni unitario ni instrumentado. Todo lo que se verificó se
+  verificó a mano, mirando la pantalla. Es la deuda más grande que deja este MVP.
+- **Nunca corrió en un reloj físico**, así que no hay un número de arranque, latencia ni batería
+  (D-043). El emulador no sirve para eso.
+- **El APK debug pesa 84 MB** (el asset comprime a 36,0 MB; el resto es tooling de debug). No se
+  midió el release, que además tiene R8 desactivado (O-2).
+- `SearchRepository` sigue sin existir: la app abre **un** pack, no fusiona varios.
+- El Tile y la Complication siguen siendo los del template.
 
 ### Diseño de la interfaz
 
-**Estado.** Planificado, y **se anota, no se construye**: el backend va primero.
+**Estado.** **A medias.** Existe lo funcional —tres pantallas que hacen el trabajo— y no existe
+el diseño: tipografía, jerarquía, estados vacíos, corona rotatoria. Lo que falta es **contenido
+de decisión de producto**, no mecanismo.
 
 Voz, lista de resultados, corona rotatoria, Tile, Complication.
 
