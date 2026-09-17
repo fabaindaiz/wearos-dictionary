@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew check)",
+      "Bash(./gradlew :dict-core:test)",
+      "Bash(./gradlew :tools:pythonTest)",
+      "Bash(./gradlew tasks)",
+      "Bash(python3 -m unittest discover:*)",
+      "Bash(python3 tools/packbuilder/verify_pack.py:*)",
+      "Bash(python3 tools/packbuilder/build_toy.py)",
+      "Bash(python3 tools/audit_dictionary.py)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git ls-files:*)",
+      "Bash(sqlite3:*)"
+    ],
+    "deny": [
+      "Edit(dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt)",
+      "Write(dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt)",
+      "Edit(tools/unicode/repertoire.txt)",
+      "Write(tools/unicode/repertoire.txt)",
+      "Edit(tools/packbuilder/vectors/payload-fixture.tsv)",
+      "Write(tools/packbuilder/vectors/payload-fixture.tsv)",
+      "Edit(local.properties)",
+      "Write(local.properties)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_input.file_path // .tool_response.filePath // empty\"); case \"$f\" in *TextNormalizer.kt|*normalize.py) r=$(git -C \"$(dirname \"$f\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; out=$(cd \"$r/tools/packbuilder\" && python3 -m unittest discover -s tests -q 2>&1) || { echo \"Los vectores compartidos FALLARON: norm()/fuzzy() divergieron entre Kotlin y Python, o falto subir NORM_VERSION en ambos lados. Ver docs/contratos-cruzados.md seccion 1.\" >&2; echo \"$out\" | grep -E \"^(FAIL|ERROR|AssertionError|Ran |FAILED)|linea [0-9]+:\" | head -8 >&2; exit 2; };; *) exit 0;; esac",
+            "timeout": 120,
+            "statusMessage": "Verificando los vectores de normalizacion..."
+          }
+        ]
+      }
+    ]
+  }
+}
