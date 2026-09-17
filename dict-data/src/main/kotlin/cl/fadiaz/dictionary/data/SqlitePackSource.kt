@@ -242,7 +242,7 @@ class SqlitePackSource(
     /** El cuerpo de una entrada. Aca si se lee y descomprime el payload. */
     override suspend fun entry(entryId: Long): Entry? = withContext(dispatcher) {
         pack.connection().prepare(
-            "SELECT headword, pos, payload FROM entry WHERE id = ?",
+            "SELECT headword, pos, payload, uid FROM entry WHERE id = ?",
         ).use { statement ->
             statement.bindLong(1, entryId)
             if (!statement.step()) return@withContext null
@@ -251,6 +251,9 @@ class SqlitePackSource(
             Entry(
                 packId = pack.metadata.packId,
                 entryId = entryId,
+                // La fila ya se leyo entera para traer el payload, asi que el uid sale gratis:
+                // es justo el momento en que la composicion entre packs lo necesita.
+                uid = statement.getLong(3),
                 headword = statement.getText(0),
                 // El pos de la columna manda sobre el del payload: es el que ordena la lista.
                 partOfSpeech = statement.getTextOrNull(1) ?: body.partOfSpeech,

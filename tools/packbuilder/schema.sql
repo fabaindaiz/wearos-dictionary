@@ -1,4 +1,4 @@
--- Esquema de un pack de diccionario. schema_version = 1
+-- Esquema de un pack de diccionario. schema_version = 2
 --
 -- El pack es inmutable y se abre siempre en modo read-only, asi que no hay migraciones: un
 -- pack con schema_version distinta se rechaza al abrirlo y se descarga de nuevo. Eso permite
@@ -17,8 +17,22 @@ CREATE TABLE meta (
     value TEXT NOT NULL
 ) WITHOUT ROWID;
 
+-- Dos identidades por entrada, y no son intercambiables (D-055):
+--
+--   id  es la identidad FISICA. Alias de rowid: lo comparte fts_def y lo referencian form y
+--       trans. Es secuencial porque eso es lo que lo hace barato -- FTS5 guarda deltas de
+--       rowid-- y NO sobrevive a reconstruir el pack: una palabra nueva en el medio corre
+--       todos los ids siguientes.
+--   uid es la identidad LOGICA. Sobrevive al rebuild y es por donde un pack auxiliar
+--       (sinonimos, traducciones) le suma informacion a esta misma entrada. Lo calcula solo
+--       el builder (ver stable_uid() en build.py); la app lo lee, nunca lo recalcula.
+--
+-- uid NO lleva indice en este pack a proposito: el join ocurre al ABRIR una entrada, cuando la
+-- fila ya se leyo entera, no en la lista de resultados --que la sirve el covering index sin
+-- tocar la tabla (D-012)--. El indice sobre uid vive en el pack auxiliar, que si busca por el.
 CREATE TABLE entry (
     id       INTEGER PRIMARY KEY,   -- alias de rowid: lo comparte fts_def
+    uid      INTEGER NOT NULL,      -- identidad estable entre rebuilds; clave de join entre packs
     headword TEXT NOT NULL,         -- forma de display, con acentos y mayusculas: "Ärztin"
     norm     TEXT NOT NULL,         -- clave de busqueda por prefijo: "arztin"
     fuzzy    TEXT NOT NULL,         -- clave tolerante a errores, plegada por idioma

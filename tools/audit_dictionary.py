@@ -104,6 +104,16 @@ def check_version_constants(report):
             "tools/packbuilder/payload.py",
         ),
         (
+            # No es un espejo de implementacion como los otros: es la version del esquema que
+            # el builder escribe y la que la app acepta. Si se desincronizan, todo pack recien
+            # construido se rechaza al abrirse -- ruidoso, pero solo en dispositivo.
+            "SCHEMA_VERSION",
+            r"const val SUPPORTED_SCHEMA_VERSION: Int = (\d+)",
+            "dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt",
+            r"^SCHEMA_VERSION = (\d+)",
+            "tools/packbuilder/build.py",
+        ),
+        (
             "CODEC_ID",
             r'const val CODEC_ID: String = "([^"]+)"',
             "dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt",
@@ -297,6 +307,42 @@ def check_shadowed_extensions(report):
                             )
 
 
+def check_forbidden_mirror(report):
+    """Regla: entry.uid lo calcula SOLO el builder; en Kotlin no existe. (D-057)
+
+    `norm()` y `fuzzy()` viven dos veces y por eso necesitan vectores compartidos que detecten
+    que se separaron (D-005). `uid` se salva de todo eso mientras siga habiendo una sola
+    implementacion: la app lo lee de la columna y nunca lo recalcula.
+
+    El dia que alguien escriba `TextNormalizer.uid()` --por conveniencia, para no tener que leer
+    la fila-- vuelve la clase de bug entera, y esta vez sin vectores que la atrapen.
+    """
+    sospechas = (
+        (r"\bUID_RECIPE\b", "declara la receta del uid"),
+        (r"fun\s+\w*[Uu]id\s*\(", "define una funcion que calcula un uid"),
+        (r"fun\s+stableUid\b", "define stableUid()"),
+    )
+    for modulo in ("dict-core", "dict-data"):
+        base_dir = os.path.join(ROOT, modulo, "src", "main")
+        for base, _dirs, files in os.walk(base_dir):
+            for name in files:
+                if not name.endswith(".kt"):
+                    continue
+                path = os.path.join(base, name)
+                with open(path, encoding="utf-8") as handle:
+                    for number, line in enumerate(handle, start=1):
+                        code = line.split("//")[0]
+                        for patron, motivo in sospechas:
+                            if re.search(patron, code):
+                                report.failure(
+                                    "el uid se calcula en Kotlin",
+                                    "%s:%d %s. entry.uid lo escribe el builder y la app solo lo "
+                                    "lee: una segunda implementacion puede divergir y no hay "
+                                    "vectores que lo detecten (D-057)"
+                                    % (os.path.relpath(path, ROOT), number, motivo),
+                                )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -334,6 +380,7 @@ CHECKS = [
     check_index_definitions,
     check_forbidden_dependency,
     check_shadowed_extensions,
+    check_forbidden_mirror,
     check_root_budget,
     check_rules_without_enforcer,
 ]

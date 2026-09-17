@@ -19,6 +19,64 @@ Formato:
 
 ---
 
+## 2026-09-17 — El join key entre packs: `entry.uid`, decidido con medición
+
+**Qué.** Se cerró la decisión abierta del join key. El pack sube a `schema_version = 2` con una
+columna `entry.uid`: identidad lógica, estable entre reconstrucciones, sin índice. `entry.id`
+sigue siendo el rowid secuencial. Cuatro decisiones nuevas (D-055 a D-058), un enforcer nuevo en
+`audit_dictionary.py`, 7 tests de builder y 2 instrumentados.
+
+**Áreas.** `tools/packbuilder/build.py`, `schema.sql`, `verify_pack.py`, `tests/test_build.py`,
+`tools/audit_dictionary.py`, `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt`, las dos suites instrumentadas,
+`docs/decisions.md`, `docs/formato-pack.md`, `docs/contratos-cruzados.md`, `docs/roadmap.md`.
+
+**Por qué.** Era la tarea #2 del roadmap y condicionaba el formato del pack base, que es lo
+próximo que se construye. Se pidió comparar todas las condiciones antes de decidir.
+
+**Arquitectura.** ✅ Cumple. La opción elegida deja intactos D-010, D-011, D-012 y D-013: no
+toca `entry.id`, así que `fts_def` sigue alineado y los índices no cambian.
+
+**Medido.** La medición es la que decidió, y mató la opción que el roadmap proponía.
+
+- **Método:** cuatro packs sintéticos de 200.000 entradas con **contenido idéntico**, cambiando
+  solo el esquema de ids. Glosas con vocabulario Zipf de 40.000 palabras —importa, porque FTS5
+  guarda *deltas* de rowid y un vocabulario chico exagera la ventaja del id secuencial—, payload
+  deflate, `VACUUM` al final, medido con `dbstat` (bytes por objeto). Scripts en el scratchpad de
+  la sesión: `joinkey_size.py`, `joinkey_aux.py`.
+- **Hash como `entry.id`: +35,2 %** (76,30 → 103,16 MB). El 67 % de ese costo es un solo objeto:
+  `fts_def_data`, de 10,39 a **28,35 MB**. FTS5 no guarda el rowid de cada posting sino el delta
+  contra el anterior: con ids secuenciales son 1–3 bytes, con hashes de 63 bits son 8–9. El resto
+  (`form` +2,08, `trans` +2,07, `idx_entry_norm` +1,04, `idx_entry_fuzzy` +1,05 MB) paga el mismo
+  impuesto, porque el id se repite en cada índice. **Extrapolado: +134 MB por millón de entradas**,
+  contra un presupuesto blando de 50 MB por pack (D-028).
+- **Columna `uid` sin índice: +2,3 %** (+8,9 MB por millón). Con índice único serían +6,8 %
+  (+25,9 MB por millón), y por eso no lo lleva: el join ocurre al abrir una entrada, cuando la
+  fila ya se leyó, no en la lista —que la sirve el covering index sin tocar la tabla (D-012).
+- **El pack auxiliar, al revés:** con `uid INTEGER PRIMARY KEY` ocupa **13,5 % menos** que con
+  `(norm, pos)` TEXT `WITHOUT ROWID` (13,34 vs 15,43 MB en 200.000 filas; −10,4 MB por millón).
+  Sumando los dos lados, `uid` es más barato que `(norm, pos)` en cuanto exista un solo auxiliar.
+- **Límites de la medición, para que nadie la sobre-interprete:** el contenido es sintético y el
+  payload comprimido (~150 B) es más chico que el real, así que **con payloads de verdad el
+  porcentaje baja y los MB absolutos se mantienen**. La extrapolación a 1M es lineal por entrada;
+  la brecha de FTS se angosta despacio al crecer N. Y el Wikcionario son 1.036.458 *senses*, no
+  entradas: las entradas `(headword, pos)` van a ser bastantes menos.
+- **`(norm, pos)` se descartó por correctitud, no por tamaño** (cuesta 0 en el pack base): funde
+  en silencio homógrafos que comparten `pos` y distinta etimología, y degenera con las entradas
+  sin `pos` — el pack de juguete ya tiene una (`arbol`, `pos` vacío).
+- **El enforcer nuevo se probó fallando**: se agregó un `fun stableUid()` de mentira en
+  `:dict-core` y `check_forbidden_mirror` rompió el audit con las dos reglas; se borró y volvió a
+  verde. Un check que nunca falló no se sabe si enforcea.
+- **22/22 tests instrumentados en API 33 y API 37.0** con `schema_version = 2` y el toy pack
+  reconstruido. El toy pack sigue pesando 53.248 bytes: la columna no agregó ni una página.
+
+**Drift corregido de paso.** `docs/roadmap.md` afirmaba que *"`SearchRepository` ya fusiona varios
+sources"* como punto a favor de la composición. **No existe**: aparecía solo en esa línea del
+roadmap, en ningún `.kt`.
+
+---
+
 ## 2026-09-17 — Los 20 tests instrumentados corrieron por primera vez, en dos niveles de API
 
 **Qué.** Se creó el entorno que faltaba (cmdline-tools, dos imágenes de sistema Wear OS arm64,

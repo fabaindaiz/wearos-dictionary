@@ -38,7 +38,7 @@ class PackFile private constructor(
 
     companion object {
         /** Version de esquema que esta app entiende. Otra distinta se rechaza. */
-        const val SUPPORTED_SCHEMA_VERSION: Int = 1
+        const val SUPPORTED_SCHEMA_VERSION: Int = 2
 
         /**
          * Abre y valida un pack.

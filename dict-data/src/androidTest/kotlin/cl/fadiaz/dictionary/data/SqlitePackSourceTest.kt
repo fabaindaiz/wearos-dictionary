@@ -134,6 +134,21 @@ class SqlitePackSourceTest {
     }
 
     @Test
+    fun laEntradaTraeSuIdentidadLogicaYNoEsElRowid() = runTest {
+        // D-055. El uid es lo que un pack auxiliar va a usar para sumarle informacion a esta
+        // misma entrada; si llegara en cero o igual al rowid, la composicion apuntaria mal y
+        // no habria ningun error que lo delate.
+        val correr = source.entry(source.suggest("correr").first { it.headword == "correr" }.entryId)
+        val cosa = source.entry(source.suggest("cosa").first { it.headword == "cosa" }.entryId)
+
+        assertNotNull(correr); assertNotNull(cosa)
+        assertTrue("el uid llego vacio", correr!!.uid > 0L)
+        assertTrue("el uid coincide con el rowid: no es una identidad propia",
+            correr.uid != correr.entryId)
+        assertTrue("dos entradas distintas comparten uid", correr.uid != cosa!!.uid)
+    }
+
+    @Test
     fun unaEntradaInexistenteDevuelveNull() = runTest {
         assertEquals(null, source.entry(999_999L))
     }

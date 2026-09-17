@@ -87,6 +87,22 @@ data class Sense(
 data class Entry(
     val packId: String,
     val entryId: Long,
+    /**
+     * Identidad **logica** de la entrada: estable entre reconstrucciones del pack, y la clave
+     * por la que un pack auxiliar (sinonimos, traducciones) le suma informacion a esta misma
+     * entrada.
+     *
+     * [entryId] no sirve para eso: es el rowid local y se corre entero cuando el pack se
+     * reconstruye con datos nuevos.
+     *
+     * Lo calcula el builder; la app **nunca** lo recalcula, solo lo lee. Esa es la diferencia
+     * con `norm`/`fuzzy`, y es lo que evita que sea un segundo contrato entre dos lenguajes.
+     *
+     * No esta en [Suggestion] a proposito: la lista se sirve entera desde el covering index sin
+     * tocar la tabla, y agregar el uid ahi obligaria a leer cada fila. La composicion ocurre al
+     * abrir una entrada, no al listarla.
+     */
+    val uid: Long,
     val headword: String,
     val partOfSpeech: String?,
     val senses: List<Sense>,

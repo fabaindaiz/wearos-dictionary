@@ -15,15 +15,35 @@ arma el diccionario de compresion compartido; la pasada 2 comprime y llena `entr
 Los indices se crean al final, sobre las tablas ya pobladas.
 """
 
+import hashlib
 import os
 import random
 import sqlite3
 import time
+import unicodedata
 
 import normalize
 import payload as payload_codec
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+# Receta con la que se calcula entry.uid, la identidad LOGICA de una entrada (D-055).
+#
+# entry.id es identidad FISICA: el rowid local, que comparte fts_def y al que apuntan form y
+# trans. Es barato justamente por ser secuencial, y **no sobrevive a reconstruir el pack**:
+# una palabra nueva en el medio corre todos los ids siguientes.
+#
+# entry.uid es identidad logica: sobrevive al rebuild, y es por donde un pack auxiliar (sinonimos,
+# traducciones) le suma informacion a la misma entrada de este pack.
+#
+# Lo calcula SOLO el builder. La app nunca lo recalcula: lo lee de la fila y lo usa como clave
+# de lookup en el pack auxiliar. Por eso, a diferencia de norm()/fuzzy(), NO es un contrato
+# espejado entre dos lenguajes y no puede divergir. Si alguna vez hiciera falta calcularlo en
+# Kotlin, deja de ser cierto y vuelve la clase de bug que D-005 existe para evitar.
+#
+# Si la receta cambia, cambia este identificador: los packs auxiliares construidos con la
+# anterior quedan huerfanos y tienen que poder detectarlo.
+UID_RECIPE = "uid-v1"
 
 # Tamano de la muestra con la que se arma el diccionario de compresion. Mas muestra no mejora
 # mucho porque el diccionario tope es de 32 KB igual.
@@ -41,15 +61,53 @@ DICTIONARY_SAMPLE_SIZE = 4000
 TRANS_MAX_PER_KEY = 50
 
 
+def stable_uid(lang, headword, pos, sense_key=None):
+    """Identidad logica de una entrada: estable entre rebuilds y entre packs. Ver UID_RECIPE.
+
+    Se calcula sobre el headword **crudo** (no sobre `norm`) a proposito: asi no depende de
+    NORM_VERSION, y subir las reglas de normalizacion no invalida los packs auxiliares. Ademas
+    distingue "arbol" de "árbol", que son dos entradas distintas aunque normalicen igual.
+
+    `sense_key` desambigua homografos que comparten headword Y pos (distinta etimologia). La
+    fuente lo entrega si lo tiene; si dos entradas quedan con la misma identidad, el build falla
+    en vez de fundirlas.
+
+    Devuelve 63 bits sin signo: entra en un INTEGER de SQLite y nunca es negativo.
+    """
+    material = "\x1f".join(
+        (
+            lang,
+            # NFC fija la forma de composicion: dos fuentes pueden entregar "á" precompuesta o
+            # descompuesta, y serian bytes distintos para la misma palabra.
+            unicodedata.normalize("NFC", headword),
+            (pos or "").strip().lower(),
+            sense_key or "",
+        )
+    )
+    return int.from_bytes(hashlib.sha256(material.encode("utf-8")).digest()[:8], "big") >> 1
+
+
 class Record:
     """Una entrada lista para indexar, tal como la entrega una fuente.
 
     `forms` son las formas flexionadas que deben llevar a este lema (sin incluir el lema).
     `translations` son las palabras del idioma destino por las que se debe poder llegar.
     Ambas se normalizan aca: la fuente entrega texto crudo.
+
+    `sense_key` solo hace falta cuando la fuente trae dos entradas con el mismo headword y el
+    mismo pos (tipicamente, distinta etimologia): es lo que las separa en entry.uid. Ver
+    stable_uid().
     """
 
-    __slots__ = ("headword", "part_of_speech", "rank", "senses", "forms", "translations")
+    __slots__ = (
+        "headword",
+        "part_of_speech",
+        "rank",
+        "senses",
+        "forms",
+        "translations",
+        "sense_key",
+    )
 
     def __init__(
         self,
@@ -59,6 +117,7 @@ class Record:
         rank=0,
         forms=(),
         translations=(),
+        sense_key=None,
     ):
         self.headword = headword
         self.senses = senses
@@ -66,6 +125,7 @@ class Record:
         self.rank = rank
         self.forms = forms
         self.translations = translations
+        self.sense_key = sense_key
 
 
 class PackBuilder:
@@ -83,10 +143,16 @@ class PackBuilder:
             "payload_dict",
             "entry_count",
             "built_at",
+            "uid_recipe",
         }
         conflicts = reserved & set(metadata)
         if conflicts:
             raise ValueError("estas claves de meta las escribe el builder: %s" % sorted(conflicts))
+
+        if not metadata.get("lang_src"):
+            # Entra en entry.uid: sin el, la identidad logica de dos packs de idiomas distintos
+            # podria colisionar.
+            raise ValueError("falta meta.lang_src, que forma parte de entry.uid")
 
         self.path = path
         self.metadata = dict(metadata)
@@ -107,6 +173,7 @@ class PackBuilder:
             PRAGMA synchronous = OFF;
             CREATE TABLE staging (
                 id       INTEGER PRIMARY KEY,
+                uid      INTEGER NOT NULL,
                 headword TEXT NOT NULL,
                 norm     TEXT NOT NULL,
                 fuzzy    TEXT NOT NULL,
@@ -146,9 +213,15 @@ class PackBuilder:
         fts_body = _fts_body(record.senses)
 
         cursor = self.connection.execute(
-            "INSERT INTO staging (headword, norm, fuzzy, pos, rank, body, fts_body)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO staging (uid, headword, norm, fuzzy, pos, rank, body, fts_body)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
+                stable_uid(
+                    self.metadata["lang_src"],
+                    record.headword,
+                    record.part_of_speech,
+                    record.sense_key,
+                ),
                 record.headword,
                 norm_key,
                 fuzzy_key,
@@ -209,6 +282,8 @@ class PackBuilder:
         if self.count == 0:
             raise ValueError("el pack quedo sin entradas")
 
+        self._reject_uid_collisions()
+
         dictionary = payload_codec.build_dictionary(self._sample)
 
         # Pasada 2: comprimir y poblar entry + fts_def. Se itera con un cursor separado para no
@@ -216,15 +291,17 @@ class PackBuilder:
         read = self.connection.cursor()
         write = self.connection.cursor()
         read.execute(
-            "SELECT id, headword, norm, fuzzy, pos, rank, body, fts_body FROM staging ORDER BY id"
+            "SELECT id, uid, headword, norm, fuzzy, pos, rank, body, fts_body"
+            " FROM staging ORDER BY id"
         )
         for row in read:
-            entry_id, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
+            entry_id, uid, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
             write.execute(
-                "INSERT INTO entry (id, headword, norm, fuzzy, pos, rank, payload)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO entry (id, uid, headword, norm, fuzzy, pos, rank, payload)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry_id,
+                    uid,
                     headword,
                     norm_key,
                     fuzzy_key,
@@ -251,6 +328,27 @@ class PackBuilder:
         self.connection.execute("VACUUM")
         self.connection.close()
         return self.count
+
+    def _reject_uid_collisions(self):
+        """Dos entradas con la misma identidad logica: el build falla, no se funden.
+
+        Resolver una colision aca seria peor que fallar: cualquier criterio de desempate que
+        dependa del orden de insercion rompe justo la estabilidad entre rebuilds que entry.uid
+        existe para dar. Si aparece, la fuente tiene que entregar `sense_key`.
+
+        Por hash: con 63 bits y un millon de entradas la probabilidad de una colision fortuita
+        es ~3e-8. En la practica esto atrapa homografos con mismo headword y mismo pos, que son
+        una colision de la *identidad*, no del hash.
+        """
+        collision = self.connection.execute(
+            "SELECT uid, COUNT(*) AS n, group_concat(headword || ' [' || COALESCE(pos, '') || ']')"
+            " FROM staging GROUP BY uid HAVING n > 1 LIMIT 1"
+        ).fetchone()
+        if collision:
+            raise ValueError(
+                "dos entradas comparten entry.uid (%d): %s. La fuente tiene que entregar un "
+                "sense_key que las distinga; ver stable_uid()" % (collision[0], collision[2])
+            )
 
     def _materialize_translations(self):
         """Copia staging_trans a trans aplicando el tope por clave.
@@ -291,6 +389,9 @@ class PackBuilder:
                 "payload_dict": dictionary.hex(),
                 # Integridad del diccionario: ver dictionary_digest() en payload.py.
                 "payload_dict_sha256": payload_codec.dictionary_digest(dictionary),
+                # Con que receta se calculo entry.uid: un pack auxiliar construido con otra
+                # apunta a entradas equivocadas, y sin esto no habria como notarlo.
+                "uid_recipe": UID_RECIPE,
                 "entry_count": str(self.count),
                 "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 # Para ver, con datos reales, cuanto esta recortando TRANS_MAX_PER_KEY.
@@ -305,15 +406,23 @@ class PackBuilder:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Un pack a medio construir es peor que ninguno: se abriria sin error y devolveria
+        # resultados incompletos. Aplica tambien a los fallos de validacion de finish() --
+        # una colision de uid, por ejemplo--, que ocurren con el archivo ya casi armado.
         if exc_type is None:
-            self.finish()
+            try:
+                self.finish()
+            except BaseException:
+                self._discard()
+                raise
         else:
-            # Un pack a medio construir es peor que ninguno: se abriria sin error y devolveria
-            # resultados incompletos.
-            self.connection.close()
-            if os.path.exists(self.path):
-                os.remove(self.path)
+            self._discard()
         return False
+
+    def _discard(self):
+        self.connection.close()
+        if os.path.exists(self.path):
+            os.remove(self.path)
 
 
 def _fts_body(senses):

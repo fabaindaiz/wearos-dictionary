@@ -69,6 +69,36 @@ class PlatformAssumptionsTest {
     }
 
     @Test
+    fun elUidEsUnicoYNoLlevaIndice() {
+        // D-055. Dos cosas que solo se pueden comprobar sobre el pack ya construido: que la
+        // identidad logica no se repita --un uid duplicado hace que el pack auxiliar le pegue
+        // a dos entradas a la vez-- y que NO exista un indice sobre uid, que es lo que hace
+        // que la columna cueste ~2% y no ~7%.
+        val abierto = PackFile.open(packPath)
+        pack = abierto
+        val connection = abierto.connection()
+
+        assertEquals(
+            "hay uids repetidos",
+            abierto.metadata.entryCount,
+            contar(connection, "SELECT COUNT(DISTINCT uid) FROM entry"),
+        )
+        assertEquals(
+            "ninguna entrada puede tener uid nulo o no positivo",
+            0,
+            contar(connection, "SELECT COUNT(*) FROM entry WHERE uid IS NULL OR uid <= 0"),
+        )
+        assertEquals(
+            "aparecio un indice sobre uid: el join es a la hora de abrir una entrada, no al listar",
+            0,
+            contar(
+                connection,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND sql LIKE '%uid%'",
+            ),
+        )
+    }
+
+    @Test
     fun elPrefijoUsaElIndiceDeCobertura() {
         // D-012. Es la afirmacion central del diseno de latencia, y hasta ahora solo estaba
         // verificada con el SQLite de escritorio. Si el plan cambia a un scan de tabla, la

@@ -1,4 +1,4 @@
-# Formato de pack (`schema_version = 1`)
+# Formato de pack (`schema_version = 2`)
 
 Un pack es un archivo SQLite de **solo lectura** con un diccionario. La app abre uno por idioma
 activo y nunca le escribe.
@@ -33,6 +33,7 @@ Todo lo que la app necesita saber antes de consultar. Se lee entera, una vez, al
 | `payload_codec` | `deflate-v1` |
 | `payload_dict` | Diccionario de compresión compartido, en hex |
 | `payload_dict_sha256` | Integridad del anterior. **No es opcional** |
+| `uid_recipe` | Con qué receta se calculó `entry.uid`. Otra receta ⟹ los packs auxiliares apuntan mal |
 | `entry_count`, `data_version`, `built_at` | Metadatos del build |
 | `license`, `attribution`, `source_url` | Obligaciones legales de la fuente |
 | `trans_dropped` | Cuántas filas recortó el tope por clave de traducción |
@@ -48,6 +49,7 @@ menos resultados de los que tiene, sin ningún error. Hay que rechazarlo, no int
 ```sql
 CREATE TABLE entry (
     id       INTEGER PRIMARY KEY,   -- alias de rowid: lo comparte fts_def
+    uid      INTEGER NOT NULL,      -- identidad estable entre rebuilds; join entre packs
     headword TEXT NOT NULL,         -- forma de display, con acentos: "Ärztin"
     norm     TEXT NOT NULL,         -- clave de prefijo: "arztin"
     fuzzy    TEXT NOT NULL,         -- clave tolerante a errores, plegada por idioma
@@ -56,6 +58,27 @@ CREATE TABLE entry (
     payload  BLOB NOT NULL          -- cuerpo comprimido
 );
 ```
+
+**`id` y `uid` son dos identidades distintas y no son intercambiables** (D-055):
+
+| | `entry.id` | `entry.uid` |
+|---|---|---|
+| Qué es | Identidad **física**: el rowid local | Identidad **lógica** de la palabra |
+| Quién lo referencia | `fts_def.rowid`, `form.entry_id`, `trans.entry_id` | Los packs auxiliares |
+| Sobrevive a reconstruir el pack | **No**: una palabra nueva en el medio corre todos los siguientes | **Sí** |
+| Por qué es así | Secuencial es lo que lo hace barato: FTS5 guarda *deltas* de rowid | Es hash de `(lang_src, NFC(headword), pos, sense_key)` |
+
+Medido sobre 200.000 entradas sintéticas: usar el hash *como* `entry.id` cuesta **+35,2 %** de
+tamaño —`fts_def_data` pasa de 10,39 a 28,35 MB—, mientras que la columna aparte cuesta **+2,3 %**.
+
+`uid` **no tiene índice en este pack** (D-056): el join ocurre al **abrir** una entrada, cuando la
+fila ya se leyó entera para traer el payload, no en la lista de resultados. El índice sobre `uid`
+vive en el pack auxiliar, que sí busca por él.
+
+`uid` se calcula sobre el headword **crudo**, no sobre `norm`: así no depende de `NORM_VERSION` y
+subir las reglas de normalización no invalida los packs auxiliares. Lo calcula **solo el builder**
+(D-057); la app lo lee de la fila y nunca lo recalcula, que es lo que evita que sea un segundo
+contrato cruzado como `norm()`/`fuzzy()`.
 
 `norm` se compara con collation **BINARY sobre texto ya normalizado en build-time**. Eso es lo
 que evita necesitar ICU en el reloj y hace que el comportamiento sea idéntico en todo
