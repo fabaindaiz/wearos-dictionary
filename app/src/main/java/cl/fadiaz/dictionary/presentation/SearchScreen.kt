@@ -44,6 +44,7 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
+import cl.fadiaz.dictionary.data.PackHandle
 
 /**
  * La pantalla de busqueda. Es la app: D-026 dice que la busqueda vive aca adentro porque ni los
@@ -67,6 +68,7 @@ import cl.fadiaz.dictionary.core.Suggestion
 fun SearchScreen(
     state: SearchState,
     onQueryChange: (String) -> Unit,
+    onPackChange: (String) -> Unit = {},
     onOpenEntry: (Suggestion) -> Unit,
     onOpenAttribution: () -> Unit,
 ) {
@@ -114,7 +116,7 @@ fun SearchScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = state.packName.ifEmpty { "Diccionario" },
+                            text = state.activo?.name ?: "Diccionario",
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
@@ -132,21 +134,32 @@ fun SearchScreen(
                     // hay resultados, cada fila de chrome es un resultado menos.
                     if (state.query.isEmpty()) {
                         item {
-                            ListHeader(
-                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                                transformation = SurfaceTransformation(spec),
-                            ) { Text(state.packName.ifEmpty { "Diccionario" }) }
+                            // Con un solo pack esto es el titulo de siempre; con dos es el
+                            // selector. Reusar el header es lo que hace que el selector cueste
+                            // CERO filas de resultado -- y con 192 dp sólo entran tres.
+                            if (state.disponibles.size > 1) {
+                                SelectorDeIdioma(state, onPackChange)
+                            } else {
+                                ListHeader(
+                                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                    transformation = SurfaceTransformation(spec),
+                                ) { Text(state.activo?.name ?: "Diccionario") }
+                            }
                         }
                         item {
                             Button(
-                                onClick = { voz.launch(intentDeVoz()) },
+                                onClick = { voz.launch(intentDeVoz(state.activo?.langSource ?: "es")) },
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
                             ) { Text("Decir una palabra") }
                         }
                     }
 
-                    item { BarraDeBusqueda(state.query, onQueryChange) { voz.launch(intentDeVoz()) } }
+                    item {
+                        BarraDeBusqueda(state.query, onQueryChange) {
+                            voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
+                        }
+                    }
 
                     if (state.query.isNotBlank() && state.results.isEmpty()) {
                         item {
@@ -157,6 +170,30 @@ fun SearchScreen(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             )
+                        }
+                        // La escotilla de escape, y aparece SOLO aca: el usuario escribio algo
+                        // que este idioma no tiene. Con resultados en pantalla el selector
+                        // costaria una fila, o sea un tercio de la lista (D-073).
+                        val otro = state.disponibles
+                            .filterIsInstance<PackHandle.Abierto>()
+                            .firstOrNull { it.packId != state.activo?.packId }
+                        if (otro != null) {
+                            item {
+                                Text(
+                                    text = "Buscar en ${otro.metadata.name}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                        .clip(RoundedCornerShape(percent = 50))
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .clickable { onPackChange(otro.packId) }
+                                        .heightIn(min = TOUCH_TARGET)
+                                        .padding(vertical = 14.dp),
+                                )
+                            }
                         }
                     }
 
@@ -284,6 +321,53 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
     }
 }
 
+/**
+ * Los idiomas disponibles, en la banda donde antes estaba el titulo.
+ *
+ * Chips de 48 dp --el minimo tocable de Wear OS-- repartidos a lo ancho. Se construye con
+ * `Row`/`Box`/`clickable` y no con un componente de Wear Compose a proposito: con
+ * `allWarningsAsErrors`, una API que se deprecie en el proximo bump rompe el build.
+ */
+@Composable
+private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        state.disponibles.forEach { handle ->
+            val activo = handle.packId == state.activo?.packId
+            val etiqueta = when (handle) {
+                is PackHandle.Abierto -> handle.metadata.langSource.uppercase()
+                is PackHandle.Disponible -> handle.etiqueta
+            }
+            Text(
+                text = etiqueta,
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.Center,
+                color = if (activo) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(
+                        if (activo) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        },
+                    )
+                    .clickable { onPackChange(handle.packId) }
+                    .heightIn(min = TOUCH_TARGET)
+                    .padding(vertical = 14.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun Cargando(mensaje: String) {
     Column(
@@ -300,15 +384,15 @@ private fun Cargando(mensaje: String) {
     }
 }
 
-private fun intentDeVoz(): Intent =
+private fun intentDeVoz(lang: String): Intent =
     Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
         )
-        // El pack es de español y el reconocedor tiene que buscar en el mismo idioma, no en el
-        // del sistema: un reloj en ingles dictando "perro" devolveria cualquier cosa.
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es")
+        // El reconocedor tiene que buscar en el idioma del pack ACTIVO, no en el del sistema:
+        // un reloj en ingles dictando "perro" devolveria cualquier cosa, y al reves igual.
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
     }
 
 /** Minimo que pide la guia de Wear OS para algo que se toca. */

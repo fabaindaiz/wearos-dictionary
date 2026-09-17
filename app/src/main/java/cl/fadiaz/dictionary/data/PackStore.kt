@@ -28,8 +28,6 @@ import kotlinx.coroutines.withContext
  */
 object PackStore {
 
-    const val ASSET_NAME: String = "es-def-wikc.db"
-
     /** Donde viven los packs instalados. Excluido del backup en `data_extraction_rules.xml`. */
     fun packsDir(context: Context): File = File(context.filesDir, "packs")
 
@@ -39,33 +37,136 @@ object PackStore {
      * `onExtracting` se llama antes de copiar, no mientras: la copia de 69 MB tarda y la
      * pantalla tiene que poder decir por que esta esperando.
      */
-    suspend fun open(context: Context, onExtracting: () -> Unit = {}): PackLoad =
+    suspend fun open(
+        context: Context,
+        preferido: String?,
+        onExtracting: () -> Unit = {},
+    ): PackSet = withContext(Dispatchers.IO) {
+        val dir = packsDir(context)
+        dir.mkdirs()
+
+        val instalados = packsInstalados(dir)
+        val assets = assetsDePack(context)
+        if (instalados.isEmpty() && assets.isEmpty()) return@withContext PackSet.NoPack
+
+        // Solo se abre lo que ya esta en disco: extraer los 69 MB de un idioma que quizas no se
+        // use es el gasto que la pereza evita.
+        val abiertos = mutableListOf<PackHandle.Abierto>()
+        val problemas = mutableListOf<String>()
+        for (file in instalados) {
+            when (val cargado = abrir(file)) {
+                is PackLoad.Ready -> abiertos += PackHandle.Abierto(cargado.source)
+                is PackLoad.Unusable -> problemas += "${file.name}: ${cargado.reason}"
+                PackLoad.NoPack -> Unit
+            }
+        }
+
+        val instaladosPorAsset = instalados.map { it.name }.toSet()
+        val disponibles = queFaltaExtraer(assets, instaladosPorAsset.toList())
+            .map { PackHandle.Disponible(packIdDeAsset(it), it, etiquetaDeAsset(it)) }
+
+        val elegido = abiertos.firstOrNull { it.packId == preferido }
+            ?: abiertos.firstOrNull()
+
+        if (elegido == null) {
+            // No hay nada abierto todavia. Si hay assets, se extrae el preferido (o el primero)
+            // y se abre: es el primer arranque.
+            val aExtraer = disponibles.firstOrNull { it.packId == preferido }
+                ?: disponibles.firstOrNull()
+                ?: return@withContext PackSet.Unusable(
+                    problemas.firstOrNull() ?: "Ningún diccionario se pudo abrir.",
+                )
+            onExtracting()
+            val file = try {
+                instalarAtomico(context.assets.open(aExtraer.asset), dir, aExtraer.asset)
+            } catch (e: IOException) {
+                return@withContext PackSet.Unusable(
+                    "No se pudo instalar el diccionario: ${e.message}",
+                )
+            }
+            return@withContext when (val cargado = abrir(file)) {
+                is PackLoad.Ready -> {
+                    val activo = PackHandle.Abierto(cargado.source)
+                    PackSet.Ready(activo, listOf(activo) + disponibles.filter { it != aExtraer }, problemas)
+                }
+                is PackLoad.Unusable -> PackSet.Unusable(cargado.reason)
+                PackLoad.NoPack -> PackSet.NoPack
+            }
+        }
+
+        PackSet.Ready(elegido, abiertos + disponibles, problemas)
+    }
+
+    /**
+     * Extrae y abre un pack que estaba solo en el APK. Es la segunda mitad de la pereza.
+     */
+    suspend fun extraer(context: Context, handle: PackHandle.Disponible): PackLoad =
         withContext(Dispatchers.IO) {
             val dir = packsDir(context)
             dir.mkdirs()
-
-            var file = packInstalado(dir)
-
-            if (file == null) {
-                if (!hasAsset(context)) return@withContext PackLoad.NoPack
-                onExtracting()
-                file = try {
-                    instalarAtomico(context.assets.open(ASSET_NAME), dir, ASSET_NAME)
-                } catch (e: IOException) {
-                    return@withContext PackLoad.Unusable(
-                        "No se pudo instalar el diccionario: ${e.message}",
-                    )
-                }
+            val file = try {
+                instalarAtomico(context.assets.open(handle.asset), dir, handle.asset)
+            } catch (e: IOException) {
+                return@withContext PackLoad.Unusable(
+                    "No se pudo instalar el diccionario: ${e.message}",
+                )
             }
-
             abrir(file)
         }
 
-    /** El primer `.db` que haya, por nombre. Determinista: dos arranques abren el mismo. */
-    internal fun packInstalado(dir: File): File? =
+    /** El idioma elegido, para que el reloj abra el mismo diccionario que la ultima vez. */
+    fun packPreferido(context: Context): String? =
+        prefs(context).getString(CLAVE_PACK, null)
+
+    fun recordarPack(context: Context, packId: String) {
+        prefs(context).edit().putString(CLAVE_PACK, packId).apply()
+    }
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
+
+    private const val CLAVE_PACK = "pack_activo"
+
+    private fun assetsDePack(context: Context): List<String> =
+        runCatching { context.assets.list("")?.filter { it.endsWith(".db") }.orEmpty() }
+            .getOrDefault(emptyList())
+            .sorted()
+
+    /** `es-def-wikc.db` -> `es-def-wikc`. El builder escribe el pack_id como nombre de archivo. */
+    private fun packIdDeAsset(asset: String): String = asset.removeSuffix(".db")
+
+    /** Lo unico que se puede decir de un pack sin extraerlo: su idioma, que sale del nombre. */
+    private fun etiquetaDeAsset(asset: String): String =
+        packIdDeAsset(asset).substringBefore("-").uppercase()
+
+    /**
+     * Todos los packs instalados, por nombre.
+     *
+     * Antes esto devolvia **solo el primero**, y con dos packs eso escondia el español en
+     * silencio porque "en-..." ordena antes que "es-...". El orden sigue importando --dos
+     * arranques tienen que ver la misma lista-- pero ya no decide cual se abre.
+     */
+    internal fun packsInstalados(dir: File): List<File> =
         dir.listFiles { f -> f.isFile && f.name.endsWith(".db") }
             ?.sortedBy { it.name }
-            ?.firstOrNull()
+            ?.toList()
+            .orEmpty()
+
+    /**
+     * Que assets hay que copiar a disco, y sobre todo **cuales no**.
+     *
+     * Pura y sin `Context` para que se pueda testear en la JVM, igual que [instalarAtomico].
+     * Los tres casos que un `if (dir.isEmpty())` se come:
+     *
+     *  - un pack ya instalado no se vuelve a copiar (serian 72 MB por arranque);
+     *  - actualizar el APK con un idioma nuevo extrae **solo** el nuevo;
+     *  - un `.db` puesto a mano con `adb push` se conserva, que es el camino de iteracion que
+     *    D-071 promete.
+     */
+    internal fun queFaltaExtraer(assets: List<String>, instalados: List<String>): List<String> {
+        val yaEstan = instalados.toSet()
+        return assets.filterNot { it in yaEstan }.sorted()
+    }
 
     /**
      * Copia a un archivo temporal y recien al final lo renombra.
@@ -97,9 +198,6 @@ object PackStore {
         }
         return target
     }
-
-    private fun hasAsset(context: Context): Boolean =
-        runCatching { context.assets.list("")?.contains(ASSET_NAME) == true }.getOrDefault(false)
 
     private fun abrir(file: File): PackLoad =
         try {
