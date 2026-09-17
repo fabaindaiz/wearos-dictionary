@@ -75,6 +75,16 @@ def verify(path):
     missing = [key for key in REQUIRED_META if key not in meta]
     report.check(not missing, "estan todas las claves obligatorias%s" % (
         "" if not missing else " (faltan: %s)" % ", ".join(missing)))
+    # La app parsea estas tres como enteros (`PackFile.parseMetadata`). Un valor que no lo sea
+    # NO falla aca ni al construir: falla al ABRIR el pack, en el reloj, con un
+    # NumberFormatException que no nombra la clave. Paso de verdad: el primer pack real se
+    # construyo con data_version = "2026-09-15" y este archivo dio verde.
+    for key in ("schema_version", "norm_version", "data_version"):
+        valor = meta.get(key, "")
+        report.check(
+            valor.lstrip("-").isdigit(),
+            "meta.%s es un entero (la app le hace toInt()): %r" % (key, valor),
+        )
     report.check(
         meta.get("schema_version") == str(build.SCHEMA_VERSION),
         "schema_version es %d" % build.SCHEMA_VERSION,
