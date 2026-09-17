@@ -19,6 +19,56 @@ Formato:
 
 ---
 
+## 2026-09-17 — Los 20 tests instrumentados corrieron por primera vez, en dos niveles de API
+
+**Qué.** Se creó el entorno que faltaba (cmdline-tools, dos imágenes de sistema Wear OS arm64,
+dos AVD) y se corrieron los tests de `:dict-data` en **API 33 (Wear OS 4, Android 13)** y
+**API 37.0 (Wear OS 7.0, Android 17)**. La primera corrida dio **19/20**; se corrigió la
+expectativa que fallaba y ahora es **20/20 en los dos niveles**. Se actualizó `docs/roadmap.md`
+(§Dónde estamos, la tabla de las tres cosas, y §Comprobación que falta), y el conteo de tests en
+`dict-data/CLAUDE.md` y en la skill `verify`, que decían 16.
+
+**Áreas.** `dict-data/src/androidTest/kotlin/cl/fadiaz/dictionary/data/PlatformAssumptionsTest.kt`, `docs/roadmap.md`,
+`dict-data/CLAUDE.md`, `.claude/skills/verify/SKILL.md`. Fuera del repo: el SDK de Android.
+
+**Por qué.** Era la tarea #1 del roadmap: el único paso que convierte el comportamiento en
+Android de ASSUMPTION a verificado. `devicePrecheck` diagnosticó exactamente qué faltaba, y la
+máquina no tenía `cmdline-tools` ni ninguna imagen de sistema.
+
+**Arquitectura.** ✅ Cumple. La corrección no tocó código de producción: el test hardcodeaba una
+cota de prefijo que no seguía la convención de `PrefixRange.upperBound`.
+
+**Medido.**
+
+- **La falla era del test, no del producto.** `PlatformAssumptionsTest#lasCincoConsultasDevuelvenLoEsperado`
+  pedía el rango `fuzzy >= 'kore' AND fuzzy < 'koref'`. La clave fuzzy de *correr* en el pack de
+  juguete es `korer`, y `'korer' < 'koref'` es **falso** porque `'r' > 'f'`: la cota se había
+  escrito *agregando* una letra en vez de **incrementando el último code point**, que es lo que
+  hace `PrefixRange.upperBound("kore") == "korf"`. Con `'korf'` el rango devuelve 2 entradas
+  (`korer`, `koregir`). El código de producción nunca tuvo el bug: arma la cota con
+  `PrefixRange`, y por eso los 13 tests de `SqlitePackSource` —que pasan por ahí— ya pasaban.
+- **Misma clase de error, latente, en la consulta inversa** del mismo test: `norm >= 'run' AND
+  norm < 'rus'`. Pasaba por suerte —en el pack de juguete la única clave que empieza con `run`
+  es `run`— pero `'rus'` es una cota **más laxa** que la convención (`'ruo'`), así que en un
+  pack real habría incluido claves que no son del prefijo. Corregida a `'ruo'`: la aserción
+  sigue dando 1.
+- **El invariante central pasa en Android**, en los dos extremos de ICU soportados:
+  `NormalizationOnDeviceTest` (3 tests) verde en API 33 y 37.0. Con esto, NFD y `lowercase()`
+  delegados a la plataforma (D-004) dejan de ser ASSUMPTION en Android dentro de ese rango.
+- **`THREADSAFE=2` y `ENABLE_FTS5` confirmados en dispositivo**, y el prefijo usa
+  `COVERING INDEX idx_entry_norm` en los dos niveles: las asunciones de D-002, D-012 y D-050
+  quedan verificadas donde importa.
+- **Lo que el emulador no midió:** nada de rendimiento ni batería (D-043). Sigue sin haber un
+  solo número de latencia real.
+- **Entorno instalado** (queda en la máquina, no en el repo): `cmdline-tools` 16111833 arm64,
+  sha1 `ad03…e830` verificado contra el declarado por `dl.google.com/android/repository`;
+  imágenes `system-images;android-33;android-wear;arm64-v8a` (1,06 GB) y
+  `system-images;android-37.0;android-wear-signed;arm64-v8a` (1,26 GB); AVD `wear_api33` y
+  `wear_api37`, perfil `wearos_small_round`. Nota para la próxima sesión: **`sdkmanager` está
+  deprecado** en esta versión de las cmdline-tools —el reemplazo es el binario `android`
+  (`android sdk install`)— pero `android emulator create` todavía **no ofrece perfiles de
+  watch**, así que los AVD de Wear hay que crearlos con `avdmanager`.
+
 ## 2026-09-17 — `.idea/` deja de trackearse
 
 **Qué.** `.gitignore` ignora `.idea/` entero y los 7 archivos que estaban trackeados se
