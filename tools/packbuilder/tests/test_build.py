@@ -5,6 +5,8 @@ verifica aca es sobre todo lo que NO falla ruidosamente: un pack a medio constru
 tope de traducciones mal aplicado, se abre sin error y devuelve resultados incompletos.
 """
 
+import contextlib
+import io
 import os
 import shutil
 import sqlite3
@@ -91,7 +93,7 @@ class ToyPackFixtureTest(BuilderTestCase):
             row[0]
             for row in self.db.execute(
                 "SELECT headword FROM entry WHERE norm >= ? AND norm < ?"
-                " ORDER BY norm, rank DESC LIMIT 30",
+                " ORDER BY norm, rank LIMIT 30",
                 (clave, upper),
             )
         ]
@@ -282,6 +284,24 @@ class FailureModeTest(BuilderTestCase):
         metadata["schema_version"] = "99"
         with self.assertRaises(ValueError):
             build.PackBuilder(self.path, metadata)
+
+    def test_un_data_version_no_entero_se_rechaza(self):
+        """`PackFile.parseMetadata` hace `data_version.toInt()`: un string revienta al ABRIR.
+
+        Es la clase de bug que este repo existe para no tener: el builder lo escribe, el
+        validador lo deja pasar y el error aparece recien en el reloj. Paso de verdad -- el
+        primer pack real se construyo con `data_version = "2026-09-15"` y `verify_pack.py` dio
+        verde-- asi que la comprobacion vive ahora del lado que lo produce.
+        """
+        metadata = dict(BASE_META)
+        metadata["data_version"] = "2026-09-15"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("correr"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "verify_pack deberia fallar con un data_version no entero")
+        self.assertIn("data_version", salida.getvalue())
 
     def test_unknown_fuzzy_profile_is_rejected(self):
         metadata = dict(BASE_META)
