@@ -80,3 +80,24 @@ anterior. El detalle está en `docs/formato-pack.md`.
 | Hilt/Dagger para inyección | Contenedor manual | A esta escala Hilt agrega KSP y tiempo de build sin beneficio |
 | JSON o Protobuf para datos estructurados | Texto delimitado en el payload | Se parsea sin dependencias en los dos lenguajes; comprimido, la diferencia es ruido (D-009) |
 | Kotlin al día | Kotlin 2.2.10, no 2.4.20 | `allWarningsAsErrors` convierte un bump de compilador en build roto (D-033) |
+
+## Qué cambiaste → qué se mueve, en el mismo cambio
+
+Un cambio no está hecho hasta que los documentos que falsificó vuelven a ser ciertos. El momento
+más barato para arreglar esa frase es mientras todavía sabés cuál es. La prueba de este paso no
+es *"¿escribí documentación?"*, es **"¿hay alguna frase en el repo que mi cambio acaba de volver
+falsa?"**.
+
+| Tocaste | Se mueve, en el mismo cambio |
+|---|---|
+| `norm()` o `fuzzy()` | las **dos** implementaciones, `NORM_VERSION` en ambas, `vectors/normalization-vectors.tsv`, D-005 y D-006 |
+| El repertorio Unicode | `gen_repertoire.py`, las dos copias generadas, su sha256, `NORM_VERSION`, y **todos los packs se reconstruyen** |
+| El esquema del pack | `schema_version`, `docs/formato-pack.md`, `verify_pack.py`, `PackFile.open()`, y el toy pack |
+| Una consulta o un índice | `docs/formato-pack.md` §consultas, el `EXPLAIN QUERY PLAN` de `verify_pack.py`, y D-012/D-013 si cambió la razón |
+| El codec del payload | `payload.py`, `PayloadCodec.kt`, `gen_payload_fixture.py`, `payload_codec` en `meta`, D-008/D-009 |
+| Una regla, o la respuesta a una pregunta cerrada | `docs/decisions.md`: fila nueva, **con la columna Enforced in llena** |
+| Un número que algún documento afirma | el documento que **posee** ese número, con la medición nueva al lado |
+| Un módulo, una capa, un nombre público | `docs/architecture.md` y todo mapa que lo nombre |
+| Un comando o una tarea de Gradle | `CLAUDE.md` §Comandos, el `<área>/CLAUDE.md` que lo cite, y los skills — es lo que más rápido se vuelve viejo |
+| Algo que el roadmap planeaba | el **estado** de esa entrada, y qué sigue faltando |
+| Cualquier cosa | el changelog, incluyendo qué salió mal en el camino |

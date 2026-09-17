@@ -56,6 +56,33 @@ pack real, ese número deja de ser una suposición y hay que escribirlo donde vi
 - **`[tamanos]`** — dónde se va el pack. Con definiciones, `fts_def_data` va a ser grande; ese
   número es el que decide si vale la pena mirar `detail=none` (decisión abierta).
 
+## Después de `verify_pack.py`: abrí el pack y leelo
+
+`verify_pack.py` en verde dice que el pack cumple sus invariantes. **No dice que el contenido
+sea bueno.** Un pack puede pasar todas las comprobaciones con glosas vacías, con la fuente mal
+parseada, o con acentos comidos, porque nada de eso viola una invariante — y es obvio para el
+primer humano que lo mira.
+
+Antes de dar un pack por bueno, **miralo**:
+
+```sh
+sqlite3 <pack.db> "SELECT headword, pos, norm FROM entry ORDER BY random() LIMIT 15;"
+sqlite3 <pack.db> "SELECT headword, length(payload) FROM entry ORDER BY length(payload) LIMIT 5;"
+sqlite3 <pack.db> "SELECT headword, length(payload) FROM entry ORDER BY length(payload) DESC LIMIT 5;"
+```
+
+Qué estás buscando, que ninguna invariante agarra:
+
+- **Las 15 al azar**: ¿son palabras de verdad? ¿El `pos` tiene sentido? ¿Los acentos sobreviven?
+- **Las más cortas**: una glosa de 3 bytes es una entrada vacía que igual cuenta como entrada.
+- **Las más largas**: una glosa de 40 kB suele ser markup de la fuente que la poda no sacó.
+- **Descomprimí una de verdad** y leela entera. El codec puede devolver texto corrupto sin
+  error: por eso existe `payload_dict_sha256` (D-008), y por eso mirarlo sigue valiendo.
+
+**Distinguí los dos silencios.** "Vacío porque la fuente no tenía nada" y "vacío porque la poda
+se lo comió" son la misma celda vacía y dos bugs completamente distintos. Si el pack tiene
+entradas vacías, decí cuál de los dos es, con el número.
+
 ## Licencia, y no es opcional
 
 El contenido es CC BY-SA. Cada pack declara `license` y `attribution` en `meta`, y **la app

@@ -91,9 +91,8 @@ python3 tools/packbuilder/gen_payload_fixture.py                # regenera el fi
 ./gradlew :dict-data:connectedDebugAndroidTest                  # LOS TESTS EN DISPOSITIVO (ver abajo)
 ```
 
-Entorno opcional de desarrollo para el pipeline Python (`pyproject.toml`, Hatch):
-`hatch run test`, `hatch run matrix:test`, `hatch run lint:check`. **El gate no lo necesita**
-(D-046).
+El entorno Hatch para el pipeline Python es opcional y **el gate no lo necesita** (D-046):
+vive en `tools/CLAUDE.md`, que es el documento que lo posee.
 
 ## Verificación
 
@@ -106,6 +105,12 @@ Después de tocar `norm()`, `fuzzy()` o el formato del pack, además:
 **Una claim necesita una medición.** No escribas un número en un documento sin decir cómo se
 obtuvo, y si la medición mata una creencia, esa es la entrada más valiosa del changelog.
 
+**El test va primero.** Un agente que escribe el código y después el test escribe **el test que
+el código pasa**, y el bug queda ratificado como comportamiento esperado. Escribí antes la
+expectativa —una fila en `normalization-vectors.tsv`, un caso en `test_build.py`— y **miralo
+fallar por la razón que esperabas**. Las excepciones (un spike, un test de caracterización) se
+nombran como tales.
+
 **Emulador y reloj no miden lo mismo** (D-043): el emulador cierra correctitud —normalización,
 FTS5, planes de consulta—, porque trae el ICU y el SQLite de su nivel de API. Rendimiento y
 batería solo valen medidos en **reloj físico**. Ver el `benchmark` skill.
@@ -113,6 +118,37 @@ batería solo valen medidos en **reloj físico**. Ver el `benchmark` skill.
 **Los tests de `:dict-data` son instrumentados y el gate NO los corre** (necesitan dispositivo).
 Son los únicos que cierran las asunciones sobre Android. Corrélos en cada nivel de API
 soportado, no en uno solo: el punto es que las versiones de ICU difieren.
+
+## Cómo corre una sesión
+
+**Abrí con el brief**, antes de contestar o planear. Una línea sin nada dice `nada`: omitirla no
+distingue *miré y está limpio* de *no miré*.
+
+```
+En movimiento   qué quedó a medias, según el roadmap y el changelog
+En el árbol     trabajo sin commitear, en qué branch, y de quién es
+Restringe       las decisiones y los números que pesan sobre lo que se pidió
+Obsoleto        qué hay que re-chequear antes de creerle
+Lo cambia       cómo lo de arriba altera el pedido — una frase
+Fricción        items de proceso abiertos que este trabajo va a tocar
+```
+
+**El trabajo sin commitear no es tuyo.** Nombralo en el reporte y no lo arrastres al tuyo.
+
+**Las preguntas van juntas y antes de escribir**, con tope de tres y una recomendación adelante.
+Cada opción se cotiza **en las unidades de este repo** —MB por millón de entradas, ms a p99,
+bytes por fila— nunca en "más complejo", y dice **qué cierra**: eso es lo que nadie reconstruye
+del código un año después. Lo reversible en diez minutos se decide solo y se avisa en una línea.
+
+**Mirá el output, no solo los números.** Un gate verde dice que el código hizo lo que se le
+mandó, no que lo que se le mandó estuviera bien. Acá eso es abrir el pack y **leer entradas de
+verdad**, no contar filas. Ver el `pack-workflow` skill.
+
+**Cerrá devolviendo lo que la sesión aprendió.** Capturar es incondicional; proponer tiene
+umbral: una fricción va al changelog la primera vez y **sube al roadmap §Proceso y herramientas
+la segunda**, con la aritmética. Las mejoras de proceso **se proponen, no se ejecutan**, salvo la
+de una línea y reversible. La pregunta de cierre: *si la próxima sesión es otro agente sin
+memoria de esta, ¿qué tendría que re-derivar?*
 
 ## Commits
 
@@ -127,6 +163,9 @@ El mensaje dice **por qué**, no qué archivos cambiaron — eso ya lo dice el d
 Cada sesión escribe su entrada en `.claude/logs/agent-changelog.md`, arriba de todo.
 Existe porque **dos sesiones en paralelo no se ven entre sí** y el conflicto aparece al
 compilar, o peor, al revisar.
+
+La entrada dice además **qué salió mal en el camino** y **qué quedó sin hacer**. Un log de
+éxitos es contabilidad: lo único que avisa a la sesión siguiente son los errores y la deuda.
 
 ## Estilo de trabajo
 
@@ -156,3 +195,5 @@ compilar, o peor, al revisar.
 | ¿Esto ya lo investigamos? ¿Qué dice la fuente oficial? | `docs/references.md` |
 | ¿Qué cambió y por qué, en las últimas sesiones? | `.claude/logs/agent-changelog.md` |
 | ¿Qué es este proyecto? (para alguien de afuera) | `README.md` |
+| ¿Cómo se trabaja este repo con un agente? ¿De dónde salen estas reglas? | `docs/agents/prompt-context.md` |
+| ¿Está sano el sistema de instrucciones? ¿Hay que actualizar el método? | `docs/agents/prompt-evaluate.md`, `prompt-update.md` |
