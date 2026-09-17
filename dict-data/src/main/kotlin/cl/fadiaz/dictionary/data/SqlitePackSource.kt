@@ -70,8 +70,16 @@ class SqlitePackSource(
                 byFuzzy(normalized, query).forEach { accumulated.putIfBetter(it) }
             }
 
+            // La deduplicacion va DESPUES de ordenar y al final de la cascada, no dentro de un
+            // nivel: `accumulated` esta indexado por entryId, asi que dos entradas distintas con
+            // el mismo lema y el mismo pos sobreviven las dos. Fundirlas antes de ordenar
+            // elegiria una al azar; hacerlo despues conserva la de mejor nivel y mejor score.
+            //
+            // Que no alcanza con deduplicar en byPrefix lo encontro un test: el nivel tolerante
+            // volvia a meter la entrada que el prefijo ya habia fundido.
             accumulated.values
                 .sortedWith(compareBy({ it.matchKind.ordinal }, { it.score }))
+                .distinctBy { it.headword to it.partOfSpeech }
                 .take(limit)
         }
     }
@@ -86,23 +94,30 @@ class SqlitePackSource(
      */
     private suspend fun byPrefix(normalized: String, limit: Int): List<Suggestion> {
         val upper = PrefixRange.upperBound(normalized)
+        // El rango sale del covering index; el orden NO, y es deliberado (D-068). `norm` es
+        // alfabetico y ordenar por el entierra la palabra comun debajo de las raras que
+        // comparten prefijo. El CASE sube la coincidencia exacta, que es lo que el usuario
+        // acaba de escribir entero y nunca puede faltar.
+        val order = " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?"
         val sql = if (upper != null) {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" +
-                " ORDER BY norm, rank LIMIT ?"
+            "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" + order
         } else {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ? ORDER BY norm, rank LIMIT ?"
+            "SELECT id, headword, pos FROM entry WHERE norm >= ?" + order
         }
 
-        return pack.connection().prepare(sql).use { statement ->
-            statement.bindText(1, normalized)
-            if (upper != null) {
-                statement.bindText(2, upper)
-                statement.bindInt(3, limit)
-            } else {
-                statement.bindInt(2, limit)
-            }
+        val rows = pack.connection().prepare(sql).use { statement ->
+            var i = 1
+            statement.bindText(i++, normalized)
+            if (upper != null) statement.bindText(i++, upper)
+            statement.bindText(i++, normalized)
+            statement.bindInt(i, limit * PREFIX_OVERFETCH)
             statement.collectSuggestions(MatchKind.PREFIX)
         }
+
+        // Se pide de mas y se deduplica aca, no con GROUP BY: medido sobre el pack real, el
+        // GROUP BY cuesta 7,9 ms p95 con un prefijo de una letra contra 1,8 ms de esta forma,
+        // y ademas no saca los duplicados que se ven, que difieren en pos.
+        return rows.distinctBy { it.headword to it.partOfSpeech }.take(limit)
     }
 
     /** Se escribio "corriendo" y el lema es "correr". */
@@ -304,6 +319,16 @@ class SqlitePackSource(
     companion object {
         /** Si la cascada confiable devolvio menos que esto, se intenta el nivel tolerante. */
         const val FUZZY_TRIGGER: Int = 5
+
+        /**
+         * Cuantas filas se piden por cada resultado que se va a mostrar, para que la
+         * deduplicacion no deje la lista corta.
+         *
+         * 3 sale de medir el pack real: con el prefijo mas productivo de una letra (22.358
+         * filas), pedir 90 y deduplicar en memoria deja 30 lemas distintos y cuesta 1,8 ms
+         * p95 en escritorio. El numero del reloj falta: es lo que O-1 existe para dar.
+         */
+        const val PREFIX_OVERFETCH: Int = 3
 
         /** Cuantos caracteres de la clave fuzzy definen el vecindario. */
         const val FUZZY_PREFIX_LENGTH: Int = 4
