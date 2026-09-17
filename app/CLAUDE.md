@@ -21,11 +21,26 @@ De ahí la regla, que es D-072 y la enforcea el audit: **la lógica de `:app` no
 `android.*`**. Lo que necesita Android entra por parámetro —`SearchViewModel` recibe `abrirPack`,
 no un `Context`— y la frontera es `PackLoad`, un tipo sin Android por el que pasa un fake.
 
-Las **pantallas están fuera de la regla**: un Composable es Android por definición. Lo que se
-prueba de ellas se prueba en dispositivo, y hoy no se prueba nada.
+Las **pantallas están fuera de la regla**: un Composable es Android por definición. Se prueban
+en dispositivo, con `PantallasTest`, y **no entran al gate**.
+
+Esos tests no arman un `DictionarySource`: las pantallas son funciones del estado, así que el
+estado se construye a mano. Si alguna vez una pantalla necesita un fake, es señal de que se le
+metió lógica que debería estar en el ViewModel.
+
+## El presupuesto es de 192 dp
+
+La pantalla son 384×384 px a 320 dpi, o sea **192×192 dp**, y la guía de Wear OS pide 48 dp
+mínimos de área tocable. Eso da **tres filas y nada más**, medido. Cada dp que gasta el chrome
+es un resultado que el usuario no ve, y de ahí salen D-073 (lista de una línea, 48 dp) y D-075
+(la entrada de texto se colapsa cuando hay resultados).
+
+Si alguien baja de 48 dp para meter una cuarta fila, el test de densidad **sigue pasando** y lo
+que se rompe es el área tocable. Por eso el mínimo vive en una constante con nombre.
 
 ```sh
-./gradlew :app:testDebugUnitTest    # 17 tests, milisegundos, dentro del gate
+./gradlew :app:testDebugUnitTest         # 17 tests JVM, milisegundos, dentro del gate
+./gradlew :app:connectedDebugAndroidTest # 13 tests de pantalla, necesitan emulador
 ```
 
 Lo que cubren es lo que **no da error**: resultados de una consulta vieja pisando a la actual,

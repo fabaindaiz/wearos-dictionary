@@ -211,30 +211,37 @@ de licencia. Capturas en la sesión del changelog.
 
 ### Tests de UI para las tres pantallas
 
-**Estado.** Planificado. Lo que falta es **mecanismo**: los tests de Compose necesitan
-dispositivo y este repo todavía no tiene una suite instrumentada en `:app`.
+**Estado.** **Hecho** (2026-09-17). 13 tests instrumentados de Compose en `:app`.
 
-Nada comprueba que las pantallas dibujen lo que el estado dice. El caso que más pesa es **la
-atribución (D-031)**: hoy su enforcer es parcial —un test JVM fija que el estado lleva la
-licencia *del pack* y no una constante— pero **nadie impide borrar la pantalla** y que el gate
-siga verde. Es la condición de uso de los datos, así que es ship-blocking.
+**En qué quedó.** Cubren densidad, truncado del lema largo, los estados que no son "hay
+resultados", el tope de acepciones con su `Ver más`, y la navegación. No usan un
+`DictionarySource`: las pantallas son funciones del estado, así que el estado se arma a mano y
+no hubo que duplicar el fake de `src/test`.
 
-**Con qué choca.** Con que el gate no corre tests instrumentados: van a vivir donde ya viven los
-25 de `:dict-data`, fuera de `./gradlew check` y atados a que haya un emulador.
+**D-031 quedó cerrado con tres capas**, porque ninguna sola alcanzaba: un check en el audit
+—que corre **en el gate**— comprueba que la pantalla exista y lea de `meta`; el test
+instrumentado comprueba que se **vea**; y el test JVM del ViewModel, que la atribución venga del
+pack y no de una constante.
 
-**Qué hay ya a favor.** El `:app` de hoy es testeable por diseño (D-072) y `FakeDictionary` ya
-existe en el source set de test: un test de UI puede montar una pantalla con estado fijo sin
-abrir un pack de 69 MB.
-
-**Qué hay que decidir antes.** Si el enforcer de D-031 es un test de UI o algo más barato —una
-comprobación estructural en el audit de que la pantalla referencia `meta.attribution`—. Lo
-barato no prueba que se vea; lo caro no corre en el gate.
+**Qué sigue faltando.** Estos 13 **no corren en el gate**: necesitan dispositivo, como los 25 de
+`:dict-data`. El gate ve la lógica de `:app` y la existencia de la pantalla de atribución, no
+los pixeles.
 
 ### Diseño de la interfaz
 
-**Estado.** **A medias.** Existe lo funcional —tres pantallas que hacen el trabajo— y no existe
-el diseño: tipografía, jerarquía, estados vacíos, corona rotatoria. Lo que falta es **contenido
-de decisión de producto**, no mecanismo.
+**Estado.** **A medias**, y la mitad que falta cambió. Lo hecho (2026-09-17): densidad,
+jerarquía tipográfica, los estados de carga/instalación/error, el tope de acepciones y la corona
+rotatoria (D-073 a D-075). Lo que falta ya no es la base sino lo que sólo se decide con un reloj
+puesto:
+
+- **La corona está cableada pero nunca se movió.** El emulador no acepta input de corona por
+  `adb` (`Unknown command: rotaryencoder`), así que lo único verificado es que compila contra la
+  API documentada. En un reloj puede estar invertida, ser demasiado sensible, o no tener foco.
+- **El ejemplo de 917 caracteres sigue siendo un muro.** Va en secundario y más chico, pero con
+  las acepciones desplegadas un solo ejemplo largo todavía empuja la siguiente fuera de pantalla.
+  La opción que lo resolvía —ejemplos detrás de un toque— se evaluó y no se tomó.
+- **No hay paleta propia**: se usan los defaults de Wear Material3, que están pensados para OLED.
+  Elegir colores sin un reloj delante es decidir a ciegas sobre contraste y consumo.
 
 Voz, lista de resultados, corona rotatoria, Tile, Complication.
 
