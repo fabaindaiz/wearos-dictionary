@@ -11,7 +11,7 @@ Este documento es la lista de esos acuerdos y del mecanismo que protege cada uno
 
 | | |
 |---|---|
-| **Archivos** | `dict-core/.../TextNormalizer.kt` ⟷ `tools/packbuilder/normalize.py` |
+| **Archivos** | `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/TextNormalizer.kt` ⟷ `tools/packbuilder/normalize.py` |
 | **Acuerdo** | Deben dar el mismo resultado **bit a bit**, para toda entrada |
 | **Protección** | `tools/packbuilder/vectors/normalization-vectors.tsv`, que corren los tests de **ambos** lados |
 
@@ -75,7 +75,7 @@ Python. El procedimiento está en el encabezado de `tools/unicode/gen_repertoire
 
 | | |
 |---|---|
-| **Archivos** | `PayloadCodec.kt` ⟷ `payload.py` |
+| **Archivos** | `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt` ⟷ `tools/packbuilder/payload.py` |
 | **Acuerdo** | `meta.payload_dict_sha256` se verifica al abrir el pack |
 | **Protección** | `vectors/payload-fixture.tsv`, comprimido por Python y descomprimido por Kotlin |
 
@@ -130,8 +130,5 @@ nunca se habría ejecutado, funcionando bien hoy y fallando recién al compilar 
 
 ## Cómo verificar todo de una vez
 
-```sh
-./gradlew :dict-core:test                                    # 40 tests
-cd tools/packbuilder && python3 -m unittest discover -s tests  # 35 tests
-python3 tools/packbuilder/verify_pack.py ruta/al/pack.db
-```
+`./gradlew check` corre los cinco mecanismos de arriba. Los comandos sueltos están en
+[CLAUDE.md](../CLAUDE.md); no se repiten acá para que no haya dos listas que diverjan.

@@ -1,0 +1,43 @@
+# Un bloque por lenguaje del repo. Un bloque faltante es una pelea silenciosa entre el
+# formateador y el editor.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Kotlin: convenciones oficiales de JetBrains.
+[*.{kt,kts}]
+indent_size = 4
+max_line_length = 100
+
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.{json,yml,yaml,xml}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+# Markdown usa dos espacios al final para forzar salto de linea.
+trim_trailing_whitespace = false
+
+# Generado y delimitado por tabs: recortar whitespace corrompe los vectores.
+[*.tsv]
+indent_style = tab
+trim_trailing_whitespace = false
+
+[*.sql]
+indent_size = 4
+
+[gradlew.bat]
+end_of_line = crlf
+
+# Generados: no los toca ni el editor.
+[{**/UnicodeRepertoire.kt,tools/unicode/repertoire.txt}]
+trim_trailing_whitespace = false
+insert_final_newline = false

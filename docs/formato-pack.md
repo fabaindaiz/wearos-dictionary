@@ -10,6 +10,14 @@ hay migraciones, no hay claves foráneas que mantener, no hay journal. Un pack c
 Definición ejecutable: [`tools/packbuilder/schema.sql`](../tools/packbuilder/schema.sql) y
 [`indexes.sql`](../tools/packbuilder/indexes.sql).
 
+> **El caso primario es monolingüe** (D-034): el primer pack son definiciones en español. El
+> esquema soporta ambos tipos y cada pack declara el suyo en `meta.kind`, pero el bilingüe es el
+> caso secundario.
+>
+> Consecuencia pendiente en el código: en un pack monolingüe, `trans` guarda "las palabras que
+> aparecen en la glosa", que es exactamente lo que `fts_def` ya indexa mejor. Esa tabla debería
+> volverse opcional. Ver [roadmap](roadmap.md#reorientar-el-esquema-a-monolingüe).
+
 ## Tabla `meta`
 
 Todo lo que la app necesita saber antes de consultar. Se lee entera, una vez, al abrir.
@@ -198,9 +206,14 @@ El resultado es determinista: dos builds del mismo input dan el mismo contenido,
 
 ## Presupuestos
 
+⚠️ **Los cuatro son objetivos escritos a priori, ninguno está medido.** No existe todavía un
+pack real: el de juguete tiene 22 entradas y la sección Español del Wikcionario son 1.036.458
+senses. El primer item del roadmap es construir uno y pesarlo, porque es la medición que decide
+si el formato aguanta (D-028).
+
 | Métrica | Objetivo |
 |---|---|
-| Pack bilingüe es↔en en disco | ≤ 25 MB |
+| Pack en disco | ≤ 50 MB **(blando, y sin medición — ver abajo)** |
 | `suggest()` con prefijo de 3 letras | p95 < 20 ms |
 | Primer resultado visible desde la última tecla | < 150 ms |
 | Cold start hasta pantalla de búsqueda usable | < 700 ms |
