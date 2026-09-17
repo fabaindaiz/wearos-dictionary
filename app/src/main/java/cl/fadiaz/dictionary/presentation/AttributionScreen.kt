@@ -3,9 +3,15 @@ package cl.fadiaz.dictionary.presentation
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
+import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
+import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.ListHeader
@@ -26,6 +32,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 @Composable
 fun AttributionScreen(packName: String, attribution: String, license: String) {
     val listState = rememberTransformingLazyColumnState()
+    val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
