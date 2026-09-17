@@ -35,6 +35,14 @@ android {
     }
 }
 
+// Mismo rigor que :dict-core y :dict-data. `:app` era el unico modulo donde una advertencia del
+// compilador --una API deprecada, un cast redundante-- pasaba el gate sin que nadie la viera.
+kotlin {
+    compilerOptions {
+        allWarningsAsErrors = true
+    }
+}
+
 dependencies {
     implementation(project(":dict-data"))
     implementation(platform(libs.compose.bom))
@@ -58,6 +66,9 @@ dependencies {
     implementation(libs.ui.tooling.preview)
     implementation(libs.watchface.complications.data.source.ktx)
     implementation(libs.wear.tooling.preview)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.coroutines.test)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     debugImplementation(libs.tiles.renderer)

@@ -1,17 +1,17 @@
 package cl.fadiaz.dictionary.presentation
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
-import cl.fadiaz.dictionary.data.PackStore
+import cl.fadiaz.dictionary.data.PackLoad
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
@@ -38,8 +38,16 @@ data class SearchState(
     }
 }
 
+/**
+ * La busqueda incremental.
+ *
+ * Recibe `abrirPack` en vez de construirlo: es lo unico que este ViewModel necesitaba de
+ * Android, y sacarlo lo deja testeable en la JVM dentro del gate. Ver `SearchViewModelTest`.
+ */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
-class SearchViewModel(app: Application) : AndroidViewModel(app) {
+class SearchViewModel(
+    private val abrirPack: suspend (onExtracting: () -> Unit) -> PackLoad,
+) : ViewModel() {
 
     private var source: DictionarySource? = null
 
@@ -49,40 +57,40 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            when (val result = PackStore.open(getApplication()) {
-                _state.value = _state.value.copy(status = SearchState.Status.Installing)
-            }) {
-                is PackStore.Result.Ready -> {
-                    source = result.source
+            when (val result = abrirPack { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
+                is PackLoad.Ready -> {
                     val meta = result.source.metadata
-                    _state.value = _state.value.copy(
-                        status = SearchState.Status.Ready,
-                        packName = meta.name,
-                        attribution = meta.attribution,
-                        license = meta.license,
-                    )
+                    source = result.source
+                    _state.update {
+                        it.copy(
+                            status = SearchState.Status.Ready,
+                            packName = meta.name,
+                            // D-031: la atribucion sale del pack, no de una constante. Un pack
+                            // de otra fuente trae su propia licencia y tiene que mostrarse.
+                            attribution = meta.attribution,
+                            license = meta.license,
+                        )
+                    }
                 }
-                PackStore.Result.NoPack -> _state.value = _state.value.copy(
-                    status = SearchState.Status.Failed(
-                        "No hay ningún diccionario instalado.",
-                    ),
-                )
-                is PackStore.Result.Unusable -> _state.value = _state.value.copy(
-                    status = SearchState.Status.Failed(result.reason),
-                )
+
+                PackLoad.NoPack -> _state.update {
+                    it.copy(status = SearchState.Status.Failed("No hay ningún diccionario instalado."))
+                }
+
+                is PackLoad.Unusable -> _state.update {
+                    it.copy(status = SearchState.Status.Failed(result.reason))
+                }
             }
         }
 
         viewModelScope.launch {
-            queries
-                // El debounce es de bateria antes que de rendimiento: en un reloj, disparar una
-                // consulta por pulsacion mantiene la CPU despierta durante toda la frase.
-                .debounce(DEBOUNCE_MS)
+            // El debounce es de bateria antes que de rendimiento: en un reloj, disparar una
+            // consulta por pulsacion mantiene la CPU despierta durante toda la frase.
+            queries.debounce(DEBOUNCE_MS).map { text -> text to source }
                 // mapLatest cancela la busqueda anterior en cuanto llega una tecla nueva. La
                 // cascada chequea cancelacion fila por fila, asi que la vieja se corta de verdad
                 // en vez de terminar y descartarse.
-                .mapLatest { text ->
-                    val pack = source
+                .mapLatest { (text, pack) ->
                     if (text.isBlank() || pack == null) text to emptyList()
                     else text to pack.suggest(text)
                 }
@@ -90,7 +98,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                     // Se compara contra la query vigente: si el usuario siguio escribiendo
                     // mientras esta consulta corria, su resultado ya no es el que se muestra.
                     if (text == queries.value) {
-                        _state.value = _state.value.copy(query = text, results = results)
+                        _state.update { it.copy(query = text, results = results) }
                     }
                 }
                 .collect {}
@@ -98,19 +106,28 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onQueryChange(text: String) {
-        _state.value = _state.value.copy(query = text)
+        // La query se muestra YA y los resultados llegan despues: si el campo esperara al
+        // debounce, escribir se sentiria trabado.
+        _state.update { it.copy(query = text) }
         queries.value = text
     }
 
     suspend fun entry(entryId: Long): Entry? = source?.entry(entryId)
 
-    override fun onCleared() {
+    /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
+    fun cerrar() {
         source?.close()
         source = null
     }
+
+    override fun onCleared() = cerrar()
 
     companion object {
         /** Lo que tarda un dedo en encadenar dos letras en una pantalla de reloj. */
         const val DEBOUNCE_MS: Long = 120
     }
+}
+
+private inline fun MutableStateFlow<SearchState>.update(bloque: (SearchState) -> SearchState) {
+    value = bloque(value)
 }
