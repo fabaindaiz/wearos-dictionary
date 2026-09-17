@@ -10,7 +10,7 @@ en el reloj que en el builder.
 
 ```sh
 ./gradlew :dict-data:devicePrecheck            # ¿hay con qué correrlos? Dice qué falta
-./gradlew :dict-data:connectedDebugAndroidTest # los 16 tests
+./gradlew :dict-data:connectedDebugAndroidTest # los 20 tests
 ```
 
 Corrélos en **cada nivel de API soportado**, no en uno solo. El punto de

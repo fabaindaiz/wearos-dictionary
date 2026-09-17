@@ -11,14 +11,19 @@ dónde va a chocar cada una, escrito ahora que está claro.
 pipeline de packs (`tools/`, 35 tests) están completos y en el gate. El pack de juguete pasa
 todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
 
-**Hecho pero sin ejecutar.** `:dict-data` existe con `PackFile` —abre read-only y valida
-`schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y dos suites
-instrumentadas. **Compilan y nunca corrieron**: no hubo emulador ni reloj conectado. Que el test
-exista no es lo mismo que haber pasado.
+**Hecho y verificado en emulador.** `:dict-data` existe con `PackFile` —abre read-only y valida
+`schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y tres suites
+instrumentadas. Los **20 tests corrieron y pasan** (2026-09-17) en dos niveles de API:
+**Wear OS 4 / API 33** (Android 13, el minSdk) y **Wear OS 7.0 / API 37.0** (Android 17, el
+compileSdk), ambos arm64 headless. Una falla real apareció en la primera corrida y era una
+expectativa mal escrita, no un bug del producto: ver el changelog de esa fecha.
 
 `SqlitePackSource` implementa la cascada de cinco consultas, con 13 tests instrumentados. Sus
 expectativas se verificaron contra el contenido real del pack de juguete antes de escribirlas —
 una estaba mal y se corrigió sin gastar un emulador.
+
+**Lo que sigue sin medirse es el reloj físico.** El emulador cierra correctitud; rendimiento y
+batería, no (D-043).
 
 **Sin empezar.** `:app` sigue siendo el template de Android Studio: nada de la app usa
 `:dict-data` todavía. No existe ningún pack real, así que los umbrales del nivel tolerante
@@ -27,8 +32,9 @@ una estaba mal y se corrigió sin gastar un emulador.
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
 los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
 14.773 code points entre Python y la JVM (D-003). Medido después: el builder da resultados
-idénticos bajo Python 3.9 (Unicode 13) y 3.14 (Unicode 16). **En Android sigue siendo
-ASSUMPTION** hasta que se corra `NormalizationOnDeviceTest`.
+idénticos bajo Python 3.9 (Unicode 13) y 3.14 (Unicode 16). **En Android ya no es ASSUMPTION**:
+`NormalizationOnDeviceTest` pasa en API 33 y en API 37.0, los dos extremos de ICU que el
+proyecto soporta.
 
 ## Las tres cosas que desbloquean todo lo demás
 
@@ -36,7 +42,7 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 
 | # | Qué | Por qué primero | Bloquea a |
 |---|---|---|---|
-| 1 | **Correr los tests instrumentados** en el emulador | Es el único paso que convierte el comportamiento en Android de ASSUMPTION a verificado, y ya está escrito | Todo lo que toque el reloj |
+| 1 | ~~**Correr los tests instrumentados** en el emulador~~ **HECHO 2026-09-17** | Convirtió el comportamiento en Android de ASSUMPTION a verificado: 20/20 en API 33 y API 37.0 | ~~Todo lo que toque el reloj~~ desbloqueado |
 | 2 | **Decidir el join key entre packs** | Condiciona `entry.id` en el pack base, que es el primero que se va a construir. Es más barato decidirlo antes que después | Composición, y el pack real |
 | 3 | **Construir el pack real y pesarlo** | Es la medición que decide si el formato aguanta. Sin ella, cuatro presupuestos son intuiciones | O-2, O-3, O-4 y el alcance del producto |
 
@@ -235,9 +241,9 @@ El repertorio fijado (D-003) mata la mayor parte del riesgo, pero su residuo es 
 `lowercase()` siguen delegando en la plataforma, y esa verificación se hizo **entre Java 26 y
 Python 3.9**, nunca sobre Android.
 
-**El test ya existe: `NormalizationOnDeviceTest`.** Falta **correrlo**. Compila, pero nunca se
-ejecutó en ningún dispositivo ni emulador, así que el invariante central sigue siendo ASSUMPTION
-en Android hasta que alguien lo corra:
+**El test ya existe: `NormalizationOnDeviceTest`, y ya corrió** (2026-09-17): pasa en API 33 y
+en API 37.0. El invariante central deja de ser ASSUMPTION en Android en ese rango. Repetirlo al
+agregar un nivel de API soportado, o al tocar la normalización:
 
 ```sh
 ./gradlew :dict-data:connectedDebugAndroidTest
@@ -254,8 +260,8 @@ clase de bug en dos, y las dos mitades se cierran distinto:
 | **Correctitud**: normalización, FTS5, planes de consulta, codec del payload | **Emulador** | Depende de la imagen del sistema, no del silicio. Un emulador de API 33 tiene el ICU de API 33 |
 | **Rendimiento y batería**: latencia, consumo, arranque | **Reloj físico, sin excepción** | La documentación oficial es explícita: *"Run all final performance tests on a suite of physical Wear OS devices"* |
 
-Esta es la primera cosa que conviene hacer con el emulador, antes que `:dict-data`: convierte el
-invariante central de *asumido en Android* a *verificado en Android*.
+La mitad de **correctitud está cerrada** en API 33 y 37.0. La de **rendimiento sigue abierta**:
+falta el reloj físico, y sin él no hay ni un número de latencia ni de batería.
 
 ---
 
