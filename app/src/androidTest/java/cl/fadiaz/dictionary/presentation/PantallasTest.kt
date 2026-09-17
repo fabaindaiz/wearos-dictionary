@@ -9,7 +9,12 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.FuzzyProfile
+import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
@@ -44,21 +49,54 @@ class PantallasTest {
         score = 0,
     )
 
+    /** Un pack de mentira: sólo importa su metadata, porque las pantallas son del estado. */
+    private fun meta(
+        packId: String = "es-def",
+        lang: String = "es",
+        name: String = "Español — definiciones",
+    ) = PackMetadata(
+        packId = packId,
+        schemaVersion = 3,
+        normVersion = 1,
+        kind = PackKind.MONOLINGUAL,
+        name = name,
+        langSource = lang,
+        langTarget = null,
+        fuzzyProfile = FuzzyProfile.SPANISH,
+        entryCount = 1,
+        dataVersion = 1,
+        license = "CC-BY-SA-4.0",
+        attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
+    )
+
+    private fun handle(m: PackMetadata) = PackHandle.Abierto(FakeSource(m))
+
     private fun estadoListo(vararg lemas: String) = SearchState(
         query = "per",
         results = lemas.map { sugerencia(it) },
         status = SearchState.Status.Ready,
-        packName = "Español — definiciones",
-        attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
-        license = "CC-BY-SA-4.0",
+        activo = meta(),
+        disponibles = listOf(handle(meta())),
     )
+
+    /** Dos packs: es el estado que ejercita el selector. */
+    private fun estadoDosPacks(vararg lemas: String): SearchState {
+        val es = meta()
+        val en = meta("en-def", "en", "English — definitions")
+        return estadoListo(*lemas).copy(
+            activo = es,
+            disponibles = listOf(handle(es), handle(en)),
+        )
+    }
 
     private fun mostrarBusqueda(
         state: SearchState,
         onOpenEntry: (Suggestion) -> Unit = {},
         onOpenAttribution: () -> Unit = {},
+        onPackChange: (String) -> Unit = {},
     ) = compose.setContent {
-        SearchScreen(state, onQueryChange = {}, onOpenEntry = onOpenEntry, onOpenAttribution)
+        SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
+            onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution)
     }
 
     // --- La lista de resultados --------------------------------------------------------------
@@ -181,14 +219,65 @@ class PantallasTest {
         // No es decorativa: es la condicion de uso de los datos. Si alguien borra esta pantalla,
         // este test es lo unico que lo dice.
         compose.setContent {
-            AttributionScreen(
-                packName = "Español — definiciones",
-                attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
-                license = "CC-BY-SA-4.0",
-            )
+            AttributionScreen(packs = listOf(handle(meta())))
         }
         compose.onNodeWithText("Wikcionario", substring = true).assertExists()
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
+    }
+
+    // --- El selector de idioma ----------------------------------------------------------------
+
+    @Test
+    fun conDosPacksElSelectorMuestraLosDosIdiomas() {
+        mostrarBusqueda(estadoDosPacks().copy(query = ""))
+        compose.onNodeWithText("ES").assertIsDisplayed()
+        compose.onNodeWithText("EN").assertIsDisplayed()
+    }
+
+    @Test
+    fun conUnSoloPackNoHaySelector() {
+        // Un selector de una opcion es chrome puro, y en 192 dp el chrome cuesta resultados.
+        mostrarBusqueda(estadoListo().copy(query = ""))
+        assertEquals(0, compose.onAllNodesWithText("ES").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun tocarElOtroIdiomaLoAvisa() {
+        var elegido: String? = null
+        mostrarBusqueda(estadoDosPacks().copy(query = ""), onPackChange = { elegido = it })
+        compose.onNodeWithText("EN").performClick()
+        assertEquals("en-def", elegido)
+    }
+
+    @Test
+    fun conDosPacksSiguenEntrandoTresResultados() {
+        // Re-verifica D-073 con el selector presente: el selector no puede costar una fila.
+        mostrarBusqueda(estadoDosPacks("perder", "perro", "permitir", "persona"))
+        compose.onNodeWithText("permitir").assertIsDisplayed()
+    }
+
+    @Test
+    fun sinResultadosOfreceBuscarEnElOtroIdioma() {
+        // Es la escotilla de escape: escribiste algo que este idioma no tiene.
+        mostrarBusqueda(estadoDosPacks().copy(query = "dog"))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
+        compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun laAtribucionMuestraLosDosPacks() {
+        // D-031 con dos fuentes: mostrar una sola licencia es incumplir la condicion de la otra.
+        compose.setContent {
+            AttributionScreen(
+                packs = listOf(handle(meta()), handle(meta("en-def", "en", "English — definitions"))),
+                problemas = listOf("de-def: dañado"),
+            )
+        }
+        compose.onNodeWithText("Español", substring = true).assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("English", substring = true))
+        compose.onNodeWithText("English", substring = true).assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("dañado", substring = true))
+        compose.onNodeWithText("dañado", substring = true).assertExists()
     }
 
     @Test
@@ -199,4 +288,13 @@ class PantallasTest {
         compose.onNodeWithText("Sobre estos datos").performClick()
         assertEquals(true, abierta)
     }
+}
+
+
+/** Lo minimo para envolver una `PackMetadata` en un `PackHandle`. Las pantallas no consultan. */
+private class FakeSource(override val metadata: PackMetadata) : DictionarySource {
+    override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun entry(entryId: Long): Entry? = null
+    override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()
+    override fun close() = Unit
 }

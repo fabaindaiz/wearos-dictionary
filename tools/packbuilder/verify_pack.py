@@ -359,13 +359,22 @@ def _verify_search_paths(db, report, profile):
         report.note("no se encontro una palabra utilizable para probar FTS")
     else:
         term = words[0]
+        # SIN LIMIT, y eso es el punto de la comprobacion. La invariante es que FTS **encuentre**
+        # la entrada, no que la rankee alto: bm25 castiga las glosas largas, asi que una entrada
+        # correcta con una definicion extensa y un termino muy frecuente queda fuera del top 30.
+        # Paso con el pack de ingles --"you" por "people", posicion 721 de 890-- y la
+        # comprobacion fallaba por un pack sano.
+        #
+        # El modo de falla real sigue cubierto: si `fts_def.rowid` se desalineara de `entry.id`
+        # (D-011), la entrada no apareceria en NINGUNA posicion.
         rows = db.execute(
-            "SELECT rowid FROM fts_def WHERE fts_def MATCH ? ORDER BY rank LIMIT 30",
+            "SELECT rowid FROM fts_def WHERE fts_def MATCH ?",
             ('"%s"' % term,),
         ).fetchall()
         report.check(
             sample["id"] in [row["rowid"] for row in rows],
-            "FTS encuentra la entrada por %r de su definicion" % term,
+            "FTS encuentra la entrada por %r de su definicion (%d entradas la contienen)"
+            % (term, len(rows)),
         )
 
 

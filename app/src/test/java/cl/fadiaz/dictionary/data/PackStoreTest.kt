@@ -9,7 +9,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -85,7 +84,7 @@ class PackStoreTest {
 
     @Test
     fun sinPacksInstaladosNoDevuelveNada() {
-        assertNull(PackStore.packInstalado(dir))
+        assertEquals(emptyList(), PackStore.packsInstalados(dir))
     }
 
     @Test
@@ -93,15 +92,53 @@ class PackStoreTest {
         // `es.db.part` no termina en `.db`, y eso no es un accidente del nombre: si se eligiera
         // como pack, la app abriria justo el archivo incompleto que el rename existe para evitar.
         File(dir, "es.db.part").writeBytes(contenido(1_000))
-        assertNull(PackStore.packInstalado(dir))
+        assertEquals(emptyList(), PackStore.packsInstalados(dir))
     }
 
     @Test
-    fun conVariosPacksElegidoEsDeterminista() {
-        // Dos arranques tienen que abrir el mismo pack. Si dependiera del orden del sistema de
-        // archivos, la app cambiaria de diccionario sola entre arranques.
+    fun conVariosPacksLosDevuelveTodosEnOrdenEstable() {
+        // REEMPLAZA a `conVariosPacksElegidoEsDeterminista`, que congelaba justo lo que habia
+        // que matar: devolver SOLO el primero alfabetico. Con dos packs instalados eso escondia
+        // el español en silencio, porque "en-..." ordena antes que "es-...".
+        //
+        // El orden sigue importando --dos arranques tienen que ver la misma lista-- pero ya no
+        // decide cual se abre: eso lo decide el usuario con el selector.
         listOf("zz.db", "aa.db", "mm.db").forEach { File(dir, it).writeBytes(contenido(10)) }
-        repeat(3) { assertEquals("aa.db", PackStore.packInstalado(dir)!!.name) }
+        repeat(3) {
+            assertEquals(listOf("aa.db", "mm.db", "zz.db"), PackStore.packsInstalados(dir).map { it.name })
+        }
+    }
+
+    // --- Que extraer del APK, y sobre todo que NO --------------------------------------------
+
+    @Test
+    fun unPackYaInstaladoNoSeVuelveAExtraer() {
+        // Sin esto se copian 72 MB en cada arranque.
+        assertEquals(emptyList(), PackStore.queFaltaExtraer(listOf("es.db"), listOf("es.db")))
+    }
+
+    @Test
+    fun unAssetNuevoSeExtraeAunqueYaHayaOtroInstalado() {
+        // Es el camino de actualizar el APK: se agrega ingles y el español ya esta en disco.
+        assertEquals(
+            listOf("en.db"),
+            PackStore.queFaltaExtraer(listOf("en.db", "es.db"), listOf("es.db")),
+        )
+    }
+
+    @Test
+    fun unPackPuestoAManoNoSeToca() {
+        // D-071: `adb push` a filesDir/packs es el camino para iterar sin rearmar el APK.
+        // Si la extraccion lo borrara o lo pisara, ese camino no existiria.
+        assertEquals(emptyList(), PackStore.queFaltaExtraer(listOf("es.db"), listOf("es.db", "mio.db")))
+    }
+
+    @Test
+    fun sinNadaInstaladoSeExtraeTodoLoQueHaya() {
+        assertEquals(
+            listOf("en.db", "es.db"),
+            PackStore.queFaltaExtraer(listOf("es.db", "en.db"), emptyList()),
+        )
     }
 
     /** Se corta a los `hasta` bytes, como un disco lleno. */

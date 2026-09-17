@@ -360,6 +360,8 @@ def check_app_logic_is_jvm_testable(report):
                      "presentation", "SearchViewModel.kt"),
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "data", "PackLoad.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "PackSet.kt"),
     )
     for relativo in vigilados:
         path = os.path.join(ROOT, relativo)
@@ -413,10 +415,13 @@ def check_attribution_screen(report):
                 "fuente trae otra licencia, y una constante en el codigo mostraria la "
                 "equivocada (D-031)." % (pantalla, parametro),
             )
-    if "SearchViewModel" not in texto and "attribution:" not in texto:
-        report.advisory(
-            "la atribucion podria no venir del pack",
-            "%s no recibe la atribucion por parametro. Revisar que no sea una constante." % pantalla,
+    # La atribucion tiene que leerse de la METADATA de cada pack abierto. Con dos packs esto
+    # dejo de ser un detalle: mostrar una sola licencia es incumplir la condicion de la otra.
+    if "metadata" not in texto:
+        report.failure(
+            "la atribucion dejo de leerse del pack",
+            "%s no accede a la metadata de ningun pack. Con varios diccionarios instalados, "
+            "cada uno trae SU licencia y todas tienen que mostrarse (D-031)." % pantalla,
         )
 
 

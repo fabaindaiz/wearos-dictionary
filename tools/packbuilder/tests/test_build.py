@@ -308,6 +308,36 @@ class FailureModeTest(BuilderTestCase):
         with self.assertRaises(ValueError):
             build.PackBuilder(self.path, metadata)
 
+    def test_una_palabra_muy_comun_en_las_glosas_no_hace_fallar_la_comprobacion_de_fts(self):
+        """La invariante es que FTS **encuentre** la entrada, no que la rankee alto.
+
+        Lo destapo el pack de ingles: la entrada de mejor rank es "you", su glosa empieza con
+        "The people spoken...", y "people" aparece en 890 de 47.718 definiciones. La entrada
+        estaba --posicion 721 de 890-- pero fuera del top 30, y la comprobacion fallaba por un
+        pack correcto. Confundir indexado con rankeado es un falso negativo que manda a buscar
+        un bug que no existe.
+
+        El modo de falla real que esto cuida sigue cubierto: si `fts_def.rowid` se desalineara de
+        `entry.id` (D-011), la entrada no apareceria en NINGUNA posicion.
+        """
+        # La entrada de mejor rank tiene la glosa LARGA --bm25 castiga la longitud-- y otras
+        # cincuenta cortas comparten el termino. Asi la entrada correcta cae fuera del top 30,
+        # que es exactamente lo que paso con "you" y "people" en el pack de ingles.
+        larga = "personas " + " ".join("relleno%d" % i for i in range(40))
+        registros = [build.Record(headword="aaa", senses=[{"gloss": larga}], rank=0)]
+        registros += [
+            build.Record(headword="bbb%03d" % i, senses=[{"gloss": "personas"}], rank=500)
+            for i in range(50)
+        ]
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            for item in registros:
+                builder.add(item)
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(0, codigo, "un pack correcto no puede fallar por una glosa repetida:\n%s"
+                         % salida.getvalue())
+
     def test_un_data_version_no_entero_se_rechaza(self):
         """`PackFile.parseMetadata` hace `data_version.toInt()`: un string revienta al ABRIR.
 
