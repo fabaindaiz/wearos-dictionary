@@ -26,6 +26,107 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — El pack real de español: 72,2 MB, y leerlo destapó que la lista no sirve
+
+**Qué.** Se construyó el **primer pack real** del proyecto, que era el item 3 del roadmap y el
+último de los tres desbloqueantes. Fuente nueva `sources/kaikki_es.py` (la poda del Wikcionario,
+dos pasadas, streaming) y `build_es.py` con `--sample` para pilotos. **146.194 entradas,
+72.212.480 bytes.** De paso se corrigió un bug de orden que solo era visible con un pack real, y
+el pack sube a `schema_version = 3`.
+
+**Áreas.** `tools/packbuilder/sources/kaikki_es.py` y `build_es.py` (nuevos),
+`tests/test_source_kaikki.py` (nuevo), `tests/test_build.py`, `indexes.sql`, `schema.sql`,
+`build.py`, `verify_pack.py`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`, `PackFile.kt`,
+`PlatformAssumptionsTest.kt`, `docs/formato-pack.md`, `docs/decisions.md` (D-063 a D-067),
+`docs/roadmap.md`, `.claude/skills/pack-workflow/SKILL.md`.
+
+**Por qué.** Pedido: seguir con lo siguiente pendiente del roadmap. Era el item 3, y su razón de
+ser era que D-028 (50 MB blandos) **no tenía ninguna medición detrás**.
+
+**Arquitectura.** ✅ Cumple. D-015 (la app nunca parsea fuentes crudas), D-034 (monolingüe: el
+pack no lleva `trans`), D-031 (`license` y `attribution` en `meta`). El cambio de índice toca
+D-012 y por eso sube `schema_version`, que es el mecanismo que D-001 prevé para esto.
+
+**Medido.** Cinco mediciones, y **tres mataron una creencia**:
+
+- **El pack: 146.194 entradas, 72.212.480 bytes (68,9 MiB)** — 44 % por encima de D-028. Build
+  53,9 s, 214 MB RSS. Dump de kaikki.org del 2026-09-15 (1.423.631.693 B, 1.036.458 senses en
+  854.460 registros). **El 46,3 % del pack es `form`**: 33,4 MB, 1.487.695 filas, 93,5 %
+  conjugaciones de verbos. Un verbo trae hasta 222 formas.
+- **La poda descarta el 82,33 %** de los registros (703.506 páginas de forma flexionada).
+- **Mató la creencia nº1: una pasada alcanzaba.** El lema trae su conjugación en `forms`
+  (`amigar`: 137 formas, `amigo` entre ellas), así que recolectar las páginas form-of parecía
+  redundante. Medido: cubren el **92,31 %** de las palabras-forma y **7,66 % —53.708 palabras—
+  se perdían**, entre ellas "palpitaciones", "curvilínea", "animalito". Dos pasadas (D-065).
+- **Mató la creencia nº2: el 19,35 % de entradas-basura se podía descartar.** Hay páginas de
+  forma sin el tag `form-of` ("Participio de escribir"), y existe una señal buena para
+  agarrarlas: `tags: [form-of]` a nivel de registro, 28.414 casos. Medido: **1.341 de esas
+  palabras (4,72 %) no llegan a ningún lema por ningún otro camino**. Se quedan (D-066).
+- **Mató la creencia nº3, y es la importante: que la lista de resultados estaba resuelta.**
+  Se leyó el pack, no se contaron filas, y escribir `per` no muestra `perro`: sale en la
+  **posición 619 de 782**. `salir` en la 206, `decir` en la 154, `comer` en la 131. La lista
+  muestra 30. El orden es `(norm, rank)` —alfabético primero— y con 22 entradas de juguete eso
+  era invisible. **Ordenando por `(rank, norm)` con el proxy de D-067, `perro` sube a la
+  posición 5** y `hac`/`com` encabezan con `hacer` y `comer`. Está en el roadmap como entrada
+  nueva; **no se cambió**, porque choca con D-012 y la decisión es de producto.
+- **El bug de orden que sí se corrigió** (D-063): el prefijo ordenaba `rank DESC` con `rank`
+  definido como "menor es más común". En el pack real, `escrit` devolvía *escrito / Participio
+  de escribir* (rank 994) **antes** que el sustantivo (988). Afecta a 375 de 7.265 norms en el
+  piloto. Y corregir solo la consulta no alcanzaba: el test nuevo del plan mostró que dejaba
+  `USE TEMP B-TREE FOR LAST TERM OF ORDER BY`, o sea que dejaba de ser consulta de cobertura.
+  Índice y consulta se dieron vuelta juntos.
+- **22/22 instrumentados en API 33 y API 37.0**, con el toy pack reconstruido a
+  `schema_version = 3`. Es lo que cierra el cambio de índice: `PlatformAssumptionsTest` pinea el
+  `EXPLAIN QUERY PLAN` **en el dispositivo**, así que la consulta nueva se verificó donde el
+  plan lo decide el SQLite de cada imagen, no el de mi máquina.
+
+**Qué salió mal.**
+
+- **Escribí un número antes de medirlo, en un comentario de test**: "99,4 % de cobertura" del
+  `forms` de los lemas. El valor real era 85,86 % por pares y **92,31 % por palabra distinta**,
+  y la primera cuenta que hice también estaba mal (contaba pares, no palabras, y daba un
+  catastrófico 7,66 % → 4,72 % mal atribuido). Lo agarré releyendo mi propia salida, no un test.
+- **Otro número mal extrapolado llegó a estar escrito en tres archivos**: "77,2 % de páginas de
+  forma", medido sobre los primeros 400.000 registros y presentado como si fuera del dump
+  entero. El valor real es **82,33 %**. Corregido en los cuatro lugares antes de commitear.
+- **El primer diseño de la fuente era de una pasada y el test lo codificaba.** El test falló
+  —correctamente— y la respuesta no fue borrarlo sino medir la premisa. Ese es el caso donde
+  test-first pagó: si hubiera escrito el código primero, el test habría ratificado la pérdida
+  de 53.708 palabras como comportamiento esperado.
+- **Perdí dos intentos leyendo el pack** porque `meta.payload_dict` está guardado en hex:
+  `decompress()` no falla, devuelve texto que parece corrupto y manda a cazar un bug del codec
+  que no existe. Es exactamente el síntoma de D-008 pero con causa distinta. Quedó documentado
+  en el `pack-workflow` skill, que es donde se busca.
+- **`verify_pack.py` falló contra el pack real** por dos entradas legítimas: "h" y "H", la letra.
+  `fuzzy("h")` es vacío porque la hache es muda, y el check trataba `norm` vacío y `fuzzy` vacío
+  como el mismo problema. Separados (D-064). El test que lo acompaña es de **caracterización**:
+  el builder ya se comportaba bien, lo que estaba mal era el check.
+
+**Qué quedó sin hacer.**
+
+- **El pack real no se abrió nunca en un emulador ni en un reloj.** Los 22 instrumentados siguen
+  corriendo contra el toy de 53 KB. Un pack de 146.194 entradas es donde un plan de consulta se
+  degrada, y eso hoy no lo ve nadie. Es lo más barato que queda y lo más cerca de un bug real.
+- **El orden de la lista queda roto a propósito**, con la aritmética en el roadmap. Cambiarlo
+  toca D-012 y necesita decidir qué pasa con los 3.137 headwords repetidos (`hacer` sale cinco
+  veces, por etimología).
+- **D-052 sigue sin ajustar.** Los umbrales del nivel tolerante ya se pueden medir contra este
+  pack; no se hizo. El vecindario tolerante de "aser" trae 200 candidatos, que es mucho.
+- **El `sense_key` usa un ordinal posicional**, no el `id` de kaikki. Se verificó que kaikki
+  **sí** trae `id` por acepción —cerrando una ASSUMPTION de `decisions.md`— pero parece derivado
+  del contenido, así que editar una glosa probablemente lo cambia. Falta medirlo contra dos
+  dumps de fechas distintas.
+- **El pack real no está commiteado ni publicado** (72 MB): vive en el scratchpad de la sesión.
+  Dónde se hostea sigue siendo la decisión de producto que bloquea el instalador.
+
+**Fricción, tercer golpe del mismo item.** `build_es.py` es un comando nuevo y **no se pudo
+agregar a `CLAUDE.md` §Comandos**: el archivo está en 199 de 200 líneas. Fue a
+`pack-workflow/SKILL.md`, que es un hogar defendible, pero la decisión la tomó el presupuesto y
+no el criterio. El item de §Proceso y herramientas —que `check_root_budget` diga *cuál* sección
+creció— ya estaba propuesto por los dos golpes del 2026-09-17; este es el tercero, y el primero
+donde la consecuencia no es tiempo perdido sino **una línea de documentación que no se escribió**.
+
 ## 2026-09-17 — El método salta de v0 a v7: header, loop de sesión y el digest como enforcer
 
 **Qué.** Se actualizó el método de trabajo con agentes de la versión **0** a la **7** (lineage
