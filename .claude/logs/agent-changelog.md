@@ -170,7 +170,7 @@ había dejado a la vista: el orden de los resultados, que hacía inusable cualqu
 **Áreas.** `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`,
 `dict-data/src/androidTest/` (3 tests nuevos),
 `tools/packbuilder/sources/toy.py`, `tools/packbuilder/verify_pack.py`,
-`tools/packbuilder/build_es.py`, `tools/packbuilder/tests/test_build.py`,
+`tools/packbuilder/build_pack.py` *(entonces `build_es.py`)*, `tools/packbuilder/tests/test_build.py`,
 `app/src/main/java/cl/fadiaz/dictionary/` (5 archivos nuevos), `app/build.gradle.kts`,
 `app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/data_extraction_rules.xml`,
 `gradle/libs.versions.toml`, `app/CLAUDE.md`, `docs/decisions.md` (D-068 a D-071),
@@ -268,12 +268,13 @@ lo que haya en `filesDir/packs/`, así que un `adb push` gana y permite iterar s
 ## 2026-09-17 — El pack real de español: 72,2 MB, y leerlo destapó que la lista no sirve
 
 **Qué.** Se construyó el **primer pack real** del proyecto, que era el item 3 del roadmap y el
-último de los tres desbloqueantes. Fuente nueva `sources/kaikki_es.py` (la poda del Wikcionario,
-dos pasadas, streaming) y `build_es.py` con `--sample` para pilotos. **146.194 entradas,
+último de los tres desbloqueantes. Fuente nueva `sources/kaikki.py` (entonces `kaikki_es.py`; la poda,
+dos pasadas, streaming) y `build_pack.py` con `--sample` para pilotos. **146.194 entradas,
 72.212.480 bytes.** De paso se corrigió un bug de orden que solo era visible con un pack real, y
 el pack sube a `schema_version = 3`.
 
-**Áreas.** `tools/packbuilder/sources/kaikki_es.py` y `build_es.py` (nuevos),
+**Áreas.** `tools/packbuilder/sources/kaikki.py` y `build_pack.py` (nuevos ese día, con los
+nombres `kaikki_es.py` y `build_es.py`; se generalizaron al agregar inglés),
 `tests/test_source_kaikki.py` (nuevo), `tests/test_build.py`, `indexes.sql`, `schema.sql`,
 `build.py`, `verify_pack.py`,
 `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`, `PackFile.kt`,
@@ -359,7 +360,7 @@ D-012 y por eso sube `schema_version`, que es el mecanismo que D-001 prevé para
 - **El pack real no está commiteado ni publicado** (72 MB): vive en el scratchpad de la sesión.
   Dónde se hostea sigue siendo la decisión de producto que bloquea el instalador.
 
-**Fricción, tercer golpe del mismo item.** `build_es.py` es un comando nuevo y **no se pudo
+**Fricción, tercer golpe del mismo item.** `build_pack.py` es un comando nuevo y **no se pudo
 agregar a `CLAUDE.md` §Comandos**: el archivo está en 199 de 200 líneas. Fue a
 `pack-workflow/SKILL.md`, que es un hogar defendible, pero la decisión la tomó el presupuesto y
 no el criterio. El item de §Proceso y herramientas —que `check_root_budget` diga *cuál* sección

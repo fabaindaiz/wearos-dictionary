@@ -250,7 +250,7 @@ Construido el **2026-09-17** desde el dump del Wikcionario de kaikki.org del **2
 (eswiktionary, sección Español, 1.423.631.693 bytes). Reproducible:
 
 ```sh
-python3 tools/packbuilder/build_es.py <kaikki-es.jsonl> es-def-wikc.db
+python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
 python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 ```
 

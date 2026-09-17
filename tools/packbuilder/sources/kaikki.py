@@ -1,6 +1,14 @@
-"""Fuente: el Wikcionario español, procesado por kaikki.org (eswiktionary, seccion Español).
+"""Fuente: un dump de kaikki.org (wiktextract), en cualquier idioma.
 
-Entrega `Record` en streaming: el JSONL son 1,4 GB y no entra en memoria (D-015).
+Entrega `Record` en streaming: los JSONL van de 1,4 GB (español) a 3,2 GB (ingles) y no entran
+en memoria (D-015).
+
+**La logica de poda es la misma para todos los idiomas.** Se apoya en los tags estructurales que
+wiktextract emite --`form-of`, `form_of`, `glosses`, `forms`-- que son los mismos en todos los
+dumps y estan en ingles. No hay una sola heuristica que compare contra texto en español.
+
+Lo que SI cambia por idioma son las constantes de calibracion del `rank`, y por eso viven en un
+`Perfil`: se midieron sobre un dump concreto y no se heredan. Ver `PERFILES`.
 
 **La poda es el trabajo**, no un detalle. Tres decisiones la gobiernan, y las tres salen de
 medir el dump, no de suponer:
@@ -48,17 +56,40 @@ MAX_EXAMPLES_PER_SENSE = 1
 # restando: una pagina rica queda cerca de 0, una pobre cerca del techo.
 RANK_BASE = 1000
 
-# Pesos del proxy de frecuencia. **No es frecuencia de uso**: el Wikcionario no la trae. Es la
-# riqueza de la pagina, que correlaciona con que la palabra sea comun porque las palabras
-# comunes son las que la gente edita. Ver docs/decisions.md, D-063.
-_W_SENSE = 3
-_W_EXAMPLE = 2
-_W_FORM = 1
-_W_TRANSLATION = 0.5
-_W_ETYMOLOGY = 5
+class Perfil:
+    """Las constantes del proxy de `rank`, que **se miden por idioma y no se heredan**.
 
-# Tope de formas que cuentan para el rank: un verbo trae 137 y con eso solo ganaria siempre.
-_FORMS_SCORE_CAP = 80
+    El rank no es frecuencia de uso --el Wikcionario no la trae-- sino riqueza de la pagina, que
+    correlaciona con que la palabra sea comun porque las palabras comunes son las que la gente
+    edita (D-063).
+
+    `forms_cap` es el que mas depende del idioma: existe para que un verbo no gane solo por
+    tener muchas formas. En español un verbo trae hasta 222 y el tope muerde; en ingles trae
+    cuatro o cinco y **el tope nunca se activa**, asi que `w_form` deja de discriminar y el rank
+    queda dominado por acepciones y etimologia. Por eso los dos perfiles no son iguales.
+    """
+
+    __slots__ = ("w_sense", "w_example", "w_form", "w_translation", "w_etymology", "forms_cap")
+
+    def __init__(self, w_sense, w_example, w_form, w_translation, w_etymology, forms_cap):
+        self.w_sense = w_sense
+        self.w_example = w_example
+        self.w_form = w_form
+        self.w_translation = w_translation
+        self.w_etymology = w_etymology
+        self.forms_cap = forms_cap
+
+
+PERFILES = {
+    # Medido sobre eswiktionary 2026-09-15: "per" devuelve perder/permitir/perseguir/permanecer/
+    # perro, y "perro" subio de la posicion 619 a la 5 (D-067).
+    "es": Perfil(w_sense=3, w_example=2, w_form=1, w_translation=0.5, w_etymology=5,
+                 forms_cap=80),
+    # Ingles: el tope de formas baja porque un verbo trae 4-5 y no 137. Los pesos se ajustan
+    # contra el dump midiendo que prefijos comunes devuelvan la palabra comun arriba.
+    "en": Perfil(w_sense=3, w_example=2, w_form=4, w_translation=0.5, w_etymology=5,
+                 forms_cap=12),
+}
 
 
 def _gloss(sense):
@@ -111,14 +142,14 @@ def _forms(raw, headword, inbound):
     return tuple(seen)
 
 
-def _rank(raw, senses, forms):
-    """Proxy de frecuencia. Menor es mas comun. Ver el bloque de pesos y D-063."""
+def _rank(raw, senses, forms, perfil):
+    """Proxy de frecuencia. Menor es mas comun. Ver `Perfil` y D-063."""
     score = (
-        _W_SENSE * len(senses)
-        + _W_EXAMPLE * sum(len(s["examples"]) for s in senses)
-        + _W_FORM * min(len(forms), _FORMS_SCORE_CAP)
-        + _W_TRANSLATION * len(raw.get("translations") or [])
-        + (_W_ETYMOLOGY if raw.get("etymology_texts") else 0)
+        perfil.w_sense * len(senses)
+        + perfil.w_example * sum(len(s["examples"]) for s in senses)
+        + perfil.w_form * min(len(forms), perfil.forms_cap)
+        + perfil.w_translation * len(raw.get("translations") or [])
+        + (perfil.w_etymology if raw.get("etymology_texts") else 0)
     )
     return max(0, RANK_BASE - int(score))
 
@@ -140,10 +171,12 @@ def _sense_key(raw, index, needs_key):
     return "%s#%d" % (title, index) if index else title or "#0"
 
 
-def _emit(group, inbound):
+def _emit(group, inbound, perfil, sin_nombres):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
+        if sin_nombres and raw.get("pos") == "name":
+            continue
         senses = _senses(raw)
         if not senses:
             continue
@@ -166,7 +199,7 @@ def _emit(group, inbound):
             headword=headword,
             senses=senses,
             part_of_speech=pos,
-            rank=_rank(raw, senses, forms),
+            rank=_rank(raw, senses, forms, perfil),
             forms=forms,
             translations=(),
             sense_key=_sense_key(raw, index, by_pos[pos] > 1),
@@ -202,8 +235,13 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path):
-    """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos."""
+def records(path, lang="es", sin_nombres=False):
+    """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
+
+    `sin_nombres` descarta `pos = "name"` (toponimos, apellidos). Existe para poder MEDIR cuanto
+    pesan: en español son el 22 % de las entradas pero solo 0,63 MB de payload.
+    """
+    perfil = PERFILES[lang]
     inbound = _inbound_forms(path)
     group = []
     current = None
@@ -216,10 +254,10 @@ def records(path):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound):
+                for record in _emit(group, inbound, perfil, sin_nombres):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound):
+    for record in _emit(group, inbound, perfil, sin_nombres):
         yield record

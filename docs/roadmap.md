@@ -82,8 +82,8 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 
 ### Construir el pack real de español monolingüe
 
-**Estado.** **Hecho** (2026-09-17). Existe `tools/packbuilder/sources/kaikki_es.py` y
-`build_es.py`; el pack pasa `verify_pack.py` entero.
+**Estado.** **Hecho** (2026-09-17). Existe `tools/packbuilder/sources/kaikki.py` y
+`build_pack.py`; el pack pasa `verify_pack.py` entero.
 
 **En qué quedó.** **146.194 entradas, 72.212.480 bytes (68,9 MiB)**, desde el dump de kaikki.org
 del 2026-09-15. Build: 53,9 s y 214 MB de RSS. El desglose por objeto vive en
