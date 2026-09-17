@@ -13,7 +13,7 @@ todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING
 
 **Hecho y verificado en emulador.** `:dict-data` existe con `PackFile` —abre read-only y valida
 `schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y tres suites
-instrumentadas. Los **20 tests corrieron y pasan** (2026-09-17) en dos niveles de API:
+instrumentadas. Los **22 tests corrieron y pasan** (2026-09-17) en dos niveles de API:
 **Wear OS 4 / API 33** (Android 13, el minSdk) y **Wear OS 7.0 / API 37.0** (Android 17, el
 compileSdk), ambos arm64 headless. Una falla real apareció en la primera corrida y era una
 expectativa mal escrita, no un bug del producto: ver el changelog de esa fecha.
@@ -26,8 +26,10 @@ una estaba mal y se corrigió sin gastar un emulador.
 batería, no (D-043).
 
 **Sin empezar.** `:app` sigue siendo el template de Android Studio: nada de la app usa
-`:dict-data` todavía. No existe ningún pack real, así que los umbrales del nivel tolerante
-(D-052) siguen siendo números elegidos a priori.
+`:dict-data` todavía. **`SearchRepository` no existe** —estaba nombrado en este documento como si
+existiera— así que la capa que fusiona varios packs está entera por escribir. No existe ningún
+pack real, así que los umbrales del nivel tolerante (D-052) siguen siendo números elegidos a
+priori.
 
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
 los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
@@ -43,7 +45,7 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 | # | Qué | Por qué primero | Bloquea a |
 |---|---|---|---|
 | 1 | ~~**Correr los tests instrumentados** en el emulador~~ **HECHO 2026-09-17** | Convirtió el comportamiento en Android de ASSUMPTION a verificado: 20/20 en API 33 y API 37.0 | ~~Todo lo que toque el reloj~~ desbloqueado |
-| 2 | **Decidir el join key entre packs** | Condiciona `entry.id` en el pack base, que es el primero que se va a construir. Es más barato decidirlo antes que después | Composición, y el pack real |
+| 2 | ~~**Decidir el join key entre packs**~~ **HECHO 2026-09-17** | Se midió y se decidió: `entry.uid`, columna aparte sin índice (D-055 a D-058). Ya está en el formato | ~~Composición, y el pack real~~ desbloqueado |
 | 3 | **Construir el pack real y pesarlo** | Es la medición que decide si el formato aguanta. Sin ella, cuatro presupuestos son intuiciones | O-2, O-3, O-4 y el alcance del producto |
 
 ---
@@ -71,24 +73,21 @@ mejor con ese número.
 Que un pack de sinónimos y uno de traducciones puedan sumar información **a la misma entrada**
 del pack de definiciones.
 
-**Con qué choca.** Con el formato del pack base, que es el que estás por construir. Hoy
-`entry.id` es el rowid local asignado por autoincrement en orden de inserción: dos packs no
-comparten ninguna identidad de palabra, y **reconstruir el pack base reordena los ids**, así que
-ni siquiera copiarlos funcionaría entre versiones.
+**El join key ya está decidido y construido** (D-055, 2026-09-17): `entry.uid`, una columna
+aparte, hash de `(lang_src, NFC(headword), pos, sense_key)`. `entry.id` sigue siendo el rowid
+secuencial. La comparación completa y las mediciones están en el changelog de esa fecha.
 
-**Qué hay ya a favor.** `Suggestion` ya lleva `packId` además de `entryId`, así que la capa de
-resultados distingue el origen. `SearchRepository` ya fusiona varios sources.
+**Qué hay ya a favor.** El pack base ya escribe `uid`; `verify_pack.py` comprueba unicidad y
+receta; `Entry` lo expone al abrir una entrada. `Suggestion` lleva `packId` además de `entryId`,
+así que la capa de resultados distingue el origen.
 
-**Qué hay que decidir antes.**
-- ¿El join key es `(norm, pos)` —estable pero laxo, confunde homógrafos como *bajo* adjetivo y
-  *bajo* preposición— o un `entry.id` que sea un **hash estable** de `(norm, pos, fuente)`?
-- Si es hash: deja de ser posible que un rebuild rompa las referencias, en vez de validarlo
-  después. Es un movimiento de rung 4. ¿Vale el cambio en `PackBuilder`?
-- ¿Los packs auxiliares van a salir de las mismas fuentes que el base? Si sí, pueden compartir
-  la normalización de `pos`; si no, hay que mapear vocabularios de part-of-speech distintos.
-
-**Por qué es urgente y no puede esperar.** Es más barato decidirlo **antes** de construir el
-pack base que después.
+**Qué falta para que la composición exista.**
+- La capa que fusiona: **`SearchRepository` todavía no existe** — solo estaba nombrado en este
+  documento.
+- Construir un pack auxiliar de verdad, con `uid` como PK, y medir el join en el reloj.
+- Decidir la **granularidad**: hoy `uid` es por entrada, y un sinónimo es de una acepción. Está
+  en la tabla de decisiones abiertas.
+- El vocabulario de `pos` tiene que normalizarse igual en el base y en los auxiliares.
 
 ### Reorientar el esquema a monolingüe
 
