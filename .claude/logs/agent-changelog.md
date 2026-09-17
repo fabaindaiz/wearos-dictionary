@@ -308,7 +308,8 @@ medir, porque da un número que parece real.
 **Áreas.** Raíz, `.claude/`, `docs/`, `tools/`, `dict-core/CLAUDE.md`, `tools/CLAUDE.md`,
 `app/CLAUDE.md`.
 
-**Por qué.** Pedido explícito, siguiendo el método de `docs/agents/bootstrap-prompt.md`. El repo
+**Por qué.** Pedido explícito, siguiendo el método de `docs/agents/` — entonces un solo archivo,
+`bootstrap-prompt.md`, reemplazado el 2026-09-17 por el set `prompt-*.md` (ver esa entrada). El repo
 no tenía ninguna instrucción de agente: cada sesión re-derivaba las mismas restricciones y
 re-abría las mismas preguntas cerradas.
 
