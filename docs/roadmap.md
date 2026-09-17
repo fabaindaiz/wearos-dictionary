@@ -117,6 +117,91 @@ independientemente de la app.
 
 ---
 
+## Optimización
+
+La app se usa en ráfagas cortas en una muñeca. Eso fija las prioridades: **lo que más gasta
+batería no es la búsqueda, es la red y la pantalla encendida.** La guía oficial de Wear OS
+clasifica el acceso a red como *very high impact* y encender la pantalla como *high impact*;
+mantener la CPU ocupada también es *high*, pero nuestro trabajo de CPU dura milisegundos.
+
+Las fases van en este orden por una razón: **no se optimiza lo que no se mide**, y hoy no hay
+una sola medición real. Los presupuestos de `docs/formato-pack.md` son objetivos escritos a
+priori.
+
+### O-1. Hacerlo medible (antes de tocar nada)
+
+Macrobenchmark sobre el emulador para correctitud y sobre el reloj para números. Baseline de:
+cold start, `suggest()` p50/p95 con prefijos de 1 a 5 letras, tiempo de abrir una entrada
+(incluye descomprimir el payload), y tamaño del pack.
+
+**Con qué choca.** Con la costumbre de optimizar por intuición. Cada fase siguiente necesita el
+número de antes para justificarse.
+
+**Qué hay que decidir antes.** Nada. Es el prerrequisito de todo lo demás.
+
+> **El emulador no sirve para esto.** La documentación oficial es explícita: *"Run all final
+> performance tests on a suite of physical Wear OS devices"*. El emulador cierra la brecha de
+> **correctitud** (Unicode, FTS5, planes de consulta), no la de **rendimiento**: sus números de
+> CPU y batería no representan nada.
+
+### O-2. R8 y baseline profiles
+
+La guía oficial de rendimiento de Wear OS dice, literal: *"Start with the most effective
+performance tool types: baseline profiles (including startup profiles) and the R8 code
+optimizer."*
+
+**Con qué choca.** `app/build.gradle.kts` tiene hoy `release { optimization { enable = false } }`
+— R8 desactivado. **Eso no fue una decisión, viene del template**, y deja el release sin
+optimizar ni encoger.
+
+Activarlo reintroduce la clase de bug que solo aparece en release: código o recursos que R8 quita
+y que en debug estaban. Por eso esta fase va **atada** a la comprobación pre-entrega en
+dispositivo, no antes.
+
+**Qué hay que decidir antes.** Si se agrega un *startup profile*: la documentación advierte que
+aumenta el tamaño del APK, y ya estamos sumando ~1–1,5 MB por ABI de SQLite nativo. Es un
+trade-off que necesita el número de O-1.
+
+### O-3. Tamaño del pack
+
+Con el número real de O-1, recién ahí se deciden las opciones que hoy están abiertas:
+`detail=none` (achica el índice FTS, mata las consultas de frase), `columnsize=0` (achica más,
+rompe una comprobación de `verify_pack.py`), y compresión por fila vs bloques de 50–64 kB.
+
+**Con qué choca.** Con D-028 (50 MB blandos) y con las tres decisiones abiertas de
+`docs/decisions.md`. Ninguna se puede cerrar sin medir.
+
+**Por qué importa para la batería y no solo para el disco.** El pack se descarga por red, que es
+lo que más gasta. Cada MB que se ahorra es tiempo de radio que no se paga.
+
+### O-4. Batería
+
+Medir con **el power metric de Macrobenchmark, Perfetto o el Power Profiler**. No con Battery
+Historian: la documentación oficial dice que ya no se mantiene.
+
+Los tres consumidores reales, en orden:
+
+1. **La descarga del pack.** Mitigado por D-029 (cargando + Wi-Fi), pero sin medir.
+2. **La superficie glanceable.** La guía oficial pide *"disable automatic refresh, or increase the
+   refresh rate to 2 hours or longer"*. El manifest tiene hoy `UPDATE_PERIOD_SECONDS = 3600`
+   (una hora), **heredado del template y por debajo de lo recomendado**.
+3. **La pantalla durante la búsqueda.** El `debounce` de 120 ms y la cancelación con `mapLatest`
+   ya están diseñados para no trabajar de más, pero nunca se midieron en un reloj.
+
+**Qué hay que decidir antes.** Qué hace el Tile. Un tile que muestra "palabra del día" puede
+actualizarse una vez al día; uno de "últimas búsquedas" no necesita refresco programado en
+absoluto, porque cambia cuando el usuario usa la app.
+
+### O-5. Animaciones y trabajo en el hilo de UI
+
+La guía oficial pide minimizar animaciones y, si hay un loop, dejar una pausa al menos tan larga
+como la animación.
+
+**Con qué choca.** Con nada todavía: la UI no existe. Esta fase entra junto con el diseño de la
+interfaz, no después — rehacer animaciones ya escritas es más caro que no escribirlas mal.
+
+---
+
 ## Comprobación que falta y bloquea el ship
 
 ### Los vectores de normalización, corriendo en un reloj
@@ -131,8 +216,18 @@ El repertorio fijado (D-003) mata la mayor parte del riesgo, pero su residuo es 
 Python 3.9**, nunca sobre Android.
 
 **Qué hace falta.** Un test instrumentado que corra `normalization-vectors.tsv` sobre imágenes
-reales de Wear OS, una por nivel de API soportado. Necesita un reloj o un emulador; hoy no hay
-ninguno conectado.
+de Wear OS, una por nivel de API soportado.
+
+**Ahora es posible.** Hay Android Studio con emulador, y acceso a un reloj físico. Eso parte la
+clase de bug en dos, y las dos mitades se cierran distinto:
+
+| Qué | Dónde se cierra | Por qué |
+|---|---|---|
+| **Correctitud**: normalización, FTS5, planes de consulta, codec del payload | **Emulador** | Depende de la imagen del sistema, no del silicio. Un emulador de API 33 tiene el ICU de API 33 |
+| **Rendimiento y batería**: latencia, consumo, arranque | **Reloj físico, sin excepción** | La documentación oficial es explícita: *"Run all final performance tests on a suite of physical Wear OS devices"* |
+
+Esta es la primera cosa que conviene hacer con el emulador, antes que `:dict-data`: convierte el
+invariante central de *asumido en Android* a *verificado en Android*.
 
 ---
 
