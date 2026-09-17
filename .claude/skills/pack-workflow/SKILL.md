@@ -23,29 +23,40 @@ Usá las páginas procesadas por idioma de kaikki.org. El formato de datos crudo
 
 ## El flujo
 
+El español ya está construido. **No escribas una fuente nueva para rehacerlo**:
+
 ```bash
-# 1. Una fuente nueva va en tools/packbuilder/sources/ y entrega Record.
-#    Streaming siempre: el JSONL del Wikcionario son 1,1 GB y no entra en memoria.
+# 0. El dump (1,42 GB; el de 2026-09-15 dio 1.036.458 senses)
+curl -o es.jsonl "https://kaikki.org/eswiktionary/Espa%C3%B1ol/kaikki.org-dictionary-Espa%C3%B1ol.jsonl"
 
-# 2. Construir
-python3 tools/packbuilder/build.py   # o el script de la fuente
+# 1. Construir. --sample N hace un piloto con 1 de cada N lemas, sin sesgo posicional:
+#    miralo antes de gastar el build completo.
+python3 tools/packbuilder/build_es.py es.jsonl es-def-wikc.db --sample 20   # piloto, ~30 s
+python3 tools/packbuilder/build_es.py es.jsonl es-def-wikc.db              # completo, ~54 s, 214 MB RSS
 
-# 3. Validar SIEMPRE. Un pack a medio construir se abre sin error.
-python3 tools/packbuilder/verify_pack.py <pack.db>
+# 2. Validar SIEMPRE. Un pack a medio construir se abre sin error.
+python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 
-# 4. Medir y registrar
-ls -lh <pack.db>
+# 3. Medir y registrar
+ls -lh es-def-wikc.db
 ```
+
+Para **otro** idioma o tipo de pack: la fuente va en `tools/packbuilder/sources/` y entrega
+`Record`. Streaming siempre. Mirá `kaikki_es.py` antes de escribirla — la poda ya está resuelta
+ahí, con las mediciones que la decidieron.
 
 ## La poda es donde se decide el tamaño
 
 No es un detalle de implementación: es el trabajo. Conservar `word`, `pos`, glosas, formas y
 traducciones. Descartar etimologías, pronunciaciones, categorías, plantillas y citas.
 
-**Registrá el tamaño en el changelog con la poda que lo produjo.** El presupuesto de 50 MB
-(D-028) es blando y **no tiene ninguna medición detrás** — la primera vez que se construya un
-pack real, ese número deja de ser una suposición y hay que escribirlo donde vive: en
-`docs/formato-pack.md`.
+**Registrá el tamaño en el changelog con la poda que lo produjo.** El de español ya está
+medido y vive en `docs/formato-pack.md` §Presupuestos: **146.194 entradas, 72,2 MB** — un 44 %
+por encima del presupuesto blando de D-028, que era una suposición hasta el 2026-09-17.
+
+**El 46,3 % del pack es la tabla `form`**, casi toda conjugaciones de verbos. Si venís a achicar
+un pack, ese es el número contra el que estás peleando, y no se recorta: es lo que hace que
+"corriendo" encuentre "correr".
 
 ## Qué mirar en la salida de `verify_pack.py`
 
@@ -78,6 +89,16 @@ Qué estás buscando, que ninguna invariante agarra:
 - **Las más largas**: una glosa de 40 kB suele ser markup de la fuente que la poda no sacó.
 - **Descomprimí una de verdad** y leela entera. El codec puede devolver texto corrupto sin
   error: por eso existe `payload_dict_sha256` (D-008), y por eso mirarlo sigue valiendo.
+
+`meta.payload_dict` está guardado **en hex**, no en binario. Si le pasás el string a
+`payload.decompress()` no explota: devuelve texto que *parece* corrupto y te manda a cazar un
+bug del codec que no existe. El camino correcto, que es el que usa `verify_pack.py`:
+
+```python
+import payload as codec                              # desde tools/packbuilder/
+dic = bytes.fromhex(db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+print(codec.decompress(blob, dic))
+```
 
 **Distinguí los dos silencios.** "Vacío porque la fuente no tenía nada" y "vacío porque la poda
 se lo comió" son la misma celda vacía y dos bugs completamente distintos. Si el pack tiene

@@ -233,14 +233,47 @@ El resultado es determinista: dos builds del mismo input dan el mismo contenido,
 
 ## Presupuestos
 
-⚠️ **Los cuatro son objetivos escritos a priori, ninguno está medido.** No existe todavía un
-pack real: el de juguete tiene 22 entradas y la sección Español del Wikcionario son 1.036.458
-senses. El primer item del roadmap es construir uno y pesarlo, porque es la medición que decide
-si el formato aguanta (D-028).
+**El primero ya está medido y no se cumple.** Los otros tres siguen siendo objetivos escritos a
+priori: son de latencia, y la latencia solo vale medida en un reloj físico (D-043), que todavía
+no hay.
 
-| Métrica | Objetivo |
+| Métrica | Objetivo | Medido |
+|---|---|---|
+| Pack en disco | ≤ 50 MB *(blando)* | **72,2 MB** — 44 % por encima (2026-09-17) |
+| `suggest()` con prefijo de 3 letras | p95 < 20 ms | sin medir: falta reloj |
+| Primer resultado visible desde la última tecla | < 150 ms | sin medir: falta reloj |
+| Cold start hasta pantalla de búsqueda usable | < 700 ms | sin medir: falta reloj |
+
+### El pack real de español, pesado
+
+Construido el **2026-09-17** desde el dump del Wikcionario de kaikki.org del **2026-09-15**
+(eswiktionary, sección Español, 1.423.631.693 bytes). Reproducible:
+
+```sh
+python3 tools/packbuilder/build_es.py <kaikki-es.jsonl> es-def-wikc.db
+python3 tools/packbuilder/verify_pack.py es-def-wikc.db
+```
+
+| | |
 |---|---|
-| Pack en disco | ≤ 50 MB **(blando, y sin medición — ver abajo)** |
-| `suggest()` con prefijo de 3 letras | p95 < 20 ms |
-| Primer resultado visible desde la última tecla | < 150 ms |
-| Cold start hasta pantalla de búsqueda usable | < 700 ms |
+| Senses en el dump | 1.036.458 *(en 854.460 registros)* |
+| Registros que son página de forma flexionada | 703.506 = **82,33 %** — no son entradas (D-065) |
+| **Entradas en el pack** | **146.194** |
+| **Pack en disco** | **72.212.480 bytes (68,9 MiB)** |
+| Build | 53,9 s, **214 MB** de RSS máximo (la pasada 1 arma el mapa de formas en memoria) |
+
+Dónde se va el pack, y es la respuesta que decide O-3:
+
+| Objeto | Tamaño | Parte |
+|---|---|---|
+| `form` | 33,4 MB | **46,3 %** — 1.487.695 filas, **93,5 % conjugaciones de verbos** |
+| `entry` | 17,8 MB | 24,6 % — payloads comprimidos, 2,8 acepciones por entrada |
+| `fts_def_data` | 8,6 MB | 11,8 % |
+| `idx_entry_norm` | 5,2 MB | 7,3 % |
+| `idx_entry_fuzzy` | 4,0 MB | 5,6 % |
+| `fts_def_docsize` | 1,4 MB | 2,0 % |
+| `trans` | 4 KB | vacía: el pack es monolingüe (D-034) |
+
+**El pack es la tabla `form`**, y no es grasa: es el precio de que escribir "corriendo"
+encuentre "correr". Un verbo español trae hasta 222 formas. Cualquier recorte ahí se paga en
+la moneda que este repo no acepta pagar — *falta una palabra*.
