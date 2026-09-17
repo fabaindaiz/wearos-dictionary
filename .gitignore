@@ -13,12 +13,12 @@ captures/
 local.properties
 
 # --- IDE ---
-.idea/workspace.xml
-.idea/caches/
-.idea/libraries/
-.idea/modules.xml
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
+# .idea/ entero: Android Studio lo reescribe en cada sync, y workspace.xml guarda estado de
+# maquina (layout de ventanas, tabs abiertos, estado de run configurations).
+#
+# El estilo de codigo NO se pierde: vive en .editorconfig, que es portable y lo respetan
+# Android Studio, VS Code y los linters. Esa es la forma correcta de compartirlo.
+.idea/
 *.iml
 
 # --- Artefactos generados del proyecto ---

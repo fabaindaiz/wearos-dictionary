@@ -19,6 +19,26 @@ Formato:
 
 ---
 
+## 2026-09-17 — `.idea/` deja de trackearse
+
+**Qué.** `.gitignore` ignora `.idea/` entero y los 7 archivos que estaban trackeados se
+destrackean. Siguen en disco.
+
+**Áreas.** `.gitignore`, `docs/decisions.md`.
+
+**Por qué.** El proyecto se mueve a Android Studio como IDE de pruebas. Un sync de Gradle en
+esta sesión ya reescribió `gradle.xml`, `misc.xml` y `workspace.xml`, y generó cinco archivos
+nuevos — sin que nadie tocara el IDE.
+
+**Arquitectura.** ✅ Cumple. El estilo de código no se pierde: vive en `.editorconfig`, que es
+portable y lo respetan Android Studio, VS Code y los linters.
+
+**Medido.** `workspace.xml` estaba en la lista de ignorados del `.gitignore` desde el bootstrap
+y aparecía modificado igual: **`.gitignore` no aplica a archivos ya trackeados**. Es el mismo
+mecanismo que hacía que `local.properties` viajara con la ruta del SDK de una máquina concreta.
+
+---
+
 ## 2026-09-17 — `devicePrecheck` y `dict-data/CLAUDE.md`
 
 **Qué.** Tarea Gradle que diagnostica si se pueden correr los tests instrumentados antes de
