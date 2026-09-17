@@ -104,6 +104,12 @@ encuentra.
 | D-035 | Cada commit queda verde por sí solo; se parten por dependencia, no por tamaño | Un historial no bisecable no sirve para encontrar cuándo se rompió algo | `commit` skill (verificación por worktree) |
 | D-054 | `.idea/` no se trackea | Android Studio lo reescribe en cada sync y `workspace.xml` guarda estado de máquina. El estilo de código no se pierde: vive en `.editorconfig`, que es portable | `.gitignore` |
 
+## El método de trabajo con agentes
+
+| # | Decisión | Por qué | Enforced in |
+|---|---|---|---|
+| D-059 | El método vive en `docs/agents/`, versionado por el `method-header` de sus cuatro archivos, y **una lineage tiene un solo writer**: editar el método acá **es forkear**, no bumpear la versión | Dos repos en la misma lineage que mejoran el método y suben ambos a la misma versión producen dos versiones distintas con el mismo número, y la comparación ingenua concluye "idénticas" y **descarta un lado en silencio**. Forkear cuesta seis caracteres hex | `audit_dictionary.py` → `check_method_digest` |
+
 ## Tooling de Python
 
 | # | Decisión | Por qué | Enforced in |
