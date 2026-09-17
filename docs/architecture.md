@@ -18,16 +18,16 @@
 
 ```
 :app            UI Wear Compose, Tiles, Complications          (hoy: template)
-:dict-data      abre packs, implementa las consultas           (NO EXISTE todavía)
+:dict-data      abre packs, implementa las consultas           ✔ parcial: PackFile + tests
 :dict-core      Kotlin puro: normalización, claves, payload    ✔
 tools/          builder Python + repertorio Unicode            ✔  (fuera de Gradle)
 ```
 
 **Dirección permitida:** `:app` → `:dict-data` → `:dict-core`. Nunca al revés.
 
-Hoy esa dirección se respeta trivialmente porque `:app` no depende de ningún módulo del repo y
-`:dict-data` no existe. Cuando exista, es lo primero que la auditoría tiene que empezar a
-comprobar.
+Hoy `:dict-data` depende de `:dict-core` y `:app` todavía no depende de nada. Cuando `:app`
+empiece a depender de `:dict-data`, comprobar la dirección es lo primero que la auditoría tiene
+que agregar.
 
 `:dict-core` no depende de Android ni de SQLite, y eso no es organización: es lo que debe estar
 sincronizado con el builder y lo que más se testea. Los tests corren en milisegundos sin
@@ -38,7 +38,7 @@ emulador.
 | Si el archivo… | Va en | Y además |
 |---|---|---|
 | No sabe de Android, SQLite, red ni rutas | `dict-core/` | Si toca una API de JVM, va en `PlatformJvm.kt` o no va |
-| Abre packs o ejecuta SQL | `:dict-data` | Hay que crear el módulo primero (ver roadmap) |
+| Abre packs o ejecuta SQL | `dict-data/` | Sus tests son **instrumentados**: son los únicos que cierran asunciones sobre Android |
 | Es una pantalla, un Tile o una Complication | `app/` | Leé `app/CLAUDE.md` antes: hay tres trampas conocidas |
 | Construye o valida packs | `tools/packbuilder/` | Solo stdlib de Python. Una fuente nueva va en `sources/` |
 | Genera datos que consumen los dos lenguajes | `tools/unicode/` | Tiene que emitir **ambas** copias y atarlas por sha256 |

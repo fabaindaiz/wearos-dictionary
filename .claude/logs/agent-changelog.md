@@ -19,6 +19,36 @@ Formato:
 
 ---
 
+## 2026-09-17 — `:dict-data` y los tests que cierran las asunciones sobre Android
+
+**Qué.** Módulo Android `:dict-data` con `PackFile` (abre read-only, valida `schema_version`,
+`norm_version`, `payload_codec` y el sha256 del diccionario) y dos suites instrumentadas:
+`NormalizationOnDeviceTest` y `PlatformAssumptionsTest`. Más una tarea Gradle que genera los
+assets del test para que no haya un paso manual previo.
+
+**Áreas.** `dict-data/`, `gradle/libs.versions.toml`, `settings.gradle.kts`, `.gitignore`,
+`docs/decisions.md`, `docs/roadmap.md`, `docs/architecture.md`, `CLAUDE.md`, skill `verify`.
+
+**Por qué.** Era el item de mayor valor no bloqueado: convierte el invariante central de
+*asumido en Android* a *verificable en Android*.
+
+**Arquitectura.** ✅ Cumple. No se implementó `DictionarySource` todavía porque depende de si
+`trans` sobrevive en packs monolingües, que es una decisión abierta.
+
+**Medido.** Nada en dispositivo: **los tests compilan pero nunca se ejecutaron**, porque no hay
+emulador ni reloj conectado. Mientras no se corran, el comportamiento en Android sigue siendo
+ASSUMPTION — el test existe, que no es lo mismo que haber pasado.
+
+Cinco decisiones dejaron de estar en rung 1 al ganar enforcer: D-002 (FTS5), D-006
+(`norm_version`), D-008 (hash del diccionario), D-011 (rowid de FTS), D-012 (covering index).
+Las decisiones sin enforcer bajaron de 16/44 a **15/49**.
+
+Dos cosas que AGP 9 no deja hacer y costaron una iteración cada una: no acepta un `Provider` en
+la SourceSet API, y un `copy {}` dentro de `doLast` rompe el configuration cache. Las dos están
+resueltas en `dict-data/build.gradle.kts` con el motivo escrito.
+
+---
+
 ## 2026-09-17 — Entorno Hatch para el tooling; el builder es independiente de la versión de Python
 
 **Qué.** `pyproject.toml` con tres entornos Hatch (default, matrix, lint), ruff configurado, y
