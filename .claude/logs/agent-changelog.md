@@ -26,6 +26,72 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — El gate empieza a ver `:app`, y el primer test encontró un bug real
+
+**Qué.** `:app` pasó de cero tests a **17 en el gate**, y para eso hubo que volverlo testeable:
+`SearchViewModel` recibe `abrirPack` en vez de construirlo desde un `Context`, y el resultado de
+abrir un pack es `PackLoad`, un tipo sin Android. El gate gana además `allWarningsAsErrors` en
+`:app` y un enforcer nuevo (D-072) que impide que la regresión vuelva.
+
+**Áreas.** `app/src/test/java/` (3 archivos nuevos),
+`app/src/main/java/cl/fadiaz/dictionary/presentation/SearchViewModel.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/MainActivity.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackStore.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackLoad.kt` (nuevo), `app/build.gradle.kts`,
+`gradle/libs.versions.toml`, `tools/audit_dictionary.py`, `app/CLAUDE.md`,
+`docs/decisions.md` (D-072, y D-031 gana enforcer parcial), `docs/roadmap.md`.
+
+**Por qué.** Pedido explícito, con la razón adelante: enfoque test-driven, porque agregar tests
+después sale caro. Esta sesión pagó esa factura y la deja documentada.
+
+**Arquitectura.** ✅ Cumple. D-072 es la misma forma que D-017 usa para `:dict-core`, por un
+motivo distinto: allá es portabilidad, acá es poder correr el test en el gate.
+
+**Medido.**
+
+- **17 tests JVM, en milisegundos** (10 del ViewModel, 7 de la instalación del pack), dentro de
+  `./gradlew check`. Antes el gate no ejecutaba una sola línea de `:app`.
+- **El primer test escrito encontró un bug de verdad, y se lo vio fallar antes del arreglo:**
+  escribir mientras el pack carga dejaba la búsqueda **muerta**. `source` era un `var`, así que
+  la consulta salía contra `null`, devolvía vacío y **nada la volvía a intentar**: el usuario veía
+  "Sin resultados" hasta borrar una letra. El test falló con `expected:<[per]> but was:<[]>`.
+  Arreglado haciendo del pack un flow y combinándolo con la query. **Verificado también en el
+  emulador**: con los datos borrados, escribí "per" durante la extracción y los resultados
+  aparecieron solos al terminar.
+- **Los otros 9 tests pasaron contra el código viejo**, que es exactamente lo que los vuelve
+  tests de **caracterización** y no TDD. Están nombrados así, uno por uno.
+- **Los enforcers nuevos se probaron fallando**, no pasando: se rompió a propósito la limpieza
+  del temporal y `unaCopiaQueSeCortaNoDejaUnPackAMedioEscribir` cayó; se metió un
+  `import android.content.Context` en el ViewModel y `check_app_logic_is_jvm_testable` rompió el
+  audit. El audit pasa de 13 a **14 checks**.
+- **`allWarningsAsErrors` en `:app` está verificado activo**, no solo escrito: mi primera sonda
+  —una función privada sin usar— **no emitió warning y el build pasó**, lo que casi me deja
+  afirmar que la bandera funcionaba sin evidencia. Con una llamada deprecada de verdad
+  (`String.capitalize()`) el compilador responde `e: warnings found and -Werror specified`.
+
+**Qué salió mal.**
+
+- **Escribí el test y el arreglo en la misma edición**, que es justo lo que TDD evita. Lo
+  deshice: revertí el arreglo a mano, corrí los tests, vi al de la carrera fallar solo, y recién
+  ahí lo restauré. El resultado es el mismo; la evidencia de que el test tiene dientes, no.
+- **Casi doy por buena una bandera que no había comprobado.** Ver arriba: la primera sonda no
+  generaba warning y el `BUILD SUCCESSFUL` se lee idéntico a "la bandera no está puesta".
+- **`assertTrue(x is T)` no hace smart cast en Kotlin**; `assertIs<T>(x)` sí, porque tiene
+  contract. El primer intento no compilaba por eso.
+- **`kotlin-test` solo no alcanza** en un módulo Android: hace falta `kotlin-test-junit`, porque
+  los unit tests de AGP corren sobre JUnit 4.
+
+**Qué quedó sin hacer.**
+
+- **Las tres pantallas siguen sin un solo test.** Nada comprueba que dibujen lo que el estado
+  dice, y eso incluye la atribución: el enforcer de D-031 quedó **parcial** —fija que el estado
+  lleva la licencia del pack, no que la pantalla la muestre—. Entrada nueva en el roadmap.
+- **Los tests de UI no entran al gate** cuando existan: necesitan dispositivo, como los 25 de
+  `:dict-data`. El gate seguirá sin ver la capa visible de la app.
+- **`:dict-data` sigue sin tests JVM.** Es deliberado —necesita SQLite y FTS5 reales— pero
+  significa que la deduplicación de la cascada, escrita ayer, solo la cubre un test instrumentado.
+- **Nada corrió todavía en un reloj físico.**
+
 ## 2026-09-17 — El MVP corre en el emulador, y el orden de la lista dejó de ser inusable
 
 **Qué.** `:app` dejó de ser el template: tres pantallas —búsqueda, entrada, atribución— sobre el
