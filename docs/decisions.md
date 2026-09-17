@@ -65,6 +65,15 @@ encuentra.
 | D-032 | Dependencias en stable; nada alpha ni rc en el camino crítico | `sqlite 2.8.0-alpha01` y `work 2.12.0-rc01` existen y no se usan | `gradle/libs.versions.toml` |
 | D-033 | Kotlin queda en 2.2.10, no sube a 2.4.20 | `:dict-core` tiene `allWarningsAsErrors`: un bump de compilador convierte cualquier warning nuevo en build roto, y nada del roadmap necesita 2.4 | `gradle/libs.versions.toml` |
 
+## Capa de consulta
+
+| # | Decisión | Por qué | Enforced in |
+|---|---|---|---|
+| D-050 | Una conexión por pack, confinada a un dispatcher de **un solo hilo** | El SQLite empacado reporta `THREADSAFE=2`: multi-thread, **no** serialized. Una conexión no se puede usar desde dos hilos a la vez | `SqlitePackSource` + `PlatformAssumptionsTest` verifica el pragma |
+| D-051 | El nivel tolerante solo se intenta si la cascada confiable devolvió menos de `FUZZY_TRIGGER` | Es el camino más caro y el menos confiable. Agregar candidatos por distancia cuando ya hay resultados buenos solo ensucia la lista | `SqlitePackSourceTest`; el fixture lo protege en `ToyPackFixtureTest` |
+| D-052 | Los umbrales del nivel tolerante (`FUZZY_TRIGGER`, `FUZZY_PREFIX_LENGTH`, `MAX_EDIT_DISTANCE`) son **provisorios** | Elegidos a priori, sin medición. Con un pack de 22 entradas no significan nada: se ajustan con el pack real (roadmap O-1) | — *(sin medición; es lo que O-1 existe para arreglar)* |
+| D-053 | Todo token de una búsqueda full-text se envuelve en comillas antes de llegar a FTS5 | Sin eso, un `"` suelto o un `OR` escrito por el usuario cambian la consulta o la hacen fallar | `SqlitePackSourceTest.elTextoLibreNoSeRompeConSintaxisDeFts` |
+
 ## Rendimiento y batería
 
 | # | Decisión | Por qué | Enforced in |
