@@ -26,6 +26,110 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — El MVP corre en el emulador, y el orden de la lista dejó de ser inusable
+
+**Qué.** `:app` dejó de ser el template: tres pantallas —búsqueda, entrada, atribución— sobre el
+pack real de 146.194 entradas, empaquetado en el APK. Antes hubo que arreglar lo que el pack real
+había dejado a la vista: el orden de los resultados, que hacía inusable cualquier búsqueda.
+
+**Áreas.** `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`,
+`dict-data/src/androidTest/` (3 tests nuevos),
+`tools/packbuilder/sources/toy.py`, `tools/packbuilder/verify_pack.py`,
+`tools/packbuilder/build_es.py`, `tools/packbuilder/tests/test_build.py`,
+`app/src/main/java/cl/fadiaz/dictionary/` (5 archivos nuevos), `app/build.gradle.kts`,
+`app/src/main/AndroidManifest.xml`, `app/src/main/res/xml/data_extraction_rules.xml`,
+`gradle/libs.versions.toml`, `app/CLAUDE.md`, `docs/decisions.md` (D-068 a D-071),
+`docs/roadmap.md`.
+
+**Por qué.** Pedido: probar todo en el emulador y encaminar el MVP para subirlo al reloj.
+
+**Arquitectura.** ✅ Cumple, con **una ⚠️ Desviación registrada** (D-071, abajo). D-026 (la
+búsqueda vive en la app), D-031 (la atribución sale de `meta` y se muestra), D-043 (nada de
+rendimiento se midió en el emulador), y la regla de `app/CLAUDE.md` de voz-primero.
+
+**Medido.**
+
+- **El orden viejo era inusable, y el número lo dice mejor que yo**: con el orden alfabético,
+  `per` ponía `perro` en la **posición 619 de 782**; `sal` → `salir` en la 206; `dec` → `decir`
+  en la 154. La lista muestra 30.
+- **El orden nuevo** `(exacta, rank, norm)` con deduplicación: `per` devuelve *perder, permitir,
+  perseguir, permanecer, perro*. **Verificado en el emulador contra el pack real**, no solo en
+  escritorio: la captura muestra exactamente esos cinco.
+- **Lo que cuesta:** el covering index sigue sirviendo el rango pero ya no el orden, así que
+  SQLite agrega `USE TEMP B-TREE`. **1,8 ms p95** en el peor caso (prefijo de una letra, 22.358
+  filas) contra 0,01 ms del orden viejo, presupuesto 20 ms. **Escritorio. El número de reloj no
+  existe** (D-043) y es el que puede revertir esta decisión.
+- **La deduplicación NO se hizo con `GROUP BY`**, y es medición: `GROUP BY headword, pos` cuesta
+  **7,9 ms p95** con una letra —4× más— y encima **no saca los duplicados que se ven**, que
+  difieren en `pos`. Over-fetch ×3 y `distinctBy` en Kotlin cuesta 1,8 ms y sí los saca.
+- **El APK debug pesa 84 MB.** El asset comprime bien —72.212.480 → 36.004.318 B, 50 %— así que
+  los otros ~48 MB son tooling de debug. **El release no se midió** y además tiene R8 apagado.
+- **25/25 instrumentados** en API 33 y API 37.0, con el toy pack en 26 entradas.
+
+**Qué salió mal.**
+
+- **El pack real que construí ayer no se podía abrir en Android.** Le puse
+  `data_version = "2026-09-15"` y `PackFile.parseMetadata` le hace `.toInt()`. `verify_pack.py`
+  dio **verde**: solo comprobaba que la clave existiera. Es la falla exacta que este repo
+  intenta no tener —el builder lo escribe, el validador lo aprueba, revienta en el reloj— y el
+  hueco era del enforcer, no solo mío. `verify_pack.py` ahora verifica que las tres claves
+  enteras lo sean (D-070). Lo encontré leyendo `Model.kt` para escribir el ViewModel, **no** por
+  un test, y eso es suerte, no método.
+- **Deduplicar solo en `byPrefix` no alcanzaba**: el nivel tolerante volvía a meter la entrada
+  que el prefijo había fundido. Lo agarró el test instrumentado, que es donde tenía que
+  agarrarlo (D-069).
+- **Los comentarios de bloque de Kotlin anidan**, cosa que yo no tenía presente: un `/*` dentro
+  de un KDoc —escribí `filesDir/packs/` seguido de un comodín— abre un comentario nuevo y el
+  cierre del KDoc cierra ese, dejando el archivo entero comentado. El error que sale es
+  *"Unclosed comment"* en la última línea, que no apunta a nada.
+- **Tres intentos para escribir texto en el emulador.** `input keyevent 111` no cierra el IME de
+  Wear, lo escribe: la query terminó siendo "per by". El que sirve es `keyevent 4`.
+- **Escribí "Extraccion" sin tilde** en la atribución del pack, y es texto que el usuario ve en
+  la pantalla de licencia. Se vio en la captura, no en un test; corregido y pack reconstruido.
+- **Volví a abreviar una ruta con puntos suspensivos** en §Áreas y el check de punteros muertos
+  volvió a rechazarla, igual que en la entrada anterior. Segunda vez en el día. Y la tercera fue
+  escribiendo *esta misma línea*: puse la ruta abreviada como ejemplo, entre backticks, y el
+  check la contó como puntero. El enforcer no distingue una mención de un enlace, y tiene razón
+  en no intentarlo.
+- **Un commit no era verde por si solo, y lo agarro `git worktree`, no yo.** El commit del MVP
+  pasaba el gate en mi arbol y fallaba en un checkout limpio: `app/CLAUDE.md` apunta a
+  `app/src/main/assets/`, que esta gitignoreado y **solo existe si ya copiaste el pack**. En mi
+  maquina el directorio estaba; en un clone, no. Se arreglo con un `.gitkeep` que ademas explica
+  como generar el pack, y hubo que rehacer los dos ultimos commits. Es exactamente el caso por
+  el que `CLAUDE.md` pide verificar con worktree en vez de asumirlo.
+- **Los commits de la tanda anterior:** intenté partir el arreglo de orden y el de `norm`/`fuzzy`
+  en dos commits y tuve que desandarlo. Comparten dos archivos y sus filas de `decisions.md` se
+  intercalan; separarlos obligaba a partir documentos por bloque para un corte que no era una
+  dependencia real. Quedaron en uno, que es lo que eran.
+
+**Qué quedó sin hacer.**
+
+- **`:app` no tiene un solo test.** Ni unitario ni instrumentado. Todo el MVP se verificó
+  mirando la pantalla y sacando capturas. Es la deuda más grande que deja esta sesión, y la que
+  vuelve frágil todo lo de arriba.
+- **Nada corrió en un reloj físico.** Sin eso no hay arranque, ni latencia, ni batería, y la
+  decisión de orden queda apoyada en un número de escritorio.
+- **Los instrumentados siguen corriendo contra el toy pack de 53 KB.** Un plan de consulta que
+  se degrada a 146.194 entradas no lo ve ningún test; lo vi yo, a mano, una vez.
+- **El proxy de `rank` favorece a los verbos** —las formas pesan y un verbo trae hasta 222— así
+  que `cas` devuelve *castigar, cascar, casar* antes que `casa`. Bajar ese peso cuesta un rebuild
+  de 54 s y no se probó.
+- **El prefijo de una letra sigue siendo malo**: `a` devuelve *a, A, -a, a-, á*.
+- **D-031 sigue sin enforcer.** La pantalla de atribución existe, pero nada impide que alguien la
+  borre y el gate siga verde.
+- El Tile y la Complication siguen siendo los del template, y el `UPDATE_PERIOD_SECONDS = 3600`
+  heredado sigue por debajo de lo que pide la guía oficial.
+
+**⚠️ Desviación (D-071).** El pack viaja como asset del APK y se extrae a `filesDir/packs/` en el
+primer arranque. Eso lo duplica en disco —36,0 MB comprimidos en el APK más 69 MB extraídos— que
+es **el mismo costo por el que se descartó Room** (D-039). No hay alternativa técnica:
+`BundledSQLiteDriver.open()` recibe un *path* y un asset vive dentro del zip. Se planteó el costo
+antes de construir y se eligió igual, para que instalar la app deje un diccionario funcionando
+sin `adb`. Se revierte cuando exista el instalador; mientras tanto `PackStore` prefiere siempre
+lo que haya en `filesDir/packs/`, así que un `adb push` gana y permite iterar sin rearmar el APK.
+
+---
+
 ## 2026-09-17 — El pack real de español: 72,2 MB, y leerlo destapó que la lista no sirve
 
 **Qué.** Se construyó el **primer pack real** del proyecto, que era el item 3 del roadmap y el
