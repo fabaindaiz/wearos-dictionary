@@ -26,6 +26,75 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — Las pantallas: 13 tests primero, y el diseño salió de medir la pantalla
+
+**Qué.** Las tres pantallas se rediseñaron y ganaron 13 tests instrumentados, escritos **antes**
+del rediseño. D-031 pasa de no tener enforcer a tener tres. La corona rotatoria queda cableada.
+
+**Áreas.** `app/src/androidTest/` (nuevo), `app/src/main/java/cl/fadiaz/dictionary/presentation/`
+(las tres pantallas), `app/build.gradle.kts`, `tools/audit_dictionary.py`, `app/CLAUDE.md`,
+`docs/decisions.md` (D-073 a D-075, y D-031 cerrado), `docs/roadmap.md`.
+
+**Por qué.** Pedido: diseñar las interfaces y testear las pantallas para cerrar el MVP que va al
+reloj.
+
+**Arquitectura.** ✅ Cumple. D-026, D-072 (las pantallas están exentas de la regla y el test lo
+aprovecha: no arman un `DictionarySource`), y `app/CLAUDE.md` sobre voz primero.
+
+**Medido, y el diseño salió de ahí.**
+
+- **El presupuesto es de 192×192 dp** (384 px a 320 dpi). Con los 48 dp mínimos de área tocable
+  que pide Wear OS, **entran tres filas**. El diseño anterior, de dos líneas y ~74 dp de paso,
+  daba dos.
+- **Un lema puede tener 96 caracteres**: los refranes son entradas del Wikcionario. De ahí la
+  fila de una línea con elipsis (D-073).
+- **Las acepciones: mediana 3, p90 7, máximo 47** sobre las 3.000 entradas de mejor rank. El
+  tope de 3 con `Ver más (N)` deja intacta la mitad de las entradas y evita el muro: `poner`
+  tiene 24 y en pantalla dice *Ver más (21)* (D-074).
+- **Los ejemplos: mediana 64 caracteres, p90 228, máximo 917.** Por eso van en secundario y más
+  chicos: a igual peso que la glosa, uno solo entierra la acepción siguiente.
+- **13 tests de pantalla, 7 en rojo antes del rediseño.** Al terminar, 13 verdes, más los 17 JVM
+  y los 25 de `:dict-data`.
+- **El check nuevo del audit se probó fallando**: se renombró `license` en la pantalla de
+  atribución y el audit rompió. Las decisiones sin enforcer bajan de 13/71 a **12/72**.
+
+**Qué salió mal.**
+
+- **El mockup que acordamos prometía cinco resultados por pantalla y no entran.** Ni cinco ni
+  cuatro: la aritmética de 192 dp con 48 dp de área tocable da tres. Lo descubrí cuando el test
+  de densidad falló **después** del rediseño, no al diseñarlo — es decir, dibujé el mockup sin
+  hacer la cuenta. La ganancia real es de ~40 % más filas por pantalla, no del doble. El test
+  quedó con el número medido y el comentario explica por qué no puede subir.
+- **Tres de las siete fallas iniciales eran bugs míos en los tests**, no huecos de diseño:
+  esperaba "verbo" para un sustantivo, un matcher ambiguo que también agarraba el campo de
+  texto, y un `performClick` sobre un nodo que estaba fuera de una lista perezosa. Los corregí
+  como bugs de test y lo dije, porque corregir un test para que pase es exactamente lo que no
+  hay que hacer sin nombrarlo.
+- **`allWarningsAsErrors` —agregado la sesión anterior— pagó dos veces el mismo día**: agarró
+  `createComposeRule` deprecado (hay que usar la v2, que corre con `StandardTestDispatcher`) y
+  `rememberActiveFocusRequester` deprecado al cablear la corona.
+- **Casi duplico `FakeDictionary`** copiándolo a `androidTest`. No hacía falta: las pantallas son
+  funciones del estado. Borré la copia antes de escribir el primer test.
+- **Perdí tres intentos capturando pantallas**: `input keyevent 4` cierra la app si el teclado no
+  llegó a abrirse, y el tap cambia de coordenada según el estado. Ya había pasado la sesión
+  anterior y volvió a pasar.
+
+**Qué quedó sin hacer.**
+
+- **La corona rotatoria está cableada y nunca se movió.** El emulador no acepta input de corona
+  por `adb` (`Unknown command: rotaryencoder`), así que lo único verificado es que compila contra
+  la API documentada. En un reloj puede estar invertida, ser demasiado sensible o no tener foco.
+  **Es lo primero a mirar cuando el MVP llegue al reloj.**
+- **El ejemplo de 917 caracteres sigue siendo un muro** con las acepciones desplegadas. La
+  opción que lo resolvía —ejemplos detrás de un toque— se evaluó y no se tomó.
+- **No hay paleta propia**: se usan los defaults de Wear Material3. Elegir colores sin un reloj
+  delante es decidir a ciegas sobre contraste y consumo.
+- **Los 13 tests de pantalla no corren en el gate.** El gate ve la lógica de `:app` y que la
+  pantalla de atribución exista, no los pixeles.
+- El Tile y la Complication siguen siendo los del template.
+
+---
+
 ## 2026-09-17 — El gate empieza a ver `:app`, y el primer test encontró un bug real
 
 **Qué.** `:app` pasó de cero tests a **17 en el gate**, y para eso hubo que volverlo testeable:
