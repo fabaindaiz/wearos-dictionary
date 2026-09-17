@@ -5,20 +5,35 @@ dónde va a chocar cada una, escrito ahora que está claro.
 
 ## Dónde estamos
 
-El **motor de búsqueda y el pipeline de packs están hechos y testeados**: 40 tests en
-`:dict-core`, 35 en el builder, un pack de juguete que pasa todas las invariantes de
-`verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
+*Actualizado: 2026-09-17.*
 
-La **app sigue siendo el template de Android Studio**. No hay nada de diccionario en `:app`, y
-`:dict-data` no existe como módulo.
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, 40 tests) y el
+pipeline de packs (`tools/`, 35 tests) están completos y en el gate. El pack de juguete pasa
+todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
 
-**Nada de esto corrió nunca en un reloj.** No hay dispositivo ni emulador conectado, `:app:test`
-es `NO-SOURCE`, y no existe un solo test instrumentado. Toda afirmación sobre el comportamiento
-en Android es ASSUMPTION.
+**Hecho pero sin ejecutar.** `:dict-data` existe con `PackFile` —abre read-only y valida
+`schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y dos suites
+instrumentadas. **Compilan y nunca corrieron**: no hubo emulador ni reloj conectado. Que el test
+exista no es lo mismo que haber pasado.
 
-El invariante central —que el builder y la app calculen la misma clave— está sostenido por los
-vectores compartidos, y se verificó que detecta divergencia real: encontró y corrigió un desfase
-de 14.773 code points entre Python y la JVM (D-003).
+**Sin empezar.** `DictionarySource` no está implementado: no hay una sola consulta ejecutándose
+desde Kotlin. `:app` sigue siendo el template de Android Studio. No existe ningún pack real.
+
+**El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
+los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
+14.773 code points entre Python y la JVM (D-003). Medido después: el builder da resultados
+idénticos bajo Python 3.9 (Unicode 13) y 3.14 (Unicode 16). **En Android sigue siendo
+ASSUMPTION** hasta que se corra `NormalizationOnDeviceTest`.
+
+## Las tres cosas que desbloquean todo lo demás
+
+En orden. Cada una es barata y habilita varias de las de abajo.
+
+| # | Qué | Por qué primero | Bloquea a |
+|---|---|---|---|
+| 1 | **Correr los tests instrumentados** en el emulador | Es el único paso que convierte el comportamiento en Android de ASSUMPTION a verificado, y ya está escrito | Todo lo que toque el reloj |
+| 2 | **Decidir el join key entre packs** | Condiciona `entry.id` en el pack base, que es el primero que se va a construir. Es más barato decidirlo antes que después | Composición, y el pack real |
+| 3 | **Construir el pack real y pesarlo** | Es la medición que decide si el formato aguanta. Sin ella, cuatro presupuestos son intuiciones | O-2, O-3, O-4 y el alcance del producto |
 
 ---
 

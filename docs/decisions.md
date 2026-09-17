@@ -20,7 +20,7 @@ encuentra.
 | D-004 | NFD y `lowercase()` **sí** se delegan en la plataforma | **0 diferencias** medidas sobre los 133.730 code points del repertorio, entre Java 26 y Python 3.9. La política de estabilidad de Unicode garantiza que la descomposición no cambia una vez asignada | — *(medición, no mecanismo)* |
 | D-005 | `norm()`/`fuzzy()` se espejan a mano en Kotlin y Python, sin regex, solo reemplazo literal | Dos regex "equivalentes" divergen en un caso borde que nadie nota. El reemplazo literal tiene semántica idéntica en ambos | `normalization-vectors.tsv`, en los tests de ambos lados |
 | D-006 | `NORM_VERSION` distinta ⟹ el pack se rechaza | El pack está indexado con otras reglas: no falla, devuelve menos resultados | `audit_dictionary.py` compara las constantes; `PackFile.open()` rechaza el pack |
-| D-019 | El reemplazo portable de una API JVM lleva **nombre distinto** (`appendUtf16`, no `appendCodePoint`) | En la JVM el miembro nativo gana sobre la extensión: el código portable nunca se ejecutaría, funcionando hoy y fallando al compilar para otro target | — *(convención; la captura `dict-core/CLAUDE.md`)* |
+| D-019 | El reemplazo portable de una API JVM lleva **nombre distinto** (`appendUtf16`, no `appendCodePoint`) | En la JVM el miembro nativo gana sobre la extensión: el código portable nunca se ejecutaría, funcionando hoy y fallando al compilar para otro target | `audit_dictionary.py` → `check_shadowed_extensions` |
 
 ## Formato de pack
 
@@ -56,8 +56,8 @@ encuentra.
 | # | Decisión | Por qué | Enforced in |
 |---|---|---|---|
 | D-023 | `minSdk 33`, `compileSdk`/`targetSdk 37` | Wear OS 7 = API 37. Bajo API 33 solo queda hardware descontinuado. Targetear 37 evita migración forzada en ~12 meses | `app/build.gradle.kts` |
-| D-024 | Wear Widgets pospuesto; se usan Tiles + Protolayout | `androidx.glance.wear:*` y `androidx.compose.remote:*` están en alpha con packages moviéndose, y solo existen en Wear OS 7 | — |
-| D-025 | **Prohibido** `androidx.glance:glance-wear-tiles` | Deprecado y será removido. El naming confunde: no es la librería de Wear Widgets | — *(candidato a check en la auditoría)* |
+| D-024 | Wear Widgets pospuesto; se usan Tiles + Protolayout | `androidx.glance.wear:*` y `androidx.compose.remote:*` están en alpha con packages moviéndose, y solo existen en Wear OS 7 | `audit_dictionary.py` → `check_forbidden_dependency` |
+| D-025 | **Prohibido** `androidx.glance:glance-wear-tiles` | Deprecado y será removido. El naming confunde: no es la librería de Wear Widgets | `audit_dictionary.py` → `check_forbidden_dependency` |
 | D-026 | La búsqueda vive dentro de la app | Tiles y widgets no aceptan text input | — |
 | D-027 | Input por voz (`RecognizerIntent`) primero, teclado como fallback | Es la razón de existir del nivel tolerante a errores: el dictado no coincide exacto con ningún lema | — |
 | D-029 | Descargas diferidas a **cargando + Wi-Fi** | Guía oficial de Wear OS, literal. Con packs de decenas de MB no es opcional | — *(el instalador no existe todavía)* |
