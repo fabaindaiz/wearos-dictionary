@@ -98,6 +98,7 @@ encuentra.
 | D-021 | `gradle-wrapper.jar` **sí** se commitea | La regla `*.jar` lo excluía y un clone no podía correr `./gradlew`. Es el punto del wrapper | `.gitignore` (excepción explícita) |
 | D-022 | `local.properties` no se trackea | Contiene la ruta absoluta al SDK de una máquina concreta | `.gitignore` |
 | D-035 | Cada commit queda verde por sí solo; se parten por dependencia, no por tamaño | Un historial no bisecable no sirve para encontrar cuándo se rompió algo | `commit` skill (verificación por worktree) |
+| D-054 | `.idea/` no se trackea | Android Studio lo reescribe en cada sync y `workspace.xml` guarda estado de máquina. El estilo de código no se pierde: vive en `.editorconfig`, que es portable | `.gitignore` |
 
 ## Tooling de Python
 
