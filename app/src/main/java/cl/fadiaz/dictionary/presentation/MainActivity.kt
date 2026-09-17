@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import cl.fadiaz.dictionary.data.PackStore
+import java.util.Locale
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.wear.compose.material3.AppScaffold
@@ -42,7 +44,16 @@ fun DictionaryApp() {
             val viewModel: SearchViewModel = viewModel(
                 factory = viewModelFactory {
                     initializer {
-                        SearchViewModel { onExtracting -> PackStore.open(context, onExtracting) }
+                        SearchViewModel(
+                            abrirPacks = { onExtracting ->
+                                PackStore.open(context, PackStore.packPreferido(context), onExtracting)
+                            },
+                            // Sin preferencia guardada manda el idioma del reloj, no el alfabeto.
+                            preferido = {
+                                PackStore.packPreferido(context) ?: Locale.getDefault().language
+                            },
+                            recordar = { id -> PackStore.recordarPack(context, id) },
+                        )
                     }
                 },
             )
@@ -56,24 +67,32 @@ fun DictionaryApp() {
                     SearchScreen(
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
-                        onOpenEntry = { navController.navigate("$RUTA_ENTRADA/${it.entryId}") },
+                        onPackChange = viewModel::onPackChange,
+                        // El packId viaja con la entrada: sin el, con dos packs abiertos se
+                        // resolveria contra el activo y mostraria otra palabra.
+                        onOpenEntry = {
+                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
+                        },
                         onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },
                     )
                 }
                 composable(
-                    route = "$RUTA_ENTRADA/{entryId}",
-                    arguments = listOf(navArgument("entryId") { type = NavType.LongType }),
+                    route = "$RUTA_ENTRADA/{packId}/{entryId}",
+                    arguments = listOf(
+                        navArgument("packId") { type = NavType.StringType },
+                        navArgument("entryId") { type = NavType.LongType },
+                    ),
                 ) { backStackEntry ->
+                    val packId = backStackEntry.arguments?.getString("packId").orEmpty()
                     EntryScreen(
                         entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L,
-                        cargar = viewModel::entry,
+                        cargar = { id -> viewModel.entry(packId, id) },
                     )
                 }
                 composable(RUTA_ATRIBUCION) {
                     AttributionScreen(
-                        packName = state.packName,
-                        attribution = state.attribution,
-                        license = state.license,
+                        packs = state.disponibles,
+                        problemas = state.problemas,
                     )
                 }
             }

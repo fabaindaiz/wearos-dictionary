@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
-import cl.fadiaz.dictionary.data.PackLoad
+import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.PackSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,9 +24,12 @@ data class SearchState(
     val query: String = "",
     val results: List<Suggestion> = emptyList(),
     val status: Status = Status.Loading,
-    val packName: String = "",
-    val attribution: String = "",
-    val license: String = "",
+    /** El pack en el que se esta buscando. Su `attribution` y `license` son las que se muestran. */
+    val activo: PackMetadata? = null,
+    /** Todos los packs que la app conoce, extraidos o no. Es lo que dibuja el selector. */
+    val disponibles: List<PackHandle> = emptyList(),
+    /** Packs que estaban y no abrieron. Se muestran en la atribucion, no en la busqueda. */
+    val problemas: List<String> = emptyList(),
 ) {
     sealed interface Status {
         data object Loading : Status
@@ -46,7 +51,10 @@ data class SearchState(
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
-    private val abrirPack: suspend (onExtracting: () -> Unit) -> PackLoad,
+    private val abrirPacks: suspend (onExtracting: () -> Unit) -> PackSet,
+    /** El pack de la ultima vez, o el idioma del reloj. Nunca el orden alfabetico. */
+    private val preferido: () -> String? = { null },
+    private val recordar: (packId: String) -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -59,33 +67,37 @@ class SearchViewModel(
      */
     private val source = MutableStateFlow<DictionarySource?>(null)
 
+    /** Todos los abiertos, para resolver entradas de cualquier pack y para cerrarlos. */
+    private var abiertos: List<DictionarySource> = emptyList()
+
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            when (val result = abrirPack { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
-                is PackLoad.Ready -> {
-                    val meta = result.source.metadata
-                    source.value = result.source
+            when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
+                is PackSet.Ready -> {
+                    abiertos = result.todos.filterIsInstance<PackHandle.Abierto>().map { it.source }
+                    val elegido = elegirActivo(result, preferido())
+                    source.value = elegido.source
                     _state.update {
                         it.copy(
                             status = SearchState.Status.Ready,
-                            packName = meta.name,
                             // D-031: la atribucion sale del pack, no de una constante. Un pack
                             // de otra fuente trae su propia licencia y tiene que mostrarse.
-                            attribution = meta.attribution,
-                            license = meta.license,
+                            activo = elegido.metadata,
+                            disponibles = result.todos,
+                            problemas = result.problemas,
                         )
                     }
                 }
 
-                PackLoad.NoPack -> _state.update {
+                PackSet.NoPack -> _state.update {
                     it.copy(status = SearchState.Status.Failed("No hay ningún diccionario instalado."))
                 }
 
-                is PackLoad.Unusable -> _state.update {
+                is PackSet.Unusable -> _state.update {
                     it.copy(status = SearchState.Status.Failed(result.reason))
                 }
             }
@@ -116,6 +128,23 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * Cambia el diccionario activo sin perder lo escrito.
+     *
+     * Le asigna otro valor al mismo flow, asi que el `combine` repite la query vigente y
+     * `mapLatest` cancela la consulta anterior. No hay maquina de estados nueva.
+     *
+     * **Los resultados viejos no se limpian**: la consulta nueva tarda milisegundos y un
+     * parpadeo en blanco se ve peor que una lista vieja por un instante. Ningun test puede ver
+     * esa diferencia, por eso queda dicha aca.
+     */
+    fun onPackChange(packId: String) {
+        val pack = abiertos.firstOrNull { it.metadata.packId == packId } ?: return
+        source.value = pack
+        _state.update { it.copy(activo = pack.metadata) }
+        recordar(packId)
+    }
+
     fun onQueryChange(text: String) {
         // La query se muestra YA y los resultados llegan despues: si el campo esperara al
         // debounce, escribir se sentiria trabado.
@@ -123,11 +152,19 @@ class SearchViewModel(
         queries.value = text
     }
 
-    suspend fun entry(entryId: Long): Entry? = source.value?.entry(entryId)
+    /**
+     * Abre una entrada **en su propio pack**.
+     *
+     * Devuelve null si ese pack no esta abierto, en vez de caer al activo: caer seria el bug que
+     * esto arregla --mostrar otra palabra-- pero silencioso.
+     */
+    suspend fun entry(packId: String, entryId: Long): Entry? =
+        abiertos.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
 
     /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
     fun cerrar() {
-        source.value?.close()
+        abiertos.forEach { it.close() }
+        abiertos = emptyList()
         source.value = null
     }
 
@@ -136,6 +173,21 @@ class SearchViewModel(
     companion object {
         /** Lo que tarda un dedo en encadenar dos letras en una pantalla de reloj. */
         const val DEBOUNCE_MS: Long = 120
+
+        /**
+         * Que pack se abre al arrancar. **Nunca el orden alfabetico**: con dos packs eso hacia
+         * que un reloj en español arrancara en ingles, porque "en-" ordena antes que "es-".
+         *
+         * Tres escalones: el pack exacto de la ultima vez, cualquiera de ese idioma --que cubre
+         * el caso de no tener preferencia guardada y usar el idioma del reloj-- y por ultimo el
+         * que venga.
+         */
+        internal fun elegirActivo(set: PackSet.Ready, preferido: String?): PackHandle.Abierto {
+            val abiertos = set.todos.filterIsInstance<PackHandle.Abierto>()
+            return abiertos.firstOrNull { it.packId == preferido }
+                ?: abiertos.firstOrNull { it.metadata.langSource == preferido }
+                ?: set.activo
+        }
     }
 }
 

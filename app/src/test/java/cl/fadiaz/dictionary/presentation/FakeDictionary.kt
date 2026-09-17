@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
-import cl.fadiaz.dictionary.data.PackLoad
+import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.PackSet
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.FuzzyProfile
@@ -20,6 +21,9 @@ import kotlinx.coroutines.delay
  * de :dict-data contra un pack de verdad.
  */
 class FakeDictionary(
+    /** Distingue dos packs en los tests de selector. */
+    private val packId: String = "fake",
+    private val lang: String = "es",
     /** Cuanto tarda cada `suggest`. Sirve para que una consulta siga viva cuando llega otra. */
     private val demora: Long = 0,
 ) : DictionarySource {
@@ -32,12 +36,12 @@ class FakeDictionary(
     val canceladas = mutableListOf<String>()
 
     override val metadata: PackMetadata = PackMetadata(
-        packId = "fake",
+        packId = packId,
         schemaVersion = 3,
         normVersion = 1,
         kind = PackKind.MONOLINGUAL,
-        name = "Diccionario de prueba",
-        langSource = "es",
+        name = "Diccionario $packId",
+        langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,
         entryCount = 1,
@@ -57,7 +61,7 @@ class FakeDictionary(
         }
         return listOf(
             Suggestion(
-                packId = "fake",
+                packId = packId,
                 entryId = query.length.toLong(),
                 headword = query,
                 partOfSpeech = "noun",
@@ -68,7 +72,7 @@ class FakeDictionary(
     }
 
     override suspend fun entry(entryId: Long): Entry? = Entry(
-        packId = "fake",
+        packId = packId,
         entryId = entryId,
         uid = entryId,
         headword = "entrada$entryId",
@@ -83,16 +87,22 @@ class FakeDictionary(
     }
 }
 
-/** Un `abrirPack` que el test decide cuando completar. */
+/** Un `abrirPacks` que el test decide cuando completar. */
 class PackDiferido {
-    private val listo = CompletableDeferred<PackLoad>()
+    private val listo = CompletableDeferred<PackSet>()
 
-    suspend fun abrir(onExtracting: () -> Unit): PackLoad {
+    suspend fun abrir(onExtracting: () -> Unit): PackSet {
         onExtracting()
         return listo.await()
     }
 
-    fun completarCon(resultado: PackLoad) {
+    fun completarCon(resultado: PackSet) {
         listo.complete(resultado)
     }
+}
+
+/** Azucar: un PackSet listo con estos packs, el primero activo. */
+fun listos(vararg packs: FakeDictionary): PackSet {
+    val handles = packs.map { PackHandle.Abierto(it) }
+    return PackSet.Ready(handles.first(), handles)
 }
