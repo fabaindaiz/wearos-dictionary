@@ -25,4 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "Dictionary"
 include(":app")
 include(":dict-core")
+include(":dict-data")
 include(":tools")

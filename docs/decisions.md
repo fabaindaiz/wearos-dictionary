@@ -19,7 +19,7 @@ encuentra.
 | D-003 | La clasificación de code points sale de una tabla propia fijada en Unicode 13.0, nunca de `Character.getType`/`unicodedata.category` | Cada plataforma trae su Unicode: Python 3.9 → 13.0, Java 26 → 16, Android una por release. **14.773 code points se clasificaban distinto**; el mismo pack se habría comportado distinto en dos relojes | `ArchitectureTest` (sha256 de ambas copias) + `repertoire.py` |
 | D-004 | NFD y `lowercase()` **sí** se delegan en la plataforma | **0 diferencias** medidas sobre los 133.730 code points del repertorio, entre Java 26 y Python 3.9. La política de estabilidad de Unicode garantiza que la descomposición no cambia una vez asignada | — *(medición, no mecanismo)* |
 | D-005 | `norm()`/`fuzzy()` se espejan a mano en Kotlin y Python, sin regex, solo reemplazo literal | Dos regex "equivalentes" divergen en un caso borde que nadie nota. El reemplazo literal tiene semántica idéntica en ambos | `normalization-vectors.tsv`, en los tests de ambos lados |
-| D-006 | `NORM_VERSION` distinta ⟹ el pack se rechaza | El pack está indexado con otras reglas: no falla, devuelve menos resultados | `audit_dictionary.py` compara las constantes |
+| D-006 | `NORM_VERSION` distinta ⟹ el pack se rechaza | El pack está indexado con otras reglas: no falla, devuelve menos resultados | `audit_dictionary.py` compara las constantes; `PackFile.open()` rechaza el pack |
 | D-019 | El reemplazo portable de una API JVM lleva **nombre distinto** (`appendUtf16`, no `appendCodePoint`) | En la JVM el miembro nativo gana sobre la extensión: el código portable nunca se ejecutaría, funcionando hoy y fallando al compilar para otro target | — *(convención; la captura `dict-core/CLAUDE.md`)* |
 
 ## Formato de pack
@@ -27,11 +27,11 @@ encuentra.
 | # | Decisión | Por qué | Enforced in |
 |---|---|---|---|
 | D-001 | Un SQLite read-only por pack, inmutable, sin migraciones | Permite optimizar el esquema solo para lectura. Room queda descartado para packs: `createFromFile()` **copia** el archivo, duplicando decenas de MB en el reloj | `verify_pack.py` |
-| D-002 | Los packs se abren con `BundledSQLiteDriver`, no con el SQLite del sistema | FTS5 no está garantizado en Android. El build de androidx trae `ENABLE_FTS5`; verificado además `THREADSAFE=2` y `MAX_ATTACHED=10` | — *(el código de `:dict-data` no existe todavía)* |
+| D-002 | Los packs se abren con `BundledSQLiteDriver`, no con el SQLite del sistema | FTS5 no está garantizado en Android. El build de androidx trae `ENABLE_FTS5`; verificado además `THREADSAFE=2` y `MAX_ATTACHED=10` | `PlatformAssumptionsTest` (instrumentado) |
 | D-009 | El payload es texto delimitado, no JSON ni CBOR | Se parsea sin dependencias en los dos lenguajes y se lee con la vista al depurar. Después de comprimir, la diferencia de tamaño con un binario es ruido | `PayloadCodecTest` + `test_payload.py` |
 | D-010 | `form` y `trans` son `WITHOUT ROWID` con PK compuesta | La tabla **es** el índice: sin rowid y sin un B-tree secundario que duplique los mismos datos | `verify_pack.py` (plan de consulta) |
-| D-011 | `fts_def` es contentless (`content=''`) y su rowid es `entry.id` | No guarda una segunda copia del texto, que ya vive comprimido en `entry.payload`. Consecuencia asumida: sin `snippet()`/`highlight()` | `verify_pack.py` |
-| D-012 | El prefijo usa un covering index y un rango explícito, no `LIKE 'x%'` | `LIKE` solo se optimiza a range scan si `case_sensitive_like` está bien, y ante la duda SQLite hace full scan | `verify_pack.py` verifica `COVERING INDEX` con `EXPLAIN QUERY PLAN` |
+| D-011 | `fts_def` es contentless (`content=''`) y su rowid es `entry.id` | No guarda una segunda copia del texto, que ya vive comprimido en `entry.payload`. Consecuencia asumida: sin `snippet()`/`highlight()` | `verify_pack.py` + `PlatformAssumptionsTest` |
+| D-012 | El prefijo usa un covering index y un rango explícito, no `LIKE 'x%'` | `LIKE` solo se optimiza a range scan si `case_sensitive_like` está bien, y ante la duda SQLite hace full scan | `verify_pack.py` + `PlatformAssumptionsTest`, los dos con `EXPLAIN QUERY PLAN` |
 | D-013 | `idx_entry_fuzzy` es angosto a propósito: no es covering | Incluir `headword`/`pos` duplicaría varios MB por un camino que solo se recorre cuando el prefijo no dio resultados | — |
 | D-014 | `trans` indexa la frase completa **y** cada palabra, con tope `TRANS_MAX_PER_KEY = 50` | Sin tokenizar, buscar "run" no encuentra "to run". Sin tope, "to" apuntaría a decenas de miles de entradas. Se topea en vez de descartar: buscar "to" sigue devolviendo algo útil | `test_build.py` |
 | D-016 | Los índices se crean al final, sobre las tablas ya pobladas | Mantenerlos durante la ingesta es mucho más lento | `test_build.py` (no queda staging) |
@@ -42,7 +42,7 @@ encuentra.
 | # | Decisión | Por qué | Enforced in |
 |---|---|---|---|
 | D-007 | deflate con diccionario precargado compartido, **no zstd** | deflate está en `java.util.zip` y en el `zlib` de la stdlib. zstd obligaría a una librería nativa en el reloj *además* de la de SQLite, y a una dependencia de pip | `payload-fixture.tsv` (round-trip Python→JVM) |
-| D-008 | `meta.payload_dict_sha256` se verifica al abrir el pack | **deflate no detecta un diccionario equivocado**: descomprime sin lanzar nada y devuelve texto corrupto — medido: "moverse rapidamente" → " nadrse rapidamente" | `verify_pack.py`; el chequeo en la app falta |
+| D-008 | `meta.payload_dict_sha256` se verifica al abrir el pack | **deflate no detecta un diccionario equivocado**: descomprime sin lanzar nada y devuelve texto corrupto — medido: "moverse rapidamente" → " nadrse rapidamente" | `verify_pack.py` + `PackFile.open()` |
 
 ## Portabilidad
 

@@ -87,7 +87,12 @@ python3 tools/packbuilder/build_toy.py                          # regenera el pa
 python3 tools/packbuilder/verify_pack.py <pack.db>              # invariantes de un pack real
 python3 tools/unicode/gen_repertoire.py                         # regenera el repertorio (acto deliberado)
 python3 tools/packbuilder/gen_payload_fixture.py                # regenera el fixture del codec
+./gradlew :dict-data:connectedDebugAndroidTest                  # LOS TESTS EN DISPOSITIVO (ver abajo)
 ```
+
+Entorno opcional de desarrollo para el pipeline Python (`pyproject.toml`, Hatch):
+`hatch run test`, `hatch run matrix:test`, `hatch run lint:check`. **El gate no lo necesita**
+(D-046).
 
 ## Verificación
 
@@ -103,6 +108,10 @@ obtuvo, y si la medición mata una creencia, esa es la entrada más valiosa del 
 **Emulador y reloj no miden lo mismo** (D-043): el emulador cierra correctitud —normalización,
 FTS5, planes de consulta—, porque trae el ICU y el SQLite de su nivel de API. Rendimiento y
 batería solo valen medidos en **reloj físico**. Ver el `benchmark` skill.
+
+**Los tests de `:dict-data` son instrumentados y el gate NO los corre** (necesitan dispositivo).
+Son los únicos que cierran las asunciones sobre Android. Corrélos en cada nivel de API
+soportado, no en uno solo: el punto es que las versiones de ICU difieren.
 
 ## Commits
 

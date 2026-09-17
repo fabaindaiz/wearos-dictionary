@@ -22,10 +22,11 @@ local.properties
 *.iml
 
 # --- Artefactos generados del proyecto ---
-# Pack de juguete para los tests instrumentados. Es determinista y se regenera con
-#     python3 tools/packbuilder/build_toy.py
-# No se commitea para no meter un binario que cambia en cada build por meta.built_at.
-dict-data/src/androidTest/assets/*.db
+# Assets de los tests instrumentados: TODO lo que hay ahi lo genera
+# :dict-data:prepareAndroidTestAssets (el pack de juguete y una copia de los vectores).
+# No se commitean: el pack es un binario que cambia en cada build por meta.built_at, y la
+# copia de los vectores seria una segunda fuente de verdad del contrato mas importante del repo.
+dict-data/src/androidTest/assets/
 
 # Cache de bytecode de Python del pipeline de packs
 __pycache__/

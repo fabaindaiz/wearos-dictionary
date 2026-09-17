@@ -42,7 +42,22 @@ incremental deja de cumplir su presupuesto de latencia y **nada más lo notaría
 Decí qué pasó y qué no, con la salida. **Nunca llames verificado a algo que no corriste.** Si
 algo ya venía fallando, nombralo para que no se presente como nuevo.
 
+## Los tests en dispositivo, que el gate no corre
+
+```bash
+./gradlew :dict-data:connectedDebugAndroidTest
+```
+
+Necesitan un emulador o un reloj conectado, por eso están fuera del gate. Son los únicos que
+cierran las asunciones sobre Android: que el SQLite empacado traiga FTS5, que el prefijo use el
+covering index en ese dispositivo, y sobre todo que `norm()` dé lo mismo en el reloj que en el
+builder.
+
+Corrélos en **cada nivel de API soportado**. Correr uno solo no prueba lo que el test intenta
+probar, que es justamente que las versiones difieren.
+
 Lo que el gate **no** cubre, y hay que decirlo cuando alguien pregunta si está listo:
 
-- **Nada de esto corrió nunca en un reloj.** No hay tests instrumentados.
+- **Los tests instrumentados existen pero pueden no haberse corrido nunca.** Compilan en el
+  gate; ejecutarse, no. Chequeá antes de afirmar que algo funciona en Android.
 - Los presupuestos de latencia y tamaño de `docs/formato-pack.md` son **objetivos sin medir**.

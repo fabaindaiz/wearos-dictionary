@@ -80,20 +80,20 @@ la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
 ## Aplicación
 
-### `:dict-data`
+### `:dict-data` — implementar `DictionarySource`
 
-Abrir packs con `BundledSQLiteDriver` e implementar las cinco consultas.
+El módulo **ya existe**, con `PackFile` (abre read-only y valida las tres versiones más el hash
+del diccionario) y los tests instrumentados. Falta la implementación de `DictionarySource`: las
+cinco consultas y la cascada.
 
-**Con qué choca.** Con nada estructural: es el camino planeado. Pero es el módulo donde
-`THREADSAFE=2` deja de ser un dato y pasa a ser un requisito — una conexión por pack, confinada
-a un dispatcher de un solo hilo.
+**Con qué choca.** Con nada estructural: es el camino planeado. Pero es donde `THREADSAFE=2`
+deja de ser un dato y pasa a ser un requisito — una conexión por pack, confinada a un dispatcher
+de un solo hilo.
 
-**Qué hay ya a favor.** `DictionarySource` está definido, las cinco consultas están escritas y
-probadas contra un pack real en `verify_pack.py`, y las versiones están pinneadas en el catálogo.
+**Qué hay ya a favor.** `DictionarySource` está definido en `:dict-core`, las cinco consultas
+están escritas y verificadas contra un pack real, y `PackFile` ya resuelve apertura y validación.
 
-**Qué hay que decidir antes.** Si `trans` sobrevive (ver arriba). Y dónde vive la verificación
-de `meta.payload_dict_sha256` al abrir el pack, que hoy **no existe en ningún lado** aunque D-008
-la dé por hecha.
+**Qué hay que decidir antes.** Si `trans` sobrevive en packs monolingües (ver arriba).
 
 ### Diseño de la interfaz
 
@@ -215,8 +215,16 @@ El repertorio fijado (D-003) mata la mayor parte del riesgo, pero su residuo es 
 `lowercase()` siguen delegando en la plataforma, y esa verificación se hizo **entre Java 26 y
 Python 3.9**, nunca sobre Android.
 
-**Qué hace falta.** Un test instrumentado que corra `normalization-vectors.tsv` sobre imágenes
-de Wear OS, una por nivel de API soportado.
+**El test ya existe: `NormalizationOnDeviceTest`.** Falta **correrlo**. Compila, pero nunca se
+ejecutó en ningún dispositivo ni emulador, así que el invariante central sigue siendo ASSUMPTION
+en Android hasta que alguien lo corra:
+
+```sh
+./gradlew :dict-data:connectedDebugAndroidTest
+```
+
+Correrlo en **cada nivel de API soportado**, no en uno solo: el punto es justamente que las
+versiones de ICU difieren entre versiones de Android.
 
 **Ahora es posible.** Hay Android Studio con emulador, y acceso a un reloj físico. Eso parte la
 clase de bug en dos, y las dos mitades se cierran distinto:
