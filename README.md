@@ -46,6 +46,34 @@ hatch run lint:check     # ruff
 
 Está documentado en [tools/CLAUDE.md](tools/CLAUDE.md).
 
+## Trabajar desde Android Studio
+
+El IDE de pruebas del proyecto. Dos cosas a instalar una sola vez:
+
+**El plugin de Claude Code.** `Settings → Plugins → "Claude Code" → instalar → reiniciar`.
+Requiere el CLI instalado aparte. Con `/config → Diff tool: auto` los diffs salen en el visor
+del IDE en vez del terminal.
+
+**Un emulador de Wear OS**, que es lo que falta para correr los tests instrumentados:
+
+```
+Tools → Device Manager → Add a new device → Wear OS → imagen de API 33 o superior
+```
+
+```sh
+./gradlew :dict-data:devicePrecheck             # ¿hay con qué correrlos? Dice qué falta
+./gradlew :dict-data:connectedDebugAndroidTest  # los 20 tests en dispositivo
+```
+
+**Creá un AVD por cada nivel de API que soportes, no uno solo.** El punto de
+`NormalizationOnDeviceTest` es justamente que las versiones de ICU difieren entre versiones de
+Android; correr en una sola no prueba lo que el test intenta probar.
+
+Esos tests son los únicos que cierran las asunciones sobre Android — que el SQLite empacado
+traiga FTS5, que el prefijo use el covering index en ese dispositivo, y que `norm()` dé lo mismo
+en el reloj que en el builder. Hasta que corran, todo lo que este repo afirma sobre Android es
+una suposición. Detalle en [dict-data/CLAUDE.md](dict-data/CLAUDE.md).
+
 ## Estructura
 
 ```
