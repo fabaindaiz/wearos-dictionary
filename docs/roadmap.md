@@ -3,6 +3,21 @@
 Ideas aceptadas, todavía no construidas. **No es una promesa ni una orden de trabajo**: es
 dónde va a chocar cada una, escrito ahora que está claro.
 
+**Es un ledger, no una lista de deseos**, y por eso se escribe también cuando el trabajo
+*termina*. Cada entrada lleva uno de cinco estados y **ninguna entrada se borra**: una idea
+borrada vuelve el trimestre que viene sin memoria de por qué se fue.
+
+| Estado | Qué tiene que decir entonces la entrada |
+|---|---|
+| **Planificado** | con qué choca, qué hay a favor, qué hay que decidir antes |
+| **A medias** | cuál mitad, y si lo que falta es mecanismo o contenido — los deciden personas distintas |
+| **Hecho** | en qué quedó, la medición que lo cerró, y **qué sigue faltando** |
+| **Cerrado por medición** | el número que lo retiró |
+| **Bloqueado afuera** | qué lo reabriría, concretamente: un issue upstream, un dispositivo, una licencia |
+
+El último es el que más falta en un roadmap y el que más tiempo ahorra: sin él, un agente que
+nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
+
 ## Dónde estamos
 
 *Actualizado: 2026-09-17.*
@@ -54,6 +69,8 @@ En orden. Cada una es barata y habilita varias de las de abajo.
 
 ### Construir el pack real de español monolingüe
 
+**Estado.** Planificado. Es el item 3 de la lista de arriba y no depende de nadie: hay que medirlo.
+
 Podar el Wikcionario a definiciones y pesarlo. **Es el primer item por una razón: es la medición
 que decide si el formato aguanta.**
 
@@ -69,6 +86,8 @@ diccionario compartido ya funciona end-to-end.
 mejor con ese número.
 
 ### Composición entre packs
+
+**Estado.** Planificado. El join key ya está decidido y medido (D-055 a D-058); falta construirlo.
 
 Que un pack de sinónimos y uno de traducciones puedan sumar información **a la misma entrada**
 del pack de definiciones.
@@ -91,6 +110,8 @@ así que la capa de resultados distingue el origen.
 
 ### Reorientar el esquema a monolingüe
 
+**Estado.** Planificado. Lo que falta es **contenido de decisión**, no mecanismo: qué pasa con `trans`.
+
 D-034 fijó que el primer pack es monolingüe con definiciones. Falta que el código lo refleje.
 
 **Con qué choca.** Con `trans`, que en un pack monolingüe se definió como "las palabras que
@@ -107,6 +128,8 @@ la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
 ### Conectar `:app` a `:dict-data`
 
+**Estado.** Planificado. La capa de abajo está hecha y verificada en emulador; `:app` sigue siendo el template.
+
 `:dict-data` está completo: `PackFile` valida y abre, `SqlitePackSource` implementa la cascada.
 Falta que la app lo use — un ViewModel con `debounce` y `mapLatest`, y una lista.
 
@@ -122,6 +145,8 @@ que liste lo que haya, dejando el instalador para después.
 
 ### Diseño de la interfaz
 
+**Estado.** Planificado, y **se anota, no se construye**: el backend va primero.
+
 Voz, lista de resultados, corona rotatoria, Tile, Complication.
 
 **Con qué choca.** Con D-026: la búsqueda vive dentro de la app porque los tiles no aceptan text
@@ -131,6 +156,8 @@ input, así que la superficie glanceable necesita un propósito propio, no ser u
 shortcut. Son productos distintos.
 
 ### Instalador de packs
+
+**Estado.** Planificado. Bloqueado en una decisión de producto —dónde se hostea el catálogo— que no es del agente.
 
 Catálogo, descarga verificada, WorkManager.
 
@@ -155,6 +182,10 @@ priori.
 
 ### O-1. Hacerlo medible (antes de tocar nada)
 
+**Estado.** Planificado. Su mitad de rendimiento está **bloqueada afuera**: necesita un reloj físico (D-043).
+
+La reabre conseguir el reloj.
+
 Macrobenchmark sobre el emulador para correctitud y sobre el reloj para números. Baseline de:
 cold start, `suggest()` p50/p95 con prefijos de 1 a 5 letras, tiempo de abrir una entrada
 (incluye descomprimir el payload), y tamaño del pack.
@@ -170,6 +201,8 @@ número de antes para justificarse.
 > CPU y batería no representan nada.
 
 ### O-2. R8 y baseline profiles
+
+**Estado.** Planificado. Después de O-1: sin baseline no hay con qué comparar.
 
 La guía oficial de rendimiento de Wear OS dice, literal: *"Start with the most effective
 performance tool types: baseline profiles (including startup profiles) and the R8 code
@@ -189,6 +222,8 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
+**Estado.** Planificado. Espera el número de O-1 y el pack real.
+
 Con el número real de O-1, recién ahí se deciden las opciones que hoy están abiertas:
 `detail=none` (achica el índice FTS, mata las consultas de frase), `columnsize=0` (achica más,
 rompe una comprobación de `verify_pack.py`), y compresión por fila vs bloques de 50–64 kB.
@@ -200,6 +235,8 @@ rompe una comprobación de `verify_pack.py`), y compresión por fila vs bloques 
 lo que más gasta. Cada MB que se ahorra es tiempo de radio que no se paga.
 
 ### O-4. Batería
+
+**Estado.** **Bloqueado afuera.** No hay medición de batería que valga sin reloj físico (D-043). Lo reabre conseguirlo.
 
 Medir con **el power metric de Macrobenchmark, Perfetto o el Power Profiler**. No con Battery
 Historian: la documentación oficial dice que ya no se mantiene.
@@ -219,6 +256,8 @@ absoluto, porque cambia cuando el usuario usa la app.
 
 ### O-5. Animaciones y trabajo en el hilo de UI
 
+**Estado.** Planificado. Depende de que exista una interfaz; hoy no existe.
+
 La guía oficial pide minimizar animaciones y, si hay un loop, dejar una pausa al menos tan larga
 como la animación.
 
@@ -230,6 +269,11 @@ interfaz, no después — rehacer animaciones ya escritas es más caro que no es
 ## Comprobación que falta y bloquea el ship
 
 ### Los vectores de normalización, corriendo en un reloj
+
+**Estado.** **A medias**, y las dos mitades se cierran distinto. La de **correctitud está
+hecha**: `NormalizationOnDeviceTest` pasa en API 33 y API 37.0 (2026-09-17). La de
+**rendimiento está bloqueada afuera**: falta un reloj físico, y la reabre conseguir uno. Lo que
+falta es **mecanismo**, no contenido: hay hardware que no está.
 
 **Es la clase de bug que este repo no puede observar**: una divergencia entre las claves
 precalculadas del pack y las que el reloj calcula, en un dispositivo cuya versión de Unicode
@@ -261,6 +305,35 @@ clase de bug en dos, y las dos mitades se cierran distinto:
 
 La mitad de **correctitud está cerrada** en API 33 y 37.0. La de **rendimiento sigue abierta**:
 falta el reloj físico, y sin él no hay ni un número de latencia ni de batería.
+
+---
+
+## Proceso y herramientas
+
+La forma de trabajar está bajo las mismas reglas que el código: tiene fricción, la fricción se
+mide, y casi siempre es lo más barato de arreglar del proyecto. **Se rankea acá, contra las
+features, por la misma persona y en la misma sentada** — que es el único lugar donde la
+comparación es honesta. Un log de fricción aparte es un archivo que nadie abre.
+
+El umbral es el **segundo golpe**: la primera vez va al changelog de la sesión, la segunda sube
+acá con la aritmética. Una molestia sola es ruido; la segunda es un dato.
+
+### La auditoría dice que `CLAUDE.md` se pasó, pero no qué sección creció
+
+**Qué pasa ahora.** `check_root_budget` falla con *"¿Qué sección creció?"* y no lo responde. Hay
+que contar líneas por sección a mano, elegir qué relocalizar y volver a correr. Pasó **dos veces
+en la sesión del 2026-09-17** (204 → 201 → 199 líneas), y el archivo quedó en 199 de 200: la
+próxima regla que se agregue vuelve a chocar.
+
+**Costo.** ~3 minutos por golpe × cada sesión que agrega una regla al archivo raíz × la vida del
+repo. El aviso de "cerca del límite" (>175) ya existe, así que el mecanismo está: lo que falta es
+que diga **cuál** sección.
+
+**El arreglo.** Que el check imprima el conteo por `##` cuando falla o avisa. Es una función
+corta dentro de `check_root_budget`, sin dependencias nuevas.
+
+**Visto en.** 2026-09-17 (bootstrap, el archivo nació en 158) y 2026-09-17 (update a método v7,
+dos relocalizaciones seguidas).
 
 ---
 

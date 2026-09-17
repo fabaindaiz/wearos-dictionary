@@ -15,7 +15,125 @@ Formato:
 **Por qué.** El motivo, incluyendo el pedido que lo originó.
 **Arquitectura.** ✅ Cumple · ⚠️ Desviación · REVISAR — y por qué.
 **Medido.** El número, si se afirmó algo.
+**Qué salió mal.** Qué erró el primer intento y qué lo agarró. Se omite solo si no erró nada.
+**Qué quedó sin hacer.** La deuda que este cambio creó o esquivó, nombrada.
 ```
+
+**Los tres últimos campos son los que pagan el archivo.** Un log de éxitos es contabilidad; uno
+que dice *"el primer intento dejó `CLAUDE.md` en 204 líneas y lo agarró el propio check"* es el
+único mecanismo por el que una sesión le avisa a otra. Los errores se escriben con la misma voz
+que los aciertos: una entrada que esconde un desvío manda a la sesión siguiente por ese desvío.
+
+---
+
+## 2026-09-17 — El método salta de v0 a v7: header, loop de sesión y el digest como enforcer
+
+**Qué.** Se actualizó el método de trabajo con agentes de la versión **0** a la **7** (lineage
+`m-7c41a9`, digest `dee484b4cc29`). El archivo único que vivía en `docs/agents/`,
+`bootstrap-prompt.md`, quedó reemplazado por el set de cuatro documentos `prompt-{context,evaluate,bootstrap,update}.md`, y
+—la parte que importa— **nuestro header se llevó adelante**: `adopted: 2026-09-17`, siete
+entradas en `adapted` y dos en `declined`, que antes no existían en ninguna parte porque v0 no
+tenía header donde escribirlas.
+
+De los 33 deltas entre v0 y v7: **22 aplicados, 5 ya los teníamos, 2 adaptados, 1 aplazado,
+3 declinados.** Lo aplicado, como ediciones reales:
+
+- **`CLAUDE.md`** — §*Cómo corre una sesión* nueva: el brief de apertura, el trabajo ajeno que no
+  se arrastra, las preguntas juntas y cotizadas en unidades de este repo, mirar el output, y el
+  cierre con captura incondicional. Regla **test-first** en §Verificación. Los dos documentos
+  nuevos del método en el mapa.
+- **`docs/roadmap.md`** — los **cinco estados** del ledger, con leyenda, y `**Estado.**` en las
+  doce entradas. La comprobación en reloj pasa a *A medias* con sus dos mitades separadas.
+  Área nueva **§Proceso y herramientas**, con su primer item.
+- **`docs/architecture.md`** — la tabla **qué cambiaste → qué se mueve**, en los sustantivos de
+  este repo: once filas, de `norm()` al changelog.
+- **`docs/decisions.md`** — sección nueva *El método de trabajo con agentes*, D-059 a D-062.
+- **`tools/audit_dictionary.py`** — `check_method_digest`, el enforcer de D-059.
+- **`pack-workflow`** — paso nuevo: abrir el pack y leerlo, con las tres consultas y los dos
+  silencios que hay que distinguir.
+- **`state-review`** — preguntas 7 (¿el método sigue siendo el que decimos seguir?) y 8 (los
+  smells, chequeables en un minuto).
+- **El formato del changelog** gana *Qué salió mal* y *Qué quedó sin hacer*.
+
+**Áreas.** `docs/agents/` (los cuatro archivos del set), `CLAUDE.md`, `docs/roadmap.md`,
+`docs/architecture.md`, `docs/decisions.md`, `tools/audit_dictionary.py`,
+`.claude/skills/pack-workflow/SKILL.md`, `.claude/skills/state-review/SKILL.md`,
+`.claude/logs/agent-changelog.md`.
+
+**Por qué.** Pedido explícito: actualizar el repo con los cambios del método. La copia nueva ya
+estaba en el árbol, staged, encima de la vieja — así que el prune había corrido antes que el
+triage, que es exactamente el orden que `prompt-update.md` intenta evitar.
+
+**Arquitectura.** ✅ Cumple. Principio 19 gobernó la adopción: **seis archivos extendidos, cero
+creados.** Ninguna guarantee del método se quedó sin casa, y ninguna forma de este repo se
+renombró para parecerse al método — por eso `adapted` tiene siete filas.
+
+**Medido.**
+
+- **El digest del set: `dee484b4cc29`**, recalculado a mano con el procedimiento que el propio
+  método publica (concatenar `prompt-*.md` en orden de nombre, sacar los bloques `yaml` del
+  header, sha256, 12 hex). Coincide con el declarado ⟹ el header es confiable y el set está
+  completo. Se verificó **de nuevo** después de escribir nuestro header, porque el header se
+  excluye del cálculo: sigue dando `dee484b4cc29`.
+- **`check_method_digest` se hizo fallar a propósito** antes de darlo por bueno: con una línea
+  de más en `prompt-evaluate.md` reporta `declara dee484b4cc29 y el contenido da e13af87e3ab7`.
+  Restaurado el archivo, vuelve a silencio. Un check que solo se vio pasar no se midió.
+- **Los principios 1–13 son textualmente idénticos** entre v0 y v7 salvo anonimización: 51
+  líneas de diff sobre 250, todas reemplazo de sustantivos propios. Es lo que sostiene tratar
+  nuestra copia sin header como versión 0 de esta lineage y no como un documento distinto.
+- **El gate estaba rojo al empezar**, y no por el código:
+
+  ```
+  FALLA  documento apunta a un archivo inexistente:
+         .claude/logs/agent-changelog.md -> docs/agents/bootstrap-prompt.md
+  ```
+
+  Lo detectó el enforcer que este repo ya tenía, y es el breakage que §*The prune* llama el más
+  común que causa un update: el puntero muerto.
+- **`CLAUDE.md`: 158 → 199 de 200 líneas.** Queda **1 línea** de margen y el aviso de cercanía
+  al límite ahora salta.
+
+**Qué salió mal.** El primer intento dejó `CLAUDE.md` en **204 líneas** y lo agarró
+`check_root_budget`, no yo. Al comprimir quedó en 201 — todavía roto — y recién el tercer intento
+entró. Lo que finalmente dio margen no fue recortar prosa nueva sino **borrar una duplicación
+vieja**: las tres líneas de Hatch en §Comandos ya estaban, mejor explicadas, en `tools/CLAUDE.md`.
+Estaban duplicadas desde el bootstrap y nadie las había visto. La lección quedó como el primer
+item de §Proceso y herramientas, porque la fricción se repitió dos veces en la misma sesión.
+
+Segundo error, más silencioso: el header se escribió primero con las entradas de `adapted` sin
+comillas, y una decía `troubleshooting layer is split: skill ...`. Un `: ` adentro de un escalar
+plano de YAML lo convierte en **mapping**, no en string: el header habría parseado distinto de
+como se lee. No había PyYAML para detectarlo, así que se citaron las catorce entradas a mano.
+
+**Qué quedó sin hacer.**
+
+- **`CLAUDE.md` queda en 199 de 200.** La próxima regla que se agregue choca. Hay margen real
+  —§Comandos y §Verificación tienen más duplicación con los skills— pero buscarla es una revisión
+  aparte, no parte de un update.
+- **El item de §Proceso y herramientas está propuesto, no ejecutado**, por la disciplina 3 del
+  principio 17: que `check_root_budget` diga *cuál* sección creció es una mejora de proceso y le
+  toca al humano agendarla.
+- **`upstream` quedó vacío** en el header: no se dijo de dónde vino esta copia. Si vuelve a
+  llegar una versión nueva por el mismo camino, conviene anotarlo.
+- **Nada se le mandó todavía a la lineage de arriba.** Cuatro candidatos pasaron el generality
+  test y viven solo en el reporte de esta sesión: el veredicto arquitectónico por entrada de
+  changelog; la tabla de vectores compartida como enforcer de paridad entre dos
+  implementaciones; `—` distinguido de *(medición, no mecanismo)* en la columna de enforcer; y
+  que un check de punteros muertos tiene que eximir al roadmap. No hay adónde mandarlos hasta
+  que exista un canal hacia `m-7c41a9`.
+
+**Qué se declinó, y por qué.** §*Three agents, one source* (v7): este repo es single-agent a
+propósito y su asimetría ya es la política de acá — el invariante lo sostienen el hook, los
+vectores y el gate, no la prosa. Se reabre si aparece el archivo de reglas de un segundo agente
+(D-060). §*Workspaces* (v3): un solo repositorio; se reabre con el segundo. §*Models, reasoning
+levels and cost* y la anonimización del worked example son internos del método y no implican
+edición acá.
+
+**El prune.** Un solo candidato: `bootstrap-prompt.md`, leído **entero** (986 líneas) antes de
+dejar que la borradura quedara. Sus ocho secciones están cubiertas por el set nuevo, siete de
+ellas como superset; **no contenía una sola línea sobre este repositorio**, así que no hubo nada
+que mover afuera. Un enlace entrante, en la entrada del bootstrap de este mismo changelog: la
+frase se conservó porque es cierta —esa sesión siguió ese archivo— y se le agregó qué pasó a ser.
 
 ---
 

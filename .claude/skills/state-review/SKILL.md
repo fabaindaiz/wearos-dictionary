@@ -61,6 +61,30 @@ Las de `docs/decisions.md` con `—` en *Enforced in*. En este repo, las candida
 - **D-031** (atribución CC BY-SA visible) → ship-blocking check cuando exista la UI.
 - **D-002** (packs con `BundledSQLiteDriver`) → chequeable cuando exista `:dict-data`.
 
+## 7. ¿El método sigue siendo el que decimos seguir?
+
+```sh
+grep -h "^version:\|^digest:\|^adopted:" docs/agents/prompt-update.md
+python3 tools/audit_dictionary.py | grep metodo   # silencio = el digest cuadra
+```
+
+`adapted` y `declined` **vacíos** después de un update es la señal de que el header no se está
+manteniendo, y el próximo update va a re-proponer todo lo ya rechazado (D-059, D-060).
+
+## 8. Los smells, que se chequean en un minuto
+
+Cada uno tiene una respuesta corta; lo que importa es que ninguno se conteste de memoria.
+
+| Smell | Cómo se mira |
+|---|---|
+| El roadmap no tiene ninguna entrada **Hecho** | `grep -c "Estado.*Hecho" docs/roadmap.md` — o no se terminó nada, o terminar no escribe de vuelta |
+| §Proceso y herramientas **vacía** | La fricción no se está anotando. No es que no haya |
+| Todas las entradas del changelog salieron perfectas | `grep -c "Qué salió mal" .claude/logs/agent-changelog.md` contra el total de entradas. Nadie trabaja así: los desvíos se están editando afuera |
+| Una decisión con enforcer `— ` que **sí** se podría chequear | Pregunta 6 |
+| Dos documentos afirman el mismo número | Uno ya está viejo y no se sabe cuál |
+| Un límite del gate se subió junto con una feature | `git log -p -- tools/audit_dictionary.py` — el límite *era* el mensaje |
+| Ninguna sesión propuso nunca una mejora de proceso | Es el modo de falla 6, y es invisible justamente porque nada se rompe |
+
 ## Y la pregunta que no está en la lista
 
 **¿Sigue sin haber un test corriendo en un reloj?** Es la clase de bug que este repo no puede
