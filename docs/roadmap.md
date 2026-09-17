@@ -16,8 +16,13 @@ todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING
 instrumentadas. **Compilan y nunca corrieron**: no hubo emulador ni reloj conectado. Que el test
 exista no es lo mismo que haber pasado.
 
-**Sin empezar.** `DictionarySource` no está implementado: no hay una sola consulta ejecutándose
-desde Kotlin. `:app` sigue siendo el template de Android Studio. No existe ningún pack real.
+`SqlitePackSource` implementa la cascada de cinco consultas, con 13 tests instrumentados. Sus
+expectativas se verificaron contra el contenido real del pack de juguete antes de escribirlas —
+una estaba mal y se corrigió sin gastar un emulador.
+
+**Sin empezar.** `:app` sigue siendo el template de Android Studio: nada de la app usa
+`:dict-data` todavía. No existe ningún pack real, así que los umbrales del nivel tolerante
+(D-052) siguen siendo números elegidos a priori.
 
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
 los vectores compartidos, y se verificó que detecta divergencia real: encontró un desfase de
@@ -95,20 +100,20 @@ la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
 ## Aplicación
 
-### `:dict-data` — implementar `DictionarySource`
+### Conectar `:app` a `:dict-data`
 
-El módulo **ya existe**, con `PackFile` (abre read-only y valida las tres versiones más el hash
-del diccionario) y los tests instrumentados. Falta la implementación de `DictionarySource`: las
-cinco consultas y la cascada.
+`:dict-data` está completo: `PackFile` valida y abre, `SqlitePackSource` implementa la cascada.
+Falta que la app lo use — un ViewModel con `debounce` y `mapLatest`, y una lista.
 
-**Con qué choca.** Con nada estructural: es el camino planeado. Pero es donde `THREADSAFE=2`
-deja de ser un dato y pasa a ser un requisito — una conexión por pack, confinada a un dispatcher
-de un solo hilo.
+**Con qué choca.** Con el diseño de la interfaz, que es una decisión de producto abierta. Y con
+D-026: la búsqueda vive dentro de la app porque los tiles no aceptan text input.
 
-**Qué hay ya a favor.** `DictionarySource` está definido en `:dict-core`, las cinco consultas
-están escritas y verificadas contra un pack real, y `PackFile` ya resuelve apertura y validación.
+**Qué hay ya a favor.** Todo lo de abajo de la UI. `DictionarySource` es la única superficie que
+la app necesita conocer.
 
-**Qué hay que decidir antes.** Si `trans` sobrevive en packs monolingües (ver arriba).
+**Qué hay que decidir antes.** Cómo se instala el primer pack, porque sin pack la app no tiene
+nada que mostrar. La opción barata para empezar: `adb push` a `filesDir/packs/` y una pantalla
+que liste lo que haya, dejando el instalador para después.
 
 ### Diseño de la interfaz
 
