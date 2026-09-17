@@ -87,6 +87,7 @@ python3 tools/packbuilder/build_toy.py                          # regenera el pa
 python3 tools/packbuilder/verify_pack.py <pack.db>              # invariantes de un pack real
 python3 tools/unicode/gen_repertoire.py                         # regenera el repertorio (acto deliberado)
 python3 tools/packbuilder/gen_payload_fixture.py                # regenera el fixture del codec
+./gradlew :dict-data:devicePrecheck                             # hay emulador o reloj? dice que falta
 ./gradlew :dict-data:connectedDebugAndroidTest                  # LOS TESTS EN DISPOSITIVO (ver abajo)
 ```
 
