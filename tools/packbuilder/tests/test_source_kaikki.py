@@ -1,4 +1,4 @@
-"""Tests de la fuente kaikki_es: la poda, que es donde se decide el tamano del pack.
+"""Tests de la fuente kaikki: la poda, que es donde se decide el tamano del pack.
 
 El builder ya tiene sus tests. Aca se verifica lo otro: que de un registro de kaikki.org salga
 lo que queremos y **nada mas**. Las tres cosas que ninguna invariante del pack agarra:
@@ -21,7 +21,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sources import kaikki_es  # noqa: E402
+from sources import kaikki  # noqa: E402
 
 
 def _jsonl(*records):
@@ -58,7 +58,7 @@ class PodaTest(unittest.TestCase):
     def records(self, *raw):
         path = _jsonl(*raw)
         self.paths.append(path)
-        return list(kaikki_es.records(path))
+        return list(kaikki.records(path))
 
     def test_la_glosa_y_un_ejemplo_sobreviven(self):
         got = self.records(_raw("casa", "noun", [
@@ -175,6 +175,55 @@ class PodaTest(unittest.TestCase):
         self.assertIsNone(got[0].sense_key)
 
 
+class IdiomaTest(unittest.TestCase):
+    """La poda es la misma para todos los idiomas; lo que cambia es la calibracion del rank.
+
+    Estos tests existen para que eso no se olvide: el dia que alguien meta una heuristica que
+    dependa del español, el caso de ingles lo agarra.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_la_poda_funciona_igual_sobre_un_dump_de_ingles(self):
+        # Los tags de wiktextract estan en ingles y son los mismos en todos los dumps: la
+        # deteccion de forma flexionada no depende del idioma del contenido.
+        path = _jsonl(
+            _raw("run", "verb", [_sense("To move at a fast pace.")],
+                 pos_title="Verb", forms=[{"form": "running"}, {"form": "ran"}]),
+            _raw("ran", "verb", [
+                _sense("simple past of run", tags=["form-of"], form_of=[{"word": "run"}]),
+            ], pos_title="Verb"),
+        )
+        self.paths.append(path)
+        got = list(kaikki.records(path, lang="en"))
+        self.assertEqual(["run"], [r.headword for r in got])
+        self.assertIn("ran", got[0].forms)
+
+    def test_un_idioma_sin_perfil_falla_ruidosamente(self):
+        # Silencio aca seria construir un pack con el rank de otro idioma.
+        path = _jsonl(_raw("run", "verb", [_sense("To move fast.")]))
+        self.paths.append(path)
+        with self.assertRaises(KeyError):
+            list(kaikki.records(path, lang="klingon"))
+
+    def test_sin_nombres_descarta_los_nombres_propios(self):
+        # No es una opcion de producto: existe para poder medir cuanto pesan.
+        path = _jsonl(
+            _raw("London", "name", [_sense("The capital of England.")]),
+            _raw("run", "verb", [_sense("To move at a fast pace.")]),
+        )
+        self.paths.append(path)
+        con = [r.headword for r in kaikki.records(path, lang="en")]
+        sin = [r.headword for r in kaikki.records(path, lang="en", sin_nombres=True)]
+        self.assertEqual(["London", "run"], sorted(con))
+        self.assertEqual(["run"], sin)
+
+
 class RankTest(unittest.TestCase):
     """rank es un PROXY: el Wikcionario no trae frecuencia de uso. Menor es mas comun."""
 
@@ -188,7 +237,7 @@ class RankTest(unittest.TestCase):
     def records(self, *raw):
         path = _jsonl(*raw)
         self.paths.append(path)
-        return {r.headword: r for r in kaikki_es.records(path)}
+        return {r.headword: r for r in kaikki.records(path)}
 
     def test_una_entrada_rica_rankea_mejor_que_una_pobre(self):
         got = self.records(

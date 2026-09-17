@@ -122,6 +122,6 @@ Se aceptó para que instalar la app deje un diccionario funcionando sin `adb`. *
 instalador, el asset desaparece.** Mientras tanto `PackStore` prefiere siempre lo que ya haya en
 `filesDir/packs/`, así que un `adb push` ahí gana y permite iterar sin reconstruir el APK.
 
-El `.db` no está en el repo (`.gitignore`): se construye con `tools/packbuilder/build_es.py` y se
+El `.db` no está en el repo (`.gitignore`): se construye con `tools/packbuilder/build_pack.py` y se
 copia a `app/src/main/assets/`. Sin él la app compila igual y muestra "No hay ningún diccionario
 instalado.", que es la degradación correcta.

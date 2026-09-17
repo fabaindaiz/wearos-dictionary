@@ -31,8 +31,8 @@ curl -o es.jsonl "https://kaikki.org/eswiktionary/Espa%C3%B1ol/kaikki.org-dictio
 
 # 1. Construir. --sample N hace un piloto con 1 de cada N lemas, sin sesgo posicional:
 #    miralo antes de gastar el build completo.
-python3 tools/packbuilder/build_es.py es.jsonl es-def-wikc.db --sample 20   # piloto, ~30 s
-python3 tools/packbuilder/build_es.py es.jsonl es-def-wikc.db              # completo, ~54 s, 214 MB RSS
+python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db --sample 20  # piloto, ~30 s
+python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db             # completo, ~54 s, 214 MB RSS
 
 # 2. Validar SIEMPRE. Un pack a medio construir se abre sin error.
 python3 tools/packbuilder/verify_pack.py es-def-wikc.db
@@ -42,7 +42,7 @@ ls -lh es-def-wikc.db
 ```
 
 Para **otro** idioma o tipo de pack: la fuente va en `tools/packbuilder/sources/` y entrega
-`Record`. Streaming siempre. Mirá `kaikki_es.py` antes de escribirla — la poda ya está resuelta
+`Record`. Streaming siempre. Mirá `kaikki.py` antes de escribirla — la poda ya está resuelta
 ahí, con las mediciones que la decidieron.
 
 ## La poda es donde se decide el tamaño
