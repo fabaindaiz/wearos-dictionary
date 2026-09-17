@@ -31,11 +31,13 @@ METADATA = {
     "lang_src": "es",
     "fuzzy_profile": "es",
     # La fecha del dump, no la del build: dos builds del mismo dump son el mismo diccionario.
-    "data_version": "2026-09-15",
+    # AAAAMMDD y no "2026-09-15": la app hace `data_version.toInt()`, asi que tiene que ser un
+    # entero. Ademas asi ordena, que es lo que un instalador necesita para saber cual es mas nuevo.
+    "data_version": "20260915",
     "license": "CC-BY-SA-4.0",
     "attribution": (
         "Definiciones del Wikcionario (es.wiktionary.org), licencia CC BY-SA 4.0. "
-        "Extraccion: kaikki.org / wiktextract (Tatu Ylonen)."
+        "Extracción: kaikki.org / wiktextract (Tatu Ylonen)."
     ),
     "source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
 }
