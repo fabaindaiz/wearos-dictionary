@@ -6,6 +6,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -24,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
@@ -138,7 +142,7 @@ fun SearchScreen(
                     // Con la busqueda vacia el encabezado puede permitirse existir; en cuanto
                     // hay resultados, cada fila de chrome es un resultado menos.
                     if (state.query.isEmpty()) {
-                        item {
+                        item(key = "encabezado") {
                             // Con un solo pack esto es el titulo de siempre; con dos es el
                             // selector. Reusar el header es lo que hace que el selector cueste
                             // CERO filas de resultado -- y con 192 dp sólo entran tres.
@@ -151,7 +155,7 @@ fun SearchScreen(
                                 ) { Text(state.activo?.name ?: "Diccionario") }
                             }
                         }
-                        item {
+                        item(key = "voz") {
                             Button(
                                 onClick = { voz.launch(intentDeVoz(state.activo?.langSource ?: "es")) },
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -160,7 +164,7 @@ fun SearchScreen(
                         }
                     }
 
-                    item {
+                    item(key = "barra") {
                         BarraDeBusqueda(state.query, onQueryChange) {
                             voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
                         }
@@ -171,7 +175,13 @@ fun SearchScreen(
                     // los resultados. Sin encabezado "Recientes": un ListHeader cuesta dos
                     // tercios de una fila y aca no hay nada con que confundirlas.
                     if (state.query.isEmpty()) {
-                        items(count = state.historial.size) { indice ->
+                        items(
+                            count = state.historial.size,
+                            key = { indice ->
+                                val v = state.historial[indice]
+                                "h:${v.packId}:${v.entryId}"
+                            },
+                        ) { indice ->
                             val visita = state.historial[indice]
                             Fila(
                                 lema = visita.headword,
@@ -181,7 +191,7 @@ fun SearchScreen(
                     }
 
                     if (state.query.isNotBlank() && state.results.isEmpty()) {
-                        item {
+                        item(key = "sin-resultados") {
                             Text(
                                 text = if (state.modo == SearchState.Modo.DEFINICIONES) {
                                     "Sin resultados en las definiciones"
@@ -197,7 +207,7 @@ fun SearchScreen(
                         // Buscar la palabra DENTRO de las definiciones. No se ofrece si ya
                         // estamos viendo definiciones: seria un bucle.
                         if (state.modo != SearchState.Modo.DEFINICIONES) {
-                            item {
+                            item(key = "escotilla-definiciones") {
                                 val buscando = state.modo == SearchState.Modo.BUSCANDO_DEFINICIONES
                                 Text(
                                     text = if (buscando) {
@@ -226,7 +236,7 @@ fun SearchScreen(
                             .filterIsInstance<PackHandle.Abierto>()
                             .firstOrNull { it.packId != state.activo?.packId }
                         if (otro != null) {
-                            item {
+                            item(key = "escotilla-idioma") {
                                 Text(
                                     text = "Buscar en ${otro.metadata.name}",
                                     style = MaterialTheme.typography.labelMedium,
@@ -245,11 +255,17 @@ fun SearchScreen(
                         }
                     }
 
-                    items(count = state.results.size) { indice ->
+                    items(
+                        count = state.results.size,
+                        key = { indice ->
+                            val s = state.results[indice]
+                            "r:${s.packId}:${s.entryId}"
+                        },
+                    ) { indice ->
                         FilaDeResultado(state.results[indice]) { onOpenEntry(state.results[indice]) }
                     }
 
-                    item {
+                    item(key = "atribucion") {
                         Text(
                             text = "Sobre estos datos",
                             style = MaterialTheme.typography.labelSmall,
@@ -326,6 +342,11 @@ private fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
  */
 @Composable
 private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVoz: () -> Unit) {
+    // "Aceptar" no hacia nada: habia un ImeAction declarado y ningun handler, y
+    // KeyboardActions.Default no define comportamiento para Search --a diferencia de
+    // Next/Previous, que mueven foco--. La unica salida era el gesto de volver del sistema.
+    val teclado = LocalSoftwareKeyboardController.current
+    val foco = LocalFocusManager.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -334,8 +355,14 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
         Box(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(percent = 50))
+                .clip(FORMA_BARRA)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
+                // El borde es lo que la distingue, y es deliberado que sea borde y no relleno:
+                // la barra usaba `surfaceContainer`, el MISMO token que una fila de resultado y
+                // que el boton "Ver mas", asi que el campo era indistinguible de un item de
+                // lista. Un relleno entero encenderia toda la banda en un OLED; el contorno
+                // enciende el perimetro y se nota igual.
+                .border(2.dp, MaterialTheme.colorScheme.primary, FORMA_BARRA)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -343,7 +370,7 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
                 Text(
                     text = "escribir…",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
             BasicTextField(
@@ -354,6 +381,17 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
                     color = MaterialTheme.colorScheme.onSurface,
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // No dispara una consulta: la busqueda ya corrio por el debounce. Cierra el
+                // teclado y suelta el foco, que es lo que devuelve la corona a la lista.
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        teclado?.hide()
+                        // Medido: soltar el foco NO se come el texto que venia
+                        // componiendo el IME --se comprobo quitandolo y el campo
+                        // quedaba igual--, y es lo que devuelve la corona a la lista.
+                        foco.clearFocus()
+                    },
+                ),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -450,7 +488,11 @@ private fun intentDeVoz(lang: String): Intent =
     }
 
 /** Minimo que pide la guia de Wear OS para algo que se toca. */
-private val TOUCH_TARGET = 48.dp
+internal val TOUCH_TARGET = 48.dp
+
+/** La pildora de la barra. Vive en una constante porque el clip y el borde tienen que ser
+ *  la MISMA forma: si se separan, el borde se dibuja recto sobre las esquinas redondeadas. */
+private val FORMA_BARRA = RoundedCornerShape(percent = 50)
 
 /**
  * El pack guarda el `pos` con el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la

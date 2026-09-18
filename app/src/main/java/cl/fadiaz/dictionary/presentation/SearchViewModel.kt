@@ -273,6 +273,18 @@ class SearchViewModel(
     suspend fun entry(packId: String, entryId: Long): Entry? =
         abiertos.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
 
+    /**
+     * Que palabras de una glosa son lema, **en el pack de esa entrada** y no en el activo.
+     *
+     * Misma regla que [entry]: si el pack no esta abierto devuelve vacio en vez de caer al
+     * activo. Caer seria pintar tocable una palabra que abre otra distinta, que es exactamente
+     * el bug que arreglo D-080, pero mudo.
+     */
+    suspend fun resolver(packId: String, norms: Set<String>): Map<String, Long> =
+        abiertos.firstOrNull { it.metadata.packId == packId }
+            ?.resolveHeadwords(norms)
+            .orEmpty()
+
     /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
     fun cerrar() {
         abiertos.forEach { it.close() }
