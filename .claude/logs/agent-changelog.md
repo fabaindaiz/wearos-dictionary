@@ -26,6 +26,84 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — Las tres funciones que faltaban para el MVP, y un ranking que se tiraba
+
+**Qué.** Se cerró el alcance del MVP —todo menos descarga de packs— y se construyeron las tres
+funciones que faltaban: **buscar por definición**, **historial de entradas abiertas** y
+**release firmable**. De paso apareció un defecto que ninguna de las tres pedía.
+
+**Áreas.** `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`,
+`tools/packbuilder/sources/toy.py`,
+`tools/packbuilder/tests/test_build.py`, `dict-data/src/androidTest/`,
+`app/src/main/java/cl/fadiaz/dictionary/data/Visita.kt` (nuevo), `PackStore.kt`,
+las cuatro pantallas de `app/src/main/java/cl/fadiaz/dictionary/presentation/`,
+`app/src/test/` y `app/src/androidTest/`,
+`app/build.gradle.kts`, `tools/audit_dictionary.py`, `.gitignore`, `app/CLAUDE.md`,
+`docs/decisions.md` (D-083 a D-087), `docs/roadmap.md`, `.claude/skills/verify/SKILL.md`.
+
+**Por qué.** Pedido: verificar qué falta para un MVP con todas las características buscadas
+menos descarga de packs, decidir qué entra ahora y qué después, y ejecutarlo.
+
+**Arquitectura.** ✅ Cumple. D-072 (`Visita.kt` entra a la lista que vigila el audit), D-073
+(ninguna de las dos funciones nuevas cuesta una fila con resultados en pantalla), D-012 (el
+orden de FTS se reimpone en memoria, no con un `JOIN`, porque el `JOIN` cambia el plan).
+
+**Medido.**
+
+- **`searchDefinitions` tiraba el ranking de FTS5.** Pedía `ORDER BY rank` (bm25) y resolvía con
+  `WHERE id IN (...)`, que SQLite devuelve en orden de **rowid**. La definición que mejor
+  coincide no encabezaba. Es la misma clase de bug que hacía que `per` no devolviera `perro`: un
+  orden que existe, se computa, y se pierde en el camino.
+- **El fixture no permitía verlo**: con el toy pack, el mejor match de bm25 tenía siempre el
+  rowid más bajo, así que tirar el ranking daba el mismo resultado. Ahora hay una trampa
+  —`cantera` menciona "mineral" una vez en glosa larga y tiene rowid menor; `cuarzo` lo repite en
+  una corta y tiene el mayor— con su guardián **en el gate**, porque el test que comprueba a la
+  app es instrumentado y sin la guarda reordenar `_DATA` lo rompería en silencio.
+- **Primer release de la historia del repo: 35 MB sin firmar**, contra 50 del debug.
+  `lintVitalRelease`, que nunca había corrido, pasa.
+- **El gate pasa de 15 a 16 checks** y de 29 a **46 tests JVM**; los de pantalla, de 19 a 27; los
+  de `:dict-data`, de 25 a 26.
+- **Los dos enforcers nuevos se probaron fallando**, no pasando: se firmó el release con la
+  config de debug y el audit rompió; y la trampa del fixture falló antes de existir.
+
+**Qué salió mal.**
+
+- **Un `str.replace` con escapes Unicode volvió a no aplicar y no avisar** — el mismo patrón que
+  ya me había fallado en la sesión del pack de inglés. El texto "Sin resultados" nunca cambió, y
+  lo agarró un test de pantalla. La segunda vez lo hice por número de línea en vez de por texto.
+- **Dupliqué un callback** (`onOpenVisita`) agregándolo dos veces a `MainActivity`; lo agarró el
+  compilador con *"argument already passed"*.
+- **Confundí el orden de argumentos de `assertEquals` entre los dos source sets**: en
+  `src/test` es el de `kotlin.test` (mensaje al final) y en `src/androidTest` el de JUnit
+  (mensaje al principio). El test falló comparando el mensaje contra el valor.
+- **Perdí tres intentos capturando pantallas del emulador**, otra vez, porque `keyevent 4` cierra
+  la app si el teclado no llegó a abrirse. Ya pasó en dos sesiones anteriores y volvió a pasar.
+  Lo que terminó funcionando fue no depender del teclado: abrir una entrada, reiniciar la app y
+  mirar el estado vacío — que además probó la persistencia.
+
+**Qué quedó sin hacer.**
+
+- **Nada corrió en un reloj físico todavía**, que era el destino elegido. Falta: generar la
+  keystore (es del humano, `local.properties` está denegado para el agente), instalar el release
+  firmado, comprobar que **364 MiB de diccionarios entran**, correr los 26+27 instrumentados
+  sobre el hardware real —`NormalizationOnDeviceTest` es el que importa, porque el reloj puede
+  traer otro ICU— y **mover la corona**, que sigue cableada y sin haberse movido nunca.
+- **No hay forma de buscar por definición sin fallar antes**: si ya sabés que querés buscar por
+  significado, tenés que escribir algo inexistente primero.
+- **El historial no se puede borrar** desde la app.
+- **El orden de resultados del pack inglés sigue sin evaluar** (`forms_cap = 12` es a ojo).
+- **`docs/architecture.md` sigue diciendo que `:app` es el template y que no depende de nada**, y
+  el check de dirección de dependencias que ese documento pide por escrito sigue sin existir.
+- **`DictionarySource` está implementado dos veces en los tests**, uno por source set.
+
+**Costos aceptados, no olvidos** (D-087). El Tile y la Complication del template **quedan
+exportados y visibles**: instalado el APK, el reloj ofrece *"Example tile"* que dice "Hello,
+Tile!" y una complication con el día de la semana en inglés, y `UPDATE_PERIOD_SECONDS = 3600`
+despierta la app cada hora para recalcularlo. R8 queda apagado. Los dos se plantearon con su
+costo y se eligieron así.
+
+---
+
 ## 2026-09-17 — Un pack entra al reloj con un comando, y es atómico porque un push no lo es
 
 **Qué.** `tools/devpack.py`: sideload de packs por adb para desarrollo (`install`, `list`, `rm`,

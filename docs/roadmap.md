@@ -301,6 +301,26 @@ usuario recién instalado.
 rank** del pack español real, que serían un diccionario chico de verdad. Cuesta una opción nueva
 en `build_pack.py` (`--top N`) y volver a bajar el dump.
 
+### Buscar por definición
+
+**Estado.** **Hecho** (2026-09-17). Se llega por una escotilla con la lista vacía (D-084).
+
+Arreglar el orden vino primero: `searchDefinitions` pedía a FTS5 por relevancia y resolvía con
+`WHERE id IN (...)`, que devuelve por **rowid** — el ranking se calculaba y se tiraba (D-083).
+El fixture no lo permitía ver, porque el mejor match tenía siempre el rowid más bajo; ahora
+tiene una trampa con su guardián **en el gate**.
+
+**Qué sigue faltando.** No hay forma de buscar por definición *sin* haber fallado antes: si ya
+sabés que querés buscar por significado, tenés que escribir algo que no exista primero.
+
+### Historial de entradas abiertas
+
+**Estado.** **Hecho** (2026-09-17). Tres entradas, en el estado vacío (D-085).
+
+**Qué sigue faltando.** No se puede borrar el historial desde la app, ni una entrada ni todo.
+Con tres y move-to-front se recicla solo, pero una palabra que no querés volver a ver se queda
+hasta que abras tres más.
+
 ### Instalador de packs: descargar e instalar un idioma
 
 **Estado.** Planificado. Lo que falta es **mecanismo**, salvo una cosa que es de producto y la
@@ -429,7 +449,10 @@ número de antes para justificarse.
 
 ### O-2. R8 y baseline profiles
 
-**Estado.** Planificado. Después de O-1: sin baseline no hay con qué comparar.
+**Estado.** Planificado, y ahora **es lo único que separa al release de estar optimizado**.
+La firma ya está (D-086) y el release compila: **35 MB sin firmar**, contra 50 del debug — el
+primer número de release que existe en este repo. R8 sigue apagado por decisión, no por herencia
+(D-087): activarlo necesita la comprobación en dispositivo que O-2 siempre pidió.
 
 La guía oficial de rendimiento de Wear OS dice, literal: *"Start with the most effective
 performance tool types: baseline profiles (including startup profiles) and the R8 code
