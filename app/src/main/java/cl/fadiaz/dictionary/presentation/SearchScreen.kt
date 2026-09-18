@@ -69,6 +69,9 @@ fun SearchScreen(
     state: SearchState,
     onQueryChange: (String) -> Unit,
     onPackChange: (String) -> Unit = {},
+    // Sin default a proposito: un callback olvidado en MainActivity seria una escotilla muerta
+    // que no se distingue de una que funciona.
+    onSearchDefinitions: () -> Unit,
     onOpenEntry: (Suggestion) -> Unit,
     onOpenAttribution: () -> Unit,
 ) {
@@ -164,12 +167,41 @@ fun SearchScreen(
                     if (state.query.isNotBlank() && state.results.isEmpty()) {
                         item {
                             Text(
-                                text = "Sin resultados para “${state.query}”",
+                                text = if (state.modo == SearchState.Modo.DEFINICIONES) {
+                                    "Sin resultados en las definiciones"
+                                } else {
+                                    "Sin resultados para “${state.query}”"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             )
+                        }
+                        // Buscar la palabra DENTRO de las definiciones. No se ofrece si ya
+                        // estamos viendo definiciones: seria un bucle.
+                        if (state.modo != SearchState.Modo.DEFINICIONES) {
+                            item {
+                                val buscando = state.modo == SearchState.Modo.BUSCANDO_DEFINICIONES
+                                Text(
+                                    text = if (buscando) {
+                                        "Buscando en las definiciones…"
+                                    } else {
+                                        "Buscar en las definiciones"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp)
+                                        .clip(RoundedCornerShape(percent = 50))
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
+                                        .let { if (buscando) it else it.clickable(onClick = onSearchDefinitions) }
+                                        .heightIn(min = TOUCH_TARGET)
+                                        .padding(vertical = 14.dp),
+                                )
+                            }
                         }
                         // La escotilla de escape, y aparece SOLO aca: el usuario escribio algo
                         // que este idioma no tiene. Con resultados en pantalla el selector
