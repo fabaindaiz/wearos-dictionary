@@ -244,6 +244,44 @@ no hay.
 | Primer resultado visible desde la última tecla | < 150 ms | sin medir: falta reloj |
 | Cold start hasta pantalla de búsqueda usable | < 700 ms | sin medir: falta reloj |
 
+### Los dos packs, pesados — y por qué pesa cada uno
+
+| | Español | Inglés | Inglés sin nombres propios |
+|---|---|---|---|
+| Fuente | eswiktionary Español, 1,42 GB | enwiktionary English, **3,24 GB** | ídem |
+| Entradas | 146.194 | **956.150** | 792.680 |
+| En disco | 72.212.480 B (68,9 MiB) | **309.424.128 B (295,1 MiB)** | 266.711.040 B (254,4 MiB) |
+| Comprimido | 34,3 MiB (50 %) | **184,7 MiB (37 %)** | — |
+| Build | 53,9 s, 214 MB RSS | 180,6 s, 290 MB RSS | — |
+
+**La forma de los dos packs no se parece, y eso mata la intuición fácil.** Un pack no es
+"sobre todo morfología": eso es una verdad **del español**.
+
+| Objeto | Español | Inglés |
+|---|---|---|
+| `form` | **34,2 MB (47,4 %)** — 1.487.695 filas, 93,5 % conjugaciones | 20,0 MB (**7 %**) — 984.473 filas |
+| `entry` | 18,2 MB (25,2 %) | **142,3 MB (48 %)** |
+| `fts_def` | 10,3 MB (14,1 %) | 80,7 MB (26 %) |
+| `idx_entry_norm` + `idx_entry_fuzzy` | 9,5 MB (13,1 %) | 66,0 MB (21 %) |
+
+Un verbo español trae hasta 222 formas; uno inglés, cuatro. **El inglés pesa porque tiene 6,5×
+más entradas**, no por flexión. También comprime peor (37 % contra 50 %) porque casi todo su
+peso son payloads que ya están comprimidos.
+
+### Qué se puede recortar, medido — y por qué no se recortó
+
+| Palanca | Ahorro | Qué se pierde |
+|---|---|---|
+| Dedup sin pérdida: la forma es prefijo de su lema | **0,2 MB (0,3 %)** | nada — y por eso no sirve |
+| Nombres propios (inglés: 163.470 entradas) | **40,7 MB (13,8 %)** | buscar *London*, *Querétaro* |
+| Quitar `fts_def` | 10,3 MB en español (14 %) | buscar por definición |
+| Quitar `idx_entry_fuzzy` | 4,1 MB en español (5,7 %) | tolerancia a errores — el punto del dictado (D-027) |
+| Podar `form` por divergencia ≥4 | 13,6 MB en español (19 %) | **602.681 formas dejan de resolver** escritas enteras |
+| Conjugador algorítmico en vez de tabla | hasta 34 MB en español (47 %) | un segundo contrato entre dos lenguajes (la clase de bug de D-005) |
+
+**El pack ya es la base de datos interna**: 1,42 GB de dump → 72,2 MB. Lo que queda no es basura
+de Wiktionary, es capacidad de búsqueda, y **toda palanca cuesta una función** (D-077).
+
 ### El pack real de español, pesado
 
 Construido el **2026-09-17** desde el dump del Wikcionario de kaikki.org del **2026-09-15**

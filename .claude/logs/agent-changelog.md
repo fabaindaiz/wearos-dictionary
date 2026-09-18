@@ -26,6 +26,92 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — El pack de inglés pesa 295 MiB, y por eso el APK dejó de llevar diccionarios
+
+**Qué.** Se agregó el diccionario de inglés y la app pasó a soportar dos packs con selector de
+idioma. Medir el inglés cambió la arquitectura de distribución: **el APK ya no lleva ningún
+pack**, lo que cierra D-071 antes de tiempo.
+
+**Áreas.** `tools/packbuilder/sources/kaikki.py` y `build_pack.py` (renombrados y
+parametrizados), `tools/packbuilder/verify_pack.py`, `tools/packbuilder/tests/`,
+`app/src/main/java/cl/fadiaz/dictionary/data/` (`PackSet.kt` nuevo, `PackStore.kt`),
+`app/src/main/java/cl/fadiaz/dictionary/presentation/` (las cuatro),
+`app/src/test/` y `app/src/androidTest/`, `tools/audit_dictionary.py`,
+`docs/decisions.md` (D-071 revertida, D-076 a D-080), `docs/formato-pack.md`,
+`docs/roadmap.md`, `app/CLAUDE.md`.
+
+**Por qué.** Pedido: bajar el diccionario de inglés, incluirlo en la build, y **evaluar cuánto
+pesa y qué complejidad suma** para decidir. La decisión se tomó con los números en la mano y
+cambió dos veces en el camino, que es para lo que servía medir.
+
+**Arquitectura.** ✅ Cumple, y **retira una desviación**: D-071 pasa a revertida.
+
+**Medido.**
+
+- **Inglés: 956.150 entradas, 309.424.128 bytes (295,1 MiB)**, build de 180,6 s y 290 MB de RSS,
+  desde un dump de 3.244.676.342 B. Comprimido: 184,7 MiB (sólo 37 %, contra 50 % del español,
+  porque casi todo su peso son payloads ya comprimidos).
+- **Sin nombres propios: 792.680 entradas, 266.711.040 bytes.** Los 163.470 topónimos y
+  apellidos cuestan **40,7 MB, 13,8 %**.
+- **Mató la creencia que yo mismo había afirmado horas antes.** Dije que un pack pesa porque el
+  47 % son conjugaciones de verbos. **Eso es una verdad del español, no una general**: en inglés
+  `form` es el **7 %** y `entry` el 48 %. El inglés pesa porque tiene **6,5× más entradas**
+  (956.150 contra 146.194), no por morfología.
+- **Busqué redundancia lossless en `form` y no existe**: sólo el 0,7 % (10.940 filas, 0,2 MB) es
+  prefijo de su lema y por lo tanto redundante con la búsqueda por prefijo. Podar por
+  divergencia ≥4 ahorraría 13,6 MB a cambio de que **602.681 formas dejen de resolver**.
+- **La poda resultó estructural, no del idioma**: se apoya en los tags `form-of` de wiktextract,
+  iguales en todos los dumps. No había una sola heurística comparando contra texto español, así
+  que agregar inglés no necesitó una fuente nueva — sólo un `Perfil` de calibración por idioma.
+- **El pack español reconstruido con el pipeline generalizado sale idéntico**: 146.194 entradas,
+  9.372.800 bytes de payload, 72.212.480 en disco.
+- **APK: 84 MB con el pack adentro, 50 MB sin él.**
+- **25 tests JVM** en el gate (7 de `PackStore`, 18 del ViewModel) y **19 de pantalla** en
+  dispositivo. Los checks del audit siguen en 15.
+- **Verificado en el emulador**: el APK sin packs dice *"No hay ningún diccionario instalado."*;
+  con los dos packs empujados por `adb`, el selector muestra **EN / ES** y arranca en **EN**
+  porque el emulador está en inglés — el fallback al idioma del reloj funcionando, no el
+  alfabeto.
+
+**Qué salió mal.**
+
+- **Un `str.replace` sin `assert` no aplicó y no avisó.** La escotilla de escape del selector
+  —la fila *"Buscar en \<idioma\>"*— nunca se insertó, y el archivo compiló igual. Lo agarró el
+  test de pantalla. Todos los demás reemplazos de la sesión llevaban `assert`; ese no.
+- **Corté un archivo de tests con índices invertidos y dupliqué medio archivo.** El compilador
+  dijo "conflicting overloads" y hubo que reconstruirlo a mano.
+- **`verify_pack.py` falló contra un pack correcto.** La comprobación de FTS exigía que la
+  entrada estuviera en el **top 30** por bm25, y en inglés la entrada de mejor rank es "you", su
+  glosa empieza con "The people spoken…", y "people" aparece en 890 definiciones: estaba en la
+  posición 721. **Confundía indexado con rankeado.** Se corrigió a comprobar pertenencia sin
+  `LIMIT`, y el modo de falla real (D-011, `fts_def.rowid` desalineado) sigue cubierto.
+- **Juzgué el orden de resultados del inglés sobre un piloto donde las palabras de prueba no
+  estaban.** `work`, `time`, `people` y `run` no cayeron en la muestra 1/20, así que el
+  "desorden" que reporté era en su mayoría artefacto del muestreo. Lo detecté antes de escribirlo
+  en un documento, pero se lo había dicho al usuario primero.
+- **Propuse un mockup de densidad sin hacer la aritmética** (sesión anterior, mismo patrón):
+  acá el equivalente fue estimar el peso del inglés por regla de tres sobre el tamaño del dump.
+  Me negué a dar el número antes de medir, y menos mal: la extrapolación ingenua daba ~165 MB y
+  el real es 295.
+
+**Qué quedó sin hacer.**
+
+- **El orden de resultados en inglés no está evaluado.** El perfil `en` baja `forms_cap` de 80 a
+  12 porque un verbo inglés trae cuatro formas y no 137, pero **ese 12 es a ojo, no medido**. La
+  verificación que falta es la que en español destapó `perro` en la posición 619: que `hous`,
+  `wor`, `tim` devuelvan `house`, `work`, `time`. **Es la deuda más importante que deja esta
+  sesión.**
+- **La búsqueda en inglés nunca se vio en la app.** El selector sí se verificó con los dos packs
+  reales; las capturas de la búsqueda se perdieron al limpiarse el scratchpad antes de mirarlas.
+- **Los packs y los dumps ya no están en disco** (4,7 GB de dumps, 380 MB de packs). Reconstruir
+  el inglés cuesta ~4 min de descarga y ~3 min de build.
+- **`docs/architecture.md` sigue desactualizado** —dice que `:app` es el template y que no
+  depende de nada— y **el check de dirección de dependencias entre módulos que ese mismo
+  documento pide sigue sin existir**. Estaba en el plan de esta sesión y no se hizo.
+- **Nada corrió en un reloj físico**, y menos con 295 MiB.
+
+---
+
 ## 2026-09-17 — Las pantallas: 13 tests primero, y el diseño salió de medir la pantalla
 
 **Qué.** Las tres pantallas se rediseñaron y ganaron 13 tests instrumentados, escritos **antes**

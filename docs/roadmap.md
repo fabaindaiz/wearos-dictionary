@@ -40,6 +40,11 @@ una estaba mal y se corrigió sin gastar un emulador.
 **Lo que sigue sin medirse es el reloj físico.** El emulador cierra correctitud; rendimiento y
 batería, no (D-043).
 
+**Hay dos diccionarios y el MVP los usa.** Español (146.194 entradas, 68,9 MiB) e inglés
+(956.150 entradas, **295,1 MiB**), con selector de idioma. **El APK ya no lleva ninguno**: los
+packs entran por `adb push` a `filesDir/packs/`, que es donde también escribirá el instalador.
+Eso cerró D-071 antes de tiempo, y lo adelantó el número del inglés.
+
 **El MVP existe y corre en el emulador.** 146.194 entradas, 72,2 MB, construido el 2026-09-17
 desde el Wikcionario, empaquetado en el APK y abierto por la app: buscar, abrir una entrada y la
 pantalla de atribución, verificado a mano en API 33. Los 25 instrumentados de `:dict-data` pasan
@@ -144,6 +149,10 @@ esta decisión se revisa.
 ### Composición entre packs
 
 **Estado.** Planificado. El join key ya está decidido y medido (D-055 a D-058); falta construirlo.
+
+> **El selector de idioma NO es composición**, y conviene no confundirlos. El selector elige
+> **un** pack y busca en él (D-078); la composición hace que un pack auxiliar le **sume**
+> información a la misma entrada de otro. `SearchRepository` sigue sin existir.
 
 Que un pack de sinónimos y uno de traducciones puedan sumar información **a la misma entrada**
 del pack de definiciones.
@@ -250,6 +259,27 @@ input, así que la superficie glanceable necesita un propósito propio, no ser u
 
 **Qué hay que decidir antes.** Qué muestra el Tile: word of the day, últimas búsquedas, o
 shortcut. Son productos distintos.
+
+### Pack de inglés
+
+**Estado.** **Hecho** (2026-09-17), y con una advertencia de calidad sin cerrar.
+
+**En qué quedó.** 956.150 entradas, 309.424.128 bytes, desde enwiktionary sección English. Se
+construye con el mismo pipeline que el español: la poda resultó **estructural**, no del idioma
+(D-076). Pasa `verify_pack.py` entero.
+
+**Qué sigue faltando, y es lo que más importa.**
+- **El orden de resultados en inglés no se evaluó.** El proxy de `rank` está calibrado para
+  verbos españoles: `forms_cap = 80` existe porque un verbo trae 137 formas, y en inglés trae
+  cuatro, así que **el tope nunca muerde y `w_form` deja de discriminar**. El perfil `en` ajusta
+  ese tope a 12, pero **eso es una corrección a ojo, no medida**. La verificación que falta es la
+  misma que en español destapó el `perro` en la posición 619: que `hous`, `wor`, `tim` devuelvan
+  `house`, `work`, `time` arriba. En el piloto 1/20 esas palabras **no estaban en la muestra**,
+  así que no se pudo juzgar.
+- **La búsqueda en inglés nunca se vio en la app.** Se verificó que el selector renderiza con los
+  dos packs reales en el emulador; las capturas de la búsqueda en inglés se perdieron antes de
+  mirarlas.
+- **Nada de esto corrió en un reloj físico**, y menos con 295 MiB.
 
 ### Instalador de packs
 
