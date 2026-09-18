@@ -42,6 +42,7 @@ emulador.
 | Es una pantalla, un Tile o una Complication | `app/` | Leé `app/CLAUDE.md` antes: hay tres trampas conocidas |
 | Construye o valida packs | `tools/packbuilder/` | Solo stdlib de Python. Una fuente nueva va en `sources/` |
 | Genera datos que consumen los dos lenguajes | `tools/unicode/` | Tiene que emitir **ambas** copias y atarlas por sha256 |
+| Habla con el dispositivo por `adb` | `tools/` | Su lógica pura entra al gate; ejecutar `adb` no. Ver `devpack.py` |
 
 ## El flujo de un pack
 

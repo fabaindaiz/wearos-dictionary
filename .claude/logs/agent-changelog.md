@@ -26,6 +26,85 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — Un pack entra al reloj con un comando, y es atómico porque un push no lo es
+
+**Qué.** `tools/devpack.py`: sideload de packs por adb para desarrollo (`install`, `list`, `rm`,
+`devices`). Reemplaza los cuatro comandos copiados a mano que vivían duplicados en dos archivos.
+No es el instalador —ese sigue bloqueado en dónde se hostea el catálogo— es la capa de
+desarrollo, igual que Hatch lo es del gate. **Cero código en `:app`.** Nueva D-082.
+
+**Áreas.** `tools/devpack.py` (nuevo), `tools/packbuilder/tests/test_devpack.py` (nuevo),
+`pyproject.toml`, `tools/CLAUDE.md`, `app/CLAUDE.md`, `app/src/main/assets/.gitkeep`,
+`docs/decisions.md` (D-082), `docs/architecture.md`, `docs/roadmap.md`, `.gitignore`,
+`.claude/skills/pack-workflow/SKILL.md`.
+
+**Por qué.** Pedido: formas fáciles de pasar y actualizar packs por adb en modo desarrollador.
+Al mirarlo apareció que la receta documentada no era sólo incómoda: **copiaba directo sobre el
+`.db`**, así que un push cortado dejaba un pack truncado — que se abre sin error y devuelve menos
+palabras de las que tiene, el síntoma que este repo no puede observar.
+
+**Arquitectura.** ✅ Cumple. Reusa la convención `.part` + `mv` de `PackStore.instalarAtomico` en
+vez de inventar otra; stdlib pura (D-045); el gate no necesita Hatch (D-046). Una desviación de
+convención local, no de decisión: usa `argparse` —son subcomandos con flags— mientras el resto
+de `tools/` parsea `sys.argv` a mano. Es stdlib, así que D-045 se sostiene.
+
+**Medido** (emulador `wear_api33`, API 33, adb 1.0.41 / 37.0.1):
+
+- **`adb shell` es binary-clean por stdin.** 1 MiB aleatorio ida y vuelta: sha256 idéntico. Era
+  la ASSUMPTION que decidía el mecanismo y ahora no lo es.
+- **Las dos rutas tardan lo mismo** sobre el pack real de español (68,9 MiB): **0,73–0,88 s** por
+  el pipe contra **0,80–0,92 s** por `/data/local/tmp` + `cp`. O sea: **el tiempo no decide nada;
+  el pico de disco decide todo** — 1× contra 2× (590,2 MiB transitorios para el inglés).
+- **`verify_pack.py` cuesta 3,42 s** sobre el pack de español, no minutos. **Mató mi propia
+  justificación**: había escrito en el plan que era caro y por eso iba detrás de un flag. Sigue
+  detrás del flag, pero por la razón correcta —pertenece al build del pack, no a la instalación—
+  y el docstring ahora lleva el número en vez del adjetivo.
+- **99 tests de Python en el gate**, contra 71. Los 28 nuevos son todos de lógica pura.
+- **End-to-end con el pack real**: `install --verify` → sha256 ok → la app abre y buscar `cor`
+  lleva a **correr** (verbo) y **corriente** (sust.). Miré la pantalla, no el exit code.
+
+**Qué salió mal.**
+
+- **`communicate()` después de cerrar `stdin` a mano revienta** con *"flush of closed file"*, y
+  reventó **a mitad de una instalación real**. No lo agarró ningún test: la capa que ejecuta adb
+  no tiene cobertura y no la puede tener en el gate. Lo agarró correrlo.
+- **Ese crash fue la mejor evidencia de la sesión.** Dejó `toy-es-en.db.part` y **ningún `.db`**:
+  la invariante de atomicidad demostrada por accidente, que es la forma en que de verdad se
+  comprueba.
+- **Escribí el paso `chmod` y su test en ese orden**, que es justo lo que este repo evita. Lo
+  nombro como lo que es. Salió de mirar los permisos reales: el pipe deja 0666 y la extracción
+  del APK deja 0600, y los dos caminos tienen que dejar el mismo archivo.
+- **Tres chips "ES" en pantalla.** La app **re-extrae la demo en cada arranque**, así que su
+  `pack_id` (`toy-es-en`) colisiona para siempre con el toy pack, y el selector muestra sólo
+  `langSource`: N packs de español son N chips idénticos. El check de colisión lo detecta al
+  instalar, pero **no puede evitar lo que la app se re-extrae sola**.
+- **`hatch run lint:check` ya estaba rojo** antes de esta sesión: 6 hallazgos en `test_build.py`
+  y `test_source_kaikki.py`. **El lint no está en el gate**, así que nadie lo vio. No los toqué.
+
+**Lo que corrige al changelog anterior.** *"Los packs y los dumps ya no están en disco"* es falso
+para los packs: **siguen en el emulador**, en `/data/local/tmp` — `en-def-wikt.db` (309.424.128 B)
+y `es-def-wikc.db` (72.212.480 B), 367 MiB en total. De ahí salió el pack real con el que se
+verificó todo esto, sin volver a bajar el dump. **Le ahorra ~7 minutos a la próxima sesión.**
+Y de paso: esos 367 MiB colgados **son** el pico de disco de 2× volviéndose permanente, que es
+exactamente el fallo que el paso `rm-tmp` previene.
+
+**Qué quedó sin hacer.**
+
+- **Nada corrió en un reloj físico**, y el pico de disco —el número que eligió el mecanismo—
+  es precisamente lo único que sólo importa ahí. El emulador no puede cerrarlo (D-043).
+- **El pack de inglés (295,1 MiB) nunca se transfirió.** Throughput y pico a ese tamaño siguen
+  sin medir; lo de acá es una extrapolación desde 68,9 MiB y está dicho como tal.
+- **La rama de sha256 que no coincide nunca se ejercitó en device**, sólo por test puro. No
+  encontré forma honesta de inyectar corrupción sin trucar el propio código.
+- **La capa que ejecuta adb no tiene ni un test** y no lo va a tener en el gate. Lo puro entra,
+  lo demás se comprueba corriéndolo contra un emulador y mirando.
+- **El `pack_id` de la demo sigue siendo `toy-es-en`** con nombre `demo-es-en.db`. Arreglarlo
+  toca la decisión abierta de qué contenido tiene la demo (roadmap), así que no lo toqué.
+- **`docs/architecture.md` sigue desactualizado** en lo demás (dice que `:app` es el template);
+  sólo le agregué la fila que mi cambio necesitaba.
+
+---
+
 ## 2026-09-17 — El pack de inglés pesa 295 MiB, y por eso el APK dejó de llevar diccionarios
 
 **Qué.** Se agregó el diccionario de inglés y la app pasó a soportar dos packs con selector de

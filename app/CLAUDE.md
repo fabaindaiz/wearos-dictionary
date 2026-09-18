@@ -113,16 +113,24 @@ Excluir los packs del backup con `android:dataExtractionRules`. Con `minSdk 33`,
 
 ## Los packs no viajan en el APK
 
-El APK **no lleva ningún diccionario**. Los packs viven en `filesDir/packs/` y entran por
-`adb push`; cuando exista el instalador, escribirá en ese mismo directorio y la app no va a
-notar la diferencia.
+El APK lleva sólo un **pack de demostración** de 53 KB (D-081). Los diccionarios de verdad viven
+en `filesDir/packs/` y entran por `tools/devpack.py`; cuando exista el instalador, escribirá en
+ese mismo directorio y la app no va a notar la diferencia.
 
 ```sh
 python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
-adb push es-def-wikc.db /data/local/tmp/
-adb shell "run-as cl.fadiaz.dictionary mkdir -p files/packs"
-adb shell "run-as cl.fadiaz.dictionary cp /data/local/tmp/es-def-wikc.db files/packs/es-def-wikc.db"
+python3 tools/devpack.py install es-def-wikc.db   # o: hatch run push es-def-wikc.db
+python3 tools/devpack.py list                     # qué quedó en el reloj
+python3 tools/devpack.py rm es-def-wikc           # para probar la degradación
 ```
+
+**No lo hagas con `adb push` a mano.** Copiar directo sobre el `.db` no es atómico: si el push se
+corta queda un pack truncado, y un pack truncado **se abre sin error y devuelve menos palabras de
+las que tiene**. `devpack.py` escribe a `.part`, compara sha256 de los dos lados y recién ahí
+renombra — lo mismo que hace `instalarAtomico` para los packs del APK (D-082).
+
+Hace además `force-stop` antes y relanza después, porque **la app no tiene rescan**: el escaneo es
+one-shot en el `init` del ViewModel y un pack copiado no aparece hasta reiniciar el proceso.
 
 Sin packs la app arranca y dice *"No hay ningún diccionario instalado."*, que es la degradación
 correcta.
