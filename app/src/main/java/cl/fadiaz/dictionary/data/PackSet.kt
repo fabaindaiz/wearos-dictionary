@@ -14,7 +14,18 @@ import cl.fadiaz.dictionary.core.PackMetadata
 sealed interface PackHandle {
     val packId: String
 
-    data class Abierto(val source: DictionarySource) : PackHandle {
+    data class Abierto(
+        val source: DictionarySource,
+        /**
+         * Vino del APK, no lo instalo nadie.
+         *
+         * El pack de demostracion existe para que la app recien instalada tenga algo que
+         * mostrar (D-081), asi que **nunca puede ganarle a un diccionario de verdad**. Sin esta
+         * marca lo decidia el orden alfabetico, y "demo-" gana a "es-": con los dos instalados,
+         * la app abria las 28 entradas de juguete en vez de las 146.194 reales.
+         */
+        val esDemo: Boolean = false,
+    ) : PackHandle {
         override val packId: String get() = source.metadata.packId
         val metadata: PackMetadata get() = source.metadata
     }
