@@ -96,6 +96,13 @@ class SearchViewModel(
     private val fechaDeHoy: () -> String? = { null },
     private val ajustesGuardados: () -> Ajustes = { Ajustes() },
     private val guardarAjustes: (Ajustes) -> Unit = {},
+    /**
+     * Borra el archivo de un pack. Devuelve si habia algo que borrar.
+     *
+     * Entra por parametro como todo lo que toca Android (D-072), y recibe el **nombre de
+     * archivo** y no el packId: son cosas distintas.
+     */
+    private val borrarDelDisco: (archivo: String) -> Boolean = { false },
     private val favoritosGuardados: () -> List<Visita> = { emptyList() },
     private val guardarFavoritos: (List<Visita>) -> Unit = {},
 ) : ViewModel() {
@@ -141,41 +148,7 @@ class SearchViewModel(
         _state.update { it.copy(ajustes = ajustesGuardados(), favoritos = favoritas) }
         viewModelScope.launch {
             visitas = historialGuardado()
-            when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
-                is PackSet.Ready -> {
-                    abiertos = result.todos.filterIsInstance<PackHandle.Abierto>().map { it.source }
-                    val elegido = elegirActivo(result, preferido())
-                    source.value = elegido.source
-                    _state.update {
-                        it.copy(
-                            status = SearchState.Status.Ready,
-                            // D-031: la atribucion sale del pack, no de una constante. Un pack
-                            // de otra fuente trae su propia licencia y tiene que mostrarse.
-                            activo = elegido.metadata,
-                            // El de demostracion no se ofrece si hay un diccionario de verdad:
-                            // es un placeholder, no una opcion. Ademas su etiqueta chocaria --
-                            // con el toy y el español real el selector decia "ES" y "ES".
-                            disponibles = ofrecibles(result.todos),
-                            problemas = result.problemas,
-                            historial = visibles(visitas),
-                        )
-                    }
-                    // Para TODOS los ofrecidos, no solo el activo: el de demostracion queda
-                    // fuera porque `ofrecibles` ya lo saco cuando hay un diccionario de verdad.
-                    refrescarPalabrasDelDia(
-                        ofrecibles(result.todos).filterIsInstance<PackHandle.Abierto>()
-                            .map { it.source },
-                    )
-                }
-
-                PackSet.NoPack -> _state.update {
-                    it.copy(status = SearchState.Status.Failed("No hay ningún diccionario instalado."))
-                }
-
-                is PackSet.Unusable -> _state.update {
-                    it.copy(status = SearchState.Status.Failed(result.reason))
-                }
-            }
+            cargarPacks()
         }
 
         viewModelScope.launch {
@@ -214,6 +187,52 @@ class SearchViewModel(
      * parpadeo en blanco se ve peor que una lista vieja por un instante. Ningun test puede ver
      * esa diferencia, por eso queda dicha aca.
      */
+    /**
+     * Abre los packs y publica el estado. Se llama al arrancar y **cada vez que la lista de
+     * diccionarios cambia** --hoy, al borrar uno--.
+     *
+     * Es `suspend` y no lanza su propia corrutina para que quien la llama controle el orden:
+     * borrar exige cerrar las conexiones ANTES de tocar el disco, y eso no se puede hacer si
+     * esta funcion se dispara sola.
+     */
+    private suspend fun cargarPacks() {
+        when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
+            is PackSet.Ready -> {
+                abiertos = result.todos.filterIsInstance<PackHandle.Abierto>().map { it.source }
+                val elegido = elegirActivo(result, preferido())
+                source.value = elegido.source
+                _state.update {
+                    it.copy(
+                        status = SearchState.Status.Ready,
+                        // D-031: la atribucion sale del pack, no de una constante. Un pack
+                        // de otra fuente trae su propia licencia y tiene que mostrarse.
+                        activo = elegido.metadata,
+                        // El de demostracion no se ofrece si hay un diccionario de verdad:
+                        // es un placeholder, no una opcion. Ademas su etiqueta chocaria --
+                        // con el toy y el español real el selector decia "ES" y "ES".
+                        disponibles = ofrecibles(result.todos),
+                        problemas = result.problemas,
+                        historial = visibles(visitas),
+                    )
+                }
+                // Para TODOS los ofrecidos, no solo el activo: el de demostracion queda
+                // fuera porque `ofrecibles` ya lo saco cuando hay un diccionario de verdad.
+                refrescarPalabrasDelDia(
+                    ofrecibles(result.todos).filterIsInstance<PackHandle.Abierto>()
+                        .map { it.source },
+                )
+            }
+
+            PackSet.NoPack -> _state.update {
+                it.copy(status = SearchState.Status.Failed("No hay ningún diccionario instalado."))
+            }
+
+            is PackSet.Unusable -> _state.update {
+                it.copy(status = SearchState.Status.Failed(result.reason))
+            }
+        }
+    }
+
     fun onPackChange(packId: String) {
         val pack = abiertos.firstOrNull { it.metadata.packId == packId } ?: return
         // El combine va a repetir la query por prefijo en el pack nuevo y pisaria los resultados
@@ -332,6 +351,43 @@ class SearchViewModel(
                     it.copy(palabrasDelDia = it.palabrasDelDia + (pack.metadata.packId to elegida))
                 }
             }
+        }
+    }
+
+    /**
+     * Borra un diccionario del reloj. **Irreversible**: reponerlo cuesta ~90 s por adb.
+     *
+     * EL ORDEN ES EL CONTRATO, y no es teorico. En Unix un archivo borrado con un descriptor
+     * abierto sigue ocupando el disco hasta que se cierre, y la app lo seguiria leyendo como si
+     * nada: el usuario veria "borrado" y **cero espacio liberado**, que es peor que no poder
+     * borrar. Asi que primero se sueltan las conexiones, despues se toca el disco, y recien
+     * despues se reabre lo que quedo.
+     *
+     * Se cierran TODAS y no solo la del pack que se va: `cargarPacks` reabre el set entero, y
+     * dejar las viejas abiertas seria filtrar una conexion por borrado.
+     *
+     * El pack de demostracion **no se puede borrar**: viene dentro del APK y `PackStore.open` lo
+     * re-extrae al reabrir, asi que la accion no haria nada y el pack volveria solo.
+     */
+    fun borrarPack(packId: String) {
+        val handle = state.value.disponibles
+            .filterIsInstance<PackHandle.Abierto>()
+            .firstOrNull { it.packId == packId } ?: return
+        if (handle.esDemo) return
+
+        viewModelScope.launch {
+            // Sin pack activo y en "cargando" mientras dura: una consulta que llegue en el medio
+            // no puede caer sobre una conexion ya cerrada.
+            _state.update {
+                it.copy(
+                    status = SearchState.Status.Loading,
+                    palabrasDelDia = it.palabrasDelDia - packId,
+                )
+            }
+            source.value = null
+            cerrar()
+            borrarDelDisco(handle.archivo)
+            cargarPacks()
         }
     }
 

@@ -545,6 +545,115 @@ class PantallasTest {
         assertEquals(true, abrio)
     }
 
+    // --- Gestion de diccionarios ----------------------------------------------------------------
+
+    private fun packAbierto(id: String, nombre: String, bytes: Long, demo: Boolean = false) =
+        PackHandle.Abierto(
+            source = FakeSource(meta(packId = id, name = nombre)),
+            esDemo = demo,
+            archivo = "$id.db",
+            bytes = bytes,
+        )
+
+    @Test
+    fun cadaDiccionarioMuestraCuantoOcupaYCualEstaEnUso() {
+        // El tamaño es la unica cifra que importa cuando hay que hacer lugar, y el selector del
+        // inicio no la dice.
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(
+                    packAbierto("es-def", "Español", 72_212_480),
+                    packAbierto("en-def", "English", 309_452_800),
+                ),
+                activo = "es-def",
+                onActivar = {},
+                onBorrar = {},
+            )
+        }
+        compose.onNodeWithText("72,2 MB").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB"))
+        compose.onNodeWithContentDescription("En uso").assertExists()
+        assertEquals(
+            "solo el activo lleva check",
+            1,
+            compose.onAllNodesWithContentDescription("En uso").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun elPackDeDemostracionNoOfreceBorrarse() {
+        // Viene dentro del APK y se re-extrae al reabrir: el boton no haria nada y el pack
+        // volveria solo. Ofrecerlo seria mentir.
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(packAbierto("demo", "Juguete", 53_248, demo = true)),
+                activo = "demo",
+                onActivar = {},
+                onBorrar = {},
+            )
+        }
+        assertEquals(
+            0,
+            compose.onAllNodesWithContentDescription("Borrar Juguete").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun borrarPideConfirmacionYNoBorraAlPrimerToque() {
+        // Es la unica accion de la app que no se puede deshacer desde la app: reponer un pack
+        // son ~90 s por cable.
+        var borrado: String? = null
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(packAbierto("en-def", "English", 309_452_800)),
+                activo = "en-def",
+                onActivar = {},
+                onBorrar = { borrado = it },
+            )
+        }
+
+        compose.onNodeWithContentDescription("Borrar English").performClick()
+        compose.waitForIdle()
+        assertEquals("no puede borrar al primer toque", null, borrado)
+
+        compose.onNodeWithText("Borrar", substring = false).performClick()
+        compose.waitForIdle()
+        assertEquals("en-def", borrado)
+    }
+
+    @Test
+    fun cancelarLaConfirmacionNoBorraNada() {
+        var borrado: String? = null
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(packAbierto("en-def", "English", 309_452_800)),
+                activo = "en-def",
+                onActivar = {},
+                onBorrar = { borrado = it },
+            )
+        }
+        compose.onNodeWithContentDescription("Borrar English").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Cancelar").performClick()
+        compose.waitForIdle()
+        assertEquals(null, borrado)
+    }
+
+    @Test
+    fun laSeccionDeDescargaDiceQueTodaviaNoYComoSeInstalaHoy() {
+        // Un "proximamente" a secas deja al usuario sin saber como poner un diccionario.
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(packAbierto("es-def", "Español", 72_212_480)),
+                activo = "es-def",
+                onActivar = {},
+                onBorrar = {},
+            )
+        }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Para descargar"))
+        compose.onNodeWithText("cable", substring = true).assertExists()
+    }
+
     // --- La atribucion, que es D-031 ---------------------------------------------------------
 
     @Test

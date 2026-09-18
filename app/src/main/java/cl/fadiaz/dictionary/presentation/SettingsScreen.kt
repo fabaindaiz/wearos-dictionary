@@ -42,7 +42,7 @@ fun SettingsScreen(
     packs: List<PackHandle>,
     activo: String?,
     escala: EscalaDeTexto,
-    onPackChange: (String) -> Unit,
+    onGestionarPacks: () -> Unit,
     onEscalaChange: (EscalaDeTexto) -> Unit,
     onLimpiarHistorial: () -> Unit,
     hayHistorial: Boolean,
@@ -62,17 +62,15 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             val abiertos = packs.filterIsInstance<PackHandle.Abierto>()
-            if (abiertos.size > 1) {
-                item(key = "cabecera-idioma") { ListHeader { Text("Diccionario") } }
-                items(count = abiertos.size, key = { "pack:${abiertos[it].packId}" }) { indice ->
-                    val pack = abiertos[indice]
-                    RadioButton(
-                        selected = pack.packId == activo,
-                        onSelect = { onPackChange(pack.packId) },
-                        label = { Text(pack.metadata.name) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+            item(key = "cabecera-idioma") { ListHeader { Text("Diccionarios") } }
+            item(key = "gestionar-packs") {
+                // Ya no es el selector: elegir idioma se hace en el inicio, que es donde se
+                // necesita rapido. Aca se entra a ver cuanto ocupan y a sacar los que sobran.
+                Fila(
+                    lema = "Gestionar",
+                    detalle = abiertos.size.toString(),
+                    onClick = onGestionarPacks,
+                )
             }
 
             item(key = "cabecera-texto") { ListHeader { Text("Tamaño del texto") } }

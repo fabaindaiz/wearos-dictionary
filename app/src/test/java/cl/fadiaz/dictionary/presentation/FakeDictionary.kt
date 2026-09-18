@@ -143,7 +143,14 @@ class PackDiferido {
 }
 
 /** Azucar: un PackSet listo con estos packs, el primero activo. */
-fun listos(vararg packs: FakeDictionary): PackSet {
-    val handles = packs.map { PackHandle.Abierto(it) }
+fun listos(vararg packs: FakeDictionary, demos: Set<String> = emptySet()): PackSet {
+    val handles = packs.map {
+        PackHandle.Abierto(
+            source = it,
+            esDemo = it.metadata.packId in demos,
+            archivo = "${it.metadata.packId}.db",
+            bytes = 1024,
+        )
+    }
     return PackSet.Ready(handles.first(), handles)
 }
