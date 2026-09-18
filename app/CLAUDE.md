@@ -39,8 +39,10 @@ Si alguien baja de 48 dp para meter una cuarta fila, el test de densidad **sigue
 que se rompe es el área tocable. Por eso el mínimo vive en una constante con nombre.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 17 tests JVM, milisegundos, dentro del gate
-./gradlew :app:connectedDebugAndroidTest # 13 tests de pantalla, necesitan emulador
+./gradlew :app:testDebugUnitTest         # 46 tests JVM, milisegundos, dentro del gate
+./gradlew :app:connectedDebugAndroidTest # 27 tests de pantalla, necesitan emulador
+./gradlew :app:releasePrecheck           # hay keystore para firmar? dice que falta
+./gradlew :app:assembleRelease           # 35 MB; sin keystore sale SIN FIRMAR, no rompe
 ```
 
 Lo que cubren es lo que **no da error**: resultados de una consulta vieja pisando a la actual,
@@ -83,16 +85,30 @@ nada con la voz, que entrega la frase entera de una vez.
 El `RecognizerIntent` pide `EXTRA_LANGUAGE = "es"` explícitamente. Sin eso el reconocedor usa el
 idioma del sistema, y un reloj en inglés dictando "perro" devuelve cualquier cosa.
 
-## Dos cosas del template que hay que resolver antes de publicar
+## Costos aceptados del MVP (D-087)
 
-Ninguna se decidió; se heredaron:
+Ya no son herencia del template: se decidieron, con el costo sobre la mesa.
 
-- **R8 está desactivado** (`optimization { enable = false }`). La guía oficial de rendimiento de
-  Wear OS lo nombra como una de las dos palancas principales. Activarlo reintroduce la clase de
-  bug que solo aparece en release, así que va atado a probar en dispositivo. Roadmap O-2.
-- **La complication refresca cada hora** (`UPDATE_PERIOD_SECONDS = 3600`). La guía oficial pide
-  *"2 hours or longer"*, o desactivar el refresco. Se decide junto con qué muestra el Tile: si es
-  "últimas búsquedas", no necesita refresco programado en absoluto.
+- **R8 está desactivado.** La guía oficial de Wear OS lo nombra como una de las dos palancas
+  principales, pero activarlo reintroduce la clase de bug que sólo aparece en release y va atado
+  a una comprobación en dispositivo que todavía no se hizo. Roadmap O-2.
+- **El Tile y la Complication siguen siendo los del template, y están exportados.** Instalado el
+  APK, el reloj ofrece *"Example tile"* que dice **"Hello, Tile!"** y *"Example complication"*
+  con el día de la semana en inglés. `UPDATE_PERIOD_SECONDS = 3600` despierta la app cada hora
+  para recalcular ese día, y eso se paga en batería.
+- Restos menores sin tocar: `app_name` = "Dictionary" en inglés con la UI en español; el permiso
+  `WAKE_LOCK` declarado y nunca usado; `ic_launcher_round` presente pero sin `android:roundIcon`,
+  en un reloj redondo.
+
+## Firmar el release
+
+La keystore **vive fuera del repo** y `local.properties` guarda sólo su ruta (D-086). Sin
+keystore configurada el release sale **sin firmar en vez de romper**, porque un clone limpio
+tiene que seguir compilando.
+
+```sh
+./gradlew :app:releasePrecheck   # dice qué falta y el keytool para generarlo
+```
 
 ## Rendimiento
 

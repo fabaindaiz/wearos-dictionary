@@ -15,8 +15,8 @@ falta, meses después. El gate es lo único que los detecta antes de que eso pas
 ./gradlew check
 ```
 
-Corre compilación, Android Lint, los 40 tests de `:dict-core`, los 35 del builder Python y la
-auditoría estructural. **Medido: ~1m26s en frío, ~40s templado.**
+Corre compilación, Android Lint, los tests de `:dict-core`, los **46 JVM de `:app`**, los del
+builder Python y la auditoría estructural (16 checks). **Medido: ~1m26s en frío, ~40s templado.**
 
 ## Si tocaste `norm()`, `fuzzy()` o el repertorio Unicode
 
