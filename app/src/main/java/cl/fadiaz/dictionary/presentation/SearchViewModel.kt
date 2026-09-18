@@ -43,6 +43,7 @@ data class SearchState(
     // si nadie cableo `fechaDeHoy` --que es una ausencia visible, no un valor silencioso raro--.
     val palabraDelDia: EntrySummary? = null,
     val ajustes: Ajustes = Ajustes(),
+    val favoritos: List<Visita> = emptyList(),
 ) {
     /**
      * Por que camino salieron los resultados que se estan mostrando.
@@ -90,6 +91,8 @@ class SearchViewModel(
     private val fechaDeHoy: () -> String? = { null },
     private val ajustesGuardados: () -> Ajustes = { Ajustes() },
     private val guardarAjustes: (Ajustes) -> Unit = {},
+    private val favoritosGuardados: () -> List<Visita> = { emptyList() },
+    private val guardarFavoritos: (List<Visita>) -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -122,13 +125,15 @@ class SearchViewModel(
      * mostrar una fila que al tocarla no abre nada.
      */
     private var visitas: List<Visita> = emptyList()
+    private var favoritas: List<Visita> = emptyList()
 
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
     init {
-        _state.update { it.copy(ajustes = ajustesGuardados()) }
+        favoritas = favoritosGuardados()
+        _state.update { it.copy(ajustes = ajustesGuardados(), favoritos = favoritas) }
         viewModelScope.launch {
             visitas = historialGuardado()
             when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
@@ -317,6 +322,29 @@ class SearchViewModel(
         }
     }
 
+    /** Si esa entrada esta guardada. Por `packId` ademas del id: dos packs comparten ids. */
+    fun esFavorita(packId: String, entryId: Long): Boolean =
+        favoritas.any { it.packId == packId && it.entryId == entryId }
+
+    /**
+     * Guarda o saca una palabra de favoritas.
+     *
+     * Al frente y sin duplicar, igual que el historial, pero **con un tope mucho mas alto**: el
+     * historial son tres porque compite por las filas de la pantalla (D-073), y los favoritos
+     * viven en su propia lista. El tope existe igual porque esto termina en un String de
+     * SharedPreferences.
+     */
+    fun alternarFavorita(visita: Visita) {
+        val estaba = esFavorita(visita.packId, visita.entryId)
+        favoritas = if (estaba) {
+            favoritas.filterNot { it.packId == visita.packId && it.entryId == visita.entryId }
+        } else {
+            (listOf(visita) + favoritas).take(FAVORITOS_MAX)
+        }
+        guardarFavoritos(favoritas)
+        _state.update { it.copy(favoritos = favoritas) }
+    }
+
     /** Cambia la escala del texto y la deja guardada. */
     fun onEscalaDeTextoChange(escala: EscalaDeTexto) {
         val nuevos = state.value.ajustes.copy(escalaDeTexto = escala)
@@ -372,6 +400,12 @@ class SearchViewModel(
          * nadie ve sin scrollear el estado vacio.
          */
         const val HISTORIAL_MAX: Int = 3
+
+        /**
+         * Tope de favoritas. Alto a proposito --no compiten por la pantalla como el historial--
+         * pero acotado porque todo esto termina en un String de SharedPreferences.
+         */
+        const val FAVORITOS_MAX: Int = 100
 
         /**
          * Que pack se abre al arrancar. **Nunca el orden alfabetico**: con dos packs eso hacia

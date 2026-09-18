@@ -124,6 +124,14 @@ object PackStore {
         prefs(context).edit().putString(CLAVE_HISTORIAL, serializarVisitas(visitas)).apply()
     }
 
+    /** Las palabras guardadas. Mismo codec que el historial: son la misma forma de dato. */
+    fun favoritos(context: Context): List<Visita> =
+        parsearVisitas(prefs(context).getString(CLAVE_FAVORITOS, null).orEmpty())
+
+    fun recordarFavoritos(context: Context, visitas: List<Visita>) {
+        prefs(context).edit().putString(CLAVE_FAVORITOS, serializarVisitas(visitas)).apply()
+    }
+
     /** Los ajustes. Igual que el historial: la politica vive arriba, aca solo se serializa. */
     fun ajustes(context: Context): Ajustes =
         parsearAjustes(prefs(context).getString(CLAVE_AJUSTES, null).orEmpty())
@@ -138,6 +146,7 @@ object PackStore {
     private const val CLAVE_PACK = "pack_activo"
     private const val CLAVE_HISTORIAL = "historial"
     private const val CLAVE_AJUSTES = "ajustes"
+    private const val CLAVE_FAVORITOS = "favoritos"
 
 
     /**

@@ -2,11 +2,14 @@ package cl.fadiaz.dictionary.presentation
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performScrollToIndex
@@ -330,6 +333,70 @@ class PantallasTest {
     }
 
 
+    // --- Las dos acciones de arriba y el menu ---------------------------------------------------
+
+    @Test
+    fun losDosBotonesDeArribaCompartenUnaSolaFila() {
+        // La razon es aritmetica, no estetica: lado a lado cuestan 48 dp --el minimo tocable--
+        // y apilados costarian 96, que en esta pantalla es una acepcion menos a la vista.
+        compose.setContent {
+            EntryScreen(
+                entryId = 1,
+                onOpenPalabra = {},
+                acciones = { listOf(AccionDeEntrada("Guardar") {}) },
+            ) { entrada("una glosa") }
+        }
+        compose.waitForIdle()
+
+        val buscar = compose.onNodeWithContentDescription("Buscar").getBoundsInRoot()
+        val opciones = compose.onNodeWithContentDescription("Opciones").getBoundsInRoot()
+        assertEquals("no estan en la misma fila", buscar.top, opciones.top)
+        assertEquals(
+            "no tienen el mismo alto",
+            buscar.bottom - buscar.top,
+            opciones.bottom - opciones.top,
+        )
+    }
+
+    @Test
+    fun sinAccionesNoSeOfreceElMenu() {
+        // Un boton que abre un menu vacio es peor que no tener boton.
+        compose.setContent {
+            EntryScreen(entryId = 1, onOpenPalabra = {}) { entrada("una glosa") }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Buscar").assertExists()
+        assertEquals(
+            0,
+            compose.onAllNodesWithContentDescription("Opciones").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun elMenuMuestraLasAccionesYLaQueSeTocaSeEjecuta() {
+        var ejecutada: String? = null
+        compose.setContent {
+            EntryScreen(
+                entryId = 1,
+                onOpenPalabra = {},
+                acciones = {
+                    listOf(
+                        AccionDeEntrada("Guardar") { ejecutada = "Guardar" },
+                        AccionDeEntrada("Copiar") { ejecutada = "Copiar" },
+                    )
+                },
+            ) { entrada("una glosa") }
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("Opciones").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Copiar").assertIsDisplayed()
+        compose.onNodeWithText("Copiar").performClick()
+
+        assertEquals("Copiar", ejecutada)
+    }
+
     // --- Palabras tocables dentro de una glosa ------------------------------------------------
 
     @Test
@@ -386,16 +453,17 @@ class PantallasTest {
     }
 
     @Test
-    fun laPrimeraFilaVuelveALaBusqueda() {
+    fun elBotonDeArribaVuelveALaBusqueda() {
         // Tocar palabras apila entradas: sin este atajo, volver desde tres de profundidad son
-        // tres gestos. Vive en el scroll y no fijo arriba, asi que cuesta cero dp (D-084).
+        // tres gestos. Se busca por contentDescription y no por texto porque es un icono, y esa
+        // descripcion es ademas lo unico que lo nombra para un lector de pantalla.
         var volvio = false
         compose.setContent {
             EntryScreen(entryId = 1, onOpenPalabra = {}, onVolverABuscar = { volvio = true }) {
                 entrada("una glosa")
             }
         }
-        compose.onNodeWithText("Buscar").performClick()
+        compose.onNodeWithContentDescription("Buscar").performClick()
         assertEquals(true, volvio)
     }
 

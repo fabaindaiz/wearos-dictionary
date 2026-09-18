@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,10 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -36,6 +39,7 @@ import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
+import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -64,6 +68,14 @@ fun EntryScreen(
     // pintarla, y no se distingue de una que funciona (mismo criterio que D-084).
     onOpenPalabra: (Long) -> Unit,
     onVolverABuscar: () -> Unit = {},
+    /**
+     * Las acciones del menu, construidas a partir de la entrada ya cargada.
+     *
+     * Funcion y no lista: "guardar" o "quitar de favoritas" depende de la palabra concreta, y el
+     * lema hace falta para copiarlo. Devolver vacio = no se ofrece el menu, que es distinto de
+     * ofrecer un menu vacio.
+     */
+    acciones: (Entry) -> List<AccionDeEntrada> = { emptyList() },
     resolver: suspend (Set<String>) -> Map<String, Long> = { emptyMap() },
     // Va ultimo para que siga siendo el lambda final: es como lo llaman las pantallas y los tests.
     cargar: suspend (Long) -> Entry?,
@@ -72,6 +84,8 @@ fun EntryScreen(
     var fallo by remember(entryId) { mutableStateOf(false) }
     var desplegada by remember(entryId) { mutableStateOf(false) }
     var enlaces by remember(entryId) { mutableStateOf(emptyMap<String, Long>()) }
+    var menuAbierto by remember(entryId) { mutableStateOf(false) }
+    val accionesDeEsta = entry?.let(acciones).orEmpty()
 
     LaunchedEffect(entryId) {
         // Sin el try, cualquier cosa que tire `cargar` --una SQLiteException, un inflate sobre un
@@ -120,30 +134,13 @@ fun EntryScreen(
             // permanente. Un boton fijo costaria 48 dp, que es justo lo que D-084 rechazo.
             // Hace falta porque tocar palabras apila entradas: sin esto, volver al inicio desde
             // tres palabras de profundidad son tres gestos.
-            item(key = "volver-a-buscar") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(FORMA_PILDORA)
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .clickable(onClick = onVolverABuscar)
-                        .heightIn(min = TOUCH_TARGET)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Search,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "Buscar",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            item(key = "acciones") {
+                AccionesDeLaEntrada(
+                    onVolverABuscar = onVolverABuscar,
+                    // Null mientras la entrada no cargo: un boton de menu que abre nada es peor
+                    // que un boton que todavia no esta.
+                    onAbrirMenu = if (accionesDeEsta.isEmpty()) null else { { menuAbierto = true } },
+                )
             }
             item(key = "encabezado") {
                 Column(
@@ -212,6 +209,96 @@ fun EntryScreen(
                 }
             }
         }
+
+    // El menu de opciones. `AlertDialog` de Wear y no uno hecho a mano: es el que conserva el
+    // swipe-para-volver del sistema, que la lista de calidad exige en casi toda pantalla (WO-V3),
+    // y ademas evita agregar un nivel de navegacion --la guia pide como mucho dos--.
+    //
+    // Wear Material3 NO trae menu desplegable ni overflow, verificado contra la referencia de
+    // API: las dos formas soportadas son este dialogo o empujar una pantalla de lista.
+    AlertDialog(
+        visible = menuAbierto && accionesDeEsta.isNotEmpty(),
+        onDismissRequest = { menuAbierto = false },
+        title = { Text("Opciones") },
+    ) {
+        items(accionesDeEsta.size) { indice ->
+            val accion = accionesDeEsta[indice]
+            Pildora(
+                texto = accion.etiqueta,
+                fondo = MaterialTheme.colorScheme.surfaceContainer,
+                tinta = MaterialTheme.colorScheme.onSurfaceVariant,
+                onClick = {
+                    // Cerrar primero: la accion puede navegar, y un dialogo abierto encima de
+                    // la pantalla nueva queda huerfano.
+                    menuAbierto = false
+                    accion.onClick()
+                },
+            )
+        }
+    }
+    }
+}
+
+
+/** Una accion del menu de una palabra. El estado --p.ej. si ya es favorita-- lo decide arriba. */
+data class AccionDeEntrada(val etiqueta: String, val onClick: () -> Unit)
+
+/**
+ * Los dos botones de arriba: volver a buscar, y el menu.
+ *
+ * En UNA fila y no apilados, y la aritmetica es la razon: lado a lado cuestan 48 dp --el minimo
+ * tocable-- y apilados costarian 96, que en 234 dp de pantalla es una acepcion menos. Se
+ * construye con `Row` y no con `ButtonGroup` de Wear Material3 por lo mismo que el selector de
+ * idioma: con `allWarningsAsErrors`, una API que se deprecie en el proximo bump rompe el build,
+ * y aca no se gana nada que justifique ese riesgo.
+ */
+@Composable
+private fun AccionesDeLaEntrada(onVolverABuscar: () -> Unit, onAbrirMenu: (() -> Unit)?) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BotonDeIcono(
+            icono = Icons.Filled.Search,
+            descripcion = "Buscar",
+            onClick = onVolverABuscar,
+            modifier = Modifier.weight(1f),
+        )
+        if (onAbrirMenu != null) {
+            BotonDeIcono(
+                icono = Icons.Filled.MoreVert,
+                descripcion = "Opciones",
+                onClick = onAbrirMenu,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BotonDeIcono(
+    icono: ImageVector,
+    descripcion: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(FORMA_PILDORA)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .heightIn(min = TOUCH_TARGET),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icono,
+            // No es null como en un icono decorativo: aca el icono ES la etiqueta, asi que sin
+            // esto el boton no tiene nombre para quien usa lector de pantalla.
+            contentDescription = descripcion,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

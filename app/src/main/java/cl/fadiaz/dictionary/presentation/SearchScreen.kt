@@ -81,6 +81,7 @@ fun SearchScreen(
     onOpenVisita: (Visita) -> Unit = {},
     onOpenAttribution: () -> Unit,
     onOpenAjustes: () -> Unit = {},
+    onOpenFavoritos: () -> Unit = {},
     // Sin default: una palabra del dia que se ve y no abre nada es peor que no tenerla.
     onOpenPalabraDelDia: (EntrySummary) -> Unit,
 ) {
@@ -263,6 +264,17 @@ fun SearchScreen(
                     // Ajustes solo con la busqueda vacia: con resultados en pantalla una fila
                     // de chrome es un resultado menos (D-073).
                     if (state.query.isEmpty()) {
+                        // Solo si hay alguna: una lista vacia a la que llegar no le sirve a
+                        // nadie, y en 234 dp cada fila del inicio compite con las demas.
+                        if (state.favoritos.isNotEmpty()) {
+                            item(key = "favoritos") {
+                                Fila(
+                                    lema = "Guardadas",
+                                    detalle = state.favoritos.size.toString(),
+                                    onClick = onOpenFavoritos,
+                                )
+                            }
+                        }
                         item(key = "ajustes") {
                             Fila(lema = "Ajustes", detalle = null, onClick = onOpenAjustes)
                         }

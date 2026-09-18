@@ -1,5 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -14,7 +17,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import cl.fadiaz.dictionary.core.TextNormalizer
+import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackStore
+import cl.fadiaz.dictionary.data.Visita
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
 import androidx.navigation.NavType
@@ -36,6 +44,7 @@ private const val RUTA_BUSQUEDA = "busqueda"
 private const val RUTA_ENTRADA = "entrada"
 private const val RUTA_ATRIBUCION = "atribucion"
 private const val RUTA_AJUSTES = "ajustes"
+private const val RUTA_FAVORITOS = "favoritos"
 
 @Composable
 fun DictionaryApp() {
@@ -65,6 +74,8 @@ fun DictionaryApp() {
                             fechaDeHoy = { LocalDate.now().toString() },
                             ajustesGuardados = { PackStore.ajustes(context) },
                             guardarAjustes = { PackStore.recordarAjustes(context, it) },
+                            favoritosGuardados = { PackStore.favoritos(context) },
+                            guardarFavoritos = { PackStore.recordarFavoritos(context, it) },
                         )
                     }
                 },
@@ -74,6 +85,7 @@ fun DictionaryApp() {
             // El ajuste de texto MULTIPLICA sobre el fontScale del sistema, nunca lo reemplaza:
             // WO-V1 de la lista de calidad de Wear OS pide respetar el tamano que el usuario
             // configuro en el reloj, y quien ya lo subio tiene que seguir viendolo subido.
+            val scope = rememberCoroutineScope()
             val base = LocalDensity.current
             CompositionLocalProvider(
                 LocalDensity provides Density(
@@ -102,6 +114,7 @@ fun DictionaryApp() {
                         },
                         onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },
                         onOpenAjustes = { navController.navigate(RUTA_AJUSTES) },
+                        onOpenFavoritos = { navController.navigate(RUTA_FAVORITOS) },
                         // La palabra del dia es del pack ACTIVO, asi que se abre en el suyo.
                         onOpenPalabraDelDia = { palabra ->
                             val packId = state.activo?.packId ?: return@SearchScreen
@@ -134,6 +147,44 @@ fun DictionaryApp() {
                             navController.popBackStack(RUTA_BUSQUEDA, inclusive = false)
                         },
                         resolver = { norms -> viewModel.resolver(packId, norms) },
+                        acciones = { entrada ->
+                            accionesDeLaPalabra(
+                                entrada = entrada,
+                                esFavorita = viewModel.esFavorita(packId, entrada.entryId),
+                                onAlternarFavorita = {
+                                    viewModel.alternarFavorita(
+                                        Visita(packId, entrada.entryId, entrada.headword, entrada.partOfSpeech),
+                                    )
+                                },
+                                otroPack = state.disponibles
+                                    .filterIsInstance<PackHandle.Abierto>()
+                                    .firstOrNull { it.packId != packId },
+                                onVerEnOtroIdioma = { otro ->
+                                    // La misma palabra en el otro diccionario: se resuelve por
+                                    // `norm`, que es la clave con la que se indexo, y se abre EN
+                                    // SU pack -- si se abriera en el activo seria D-080 otra vez.
+                                    scope.launch {
+                                        val clave = TextNormalizer.norm(entrada.headword)
+                                        val destino = viewModel
+                                            .resolver(otro.packId, setOf(clave))[clave]
+                                        if (destino != null) {
+                                            navController.navigate(
+                                                "$RUTA_ENTRADA/${Uri.encode(otro.packId)}/$destino",
+                                            )
+                                        }
+                                    }
+                                },
+                                onCopiar = {
+                                    // ClipboardManager es android.*, asi que entra por aca y no
+                                    // por el ViewModel, que tiene que seguir corriendo en la JVM.
+                                    val portapapeles = context
+                                        .getSystemService(ClipboardManager::class.java)
+                                    portapapeles?.setPrimaryClip(
+                                        ClipData.newPlainText(entrada.headword, entrada.headword),
+                                    )
+                                },
+                            )
+                        },
                         cargar = { id -> viewModel.entry(packId, id) },
                     )
                 }
@@ -141,6 +192,16 @@ fun DictionaryApp() {
                     AttributionScreen(
                         packs = state.disponibles,
                         problemas = state.problemas,
+                    )
+                }
+                composable(RUTA_FAVORITOS) {
+                    FavoritesScreen(
+                        favoritos = state.favoritos,
+                        onOpen = {
+                            navController.navigate(
+                                "$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}",
+                            )
+                        },
                     )
                 }
                 composable(RUTA_AJUSTES) {
@@ -158,4 +219,38 @@ fun DictionaryApp() {
             }
         }
     }
+}
+
+/**
+ * Las tres acciones de una palabra.
+ *
+ * Vive aca y no en la pantalla porque dos de las tres necesitan Android --el portapapeles y el
+ * navController-- y la pantalla tiene que poder probarse pasandole una lista armada a mano.
+ *
+ * "Ver en el otro idioma" **solo aparece si hay otro pack instalado**: ofrecer una accion que no
+ * puede hacer nada ensena a desconfiar del resto del menu.
+ */
+private fun accionesDeLaPalabra(
+    entrada: Entry,
+    esFavorita: Boolean,
+    onAlternarFavorita: () -> Unit,
+    otroPack: PackHandle.Abierto?,
+    onVerEnOtroIdioma: (PackHandle.Abierto) -> Unit,
+    onCopiar: () -> Unit,
+): List<AccionDeEntrada> = buildList {
+    add(
+        AccionDeEntrada(
+            etiqueta = if (esFavorita) "Quitar de guardadas" else "Guardar",
+            onClick = onAlternarFavorita,
+        ),
+    )
+    if (otroPack != null) {
+        add(
+            AccionDeEntrada(
+                etiqueta = "Ver en ${otroPack.metadata.name}",
+                onClick = { onVerEnOtroIdioma(otroPack) },
+            ),
+        )
+    }
+    add(AccionDeEntrada(etiqueta = "Copiar", onClick = onCopiar))
 }
