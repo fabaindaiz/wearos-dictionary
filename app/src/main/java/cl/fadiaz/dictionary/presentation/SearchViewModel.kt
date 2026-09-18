@@ -123,7 +123,10 @@ class SearchViewModel(
                             // D-031: la atribucion sale del pack, no de una constante. Un pack
                             // de otra fuente trae su propia licencia y tiene que mostrarse.
                             activo = elegido.metadata,
-                            disponibles = result.todos,
+                            // El de demostracion no se ofrece si hay un diccionario de verdad:
+                            // es un placeholder, no una opcion. Ademas su etiqueta chocaria --
+                            // con el toy y el español real el selector decia "ES" y "ES".
+                            disponibles = ofrecibles(result.todos),
                             problemas = result.problemas,
                             historial = visibles(visitas),
                         )
@@ -242,6 +245,11 @@ class SearchViewModel(
         _state.update { it.copy(historial = visibles(visitas)) }
     }
 
+    private fun ofrecibles(todos: List<PackHandle>): List<PackHandle> {
+        val abiertos = todos.filterIsInstance<PackHandle.Abierto>()
+        return if (abiertos.any { !it.esDemo }) abiertos.filterNot { it.esDemo } else todos
+    }
+
     /** Solo las de packs abiertos: una fila que no abre nada es peor que no tener la fila. */
     private fun visibles(todas: List<Visita>): List<Visita> {
         val instalados = abiertos.map { it.metadata.packId }.toSet()
@@ -297,8 +305,12 @@ class SearchViewModel(
          */
         internal fun elegirActivo(set: PackSet.Ready, preferido: String?): PackHandle.Abierto {
             val abiertos = set.todos.filterIsInstance<PackHandle.Abierto>()
-            return abiertos.firstOrNull { it.packId == preferido }
-                ?: abiertos.firstOrNull { it.metadata.langSource == preferido }
+            // El pack de demostracion solo gana si no hay ningun otro: existe para que la app
+            // recien instalada tenga algo que mostrar, no para tapar un diccionario de verdad.
+            val candidatos = abiertos.filterNot { it.esDemo }.ifEmpty { abiertos }
+            return candidatos.firstOrNull { it.packId == preferido }
+                ?: candidatos.firstOrNull { it.metadata.langSource == preferido }
+                ?: candidatos.firstOrNull()
                 ?: set.activo
         }
     }

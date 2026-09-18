@@ -78,18 +78,23 @@ object PackStore {
         val instalados = packsInstalados(dir)
         if (instalados.isEmpty()) return@withContext PackSet.NoPack
 
+        // Los que vinieron del APK son de demostracion: se marcan para que no le ganen a un
+        // diccionario instalado.
+        val deAssets = assetsDePack(context).toSet()
         val abiertos = mutableListOf<PackHandle.Abierto>()
         val problemas = mutableListOf<String>()
         for (file in instalados) {
             when (val cargado = abrir(file)) {
-                is PackLoad.Ready -> abiertos += PackHandle.Abierto(cargado.source)
+                is PackLoad.Ready ->
+                    abiertos += PackHandle.Abierto(cargado.source, esDemo = file.name in deAssets)
                 is PackLoad.Unusable -> problemas += "${file.name}: ${cargado.reason}"
                 PackLoad.NoPack -> Unit
             }
         }
 
-        val elegido = abiertos.firstOrNull { it.packId == preferido }
-            ?: abiertos.firstOrNull()
+        val candidatos = abiertos.filterNot { it.esDemo }.ifEmpty { abiertos }
+        val elegido = candidatos.firstOrNull { it.packId == preferido }
+            ?: candidatos.firstOrNull()
             ?: return@withContext PackSet.Unusable(
                 problemas.firstOrNull() ?: "Ningún diccionario se pudo abrir.",
             )

@@ -36,7 +36,8 @@ class SearchViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    private fun handle(d: FakeDictionary) = PackHandle.Abierto(d)
+    private fun handle(d: FakeDictionary, esDemo: Boolean = false) =
+        PackHandle.Abierto(d, esDemo)
 
     @BeforeTest
     fun antes() = Dispatchers.setMain(dispatcher)
@@ -202,6 +203,49 @@ class SearchViewModelTest {
                                  preferido = { "es" })
         advanceUntilIdle()
         assertEquals("es-def", vm.state.value.activo?.packId, "deberia caer al pack de ese idioma")
+    }
+
+    @Test
+    fun elPackDeDemostracionNuncaGanaSiHayUnDiccionarioDeVerdad() = runTest {
+        // Encontrado usandolo: con el pack de demo (28 entradas) y el español real (146.194)
+        // instalados, la app abria el de DEMO. Ni la preferencia ni el idioma del reloj
+        // desempataban --los dos packs son "es"-- asi que caia al ultimo escalon, que era el
+        // orden alfabetico: "demo-" gana a "es-".
+        //
+        // Es la misma clase que mato D-079, sobrevivida en el ultimo recurso. Y con un pack de
+        // demostracion dentro del APK ese recurso se dispara siempre, no casi nunca.
+        val demo = FakeDictionary("toy-es-en", "es")
+        val real = FakeDictionary("es-def-wikc", "es")
+        val vm = SearchViewModel({
+            PackSet.Ready(handle(demo), listOf(handle(demo, esDemo = true), handle(real)))
+        }, preferido = { "en" })
+        advanceUntilIdle()
+        assertEquals("es-def-wikc", vm.state.value.activo?.packId)
+    }
+
+    @Test
+    fun elPackDeDemostracionNiSiquieraSeOfreceSiHayUnoDeVerdad() = runTest {
+        // Visto en pantalla: el selector mostraba "ES" y "ES" --el demo y el español real-- y no
+        // habia forma de saber cual era cual. Un placeholder no es una opcion: si hay un
+        // diccionario, el de juguete no se ofrece, y con un solo pack el selector desaparece.
+        val demo = FakeDictionary("toy-es-en", "es")
+        val real = FakeDictionary("es-def-wikc", "es")
+        val vm = SearchViewModel({
+            PackSet.Ready(handle(real), listOf(handle(demo, esDemo = true), handle(real)))
+        })
+        advanceUntilIdle()
+        assertEquals(listOf("es-def-wikc"), vm.state.value.disponibles.map { it.packId })
+    }
+
+    @Test
+    fun conSoloElPackDeDemostracionSeUsaEse() = runTest {
+        // Para eso existe: que la app recien instalada tenga algo que mostrar.
+        val demo = FakeDictionary("toy-es-en", "es")
+        val vm = SearchViewModel({
+            PackSet.Ready(handle(demo, esDemo = true), listOf(handle(demo, esDemo = true)))
+        })
+        advanceUntilIdle()
+        assertEquals("toy-es-en", vm.state.value.activo?.packId)
     }
 
     @Test
