@@ -15,6 +15,7 @@ Corre sin red y sin dependencias: es parte del gate.
 import hashlib
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -427,6 +428,54 @@ def check_attribution_screen(report):
         )
 
 
+def check_release_signing(report):
+    """Regla: la firma del release no deja secretos en el repo ni usa la clave de debug.
+
+    Dos errores, los dos silenciosos:
+
+    - **Una keystore o una contraseña trackeadas.** No rompe nada y no se nota, hasta que el
+      repositorio se comparte. Una clave filtrada no se "arregla": se reemplaza, y reemplazarla
+      significa que ninguna app instalada con la vieja se puede volver a actualizar.
+    - **Firmar el release con `signingConfigs.getByName("debug")`.** Es la salida facil cuando el
+      release sale sin firmar, y **parece funcionar**: instala y corre. Lo que rompe aparece
+      meses despues, cuando se quiere publicar con la clave de verdad y el reloj rechaza la
+      actualizacion porque la firma no coincide.
+    """
+    rastreados = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
+    ).stdout.split()
+    for nombre in rastreados:
+        if nombre.endswith((".jks", ".keystore", ".p12")):
+            report.failure(
+                "hay una keystore en el repositorio",
+                "%s esta trackeado por git. Una clave de firma vive FUERA del proyecto y "
+                "local.properties guarda solo su ruta." % nombre,
+            )
+
+    gradle = os.path.join(ROOT, "app", "build.gradle.kts")
+    if not os.path.isfile(gradle):
+        return
+    with open(gradle, encoding="utf-8") as handle:
+        texto = handle.read()
+
+    if re.search(r'signingConfig\s*=\s*signingConfigs\.getByName\(\s*"debug"', texto):
+        report.failure(
+            "el release se firma con la clave de debug",
+            "app/build.gradle.kts firma el release con la config de debug. Instala y corre, y "
+            "deja la app firmada con una clave que no es tuya: una actualizacion posterior con "
+            "la clave buena va a ser rechazada por el dispositivo.",
+        )
+
+    for numero, linea in enumerate(texto.splitlines(), start=1):
+        codigo = linea.split("//")[0]
+        if re.search(r'(storePassword|keyPassword)\s*=\s*"[^"]+"', codigo):
+            report.failure(
+                "hay una contraseña literal en el build",
+                "app/build.gradle.kts:%d pone una contraseña en el codigo. Tienen que salir de "
+                "local.properties o del entorno." % numero,
+            )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -524,6 +573,7 @@ CHECKS = [
     check_forbidden_mirror,
     check_app_logic_is_jvm_testable,
     check_attribution_screen,
+    check_release_signing,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,

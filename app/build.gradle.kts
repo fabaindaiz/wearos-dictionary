@@ -3,6 +3,37 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/**
+ * Los datos de firma del release, o null si no hay ninguno configurado.
+ *
+ * Cascada variable de entorno -> local.properties, la misma que usan `:dict-data:devicePrecheck`
+ * y `tools/devpack.py` para encontrar el SDK. La variable primero para que una maquina de CI (o
+ * un agente) pueda firmar sin tocar `local.properties`, que esta gitignoreado Y en la lista de
+ * archivos que no se editan a mano.
+ *
+ * **La keystore nunca va al repo**, ni siquiera gitignoreada: vive fuera del proyecto y
+ * `local.properties` solo guarda su ruta. Lo enforcea `audit_dictionary.py`.
+ */
+val firmaDelRelease: Map<String, String>? = run {
+    val locales = rootProject.file("local.properties").takeIf { it.isFile }?.let { archivo ->
+        archivo.readLines()
+            .filterNot { it.startsWith("#") || "=" !in it }
+            .associate { it.substringBefore("=").trim() to it.substringAfter("=").trim() }
+    }.orEmpty()
+
+    fun valor(clave: String): String? =
+        System.getenv("DICT_" + clave.uppercase().replace(".", "_")) ?: locales[clave]
+
+    val store = valor("release.keystore") ?: return@run null
+    val datos = mapOf(
+        "keystore" to store,
+        "storePassword" to (valor("release.keystore.password") ?: return@run null),
+        "keyAlias" to (valor("release.key.alias") ?: return@run null),
+        "keyPassword" to (valor("release.key.password") ?: return@run null),
+    )
+    if (file(store).isFile) datos else null
+}
+
 android {
     namespace = "cl.fadiaz.dictionary"
     compileSdk {
@@ -19,8 +50,34 @@ android {
 
     }
 
+    signingConfigs {
+        // Solo existe si hay keystore: sin ella el bloque no se crea y `assembleRelease` produce
+        // un APK SIN FIRMAR en vez de romper el build. Un clone limpio tiene que seguir andando.
+        firmaDelRelease?.let { datos ->
+            create("release") {
+                storeFile = file(datos.getValue("keystore"))
+                storePassword = datos.getValue("storePassword")
+                keyAlias = datos.getValue("keyAlias")
+                keyPassword = datos.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // `findByName` y no `getByName`: null cuando no hay keystore configurada.
+            //
+            // Lo que NUNCA hay que hacer aca es caer a `signingConfigs.getByName("debug")`. Eso
+            // instala y corre, asi que parece funcionar -- y deja la app firmada con una clave
+            // que no es tuya y que no podes reemplazar despues sin desinstalar. Es la variante
+            // silenciosa de este error, y el audit la busca.
+            signingConfig = signingConfigs.findByName("release")
+
+            // R8 sigue APAGADO, y eso ya no es herencia del template: es una decision con fecha.
+            // La guia oficial de Wear OS lo nombra como una de las dos palancas mas efectivas,
+            // pero activarlo reintroduce la clase de bug que solo aparece en release --codigo o
+            // recursos que R8 quita y que en debug estaban-- y va atado a una comprobacion en
+            // dispositivo que todavia no se hizo. Roadmap O-2.
             optimization {
                 enable = false
             }
@@ -74,6 +131,51 @@ val buildDemoPack = tasks.register<Exec>("buildDemoPack") {
 }
 
 tasks.named("preBuild") { dependsOn(buildDemoPack) }
+
+/**
+ * Diagnostica si se puede firmar el release, ANTES de armarlo.
+ *
+ * Sin esto, el sintoma de no tener keystore aparece recien al instalar, como
+ * `INSTALL_PARSE_FAILED_NO_CERTIFICATES`, que no dice que hacer. Es la misma idea que
+ * `:dict-data:devicePrecheck`: el paso que convierte el MVP en algo instalable no deberia
+ * trabarse en un mensaje malo.
+ */
+tasks.register("releasePrecheck") {
+    group = "verification"
+    description = "Comprueba que haya keystore para firmar el release."
+
+    val configurada = firmaDelRelease != null
+    doLast {
+        if (configurada) {
+            logger.lifecycle("Firma configurada. Arma el release con:")
+            logger.lifecycle("  ./gradlew :app:assembleRelease")
+            return@doLast
+        }
+        error(
+            buildString {
+                appendLine("No hay keystore configurada: el release saldria SIN FIRMAR y no se")
+                appendLine("puede instalar en un reloj.")
+                appendLine()
+                appendLine("1. Genera una, FUERA del repositorio:")
+                appendLine("     keytool -genkeypair -v -keystore ~/.keystores/dictionary.jks \\")
+                appendLine("       -alias dictionary -keyalg RSA -keysize 4096 -validity 10000 \\")
+                appendLine("       -storetype PKCS12")
+                appendLine()
+                appendLine("2. Agrega a local.properties (gitignoreado):")
+                appendLine("     release.keystore=/Users/<vos>/.keystores/dictionary.jks")
+                appendLine("     release.keystore.password=...")
+                appendLine("     release.key.alias=dictionary")
+                appendLine("     release.key.password=...")
+                appendLine()
+                appendLine("   O por entorno: DICT_RELEASE_KEYSTORE, DICT_RELEASE_KEYSTORE_PASSWORD,")
+                appendLine("   DICT_RELEASE_KEY_ALIAS, DICT_RELEASE_KEY_PASSWORD.")
+                appendLine()
+                appendLine("La keystore NO va al repositorio. Si la perdes no podes volver a")
+                appendLine("actualizar una app ya instalada con ella: guardala aparte.")
+            },
+        )
+    }
+}
 
 dependencies {
     implementation(project(":dict-data"))
