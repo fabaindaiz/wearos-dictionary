@@ -62,3 +62,8 @@ replay_pid*
 # decenas o cientos de MB y ni siquiera viajan en el APK. Ninguno va al repo.
 app/src/main/assets/*.db
 !app/src/main/assets/.gitkeep
+
+# Los packs reales, que build_pack.py escribe donde le digas -- y toda la documentacion lo
+# invoca desde la raiz. Son 69 MB (espanol) y 295 MB (ingles): sin esta regla, un `git add -A`
+# despues de construir uno se lleva el binario al repo.
+/*.db
