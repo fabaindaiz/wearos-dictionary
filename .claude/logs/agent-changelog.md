@@ -30,7 +30,9 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 **Qué.** El APK deja de declarar `versionCode 1` del template (D-095). El inicio gana palabra del
 día y ajustes sin ser una pantalla nueva (D-096, D-097). La píldora deja de estar copiada seis
-veces (D-098). Ajustes trae idioma, tamaño de texto y borrar el historial (D-099).
+veces (D-098). Ajustes trae idioma, tamaño de texto y borrar el historial (D-099). La entrada gana
+dos botones en una fila y un menú de opciones con guardar, copiar y ver en el otro idioma (D-100,
+D-101, D-102), más una pantalla de palabras guardadas.
 
 **Áreas.** `gradle.properties`, `app/build.gradle.kts`, `tools/audit_dictionary.py`, los archivos
 nuevos `app/src/main/java/cl/fadiaz/dictionary/presentation/Componentes.kt`,
@@ -74,10 +76,16 @@ son seis (D-072).
   padding. Un refactor que cambia comportamiento no es un refactor; se corrigió al original antes
   de correr nada.
 - `Ajustes` y `EscalaDeTexto` nacieron `internal` y se exponían en firmas públicas: no compilaba.
+- **La caché de configuración de Gradle mintió sobre por qué fallaban los tests.**
+  `connectedDebugAndroidTest` reportó *"No compatible devices connected: found 1 device(s), 0 of
+  which were compatible"* **tres veces seguidas**, con el emulador booteado y en estado `device`.
+  Reinicié el emulador dos veces y limpié un lock huérfano del AVD persiguiéndolo. Con
+  `--no-configuration-cache` el mensaje real apareció al instante: *"There were failing tests"*, y
+  era **un solo test viejo** que buscaba el texto "Buscar" donde ahora hay un icono. Costo: ~40
+  minutos.
 
 **Qué quedó sin hacer.**
-- **Las acciones de una palabra** --los dos botones en `ButtonGroup` y el menú con *ver en el otro
-  idioma*, *favoritos* y *copiar*-- **no entraron**. Es la mitad del pedido.
+- **Gestionar packs: ver y borrar** es lo único del pedido que no entró (ver abajo).
 - **Gestionar packs: ver y borrar** quedó fuera a propósito: necesita nombre de archivo en
   `PackHandle`, cerrar la conexión antes de borrar y recargar el set, y es la única acción
   destructiva de la app.
