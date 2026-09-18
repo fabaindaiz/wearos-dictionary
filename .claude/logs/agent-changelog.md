@@ -29,7 +29,7 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 ## 2026-09-18 — El inicio, la palabra del día, y el primer APK que se distingue del anterior
 
 **Qué.** El APK deja de declarar `versionCode 1` del template (D-095). El inicio gana palabra del
-día y ajustes sin ser una pantalla nueva (D-096, D-097). La píldora deja de estar copiada seis
+día —**una por diccionario cargado**— y ajustes, sin ser una pantalla nueva (D-096, D-097). La píldora deja de estar copiada seis
 veces (D-098). Ajustes trae idioma, tamaño de texto y borrar el historial (D-099). La entrada gana
 dos botones en una fila y un menú de opciones con guardar, copiar y ver en el otro idioma (D-100,
 D-101, D-102), más una pantalla de palabras guardadas.
@@ -58,14 +58,29 @@ son seis (D-072).
 - **Un umbral de rank funcionaba pero era por idioma**: 912 en español, 978 en inglés. Se
   reemplazó por el mejor de 32 candidatos, que no necesita constante. Resultado: *permanecer,
   errar, despedazar* y *swell, relieve, grove, stop, twinge*.
-- **Sesgo medido y no corregido**: en español, **14 de 14 días dieron verbos**. El pack es 93,5 %
-  conjugaciones y `rank` premia páginas ricas, que en español son las de verbos.
+- **Sesgo medido y CORREGIDO en la misma sesión**: en español, **28 de 28 días daban verbos**.
+  No era prevalencia —el pack es 29,2 % sustantivos contra 28,5 % verbos, casi empatados— sino
+  que las páginas de verbos traen las conjugaciones y `rank` premia riqueza (D-067). Rotando la
+  categoría objetivo por día, la misma muestra da **sustantivo 12, verbo 8, adjetivo 7,
+  adverbio 1**, y salen *sorpresivo, gurú, mentira, arrollador* en vez de catorce infinitivos.
+- **Los packs no usan el mismo vocabulario de `pos`**: los de kaikki dicen `name`, el de juguete
+  dice `proper noun`. La exclusión cubría sólo uno, así que en el pack de demostración la palabra
+  del día podía ser un nombre propio. Un fixture de un solo vocabulario no lo muestra.
 - **`ButtonGroup`, `AlertDialog`, `ConfirmationDialog`, `SwitchButton` y `RadioButton` existen y
   son estables en Wear Material3 1.6.2**, verificado abriendo el `.aar`. **No existe** menú
   desplegable ni overflow.
 - El APK declara ahora `versionCode 2`, `versionName 0.2.0`, comprobado en `output-metadata.json`.
 
 **Qué salió mal.**
+- **Dos tests nuevos pasaron por casualidad.** Con todos los `rank` iguales en el fixture, gana
+  el primer candidato que aparece, así que "no elige un nombre propio" y "la categoría rota"
+  pasaban sin que el código hiciera ninguna de las dos cosas. Se rehicieron dándole a lo que
+  tenía que perder el **mejor** rank, y ahí sí fallaron.
+- **Un slice con índices mal calculados se llevó cuatro funciones del ViewModel por delante**
+  —`esFavorita`, `alternarFavorita`, `onEscalaDeTextoChange`, `limpiarHistorial`—. Lo agarró el
+  compilador al instante; es el mismo error de recorte que ya había cometido en otra sesión.
+- **`FakeDictionary` declaraba `entryCount = 1` fijo**, así que la palabra del día elegía siempre
+  el id 1 y el test de "cada pack elige distinto" fallaba por el fake, no por el código.
 - **La palabra del día no se veía, y el test del gate pasaba.** La lógica y el wiring estaban
   bien: el ítem llega **asincrónico** --son 32 lecturas-- cuando la lista ya se asentó, y como
   los ítems tienen `key`, la lista conserva su posición y el nuevo se insertaba **fuera de
