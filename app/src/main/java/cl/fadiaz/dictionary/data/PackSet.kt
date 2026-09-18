@@ -4,29 +4,20 @@ import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.PackMetadata
 
 /**
- * Un pack que la app conoce: o esta abierto, o esta en el APK esperando que lo elijan.
+ * Un pack abierto y consultable.
  *
- * La extraccion es **perezosa**: un pack de 69 MB no se copia a disco hasta que alguien lo va a
- * usar. Un idioma que nunca se selecciona nunca gasta disco, y en una muñeca el disco es el
- * recurso escaso.
+ * Es una interfaz sellada de un solo caso **a proposito**: hubo un segundo, `Disponible`, para
+ * los packs que venian en el APK sin extraer. Se fue con ellos. Cuando exista el instalador va a
+ * volver a hacer falta algo asi --un pack del catalogo que todavia no se bajo-- y se agrega
+ * entonces, con el caso de uso delante y no antes.
  */
 sealed interface PackHandle {
     val packId: String
 
-    /** Abierto y consultable. */
     data class Abierto(val source: DictionarySource) : PackHandle {
         override val packId: String get() = source.metadata.packId
         val metadata: PackMetadata get() = source.metadata
     }
-
-    /**
-     * Esta en el APK y todavia no se extrajo.
-     *
-     * Solo se conoce lo que el nombre del asset dice, porque leer la metadata obligaria a
-     * extraerlo -- que es exactamente lo que se esta difiriendo.
-     */
-    data class Disponible(override val packId: String, val asset: String, val etiqueta: String) :
-        PackHandle
 }
 
 /**
@@ -41,7 +32,7 @@ sealed interface PackHandle {
 sealed interface PackSet {
 
     /**
-     * Hay al menos un pack usable. [activo] esta abierto; [todos] incluye los que faltan extraer.
+     * Hay al menos un pack usable. [activo] es en el que se busca.
      *
      * [problemas] son los packs que estaban y **no** abrieron. Existe para que un pack rechazado
      * no desaparezca en silencio de la lista: se muestran en la pantalla de atribucion, que no
@@ -53,7 +44,7 @@ sealed interface PackSet {
         val problemas: List<String> = emptyList(),
     ) : PackSet
 
-    /** Ni assets ni instalados: el APK se armo sin diccionarios. */
+    /** No hay ningun `.db` en `filesDir/packs/`. El APK no trae ninguno: hay que instalarlo. */
     data object NoPack : PackSet
 
     /** Habia archivos y **ninguno** sirve. */
