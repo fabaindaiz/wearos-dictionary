@@ -302,10 +302,14 @@ def sha256_local(ruta):
     return digest.hexdigest()
 
 
-def correr(paso, silencioso=False):
-    """Ejecuta un paso remoto y devuelve su stdout. Los pasos locales devuelven None."""
+def correr(paso, silencioso=False, con_errores=False):
+    """Ejecuta un paso remoto y devuelve su stdout.
+
+    Con `con_errores=True` devuelve `(stdout, stderr)`. Hace falta porque **adb manda los
+    fallos de `run-as` a stderr**, y quien los quiera detectar no los ve en el stdout.
+    """
     if paso.argv is None:
-        return None
+        return (None, "") if con_errores else None
     if paso.stdin is None:
         proceso = subprocess.run(paso.argv, capture_output=True)
         salida = proceso.stdout.decode("utf-8", "replace")
@@ -314,7 +318,7 @@ def correr(paso, silencioso=False):
         salida, errores = _enviar(paso, silencioso)
     if errores.strip() and not silencioso:
         print("  ! %s" % errores.strip())
-    return salida
+    return (salida, errores) if con_errores else salida
 
 
 def _enviar(paso, silencioso):
@@ -369,14 +373,25 @@ def meta_remota(adb, nombre):
 
 def packs_remotos(adb):
     """{nombre: meta_o_None} de lo que hay en files/packs."""
-    salida = correr(
+    # Se miran stdout Y stderr: adb manda los fallos de `run-as` a stderr, asi que mirar solo
+    # stdout dejaba pasar el caso mas comun --la app no esta instalada-- y el install seguia
+    # hasta morir con un BrokenPipeError con 295 MB adentro, sin decir que hacer.
+    #
+    # Que la app no este es NORMAL, no una rareza: `connectedAndroidTest` la desinstala al
+    # terminar, asi que correr los tests y despues instalar un pack es una secuencia de todos
+    # los dias.
+    salida, errores = correr(
         Paso("ls", list(adb) + ["shell", "run-as %s ls %s" % (PAQUETE, DIR_PACKS)], None),
         silencioso=True,
+        con_errores=True,
     )
-    if salida and ("run-as:" in salida or "Permission denied" in salida):
+    diagnostico = "%s\n%s" % (salida or "", errores or "")
+    if "run-as:" in diagnostico or "Permission denied" in diagnostico:
         raise FalloRemoto(
-            "run-as fallo. Instala el APK debug (./gradlew :app:installDebug): run-as no "
-            "funciona contra un build release.\n  %s" % salida.strip()
+            "run-as fallo: la app no esta instalada, o es un build release.\n"
+            "  Instalala con: ./gradlew :app:installDebug\n"
+            "  (connectedAndroidTest la desinstala al terminar.)\n  %s"
+            % diagnostico.strip()
         )
     nombres = [n.strip() for n in (salida or "").split() if n.strip().endswith(".db")]
     return {nombre: meta_remota(adb, nombre) for nombre in nombres}
