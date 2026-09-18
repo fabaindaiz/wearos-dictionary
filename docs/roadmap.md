@@ -332,6 +332,38 @@ sabés que querés buscar por significado, tenés que escribir algo que no exist
 Con tres y move-to-front se recicla solo, pero una palabra que no querés volver a ver se queda
 hasta que abras tres más.
 
+### El inicio, las acciones de una palabra, y la búsqueda útil
+
+**Estado.** **A medias** (2026-09-18). Hecho: el inicio con palabra del día y ajustes, el
+versionado del APK y el refactor de componentes. Falta: las acciones de una palabra y la búsqueda
+con opciones.
+
+**El inicio NO es una pantalla propia, y esa fue la decisión que reorientó todo** (D-096). La guía
+de Wear OS pide *"shallow and linear: avoid hierarchies deeper than two levels"* y elevar la
+acción primaria; un menú que enruta a la búsqueda la hunde un toque. El inicio quedó siendo el
+estado vacío de la búsqueda, que es lo que ya era, con palabra del día y ajustes agregados. Eso
+además cerró D-091: el botón de volver de una entrada tiene un solo destino posible.
+
+**Lo que falta, en orden de costo.**
+
+- **Las acciones de una palabra**: los dos botones de arriba en un `ButtonGroup` —lado a lado
+  cuestan 48 dp, igual que uno; apilados costarían 96— y un menú con *ver en el otro idioma*,
+  *favoritos* y *copiar*. Wear Material3 **no tiene menú desplegable ni overflow**, verificado
+  contra la referencia de API: las dos formas soportadas son `AlertDialog` (el overload sobre
+  `TransformingLazyColumn` que trajo 1.6) o empujar una pantalla de lista.
+- **Gestionar packs: ver y borrar.** Quedó fuera a propósito del build del 2026-09-18, y no por
+  tamaño: necesita un campo de nombre de archivo en `PackHandle`, cerrar la conexión **antes** de
+  borrar --en Unix un archivo borrado con un descriptor abierto sigue ocupando disco y la app lo
+  seguiría leyendo-- y recargar el set. Y es la única acción destructiva de la app: equivocarse
+  cuesta ~90 s de re-push por adb, o 98 minutos si alguien usa la ruta `--tmp`.
+- **La búsqueda con opciones y sugerencias.** Lo primero cuando entre: ofrecer *buscar por
+  definición* sin tener que fallar antes. Hoy sólo aparece con la lista vacía (D-084), así que
+  quien ya sabe que quiere buscar por significado tiene que escribir algo que no exista primero.
+
+**Qué hay que decidir antes.** Qué contiene el menú de opciones más allá de esas tres; y si la
+palabra del día también va al Tile, que hoy sigue siendo el del template (D-087). Si va, la forma
+correcta según la guía es un `Timeline` con ventanas de validez y refresco ≥ 2 h, sin WorkManager.
+
 ### Instalador de packs: descargar e instalar un idioma
 
 **Estado.** Planificado. Lo que falta es **mecanismo**, salvo una cosa que es de producto y la
