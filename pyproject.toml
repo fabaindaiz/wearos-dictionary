@@ -64,6 +64,9 @@ build-toy = "python tools/packbuilder/build_toy.py {args}"
 verify = "python tools/packbuilder/verify_pack.py {args}"
 gen-fixture = "python tools/packbuilder/gen_payload_fixture.py"
 gen-repertoire = "python tools/unicode/gen_repertoire.py"
+# Sideload de packs por adb, para desarrollo. NO es el instalador: no descarga ni sabe de D-029.
+push = "python tools/devpack.py install {args}"
+packs = "python tools/devpack.py list {args}"
 # Todo lo que corre el gate, mas la matriz de versiones.
 all = ["test", "audit"]
 
