@@ -27,6 +27,14 @@ class FakeDictionary(
     private val lang: String = "es",
     /** Cuanto tarda cada `suggest`. Sirve para que una consulta siga viva cuando llega otra. */
     private val demora: Long = 0,
+    /**
+     * Cuantas entradas dice tener.
+     *
+     * Era 1 fijo, y eso hacia que la palabra del dia eligiera SIEMPRE el id 1 --el modulo no
+     * tiene de donde elegir-- asi que dos packs distintos parecian elegir lo mismo y el test que
+     * lo miraba fallaba por el fake, no por el codigo.
+     */
+    private val entradas: Int = 1,
 ) : DictionarySource {
 
     val consultas = mutableListOf<String>()
@@ -48,7 +56,7 @@ class FakeDictionary(
         langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,
-        entryCount = 1,
+        entryCount = entradas,
         dataVersion = 1,
         license = "CC0-1.0",
         attribution = "sin atribucion: es un fake",

@@ -79,6 +79,66 @@ class PalabraDelDiaTest {
     }
 
     @Test
+    fun nuncaEligeUnNombrePropio_enNingunoDeLosDosVocabularios() = runTest {
+        // Los packs reales de kaikki dicen "name"; el de juguete dice "proper noun". Excluir solo
+        // uno deja pasar nombres propios en el otro, y eso no se ve con un fixture de un vocabulario.
+        for (comoSeLlame in listOf("name", "proper noun")) {
+            // El nombre propio tiene el MEJOR rank: sin excluirlo gana siempre, asi que el
+            // test no puede pasar por casualidad.
+            val elegida = elegir(
+                leer = pack(
+                    pos = { id -> if (id % 5L == 0L) "noun" else comoSeLlame },
+                    rank = { id -> if (id % 5L == 0L) 900 else 100 },
+                ),
+            )
+            assertNotNull(elegida)
+            assertEquals("noun", elegida.partOfSpeech, "dejo pasar un '$comoSeLlame'")
+        }
+    }
+
+    @Test
+    fun nuncaEligeUnAfijoNiUnaAbreviatura() = runTest {
+        // "-ito" o "EE. UU." no son palabras que alguien quiera aprender hoy.
+        val elegida = elegir(
+            leer = pack(
+                pos = { id -> if (id % 6L == 0L) "noun" else "suffix" },
+                rank = { id -> if (id % 6L == 0L) 900 else 100 },
+            ),
+        )
+        assertNotNull(elegida)
+        assertEquals("noun", elegida.partOfSpeech)
+    }
+
+    @Test
+    fun elDiaDecideLaCategoriaYPorEsoNoSonTodasIguales() = runTest {
+        // El bug que esto arregla estaba MEDIDO sobre el pack real: 28 dias seguidos daban 28
+        // verbos, porque en espanol las paginas de verbos son las mas ricas y `rank` mide riqueza
+        // (D-067). Rotando la categoria objetivo por dia, la misma muestra da noun 12, verb 8,
+        // adj 7, adv 1.
+        // Los verbos tienen el mejor rank, igual que en el pack español real. Sin rotacion,
+        // los 28 dias dan verbo.
+        val categorias = (1..28).map { dia ->
+            elegir(
+                fecha = "2026-10-%02d".format(dia),
+                leer = pack(
+                    pos = { id -> listOf("noun", "verb", "adj", "adv")[(id % 4L).toInt()] },
+                    rank = { id -> if (id % 4L == 1L) 800 else 900 },
+                ),
+            )?.partOfSpeech
+        }.toSet()
+        assertTrue(categorias.size >= 3, "salieron casi siempre de la misma categoria: $categorias")
+    }
+
+    @Test
+    fun siNoHayNadieDeLaCategoriaDelDiaCaeAlMejor() = runTest {
+        // Un pack sin adverbios no puede quedarse sin palabra del dia el dia que toca adverbio.
+        val elegida = elegir(leer = pack(pos = { "noun" }, rank = { id -> 900 + (id % 5L).toInt() }))
+        assertNotNull(elegida)
+        assertEquals("noun", elegida.partOfSpeech)
+        assertEquals(900, elegida.rank)
+    }
+
+    @Test
     fun siTodosSonNombresPropiosDevuelveElMejorIgual() = runTest {
         // Un hueco en la pantalla es peor que un nombre propio. Y tiene que seguir siendo
         // determinista tambien por este camino.

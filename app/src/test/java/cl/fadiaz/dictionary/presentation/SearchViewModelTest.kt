@@ -117,16 +117,55 @@ class SearchViewModelTest {
         // Que la politica sea correcta no alcanza: tiene que llegar al estado. Esto se escribio
         // porque la primera version compilaba, pasaba sus tests y **no mostraba nada** en el
         // reloj, y una captura de pantalla no dice por que.
-        val fake = FakeDictionary()
+        val fake = FakeDictionary(entradas = 50)
         fake.resumenes = (1L..50L).associateWith {
             EntrySummary(it, "palabra$it", "noun", (1000 - it).toInt())
         }
         val vm = SearchViewModel({ listos(fake) }, fechaDeHoy = { "2026-09-18" })
         advanceUntilIdle()
 
-        val hoy = vm.state.value.palabraDelDia
+        val hoy = vm.state.value.palabrasDelDia[fake.metadata.packId]
         assertTrue(hoy != null, "no se publico ninguna palabra del dia")
         assertTrue(hoy.headword.startsWith("palabra"), "salio algo raro: ${hoy.headword}")
+    }
+
+    @Test
+    fun hayUnaPalabraDelDiaPorCadaDiccionarioCargado() = runTest {
+        // Con dos idiomas instalados las dos palabras interesan, y cambiar de idioma no puede
+        // tener que recalcular nada.
+        val es = FakeDictionary(packId = "es-def", entradas = 50).apply {
+            resumenes = (1L..50L).associateWith { EntrySummary(it, "es$it", "noun", 900) }
+        }
+        val en = FakeDictionary(packId = "en-def", entradas = 50).apply {
+            resumenes = (1L..50L).associateWith { EntrySummary(it, "en$it", "noun", 900) }
+        }
+        val vm = SearchViewModel({ listos(es, en) }, fechaDeHoy = { "2026-09-18" })
+        advanceUntilIdle()
+
+        val palabras = vm.state.value.palabrasDelDia
+        assertEquals(setOf("es-def", "en-def"), palabras.keys)
+        assertTrue(palabras.getValue("es-def").headword.startsWith("es"))
+        assertTrue(palabras.getValue("en-def").headword.startsWith("en"))
+    }
+
+    @Test
+    fun cadaDiccionarioTieneSuPropiaPalabra() = runTest {
+        // Misma fecha, mismos datos, distinto packId: si la semilla ignorara el pack, los dos
+        // diccionarios mostrarian la entrada del mismo id, que en cada uno es otra palabra.
+        val a = FakeDictionary(packId = "aaa", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        val b = FakeDictionary(packId = "bbb", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        val vm = SearchViewModel({ listos(a, b) }, fechaDeHoy = { "2026-09-18" })
+        advanceUntilIdle()
+
+        val palabras = vm.state.value.palabrasDelDia
+        assertTrue(
+            palabras.getValue("aaa").entryId != palabras.getValue("bbb").entryId,
+            "los dos packs eligieron la misma entrada: la semilla no mira el packId",
+        )
     }
 
     @Test
@@ -137,7 +176,7 @@ class SearchViewModelTest {
         fake.resumenes = mapOf(1L to EntrySummary(1, "unica", "noun", 900))
         val vm = SearchViewModel({ listos(fake) })
         advanceUntilIdle()
-        assertEquals(null, vm.state.value.palabraDelDia)
+        assertTrue(vm.state.value.palabrasDelDia.isEmpty())
     }
 
     // --- La carrera al abrir el pack (TDD: este fallaba) -------------------------------------
