@@ -300,17 +300,98 @@ usuario recién instalado.
 rank** del pack español real, que serían un diccionario chico de verdad. Cuesta una opción nueva
 en `build_pack.py` (`--top N`) y volver a bajar el dump.
 
-### Instalador de packs
+### Instalador de packs: descargar e instalar un idioma
 
-**Estado.** Planificado. Bloqueado en una decisión de producto —dónde se hostea el catálogo— que no es del agente.
+**Estado.** Planificado. Lo que falta es **mecanismo**, salvo una cosa que es de producto y la
+bloquea: dónde se hostea el catálogo.
 
-Catálogo, descarga verificada, WorkManager.
+**No hay "importar a la base de datos", y conviene decirlo primero** porque es la confusión
+natural. El pack **es** la base de datos: un SQLite inmutable que se abre read-only (D-001).
+Instalar no es un ETL — es *verificar y renombrar*. Room quedó descartado justamente porque
+`createFromFile()` **copia** el archivo (D-039), y `instalarAtomico` ya existe con esa forma:
+se escribe un `.part` y recién al final se renombra, porque **un pack a medio escribir se abre
+sin error y devuelve menos palabras de las que tiene**.
 
-**Con qué choca.** Con D-029: cargando **y** Wi-Fi. Con packs de decenas de MB eso significa que
-la primera instalación puede tardar hasta la noche, y la UI tiene que explicarlo.
+#### El hueco que manda sobre todo lo demás
 
-**Qué hay que decidir antes.** Dónde se hostea el catálogo, y si los packs se versionan
-independientemente de la app.
+**Hoy no existe ningún hash del archivo entero.** `meta.payload_dict_sha256` cubre sólo el
+diccionario de compresión de 32 KB (D-008); `PackFile.open` valida `schema_version`,
+`norm_version` y `payload_codec`, todos en las primeras páginas del archivo. Una descarga
+truncada o corrompida más allá de esa zona **abre igual y devuelve menos resultados**, que es
+exactamente el bug que este repo no puede observar.
+
+Así que el catálogo tiene que declarar `sha256` y `bytes` de cada `.db`, y la instalación no
+puede terminar sin comprobarlos. Es el requisito número uno, antes que cualquier optimización.
+
+#### Lo que ya está decidido y no se rediscute
+
+| | |
+|---|---|
+| Transporte | `HttpURLConnection`, que hace `Range` y progreso sin sumar un byte al APK (D-040) |
+| Cuándo | Diferido a **cargando + Wi-Fi**, con WorkManager (D-029) |
+| Dónde aterriza | `filesDir/packs/`, el mismo directorio donde hoy entran por `adb` (D-071) |
+| Rechazo | `schema_version` o `norm_version` distintas ⟹ no se instala (D-001, D-006) |
+| Qué NO se usa | Play Asset Delivery, sin soporte documentado en Wear OS (D-038) |
+
+#### Con qué choca: los números medidos
+
+| | Español | Inglés |
+|---|---|---|
+| El `.db` | 72.212.480 B | **309.424.128 B** |
+| Comprimido con gzip | 36.004.318 B (**al 49,9 %**) | 193.716.435 B (**al 62,6 %**) |
+
+**El inglés comprime mucho peor, y no es casualidad**: el 48 % de su peso son payloads que ya
+están deflateados con diccionario compartido, así que volver a comprimirlos no compra casi nada.
+Cualquier plan que asuma "gzip lo arregla" está asumiendo el número del español.
+
+Y con D-029 encima: 185 MB sólo cuando el reloj esté cargando y con Wi-Fi significa que la
+primera instalación de inglés **puede tardar hasta la noche**, y la UI tiene que decirlo.
+
+#### Qué hay a favor
+
+- `instalarAtomico` existe, es `internal`, sin `Context`, y tiene tests en el gate — incluido el
+  de que una copia cortada no deja un `.db` a medias.
+- `PackStore` ya enumera `filesDir/packs/` y abre todo lo que haya: un pack nuevo aparece en el
+  selector sin tocar nada más.
+- El formato ya declara `entry_count`, `data_version` (entero, AAAAMMDD, D-070) y `built_at`, que
+  es lo que un catálogo necesita para decidir si hay algo más nuevo.
+- La pantalla de "Instalando" ya existe, y ya se usa para el pack de demo.
+
+#### Qué hay que decidir antes
+
+**1. Dónde vive el catálogo.** Es lo único que no es del agente. Un JSON con `pack_id`, `bytes`,
+`sha256`, `data_version`, `schema_version`, `norm_version`, `license`, `attribution` y la URL.
+Y si los packs se versionan independientemente de la app — que es lo que decide si una app vieja
+puede rechazar un pack nuevo con un mensaje útil o simplemente no verlo.
+
+**2. Qué viaja por la red: el `.db`, o algo que se reconstruye en el reloj.** Es la decisión de
+"lo más compacto posible", y tiene un número: en inglés, `entry` + `form` son 162,3 MB de los
+295,1, y **el 45 % restante —`fts_def` e índices— es derivable**. Mandar sólo lo no derivable y
+reconstruir en el dispositivo achicaría la descarga de forma seria.
+
+Lo que cuesta, y por qué no es obvio: construir FTS5 sobre 956.150 entradas y dos índices en una
+CPU de reloj es **minutos de CPU sostenida**, que la guía oficial clasifica como *high impact*.
+Pasa mientras carga, así que quizás se tolere — pero además **el artefacto deja de ser el que
+`verify_pack.py` validó**, y ahí entra la clase de bug que este proyecto entero evita. Habría
+que medir las dos cosas antes de elegir: los MB que ahorra y los minutos que cuesta.
+
+**3. Qué pasa cuando sale un dump nuevo.** El pack se reconstruye entero y los rowids se corren,
+así que **un diff binario no va a ser chico**: `entry.id` es secuencial y todo índice lo
+referencia (D-055 midió exactamente ese efecto). Volver a bajar 185 MB por una actualización
+mensual es caro; asumirlo es una decisión, no un olvido.
+
+**4. Si hay un pack "núcleo" y uno completo.** Las N entradas de mejor rank serían un diccionario
+chico y usable de inmediato — es el mismo mecanismo que el pack de demostración, con contenido de
+verdad. **Pero dos packs del mismo idioma se pisan**: hoy el selector elige uno, y que uno le
+sume al otro es composición, que necesita `SearchRepository`. No es gratis.
+
+#### Lo que ninguna de estas opciones cambia
+
+La verificación profunda —que `entry.norm == norm(headword)`, que el rowid de `fts_def` coincida
+con `entry.id`— **sólo la hace `verify_pack.py`, en Python, antes de publicar**. En el reloj no
+hay forma de repetirla a un costo razonable. El dispositivo confía en el `sha256` del archivo y
+en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de publicar un
+**paso obligatorio del pipeline de release**, no una cortesía.
 
 ---
 
