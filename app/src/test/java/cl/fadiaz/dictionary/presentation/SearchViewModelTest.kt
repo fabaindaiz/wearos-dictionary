@@ -15,7 +15,10 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import cl.fadiaz.dictionary.core.MatchKind
+import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.Visita
 
 /**
  * La concurrencia de la busqueda, que es donde un bug NO da error.
@@ -274,6 +277,68 @@ class SearchViewModelTest {
         advanceUntilIdle()
         vm.cerrar()
         assertTrue(es.cerrado && en.cerrado, "un pack sin cerrar deja viva su conexion de SQLite")
+    }
+
+    // --- El historial de entradas abiertas -------------------------------------------------------
+
+    private fun sugerencia(pack: String, id: Long, lema: String) = Suggestion(
+        packId = pack, entryId = id, headword = lema, partOfSpeech = "noun",
+        matchKind = MatchKind.PREFIX, score = 0,
+    )
+
+    @Test
+    fun abrirUnaEntradaLaDejaEnElHistorial() {
+        val fake = FakeDictionary("es-def", "es")
+        val vm = conPack(fake)
+        vm.registrarVisita(sugerencia("es-def", 7, "perro"))
+        assertEquals(listOf("perro"), vm.state.value.historial.map { it.headword })
+    }
+
+    @Test
+    fun abrirLaMismaEntradaDosVecesNoLaDuplicaYLaSubeAlTope() {
+        val vm = conPack(FakeDictionary("es-def", "es"))
+        vm.registrarVisita(sugerencia("es-def", 1, "perro"))
+        vm.registrarVisita(sugerencia("es-def", 2, "casa"))
+        vm.registrarVisita(sugerencia("es-def", 1, "perro"))
+        assertEquals(listOf("perro", "casa"), vm.state.value.historial.map { it.headword })
+    }
+
+    @Test
+    fun elHistorialSeRecortaAlMaximo() {
+        // El tope no es arbitrario: la pantalla da tres filas de 48 dp (D-073). Guardar mas seria
+        // guardar lo que no se ve.
+        val vm = conPack(FakeDictionary("es-def", "es"))
+        (1..6).forEach { vm.registrarVisita(sugerencia("es-def", it.toLong(), "lema$it")) }
+        assertEquals(SearchViewModel.HISTORIAL_MAX, vm.state.value.historial.size)
+        assertEquals("lema6", vm.state.value.historial.first().headword)
+    }
+
+    @Test
+    fun unaEntradaDeUnPackQueYaNoEstaNoSeMuestra() = runTest {
+        // Se filtra al mostrar, no se poda al guardar: desinstalar y reinstalar un pack es un
+        // flujo real, y asi el historial vuelve solo. Una fila que al tocarla no abre nada es
+        // peor que no tener la fila.
+        val es = FakeDictionary("es-def", "es")
+        val vm = SearchViewModel(
+            { PackSet.Ready(handle(es), listOf(handle(es))) },
+            historialGuardado = {
+                listOf(
+                    Visita("es-def", 1, "perro", "noun"),
+                    Visita("de-def", 2, "Hund", "noun"),
+                )
+            },
+        )
+        advanceUntilIdle()
+        assertEquals(listOf("perro"), vm.state.value.historial.map { it.headword })
+    }
+
+    @Test
+    fun elHistorialSePersiste() {
+        var guardado: List<Visita> = emptyList()
+        val vm = SearchViewModel({ listos(FakeDictionary("es-def", "es")) },
+                                 guardarHistorial = { guardado = it })
+        vm.registrarVisita(sugerencia("es-def", 7, "perro"))
+        assertEquals(listOf("perro"), guardado.map { it.headword })
     }
 
     // --- Buscar en las definiciones -----------------------------------------------------------
