@@ -83,6 +83,17 @@ class FakeDictionary(
         senses = listOf(Sense("una glosa")),
     )
 
+    /** Lo que este fake sabe resolver: las palabras que nombra `lemasConocidos`. */
+    var lemasConocidos: Map<String, Long> = emptyMap()
+
+    override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
+        resueltas += norms
+        return lemasConocidos.filterKeys { it in norms }
+    }
+
+    /** Con que conjuntos se pidio resolver. Sirve para contar consultas, no solo resultados. */
+    val resueltas = mutableListOf<Set<String>>()
+
     override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
         definiciones += query
         if (demora > 0) delay(demora)
