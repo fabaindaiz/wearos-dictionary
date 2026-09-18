@@ -64,7 +64,7 @@ class PlatformAssumptionsTest {
         val abierto = PackFile.open(packPath)
         pack = abierto
         assertEquals("toy-es-en", abierto.metadata.packId)
-        assertEquals(26, abierto.metadata.entryCount)
+        assertEquals(28, abierto.metadata.entryCount)
         assertTrue("el diccionario de payload llego vacio", abierto.payloadDictionary.isNotEmpty())
     }
 
