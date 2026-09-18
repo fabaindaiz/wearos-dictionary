@@ -365,6 +365,10 @@ def check_app_logic_is_jvm_testable(report):
                      "data", "PackSet.kt"),
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "data", "Visita.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "PalabraDelDia.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "Ajustes.kt"),
     )
     for relativo in vigilados:
         path = os.path.join(ROOT, relativo)
@@ -476,6 +480,48 @@ def check_release_signing(report):
             )
 
 
+def check_app_version(report):
+    """Regla: el APK que sale al reloj se distingue del anterior. (D-095)
+
+    versionCode y versionName nacieron como literales del template --1 y "1.0"-- y nada los
+    incrementaba: ni tarea, ni script, ni CI, ni un git tag. Eso no es cosmetico: el instalador
+    de Android **rechaza** un APK con versionCode menor al instalado, y acepta reinstalar el
+    mismo numero solo porque la firma coincide. Es la misma trampa que devpack.py ya evita para
+    los packs comparando data_version.
+
+    Viven en gradle.properties y no en el .kts para que subirlos sea una linea que no toca
+    logica de build. El .kts los lee con un default, asi que un clone sin la property sigue
+    compilando --misma regla que la firma (D-086)-- y por eso este check mira la property y
+    ademas que el .kts no la pise con un literal.
+    """
+    props = read("gradle.properties")
+    build = read("app/build.gradle.kts")
+
+    code = re.search(r"^dictionary\.versionCode\s*=\s*(\S+)\s*$", props, re.M)
+    if code is None:
+        report.failure(
+            "gradle.properties no define dictionary.versionCode",
+            "sin el, el APK sale con el default y dos builds distintos se ven iguales",
+        )
+    elif not code.group(1).isdigit() or int(code.group(1)) < 2:
+        report.failure(
+            "dictionary.versionCode invalido",
+            "%s: tiene que ser un entero >= 2 (1 era el del template)" % code.group(1),
+        )
+
+    if re.search(r"^dictionary\.versionName\s*=\s*\S+", props, re.M) is None:
+        report.failure(
+            "gradle.properties no define dictionary.versionName",
+            "es el string que ve una persona; no lo lee ninguna maquina, pero tiene que existir",
+        )
+
+    if re.search(r"versionCode\s*=\s*\d", build):
+        report.failure(
+            "app/build.gradle.kts fija versionCode con un literal",
+            "pisaria la property y volveriamos al numero que nadie sube. Leerlo de la property",
+        )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -574,6 +620,7 @@ CHECKS = [
     check_app_logic_is_jvm_testable,
     check_attribution_screen,
     check_release_signing,
+    check_app_version,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,
