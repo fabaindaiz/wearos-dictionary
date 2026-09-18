@@ -68,6 +68,7 @@ fun DictionaryApp() {
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
                         onPackChange = viewModel::onPackChange,
+                        onSearchDefinitions = viewModel::onSearchDefinitions,
                         // El packId viaja con la entrada: sin el, con dos packs abiertos se
                         // resolveria contra el activo y mostraria otra palabra.
                         onOpenEntry = {
