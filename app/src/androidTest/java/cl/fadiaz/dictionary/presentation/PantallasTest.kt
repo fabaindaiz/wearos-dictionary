@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
@@ -109,10 +110,13 @@ class PantallasTest {
         onPackChange: (String) -> Unit = {},
         onSearchDefinitions: () -> Unit = {},
         onOpenVisita: (Visita) -> Unit = {},
+        onOpenAjustes: () -> Unit = {},
+        onOpenPalabraDelDia: (EntrySummary) -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
-            onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution)
+            onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
+            onOpenAjustes = onOpenAjustes, onOpenPalabraDelDia = onOpenPalabraDelDia)
     }
 
     // --- La lista de resultados --------------------------------------------------------------
@@ -262,6 +266,7 @@ class PantallasTest {
             onSearchDefinitions = {},
             onOpenEntry = {},
             onOpenAttribution = {},
+            onOpenPalabraDelDia = {},
         )
     }
 
@@ -392,6 +397,58 @@ class PantallasTest {
         }
         compose.onNodeWithText("Buscar").performClick()
         assertEquals(true, volvio)
+    }
+
+    // --- El inicio: lo que se ve con la busqueda vacia ----------------------------------------
+
+    private val palabraDeHoy =
+        EntrySummary(entryId = 42, headword = "permanecer", partOfSpeech = "verb", rank = 883)
+
+    @Test
+    fun laPalabraDelDiaSeVeSinScrollearYSeAbre() {
+        // `assertIsDisplayed` y no `assertExists`: el punto es que se VEA. La primera version la
+        // ponia en el indice 0 y quedaba fuera de pantalla, porque llega asincrona cuando la
+        // lista ya se asento y los items tienen `key`. Eso lo destapo mirar el reloj, no un test.
+        var abierta: EntrySummary? = null
+        mostrarBusqueda(
+            estadoListo().copy(query = "", palabraDelDia = palabraDeHoy),
+            onOpenPalabraDelDia = { abierta = it },
+        )
+        compose.onNodeWithText("permanecer").assertIsDisplayed()
+        compose.onNodeWithText("palabra del día").assertIsDisplayed()
+        compose.onNodeWithText("permanecer").performClick()
+        assertEquals(42L, abierta?.entryId)
+    }
+
+    @Test
+    fun sinPalabraDelDiaNoSeVeElHueco() {
+        // Un pack vacio, o el primer arranque antes de que termine de elegirse: la fila no
+        // aparece en vez de aparecer vacia.
+        mostrarBusqueda(estadoListo().copy(query = "", palabraDelDia = null))
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun alEscribirLaPalabraDelDiaYAjustesDesaparecen() {
+        // Misma regla que el historial: con resultados en pantalla, cada fila de chrome es un
+        // resultado menos, y con 48 dp de area tocable eso se nota (D-073).
+        mostrarBusqueda(
+            estadoListo("perder").copy(query = "per", palabraDelDia = palabraDeHoy),
+        )
+        assertEquals(0, compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Ajustes").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun elInicioLlevaAAjustes() {
+        var abrio = false
+        mostrarBusqueda(estadoListo().copy(query = ""), onOpenAjustes = { abrio = true })
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ajustes"))
+        compose.onNodeWithText("Ajustes").performClick()
+        assertEquals(true, abrio)
     }
 
     // --- La atribucion, que es D-031 ---------------------------------------------------------
@@ -560,5 +617,6 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun entry(entryId: Long): Entry? = null
     override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
+    override suspend fun summary(entryId: Long): EntrySummary? = null
     override fun close() = Unit
 }

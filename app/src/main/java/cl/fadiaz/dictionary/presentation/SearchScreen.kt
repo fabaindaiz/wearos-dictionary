@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,6 +45,7 @@ import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
@@ -80,6 +80,9 @@ fun SearchScreen(
     onOpenEntry: (Suggestion) -> Unit,
     onOpenVisita: (Visita) -> Unit = {},
     onOpenAttribution: () -> Unit,
+    onOpenAjustes: () -> Unit = {},
+    // Sin default: una palabra del dia que se ve y no abre nada es peor que no tenerla.
+    onOpenPalabraDelDia: (EntrySummary) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -155,6 +158,16 @@ fun SearchScreen(
                                 ) { Text(state.activo?.name ?: "Diccionario") }
                             }
                         }
+                        // DESPUES del encabezado y no antes, y eso se aprendio mirandolo en
+                        // pantalla: la palabra llega asincrona --son 32 lecturas-- cuando la
+                        // lista ya se asento, y como los items tienen `key` la lista conserva su
+                        // posicion. Insertada en el indice 0 aparecia FUERA de pantalla, arriba
+                        // del todo; insertada aca empuja hacia abajo y se ve sin scrollear.
+                        state.palabraDelDia?.let { palabra ->
+                            item(key = "palabra-del-dia") {
+                                PalabraDelDiaDeHoy(palabra) { onOpenPalabraDelDia(palabra) }
+                            }
+                        }
                         item(key = "voz") {
                             Button(
                                 onClick = { voz.launch(intentDeVoz(state.activo?.langSource ?: "es")) },
@@ -209,23 +222,15 @@ fun SearchScreen(
                         if (state.modo != SearchState.Modo.DEFINICIONES) {
                             item(key = "escotilla-definiciones") {
                                 val buscando = state.modo == SearchState.Modo.BUSCANDO_DEFINICIONES
-                                Text(
-                                    text = if (buscando) {
+                                Pildora(
+                                    texto = if (buscando) {
                                         "Buscando en las definiciones…"
                                     } else {
                                         "Buscar en las definiciones"
                                     },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .clip(RoundedCornerShape(percent = 50))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .let { if (buscando) it else it.clickable(onClick = onSearchDefinitions) }
-                                        .heightIn(min = TOUCH_TARGET)
-                                        .padding(vertical = 14.dp),
+                                    // Sin onClick mientras busca: sigue en pantalla para que la
+                                    // lista no salte, pero no dispara una segunda consulta.
+                                    onClick = if (buscando) null else onSearchDefinitions,
                                 )
                             }
                         }
@@ -237,19 +242,9 @@ fun SearchScreen(
                             .firstOrNull { it.packId != state.activo?.packId }
                         if (otro != null) {
                             item(key = "escotilla-idioma") {
-                                Text(
-                                    text = "Buscar en ${otro.metadata.name}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .clip(RoundedCornerShape(percent = 50))
-                                        .background(MaterialTheme.colorScheme.primaryContainer)
-                                        .clickable { onPackChange(otro.packId) }
-                                        .heightIn(min = TOUCH_TARGET)
-                                        .padding(vertical = 14.dp),
+                                Pildora(
+                                    texto = "Buscar en ${otro.metadata.name}",
+                                    onClick = { onPackChange(otro.packId) },
                                 )
                             }
                         }
@@ -263,6 +258,14 @@ fun SearchScreen(
                         },
                     ) { indice ->
                         FilaDeResultado(state.results[indice]) { onOpenEntry(state.results[indice]) }
+                    }
+
+                    // Ajustes solo con la busqueda vacia: con resultados en pantalla una fila
+                    // de chrome es un resultado menos (D-073).
+                    if (state.query.isEmpty()) {
+                        item(key = "ajustes") {
+                            Fila(lema = "Ajustes", detalle = null, onClick = onOpenAjustes)
+                        }
                     }
 
                     item(key = "atribucion") {
@@ -301,37 +304,6 @@ private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
     )
 }
 
-/** El molde de una fila tocable: 48 dp, una linea, el lema manda y el detalle acompaña. */
-@Composable
-private fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(percent = 50))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = onClick)
-            .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = lema,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (detalle != null) {
-            Text(
-                text = detalle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-    }
-}
 
 /**
  * Teclado y voz en una sola fila.
@@ -355,14 +327,14 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
         Box(
             modifier = Modifier
                 .weight(1f)
-                .clip(FORMA_BARRA)
+                .clip(FORMA_PILDORA)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 // El borde es lo que la distingue, y es deliberado que sea borde y no relleno:
                 // la barra usaba `surfaceContainer`, el MISMO token que una fila de resultado y
                 // que el boton "Ver mas", asi que el campo era indistinguible de un item de
                 // lista. Un relleno entero encenderia toda la banda en un OLED; el contorno
                 // enciende el perimetro y se nota igual.
-                .border(2.dp, MaterialTheme.colorScheme.primary, FORMA_BARRA)
+                .border(2.dp, MaterialTheme.colorScheme.primary, FORMA_PILDORA)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -400,7 +372,7 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
         if (query.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
+                    .clip(FORMA_PILDORA)
                     .background(MaterialTheme.colorScheme.primaryContainer)
                     .clickable(onClick = onVoz)
                     .heightIn(min = TOUCH_TARGET)
@@ -413,6 +385,39 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
                 )
             }
         }
+    }
+}
+
+/**
+ * La palabra de hoy: el lema grande y una etiqueta chica que dice que es.
+ *
+ * Lleva la etiqueta aunque cueste altura porque sin ella es indistinguible de una entrada del
+ * historial, y entonces no comunica nada. No usa [Fila] por lo mismo: una fila de una linea
+ * diria "perro · sust." y eso ya existe tres veces mas abajo.
+ */
+@Composable
+private fun PalabraDelDiaDeHoy(palabra: EntrySummary, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(FORMA_PILDORA)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clickable(onClick = onClick)
+            .heightIn(min = TOUCH_TARGET)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = palabra.headword,
+            style = MaterialTheme.typography.titleSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = "palabra del día",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -444,7 +449,7 @@ private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit)
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(percent = 50))
+                    .clip(FORMA_PILDORA)
                     .background(
                         if (activo) {
                             MaterialTheme.colorScheme.primaryContainer
@@ -460,22 +465,6 @@ private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit)
     }
 }
 
-@Composable
-private fun Cargando(mensaje: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        CircularProgressIndicator()
-        Text(
-            text = mensaje,
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
 private fun intentDeVoz(lang: String): Intent =
     Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(
@@ -486,13 +475,6 @@ private fun intentDeVoz(lang: String): Intent =
         // un reloj en ingles dictando "perro" devolveria cualquier cosa, y al reves igual.
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
     }
-
-/** Minimo que pide la guia de Wear OS para algo que se toca. */
-internal val TOUCH_TARGET = 48.dp
-
-/** La pildora de la barra. Vive en una constante porque el clip y el borde tienen que ser
- *  la MISMA forma: si se separan, el borde se dibuja recto sobre las esquinas redondeadas. */
-private val FORMA_BARRA = RoundedCornerShape(percent = 50)
 
 /**
  * El pack guarda el `pos` con el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
