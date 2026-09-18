@@ -22,7 +22,25 @@ hatch run lint:fix         # arregla lo que se pueda solo
 hatch run build-toy        # regenera el pack de juguete
 hatch run verify <pack.db> # invariantes de un pack real
 hatch run gen-repertoire   # regenera el repertorio (solo corre bajo Python 3.9)
+hatch run push <pack.db>   # instala un pack en el reloj por adb
+hatch run packs            # que packs hay instalados
 ```
+
+## `devpack.py` no es el instalador
+
+`tools/devpack.py` es la capa de desarrollo del sideload, igual que Hatch es la capa de
+desarrollo del gate: mete un `.db` en `filesDir/packs/` por adb y nada más. No descarga, no
+conoce catálogos y no sabe de D-029. El instalador de verdad está bloqueado en una decisión de
+producto —dónde se hostea el catálogo— y cuando exista escribirá en el mismo directorio.
+
+Lo que resuelve, y por lo que no es un `adb push`: la copia es **atómica** (`.part` + `mv`, la
+misma convención que usa `PackStore.instalarAtomico`) y se comprueba con **sha256 de los dos
+lados** antes de renombrar. Un `.db` copiado a medias se abre sin error y devuelve menos palabras
+de las que tiene. Ver D-082.
+
+Vive en `tools/` y no en `packbuilder/` porque no construye ni valida packs: habla con el
+dispositivo. Su lógica pura —armar el plan de comandos, elegir dispositivo, comparar hashes—
+entra al gate por `:tools:pythonTest`; ejecutar adb necesita un reloj y **no entra**.
 
 ## Por qué la matriz de versiones es lo que más importa
 
