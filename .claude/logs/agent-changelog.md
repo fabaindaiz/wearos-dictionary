@@ -100,10 +100,17 @@ son seis (D-072).
   minutos.
 
 **Qué quedó sin hacer.**
-- **Gestionar packs: ver y borrar** es lo único del pedido que no entró (ver abajo).
-- **Gestionar packs: ver y borrar** quedó fuera a propósito: necesita nombre de archivo en
-  `PackHandle`, cerrar la conexión antes de borrar y recargar el set, y es la única acción
-  destructiva de la app.
+- **Gestionar packs: ver y borrar** entró después, con su propia pantalla (D-103, D-104, D-105).
+- **Borrar de verdad libera el disco, medido en el emulador**: libre 9.802.568 kB → con el pack
+  de 72,2 MB, 9.732.048 kB → tras borrar, **9.802.568 kB otra vez**, el valor exacto. Es la
+  comprobación de que cerrar las conexiones **antes** de tocar el disco funciona: en Unix un
+  archivo borrado con un descriptor abierto sigue ocupando espacio, y el usuario habría visto
+  "borrado" con cero liberado.
+- **El formateador de tamaños redondeaba con dos criterios distintos**: kB hacia arriba y MB al
+  más cercano, así que 53.248 bytes se veían como *54 kB*. Lo agarró un test escrito con los
+  tamaños reales de los tres packs del proyecto, no con números redondos inventados.
+- **El catálogo de descarga de packs**: la mitad de abajo de la pantalla de gestión es un WIP
+  explícito. Sigue bloqueado por dónde se hostea el catálogo, igual que el instalador.
 - **El test de densidad parametrizado por escala de texto**, que es lo que cerraría WO-V1 de
   verdad. Hoy el ajuste existe y nadie comprobó que con `GRANDE` no se corte nada.
 - **Nada se verificó en el reloj**: sigue fuera de la red. La corona sigue sin moverse, los 234 dp
