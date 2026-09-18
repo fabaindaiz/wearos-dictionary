@@ -29,6 +29,9 @@ class FakeDictionary(
 ) : DictionarySource {
 
     val consultas = mutableListOf<String>()
+
+    /** Las consultas que entraron por el camino de texto libre, aparte de las incrementales. */
+    val definiciones = mutableListOf<String>()
     var cerrado = false
         private set
 
@@ -80,7 +83,20 @@ class FakeDictionary(
         senses = listOf(Sense("una glosa")),
     )
 
-    override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> = emptyList()
+    override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
+        definiciones += query
+        if (demora > 0) delay(demora)
+        return listOf(
+            Suggestion(
+                packId = packId,
+                entryId = -query.length.toLong(),
+                headword = "def:$query",
+                partOfSpeech = "noun",
+                matchKind = MatchKind.DEFINITION,
+                score = 0,
+            ),
+        )
+    }
 
     override fun close() {
         cerrado = true

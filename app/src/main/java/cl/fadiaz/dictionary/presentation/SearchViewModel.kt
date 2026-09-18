@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Lo que la pantalla de busqueda necesita saber, y nada mas. */
@@ -30,7 +31,17 @@ data class SearchState(
     val disponibles: List<PackHandle> = emptyList(),
     /** Packs que estaban y no abrieron. Se muestran en la atribucion, no en la busqueda. */
     val problemas: List<String> = emptyList(),
+    val modo: Modo = Modo.NORMAL,
 ) {
+    /**
+     * Por que camino salieron los resultados que se estan mostrando.
+     *
+     * No hay una segunda lista: `results` es la misma, y `MatchKind.DEFINITION` ya hace que cada
+     * fila se etiquete sola. Un modo y no un `Boolean` porque hay tres estados y el intermedio
+     * --buscando-- tiene que verse: el indice de texto libre es mucho mas grande que el de lemas.
+     */
+    enum class Modo { NORMAL, BUSCANDO_DEFINICIONES, DEFINICIONES }
+
     sealed interface Status {
         data object Loading : Status
 
@@ -69,6 +80,15 @@ class SearchViewModel(
 
     /** Todos los abiertos, para resolver entradas de cualquier pack y para cerrarlos. */
     private var abiertos: List<DictionarySource> = emptyList()
+
+    /**
+     * La busqueda por definicion en vuelo.
+     *
+     * Se guarda para poder cancelarla: recorre un indice mucho mas grande que el de lemas, asi
+     * que puede seguir viva cuando el usuario ya escribio otra cosa. Sin esto, su resultado
+     * aterriza encima del nuevo y muestra otra palabra, sin ninguna excepcion.
+     */
+    private var definiciones: Job? = null
 
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
@@ -120,7 +140,8 @@ class SearchViewModel(
                 .onEach { (text, results) ->
                     // Se compara contra la query vigente: si el usuario siguio escribiendo
                     // mientras esta consulta corria, su resultado ya no es el que se muestra.
-                    if (text == queries.value) {
+                    // Y no se publica en modo definiciones: ahi manda la otra consulta.
+                    if (text == queries.value && _state.value.modo == SearchState.Modo.NORMAL) {
                         _state.update { it.copy(query = text, results = results) }
                     }
                 }
@@ -140,16 +161,55 @@ class SearchViewModel(
      */
     fun onPackChange(packId: String) {
         val pack = abiertos.firstOrNull { it.metadata.packId == packId } ?: return
+        // El combine va a repetir la query por prefijo en el pack nuevo y pisaria los resultados
+        // de definicion igual: mejor salir del modo explicitamente que dejar la carrera abierta.
+        volverAModoNormal()
         source.value = pack
         _state.update { it.copy(activo = pack.metadata) }
         recordar(packId)
     }
 
     fun onQueryChange(text: String) {
+        // Editar la query es la forma de volver de las definiciones a la busqueda normal. No hay
+        // boton de "volver" a proposito: en 192 dp un control se paga en resultados, y el usuario
+        // ya tiene el gesto.
+        volverAModoNormal()
         // La query se muestra YA y los resultados llegan despues: si el campo esperara al
         // debounce, escribir se sentiria trabado.
         _state.update { it.copy(query = text) }
         queries.value = text
+    }
+
+    /**
+     * Busca la query vigente DENTRO de las definiciones, por FTS5.
+     *
+     * Es una accion explicita y nunca se cuelga del pipeline incremental: recorre un indice mucho
+     * mas grande que el de lemas y no cumple el presupuesto de latencia de escribir.
+     */
+    fun onSearchDefinitions() {
+        val pack = source.value ?: return
+        val texto = queries.value
+        if (texto.isBlank()) return
+
+        definiciones?.cancel()
+        _state.update { it.copy(modo = SearchState.Modo.BUSCANDO_DEFINICIONES) }
+        definiciones = viewModelScope.launch {
+            val encontrados = pack.searchDefinitions(texto)
+            // Si mientras tanto se escribio otra cosa, este resultado ya no es el que se muestra.
+            if (texto == queries.value) {
+                _state.update {
+                    it.copy(results = encontrados, modo = SearchState.Modo.DEFINICIONES)
+                }
+            }
+        }
+    }
+
+    private fun volverAModoNormal() {
+        definiciones?.cancel()
+        definiciones = null
+        if (_state.value.modo != SearchState.Modo.NORMAL) {
+            _state.update { it.copy(modo = SearchState.Modo.NORMAL, results = emptyList()) }
+        }
     }
 
     /**

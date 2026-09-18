@@ -94,8 +94,10 @@ class PantallasTest {
         onOpenEntry: (Suggestion) -> Unit = {},
         onOpenAttribution: () -> Unit = {},
         onPackChange: (String) -> Unit = {},
+        onSearchDefinitions: () -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
+            onSearchDefinitions = onSearchDefinitions,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution)
     }
 
@@ -278,6 +280,53 @@ class PantallasTest {
         compose.onNodeWithText("English", substring = true).assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("dañado", substring = true))
         compose.onNodeWithText("dañado", substring = true).assertExists()
+    }
+
+    // --- Buscar en las definiciones -------------------------------------------------------------
+
+    @Test
+    fun sinResultadosOfreceBuscarEnLasDefiniciones() {
+        mostrarBusqueda(estadoListo().copy(query = "animal que ladra"))
+        compose.onNodeWithText("Buscar en las definiciones").assertIsDisplayed()
+    }
+
+    @Test
+    fun conResultadosNoOfreceBuscarEnLasDefiniciones() {
+        // Protege D-073: con 192 dp una fila de chrome es un tercio de la lista.
+        mostrarBusqueda(estadoListo("perder", "perro"))
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Buscar en las definiciones").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun tocarBuscarEnLasDefinicionesLoAvisa() {
+        var pedido = false
+        mostrarBusqueda(estadoListo().copy(query = "ladra"), onSearchDefinitions = { pedido = true })
+        compose.onNodeWithText("Buscar en las definiciones").performClick()
+        assertEquals(true, pedido)
+    }
+
+    @Test
+    fun enModoDefinicionesSinResultadosNoSeOfreceLoMismoDeNuevo() {
+        // Ofrecerlo otra vez seria un bucle: ya se busco y no hay nada.
+        mostrarBusqueda(
+            estadoListo().copy(query = "xyzzy", modo = SearchState.Modo.DEFINICIONES),
+        )
+        compose.onNodeWithText("Sin resultados en las definiciones").assertIsDisplayed()
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Buscar en las definiciones").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun mientrasBuscaEnLasDefinicionesLoDice() {
+        mostrarBusqueda(
+            estadoListo().copy(query = "ladra", modo = SearchState.Modo.BUSCANDO_DEFINICIONES),
+        )
+        compose.onNodeWithText("Buscando", substring = true).assertIsDisplayed()
     }
 
     @Test

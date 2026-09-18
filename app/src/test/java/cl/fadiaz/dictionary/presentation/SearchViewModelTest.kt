@@ -276,6 +276,108 @@ class SearchViewModelTest {
         assertTrue(es.cerrado && en.cerrado, "un pack sin cerrar deja viva su conexion de SQLite")
     }
 
+    // --- Buscar en las definiciones -----------------------------------------------------------
+
+    @Test
+    fun buscarEnDefinicionesConsultaElPackActivoConLaQueryVigente() = runTest {
+        val fake = FakeDictionary("es-def", "es")
+        val vm = conPack(fake)
+        advanceUntilIdle()
+        vm.onQueryChange("animal que ladra")
+        advanceUntilIdle()
+
+        vm.onSearchDefinitions()
+        advanceUntilIdle()
+
+        assertEquals(listOf("animal que ladra"), fake.definiciones)
+        assertEquals(SearchState.Modo.DEFINICIONES, vm.state.value.modo)
+        assertEquals(listOf("def:animal que ladra"), vm.state.value.results.map { it.headword })
+    }
+
+    @Test
+    fun laBusquedaPorDefinicionNoSeDisparaEscribiendo() = runTest {
+        // Es el contrato de la interfaz vuelto test: recorre un indice mucho mayor que el de
+        // lemas y no cumple el presupuesto de latencia de la busqueda incremental.
+        val fake = FakeDictionary("es-def", "es")
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onQueryChange("animal")
+        advanceUntilIdle()
+
+        assertTrue(fake.definiciones.isEmpty(), "escribir no puede tocar el indice de texto libre")
+    }
+
+    @Test
+    fun escribirDespuesDeBuscarEnDefinicionesVuelveALaBusquedaNormal() = runTest {
+        // Volver no puede costar un boton: en 192 dp cada control se paga en resultados.
+        val fake = FakeDictionary("es-def", "es")
+        val vm = conPack(fake)
+        advanceUntilIdle()
+        vm.onQueryChange("animal")
+        advanceUntilIdle()
+        vm.onSearchDefinitions()
+        advanceUntilIdle()
+        assertEquals(SearchState.Modo.DEFINICIONES, vm.state.value.modo)
+
+        vm.onQueryChange("animales")
+        advanceUntilIdle()
+
+        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
+        assertEquals(listOf("animales"), vm.state.value.results.map { it.headword })
+    }
+
+    @Test
+    fun unaBusquedaPorDefinicionViejaNoPisaLoQueSeEscribioDespues() = runTest {
+        // El modo de falla: la de definiciones tarda, el usuario sigue escribiendo, y el
+        // resultado viejo aterriza encima. No tira ninguna excepcion.
+        val fake = FakeDictionary("es-def", "es", demora = 1_000)
+        val vm = conPack(fake)
+        advanceUntilIdle()
+        vm.onQueryChange("animal")
+        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 10)
+
+        vm.onSearchDefinitions()
+        advanceTimeBy(10)
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+
+        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
+        assertEquals(listOf("casa"), vm.state.value.results.map { it.headword })
+    }
+
+    @Test
+    fun mientrasBuscaEnLasDefinicionesElEstadoLoDice() = runTest {
+        val fake = FakeDictionary("es-def", "es", demora = 1_000)
+        val vm = conPack(fake)
+        advanceUntilIdle()
+        vm.onQueryChange("animal")
+        advanceUntilIdle()
+
+        vm.onSearchDefinitions()
+        advanceTimeBy(10)
+
+        assertEquals(SearchState.Modo.BUSCANDO_DEFINICIONES, vm.state.value.modo)
+    }
+
+    @Test
+    fun cambiarDeIdiomaSaleDelModoDefiniciones() = runTest {
+        val es = FakeDictionary("es-def", "es")
+        val en = FakeDictionary("en-def", "en")
+        val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) })
+        advanceUntilIdle()
+        vm.onQueryChange("animal")
+        advanceUntilIdle()
+        vm.onSearchDefinitions()
+        advanceUntilIdle()
+
+        vm.onPackChange("en-def")
+        advanceUntilIdle()
+
+        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
+        assertEquals(listOf("animal"), en.consultas, "el pack nuevo recibe la query por prefijo")
+    }
+
     @Test
     fun laAtribucionYLaLicenciaSalenDelPackYNoDelCodigo() = runTest {
         // D-031: mostrarlas es la condicion de uso de los datos. Si vinieran de una constante,
