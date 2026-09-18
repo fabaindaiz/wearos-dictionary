@@ -26,6 +26,68 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-18 — El inicio, la palabra del día, y el primer APK que se distingue del anterior
+
+**Qué.** El APK deja de declarar `versionCode 1` del template (D-095). El inicio gana palabra del
+día y ajustes sin ser una pantalla nueva (D-096, D-097). La píldora deja de estar copiada seis
+veces (D-098). Ajustes trae idioma, tamaño de texto y borrar el historial (D-099).
+
+**Áreas.** `gradle.properties`, `app/build.gradle.kts`, `tools/audit_dictionary.py`, los archivos
+nuevos `app/src/main/java/cl/fadiaz/dictionary/presentation/Componentes.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/SettingsScreen.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PalabraDelDia.kt` y
+`app/src/main/java/cl/fadiaz/dictionary/data/Ajustes.kt`; más `EntrySummary` en
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt` y su `summary()` en
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`.
+
+**Por qué.** Pedido: inicio con voz, texto, palabra del día, historial, ajustes y créditos; la
+entrada con dos botones y menú; versionado y buenas prácticas de plataforma.
+
+**Arquitectura.** ✅ Cumple. `PalabraDelDia` y `Ajustes` no tocan Android --la fecha entra por
+parámetro-- y se sumaron a los archivos que vigila `check_app_logic_is_jvm_testable`, que ahora
+son seis (D-072).
+
+**Medido.**
+- **Un inicio como ruta propia va contra la guía oficial.** Wear OS pide *"shallow and linear:
+  avoid hierarchies deeper than two levels"* y elevar la acción primaria. Un menú que enruta a la
+  búsqueda la hunde un toque. Por eso el inicio quedó siendo el estado vacío de la búsqueda.
+- **`rank` está aplastado**: mediana **992** sobre un máximo de 997, el 100 % de las entradas bajo
+  3000. Elegir una entrada al azar da *Eyaralar, piscigranja, Ynda, Voorschoten, nonparaxiality*.
+- **Un umbral de rank funcionaba pero era por idioma**: 912 en español, 978 en inglés. Se
+  reemplazó por el mejor de 32 candidatos, que no necesita constante. Resultado: *permanecer,
+  errar, despedazar* y *swell, relieve, grove, stop, twinge*.
+- **Sesgo medido y no corregido**: en español, **14 de 14 días dieron verbos**. El pack es 93,5 %
+  conjugaciones y `rank` premia páginas ricas, que en español son las de verbos.
+- **`ButtonGroup`, `AlertDialog`, `ConfirmationDialog`, `SwitchButton` y `RadioButton` existen y
+  son estables en Wear Material3 1.6.2**, verificado abriendo el `.aar`. **No existe** menú
+  desplegable ni overflow.
+- El APK declara ahora `versionCode 2`, `versionName 0.2.0`, comprobado en `output-metadata.json`.
+
+**Qué salió mal.**
+- **La palabra del día no se veía, y el test del gate pasaba.** La lógica y el wiring estaban
+  bien: el ítem llega **asincrónico** --son 32 lecturas-- cuando la lista ya se asentó, y como
+  los ítems tienen `key`, la lista conserva su posición y el nuevo se insertaba **fuera de
+  pantalla, arriba de todo**. Se arregló poniéndolo debajo del encabezado, donde insertar empuja
+  hacia abajo. **Lo destapó una captura, no un test** — y el test que ahora lo fija usa
+  `assertIsDisplayed`, no `assertExists`.
+- **Escribí el primer `Cargando` de memoria en vez de copiarlo**, con otro `Arrangement` y otro
+  padding. Un refactor que cambia comportamiento no es un refactor; se corrigió al original antes
+  de correr nada.
+- `Ajustes` y `EscalaDeTexto` nacieron `internal` y se exponían en firmas públicas: no compilaba.
+
+**Qué quedó sin hacer.**
+- **Las acciones de una palabra** --los dos botones en `ButtonGroup` y el menú con *ver en el otro
+  idioma*, *favoritos* y *copiar*-- **no entraron**. Es la mitad del pedido.
+- **Gestionar packs: ver y borrar** quedó fuera a propósito: necesita nombre de archivo en
+  `PackHandle`, cerrar la conexión antes de borrar y recargar el set, y es la única acción
+  destructiva de la app.
+- **El test de densidad parametrizado por escala de texto**, que es lo que cerraría WO-V1 de
+  verdad. Hoy el ajuste existe y nadie comprobó que con `GRANDE` no se corte nada.
+- **Nada se verificó en el reloj**: sigue fuera de la red. La corona sigue sin moverse, los 234 dp
+  sin confirmar dentro de la app, el pack de inglés sin instalar y el crash de *Ver más* sin causa.
+- Sin verificar de la lista de calidad: **WO-V13** (fondo negro), **WO-V14** (12sp/10sp mínimos) y
+  **WO-V16** (que nada se corte en el círculo). `app_name` sigue diciendo "Dictionary" en inglés.
+
 ## 2026-09-18 — El reloj de verdad: tres bugs, una capa de tests rota, y un supuesto de 192 dp que no era
 
 **Qué.** Instalado el MVP en un Galaxy Watch (SM-L715F, Android 17 / API 37). Usarlo destapó tres
