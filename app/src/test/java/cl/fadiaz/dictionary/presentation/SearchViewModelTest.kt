@@ -48,6 +48,68 @@ class SearchViewModelTest {
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
 
+    // --- Las palabras guardadas ---------------------------------------------------------------
+
+    private fun visita(lema: String, id: Long = 1, pack: String = "es-def") =
+        Visita(packId = pack, entryId = id, headword = lema, partOfSpeech = "noun")
+
+    @Test
+    fun guardarUnaPalabraLaDejaEnLaLista() = runTest {
+        val guardadas = mutableListOf<List<Visita>>()
+        val vm = SearchViewModel({ listos(FakeDictionary()) }, guardarFavoritos = { guardadas += it })
+        advanceUntilIdle()
+
+        vm.alternarFavorita(visita("perro"))
+
+        assertEquals(listOf("perro"), vm.state.value.favoritos.map { it.headword })
+        assertTrue(vm.esFavorita("es-def", 1))
+        assertEquals(1, guardadas.size, "tiene que persistirse, no solo quedar en memoria")
+    }
+
+    @Test
+    fun guardarDosVecesLaMismaLaSaca() = runTest {
+        val vm = SearchViewModel({ listos(FakeDictionary()) })
+        advanceUntilIdle()
+
+        vm.alternarFavorita(visita("perro"))
+        vm.alternarFavorita(visita("perro"))
+
+        assertTrue(vm.state.value.favoritos.isEmpty())
+        assertTrue(!vm.esFavorita("es-def", 1))
+    }
+
+    @Test
+    fun lasFavoritasDeDosPacksNoSeConfunden() = runTest {
+        // Los entryId son rowids: el 1 existe en TODOS los packs. Sin mirar el packId, guardar
+        // "perro" marcaria tambien como guardada la entrada 1 del diccionario de ingles.
+        val vm = SearchViewModel({ listos(FakeDictionary()) })
+        advanceUntilIdle()
+
+        vm.alternarFavorita(visita("perro", id = 1, pack = "es-def"))
+
+        assertTrue(vm.esFavorita("es-def", 1))
+        assertTrue(!vm.esFavorita("en-def", 1), "el mismo id en otro pack es otra palabra")
+    }
+
+    @Test
+    fun lasGuardadasSeLeenAlArrancar() = runTest {
+        val previas = listOf(visita("casa", 7), visita("perro", 9))
+        val vm = SearchViewModel({ listos(FakeDictionary()) }, favoritosGuardados = { previas })
+        advanceUntilIdle()
+        assertEquals(previas, vm.state.value.favoritos)
+    }
+
+    @Test
+    fun elTopeDeGuardadasSeRespeta() = runTest {
+        // Termina en un String de SharedPreferences: sin tope crece sin limite.
+        val vm = SearchViewModel({ listos(FakeDictionary()) })
+        advanceUntilIdle()
+        repeat(SearchViewModel.FAVORITOS_MAX + 10) { i -> vm.alternarFavorita(visita("p$i", i.toLong())) }
+        assertEquals(SearchViewModel.FAVORITOS_MAX, vm.state.value.favoritos.size)
+        // La ultima guardada va primero: es la que mas probablemente quieras volver a ver.
+        assertEquals("p${SearchViewModel.FAVORITOS_MAX + 9}", vm.state.value.favoritos.first().headword)
+    }
+
     // --- La palabra del dia ------------------------------------------------------------------
 
     @Test
