@@ -67,3 +67,8 @@ app/src/main/assets/*.db
 # invoca desde la raiz. Son 69 MB (espanol) y 295 MB (ingles): sin esta regla, un `git add -A`
 # despues de construir uno se lleva el binario al repo.
 /*.db
+
+# Una keystore nunca va al repositorio: vive fuera del proyecto y local.properties
+# guarda solo su ruta. Esto es el segundo cinturon.
+*.jks
+*.keystore
