@@ -1,0 +1,126 @@
+package cl.fadiaz.dictionary.data
+
+import cl.fadiaz.dictionary.core.EntrySummary
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * La politica de la palabra del dia, entera en la JVM porque la fecha entra por parametro.
+ *
+ * Lo que defiende no es "que salga una palabra" sino las dos cosas que la hacen usable: que sea
+ * **la misma todo el dia** --si cambia al recomponer, deja de ser del dia y no se la podes
+ * mostrar a nadie-- y que **no sea un nombre propio ni un termino oscuro**, que es lo que la
+ * version ingenua devolvia: medido sobre los packs reales, diez dias seguidos dieron *Eyaralar,
+ * piscigranja, Ynda* y *Voorschoten, Negerhollands, nonparaxiality*.
+ */
+class PalabraDelDiaTest {
+
+    /** Un pack de mentira donde el `rank` y el `pos` los decide una funcion del id. */
+    private fun pack(
+        rank: (Long) -> Int = { 900 },
+        pos: (Long) -> String? = { "noun" },
+    ): suspend (Long) -> EntrySummary? = { id ->
+        EntrySummary(entryId = id, headword = "palabra$id", partOfSpeech = pos(id), rank = rank(id))
+    }
+
+    private suspend fun elegir(
+        fecha: String = "2026-09-18",
+        packId: String = "es-def",
+        entradas: Int = 1000,
+        leer: suspend (Long) -> EntrySummary? = pack(),
+        candidatos: Int = PalabraDelDia.CANDIDATOS,
+    ) = PalabraDelDia.elegir(fecha, packId, entradas, leer, candidatos)
+
+    @Test
+    fun laMismaFechaDaSiempreLaMismaPalabra() = runTest {
+        // Es la propiedad que la hace "del dia": si cambiara al recomponer, no se la podrias
+        // mostrar a nadie ni volver a ella.
+        val primera = elegir()
+        assertNotNull(primera)
+        repeat(5) { assertEquals(primera, elegir()) }
+    }
+
+    @Test
+    fun dosFechasDistintasDanPalabrasDistintas() = runTest {
+        val dias = (1..20).map { elegir(fecha = "2026-09-%02d".format(it))?.entryId }
+        // No se exige que las 20 sean distintas --una colision en 1000 entradas es esperable--
+        // pero si que no sea siempre la misma, que es como se ve un hash mal usado.
+        assertTrue(dias.toSet().size > 15, "demasiadas repeticiones entre dias: $dias")
+    }
+
+    @Test
+    fun dosPacksDistintosDanPalabrasDistintasElMismoDia() = runTest {
+        // Si la semilla ignorara el pack, cambiar de idioma mostraria la entrada del mismo id,
+        // que en otro diccionario es una palabra sin relacion.
+        val es = elegir(packId = "es-def")?.entryId
+        val en = elegir(packId = "en-def")?.entryId
+        assertTrue(es != en, "la semilla no esta mirando el packId: los dos dieron $es")
+    }
+
+    @Test
+    fun nuncaEligeUnNombrePropio() = runTest {
+        // "Ynda", "Voorschoten", "Ivanivka": son los que devolvia la version ingenua.
+        val elegida = elegir(leer = pack(pos = { id -> if (id % 5L == 0L) "noun" else "name" }))
+        assertNotNull(elegida)
+        assertEquals("noun", elegida.partOfSpeech)
+    }
+
+    @Test
+    fun eligeLaDeMenorRankEntreLosCandidatos() = runTest {
+        // rank menor = pagina mas rica = palabra que la gente conoce (D-067). No hay umbral que
+        // ajustar por idioma: se muestrea y gana la mejor del muestreo.
+        val elegida = elegir(leer = pack(rank = { id -> if (id % 7L == 0L) 880 else 995 }))
+        assertNotNull(elegida)
+        assertEquals(880, elegida.rank)
+    }
+
+    @Test
+    fun siTodosSonNombresPropiosDevuelveElMejorIgual() = runTest {
+        // Un hueco en la pantalla es peor que un nombre propio. Y tiene que seguir siendo
+        // determinista tambien por este camino.
+        val leer = pack(pos = { "name" }, rank = { id -> 990 + (id % 7L).toInt() })
+        val elegida = elegir(leer = leer)
+        assertNotNull(elegida)
+        assertEquals("name", elegida.partOfSpeech)
+        assertEquals(990, elegida.rank)
+        assertEquals(elegida, elegir(leer = leer))
+    }
+
+    @Test
+    fun unPackVacioNoTienePalabraDelDia() = runTest {
+        assertNull(elegir(entradas = 0))
+    }
+
+    @Test
+    fun elIdPedidoSiempreCaeDentroDelPack() = runTest {
+        // Los id de `entry` son densos, 1..entry_count. Un id fuera de rango seria una pantalla
+        // vacia silenciosa, que es la clase de bug que este repo persigue.
+        val pedidos = mutableListOf<Long>()
+        repeat(40) { dia ->
+            PalabraDelDia.elegir(
+                fecha = "2026-11-%02d".format(dia + 1),
+                packId = "es-def",
+                entradas = 17,
+                leer = { id -> pedidos += id; EntrySummary(id, "p$id", "noun", 900) },
+            )
+        }
+        assertTrue(pedidos.isNotEmpty())
+        assertTrue(pedidos.all { it in 1L..17L }, "ids fuera de rango: ${pedidos.filter { it !in 1L..17L }}")
+    }
+
+    @Test
+    fun noLeeMasDeLoQueSeLePermite() = runTest {
+        // El coste es exactamente `candidatos` lecturas de una fila: acotado y predecible, que
+        // es lo que deja ponerlo en la pantalla de inicio sin pensarlo dos veces.
+        var lecturas = 0
+        elegir(
+            leer = { id -> lecturas++; EntrySummary(id, "p$id", "noun", 999) },
+            candidatos = 10,
+        )
+        assertEquals(10, lecturas)
+    }
+}

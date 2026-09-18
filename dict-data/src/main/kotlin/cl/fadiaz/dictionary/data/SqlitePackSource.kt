@@ -4,6 +4,7 @@ import androidx.sqlite.SQLiteStatement
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.EditDistance
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.PayloadCodec
@@ -324,6 +325,21 @@ class SqlitePackSource(
         }
     }
 
+
+    override suspend fun summary(entryId: Long): EntrySummary? = withContext(dispatcher) {
+        pack.connection().prepare(
+            "SELECT headword, pos, rank FROM entry WHERE id = ?",
+        ).use { statement ->
+            statement.bindLong(1, entryId)
+            if (!statement.step()) return@withContext null
+            EntrySummary(
+                entryId = entryId,
+                headword = statement.getText(0),
+                partOfSpeech = statement.getTextOrNull(1),
+                rank = statement.getInt(2),
+            )
+        }
+    }
 
     override fun close() {
         pack.close()

@@ -7,7 +7,11 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.core.EntrySummary
+import cl.fadiaz.dictionary.data.Ajustes
+import cl.fadiaz.dictionary.data.EscalaDeTexto
 import cl.fadiaz.dictionary.data.PackSet
+import cl.fadiaz.dictionary.data.PalabraDelDia
 import cl.fadiaz.dictionary.data.Visita
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -35,6 +39,10 @@ data class SearchState(
     val modo: Modo = Modo.NORMAL,
     /** Las ultimas entradas abiertas, ya filtradas: solo las de packs que estan instalados. */
     val historial: List<Visita> = emptyList(),
+    // La entrada de hoy en el pack activo. Null mientras se calcula, si el pack esta vacio, o
+    // si nadie cableo `fechaDeHoy` --que es una ausencia visible, no un valor silencioso raro--.
+    val palabraDelDia: EntrySummary? = null,
+    val ajustes: Ajustes = Ajustes(),
 ) {
     /**
      * Por que camino salieron los resultados que se estan mostrando.
@@ -72,6 +80,16 @@ class SearchViewModel(
     /** El historial persistido. Entra por parametro porque vive en Android (D-072). */
     private val historialGuardado: () -> List<Visita> = { emptyList() },
     private val guardarHistorial: (List<Visita>) -> Unit = {},
+    /**
+     * Hoy, como "AAAA-MM-DD". Entra por parametro y no sale de un reloj de sistema acá adentro:
+     * es lo que deja que la politica de [PalabraDelDia] corra entera en la JVM (D-072).
+     *
+     * El default devuelve null --sin fecha no hay palabra del dia-- para que olvidarse de
+     * cablearlo se vea en pantalla como una ausencia, y no como una palabra que nunca cambia.
+     */
+    private val fechaDeHoy: () -> String? = { null },
+    private val ajustesGuardados: () -> Ajustes = { Ajustes() },
+    private val guardarAjustes: (Ajustes) -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -110,6 +128,7 @@ class SearchViewModel(
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
     init {
+        _state.update { it.copy(ajustes = ajustesGuardados()) }
         viewModelScope.launch {
             visitas = historialGuardado()
             when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
@@ -131,6 +150,7 @@ class SearchViewModel(
                             historial = visibles(visitas),
                         )
                     }
+                    refrescarPalabraDelDia(elegido.source)
                 }
 
                 PackSet.NoPack -> _state.update {
@@ -185,7 +205,8 @@ class SearchViewModel(
         // de definicion igual: mejor salir del modo explicitamente que dejar la carrera abierta.
         volverAModoNormal()
         source.value = pack
-        _state.update { it.copy(activo = pack.metadata) }
+        _state.update { it.copy(activo = pack.metadata, palabraDelDia = null) }
+        refrescarPalabraDelDia(pack)
         recordar(packId)
     }
 
@@ -270,6 +291,51 @@ class SearchViewModel(
      * Devuelve null si ese pack no esta abierto, en vez de caer al activo: caer seria el bug que
      * esto arregla --mostrar otra palabra-- pero silencioso.
      */
+    /**
+     * Recalcula la palabra del dia para el pack que acaba de quedar activo.
+     *
+     * En su propia corrutina: son [PalabraDelDia.CANDIDATOS] lecturas de una fila y no pueden
+     * demorar la pantalla, que ya esta lista para buscar. Si el pack falla, se queda sin palabra
+     * del dia y el resto de la app sigue funcionando.
+     */
+    private fun refrescarPalabraDelDia(pack: DictionarySource) {
+        val fecha = fechaDeHoy() ?: return
+        viewModelScope.launch {
+            val elegida = runCatching {
+                PalabraDelDia.elegir(
+                    fecha = fecha,
+                    packId = pack.metadata.packId,
+                    entradas = pack.metadata.entryCount,
+                    leer = { id -> pack.summary(id) },
+                )
+            }.getOrNull()
+            // Sólo si sigue siendo el pack activo: cambiar de idioma dos veces rapido no puede
+            // dejar la palabra del otro diccionario en pantalla.
+            _state.update {
+                if (it.activo?.packId == pack.metadata.packId) it.copy(palabraDelDia = elegida) else it
+            }
+        }
+    }
+
+    /** Cambia la escala del texto y la deja guardada. */
+    fun onEscalaDeTextoChange(escala: EscalaDeTexto) {
+        val nuevos = state.value.ajustes.copy(escalaDeTexto = escala)
+        guardarAjustes(nuevos)
+        _state.update { it.copy(ajustes = nuevos) }
+    }
+
+    /**
+     * Vacia el historial, en memoria y en disco.
+     *
+     * Hacia falta: con tope de tres y move-to-front se recicla solo, pero una palabra que no
+     * queres volver a ver se queda hasta que abras tres mas.
+     */
+    fun limpiarHistorial() {
+        visitas = emptyList()
+        guardarHistorial(visitas)
+        _state.update { it.copy(historial = emptyList()) }
+    }
+
     suspend fun entry(packId: String, entryId: Long): Entry? =
         abiertos.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
 

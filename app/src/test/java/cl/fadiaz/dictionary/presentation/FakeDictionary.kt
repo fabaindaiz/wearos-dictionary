@@ -4,6 +4,7 @@ import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackSet
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackKind
@@ -82,6 +83,11 @@ class FakeDictionary(
         partOfSpeech = "noun",
         senses = listOf(Sense("una glosa")),
     )
+
+    /** Las cabeceras que este fake conoce, por entryId. Vacio = ninguna entrada existe. */
+    var resumenes: Map<Long, EntrySummary> = emptyMap()
+
+    override suspend fun summary(entryId: Long): EntrySummary? = resumenes[entryId]
 
     /** Lo que este fake sabe resolver: las palabras que nombra `lemasConocidos`. */
     var lemasConocidos: Map<String, Long> = emptyMap()

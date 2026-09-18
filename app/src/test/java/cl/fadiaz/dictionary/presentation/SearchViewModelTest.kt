@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
@@ -46,6 +47,36 @@ class SearchViewModelTest {
     fun despues() = Dispatchers.resetMain()
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
+
+    // --- La palabra del dia ------------------------------------------------------------------
+
+    @Test
+    fun alAbrirElPackSePublicaLaPalabraDelDia() = runTest {
+        // Que la politica sea correcta no alcanza: tiene que llegar al estado. Esto se escribio
+        // porque la primera version compilaba, pasaba sus tests y **no mostraba nada** en el
+        // reloj, y una captura de pantalla no dice por que.
+        val fake = FakeDictionary()
+        fake.resumenes = (1L..50L).associateWith {
+            EntrySummary(it, "palabra$it", "noun", (1000 - it).toInt())
+        }
+        val vm = SearchViewModel({ listos(fake) }, fechaDeHoy = { "2026-09-18" })
+        advanceUntilIdle()
+
+        val hoy = vm.state.value.palabraDelDia
+        assertTrue(hoy != null, "no se publico ninguna palabra del dia")
+        assertTrue(hoy.headword.startsWith("palabra"), "salio algo raro: ${hoy.headword}")
+    }
+
+    @Test
+    fun sinFechaNoHayPalabraDelDia() = runTest {
+        // El default: si nadie cablea el reloj, la ausencia se ve en pantalla en vez de mostrar
+        // una palabra que nunca cambia.
+        val fake = FakeDictionary()
+        fake.resumenes = mapOf(1L to EntrySummary(1, "unica", "noun", 900))
+        val vm = SearchViewModel({ listos(fake) })
+        advanceUntilIdle()
+        assertEquals(null, vm.state.value.palabraDelDia)
+    }
 
     // --- La carrera al abrir el pack (TDD: este fallaba) -------------------------------------
 
