@@ -1,7 +1,10 @@
-Acá va el pack. No está en el repo: pesa decenas de MB y se reconstruye.
+El APK **no lleva ningún diccionario**. Este directorio existe sólo para que el path exista.
 
-    python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> app/src/main/assets/es-def-wikc.db
-    python3 tools/packbuilder/build_pack.py en <kaikki-en.jsonl> app/src/main/assets/en-def-wikt.db
+Los packs viven en el reloj, en filesDir/packs/, y entran por adb:
 
-Sin él la app compila y arranca igual, y muestra "No hay ningún diccionario instalado."
+    python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
+    adb push es-def-wikc.db /sdcard/ && adb shell run-as cl.fadiaz.dictionary \
+        sh -c 'mkdir -p files/packs && cp /sdcard/es-def-wikc.db files/packs/'
+
+Cuando exista el instalador, será él quien escriba en ese mismo directorio.
 Ver app/CLAUDE.md y el skill pack-workflow.
