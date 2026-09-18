@@ -226,5 +226,29 @@ class DecidirTest(unittest.TestCase):
         self.assertIn("otro.db", mensaje)
 
 
+class PaqueteAusenteTest(unittest.TestCase):
+    """Que `run-as` falle porque la app no esta instalada tiene que decirse, no reventar.
+
+    Es un caso NORMAL, no una rareza: `connectedAndroidTest` desinstala la app al terminar, asi
+    que correr los tests y despues instalar un pack es una secuencia que cualquiera hace. Lo que
+    pasaba es que el mensaje de `run-as` va a **stderr** y `packs_remotos` solo miraba stdout, asi
+    que la guarda no disparaba: el install seguia y moria con un BrokenPipeError de 295 MB
+    adentro, que no dice nada de lo que hay que hacer.
+    """
+
+    def test_run_as_fallando_por_stderr_se_detecta(self):
+        original = devpack.correr
+        devpack.correr = lambda paso, silencioso=False, con_errores=False: (
+            ("", "run-as: unknown package: cl.fadiaz.dictionary") if con_errores else ""
+        )
+        try:
+            with self.assertRaises(devpack.FalloRemoto) as capturado:
+                devpack.packs_remotos(["adb"])
+        finally:
+            devpack.correr = original
+        self.assertIn("installDebug", str(capturado.exception))
+
+
+
 if __name__ == "__main__":
     unittest.main()
