@@ -351,11 +351,10 @@ además cerró D-091: el botón de volver de una entrada tiene un solo destino p
   *favoritos* y *copiar*. Wear Material3 **no tiene menú desplegable ni overflow**, verificado
   contra la referencia de API: las dos formas soportadas son `AlertDialog` (el overload sobre
   `TransformingLazyColumn` que trajo 1.6) o empujar una pantalla de lista.
-- **Gestionar packs: ver y borrar.** Quedó fuera a propósito del build del 2026-09-18, y no por
-  tamaño: necesita un campo de nombre de archivo en `PackHandle`, cerrar la conexión **antes** de
-  borrar --en Unix un archivo borrado con un descriptor abierto sigue ocupando disco y la app lo
-  seguiría leyendo-- y recargar el set. Y es la única acción destructiva de la app: equivocarse
-  cuesta ~90 s de re-push por adb, o 98 minutos si alguien usa la ruta `--tmp`.
+- ~~**Gestionar packs: ver y borrar.**~~ **HECHO 2026-09-18** (D-103, D-104). Lo que falta de esa
+  pantalla es la mitad de abajo: el **catálogo de descarga**, hoy un WIP explícito que dice cómo
+  se instala un diccionario mientras tanto. Sigue bloqueado por lo mismo que el instalador: dónde
+  se hostea el catálogo.
 - **La búsqueda con opciones y sugerencias.** Lo primero cuando entre: ofrecer *buscar por
   definición* sin tener que fallar antes. Hoy sólo aparece con la lista vacía (D-084), así que
   quien ya sabe que quiere buscar por significado tiene que escribir algo que no exista primero.
