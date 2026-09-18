@@ -8,6 +8,7 @@ import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackSet
+import cl.fadiaz.dictionary.data.Visita
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,8 @@ data class SearchState(
     /** Packs que estaban y no abrieron. Se muestran en la atribucion, no en la busqueda. */
     val problemas: List<String> = emptyList(),
     val modo: Modo = Modo.NORMAL,
+    /** Las ultimas entradas abiertas, ya filtradas: solo las de packs que estan instalados. */
+    val historial: List<Visita> = emptyList(),
 ) {
     /**
      * Por que camino salieron los resultados que se estan mostrando.
@@ -66,6 +69,9 @@ class SearchViewModel(
     /** El pack de la ultima vez, o el idioma del reloj. Nunca el orden alfabetico. */
     private val preferido: () -> String? = { null },
     private val recordar: (packId: String) -> Unit = {},
+    /** El historial persistido. Entra por parametro porque vive en Android (D-072). */
+    private val historialGuardado: () -> List<Visita> = { emptyList() },
+    private val guardarHistorial: (List<Visita>) -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -90,12 +96,22 @@ class SearchViewModel(
      */
     private var definiciones: Job? = null
 
+    /**
+     * El historial completo, sin filtrar.
+     *
+     * Se filtra al MOSTRAR y no se poda al guardar: desinstalar un pack y volver a instalarlo es
+     * un flujo real de desarrollo, y asi el historial reaparece solo. Lo que no puede pasar es
+     * mostrar una fila que al tocarla no abre nada.
+     */
+    private var visitas: List<Visita> = emptyList()
+
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
+            visitas = historialGuardado()
             when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
                 is PackSet.Ready -> {
                     abiertos = result.todos.filterIsInstance<PackHandle.Abierto>().map { it.source }
@@ -109,6 +125,7 @@ class SearchViewModel(
                             activo = elegido.metadata,
                             disponibles = result.todos,
                             problemas = result.problemas,
+                            historial = visibles(visitas),
                         )
                     }
                 }
@@ -204,6 +221,33 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * Anota que se abrio una entrada. Se llama al navegar, no al volver.
+     *
+     * La `Suggestion` ya trae los cuatro campos, asi que registrar no cuesta abrir la entrada ni
+     * descomprimir un payload.
+     */
+    fun registrarVisita(sugerencia: Suggestion) {
+        val visita = Visita(
+            packId = sugerencia.packId,
+            entryId = sugerencia.entryId,
+            headword = sugerencia.headword,
+            partOfSpeech = sugerencia.partOfSpeech,
+        )
+        // Move-to-front: abrir dos veces la misma palabra la sube, no la duplica.
+        visitas = (listOf(visita) + visitas.filterNot {
+            it.packId == visita.packId && it.entryId == visita.entryId
+        }).take(HISTORIAL_MAX)
+        guardarHistorial(visitas)
+        _state.update { it.copy(historial = visibles(visitas)) }
+    }
+
+    /** Solo las de packs abiertos: una fila que no abre nada es peor que no tener la fila. */
+    private fun visibles(todas: List<Visita>): List<Visita> {
+        val instalados = abiertos.map { it.metadata.packId }.toSet()
+        return if (instalados.isEmpty()) todas else todas.filter { it.packId in instalados }
+    }
+
     private fun volverAModoNormal() {
         definiciones?.cancel()
         definiciones = null
@@ -233,6 +277,15 @@ class SearchViewModel(
     companion object {
         /** Lo que tarda un dedo en encadenar dos letras en una pantalla de reloj. */
         const val DEBOUNCE_MS: Long = 120
+
+        /**
+         * Cuantas entradas recientes se recuerdan.
+         *
+         * Tres, y sale de la misma aritmetica que D-073: la pantalla da tres filas de 48 dp.
+         * Guardar diez es gratis en bytes y caro en lo unico escaso -- serian siete filas que
+         * nadie ve sin scrollear el estado vacio.
+         */
+        const val HISTORIAL_MAX: Int = 3
 
         /**
          * Que pack se abre al arrancar. **Nunca el orden alfabetico**: con dos packs eso hacia

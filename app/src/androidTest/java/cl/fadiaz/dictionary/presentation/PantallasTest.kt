@@ -15,6 +15,7 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.Visita
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
@@ -95,9 +96,10 @@ class PantallasTest {
         onOpenAttribution: () -> Unit = {},
         onPackChange: (String) -> Unit = {},
         onSearchDefinitions: () -> Unit = {},
+        onOpenVisita: (Visita) -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
-            onSearchDefinitions = onSearchDefinitions,
+            onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution)
     }
 
@@ -280,6 +282,40 @@ class PantallasTest {
         compose.onNodeWithText("English", substring = true).assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("dañado", substring = true))
         compose.onNodeWithText("dañado", substring = true).assertExists()
+    }
+
+    // --- El historial -----------------------------------------------------------------------
+
+    private val recientes = listOf(
+        Visita("es-def", 1, "perro", "noun"),
+        Visita("en-def", 2, "house", "noun"),
+    )
+
+    @Test
+    fun conLaBusquedaVaciaSeVenLasEntradasRecientes() {
+        mostrarBusqueda(estadoListo().copy(query = "", historial = recientes))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
+        compose.onNodeWithText("perro").assertIsDisplayed()
+    }
+
+    @Test
+    fun alEscribirElHistorialDesaparece() {
+        // No puede competir con los resultados: con 192 dp entran tres filas.
+        mostrarBusqueda(estadoListo("perder").copy(query = "per", historial = recientes))
+        assertEquals(0, compose.onAllNodesWithText("house").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun tocarUnaEntradaRecienteLaAbre() {
+        var abierta: Visita? = null
+        mostrarBusqueda(
+            estadoListo().copy(query = "", historial = recientes),
+            onOpenVisita = { abierta = it },
+        )
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
+        compose.onNodeWithText("perro").performClick()
+        assertEquals("perro", abierta?.headword)
+        assertEquals("tiene que abrir en SU pack, no en el activo", "es-def", abierta?.packId)
     }
 
     // --- Buscar en las definiciones -------------------------------------------------------------
