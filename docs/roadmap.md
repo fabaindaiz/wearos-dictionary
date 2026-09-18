@@ -281,6 +281,25 @@ construye con el mismo pipeline que el español: la poda resultó **estructural*
   mirarlas.
 - **Nada de esto corrió en un reloj físico**, y menos con 295 MiB.
 
+### Qué contenido tiene el pack de demostración
+
+**Estado.** Planificado, y **es una decisión de producto, no de mecanismo**. El mecanismo está
+hecho (D-081): `:app:buildDemoPack` genera el `.db` que viaja en el APK, y cambiarlo es apuntar
+esa tarea a otro archivo.
+
+Hoy el placeholder lo genera `build_toy.py` — 26 entradas escritas a mano para los tests, cuya
+atribución dice literalmente que no es un diccionario real. **Se delata solo, que es lo correcto
+para un placeholder**, pero como demo es raro: tiene trampas de test adentro (`vela` dos veces,
+`self-made`, homógrafos de `bajo`).
+
+**Con qué choca.** Con acoplar la demo al fixture de los tests: si alguien cambia el toy pack por
+una razón de test —como pasó esta sesión, agregando `sol`/`soler`— cambia también lo que ve el
+usuario recién instalado.
+
+**Qué hay que decidir.** Qué se quiere mostrar. Un candidato obvio: las **N entradas de mejor
+rank** del pack español real, que serían un diccionario chico de verdad. Cuesta una opción nueva
+en `build_pack.py` (`--top N`) y volver a bajar el dump.
+
 ### Instalador de packs
 
 **Estado.** Planificado. Bloqueado en una decisión de producto —dónde se hostea el catálogo— que no es del agente.

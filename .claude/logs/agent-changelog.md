@@ -29,8 +29,9 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 ## 2026-09-17 — El pack de inglés pesa 295 MiB, y por eso el APK dejó de llevar diccionarios
 
 **Qué.** Se agregó el diccionario de inglés y la app pasó a soportar dos packs con selector de
-idioma. Medir el inglés cambió la arquitectura de distribución: **el APK ya no lleva ningún
-pack**, lo que cierra D-071 antes de tiempo.
+idioma. Medir el inglés cambió la arquitectura de distribución: **el APK ya no lleva
+diccionarios reales**, sólo un pack de demostración de 53 KB. Eso cierra D-071 antes de tiempo
+y abre D-081.
 
 **Áreas.** `tools/packbuilder/sources/kaikki.py` y `build_pack.py` (renombrados y
 parametrizados), `tools/packbuilder/verify_pack.py`, `tools/packbuilder/tests/`,
@@ -75,6 +76,11 @@ cambió dos veces en el camino, que es para lo que servía medir.
 
 **Qué salió mal.**
 
+- **Saqué la extracción desde assets y la volví a poner en la misma sesión.** No fue indecisión
+  mía: el pedido cambió a la mitad —primero "ningún pack en el APK", después "un mini-pack de
+  ejemplo"— y la segunda vez el código volvió **más simple**, sin extracción perezosa, porque
+  con 53 KB diferir no compra nada. Lo que sí fue error: al borrarla dejé un `assetsDePack`
+  huérfano que reapareció como *conflicting overloads* al restaurar.
 - **Un `str.replace` sin `assert` no aplicó y no avisó.** La escotilla de escape del selector
   —la fila *"Buscar en \<idioma\>"*— nunca se insertó, y el archivo compiló igual. Lo agarró el
   test de pantalla. Todos los demás reemplazos de la sesión llevaban `assert`; ese no.
@@ -105,6 +111,11 @@ cambió dos veces en el camino, que es para lo que servía medir.
   reales; las capturas de la búsqueda se perdieron al limpiarse el scratchpad antes de mirarlas.
 - **Los packs y los dumps ya no están en disco** (4,7 GB de dumps, 380 MB de packs). Reconstruir
   el inglés cuesta ~4 min de descarga y ~3 min de build.
+- **Qué contenido debería tener el pack de demo está sin decidir.** Hoy lo genera
+  `build_toy.py` —el fixture de los tests— y eso acopla lo que ve un usuario recién instalado a
+  un archivo que se cambia por razones de test: pasó en esta misma sesión, agregándole `sol` y
+  `soler`. Queda en el roadmap con el candidato obvio: las N entradas de mejor rank del pack
+  español.
 - **`docs/architecture.md` sigue desactualizado** —dice que `:app` es el template y que no
   depende de nada— y **el check de dirección de dependencias entre módulos que ese mismo
   documento pide sigue sin existir**. Estaba en el plan de esta sesión y no se hizo.

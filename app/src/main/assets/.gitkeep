@@ -1,10 +1,12 @@
-El APK **no lleva ningún diccionario**. Este directorio existe sólo para que el path exista.
+El APK trae UN pack de demostración, chico, para que la app recién instalada tenga algo que
+mostrar. Lo genera la tarea de Gradle `:app:buildDemoPack` en cada build y NO se commitea.
 
-Los packs viven en el reloj, en filesDir/packs/, y entran por adb:
+Los diccionarios de verdad no viajan en el APK — pesan 69 MB (español) y 295 MB (inglés).
+Entran por adb, y cuando exista el instalador entrarán por él, al mismo directorio:
 
     python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
-    adb push es-def-wikc.db /sdcard/ && adb shell run-as cl.fadiaz.dictionary \
-        sh -c 'mkdir -p files/packs && cp /sdcard/es-def-wikc.db files/packs/'
+    adb push es-def-wikc.db /data/local/tmp/
+    adb shell "run-as cl.fadiaz.dictionary mkdir -p files/packs"
+    adb shell "run-as cl.fadiaz.dictionary cp /data/local/tmp/es-def-wikc.db files/packs/es-def-wikc.db"
 
-Cuando exista el instalador, será él quien escriba en ese mismo directorio.
 Ver app/CLAUDE.md y el skill pack-workflow.

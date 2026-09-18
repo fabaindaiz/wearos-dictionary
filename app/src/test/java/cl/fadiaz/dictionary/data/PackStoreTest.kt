@@ -109,6 +109,45 @@ class PackStoreTest {
         }
     }
 
+    // --- Que se extrae del APK, y sobre todo que NO ------------------------------------------
+    //
+    // El APK trae UN pack de demostracion, chico, para que la app tenga algo que mostrar recien
+    // instalada. Los diccionarios de verdad --69 y 295 MB-- no viajan adentro: entran por
+    // `adb push` o, cuando exista, por el instalador (D-071).
+
+    @Test
+    fun elPackDeDemoSeExtraeLaPrimeraVez() {
+        assertEquals(listOf("demo-es-en.db"), PackStore.queFaltaExtraer(listOf("demo-es-en.db"), emptyList()))
+    }
+
+    @Test
+    fun unPackYaInstaladoNoSeVuelveAExtraer() {
+        // Sin esto se copia en cada arranque.
+        assertEquals(
+            emptyList(),
+            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("demo-es-en.db")),
+        )
+    }
+
+    @Test
+    fun unDiccionarioPuestoAManoNoSeToca() {
+        // Es el camino de hoy para los packs de verdad: `adb push` a filesDir/packs. Si la
+        // extraccion los pisara o los borrara, ese camino no existiria.
+        assertEquals(
+            emptyList(),
+            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("demo-es-en.db", "es-def-wikc.db")),
+        )
+    }
+
+    @Test
+    fun unaDemoNuevaEnElApkSeExtraeAunqueYaHayaDiccionariosInstalados() {
+        // Actualizar el APK con otra demo no puede quedar invisible detras de los packs reales.
+        assertEquals(
+            listOf("demo-es-en.db"),
+            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("es-def-wikc.db")),
+        )
+    }
+
     /** Se corta a los `hasta` bytes, como un disco lleno. */
     private class StreamQueSeCorta(private val hasta: Int) : InputStream() {
         private var leidos = 0

@@ -58,7 +58,7 @@ replay_pid*
 # trackeado en este repo.
 !gradle/wrapper/gradle-wrapper.jar
 
-# El pack real pesa decenas de MB y se construye con tools/packbuilder/build_es.py.
-# No va al repo: se copia a mano o con el script del skill pack-workflow.
+# El pack de demo lo genera :app:buildDemoPack en cada build; los diccionarios reales pesan
+# decenas o cientos de MB y ni siquiera viajan en el APK. Ninguno va al repo.
 app/src/main/assets/*.db
 !app/src/main/assets/.gitkeep
