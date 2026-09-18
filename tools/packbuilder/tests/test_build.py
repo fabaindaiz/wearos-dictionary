@@ -98,6 +98,32 @@ class ToyPackFixtureTest(BuilderTestCase):
             )
         ]
 
+    def test_el_mejor_match_de_fts_no_es_el_de_rowid_mas_bajo(self):
+        """La trampa que hace visible que FTS5 ordena por relevancia y `entry.id` no.
+
+        `searchDefinitions` consulta `fts_def MATCH ... ORDER BY rank` --bm25-- y despues resuelve
+        los rowids con `WHERE id IN (...)`, que sale en orden de rowid. Si el mejor match tuviera
+        siempre el rowid mas bajo, tirar el ranking no se notaria y el bug viviria para siempre.
+
+        Dos entradas comparten el termino: una con glosa LARGA que lo menciona una vez, y otra
+        con glosa CORTA que lo repite --bm25 premia la corta y castiga la larga--. La larga va
+        primero en `_DATA`, asi que se lleva el rowid menor.
+
+        Este test corre EN EL GATE. El que comprueba que la app respete ese orden es instrumentado
+        y necesita dispositivo: sin esta guarda, reordenar `_DATA` romperia aquel en silencio.
+        """
+        termino = normalize.norm("mineral")
+        por_relevancia = [
+            row[0] for row in self.db.execute(
+                "SELECT rowid FROM fts_def WHERE fts_def MATCH ? ORDER BY rank", (termino,))
+        ]
+        por_rowid = sorted(por_relevancia)
+        self.assertGreaterEqual(len(por_relevancia), 2, "la trampa necesita dos entradas")
+        self.assertNotEqual(
+            por_relevancia[0], por_rowid[0],
+            "el mejor match de bm25 tiene el rowid mas bajo: la trampa dejo de ser una trampa",
+        )
+
     def test_un_prefijo_productivo_supera_el_umbral_del_nivel_tolerante(self):
         # Si esto baja del umbral, el test que comprueba que el nivel tolerante NO se dispara
         # pasaria por el motivo equivocado.

@@ -112,6 +112,20 @@ class SqlitePackSourceTest {
     }
 
     @Test
+    fun elOrdenDeRelevanciaDeFtsNoSePierde() = runTest {
+        // FTS5 ordena por bm25 y el resultado se resolvia con `WHERE id IN (...)`, que sale en
+        // orden de ROWID: el ranking se calculaba y se tiraba. Es la misma clase de bug que hacia
+        // que el prefijo "per" no devolviera "perro".
+        //
+        // El fixture tiene la trampa: "cantera" menciona "mineral" una vez en una glosa larga y
+        // tiene el rowid menor; "cuarzo" lo repite en una corta y tiene el mayor. bm25 premia a
+        // "cuarzo"; el rowid, a "cantera".
+        val lemas = source.searchDefinitions("mineral").map { it.headword }
+        assertTrue("las dos entradas de la trampa tienen que salir: $lemas", lemas.size >= 2)
+        assertEquals("bm25 pone 'cuarzo' primero, y ese orden no se puede tirar", "cuarzo", lemas.first())
+    }
+
+    @Test
     fun elTextoLibreNoSeRompeConSintaxisDeFts() = runTest {
         // Un usuario escribiendo comillas o un OR no debe hacer fallar la consulta.
         for (entrada in listOf("\"", "correr OR casa", "NEAR(a b)", "*", "a( b")) {
