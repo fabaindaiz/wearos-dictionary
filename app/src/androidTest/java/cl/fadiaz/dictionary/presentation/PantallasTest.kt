@@ -3,11 +3,23 @@ package cl.fadiaz.dictionary.presentation
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performClick
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
@@ -178,9 +190,14 @@ class PantallasTest {
         senses = glosas.map { Sense(it) },
     )
 
+    /** Un enlace dentro de una glosa: lo unico que lo identifica es que es clickeable y de quien
+     *  cuelga. Compose no le da texto propio al rectangulo del link. */
+    private fun enlaceDentroDe(textoDeLaGlosa: String) =
+        hasClickAction() and hasAnyAncestor(hasText(textoDeLaGlosa, substring = true))
+
     @Test
     fun laEntradaMuestraLemaCategoriaYAcepcionesNumeradas() {
-        compose.setContent { EntryScreen(1) { entrada("Mamífero cánido doméstico.") } }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()
         compose.onNodeWithText("sust.", substring = true).assertExists()
         compose.onNodeWithText("1.", substring = true).assertExists()
@@ -191,18 +208,26 @@ class PantallasTest {
         // "justicia" tiene 10 acepciones y el maximo medido es 47. Sin tope, la pantalla se
         // vuelve un rollo y la acepcion util queda debajo de nueve que no se buscaban.
         compose.setContent {
-            EntryScreen(1) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
         }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("cuatro", substring = true).fetchSemanticsNodes().size)
+        // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
+        // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
+        // de esa fila: el boton sigue ahi y a un scroll, pero deja de estar a la vista.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
         compose.onNodeWithText("Ver más", substring = true).assertExists()
     }
 
     @Test
     fun verMasDespliegaElResto() {
         compose.setContent {
-            EntryScreen(1) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
         }
+        // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
+        // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
+        // de esa fila: el boton sigue ahi y a un scroll, pero deja de estar a la vista.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
         compose.onNodeWithText("Ver más", substring = true).performClick()
         compose.onNodeWithText("cuatro", substring = true).assertExists()
         compose.onNodeWithText("cinco", substring = true).assertExists()
@@ -211,9 +236,162 @@ class PantallasTest {
     @Test
     fun conTresAcepcionesOMenosNoHayVerMas() {
         // La mediana es 3: en la mitad de las entradas el boton no tiene que aparecer siquiera.
-        compose.setContent { EntryScreen(1) { entrada("uno", "dos", "tres") } }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres") } }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("Ver más", substring = true).fetchSemanticsNodes().size)
+    }
+
+    // --- El campo de texto: por donde entra la busqueda con teclado ---------------------------
+
+    /**
+     * Un harness CON estado, y esa es exactamente la razon por la que el bug sobrevivio a 22 tests.
+     *
+     * Todos los demas pasan `onQueryChange = {}`: el estado nunca cambia, la lista nunca se
+     * reordena y el campo nunca se destruye. Aca escribir cambia el estado de verdad, que es lo
+     * que hace desaparecer el encabezado, el boton de voz y el historial -- y con ellos, la
+     * posicion del campo dentro de la lista.
+     */
+    private fun mostrarBusquedaEscribible(inicial: SearchState) = compose.setContent {
+        var query by remember { mutableStateOf(inicial.query) }
+        SearchScreen(
+            state = inicial.copy(
+                query = query,
+                results = if (query.isEmpty()) emptyList() else inicial.results,
+            ),
+            onQueryChange = { query = it },
+            onSearchDefinitions = {},
+            onOpenEntry = {},
+            onOpenAttribution = {},
+        )
+    }
+
+    @Test
+    fun escribirLaPrimeraLetraNoCierraElCampo() {
+        // El bug que aparecio en el reloj: a la primera letra desaparecen encabezado, boton de
+        // voz e historial, el campo salta del indice 2 al 0 y --sin `key`-- el lazy layout lo da
+        // por otro nodo, lo destruye y lo recompone. El foco se va con el, y el teclado detras.
+        mostrarBusquedaEscribible(estadoListo("perder").copy(query = "", historial = recientes))
+
+        compose.onNode(hasSetTextAction()).performClick()
+        compose.onNode(hasSetTextAction()).assertIsFocused()
+
+        compose.onNode(hasSetTextAction()).performTextInput("p")
+        compose.waitForIdle()
+
+        compose.onNode(hasSetTextAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aceptarEnElTecladoSueltaElCampo() {
+        // "Aceptar" no hacia nada: hay `ImeAction.Search` declarado y cero `keyboardActions`, y
+        // `KeyboardActions.Default` no define comportamiento para Search. La unica salida era el
+        // gesto de volver del sistema. Soltar el foco es lo que cierra el teclado y deja la
+        // corona operativa sobre los resultados.
+        mostrarBusquedaEscribible(estadoListo("perder").copy(query = ""))
+
+        compose.onNode(hasSetTextAction()).performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("per")
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.waitForIdle()
+
+        compose.onNode(hasSetTextAction()).assertIsNotFocused()
+    }
+
+    @Test
+    fun elMaximoDeAcepcionesConElEjemploMasLargoSeDespliegaSinCaerse() {
+        // Los numeros son los medidos sobre el pack real: 47 acepciones es el maximo y 917
+        // caracteres el ejemplo mas largo. `verMasDespliegaElResto` usa CINCO acepciones sin
+        // ejemplos, y por eso nunca reprodujo el crash que aparecio al tocar "Ver mas".
+        val ejemploLargo =
+            "cronica del siglo XVI que el Wikcionario cita como uso. ".repeat(17).take(917)
+        val muchas = (1..47).map { numero ->
+            Sense(
+                gloss = "acepcion numero $numero",
+                examples = if (numero == 1) listOf(ejemploLargo) else emptyList(),
+            )
+        }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada().copy(senses = muchas) } }
+
+        // Hay que scrollear para llegar al boton: el ejemplo de 917 caracteres lo empuja
+        // fuera de pantalla. Ese es, literalmente, el muro que D-074 documenta.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
+        compose.onNodeWithText("Ver más", substring = true).performClick()
+        compose.waitForIdle()
+
+        // Por indice y no por texto: el ultimo item de un TransformingLazyColumn no queda
+        // compuesto scrolleando al maximo, asi que buscarlo por texto da un falso rojo.
+        compose.onNode(hasScrollAction()).performScrollToIndex(47)
+        compose.onNodeWithText("acepcion numero 47", substring = true).assertExists()
+    }
+
+
+    // --- Palabras tocables dentro de una glosa ------------------------------------------------
+
+    @Test
+    fun tocarUnaPalabraConocidaDeLaGlosaAbreSuEntrada() {
+        var abierta: Long? = null
+        compose.setContent {
+            EntryScreen(
+                entryId = 1,
+                onOpenPalabra = { abierta = it },
+                resolver = { mapOf("cera" to 77L) },
+            ) { entrada().copy(senses = listOf(Sense("cilindro de cera con mecha"))) }
+        }
+        compose.waitForIdle()
+
+        // El nodo del enlace NO tiene semantica de texto propia --Compose le pone solo OnClick
+        // sobre el rectangulo de la palabra-- asi que se identifica por el texto que lo contiene.
+        compose.onNode(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true).performClick()
+        assertEquals(77L, abierta)
+    }
+
+    @Test
+    fun unaPalabraQueNoEsLemaNoSePuedeTocar() {
+        // El color es una promesa: si se pinta tocable algo que no lleva a ningun lado, el
+        // usuario aprende a no confiar en el color y la funcion deja de servir.
+        compose.setContent {
+            EntryScreen(entryId = 1, onOpenPalabra = {}, resolver = { emptyMap() }) {
+                entrada().copy(senses = listOf(Sense("cilindro de cera con mecha")))
+            }
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            0,
+            compose.onAllNodes(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun laPalabraQueApuntaAEstaMismaEntradaNoSePinta() {
+        // Resolver devuelve la entrada abierta: un enlace a donde ya estamos no lleva a nada.
+        compose.setContent {
+            EntryScreen(entryId = 1, onOpenPalabra = {}, resolver = { mapOf("cera" to 1L) }) {
+                entrada().copy(senses = listOf(Sense("cilindro de cera con mecha")))
+            }
+        }
+        compose.waitForIdle()
+
+        assertEquals(
+            0,
+            compose.onAllNodes(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun laPrimeraFilaVuelveALaBusqueda() {
+        // Tocar palabras apila entradas: sin este atajo, volver desde tres de profundidad son
+        // tres gestos. Vive en el scroll y no fijo arriba, asi que cuesta cero dp (D-084).
+        var volvio = false
+        compose.setContent {
+            EntryScreen(entryId = 1, onOpenPalabra = {}, onVolverABuscar = { volvio = true }) {
+                entrada("una glosa")
+            }
+        }
+        compose.onNodeWithText("Buscar").performClick()
+        assertEquals(true, volvio)
     }
 
     // --- La atribucion, que es D-031 ---------------------------------------------------------
@@ -381,5 +559,6 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
     override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
     override fun close() = Unit
 }
