@@ -216,4 +216,35 @@ class SqlitePackSourceTest {
         assertEquals("los dos homografos deberian salir por separado", 2, bajo.size)
         assertEquals(setOf("adjective", "preposition"), bajo.mapNotNull { it.partOfSpeech }.toSet())
     }
+
+    // --- Resolver palabras de una glosa -------------------------------------------------------
+
+    @Test
+    fun resolverDevuelveSoloLasPalabrasQueSonLema() = runTest {
+        val resueltas = source.resolveHeadwords(setOf("casa", "correr", "noesunlemadelpack"))
+        assertEquals(setOf("casa", "correr"), resueltas.keys)
+        assertEquals("casa", source.entry(resueltas.getValue("casa"))?.headword)
+        assertEquals("correr", source.entry(resueltas.getValue("correr"))?.headword)
+    }
+
+    @Test
+    fun conDosEntradasQueNormalizanIgualGanaLaDeMejorRank() = runTest {
+        // El toy tiene "arbol" (rank 45, con tilde) y "arbol" (rank 900, sin tilde), y las dos
+        // normalizan a la misma clave. Tocar la palabra en una glosa tiene que llevar a la
+        // comun, no a la variante rara: es la misma regla con la que ordena la lista (D-068).
+        val resueltas = source.resolveHeadwords(setOf("arbol"))
+        assertEquals(1, resueltas.size)
+        assertEquals("árbol", source.entry(resueltas.getValue("arbol"))?.headword)
+    }
+
+    @Test
+    fun resolverUnLemaDeDosPalabras() = runTest {
+        // norm("de repente") conserva el espacio: la clave es la frase entera, no dos claves.
+        assertEquals(setOf("de repente"), source.resolveHeadwords(setOf("de repente")).keys)
+    }
+
+    @Test
+    fun resolverSinPalabrasNoDevuelveNada() = runTest {
+        assertTrue(source.resolveHeadwords(emptySet()).isEmpty())
+    }
 }
