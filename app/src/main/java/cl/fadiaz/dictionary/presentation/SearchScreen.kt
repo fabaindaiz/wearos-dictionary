@@ -45,6 +45,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.Visita
 
 /**
  * La pantalla de busqueda. Es la app: D-026 dice que la busqueda vive aca adentro porque ni los
@@ -73,6 +74,7 @@ fun SearchScreen(
     // que no se distingue de una que funciona.
     onSearchDefinitions: () -> Unit,
     onOpenEntry: (Suggestion) -> Unit,
+    onOpenVisita: (Visita) -> Unit = {},
     onOpenAttribution: () -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -161,6 +163,20 @@ fun SearchScreen(
                     item {
                         BarraDeBusqueda(state.query, onQueryChange) {
                             voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
+                        }
+                    }
+
+                    // Las ultimas palabras abiertas, solo con la busqueda vacia: desaparecen al
+                    // escribir por construccion, sin un `if` extra, asi que no compiten nunca con
+                    // los resultados. Sin encabezado "Recientes": un ListHeader cuesta dos
+                    // tercios de una fila y aca no hay nada con que confundirlas.
+                    if (state.query.isEmpty()) {
+                        items(count = state.historial.size) { indice ->
+                            val visita = state.historial[indice]
+                            Fila(
+                                lema = visita.headword,
+                                detalle = visita.partOfSpeech?.let(::posEnEspanol),
+                            ) { onOpenVisita(visita) }
                         }
                     }
 
@@ -261,6 +277,17 @@ fun SearchScreen(
  */
 @Composable
 private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
+    Fila(
+        lema = sugerencia.headword,
+        detalle = etiquetaDeNivel(sugerencia.matchKind)
+            ?: sugerencia.partOfSpeech?.let(::posEnEspanol),
+        onClick = onClick,
+    )
+}
+
+/** El molde de una fila tocable: 48 dp, una linea, el lema manda y el detalle acompaña. */
+@Composable
+private fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -272,14 +299,12 @@ private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = sugerencia.headword,
+            text = lema,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        val detalle = etiquetaDeNivel(sugerencia.matchKind)
-            ?: sugerencia.partOfSpeech?.let(::posEnEspanol)
         if (detalle != null) {
             Text(
                 text = detalle,

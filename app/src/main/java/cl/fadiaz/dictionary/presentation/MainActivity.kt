@@ -53,6 +53,8 @@ fun DictionaryApp() {
                                 PackStore.packPreferido(context) ?: Locale.getDefault().language
                             },
                             recordar = { id -> PackStore.recordarPack(context, id) },
+                            historialGuardado = { PackStore.historial(context) },
+                            guardarHistorial = { PackStore.recordarHistorial(context, it) },
                         )
                     }
                 },
@@ -72,6 +74,10 @@ fun DictionaryApp() {
                         // El packId viaja con la entrada: sin el, con dos packs abiertos se
                         // resolveria contra el activo y mostraria otra palabra.
                         onOpenEntry = {
+                            viewModel.registrarVisita(it)
+                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
+                        },
+                        onOpenVisita = {
                             navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
                         },
                         onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },

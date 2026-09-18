@@ -110,10 +110,20 @@ object PackStore {
             .getOrDefault(emptyList())
             .sorted()
 
+    /** El historial de entradas abiertas. La politica --dedupe, orden, tope-- vive en el
+     * ViewModel, que el gate ve; aca solo se serializa. */
+    fun historial(context: Context): List<Visita> =
+        parsearVisitas(prefs(context).getString(CLAVE_HISTORIAL, null).orEmpty())
+
+    fun recordarHistorial(context: Context, visitas: List<Visita>) {
+        prefs(context).edit().putString(CLAVE_HISTORIAL, serializarVisitas(visitas)).apply()
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
 
     private const val CLAVE_PACK = "pack_activo"
+    private const val CLAVE_HISTORIAL = "historial"
 
 
     /**
