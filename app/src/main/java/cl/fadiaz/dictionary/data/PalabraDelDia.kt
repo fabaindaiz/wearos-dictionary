@@ -43,8 +43,37 @@ internal object PalabraDelDia {
      */
     const val CANDIDATOS: Int = 32
 
-    /** Los `pos` que nunca son palabra del dia. Un nombre propio no se "aprende". */
-    private val POS_EXCLUIDOS = setOf("name")
+    /**
+     * Los `pos` que nunca son palabra del dia.
+     *
+     * Estan los DOS nombres del mismo concepto --los packs de kaikki dicen `name`, el de juguete
+     * dice `proper noun`-- y eso no es redundancia: excluir solo uno deja pasar nombres propios
+     * en el otro vocabulario, y un fixture de un solo pack no lo muestra.
+     *
+     * Los afijos y las abreviaturas se van por otra razon: "-ito" o "EE. UU." no son palabras que
+     * alguien quiera aprender hoy.
+     */
+    private val POS_EXCLUIDOS = setOf(
+        "name", "proper noun",
+        "prefix", "suffix", "abbrev", "num",
+    )
+
+    /**
+     * La categoria que se prefiere cada dia.
+     *
+     * Existe por un sesgo MEDIDO sobre el pack real: sin esto, 28 dias seguidos daban **28
+     * verbos** en espanol. No es que sobren verbos --el pack es 29,2 % sustantivos contra 28,5 %
+     * verbos, casi empatados-- sino que `rank` mide riqueza de pagina (D-067) y en espanol las
+     * paginas de verbos son las mas ricas porque traen las conjugaciones. Rotando la categoria,
+     * la misma muestra da sustantivo 12, verbo 8, adjetivo 7, adverbio 1.
+     *
+     * Es una **preferencia, no un filtro**: un pack sin adverbios no puede quedarse sin palabra
+     * del dia el dia que toca adverbio.
+     */
+    private val ROTACION_DE_CATEGORIA = listOf("noun", "verb", "adj", "adv")
+
+    /** Un indice de intento que no colisiona con los de los candidatos (0 hasta `candidatos`). */
+    private const val INTENTO_DE_CATEGORIA = -1
 
     /**
      * La entrada de hoy, o null si el pack esta vacio.
@@ -62,6 +91,14 @@ internal object PalabraDelDia {
     ): EntrySummary? {
         if (entradas <= 0) return null
 
+        val categoriaDelDia = ROTACION_DE_CATEGORIA[
+            moduloPositivo(
+                semilla(fecha, packId, INTENTO_DE_CATEGORIA),
+                ROTACION_DE_CATEGORIA.size.toLong(),
+            ).toInt(),
+        ]
+
+        var mejorDeLaCategoria: EntrySummary? = null
         var mejor: EntrySummary? = null
         var mejorAunqueSeaNombre: EntrySummary? = null
         for (intento in 0 until candidatos) {
@@ -80,8 +117,17 @@ internal object PalabraDelDia {
             // pasa seguido--.
             val previo = mejor
             if (previo == null || candidato.rank < previo.rank) mejor = candidato
+
+            if (candidato.partOfSpeech == categoriaDelDia) {
+                val previoDeLaCategoria = mejorDeLaCategoria
+                if (previoDeLaCategoria == null || candidato.rank < previoDeLaCategoria.rank) {
+                    mejorDeLaCategoria = candidato
+                }
+            }
         }
-        return mejor ?: mejorAunqueSeaNombre
+        // El orden de las tres redes: la categoria del dia, cualquiera valida, y en ultimo
+        // extremo una excluida. Un hueco en la pantalla es peor que las tres.
+        return mejorDeLaCategoria ?: mejor ?: mejorAunqueSeaNombre
     }
 
     private fun esExcluido(pos: String?): Boolean = pos != null && pos in POS_EXCLUIDOS
