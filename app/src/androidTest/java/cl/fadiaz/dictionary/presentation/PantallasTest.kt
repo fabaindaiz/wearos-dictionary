@@ -114,7 +114,7 @@ class PantallasTest {
         onSearchDefinitions: () -> Unit = {},
         onOpenVisita: (Visita) -> Unit = {},
         onOpenAjustes: () -> Unit = {},
-        onOpenPalabraDelDia: (EntrySummary) -> Unit = {},
+        onOpenPalabraDelDia: (String, EntrySummary) -> Unit = { _, _ -> },
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
@@ -269,7 +269,7 @@ class PantallasTest {
             onSearchDefinitions = {},
             onOpenEntry = {},
             onOpenAttribution = {},
-            onOpenPalabraDelDia = {},
+            onOpenPalabraDelDia = { _, _ -> },
         )
     }
 
@@ -478,21 +478,47 @@ class PantallasTest {
         // ponia en el indice 0 y quedaba fuera de pantalla, porque llega asincrona cuando la
         // lista ya se asento y los items tienen `key`. Eso lo destapo mirar el reloj, no un test.
         var abierta: EntrySummary? = null
+        var packDeLaPalabra: String? = null
         mostrarBusqueda(
-            estadoListo().copy(query = "", palabraDelDia = palabraDeHoy),
-            onOpenPalabraDelDia = { abierta = it },
+            estadoListo().copy(query = "", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
+            onOpenPalabraDelDia = { pack, palabra -> packDeLaPalabra = pack; abierta = palabra },
         )
         compose.onNodeWithText("permanecer").assertIsDisplayed()
         compose.onNodeWithText("palabra del día").assertIsDisplayed()
         compose.onNodeWithText("permanecer").performClick()
         assertEquals(42L, abierta?.entryId)
+        assertEquals("tiene que abrir en SU diccionario", "es-def", packDeLaPalabra)
+    }
+
+    @Test
+    fun conDosDiccionariosSeVenLasDosPalabrasYSuIdioma() {
+        // Con un solo pack el subtitulo dice "palabra del día"; con dos, el nombre del
+        // diccionario, que es lo unico que las distingue.
+        mostrarBusqueda(
+            estadoDosPacks().copy(
+                query = "",
+                palabrasDelDia = mapOf(
+                    "es-def" to palabraDeHoy,
+                    "en-def" to EntrySummary(7, "remain", "verb", 880),
+                ),
+            ),
+        )
+        compose.onNodeWithText("permanecer").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("remain"))
+        compose.onNodeWithText("remain").assertIsDisplayed()
+        compose.onNodeWithText("English — definitions").assertExists()
+        assertEquals(
+            "con dos diccionarios el subtitulo es el idioma, no la etiqueta generica",
+            0,
+            compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
+        )
     }
 
     @Test
     fun sinPalabraDelDiaNoSeVeElHueco() {
         // Un pack vacio, o el primer arranque antes de que termine de elegirse: la fila no
         // aparece en vez de aparecer vacia.
-        mostrarBusqueda(estadoListo().copy(query = "", palabraDelDia = null))
+        mostrarBusqueda(estadoListo().copy(query = "", palabrasDelDia = emptyMap()))
         assertEquals(
             0,
             compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
@@ -504,7 +530,7 @@ class PantallasTest {
         // Misma regla que el historial: con resultados en pantalla, cada fila de chrome es un
         // resultado menos, y con 48 dp de area tocable eso se nota (D-073).
         mostrarBusqueda(
-            estadoListo("perder").copy(query = "per", palabraDelDia = palabraDeHoy),
+            estadoListo("perder").copy(query = "per", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
         )
         assertEquals(0, compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("Ajustes").fetchSemanticsNodes().size)

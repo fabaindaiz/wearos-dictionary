@@ -82,8 +82,10 @@ fun SearchScreen(
     onOpenAttribution: () -> Unit,
     onOpenAjustes: () -> Unit = {},
     onOpenFavoritos: () -> Unit = {},
+    // Lleva el packId ademas de la entrada: con dos idiomas cargados hay dos palabras del dia y
+    // cada una vive en SU diccionario. Resolverla contra el activo seria D-080 otra vez.
     // Sin default: una palabra del dia que se ve y no abre nada es peor que no tenerla.
-    onOpenPalabraDelDia: (EntrySummary) -> Unit,
+    onOpenPalabraDelDia: (String, EntrySummary) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -160,14 +162,33 @@ fun SearchScreen(
                             }
                         }
                         // DESPUES del encabezado y no antes, y eso se aprendio mirandolo en
-                        // pantalla: la palabra llega asincrona --son 32 lecturas-- cuando la
-                        // lista ya se asento, y como los items tienen `key` la lista conserva su
-                        // posicion. Insertada en el indice 0 aparecia FUERA de pantalla, arriba
-                        // del todo; insertada aca empuja hacia abajo y se ve sin scrollear.
-                        state.palabraDelDia?.let { palabra ->
-                            item(key = "palabra-del-dia") {
-                                PalabraDelDiaDeHoy(palabra) { onOpenPalabraDelDia(palabra) }
+                        // pantalla: las palabras llegan asincronas --son 32 lecturas por pack--
+                        // cuando la lista ya se asento, y como los items tienen `key` la lista
+                        // conserva su posicion. Insertadas en el indice 0 aparecian FUERA de
+                        // pantalla; insertadas aca empujan hacia abajo y se ven sin scrollear.
+                        //
+                        // Una por diccionario cargado, la del activo primero.
+                        val delDia = state.disponibles
+                            .filterIsInstance<PackHandle.Abierto>()
+                            .mapNotNull { handle ->
+                                state.palabrasDelDia[handle.packId]?.let { handle to it }
                             }
+                            .sortedByDescending { it.first.packId == state.activo?.packId }
+                        items(
+                            count = delDia.size,
+                            key = { indice -> "pdd:${delDia[indice].first.packId}" },
+                        ) { indice ->
+                            val (handle, palabra) = delDia[indice]
+                            PalabraDelDiaDeHoy(
+                                palabra = palabra,
+                                // Con un solo diccionario el nombre no aporta --ya esta en el
+                                // encabezado--; con dos es lo unico que las distingue.
+                                subtitulo = if (delDia.size > 1) {
+                                    handle.metadata.name
+                                } else {
+                                    "palabra del día"
+                                },
+                            ) { onOpenPalabraDelDia(handle.packId, palabra) }
                         }
                         item(key = "voz") {
                             Button(
@@ -408,7 +429,11 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
  * diria "perro · sust." y eso ya existe tres veces mas abajo.
  */
 @Composable
-private fun PalabraDelDiaDeHoy(palabra: EntrySummary, onClick: () -> Unit) {
+private fun PalabraDelDiaDeHoy(
+    palabra: EntrySummary,
+    subtitulo: String,
+    onClick: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -426,9 +451,11 @@ private fun PalabraDelDiaDeHoy(palabra: EntrySummary, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = "palabra del día",
+            text = subtitulo,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

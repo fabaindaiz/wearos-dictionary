@@ -39,9 +39,14 @@ data class SearchState(
     val modo: Modo = Modo.NORMAL,
     /** Las ultimas entradas abiertas, ya filtradas: solo las de packs que estan instalados. */
     val historial: List<Visita> = emptyList(),
-    // La entrada de hoy en el pack activo. Null mientras se calcula, si el pack esta vacio, o
-    // si nadie cableo `fechaDeHoy` --que es una ausencia visible, no un valor silencioso raro--.
-    val palabraDelDia: EntrySummary? = null,
+    /**
+     * La entrada de hoy, **una por diccionario cargado**, por `packId`.
+     *
+     * Un mapa y no una sola: con dos idiomas instalados las dos palabras del dia interesan, y
+     * ademas cambiar de idioma no tiene que recalcular nada. Vacio mientras se calculan, si los
+     * packs estan vacios, o si nadie cableo `fechaDeHoy` --que es una ausencia visible--.
+     */
+    val palabrasDelDia: Map<String, EntrySummary> = emptyMap(),
     val ajustes: Ajustes = Ajustes(),
     val favoritos: List<Visita> = emptyList(),
 ) {
@@ -155,7 +160,12 @@ class SearchViewModel(
                             historial = visibles(visitas),
                         )
                     }
-                    refrescarPalabraDelDia(elegido.source)
+                    // Para TODOS los ofrecidos, no solo el activo: el de demostracion queda
+                    // fuera porque `ofrecibles` ya lo saco cuando hay un diccionario de verdad.
+                    refrescarPalabrasDelDia(
+                        ofrecibles(result.todos).filterIsInstance<PackHandle.Abierto>()
+                            .map { it.source },
+                    )
                 }
 
                 PackSet.NoPack -> _state.update {
@@ -210,8 +220,8 @@ class SearchViewModel(
         // de definicion igual: mejor salir del modo explicitamente que dejar la carrera abierta.
         volverAModoNormal()
         source.value = pack
-        _state.update { it.copy(activo = pack.metadata, palabraDelDia = null) }
-        refrescarPalabraDelDia(pack)
+        _state.update { it.copy(activo = pack.metadata) }
+        // No se recalcula nada: las palabras del dia de todos los packs ya estan.
         recordar(packId)
     }
 
@@ -297,27 +307,30 @@ class SearchViewModel(
      * esto arregla --mostrar otra palabra-- pero silencioso.
      */
     /**
-     * Recalcula la palabra del dia para el pack que acaba de quedar activo.
+     * Calcula la palabra del dia de cada diccionario cargado.
      *
-     * En su propia corrutina: son [PalabraDelDia.CANDIDATOS] lecturas de una fila y no pueden
-     * demorar la pantalla, que ya esta lista para buscar. Si el pack falla, se queda sin palabra
-     * del dia y el resto de la app sigue funcionando.
+     * En su propia corrutina y sin bloquear la pantalla, que ya esta lista para buscar: son
+     * [PalabraDelDia.CANDIDATOS] lecturas de una fila por pack. Cada una se publica en cuanto
+     * esta, asi que con dos idiomas la primera no espera a la segunda.
+     *
+     * Si un pack falla se queda sin palabra del dia y los demas siguen: una pantalla de inicio
+     * incompleta es mejor que una que no carga.
      */
-    private fun refrescarPalabraDelDia(pack: DictionarySource) {
+    private fun refrescarPalabrasDelDia(packs: List<DictionarySource>) {
         val fecha = fechaDeHoy() ?: return
-        viewModelScope.launch {
-            val elegida = runCatching {
-                PalabraDelDia.elegir(
-                    fecha = fecha,
-                    packId = pack.metadata.packId,
-                    entradas = pack.metadata.entryCount,
-                    leer = { id -> pack.summary(id) },
-                )
-            }.getOrNull()
-            // Sólo si sigue siendo el pack activo: cambiar de idioma dos veces rapido no puede
-            // dejar la palabra del otro diccionario en pantalla.
-            _state.update {
-                if (it.activo?.packId == pack.metadata.packId) it.copy(palabraDelDia = elegida) else it
+        for (pack in packs) {
+            viewModelScope.launch {
+                val elegida = runCatching {
+                    PalabraDelDia.elegir(
+                        fecha = fecha,
+                        packId = pack.metadata.packId,
+                        entradas = pack.metadata.entryCount,
+                        leer = { id -> pack.summary(id) },
+                    )
+                }.getOrNull() ?: return@launch
+                _state.update {
+                    it.copy(palabrasDelDia = it.palabrasDelDia + (pack.metadata.packId to elegida))
+                }
             }
         }
     }

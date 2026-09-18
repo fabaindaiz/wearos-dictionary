@@ -115,11 +115,11 @@ fun DictionaryApp() {
                         onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },
                         onOpenAjustes = { navController.navigate(RUTA_AJUSTES) },
                         onOpenFavoritos = { navController.navigate(RUTA_FAVORITOS) },
-                        // La palabra del dia es del pack ACTIVO, asi que se abre en el suyo.
-                        onOpenPalabraDelDia = { palabra ->
-                            val packId = state.activo?.packId ?: return@SearchScreen
+                        // Cada palabra del dia se abre en SU diccionario, que con dos idiomas
+                        // cargados no es necesariamente el activo.
+                        onOpenPalabraDelDia = { packDeLaPalabra, palabra ->
                             navController.navigate(
-                                "$RUTA_ENTRADA/${Uri.encode(packId)}/${palabra.entryId}",
+                                "$RUTA_ENTRADA/${Uri.encode(packDeLaPalabra)}/${palabra.entryId}",
                             )
                         },
                     )
