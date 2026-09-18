@@ -8,23 +8,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * De donde salen los packs que la app abre: **`filesDir/packs/`, y nada mas**.
+ * De donde salen los packs que la app abre.
  *
- * El APK no lleva ningun diccionario. Los packs entran por `adb push` hoy y por el instalador
- * cuando exista; los dos escriben en el mismo directorio, asi que la app no distingue.
+ * Todos viven en `filesDir/packs/`; lo que cambia es como llegaron:
  *
- * ESTO CIERRA D-071, y antes de tiempo
+ *  - **El pack de demostracion** viaja en el APK y se extrae al primer arranque. Es chico y
+ *    existe para que la app recien instalada tenga algo que mostrar.
+ *  - **Los diccionarios de verdad** entran por `adb push` hoy, y por el instalador cuando
+ *    exista. Los dos escriben en el mismo directorio, asi que la app no los distingue.
  *
- * El pack viajaba como asset del APK y se extraia al primer arranque. Eso lo duplicaba en disco
- * --comprimido adentro del APK y extraido afuera-- que es el mismo costo por el que se descarto
- * Room (D-039). Se habia aceptado a cambio de que instalar la app dejara un diccionario
- * andando, y la propia decision decia que se revertia al existir el instalador.
+ * POR QUE UN PACK DE DEMO Y NO EL DICCIONARIO ENTERO (D-071, D-081)
  *
- * Lo que la adelanto fue medir el ingles: **295 MiB en disco, 185 MiB comprimido**. Con los dos
- * idiomas el APK se iba a ~270 MB, que por Bluetooth a un reloj no es un detalle.
+ * Un pack en el APK se duplica en disco: comprimido adentro y extraido afuera. Con el
+ * diccionario real eso es inaceptable --el ingles son **295 MiB en disco, 185 MiB
+ * comprimido**, y con los dos idiomas el APK se iba a ~270 MB, que por Bluetooth a un reloj no
+ * es un detalle. Con un pack de demostracion de decenas de KB, el mismo costo es ruido.
  *
- * Lo que sobrevive de aquello es [instalarAtomico], y no por inercia: el instalador necesita
- * exactamente esa propiedad, y la razon esta medida.
+ * Esa es toda la diferencia: no es el mecanismo, es el tamaño.
  */
 object PackStore {
 
@@ -38,12 +38,27 @@ object PackStore {
      * pantalla tiene que poder decir por que esta esperando.
      */
     /**
-     * Abre todos los packs instalados.
+     * Que assets hay que copiar a disco, y sobre todo **cuales no**.
      *
-     * `onExtracting` sobrevive en la firma porque el instalador va a necesitar avisar lo mismo;
-     * hoy no se llama, porque no hay nada que extraer.
+     * Pura y sin `Context` para que se pueda testear en la JVM, igual que [instalarAtomico].
+     * Los casos que un `if (dir.isEmpty())` se come:
+     *
+     *  - el pack de demo ya extraido no se vuelve a copiar en cada arranque;
+     *  - actualizar el APK con otra demo la extrae aunque ya haya diccionarios instalados;
+     *  - un `.db` puesto a mano con `adb push` no se toca, que es como entran hoy los packs de
+     *    verdad.
      */
-    @Suppress("UNUSED_PARAMETER")
+    internal fun queFaltaExtraer(assets: List<String>, instalados: List<String>): List<String> {
+        val yaEstan = instalados.toSet()
+        return assets.filterNot { it in yaEstan }.sorted()
+    }
+
+    /**
+     * Extrae lo que falte del APK y abre todo lo que haya.
+     *
+     * La extraccion es inmediata y no perezosa **porque el pack de demo es chico**: diferirla
+     * costaria una maquina de estados para ahorrar decenas de KB.
+     */
     suspend fun open(
         context: Context,
         preferido: String?,
@@ -51,6 +66,14 @@ object PackStore {
     ): PackSet = withContext(Dispatchers.IO) {
         val dir = packsDir(context)
         dir.mkdirs()
+
+        val faltan = queFaltaExtraer(assetsDePack(context), packsInstalados(dir).map { it.name })
+        if (faltan.isNotEmpty()) {
+            onExtracting()
+            for (asset in faltan) {
+                runCatching { instalarAtomico(context.assets.open(asset), dir, asset) }
+            }
+        }
 
         val instalados = packsInstalados(dir)
         if (instalados.isEmpty()) return@withContext PackSet.NoPack
@@ -82,15 +105,15 @@ object PackStore {
         prefs(context).edit().putString(CLAVE_PACK, packId).apply()
     }
 
-    private fun prefs(context: Context) =
-        context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
-
-    private const val CLAVE_PACK = "pack_activo"
-
     private fun assetsDePack(context: Context): List<String> =
         runCatching { context.assets.list("")?.filter { it.endsWith(".db") }.orEmpty() }
             .getOrDefault(emptyList())
             .sorted()
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
+
+    private const val CLAVE_PACK = "pack_activo"
 
 
     /**
