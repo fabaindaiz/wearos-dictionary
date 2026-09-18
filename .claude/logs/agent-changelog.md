@@ -26,6 +26,83 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-18 — El reloj de verdad: tres bugs, una capa de tests rota, y un supuesto de 192 dp que no era
+
+**Qué.** Instalado el MVP en un Galaxy Watch (SM-L715F, Android 17 / API 37). Usarlo destapó tres
+defectos en minutos. Arreglados dos con test: el teclado que se cerraba a la primera letra
+(D-089) y la tecla *Aceptar* que no hacía nada (D-090). Agregado: palabras tocables dentro de una
+glosa que abren su entrada (D-094), atajo a la búsqueda arriba del scroll (D-091), y la barra de
+búsqueda con borde para que se distinga (D-092). `espresso-core` fijada en 3.7.0 (D-093).
+
+**Áreas.** Las cuatro pantallas y el ViewModel en
+`app/src/main/java/cl/fadiaz/dictionary/presentation/`; el tokenizador nuevo
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/GlossTokenizer.kt` y la interfaz
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/DictionarySource.kt`;
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`;
+`gradle/libs.versions.toml` y los build de `:app` y `:dict-data`; y los tres archivos de test.
+
+**Por qué.** Pedido tras usar la app en el reloj: arreglar los bugs, poder tocar las palabras de
+una definición para saltar a su entrada, volver rápido al inicio, y resaltar la barra. Las tres
+secciones por palabra (definiciones / traducciones / sinónimos) quedaron planeadas y **no
+construidas**: exigen reconstruir los dos packs.
+
+**Arquitectura.** ✅ Cumple. `GlossTokenizer` vive en `:dict-core` sin una sola API de la JVM
+—el primer intento usó `Character.charCount` y lo hubiera cazado `ArchitectureTest` (D-017)—, la
+lógica nueva de `:app` no importa `android.*` (D-072), y el link palabra-a-palabra lleva `packId`
+(D-080).
+
+**Medido.**
+- **La pantalla del reloj son 498×498 px a 340 dpi = 234 dp**, no los 192 dp sobre los que están
+  construidos D-073, D-075, D-078, D-084 y D-085. **22 % más pantalla.** Falta confirmarlo dentro
+  de la app con `LocalConfiguration.screenWidthDp`: `wm density` da la densidad física y no
+  necesariamente la que ve Compose.
+- **41 GB libres en `/data`.** Los 364 MiB de los dos packs nunca fueron un problema.
+- **Transporte por ADB Wi-Fi: `devpack install` por defecto da 3,4 MB/s; `--tmp` (`adb push`) da
+  0,05 MB/s.** El español entró en 20 s; el inglés por `--tmp` tardó **98 minutos** y aun así
+  falló al final. **60× más lento.** No usar `--tmp` sobre Wi-Fi.
+- **Costo en el pack de las tres secciones futuras**, guardando sólo la palabra: español +0,76 MB
+  crudo (**0,3 %**), inglés +30,7 MB crudo (**~3,5 %** comprimido). Y **no exige subir
+  `schema_version`**: son tags de payload, que ambos lados ignoran si no los conocen.
+- **El Wikcionario español identifica los idiomas destino por nombre en español** (`"Inglés"`),
+  no por código ISO — filtrar por `lang_code` da 0 resultados. El inglés trae `links` de sense
+  (59,4 B/entrada) y el español **no trae ninguno** (0 B), que es por qué las palabras tocables
+  se resuelven en runtime contra `entry.norm` y no con los links de la fuente.
+
+**Qué salió mal.**
+- **El primer test de gestos no falló por el bug sino por Espresso.** `NoSuchMethodException:
+  InputManager.getInstance`: la 3.5.0 que arrastra `ui-test-junit4` no funciona en API 37. O sea
+  que la capa de tests de gestos estaba rota justo en el nivel del reloj, y se descubrió sólo
+  porque este fue el primer test que hizo `performClick` sobre un campo.
+- **Escribí `GlossTokenizer` antes que su test**, que es exactamente lo que este repo prohíbe. Lo
+  rehice: stub → test → rojo → implementación. Y el primer intento usaba `Character.`, prohibido
+  en `:dict-core`.
+- **Afirmé que el atajo a la búsqueda costaba cero dp y era falso.** Lo desmintieron dos tests
+  que se pusieron rojos: con tres acepciones cortas *Ver más* dejó de entrar en pantalla. Está
+  corregido en D-091 con el costo real.
+- **Mi hipótesis sobre el crash de *Ver más* era la equivocada.** El test con las 47 acepciones y
+  el ejemplo de 917 caracteres —los dos máximos medidos— **pasa**: no reproduce el crash.
+- **El emulador de API 37 se colgó dos veces** (`hanging thread 'QEMU2 main loop'`). Arranca
+  estable con `-gpu swiftshader_indirect`.
+- **Manejar el emulador por `adb shell input` para verificar a ojo es poco fiable**: un `swipe`
+  salió de la app, unos taps cayeron en el micrófono, y `input text` deja el texto como composing
+  del IME de Wear **sin confirmarlo al campo**, así que la query llegaba vacía. Perdí varios
+  intentos antes de abandonarlo. Es el tercer golpe de esta clase (ver `keyevent 4`).
+
+**Qué quedó sin hacer.**
+- **El crash de *Ver más* sigue vivo y sin causa conocida.** Falta el stack trace del reloj, que
+  no se pudo sacar porque el reloj se cayó de la red. Lo que sí se hizo es endurecer los tres
+  caminos sospechosos —`key` en los ítems, índice con `getOrNull`, `runCatching` alrededor de
+  `cargar`—, pero eso es blindaje, **no el arreglo**, y decir lo contrario mandaría a la próxima
+  sesión a dar el bug por cerrado.
+- **El pack de inglés no está instalado** en el reloj: los dos intentos de push murieron.
+- **La entrada con enlaces no se vio nunca en pantalla.** La cubren 34 tests instrumentados, pero
+  nadie la miró funcionando.
+- **Los 234 dp no se confirmaron dentro de la app**, y de eso depende si D-073 sigue diciendo
+  "tres filas".
+- La corona sigue sin moverse nunca.
+- `docs/formato-pack.md` sigue anunciando `schema_version = 2` en su título cuando el código
+  dice 3, y `docs/architecture.md` sigue describiendo `:app` como el template. Van tres sesiones.
+
 ## 2026-09-17 — Dejar todo listo para el reloj, y tres bugs que sólo aparecieron al usarlo
 
 **Qué.** Se prepararon los artefactos para instalar en un reloj físico: APK debug, pack de
