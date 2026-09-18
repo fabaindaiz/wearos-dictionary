@@ -26,6 +26,72 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-17 — Dejar todo listo para el reloj, y tres bugs que sólo aparecieron al usarlo
+
+**Qué.** Se prepararon los artefactos para instalar en un reloj físico: APK debug, pack de
+español y pack de inglés, los tres verificados end-to-end en el emulador. En el camino
+aparecieron **tres defectos que ningún test tenía**, porque los tres se ven mirando la pantalla
+o corriendo el comando, no leyendo el código.
+
+**Áreas.** `app/src/main/java/cl/fadiaz/dictionary/data/PackSet.kt`, `PackStore.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/SearchViewModel.kt`,
+`app/src/test/java/cl/fadiaz/dictionary/presentation/SearchViewModelTest.kt`,
+`tools/devpack.py`, `tools/packbuilder/tests/test_devpack.py`, `docs/decisions.md` (D-088).
+
+**Por qué.** Pedido: dejarlo todo listo para instalarlo en el reloj.
+
+**Arquitectura.** ✅ Cumple.
+
+**Medido.**
+
+- **Los dos packs entran: 364 MiB** en `files/packs` (72.212.480 + 309.452.800 + el demo de
+  53 KB). Es la primera vez que ese número existe, aunque sea en emulador.
+- **`devpack.py install` del inglés: 3,55 s** para 295,1 MiB, con sha256 verificado de los dos
+  lados (`aa53e30e89ec3d7a`). El español: 0,85 s y `258ccdb62d5ff940`.
+- **`posEnEspanol` no traduce nueve `pos`** (`character`, `contraction`, `article`, `unknown`,
+  `participle`, `symbol`, `syllable`, `particle`, `infix`): son **106 entradas de 146.194,
+  0,07 %**. Medido y **no corregido**: el número dice que no vale el cambio ahora.
+
+**Los tres bugs, y por qué ninguno era visible desde el código.**
+
+1. **El pack de demostración tapaba al diccionario real.** Con los dos instalados, la app abría
+   las 28 entradas de juguete: buscar "p" devolvía *"correr — traducción"*, que sólo existe en el
+   toy. Ni la preferencia ni el idioma desempataban —los dos packs son `es`— así que caía al
+   último escalón de `elegirActivo`, que seguía siendo **el orden alfabético**, y `demo-` gana a
+   `es-`. Es exactamente la clase que mató D-079, sobrevivida en el último recurso; y con un pack
+   de demo dentro del APK ese recurso pasa de raro a normal. Arreglado por **origen** (vino de
+   `assets/`), no por nombre — el nombre es justo lo que fallaba (D-088).
+2. **El selector mostraba "ES" y "ES".** Los dos packs son español y la etiqueta es el idioma:
+   no había forma de saber cuál era cuál. Un placeholder no es una opción, así que el demo ya ni
+   se ofrece cuando hay un diccionario de verdad.
+3. **`devpack.py` tiraba un traceback** cuando la app no estaba instalada: murió con un
+   `BrokenPipeError` con 295 MB adentro. La guarda existía y **miraba el lugar equivocado** —
+   `adb` manda los fallos de `run-as` a stderr y `correr` devolvía sólo stdout, así que comparaba
+   contra una cadena vacía. Y que la app no esté es **normal**: `connectedAndroidTest` la
+   desinstala al terminar.
+
+**Qué salió mal.**
+
+- **Los tres bugs los encontré usando la app, no razonando sobre ella.** Los 48 tests JVM y los
+  27 de pantalla estaban en verde mientras la app abría el diccionario equivocado. Es el
+  argumento de *"mirá el output, no sólo los números"* en su forma más literal.
+- **Corrí `connectedAndroidTest` y me llevé puestos los packs**, sin darme cuenta de que
+  desinstala la app. Diagnostiqué el `BrokenPipeError` como un problema del pipe antes de mirar
+  si el paquete estaba.
+- **Los packs y los dumps se habían borrado** al reiniciarse la sesión, así que hubo que volver a
+  bajar 4,66 GB. Reconstruirlos: ~2 min el español, ~3 el inglés.
+
+**Qué quedó sin hacer.**
+
+- **Nada de esto se probó en un reloj físico**, que es el punto. Falta parear el reloj: ahí se
+  cierra si la corona funciona (cableada y nunca movida), si los 364 MiB entran en hardware real,
+  y si `NormalizationOnDeviceTest` pasa con su ICU.
+- Los nueve `pos` sin traducir (0,07 % de las entradas).
+- Todo lo de la lista de distribución: instalador de packs, el Tile del template, `app_name` en
+  inglés, iconos, R8.
+
+---
+
 ## 2026-09-17 — Las tres funciones que faltaban para el MVP, y un ranking que se tiraba
 
 **Qué.** Se cerró el alcance del MVP —todo menos descarga de packs— y se construyeron las tres
