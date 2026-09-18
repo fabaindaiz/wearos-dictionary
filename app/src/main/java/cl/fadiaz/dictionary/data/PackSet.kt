@@ -25,6 +25,17 @@ sealed interface PackHandle {
          * la app abria las 28 entradas de juguete en vez de las 146.194 reales.
          */
         val esDemo: Boolean = false,
+        /**
+         * El archivo en `filesDir/packs`, para poder borrarlo.
+         *
+         * Hace falta aparte del `packId` porque **no son lo mismo**: el id sale de la metadata
+         * de adentro del pack y el nombre lo pone quien lo instalo. Hoy `devpack.py` los hace
+         * coincidir, pero deducir uno del otro seria una suposicion que borra el archivo
+         * equivocado el dia que dejen de coincidir.
+         */
+        val archivo: String = "",
+        /** Lo que ocupa en disco. Es la unica cifra que le importa a quien decide borrar algo. */
+        val bytes: Long = 0,
     ) : PackHandle {
         override val packId: String get() = source.metadata.packId
         val metadata: PackMetadata get() = source.metadata

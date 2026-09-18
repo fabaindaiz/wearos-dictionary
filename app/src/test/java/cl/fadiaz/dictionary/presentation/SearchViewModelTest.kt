@@ -48,6 +48,90 @@ class SearchViewModelTest {
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
 
+    // --- Borrar un diccionario -----------------------------------------------------------------
+
+    @Test
+    fun laConexionSeCierraANTESDeBorrarElArchivo() = runTest {
+        // Es LA regla de esta funcion, y no es teorica: en Unix un archivo borrado con un
+        // descriptor abierto sigue ocupando el disco hasta que se cierre, y la app lo seguiria
+        // leyendo como si nada. El usuario veria "borrado" y cero espacio liberado.
+        val es = FakeDictionary(packId = "es-def")
+        val en = FakeDictionary(packId = "en-def")
+        var cerradoAlBorrar: Boolean? = null
+        val vm = SearchViewModel(
+            { listos(es, en) },
+            borrarDelDisco = { cerradoAlBorrar = en.cerrado; true },
+        )
+        advanceUntilIdle()
+
+        vm.borrarPack("en-def")
+        advanceUntilIdle()
+
+        assertEquals(true, cerradoAlBorrar, "se borro el archivo con la conexion todavia abierta")
+    }
+
+    @Test
+    fun borrarUnPackLoSacaDeLaLista() = runTest {
+        val es = FakeDictionary(packId = "es-def")
+        val en = FakeDictionary(packId = "en-def")
+        var quedan = listOf(es, en)
+        val vm = SearchViewModel(
+            { listos(*quedan.toTypedArray()) },
+            borrarDelDisco = { archivo ->
+                quedan = quedan.filterNot { it.metadata.packId + ".db" == archivo }
+                true
+            },
+        )
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.disponibles.size)
+
+        vm.borrarPack("en-def")
+        advanceUntilIdle()
+
+        assertEquals(listOf("es-def"), vm.state.value.disponibles.map { it.packId })
+    }
+
+    @Test
+    fun borrarElDiccionarioACTIVODejaOtroActivo() = runTest {
+        // Si no, la app queda buscando en un pack que ya no existe.
+        val es = FakeDictionary(packId = "es-def")
+        val en = FakeDictionary(packId = "en-def")
+        var quedan = listOf(es, en)
+        val vm = SearchViewModel(
+            { listos(*quedan.toTypedArray()) },
+            borrarDelDisco = { archivo ->
+                quedan = quedan.filterNot { it.metadata.packId + ".db" == archivo }
+                true
+            },
+        )
+        advanceUntilIdle()
+        val activoAntes = vm.state.value.activo?.packId
+        assertEquals("es-def", activoAntes)
+
+        vm.borrarPack("es-def")
+        advanceUntilIdle()
+
+        assertEquals("en-def", vm.state.value.activo?.packId)
+    }
+
+    @Test
+    fun elPackDeDemostracionNoSePuedeBorrar() = runTest {
+        // Viene dentro del APK y `PackStore.open` lo re-extrae al reabrir, asi que borrarlo seria
+        // una accion que no hace nada: el pack vuelve solo. Ofrecerla seria mentir.
+        val demo = FakeDictionary(packId = "demo")
+        var seIntentoBorrar = false
+        val vm = SearchViewModel(
+            { listos(demo, demos = setOf("demo")) },
+            borrarDelDisco = { seIntentoBorrar = true; true },
+        )
+        advanceUntilIdle()
+
+        vm.borrarPack("demo")
+        advanceUntilIdle()
+
+        assertTrue(!seIntentoBorrar, "intento borrar el pack de demostracion")
+    }
+
     // --- Las palabras guardadas ---------------------------------------------------------------
 
     private fun visita(lema: String, id: Long = 1, pack: String = "es-def") =

@@ -86,7 +86,12 @@ object PackStore {
         for (file in instalados) {
             when (val cargado = abrir(file)) {
                 is PackLoad.Ready ->
-                    abiertos += PackHandle.Abierto(cargado.source, esDemo = file.name in deAssets)
+                    abiertos += PackHandle.Abierto(
+                        source = cargado.source,
+                        esDemo = file.name in deAssets,
+                        archivo = file.name,
+                        bytes = file.length(),
+                    )
                 is PackLoad.Unusable -> problemas += "${file.name}: ${cargado.reason}"
                 PackLoad.NoPack -> Unit
             }
@@ -122,6 +127,22 @@ object PackStore {
 
     fun recordarHistorial(context: Context, visitas: List<Visita>) {
         prefs(context).edit().putString(CLAVE_HISTORIAL, serializarVisitas(visitas)).apply()
+    }
+
+    /**
+     * Borra un pack del disco. **Irreversible**: reponerlo cuesta ~90 s por adb.
+     *
+     * Recibe el nombre de archivo y no el `packId` a proposito: son cosas distintas, y deducir
+     * uno del otro borraria el archivo equivocado el dia que dejen de coincidir.
+     *
+     * NO cierra la conexion: eso es de quien la abrio y tiene que pasar **antes**. En Unix un
+     * archivo borrado con un descriptor abierto sigue ocupando el disco hasta que se cierre, y
+     * la app lo seguiria leyendo como si nada -- o sea, el usuario ve que borro y no se libero
+     * nada, que es peor que no poder borrar.
+     */
+    fun borrarPack(context: Context, archivo: String): Boolean {
+        val destino = File(packsDir(context), archivo)
+        return destino.isFile && destino.delete()
     }
 
     /** Las palabras guardadas. Mismo codec que el historial: son la misma forma de dato. */

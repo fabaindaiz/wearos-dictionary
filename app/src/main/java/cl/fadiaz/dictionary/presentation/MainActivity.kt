@@ -45,6 +45,7 @@ private const val RUTA_ENTRADA = "entrada"
 private const val RUTA_ATRIBUCION = "atribucion"
 private const val RUTA_AJUSTES = "ajustes"
 private const val RUTA_FAVORITOS = "favoritos"
+private const val RUTA_PACKS = "packs"
 
 @Composable
 fun DictionaryApp() {
@@ -76,6 +77,7 @@ fun DictionaryApp() {
                             guardarAjustes = { PackStore.recordarAjustes(context, it) },
                             favoritosGuardados = { PackStore.favoritos(context) },
                             guardarFavoritos = { PackStore.recordarFavoritos(context, it) },
+                            borrarDelDisco = { archivo -> PackStore.borrarPack(context, archivo) },
                         )
                     }
                 },
@@ -204,12 +206,20 @@ fun DictionaryApp() {
                         },
                     )
                 }
+                composable(RUTA_PACKS) {
+                    PacksScreen(
+                        packs = state.disponibles,
+                        activo = state.activo?.packId,
+                        onActivar = viewModel::onPackChange,
+                        onBorrar = viewModel::borrarPack,
+                    )
+                }
                 composable(RUTA_AJUSTES) {
                     SettingsScreen(
                         packs = state.disponibles,
                         activo = state.activo?.packId,
                         escala = state.ajustes.escalaDeTexto,
-                        onPackChange = viewModel::onPackChange,
+                        onGestionarPacks = { navController.navigate(RUTA_PACKS) },
                         onEscalaChange = viewModel::onEscalaDeTextoChange,
                         onLimpiarHistorial = viewModel::limpiarHistorial,
                         hayHistorial = state.historial.isNotEmpty(),
