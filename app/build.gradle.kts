@@ -44,6 +44,37 @@ kotlin {
     }
 }
 
+/**
+ * El pack de demostracion que viaja dentro del APK.
+ *
+ * Existe para que la app recien instalada tenga algo que mostrar: sin ningun pack arranca y dice
+ * "No hay ningun diccionario instalado.", que es honesto pero no se puede ensenar.
+ *
+ * **Es un placeholder y se nota a proposito**: hoy lo genera `build_toy.py`, el mismo generador
+ * del fixture de los tests instrumentados, y su propia atribucion dice que no es un diccionario
+ * real. Que contenido deberia tener esta sin decidir (ver docs/roadmap.md); cambiarlo es apuntar
+ * esta tarea a otro `.db`.
+ *
+ * Se genera en el build y **no se commitea**: un binario que cambia en cada build ensuciaria el
+ * diff, y el repo ya decidio eso una vez para el toy pack (D-020).
+ */
+val buildDemoPack = tasks.register<Exec>("buildDemoPack") {
+    group = "build"
+    description = "Genera el pack de demostracion que se empaqueta en el APK."
+
+    inputs.dir(rootProject.layout.projectDirectory.dir("tools/packbuilder"))
+    outputs.file(layout.projectDirectory.file("src/main/assets/demo-es-en.db"))
+
+    workingDir = rootProject.layout.projectDirectory.asFile
+    commandLine(
+        "python3",
+        "tools/packbuilder/build_toy.py",
+        layout.projectDirectory.file("src/main/assets/demo-es-en.db").asFile.absolutePath,
+    )
+}
+
+tasks.named("preBuild") { dependsOn(buildDemoPack) }
+
 dependencies {
     implementation(project(":dict-data"))
     implementation(platform(libs.compose.bom))
