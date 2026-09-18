@@ -93,6 +93,19 @@ fun DictionaryApp() {
                     val packId = backStackEntry.arguments?.getString("packId").orEmpty()
                     EntryScreen(
                         entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L,
+                        // La palabra se resuelve y se abre en EL MISMO pack que la entrada que
+                        // la contiene. Mandarla al pack activo seria el bug de D-080 otra vez:
+                        // abriria otra palabra y sin error.
+                        onOpenPalabra = { id ->
+                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(packId)}/$id")
+                        },
+                        // Tocar palabras apila entradas sobre entradas. Volver de a una es el
+                        // swipe de siempre; esto es el atajo al principio, y es el primer
+                        // popBackStack del repo.
+                        onVolverABuscar = {
+                            navController.popBackStack(RUTA_BUSQUEDA, inclusive = false)
+                        },
+                        resolver = { norms -> viewModel.resolver(packId, norms) },
                         cargar = { id -> viewModel.entry(packId, id) },
                     )
                 }
