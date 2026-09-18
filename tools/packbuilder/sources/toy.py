@@ -115,6 +115,20 @@ _DATA = [
     ("vela", "noun", 310, [
         ("lona que impulsa una embarcacion", [], ["sail"]),
     ], ["velas"], "nautica"),
+    # Trampa de ORDEN EN FTS: las dos glosas hablan de "mineral", pero bm25 premia la corta que
+    # lo repite y castiga la larga que lo menciona una vez. "cantera" va PRIMERO en esta lista,
+    # asi que se lleva el rowid menor -- y el mejor match se lo lleva "cuarzo", el rowid mayor.
+    #
+    # Sin estas dos, que searchDefinitions tirara el ranking de FTS y devolviera por rowid daba
+    # el mismo resultado, y el bug era invisible. Ver test_el_mejor_match_de_fts_no_es_el_de_
+    # rowid_mas_bajo, que corre en el gate.
+    ("cantera", "noun", 600, [
+        ("sitio de donde se saca piedra para obras, y tambien todo lo que de ahi se extrae "
+         "incluido algun mineral de poco valor comercial", [], ["quarry"]),
+    ], []),
+    ("cuarzo", "noun", 610, [
+        ("mineral de silice; un mineral muy comun", [], ["quartz"]),
+    ], []),
 ]
 
 METADATA = {

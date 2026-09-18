@@ -243,6 +243,18 @@ class SqlitePackSource(
             }
             if (ids.isEmpty()) return@withContext emptyList()
 
+            // El orden que FTS5 acaba de calcular se guarda ANTES de perderlo.
+            //
+            // La consulta de abajo es `WHERE id IN (...)`, que SQLite resuelve por el indice del
+            // PK y devuelve en orden de **rowid**, no de relevancia. Sin esto, `collectSuggestions`
+            // asignaria `score` sobre ese orden y el ranking de bm25 quedaria calculado y tirado:
+            // la definicion que mejor coincide no encabeza. Es la misma clase de bug que hacia que
+            // el prefijo "per" no devolviera "perro".
+            //
+            // Se reordena en memoria y no con un JOIN porque el JOIN cambia el plan de consulta, y
+            // en este repo un plan no se cambia sin medirlo (D-012). Son 30 filas como maximo.
+            val posicionEnFts = ids.withIndex().associate { (posicion, id) -> id to posicion }
+
             // fts_def es contentless: solo devuelve rowids, que SON entry.id (D-011).
             val placeholders = ids.joinToString(",") { "?" }
             pack.connection().prepare(
@@ -250,6 +262,8 @@ class SqlitePackSource(
             ).use { statement ->
                 ids.forEachIndexed { index, id -> statement.bindLong(index + 1, id) }
                 statement.collectSuggestions(MatchKind.DEFINITION)
+                    .map { it.copy(score = posicionEnFts.getValue(it.entryId)) }
+                    .sortedBy { it.score }
             }
         }
     }
