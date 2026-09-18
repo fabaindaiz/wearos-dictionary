@@ -111,6 +111,12 @@ cambió dos veces en el camino, que es para lo que servía medir.
   reales; las capturas de la búsqueda se perdieron al limpiarse el scratchpad antes de mirarlas.
 - **Los packs y los dumps ya no están en disco** (4,7 GB de dumps, 380 MB de packs). Reconstruir
   el inglés cuesta ~4 min de descarga y ~3 min de build.
+- **El instalador de packs quedó planificado, no construido.** Se extendió su entrada del
+  roadmap con lo que la sesión hizo decidible: los números de compresión (el español baja al
+  49,9 %, el inglés sólo al 62,6 %, porque su peso ya está deflateado), que el 45 % del pack
+  inglés es derivable y podría no viajar, y que un diff binario entre versiones no va a ser chico
+  porque los rowids se corren. Y un hueco que manda sobre el diseño: **no existe ningún hash del
+  archivo entero**, así que una descarga truncada abriría y devolvería menos palabras.
 - **Qué contenido debería tener el pack de demo está sin decidir.** Hoy lo genera
   `build_toy.py` —el fixture de los tests— y eso acopla lo que ve un usuario recién instalado a
   un archivo que se cambia por razones de test: pasó en esta misma sesión, agregándole `sol` y
