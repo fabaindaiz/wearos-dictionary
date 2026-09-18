@@ -37,6 +37,22 @@ interface DictionarySource {
      */
     suspend fun searchDefinitions(query: String, limit: Int = 30): List<Suggestion>
 
+    /**
+     * Cuales de estas claves normalizadas son un lema del pack, y con que entrada.
+     *
+     * Es lo que deja hacer tocables las palabras de una glosa: se pregunta por TODAS de una vez
+     * --una consulta por pantalla, no una por palabra-- y se pinta solo lo que existe, para que
+     * el color diga de antemano que lleva a algun lado.
+     *
+     * Cuando varias entradas comparten `norm` --"arbol" y "arbol" sin tilde son dos entradas
+     * distintas-- devuelve la de **mejor rank**, que es la misma regla con la que la lista de
+     * resultados elige que mostrar primero (D-068).
+     *
+     * Sin default a proposito: una implementacion que lo olvide dejaria la glosa sin links y eso
+     * no se distingue de una glosa sin palabras conocidas.
+     */
+    suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long>
+
     /** Cierra la conexion subyacente. El pack queda inutilizable. */
     fun close()
 }

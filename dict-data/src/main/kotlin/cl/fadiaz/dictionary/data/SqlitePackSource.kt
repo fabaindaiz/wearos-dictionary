@@ -291,6 +291,40 @@ class SqlitePackSource(
         }
     }
 
+    override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
+        if (norms.isEmpty()) return emptyMap()
+        val claves = norms.take(MAX_PALABRAS_POR_CONSULTA)
+        return withContext(dispatcher) {
+            val huecos = claves.joinToString(",") { "?" }
+            // SIN `ORDER BY rank`, y es deliberado: ordenar globalmente sobre un `IN` obliga a
+            // SQLite a un TEMP B-TREE y la consulta deja de servirse del covering index (D-012,
+            // y es el mismo efecto que midio D-063). El mejor rank se elige aca abajo, sobre las
+            // pocas filas que devuelve una glosa: con dos entradas por clave no hay nada que
+            // ordenar que valga una tabla temporal.
+            pack.connection().prepare(
+                "SELECT norm, id, rank FROM entry WHERE norm IN ($huecos)",
+            ).use { statement ->
+                claves.forEachIndexed { indice, clave -> statement.bindText(indice + 1, clave) }
+                val context: CoroutineContext = currentCoroutineContext()
+                val mejorPorClave = HashMap<String, Pair<Long, Int>>()
+                while (statement.step()) {
+                    context.ensureActive()
+                    val clave = statement.getText(0)
+                    val id = statement.getLong(1)
+                    val rank = statement.getInt(2)
+                    val actual = mejorPorClave[clave]
+                    // Menor rank es mas comun: "arbol" con tilde (45) le gana a la variante sin
+                    // tilde (900), que es la misma regla con la que se ordena la lista (D-068).
+                    if (actual == null || rank < actual.second) {
+                        mejorPorClave[clave] = id to rank
+                    }
+                }
+                mejorPorClave.mapValues { (_, par) -> par.first }
+            }
+        }
+    }
+
+
     override fun close() {
         pack.close()
     }
@@ -343,6 +377,17 @@ class SqlitePackSource(
          * p95 en escritorio. El numero del reloj falta: es lo que O-1 existe para dar.
          */
         const val PREFIX_OVERFETCH: Int = 3
+
+        /**
+         * Tope de claves por consulta al resolver las palabras de una glosa.
+         *
+         * No es una optimizacion sino un limite duro: cada clave es un parametro enlazado y
+         * SQLite tiene un maximo. La glosa mas larga medida en el pack real tiene bastante menos
+         * que esto, asi que el tope no recorta nada real; existe para que un texto anomalo
+         * --un ejemplo de 917 caracteres colado donde va una glosa-- falle recortando y no
+         * tirando.
+         */
+        const val MAX_PALABRAS_POR_CONSULTA: Int = 64
 
         /** Cuantos caracteres de la clave fuzzy definen el vecindario. */
         const val FUZZY_PREFIX_LENGTH: Int = 4

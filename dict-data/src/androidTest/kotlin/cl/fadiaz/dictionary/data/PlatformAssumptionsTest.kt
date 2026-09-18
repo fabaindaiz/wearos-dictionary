@@ -116,6 +116,25 @@ class PlatformAssumptionsTest {
     }
 
     @Test
+    fun resolverPalabrasDeUnaGlosaNoArmaUnaTablaTemporal() {
+        // Resolver las palabras tocables de una glosa es un `norm IN (...)`. La tentacion es
+        // agregarle `ORDER BY rank` para quedarse con la entrada mas comun, y eso obliga a
+        // SQLite a ordenar un resultado que viene de varias busquedas del indice: aparece un
+        // TEMP B-TREE y la consulta deja de ser de cobertura. Por eso el mejor rank se elige en
+        // Kotlin y la consulta no ordena. Este test es lo unico que lo defiende.
+        val abierto = PackFile.open(packPath)
+        pack = abierto
+        val plan = explicar(
+            abierto.connection(),
+            "SELECT norm, id, rank FROM entry WHERE norm IN ('casa', 'correr', 'arbol')",
+        )
+        assertTrue("no usa el covering index. Plan: $plan",
+            plan.contains("COVERING INDEX idx_entry_norm"))
+        assertTrue("aparecio una tabla temporal. Plan: $plan", !plan.contains("TEMP B-TREE"))
+        assertTrue("escanea la tabla. Plan: $plan", !plan.contains("SCAN entry"))
+    }
+
+    @Test
     fun lasCincoConsultasDevuelvenLoEsperado() {
         val abierto = PackFile.open(packPath)
         pack = abierto
