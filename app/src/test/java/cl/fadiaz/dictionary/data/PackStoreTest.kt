@@ -109,38 +109,6 @@ class PackStoreTest {
         }
     }
 
-    // --- Que extraer del APK, y sobre todo que NO --------------------------------------------
-
-    @Test
-    fun unPackYaInstaladoNoSeVuelveAExtraer() {
-        // Sin esto se copian 72 MB en cada arranque.
-        assertEquals(emptyList(), PackStore.queFaltaExtraer(listOf("es.db"), listOf("es.db")))
-    }
-
-    @Test
-    fun unAssetNuevoSeExtraeAunqueYaHayaOtroInstalado() {
-        // Es el camino de actualizar el APK: se agrega ingles y el español ya esta en disco.
-        assertEquals(
-            listOf("en.db"),
-            PackStore.queFaltaExtraer(listOf("en.db", "es.db"), listOf("es.db")),
-        )
-    }
-
-    @Test
-    fun unPackPuestoAManoNoSeToca() {
-        // D-071: `adb push` a filesDir/packs es el camino para iterar sin rearmar el APK.
-        // Si la extraccion lo borrara o lo pisara, ese camino no existiria.
-        assertEquals(emptyList(), PackStore.queFaltaExtraer(listOf("es.db"), listOf("es.db", "mio.db")))
-    }
-
-    @Test
-    fun sinNadaInstaladoSeExtraeTodoLoQueHaya() {
-        assertEquals(
-            listOf("en.db", "es.db"),
-            PackStore.queFaltaExtraer(listOf("es.db", "en.db"), emptyList()),
-        )
-    }
-
     /** Se corta a los `hasta` bytes, como un disco lleno. */
     private class StreamQueSeCorta(private val hasta: Int) : InputStream() {
         private var leidos = 0

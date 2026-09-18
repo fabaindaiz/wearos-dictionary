@@ -337,10 +337,7 @@ private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit)
     ) {
         state.disponibles.forEach { handle ->
             val activo = handle.packId == state.activo?.packId
-            val etiqueta = when (handle) {
-                is PackHandle.Abierto -> handle.metadata.langSource.uppercase()
-                is PackHandle.Disponible -> handle.etiqueta
-            }
+            val etiqueta = (handle as PackHandle.Abierto).metadata.langSource.uppercase()
             Text(
                 text = etiqueta,
                 style = MaterialTheme.typography.labelMedium,
