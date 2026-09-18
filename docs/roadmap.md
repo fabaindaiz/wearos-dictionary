@@ -251,7 +251,18 @@ puesto:
   las acepciones desplegadas un solo ejemplo largo todavía empuja la siguiente fuera de pantalla.
   La opción que lo resolvía —ejemplos detrás de un toque— se evaluó y no se tomó.
 - **No hay paleta propia**: se usan los defaults de Wear Material3, que están pensados para OLED.
-  Elegir colores sin un reloj delante es decidir a ciegas sobre contraste y consumo.
+  Elegir colores sin un reloj delante es decidir a ciegas sobre contraste y consumo. La barra de
+  búsqueda ya dejó de ser indistinguible de una fila (D-092), pero eso es un borde, no una paleta.
+- 🔴 **El presupuesto de 192 dp puede estar equivocado, y es la moneda de cambio de cinco
+  decisiones.** Medido en el reloj del proyecto (SM-L715F, 2026-09-18): `wm size` da **498×498 px**
+  y `wm density` da **340**, o sea **234 dp** — **22 % más pantalla** que los 192 dp sobre los que
+  se justificaron D-073, D-075, D-078, D-084 y D-085. A 48 dp de área tocable eso da margen para
+  una **cuarta fila**, que son un 33 % más de resultados sin bajar del mínimo de Wear OS.
+  **Falta confirmarlo dentro de la app** con `LocalConfiguration.screenWidthDp`: `wm density` es
+  la densidad física y Compose puede ver otra. Hasta entonces los 192 dp siguen escritos en cinco
+  lugares y `PantallasTest.entranTresResultadosSinScrollear` mide contra el dispositivo que haya.
+  Este repo ya se equivocó una vez con esta aritmética: el mockup prometía cinco filas y entraban
+  tres.
 
 Voz, lista de resultados, corona rotatoria, Tile, Complication.
 
@@ -581,6 +592,29 @@ comparación es honesta. Un log de fricción aparte es un archivo que nadie abre
 
 El umbral es el **segundo golpe**: la primera vez va al changelog de la sesión, la segunda sube
 acá con la aritmética. Una molestia sola es ruido; la segunda es un dato.
+
+### Verificar a ojo en el emulador cuesta más que el cambio que se verifica
+
+**Qué pasa ahora.** No hay forma fiable de llevar la app a un estado concreto sin un humano
+tocando la pantalla. `adb shell input swipe` se sale de la app, `input tap` con coordenadas
+calculadas de una captura cae en el botón de al lado, `input keyevent 4` cierra la app si el
+teclado no llegó a abrirse, y **`input text` deja el texto como composing del IME de Wear sin
+confirmarlo al campo**, así que la app recibe la query vacía y parece rota cuando no lo está.
+
+**Costo.** La sesión del 2026-09-18 perdió ~8 intentos —cada uno con install, force-stop, launch,
+sleep y captura— para terminar sin ver la pantalla que quería ver, y encima estuvo a punto de
+diagnosticar como bug de la app lo que era del método. Contra eso, los 34 tests instrumentados
+corren en 2 minutos y son deterministas.
+
+**El arreglo.** Un test instrumentado que **guarde capturas** de los estados que interesan
+(`SemanticsNodeInteraction.captureToImage()` ya existe en el harness que se usa) en vez de
+manejar el emulador desde afuera. Lleva la pantalla al estado por composición, no por gestos, y
+deja el PNG donde se pueda mirar. No necesita dependencias nuevas.
+
+**Visto en.** 2026-09-17 (capturas del emulador, `keyevent 4` cerraba la app), 2026-09-17 otra vez
+(*"ya había pasado la sesión anterior y volvió a pasar"*), y 2026-09-18 (swipe, taps y `input
+text`). **Tercer golpe**, y el primero donde el costo no fue tiempo sino casi un diagnóstico
+equivocado.
 
 ### La auditoría dice que `CLAUDE.md` se pasó, pero no qué sección creció
 
