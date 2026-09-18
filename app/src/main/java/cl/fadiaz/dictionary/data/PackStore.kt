@@ -124,11 +124,20 @@ object PackStore {
         prefs(context).edit().putString(CLAVE_HISTORIAL, serializarVisitas(visitas)).apply()
     }
 
+    /** Los ajustes. Igual que el historial: la politica vive arriba, aca solo se serializa. */
+    fun ajustes(context: Context): Ajustes =
+        parsearAjustes(prefs(context).getString(CLAVE_AJUSTES, null).orEmpty())
+
+    fun recordarAjustes(context: Context, ajustes: Ajustes) {
+        prefs(context).edit().putString(CLAVE_AJUSTES, serializarAjustes(ajustes)).apply()
+    }
+
     private fun prefs(context: Context) =
         context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
 
     private const val CLAVE_PACK = "pack_activo"
     private const val CLAVE_HISTORIAL = "historial"
+    private const val CLAVE_AJUSTES = "ajustes"
 
 
     /**

@@ -124,7 +124,7 @@ fun EntryScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(percent = 50))
+                        .clip(FORMA_PILDORA)
                         .background(MaterialTheme.colorScheme.surfaceContainer)
                         .clickable(onClick = onVolverABuscar)
                         .heightIn(min = TOUCH_TARGET)
@@ -202,19 +202,12 @@ fun EntryScreen(
 
             if (ocultas > 0) {
                 item(key = "ver-mas") {
-                    Text(
-                        text = "Ver más ($ocultas)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp)
-                            .clip(RoundedCornerShape(percent = 50))
-                            .background(MaterialTheme.colorScheme.surfaceContainer)
-                            .clickable { desplegada = true }
-                            .heightIn(min = 48.dp)
-                            .padding(vertical = 14.dp),
+                    Pildora(
+                        texto = "Ver más ($ocultas)",
+                        fondo = MaterialTheme.colorScheme.surfaceContainer,
+                        tinta = MaterialTheme.colorScheme.onSurfaceVariant,
+                        margen = 24.dp,
+                        onClick = { desplegada = true },
                     )
                 }
             }

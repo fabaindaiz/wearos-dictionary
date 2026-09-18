@@ -53,6 +53,14 @@ interface DictionarySource {
      */
     suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long>
 
+    /**
+     * La cabecera de una entrada por su id, sin descomprimir el payload.
+     *
+     * Una fila, servida por clave primaria. Se usa para descartar candidatos baratos --la palabra
+     * del dia prueba varios antes de quedarse con uno-- sin pagar un inflate por cada uno.
+     */
+    suspend fun summary(entryId: Long): EntrySummary?
+
     /** Cierra la conexion subyacente. El pack queda inutilizable. */
     fun close()
 }

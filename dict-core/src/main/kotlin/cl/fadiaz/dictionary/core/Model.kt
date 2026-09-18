@@ -76,6 +76,23 @@ data class Suggestion(
     val score: Int,
 )
 
+/**
+ * La cabecera barata de una entrada: lo que se puede saber **sin descomprimir el payload**.
+ *
+ * Existe porque hay decisiones que necesitan `rank` y `pos` de una entrada concreta y no su
+ * cuerpo --elegir la palabra del dia es la primera--, y abrir el payload para eso seria pagar un
+ * inflate por candidato descartado.
+ *
+ * No es un [Suggestion]: ese es una fila de resultado y lleva `matchKind` y `score`, que aca no
+ * significan nada. Y lleva `rank`, que [Suggestion] deliberadamente no expone.
+ */
+data class EntrySummary(
+    val entryId: Long,
+    val headword: String,
+    val partOfSpeech: String?,
+    val rank: Int,
+)
+
 /** Una acepcion de una entrada. */
 data class Sense(
     val gloss: String,

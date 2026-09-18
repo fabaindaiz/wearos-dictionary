@@ -44,8 +44,11 @@ android {
         applicationId = "cl.fadiaz.dictionary"
         minSdk = 33
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        // De gradle.properties, con default para que un clone sin la property compile igual.
+        // El audit (check_app_version) comprueba que la property exista y que nadie la pise
+        // con un literal aca, que es como volveriamos al numero que no sube nadie.
+        versionCode = providers.gradleProperty("dictionary.versionCode").getOrElse("2").toInt()
+        versionName = providers.gradleProperty("dictionary.versionName").getOrElse("0.2.0")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     }
