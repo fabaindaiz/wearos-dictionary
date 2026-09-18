@@ -41,9 +41,10 @@ una estaba mal y se corrigió sin gastar un emulador.
 batería, no (D-043).
 
 **Hay dos diccionarios y el MVP los usa.** Español (146.194 entradas, 68,9 MiB) e inglés
-(956.150 entradas, **295,1 MiB**), con selector de idioma. **El APK ya no lleva ninguno**: los
-packs entran por `adb push` a `filesDir/packs/`, que es donde también escribirá el instalador.
-Eso cerró D-071 antes de tiempo, y lo adelantó el número del inglés.
+(956.150 entradas, **295,1 MiB**), con selector de idioma. **El APK sólo lleva el pack de
+demostración de 53 KB** (D-081): los diccionarios reales entran por `tools/devpack.py`
+—atómico y con sha256 de los dos lados (D-082)— a `filesDir/packs/`, que es donde también
+escribirá el instalador. Eso cerró D-071 antes de tiempo, y lo adelantó el número del inglés.
 
 **El MVP existe y corre en el emulador.** 146.194 entradas, 72,2 MB, construido el 2026-09-17
 desde el Wikcionario, empaquetado en el APK y abierto por la app: buscar, abrir una entrada y la
@@ -577,6 +578,11 @@ dos relocalizaciones seguidas) y 2026-09-17 (el pack real: **`build_es.py` no se
 §Comandos** y terminó solo en el `pack-workflow` skill). El tercer golpe es el primero donde el
 costo no es tiempo sino documentación que no se escribió: el archivo raíz ya no puede nombrar un
 comando nuevo.
+
+**Cuarto golpe, 2026-09-17**: `tools/devpack.py` —el comando con el que entra un diccionario al
+reloj— tampoco pudo entrar a §Comandos, y vive sólo en `tools/CLAUDE.md` y `app/CLAUDE.md`. Van
+**dos comandos seguidos** que el archivo raíz no puede nombrar: ya no es un costo de minutos, es
+que §Comandos dejó de ser la lista de comandos del repo.
 
 ---
 

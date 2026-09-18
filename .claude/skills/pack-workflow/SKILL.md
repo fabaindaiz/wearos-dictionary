@@ -39,6 +39,9 @@ python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 
 # 3. Medir y registrar
 ls -lh es-def-wikc.db
+
+# 4. Meterlo en el reloj. NO uses `adb push` a mano: no es atomico (D-082).
+python3 tools/devpack.py install es-def-wikc.db
 ```
 
 Para **otro** idioma o tipo de pack: la fuente va en `tools/packbuilder/sources/` y entrega

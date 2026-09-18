@@ -5,8 +5,9 @@ Los diccionarios de verdad no viajan en el APK — pesan 69 MB (español) y 295 
 Entran por adb, y cuando exista el instalador entrarán por él, al mismo directorio:
 
     python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
-    adb push es-def-wikc.db /data/local/tmp/
-    adb shell "run-as cl.fadiaz.dictionary mkdir -p files/packs"
-    adb shell "run-as cl.fadiaz.dictionary cp /data/local/tmp/es-def-wikc.db files/packs/es-def-wikc.db"
+    python3 tools/devpack.py install es-def-wikc.db
+
+La copia es atómica y se comprueba con sha256: un `adb push` a mano sobre el `.db` deja un pack
+truncado si se corta, y un pack truncado se abre sin error.
 
 Ver app/CLAUDE.md y el skill pack-workflow.
