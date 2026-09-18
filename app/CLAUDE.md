@@ -111,17 +111,42 @@ Excluir los packs del backup con `android:dataExtractionRules`. Con `minSdk 33`,
 `fullBackupContent` **no aplica**: es el mecanismo para Android 11 e inferiores. Hecho:
 `res/xml/data_extraction_rules.xml` excluye `packs/` de cloud-backup y de device-transfer.
 
-## El pack viaja dentro del APK, y es una ⚠️ desviación consciente
+## Los packs no viajan en el APK
 
-`PackStore` extrae el pack desde `assets/` a `filesDir/packs/` la primera vez. Eso **duplica el
-pack en disco** —36 MB comprimidos dentro del APK más 69 MB extraídos— que es exactamente el
-costo por el que se descartó Room en D-039. `BundledSQLiteDriver.open()` recibe un *path* y un
-asset vive dentro del zip del APK: no hay forma de abrirlo en sitio.
+El APK **no lleva ningún diccionario**. Los packs viven en `filesDir/packs/` y entran por
+`adb push`; cuando exista el instalador, escribirá en ese mismo directorio y la app no va a
+notar la diferencia.
 
-Se aceptó para que instalar la app deje un diccionario funcionando sin `adb`. **Cuando exista el
-instalador, el asset desaparece.** Mientras tanto `PackStore` prefiere siempre lo que ya haya en
-`filesDir/packs/`, así que un `adb push` ahí gana y permite iterar sin reconstruir el APK.
+```sh
+python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
+adb push es-def-wikc.db /data/local/tmp/
+adb shell "run-as cl.fadiaz.dictionary mkdir -p files/packs"
+adb shell "run-as cl.fadiaz.dictionary cp /data/local/tmp/es-def-wikc.db files/packs/es-def-wikc.db"
+```
 
-El `.db` no está en el repo (`.gitignore`): se construye con `tools/packbuilder/build_pack.py` y se
-copia a `app/src/main/assets/`. Sin él la app compila igual y muestra "No hay ningún diccionario
-instalado.", que es la degradación correcta.
+Sin packs la app arranca y dice *"No hay ningún diccionario instalado."*, que es la degradación
+correcta.
+
+**Esto cerró D-071**, que era una desviación consciente: el pack viajaba como asset y se extraía
+al primer arranque, duplicándolo en disco. La decisión decía que se revertía al existir el
+instalador; lo que la adelantó fue medir el inglés — **295,1 MiB en disco, 184,7 MiB
+comprimido**, que con los dos idiomas dejaba el APK en ~270 MB. Sin packs pesa 50 MB.
+
+## Dos packs, un idioma activo
+
+Se elige uno y se busca en él; **no se fusionan resultados** — eso es composición y necesita
+`SearchRepository`, que no existe (D-078).
+
+Tres cosas que no son preferencia sino defensas contra bugs que ya existían:
+
+- **El pack activo lo decide el idioma del reloj, nunca el orden alfabético** (D-079). Antes se
+  abría el primer `.db` alfabético, así que instalar inglés habría escondido el español en
+  silencio: `en-` ordena antes que `es-`.
+- **La navegación lleva `packId`** además de `entryId` (D-080). Sin él, tocar un resultado de
+  inglés lo resolvía contra el pack activo y mostraba otra palabra.
+- **La voz sale de `metadata.langSource` del pack activo.** Un reloj dictando "perro" contra el
+  reconocedor en inglés devuelve cualquier cosa.
+
+El selector **no cuesta una fila de resultados** —con 192 dp serían un tercio de la lista—:
+reemplaza al título cuando la búsqueda está vacía, y con query sin resultados aparece como
+*Buscar en \<idioma\>*, que es exactamente cuando sirve.
