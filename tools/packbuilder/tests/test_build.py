@@ -297,6 +297,26 @@ class PacksDeclaradosTest(unittest.TestCase):
             self.assertIn(metadata["proper_nouns"], ("excluded", "lexical-only", "included"))
 
 
+class SinonimosEnElIndiceTest(BuilderTestCase):
+    """Buscar un sinonimo tiene que encontrar la entrada (D-114).
+
+    Es media razon del cambio: sin esto los sinonimos solo se VEN al abrir una entrada que ya
+    encontraste, que es justo cuando ya no los necesitas.
+    """
+
+    def test_los_sinonimos_entran_al_indice_de_texto_libre(self):
+        # La glosa NO contiene "bobo": si el match aparece, vino del sinonimo.
+        registro = build.Record(
+            headword="chulengo",
+            senses=[{"gloss": "persona de poco entendimiento", "synonyms": ["bobo", "zonzo"]}],
+        )
+        db = self.build([registro])
+        filas = db.execute("SELECT rowid FROM fts_def WHERE fts_def MATCH 'bobo'").fetchall()
+        self.assertEqual(1, len(filas), "buscar 'bobo' tiene que encontrar 'chulengo'")
+        entry_id = db.execute("SELECT id FROM entry WHERE headword='chulengo'").fetchone()[0]
+        self.assertEqual(entry_id, filas[0][0], "fts_def.rowid tiene que ser entry.id (D-011)")
+
+
 class PoliticaDeContenidoTest(BuilderTestCase):
     """El validador comprueba el ARTEFACTO, no el builder.
 
