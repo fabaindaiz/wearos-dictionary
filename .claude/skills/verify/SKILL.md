@@ -15,8 +15,9 @@ falta, meses después. El gate es lo único que los detecta antes de que eso pas
 ./gradlew check
 ```
 
-Corre compilación, Android Lint, los tests de `:dict-core`, los **46 JVM de `:app`**, los del
-builder Python y la auditoría estructural (16 checks). **Medido: ~1m26s en frío, ~40s templado.**
+Corre compilación, Android Lint, los **47 de `:dict-core`**, los **85 JVM de `:app`**, los
+**101 del builder Python** y la auditoría estructural (**18 checks**).
+**Medido: ~1m26s en frío, ~40s templado.**
 
 ## Si tocaste `norm()`, `fuzzy()` o el repertorio Unicode
 
@@ -46,7 +47,8 @@ algo ya venía fallando, nombralo para que no se presente como nuevo.
 
 ```bash
 ./gradlew :dict-data:devicePrecheck             # ¿hay con qué? Dice qué falta si no
-./gradlew :dict-data:connectedDebugAndroidTest  # los 22 tests
+./gradlew :dict-data:connectedDebugAndroidTest  # los 31 tests
+./gradlew :app:connectedDebugAndroidTest       # los 47 de pantalla
 ```
 
 Necesitan un emulador o un reloj conectado, por eso están fuera del gate. `devicePrecheck`

@@ -17,17 +17,25 @@
 ## Módulos
 
 ```
-:app            UI Wear Compose, Tiles, Complications          (hoy: template)
-:dict-data      abre packs, implementa las consultas           ✔ parcial: PackFile + tests
-:dict-core      Kotlin puro: normalización, claves, payload    ✔
-tools/          builder Python + repertorio Unicode            ✔  (fuera de Gradle)
+:app            pantallas Wear Compose, ViewModel, origen de los packs   ✔
+:dict-data      abre packs, implementa las consultas                      ✔
+:dict-core      Kotlin puro: normalización, claves, payload               ✔
+tools/          builder Python + repertorio Unicode                       ✔  (fuera de Gradle)
+
+El Tile y la Complication siguen siendo los del template y no hacen nada de
+diccionario: es un costo aceptado, no un olvido (D-087).
 ```
 
 **Dirección permitida:** `:app` → `:dict-data` → `:dict-core`. Nunca al revés.
 
-Hoy `:dict-data` depende de `:dict-core` y `:app` todavía no depende de nada. Cuando `:app`
-empiece a depender de `:dict-data`, comprobar la dirección es lo primero que la auditoría tiene
-que agregar.
+`:app` depende de `:dict-data`, que depende de `:dict-core`, que no depende de nadie. **Lo
+comprueba `audit_dictionary.py` → `check_module_direction`**, que mira las declaraciones del
+build y no los imports: `:app` y `:dict-data` comparten el nombre de paquete
+`cl.fadiaz.dictionary.data`, así que un import no dice de qué módulo viene.
+
+Lo que rompe si la dirección se invierte no es estético: `:dict-core` es el que se testea en
+milisegundos sin emulador y el que se espeja con el builder (D-005). Una dependencia hacia
+arriba lo ata a Android y esos tests dejan de poder correr.
 
 `:dict-core` no depende de Android ni de SQLite, y eso no es organización: es lo que debe estar
 sincronizado con el builder y lo que más se testea. Los tests corren en milisegundos sin
