@@ -3,8 +3,11 @@
 Diccionario **100% offline** para Wear OS. Los idiomas se instalan como *packs*: archivos
 SQLite de solo lectura que se descargan por separado y se consultan en el reloj sin red.
 
-> **Estado:** en desarrollo temprano. El motor de búsqueda y el pipeline de construcción de
-> packs están hechos y testeados; la app todavía es el template de Android Studio.
+> **Estado:** la app funciona y corre en un reloj físico. Busca por voz y por teclado, muestra
+> la entrada con sus acepciones, deja saltar de una palabra a otra tocándola, guarda favoritas,
+> trae una palabra del día por idioma y permite gestionar los diccionarios instalados.
+> **Lo que falta para llamarlo terminado** es descargar packs desde el reloj —hoy entran por
+> cable— y cerrar lo que sólo se comprueba con el reloj puesto.
 > Ver [docs/roadmap.md](docs/roadmap.md).
 
 ## Lo que hace distinto a este proyecto
@@ -62,7 +65,7 @@ Tools → Device Manager → Add a new device → Wear OS → imagen de API 33 o
 
 ```sh
 ./gradlew :dict-data:devicePrecheck             # ¿hay con qué correrlos? Dice qué falta
-./gradlew :dict-data:connectedDebugAndroidTest  # los 20 tests en dispositivo
+./gradlew :dict-data:connectedDebugAndroidTest  # los 31 tests en dispositivo
 ```
 
 **Creá un AVD por cada nivel de API que soportes, no uno solo.** El punto de
@@ -79,7 +82,8 @@ una suposición. Detalle en [dict-data/CLAUDE.md](dict-data/CLAUDE.md).
 ```
 dict-core/    Kotlin/JVM puro: normalización, claves de búsqueda, codec del payload
 tools/        pipeline Python que construye los packs, y el repertorio Unicode fijado
-app/          app Wear OS (todavía el template)
+app/          app Wear OS: las pantallas, el ViewModel y de dónde salen los packs
+dict-data/    abre los packs y ejecuta las consultas contra SQLite
 docs/         formato de pack, decisiones, contratos, roadmap
 ```
 

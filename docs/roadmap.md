@@ -22,23 +22,28 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-17.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, 40 tests) y el
-pipeline de packs (`tools/`, 35 tests) están completos y en el gate. El pack de juguete pasa
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **47 tests**) y el
+pipeline de packs (`tools/`, **101 tests**) están completos y en el gate, junto con los **85 JVM
+de `:app`** y **18 checks** de auditoría estructural. El pack de juguete pasa
 todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
 
 **Hecho y verificado en emulador.** `:dict-data` existe con `PackFile` —abre read-only y valida
 `schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y tres suites
-instrumentadas. Los **22 tests corrieron y pasan** (2026-09-17) en dos niveles de API:
+instrumentadas. Los **31 tests corrieron y pasan** en dos niveles de API:
 **Wear OS 4 / API 33** (Android 13, el minSdk) y **Wear OS 7.0 / API 37.0** (Android 17, el
 compileSdk), ambos arm64 headless. Una falla real apareció en la primera corrida y era una
 expectativa mal escrita, no un bug del producto: ver el changelog de esa fecha.
 
-`SqlitePackSource` implementa la cascada de cinco consultas, con 13 tests instrumentados. Sus
+`SqlitePackSource` implementa la cascada de cinco consultas, más la resolución en lote que hace
+tocables las palabras de una glosa (D-094) y la cabecera barata que alimenta la palabra del día
+(D-097). Sus
 expectativas se verificaron contra el contenido real del pack de juguete antes de escribirlas —
 una estaba mal y se corrigió sin gastar un emulador.
 
-**Lo que sigue sin medirse es el reloj físico.** El emulador cierra correctitud; rendimiento y
-batería, no (D-043).
+**El reloj físico ya existe, y usarlo cambió cosas.** Un Galaxy Watch (SM-L715F, API 37) con el
+APK instalado y el diccionario español adentro. En minutos destapó tres defectos que 65 tests no
+veían, y una medición que contradice al repo: **la pantalla son 234 dp, no 192**. Lo que sigue
+sin medirse es **rendimiento y batería** (D-043), y un crash de *Ver más* que no se reprodujo.
 
 **Hay dos diccionarios y el MVP los usa.** Español (146.194 entradas, 68,9 MiB) e inglés
 (956.150 entradas, **295,1 MiB**), con selector de idioma. **El APK sólo lleva el pack de
@@ -46,19 +51,22 @@ demostración de 53 KB** (D-081): los diccionarios reales entran por `tools/devp
 —atómico y con sha256 de los dos lados (D-082)— a `filesDir/packs/`, que es donde también
 escribirá el instalador. Eso cerró D-071 antes de tiempo, y lo adelantó el número del inglés.
 
-**El MVP existe y corre en el emulador.** 146.194 entradas, 72,2 MB, construido el 2026-09-17
-desde el Wikcionario, empaquetado en el APK y abierto por la app: buscar, abrir una entrada y la
-pantalla de atribución, verificado a mano en API 33. Los 25 instrumentados de `:dict-data` pasan
-en API 33 y 37.0.
+**La app hace lo que un diccionario tiene que hacer.** Busca por voz y teclado, muestra la
+entrada con sus acepciones, deja **saltar de una palabra a otra tocándola** (D-094), guarda
+favoritas, trae **una palabra del día por idioma cargado** (D-097), y permite **gestionar los
+diccionarios**: ver cuánto ocupan, cuál está en uso y borrarlos (D-103, D-104). El APK lleva
+`versionCode` monótono desde que se descubrió que el instalador rechaza un downgrade (D-095).
 
 **Lo que eso NO cerró, y conviene no confundir.** El pack real se abrió en un **emulador**, no en
 un reloj: no hay un solo número de arranque, latencia ni batería (D-043). Los instrumentados
 siguen corriendo contra el **toy pack de 53 KB** — aunque el plan de consulta se midió en los dos
 tamaños y **es el mismo**, así que ese riesgo concreto está descartado.
 
-**El gate ya cubre la lógica de `:app`**: 17 tests JVM (2026-09-17) sobre la concurrencia de la
-búsqueda y la instalación del pack. Lo que sigue sin cubrir es **la UI**: que las tres pantallas
-dibujen lo que deben, atribución incluida.
+**El gate cubre la lógica de `:app`**: **85 tests JVM** sobre la concurrencia de la búsqueda, la
+instalación del pack, el historial, las favoritas, los ajustes, la política de la palabra del día
+y el borrado de un pack. La UI la cubren **47 instrumentados**, que **no entran al gate**: hacen
+falta espresso 3.7.0 y un dispositivo, porque la 3.5.0 que venía por transitividad no inyecta
+input en API 37 (D-093).
 
 **Sin empezar.** **`SearchRepository` no existe**, así que la app abre **un** pack y la capa que
 fusiona varios está entera por escribir. El Tile y la Complication siguen siendo los del
@@ -207,21 +215,20 @@ entradas: buscar `per`, abrir `perro`, leer sus cuatro acepciones descomprimidas
 de licencia. Capturas en la sesión del changelog.
 
 **Qué sigue faltando, y es bastante.**
-- ~~`:app` no tiene un solo test~~ **cerrado el 2026-09-17**: 17 tests JVM en el gate, sobre la
-  concurrencia de la búsqueda y la instalación atómica del pack. Lo que **sigue sin test es la
-  UI**: nada comprueba que las tres pantallas dibujen lo que deben, y eso incluye que la
-  atribución se muestre, que es ship-blocking (D-031). Necesita tests de Compose instrumentados,
-  que no entran al gate.
-- **Nunca corrió en un reloj físico**, así que no hay un número de arranque, latencia ni batería
-  (D-043). El emulador no sirve para eso.
-- **El APK debug pesa 84 MB** (el asset comprime a 36,0 MB; el resto es tooling de debug). No se
-  midió el release, que además tiene R8 desactivado (O-2).
+- ~~`:app` no tiene un solo test~~ **cerrado**: **85 tests JVM** en el gate y **47 de pantalla**
+  fuera de él, atribución incluida, que es ship-blocking (D-031).
+- ~~**Nunca corrió en un reloj físico**~~ **cerrado el 2026-09-18**: corre en un Galaxy Watch
+  (API 37). Lo que sigue sin número es **arranque, latencia y batería** (D-043): para eso hace
+  falta Macrobenchmark, que es O-1.
+- **El APK debug pesa 50 MB** sin diccionarios adentro (D-071). El release son 35 MB, sin firmar
+  y con R8 desactivado (O-2).
 - `SearchRepository` sigue sin existir: la app abre **un** pack, no fusiona varios.
 - El Tile y la Complication siguen siendo los del template.
 
 ### Tests de UI para las tres pantallas
 
-**Estado.** **Hecho** (2026-09-17). 13 tests instrumentados de Compose en `:app`.
+**Estado.** **Hecho**, y creció con cada pantalla: **47 tests instrumentados** de Compose en
+`:app`.
 
 **En qué quedó.** Cubren densidad, truncado del lema largo, los estados que no son "hay
 resultados", el tope de acepciones con su `Ver más`, y la navegación. No usan un
@@ -634,8 +641,8 @@ confirmarlo al campo**, así que la app recibe la query vacía y parece rota cua
 
 **Costo.** La sesión del 2026-09-18 perdió ~8 intentos —cada uno con install, force-stop, launch,
 sleep y captura— para terminar sin ver la pantalla que quería ver, y encima estuvo a punto de
-diagnosticar como bug de la app lo que era del método. Contra eso, los 34 tests instrumentados
-corren en 2 minutos y son deterministas.
+diagnosticar como bug de la app lo que era del método. Contra eso, los tests instrumentados
+corren solos y son deterministas.
 
 **El arreglo.** Un test instrumentado que **guarde capturas** de los estados que interesan
 (`SemanticsNodeInteraction.captureToImage()` ya existe en el harness que se usa) en vez de

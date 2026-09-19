@@ -13,7 +13,7 @@ Hatch, configurado en `pyproject.toml` en la raíz. No hace falta para correr el
 Hatch es la capa de desarrollo.
 
 ```sh
-hatch run test             # los 35 tests
+hatch run test             # los 101 tests
 hatch run audit            # la auditoría estructural
 hatch run all              # ambos
 hatch run matrix:test      # LOS TESTS BAJO TODAS LAS VERSIONES DE PYTHON
@@ -47,7 +47,7 @@ entra al gate por `:tools:pythonTest`; ejecutar adb necesita un reloj y **no ent
 El builder escribe claves que el reloj vuelve a calcular. Que se comporte igual en todo Python
 no es comodidad: es el invariante central.
 
-**Medido el 2026-09-17:** los 35 tests pasan idénticos bajo Python 3.9 (Unicode 13.0) y 3.14
+**Medido el 2026-09-17:** los tests pasan idénticos bajo Python 3.9 (Unicode 13.0) y 3.14
 (Unicode 16.0), incluido `ab\u0870cd` → `ab cd`, que es el caso exacto que divergía antes de
 fijar el repertorio. El builder es independiente de la versión de Python.
 

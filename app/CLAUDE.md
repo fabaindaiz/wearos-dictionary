@@ -1,12 +1,13 @@
 # app
 
-App Wear OS. **El MVP existe y corre**: buscar, abrir una entrada y la pantalla de atribución,
-sobre el pack real de 146.194 entradas. El Tile y la Complication **siguen siendo los del
-template** y no hacen nada de diccionario: qué muestra la superficie glanceable es una decisión
-de producto abierta (D-026, `docs/roadmap.md`).
+App Wear OS, **corriendo en un reloj físico** sobre el pack real de 146.194 entradas.
 
-Las tres pantallas viven en `presentation/`; `data/PackStore.kt` es lo único que sabe de dónde
-sale el pack.
+Las pantallas viven en `presentation/`: búsqueda (que además **es el inicio**), entrada,
+atribución, ajustes, gestión de diccionarios y guardadas. `data/PackStore.kt` es lo único que
+sabe de dónde sale un pack.
+
+El Tile y la Complication **siguen siendo los del template** y no hacen nada de diccionario: qué
+muestra la superficie glanceable es una decisión de producto abierta (D-026, `docs/roadmap.md`).
 
 Las reglas de acá son preventivas: son caras de descubrir tarde.
 
@@ -28,19 +29,25 @@ Esos tests no arman un `DictionarySource`: las pantallas son funciones del estad
 estado se construye a mano. Si alguna vez una pantalla necesita un fake, es señal de que se le
 metió lógica que debería estar en el ViewModel.
 
-## El presupuesto es de 192 dp
+## El presupuesto es de 192 dp — y puede estar equivocado
 
 La pantalla son 384×384 px a 320 dpi, o sea **192×192 dp**, y la guía de Wear OS pide 48 dp
 mínimos de área tocable. Eso da **tres filas y nada más**, medido. Cada dp que gasta el chrome
 es un resultado que el usuario no ve, y de ahí salen D-073 (lista de una línea, 48 dp) y D-075
 (la entrada de texto se colapsa cuando hay resultados).
 
+🔴 **Pero el reloj del proyecto mide 234 dp**, no 192: `wm size` da 498×498 px y `wm density` da
+340. Son **22 % más pantalla** y los 192 dp son la moneda con la que se justificaron cinco
+decisiones. Falta confirmarlo **dentro de la app** con `LocalConfiguration.screenWidthDp`, porque
+`wm density` es la densidad física y Compose puede ver otra. Hasta entonces, cualquier
+arquitectura que gaste dp se cotiza contra 192 y se anota la duda.
+
 Si alguien baja de 48 dp para meter una cuarta fila, el test de densidad **sigue pasando** y lo
 que se rompe es el área tocable. Por eso el mínimo vive en una constante con nombre.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 46 tests JVM, milisegundos, dentro del gate
-./gradlew :app:connectedDebugAndroidTest # 27 tests de pantalla, necesitan emulador
+./gradlew :app:testDebugUnitTest         # 85 tests JVM, milisegundos, dentro del gate
+./gradlew :app:connectedDebugAndroidTest # 47 tests de pantalla, necesitan emulador
 ./gradlew :app:releasePrecheck           # hay keystore para firmar? dice que falta
 ./gradlew :app:assembleRelease           # 35 MB; sin keystore sale SIN FIRMAR, no rompe
 ```
@@ -48,6 +55,33 @@ que se rompe es el área tocable. Por eso el mínimo vive en una constante con n
 Lo que cubren es lo que **no da error**: resultados de una consulta vieja pisando a la actual,
 una consulta por pulsación drenando la batería, la búsqueda muerta mientras el pack carga, y un
 pack a medio copiar —que se abre sin quejarse y devuelve menos palabras de las que tiene.
+
+## El inicio es la búsqueda, y eso es deliberado
+
+No hay pantalla de menú. La guía de Wear OS pide jerarquías de **como mucho dos niveles** y
+elevar la acción primaria; un inicio que enruta a la búsqueda la hunde un toque. Así que el
+estado vacío de `SearchScreen` **es** el inicio: palabra del día, voz, texto, historial,
+guardadas y ajustes (D-096). Ajustes es el único segundo nivel, y de ahí cuelga la gestión de
+diccionarios.
+
+Tres reglas que salieron de mirarlo en pantalla, no de razonarlo:
+
+- **Un ítem que llega asincrónico no se inserta arriba de todo.** La palabra del día tarda 32
+  lecturas; para cuando llega, la lista ya se asentó, y como los ítems tienen `key` conserva su
+  posición — insertada en el índice 0 aparecía **fuera de pantalla**. Va debajo del encabezado.
+- **Todo `item` lleva `key`.** Sin identidad estable, un ítem que cambia de posición se destruye
+  y se recompone, y eso se llevaba el foco del campo de texto y el teclado con él (D-089).
+- **Dos botones van en un `Row`, no apilados**: lado a lado cuestan 48 dp, apilados 96 (D-100).
+
+## Borrar un diccionario: el orden es el contrato
+
+Se cierran **todas** las conexiones antes de tocar el disco, y recién después se recarga el set
+(D-104). No es precaución teórica: en Unix un archivo borrado con un descriptor abierto sigue
+ocupando el disco, así que el usuario vería *"borrado"* y cero espacio liberado. **Medido**:
+libre 9.802.568 kB → con el pack de 72,2 MB, 9.732.048 kB → tras borrar, 9.802.568 kB otra vez.
+
+El pack de demostración **no se puede borrar**: viene en el APK y `PackStore.open` lo re-extrae
+al reabrir, así que el botón no haría nada.
 
 ## Tiles y widgets no aceptan text input
 

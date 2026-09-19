@@ -1,4 +1,4 @@
-# Formato de pack (`schema_version = 2`)
+# Formato de pack (`schema_version = 3`)
 
 Un pack es un archivo SQLite de **solo lectura** con un diccionario. La app abre uno por idioma
 activo y nunca le escribe.
