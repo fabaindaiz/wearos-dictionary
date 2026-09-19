@@ -49,21 +49,21 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * La entrada que pidio un tile, si es que vino de ahi y si el pedido tiene sentido.
+     * The entry a tile asked for, if it came from there and if the request makes sense.
      *
-     * **Esto es entrada no confiable.** `MainActivity` esta exportada --tiene LAUNCHER-- asi que
-     * cualquier app del reloj puede lanzarla con los extras que quiera. Por eso se validan aca y
-     * la ruta se arma sola: un `packId` que no existe no llega a abrir otra palabra, se ignora y
-     * la app arranca en la busqueda, que es su estado normal.
+     * **This is untrusted input.** `MainActivity` is exported --it has LAUNCHER-- so any app on
+     * the watch can launch it with whatever extras it likes. That is why they are validated here
+     * and the route is built locally: a `packId` that does not exist never gets to open another
+     * word, it is ignored and the app starts on the search, which is its normal state.
      */
     private fun requestedEntry(intent: Intent?): Visit? {
         val packId = intent?.getStringExtra(EXTRA_PACK_ID)?.takeIf { it.isNotBlank() } ?: return null
         val entryId = intent.getLongExtra(EXTRA_ENTRY_ID, 0L)
         if (entryId <= 0L) return null
-        // El lema viaja para poder CORREGIR el id, no para mostrarlo: el tile publica un
-        // `entryId` de `SharedPreferences` que un rebuild del pack deja apuntando a otra palabra
-        // (D-055). Si no viene --un intent de otra app, o un tile viejo-- se cae a confiar en el
-        // id, que es lo que se hacia antes.
+        // The headword travels so the id can be FIXED, not to be displayed: the tile publishes
+        // an `entryId` from `SharedPreferences` that a pack rebuild leaves pointing at another
+        // word (D-055). If it does not arrive --an intent from another app, or an old tile-- we
+        // fall back to trusting the id, which is what used to happen.
         val headword = intent.getStringExtra(EXTRA_HEADWORD).orEmpty()
         return Visit(packId = packId, entryId = entryId, headword = headword, partOfSpeech = null)
     }
@@ -77,11 +77,11 @@ private const val ROUTE_FAVORITES = "favoritos"
 private const val ROUTE_PACKS = "packs"
 
 /**
- * Le pide a los dos tiles que se vuelvan a dibujar.
+ * Asks both tiles to redraw themselves.
  *
- * Es el unico mecanismo que tienen: el de historial se publica con
- * `freshnessIntervalMillis = 0`, que segun el javadoc significa que el sistema **no** lo va a
- * refrescar solo.
+ * It is the only mechanism they have: the history one is published with
+ * `freshnessIntervalMillis = 0`, which per the javadoc means the system will **not** refresh it
+ * on its own.
  */
 private fun notifyTiles(context: Context) {
     val updater = TileService.getUpdater(context)
@@ -94,9 +94,10 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
-            // El ViewModel recibe como abrir el pack en vez de construirlo: es lo unico que
-            // necesitaba de Android, y sacarlo lo deja testeable en la JVM (SearchViewModelTest).
-            // El applicationContext y no el de la Activity: el pack sobrevive a una rotacion.
+            // The ViewModel is handed how to open the pack instead of building it: that was the
+            // only thing it needed from Android, and taking it out leaves it testable on the JVM
+            // (SearchViewModelTest). The applicationContext and not the Activity's: the pack
+            // survives a rotation.
             val context = LocalContext.current.applicationContext
             val viewModel: SearchViewModel = viewModel(
                 factory = viewModelFactory {
@@ -105,15 +106,16 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             openPacks = { onExtracting ->
                                 PackStore.open(context, PackStore.preferredPack(context), onExtracting)
                             },
-                            // Sin preferencia guardada manda el idioma del reloj, no el alfabeto.
+                            // With no stored preference the watch locale decides, not the alphabet.
                             preferred = {
                                 PackStore.preferredPack(context) ?: Locale.getDefault().language
                             },
                             saveActivePack = { id -> PackStore.rememberPack(context, id) },
                             savedHistory = { PackStore.history(context) },
                             saveHistory = { PackStore.rememberHistory(context, it) },
-                            // La fecha entra por aca y no sale de un reloj dentro del ViewModel:
-                            // es lo que deja testear la palabra del dia en la JVM (D-072).
+                            // The date comes in through here instead of a clock inside the
+                            // ViewModel: that is what lets the word of the day be tested on the
+                            // JVM (D-072).
                             todayDate = { LocalDate.now().toString() },
                             savedSettings = { PackStore.settings(context) },
                             saveSettings = { PackStore.rememberSettings(context, it) },
@@ -126,8 +128,8 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             saveWeekWords = { since, words ->
                                 PackStore.rememberWeekWords(context, since, words)
                             },
-                            // Los tiles no tienen refresco programado: si la app no los empuja,
-                            // se quedan con lo que tenian.
+                            // The tiles have no scheduled refresh: if the app does not push
+                            // them, they keep whatever they had.
                             notifyTiles = { notifyTiles(context) },
                         )
                     }
@@ -135,9 +137,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
 
-            // El ajuste de texto MULTIPLICA sobre el fontScale del sistema, nunca lo reemplaza:
-            // WO-V1 de la lista de calidad de Wear OS pide respetar el tamano que el usuario
-            // configuro en el reloj, y quien ya lo subio tiene que seguir viendolo subido.
+            // The text setting MULTIPLIES on top of the system fontScale, it never replaces it:
+            // WO-V1 of the Wear OS quality list asks to respect the size the user configured on
+            // the watch, and someone who already raised it has to keep seeing it raised.
             val scope = rememberCoroutineScope()
             val base = LocalDensity.current
             CompositionLocalProvider(
@@ -146,12 +148,13 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     fontScale = base.fontScale * state.settings.textScale.factor,
                 ),
             ) {
-            // Si la app se abrio desde un tile, se navega a esa entrada UNA vez.
+            // If the app was opened from a tile, navigate to that entry ONCE.
             //
-            // Se espera a que los packs esten abiertos: antes de eso `entry()` devolveria null y
-            // la pantalla mostraria una entrada vacia en vez de la palabra. Y se valida contra los
-            // diccionarios realmente abiertos --no contra el activo-- porque caer al activo es
-            // justo el bug que D-080 arreglo: mostrar OTRA palabra, sin error.
+            // It waits for the packs to be open: before that `entry()` would return null and the
+            // screen would show an empty entry instead of the word. And it is validated against
+            // the dictionaries actually open --not against the active one-- because falling back
+            // to the active one is exactly the bug D-080 fixed: showing ANOTHER word, with no
+            // error.
             LaunchedEffect(entradaInicial, state.status) {
                 val requested = entradaInicial ?: return@LaunchedEffect
                 if (state.status != SearchState.Status.Ready) return@LaunchedEffect
@@ -171,17 +174,17 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onQueryChange = viewModel::onQueryChange,
                         onPackChange = viewModel::onPackChange,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
-                        // El packId viaja con la entrada: sin el, con dos packs abiertos se
-                        // resolveria contra el activo y mostraria otra palabra.
+                        // The packId travels with the entry: without it, with two packs open it
+                        // would be resolved against the active one and would show another word.
                         onOpenEntry = {
                             viewModel.recordVisit(it)
                             navController.navigate("$ROUTE_ENTRY/${Uri.encode(it.packId)}/${it.entryId}")
                         },
-                        // No se navega con el `entryId` guardado tal cual: si el pack se
-                        // reconstruyo, ese id es ahora OTRA palabra (D-055). `destinoDe` lo
-                        // valida contra el lema y lo corrige, o devuelve null si la palabra ya
-                        // no esta --y entonces no se navega a ningun lado, que es mejor que
-                        // abrir cualquier otra--.
+                        // We do not navigate with the stored `entryId` as is: if the pack was
+                        // rebuilt, that id is now ANOTHER word (D-055). `targetOf` validates it
+                        // against the headword and fixes it, or returns null if the word is gone
+                        // --and then we navigate nowhere, which is better than opening some
+                        // other word--.
                         onOpenVisita = { visit ->
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
@@ -195,12 +198,12 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onOpenAttribution = { navController.navigate(ROUTE_ATTRIBUTION) },
                         onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                         onOpenFavoritos = { navController.navigate(ROUTE_FAVORITES) },
-                        // Cada palabra del dia se abre en SU diccionario, que con dos idiomas
-                        // cargados no es necesariamente el activo.
-                        // Por `destinoDe` igual que el historial, y aca importa MAS: la palabra
-                        // del dia se adelanta una semana y se cachea (D-097), asi que un rebuild
-                        // a mitad de semana deja esos `entryId` apuntando a otra palabra durante
-                        // hasta siete dias. Es el caso mas probable del defecto de D-055.
+                        // Each word of the day opens in ITS dictionary, which with two languages
+                        // loaded is not necessarily the active one.
+                        // Through `targetOf` like the history, and here it matters MORE: the word
+                        // of the day is precomputed a week ahead and cached (D-097), so a rebuild
+                        // mid-week leaves those `entryId` values pointing at another word for up
+                        // to seven days. It is the most likely case of the D-055 defect.
                         onOpenWordOfTheDay = { packOfTheWord, word ->
                             scope.launch {
                                 val visit = Visit(
@@ -229,15 +232,15 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     val packId = backStackEntry.arguments?.getString("packId").orEmpty()
                     EntryScreen(
                         entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L,
-                        // La palabra se resuelve y se abre en EL MISMO pack que la entrada que
-                        // la contiene. Mandarla al pack activo seria el bug de D-080 otra vez:
-                        // abriria otra palabra y sin error.
+                        // The word is resolved and opened in THE SAME pack as the entry that
+                        // contains it. Sending it to the active pack would be the D-080 bug all
+                        // over again: it would open another word, with no error.
                         onOpenWord = { id ->
                             navController.navigate("$ROUTE_ENTRY/${Uri.encode(packId)}/$id")
                         },
-                        // Tocar palabras apila entradas sobre entradas. Volver de a una es el
-                        // swipe de siempre; esto es el atajo al principio, y es el primer
-                        // popBackStack del repo.
+                        // Tapping words stacks entries on top of entries. Going back one at a
+                        // time is the usual swipe; this is the shortcut to the start, and it is
+                        // the repo's first popBackStack.
                         onBackToSearch = {
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
@@ -252,9 +255,10 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                 },
                                 translationPack = translationPack(state.available, packId),
                                 onViewTranslation = { other ->
-                                    // La misma palabra en el otro diccionario: se resuelve por
-                                    // `norm`, que es la clave con la que se indexo, y se abre EN
-                                    // SU pack -- si se abriera en el activo seria D-080 otra vez.
+                                    // The same word in the other dictionary: resolved through
+                                    // `norm`, which is the key it was indexed by, and opened IN
+                                    // ITS pack -- opening it in the active one would be D-080
+                                    // all over again.
                                     scope.launch {
                                         val key = TextNormalizer.norm(entry.headword)
                                         val target = viewModel
@@ -267,8 +271,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                     }
                                 },
                                 onCopy = {
-                                    // ClipboardManager es android.*, asi que entra por aca y no
-                                    // por el ViewModel, que tiene que seguir corriendo en la JVM.
+                                    // ClipboardManager is android.*, so it comes in through here
+                                    // and not through the ViewModel, which has to keep running on
+                                    // the JVM.
                                     val clipboard = context
                                         .getSystemService(ClipboardManager::class.java)
                                     clipboard?.setPrimaryClip(
@@ -289,8 +294,8 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                 composable(ROUTE_FAVORITES) {
                     FavoritesScreen(
                         favorites = state.favorites,
-                        // Mismo motivo que el historial: el id guardado puede ser de un
-                        // pack anterior. Ver `SearchViewModel.destinoDe`.
+                        // Same reason as the history: the stored id may belong to an earlier
+                        // pack. See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
