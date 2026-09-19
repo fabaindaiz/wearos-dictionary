@@ -66,8 +66,8 @@ fun EntryScreen(
     entryId: Long,
     // Sin default: una palabra pintada como tocable que no navega a ningun lado es peor que no
     // pintarla, y no se distingue de una que funciona (mismo criterio que D-084).
-    onOpenPalabra: (Long) -> Unit,
-    onVolverABuscar: () -> Unit = {},
+    onOpenWord: (Long) -> Unit,
+    onBackToSearch: () -> Unit = {},
     /**
      * Las acciones del menu, construidas a partir de la entrada ya cargada.
      *
@@ -136,10 +136,10 @@ fun EntryScreen(
             // tres palabras de profundidad son tres gestos.
             item(key = "acciones") {
                 EntryActionsMenu(
-                    onVolverABuscar = onVolverABuscar,
+                    onBackToSearch = onBackToSearch,
                     // Null mientras la entrada no cargo: un boton de menu que abre nada es peor
                     // que un boton que todavia no esta.
-                    onAbrirMenu = if (actionsFor.isEmpty()) null else { { menuOpen = true } },
+                    onOpenMenu = if (actionsFor.isEmpty()) null else { { menuOpen = true } },
                 )
             }
             item(key = "encabezado") {
@@ -192,7 +192,7 @@ fun EntryScreen(
                         number = index + 1,
                         sense = sense,
                         links = links,
-                        onOpenPalabra = onOpenPalabra,
+                        onOpenWord = onOpenWord,
                     )
                 }
             }
@@ -253,7 +253,7 @@ data class EntryAction(val label: String, val onClick: () -> Unit)
  * y aca no se gana nada que justifique ese riesgo.
  */
 @Composable
-private fun EntryActionsMenu(onVolverABuscar: () -> Unit, onAbrirMenu: (() -> Unit)?) {
+private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit)?) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -262,14 +262,14 @@ private fun EntryActionsMenu(onVolverABuscar: () -> Unit, onAbrirMenu: (() -> Un
         IconPill(
             icono = Icons.Filled.Search,
             descripcion = "Buscar",
-            onClick = onVolverABuscar,
+            onClick = onBackToSearch,
             modifier = Modifier.weight(1f),
         )
-        if (onAbrirMenu != null) {
+        if (onOpenMenu != null) {
             IconPill(
                 icono = Icons.Filled.MoreVert,
                 descripcion = "Opciones",
-                onClick = onAbrirMenu,
+                onClick = onOpenMenu,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -314,11 +314,11 @@ private fun SenseBlock(
     number: Int,
     sense: Sense,
     links: Map<String, Long>,
-    onOpenPalabra: (Long) -> Unit,
+    onOpenWord: (Long) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(
-            text = annotatedGloss("$number. ", sense.gloss, links, onOpenPalabra),
+            text = annotatedGloss("$number. ", sense.gloss, links, onOpenWord),
             style = MaterialTheme.typography.bodyMedium,
         )
         sense.examples.forEach { ejemplo ->
@@ -367,7 +367,7 @@ private fun annotatedGloss(
     prefijo: String,
     glosa: String,
     links: Map<String, Long>,
-    onOpenPalabra: (Long) -> Unit,
+    onOpenWord: (Long) -> Unit,
 ): AnnotatedString {
     val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
     return remember(prefijo, glosa, links, style) {
@@ -378,7 +378,7 @@ private fun annotatedGloss(
                 val target = links[word.norm] ?: continue
                 if (word.start > cursor) append(glosa.substring(cursor, word.start))
                 withLink(
-                    LinkAnnotation.Clickable("palabra:$target", style) { onOpenPalabra(target) },
+                    LinkAnnotation.Clickable("palabra:$target", style) { onOpenWord(target) },
                 ) {
                     append(glosa.substring(word.start, word.end))
                 }

@@ -58,17 +58,17 @@ class SearchViewModelTest {
         // leyendo como si nada. El usuario veria "borrado" y cero espacio liberado.
         val es = FakeDictionary(packId = "es-def")
         val en = FakeDictionary(packId = "en-def")
-        var cerradoAlBorrar: Boolean? = null
+        var closedOnDelete: Boolean? = null
         val vm = SearchViewModel(
             { listos(es, en) },
-            deleteFromDisk = { cerradoAlBorrar = en.cerrado; true },
+            deleteFromDisk = { closedOnDelete = en.cerrado; true },
         )
         advanceUntilIdle()
 
         vm.deletePack("en-def")
         advanceUntilIdle()
 
-        assertEquals(true, cerradoAlBorrar, "se borro el archivo con la conexion todavia abierta")
+        assertEquals(true, closedOnDelete, "se borro el archivo con la conexion todavia abierta")
     }
 
     @Test
@@ -120,17 +120,17 @@ class SearchViewModelTest {
         // Viene dentro del APK y `PackStore.open` lo re-extrae al reabrir, asi que borrarlo seria
         // una accion que no hace nada: el pack vuelve solo. Ofrecerla seria mentir.
         val demo = FakeDictionary(packId = "demo")
-        var seIntentoBorrar = false
+        var deleteWasAttempted = false
         val vm = SearchViewModel(
             { listos(demo, demos = setOf("demo")) },
-            deleteFromDisk = { seIntentoBorrar = true; true },
+            deleteFromDisk = { deleteWasAttempted = true; true },
         )
         advanceUntilIdle()
 
         vm.deletePack("demo")
         advanceUntilIdle()
 
-        assertTrue(!seIntentoBorrar, "intento borrar el pack de demostracion")
+        assertTrue(!deleteWasAttempted, "intento borrar el pack de demostracion")
     }
 
     // --- Las palabras guardadas ---------------------------------------------------------------

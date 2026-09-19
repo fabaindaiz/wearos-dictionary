@@ -41,10 +41,10 @@ import cl.fadiaz.dictionary.data.PackHandle
 fun SettingsScreen(
     packs: List<PackHandle>,
     scale: TextScale,
-    onGestionarPacks: () -> Unit,
-    onEscalaChange: (TextScale) -> Unit,
-    onLimpiarHistorial: () -> Unit,
-    hayHistorial: Boolean,
+    onManagePacks: () -> Unit,
+    onScaleChange: (TextScale) -> Unit,
+    onClearHistory: () -> Unit,
+    hasHistory: Boolean,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -69,7 +69,7 @@ fun SettingsScreen(
                 ListRow(
                     lema = "Gestionar",
                     detail = opened.size.toString(),
-                    onClick = onGestionarPacks,
+                    onClick = onManagePacks,
                 )
             }
 
@@ -78,7 +78,7 @@ fun SettingsScreen(
                 val option = TextScale.entries[index]
                 RadioButton(
                     selected = option == scale,
-                    onSelect = { onEscalaChange(option) },
+                    onSelect = { onScaleChange(option) },
                     label = { Text(if (option == TextScale.NORMAL) "Normal" else "Grande") },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -104,7 +104,7 @@ fun SettingsScreen(
                 Pill(
                     text = when {
                         emptyHistory -> "Historial borrado"
-                        !hayHistorial -> "No hay historial"
+                        !hasHistory -> "No hay historial"
                         confirming -> "Confirmar"
                         else -> "Borrar el historial"
                     },
@@ -120,11 +120,11 @@ fun SettingsScreen(
                     },
                     // Sin onClick cuando no hay nada que borrar o ya se borro: una accion que no
                     // hace nada y no lo dice enseña a desconfiar del resto de los botones.
-                    onClick = if (!hayHistorial || emptyHistory) {
+                    onClick = if (!hasHistory || emptyHistory) {
                         null
                     } else if (confirming) {
                         {
-                            onLimpiarHistorial()
+                            onClearHistory()
                             emptyHistory = true
                             confirming = false
                         }

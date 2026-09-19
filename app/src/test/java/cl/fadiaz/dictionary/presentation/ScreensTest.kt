@@ -116,15 +116,15 @@ class ScreensTest {
         onPackChange: (String) -> Unit = {},
         onSearchDefinitions: () -> Unit = {},
         onOpenVisita: (Visit) -> Unit = {},
-        onOpenAjustes: () -> Unit = {},
+        onOpenSettings: () -> Unit = {},
         onOpenFavoritos: () -> Unit = {},
-        onOpenPalabraDelDia: (String, EntrySummary) -> Unit = { _, _ -> },
+        onOpenWordOfTheDay: (String, EntrySummary) -> Unit = { _, _ -> },
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
-            onOpenAjustes = onOpenAjustes, onOpenFavoritos = onOpenFavoritos,
-            onOpenPalabraDelDia = onOpenPalabraDelDia)
+            onOpenSettings = onOpenSettings, onOpenFavoritos = onOpenFavoritos,
+            onOpenWordOfTheDay = onOpenWordOfTheDay)
     }
 
     // --- La lista de resultados --------------------------------------------------------------
@@ -209,7 +209,7 @@ class ScreensTest {
 
     @Test
     fun theEntryShowsHeadwordPartOfSpeechAndNumberedSenses() {
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry("Mamífero cánido doméstico.") } }
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()
         compose.onNodeWithText("sust.", substring = true).assertExists()
         compose.onNodeWithText("1.", substring = true).assertExists()
@@ -220,7 +220,7 @@ class ScreensTest {
         // 26.845 entradas del pack español traen sinonimos y el builder los tiraba. Importan
         // sobre todo donde la glosa es de una palabra ("Tonto."), que es el 25,6 % del pack.
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) {
+            EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
                     senses = listOf(Sense("de poco entendimiento", synonyms = listOf("bobo", "zonzo"))),
                 )
@@ -236,7 +236,7 @@ class ScreensTest {
         // posicion y separador, asi que lo unico que distingue "otra forma de decirlo" de "lo
         // contrario" es el prefijo. Este test fija los dos prefijos, no la presencia.
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) {
+            EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
                     senses = listOf(
                         Sense(
@@ -257,7 +257,7 @@ class ScreensTest {
         // "justicia" tiene 10 acepciones y el maximo medido es 47. Sin tope, la pantalla se
         // vuelve un rollo y la acepcion util queda debajo de nueve que no se buscaban.
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("cuatro", substring = true).fetchSemanticsNodes().size)
@@ -271,7 +271,7 @@ class ScreensTest {
     @Test
     fun showMoreExpandsTheRest() {
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
         // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
         // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
@@ -285,7 +285,7 @@ class ScreensTest {
     @Test
     fun withThreeSensesOrFewerThereIsNoShowMore() {
         // La mediana es 3: en la mitad de las entradas el boton no tiene que aparecer siquiera.
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres") } }
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres") } }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("Ver más", substring = true).fetchSemanticsNodes().size)
     }
@@ -311,7 +311,7 @@ class ScreensTest {
             onSearchDefinitions = {},
             onOpenEntry = {},
             onOpenAttribution = {},
-            onOpenPalabraDelDia = { _, _ -> },
+            onOpenWordOfTheDay = { _, _ -> },
         )
     }
 
@@ -360,7 +360,7 @@ class ScreensTest {
                 examples = if (number == 1) listOf(longExample) else emptyList(),
             )
         }
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry().copy(senses = muchas) } }
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry().copy(senses = muchas) } }
 
         // Hay que scrollear para llegar al boton: el ejemplo de 917 caracteres lo empuja
         // fuera de pantalla. Ese es, literalmente, el muro que D-074 documenta.
@@ -384,7 +384,7 @@ class ScreensTest {
         compose.setContent {
             EntryScreen(
                 entryId = 1,
-                onOpenPalabra = {},
+                onOpenWord = {},
                 actions = { listOf(EntryAction("Guardar") {}) },
             ) { entry("una glosa") }
         }
@@ -404,7 +404,7 @@ class ScreensTest {
     fun withNoActionsTheMenuIsNotOffered() {
         // Un boton que abre un menu vacio es peor que no tener boton.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}) { entry("una glosa") }
+            EntryScreen(entryId = 1, onOpenWord = {}) { entry("una glosa") }
         }
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Buscar").assertExists()
@@ -420,7 +420,7 @@ class ScreensTest {
         compose.setContent {
             EntryScreen(
                 entryId = 1,
-                onOpenPalabra = {},
+                onOpenWord = {},
                 actions = {
                     listOf(
                         EntryAction("Guardar") { ejecutada = "Guardar" },
@@ -450,7 +450,7 @@ class ScreensTest {
         // El color es una promesa: si se pinta tocable algo que no lleva a ningun lado, el
         // usuario aprende a no confiar en el color y la funcion deja de servir.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}, resolveIn = { emptyMap() }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { emptyMap() }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
@@ -467,7 +467,7 @@ class ScreensTest {
     fun theWordPointingAtThisSameEntryIsNotPainted() {
         // Resolver devuelve la entrada abierta: un enlace a donde ya estamos no lleva a nada.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}, resolveIn = { mapOf("cera" to 1L) }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { mapOf("cera" to 1L) }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
@@ -487,7 +487,7 @@ class ScreensTest {
         // descripcion es ademas lo unico que lo nombra para un lector de pantalla.
         var volvio = false
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}, onVolverABuscar = { volvio = true }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, onBackToSearch = { volvio = true }) {
                 entry("una glosa")
             }
         }
@@ -509,7 +509,7 @@ class ScreensTest {
         var packOfTheWord: String? = null
         showSearch(
             readyState().copy(query = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
-            onOpenPalabraDelDia = { pack, word -> packOfTheWord = pack; abierta = word },
+            onOpenWordOfTheDay = { pack, word -> packOfTheWord = pack; abierta = word },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("permanecer"))
         compose.onNodeWithText("Palabra del día").assertExists()
@@ -570,7 +570,7 @@ class ScreensTest {
     @Test
     fun theHomeLeadsToSettings() {
         var abrio = false
-        showSearch(readyState().copy(query = ""), onOpenAjustes = { abrio = true })
+        showSearch(readyState().copy(query = ""), onOpenSettings = { abrio = true })
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ajustes"))
         compose.onNodeWithText("Ajustes").performClick()
         assertEquals(true, abrio)
@@ -603,8 +603,8 @@ class ScreensTest {
                     openPack("en-def", "English", 309_452_800, lang = "en"),
                 ),
                 active = "es-def",
-                onActivar = {},
-                onBorrar = {},
+                onActivate = {},
+                onDelete = {},
             )
         }
         // Tamaño e idioma juntos: el nombre del pack sale de adentro del .db y no siempre dice
@@ -629,8 +629,8 @@ class ScreensTest {
             PacksScreen(
                 packs = listOf(openPack("demo", "Juguete", 53_248, demo = true)),
                 active = "demo",
-                onActivar = {},
-                onBorrar = {},
+                onActivate = {},
+                onDelete = {},
             )
         }
         assertEquals(
@@ -648,8 +648,8 @@ class ScreensTest {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
                 active = "en-def",
-                onActivar = {},
-                onBorrar = { deleted = it },
+                onActivate = {},
+                onDelete = { deleted = it },
             )
         }
 
@@ -669,8 +669,8 @@ class ScreensTest {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
                 active = "en-def",
-                onActivar = {},
-                onBorrar = { deleted = it },
+                onActivate = {},
+                onDelete = { deleted = it },
             )
         }
         compose.onNodeWithContentDescription("Borrar English").performClick()
@@ -687,8 +687,8 @@ class ScreensTest {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
                 active = "es-def",
-                onActivar = {},
-                onBorrar = {},
+                onActivate = {},
+                onDelete = {},
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Para descargar"))
@@ -716,10 +716,10 @@ class ScreensTest {
             SettingsScreen(
                 packs = emptyList(),
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
-                onGestionarPacks = {},
-                onEscalaChange = {},
-                onLimpiarHistorial = { deleted++ },
-                hayHistorial = true,
+                onManagePacks = {},
+                onScaleChange = {},
+                onClearHistory = { deleted++ },
+                hasHistory = true,
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Borrar el historial"))
