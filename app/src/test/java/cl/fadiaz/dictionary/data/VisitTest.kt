@@ -18,13 +18,13 @@ class VisitTest {
         Visit(packId = pack, entryId = id, headword = lema, partOfSpeech = pos)
 
     @Test
-    fun loQueSeGuardaSeRecupera() {
+    fun whatIsStoredComesBack() {
         val original = listOf(visit("perro"), visit("house", "en-def", 7, "verb"))
         assertEquals(original, parseVisits(serializeVisits(original)))
     }
 
     @Test
-    fun unLemaConAcentosComillasYTabsSobrevive() {
+    fun aHeadwordWithAccentsQuotesAndTabsSurvives() {
         // Los lemas salen del Wikcionario: hay refranes con comillas, y un tab perdido en una
         // glosa ya paso una vez en este proyecto.
         val raro = visit("mas corre el galgo\tque el \"mastin\"")
@@ -32,14 +32,14 @@ class VisitTest {
     }
 
     @Test
-    fun unPosNuloSobrevive() {
+    fun aNullPartOfSpeechSurvives() {
         // El pack de juguete tiene una entrada sin pos, y el Wikcionario tambien.
         val withoutPos = visit("arbol", pos = null)
         assertEquals(listOf(withoutPos), parseVisits(serializeVisits(listOf(withoutPos))))
     }
 
     @Test
-    fun unaLineaQueNoSeEntiendeSeDescartaYNoTumbaElResto() {
+    fun anUnreadableLineIsDroppedWithoutLosingTheRest() {
         // Es el caso de un formato viejo tras actualizar la app. Perder el historial es
         // aceptable; que la app no arranque, no.
         val bueno = serializeVisits(listOf(visit("perro")))
@@ -47,12 +47,12 @@ class VisitTest {
     }
 
     @Test
-    fun unTextoVacioDaUnHistorialVacio() {
+    fun emptyTextGivesEmptyHistory() {
         assertTrue(parseVisits("").isEmpty())
     }
 
     @Test
-    fun unEntryIdQueNoEsNumeroSeDescarta() {
+    fun aNonNumericEntryIdIsDropped() {
         val roto = listOf("es-def", "no-es-un-numero", "perro", "noun").joinToString(SEPARATOR)
         assertTrue(parseVisits(roto).isEmpty())
     }
@@ -74,7 +74,7 @@ class VisitTargetTest {
     private val visit = Visit(packId = "es-def-wikc", entryId = 42, headword = "perro", partOfSpeech = "noun")
 
     @Test
-    fun siElIdSigueSiendoEseLemaSeAbreDirecto() {
+    fun ifTheIdStillHoldsThatHeadwordItOpensDirectly() {
         // El caso normal, y el que tiene que costar CERO consultas extra.
         assertEquals(
             VisitTarget.Direct(42),
@@ -83,7 +83,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun siElIdQuedoApuntandoAOtraPalabraSeCorrigePorElLema() {
+    fun ifTheIdNowPointsElsewhereItIsFixedByHeadword() {
         // Exactamente lo que hace un rebuild: el 42 ahora es otra entrada.
         assertEquals(
             VisitTarget.Relocated(777),
@@ -92,7 +92,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun siElIdYaNoExisteSeCorrigePorElLema() {
+    fun ifTheIdIsGoneItIsFixedByHeadword() {
         // El pack encogio --D-116 saco 31.575 entradas del español-- y el id quedo fuera de rango.
         assertEquals(
             VisitTarget.Relocated(777),
@@ -101,7 +101,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun siLaPalabraYaNoEstaEnElPackSeDaPorPerdida() {
+    fun ifTheWordLeftThePackItIsGivenUpAsMissing() {
         // Tambien es D-116: la palabra podada existe en el historial y ya no en el pack. Se
         // pierde la fila, no se abre cualquier otra.
         assertEquals(
@@ -111,7 +111,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun sinLemaConQueCorregirSeConfiaEnElIdSiExiste() {
+    fun withNoHeadwordToFixByTheIdIsTrustedIfItExists() {
         // El deep link de un tile puede llegar sin lema --la `Visita` se arma desde los extras
         // del intent, que es entrada no confiable--. Sin lema no hay con que re-resolver, asi
         // que la unica pregunta que queda es si ese id existe.
@@ -123,7 +123,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun sinLemaYConUnIdQueNoExisteNoSeAbreNada() {
+    fun withNoHeadwordAndAMissingIdNothingOpens() {
         val withoutHeadword = visit.copy(headword = "")
         assertEquals(
             VisitTarget.Missing,
@@ -132,7 +132,7 @@ class VisitTargetTest {
     }
 
     @Test
-    fun unLemaQueEstaPeroConOtroIdNoSeConfundeConElDirecto() {
+    fun aHeadwordPresentUnderAnotherIdIsNotMistakenForDirect() {
         // Si re-resolver devuelve el MISMO id, sigue siendo directo: no hay nada que corregir.
         assertEquals(
             VisitTarget.Direct(42),

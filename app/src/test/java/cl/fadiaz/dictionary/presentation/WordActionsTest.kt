@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
 class WordActionsTest {
 
     private fun pack(id: String, kind: PackKind) = PackHandle.Open(
-        source = FuenteVacia(
+        source = EmptySource(
             PackMetadata(
                 packId = id,
                 schemaVersion = 3,
@@ -52,12 +52,12 @@ class WordActionsTest {
     ).map { it.label }
 
     @Test
-    fun sinPackDeTraduccionNoSeOfreceTraducir() {
+    fun withNoTranslationPackTranslateIsNotOffered() {
         assertEquals(listOf("Guardar", "Copiar"), actions(null))
     }
 
     @Test
-    fun conUnPackBilingueSiSeOfrece() {
+    fun withABilingualPackItIsOffered() {
         assertEquals(
             listOf("Guardar", "Ver traducción", "Copiar"),
             actions(pack("es-en", PackKind.BILINGUAL)),
@@ -65,7 +65,7 @@ class WordActionsTest {
     }
 
     @Test
-    fun otroDiccionarioMONOLINGUENoEsUnPackDeTraduccion() {
+    fun anotherMONOLINGUALDictionaryIsNotATranslationPack() {
         // Es el caso real de hoy: espanol e ingles, los dos monolingues. Buscar "house" en el
         // diccionario espanol no devuelve una traduccion, devuelve nada.
         val opened = listOf(
@@ -76,7 +76,7 @@ class WordActionsTest {
     }
 
     @Test
-    fun elPackDeTraduccionEsBilingueYNoElQueEstamosMirando() {
+    fun theTranslationPackIsBilingualAndNotTheOneBeingRead() {
         val opened = listOf(
             pack("es-def", PackKind.MONOLINGUAL),
             pack("es-en", PackKind.BILINGUAL),
@@ -87,7 +87,7 @@ class WordActionsTest {
     }
 
     @Test
-    fun guardarCambiaDeEtiquetaSegunSiYaEstaGuardada() {
+    fun saveChangesItsLabelDependingOnWhetherItIsSaved() {
         val saved = wordActions(
             isFavorite = true,
             onAlternarFavorita = {},
@@ -100,7 +100,7 @@ class WordActionsTest {
 }
 
 /** Lo minimo para envolver una metadata. Ninguna accion consulta el pack. */
-private class FuenteVacia(override val metadata: PackMetadata) : DictionarySource {
+private class EmptySource(override val metadata: PackMetadata) : DictionarySource {
     override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
     override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()

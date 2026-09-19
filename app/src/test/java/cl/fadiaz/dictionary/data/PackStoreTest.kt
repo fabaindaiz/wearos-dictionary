@@ -26,19 +26,19 @@ class PackStoreTest {
     private lateinit var dir: File
 
     @BeforeTest
-    fun antes() {
+    fun before() {
         dir = File.createTempFile("packs", "").let { it.delete(); it.mkdirs(); it }
     }
 
     @AfterTest
-    fun despues() {
+    fun after() {
         dir.deleteRecursively()
     }
 
     private fun content(n: Int) = ByteArray(n) { (it % 251).toByte() }
 
     @Test
-    fun unaCopiaCompletaDejaElPackYNoDejaBasura() {
+    fun aCompleteCopyLeavesThePackAndNoLeftovers() {
         val bytes = content(300_000)
         val target = PackStore.installAtomically(bytes.inputStream(), dir, "es.db")
 
@@ -48,12 +48,12 @@ class PackStoreTest {
     }
 
     @Test
-    fun unaCopiaQueSeCortaNoDejaUnPackAMedioEscribir() {
+    fun aCopyThatIsCutOffLeavesNoHalfWrittenPack() {
         // El caso real: se acaba el disco, o el usuario mata la app durante los 69 MB. Si eso
         // dejara un `.db` incompleto, el proximo arranque lo abriria SIN ERROR y buscaria en un
         // diccionario al que le faltan palabras.
         assertFailsWith<IOException> {
-            PackStore.installAtomically(StreamQueSeCorta(120_000), dir, "es.db")
+            PackStore.installAtomically(TruncatedStream(120_000), dir, "es.db")
         }
 
         assertFalse(File(dir, "es.db").exists(), "no puede quedar un pack a medio escribir")
@@ -61,7 +61,7 @@ class PackStoreTest {
     }
 
     @Test
-    fun unPartHuerfanoDeUnIntentoAnteriorNoBloqueaElSiguiente() {
+    fun anOrphanPartFromAnEarlierTryDoesNotBlockTheNext() {
         // Si la app murio durante una instalacion, el `.part` sobrevive. El intento siguiente
         // tiene que pisarlo, no fallar ni concatenarse encima.
         File(dir, "es.db.part").writeBytes(content(50_000))
@@ -74,7 +74,7 @@ class PackStoreTest {
     }
 
     @Test
-    fun instalarDosVecesDejaElPackNuevo() {
+    fun installingTwiceLeavesTheNewPack() {
         PackStore.installAtomically(content(1_000).inputStream(), dir, "es.db")
         val nuevo = content(2_000)
         PackStore.installAtomically(nuevo.inputStream(), dir, "es.db")
@@ -83,12 +83,12 @@ class PackStoreTest {
     }
 
     @Test
-    fun sinPacksInstaladosNoDevuelveNada() {
+    fun withNoPacksInstalledItReturnsNothing() {
         assertEquals(emptyList(), PackStore.installedPacks(dir))
     }
 
     @Test
-    fun elPartAMedioInstalarNoSeConfundeConUnPack() {
+    fun theHalfInstalledPartIsNotMistakenForAPack() {
         // `es.db.part` no termina en `.db`, y eso no es un accidente del nombre: si se eligiera
         // como pack, la app abriria justo el archivo incompleto que el rename existe para evitar.
         File(dir, "es.db.part").writeBytes(content(1_000))
@@ -96,7 +96,7 @@ class PackStoreTest {
     }
 
     @Test
-    fun conVariosPacksLosDevuelveTodosEnOrdenEstable() {
+    fun withSeveralPacksItReturnsThemAllInAStableOrder() {
         // REEMPLAZA a `conVariosPacksElegidoEsDeterminista`, que congelaba justo lo que habia
         // que matar: devolver SOLO el primero alfabetico. Con dos packs instalados eso escondia
         // el español en silencio, porque "en-..." ordena antes que "es-...".
@@ -116,12 +116,12 @@ class PackStoreTest {
     // `adb push` o, cuando exista, por el instalador (D-071).
 
     @Test
-    fun elPackDeDemoSeExtraeLaPrimeraVez() {
+    fun theDemoPackIsExtractedTheFirstTime() {
         assertEquals(listOf("demo-es-en.db"), PackStore.missingFromDisk(listOf("demo-es-en.db"), emptyList()))
     }
 
     @Test
-    fun unPackYaInstaladoNoSeVuelveAExtraer() {
+    fun anAlreadyInstalledPackIsNotExtractedAgain() {
         // Sin esto se copia en cada arranque.
         assertEquals(
             emptyList(),
@@ -130,7 +130,7 @@ class PackStoreTest {
     }
 
     @Test
-    fun unDiccionarioPuestoAManoNoSeToca() {
+    fun aDictionaryInstalledByHandIsLeftAlone() {
         // Es el camino de hoy para los packs de verdad: `adb push` a filesDir/packs. Si la
         // extraccion los pisara o los borrara, ese camino no existiria.
         assertEquals(
@@ -140,7 +140,7 @@ class PackStoreTest {
     }
 
     @Test
-    fun unaDemoNuevaEnElApkSeExtraeAunqueYaHayaDiccionariosInstalados() {
+    fun aNewDemoInTheApkIsExtractedEvenWithDictionariesInstalled() {
         // Actualizar el APK con otra demo no puede quedar invisible detras de los packs reales.
         assertEquals(
             listOf("demo-es-en.db"),
@@ -149,7 +149,7 @@ class PackStoreTest {
     }
 
     /** Se corta a los `hasta` bytes, como un disco lleno. */
-    private class StreamQueSeCorta(private val hasta: Int) : InputStream() {
+    private class TruncatedStream(private val hasta: Int) : InputStream() {
         private var leidos = 0
 
         override fun read(): Int = read(ByteArray(1), 0, 1).let { if (it < 0) -1 else 0 }

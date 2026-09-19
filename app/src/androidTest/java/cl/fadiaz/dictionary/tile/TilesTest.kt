@@ -41,7 +41,7 @@ class TilesTest {
         Visit(packId = "es-def-wikc", entryId = id, headword = lema, partOfSpeech = "noun")
 
     @Test
-    fun elHistorialLlenoSeDibuja() {
+    fun aFullHistoryRenders() {
         val layout = materialScope(context, dispositivo) {
             filasDeHistorial(context, listOf(visit("perro"), visit("gato", 2), visit("sol", 3)))
         }
@@ -49,7 +49,7 @@ class TilesTest {
     }
 
     @Test
-    fun unHistorialDeUnaSolaFilaSeDibuja() {
+    fun aSingleRowHistoryRenders() {
         val layout = materialScope(context, dispositivo) {
             filasDeHistorial(context, listOf(visit("perro")))
         }
@@ -57,7 +57,7 @@ class TilesTest {
     }
 
     @Test
-    fun laPalabraDelDiaSeDibuja() {
+    fun theWordOfTheDayRenders() {
         val layout = materialScope(context, dispositivo) {
             tarjetaDePalabra(context, visit("corriente"), "sustantivo")
         }
@@ -65,7 +65,7 @@ class TilesTest {
     }
 
     @Test
-    fun unaPalabraSinCategoriaSeDibuja() {
+    fun aWordWithoutAPartOfSpeechRenders() {
         // `partOfSpeech` es nullable en Visita y el pack real trae entradas sin pos.
         val layout = materialScope(context, dispositivo) {
             tarjetaDePalabra(context, visit("corriente"), null)
@@ -74,7 +74,7 @@ class TilesTest {
     }
 
     @Test
-    fun elEstadoVacioSeDibuja() {
+    fun theEmptyStateRenders() {
         // El caso mas probable de todos: app recien instalada. Un tile en blanco en el carrusel
         // no se lee como "vacio" sino como "roto".
         val layout = materialScope(context, dispositivo) { tileVacio(context, "Buscá una palabra") }
@@ -82,7 +82,7 @@ class TilesTest {
     }
 
     @Test
-    fun unLemaLarguisimoNoRompeElLayout() {
+    fun aVeryLongHeadwordDoesNotBreakTheLayout() {
         // Los lemas salen del Wikcionario y hay refranes enteros como lema.
         val largo = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
         val layout = materialScope(context, dispositivo) {
