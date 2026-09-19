@@ -49,10 +49,10 @@ class WordOfTheDayTileService : TileService() {
                     .build(),
             )
         } else {
-            for ((index, ventana) in days) {
+            for ((index, window) in days) {
                 timeline.addTimelineEntry(
                     TimelineBuilders.TimelineEntry.Builder()
-                        .setValidity(ventana)
+                        .setValidity(window)
                         .setLayout(wrap(requestParams, words[index]))
                         .build(),
                 )
@@ -101,19 +101,19 @@ class WordOfTheDayTileService : TileService() {
      */
     private fun windows(
         since: String?,
-        cuantas: Int,
+        howMany: Int,
     ): List<Pair<Int, TimelineBuilders.TimeInterval>> {
-        if (since == null || cuantas <= 0) return emptyList()
+        if (since == null || howMany <= 0) return emptyList()
         val start = try {
             LocalDate.parse(since)
         } catch (e: DateTimeParseException) {
             return emptyList()
         }
         val zone = ZoneId.systemDefault()
-        return (0 until cuantas).map { dia ->
-            val startsAt = start.plusDays(dia.toLong()).atStartOfDay(zone).toInstant().toEpochMilli()
-            val endsAt = start.plusDays(dia + 1L).atStartOfDay(zone).toInstant().toEpochMilli()
-            dia to TimelineBuilders.TimeInterval.Builder()
+        return (0 until howMany).map { day ->
+            val startsAt = start.plusDays(day.toLong()).atStartOfDay(zone).toInstant().toEpochMilli()
+            val endsAt = start.plusDays(day + 1L).atStartOfDay(zone).toInstant().toEpochMilli()
+            day to TimelineBuilders.TimeInterval.Builder()
                 .setStartMillis(startsAt)
                 .setEndMillis(endsAt)
                 .build()

@@ -117,9 +117,9 @@ class WordOfTheDayTest {
         // adj 7, adv 1.
         // Los verbos tienen el mejor rank, igual que en el pack español real. Sin rotacion,
         // los 28 dias dan verbo.
-        val categorias = (1..28).map { dia ->
+        val categorias = (1..28).map { day ->
             pick(
-                date = "2026-10-%02d".format(dia),
+                date = "2026-10-%02d".format(day),
                 read = pack(
                     pos = { id -> listOf("noun", "verb", "adj", "adv")[(id % 4L).toInt()] },
                     rank = { id -> if (id % 4L == 1L) 800 else 900 },
@@ -160,9 +160,9 @@ class WordOfTheDayTest {
         // Los id de `entry` son densos, 1..entry_count. Un id fuera de rango seria una pantalla
         // vacia silenciosa, que es la clase de bug que este repo persigue.
         val pedidos = mutableListOf<Long>()
-        repeat(40) { dia ->
+        repeat(40) { day ->
             WordOfTheDay.pick(
-                date = "2026-11-%02d".format(dia + 1),
+                date = "2026-11-%02d".format(day + 1),
                 packId = "es-def",
                 entryCount = 17,
                 read = { id -> pedidos += id; EntrySummary(id, "p$id", "noun", 900) },

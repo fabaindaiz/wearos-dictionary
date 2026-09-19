@@ -385,10 +385,10 @@ class SearchViewModel(
 
         viewModelScope.launch {
             val week = mutableListOf<Visit>()
-            for (dia in 0 until TileContents.CACHED_DAYS) {
+            for (day in 0 until TileContents.CACHED_DAYS) {
                 val picked = runCatching {
                     WordOfTheDay.pick(
-                        date = TileContents.plusDays(today, dia) ?: return@launch,
+                        date = TileContents.plusDays(today, day) ?: return@launch,
                         packId = packId,
                         entryCount = active.metadata.entryCount,
                         read = { id -> active.summary(id) },
