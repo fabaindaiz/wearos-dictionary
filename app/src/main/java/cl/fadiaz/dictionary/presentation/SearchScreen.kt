@@ -49,8 +49,8 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.etiquetaDeTipo
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.packTypeLabel
+import cl.fadiaz.dictionary.data.Visit
 
 /**
  * La pantalla de busqueda. Es la app: D-026 dice que la busqueda vive aca adentro porque ni los
@@ -79,7 +79,7 @@ fun SearchScreen(
     // que no se distingue de una que funciona.
     onSearchDefinitions: () -> Unit,
     onOpenEntry: (Suggestion) -> Unit,
-    onOpenVisita: (Visita) -> Unit = {},
+    onOpenVisita: (Visit) -> Unit = {},
     onOpenAttribution: () -> Unit,
     onOpenAjustes: () -> Unit = {},
     onOpenFavoritos: () -> Unit = {},
@@ -92,7 +92,7 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 
-    val voz = rememberLauncherForActivityResult(
+    val voice = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -105,7 +105,7 @@ fun SearchScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
             // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
             // esta leyendo. No viene cableada por defecto.
@@ -117,7 +117,7 @@ fun SearchScreen(
         ) {
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
-                    Cargando(
+                    LoadingMessage(
                         mensaje = if (status == SearchState.Status.Installing) {
                             "Instalando el diccionario.\nSolo pasa la primera vez."
                         } else {
@@ -132,7 +132,7 @@ fun SearchScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = state.activo?.name ?: "Diccionario",
+                            text = state.active?.name ?: "Diccionario",
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
@@ -150,8 +150,8 @@ fun SearchScreen(
                     // del dia y del boton de voz, y buscar es la accion primaria: la guia de
                     // Wear OS pide elevarla para que se actue sin navegar.
                     item(key = "barra") {
-                        BarraDeBusqueda(state.query, onQueryChange) {
-                            voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
+                        SearchBar(state.query, onQueryChange) {
+                            voice.launch(voiceIntent(state.active?.langSource ?: "es"))
                         }
                     }
 
@@ -160,7 +160,7 @@ fun SearchScreen(
                         // escribo lo que busco-- y separarlas obligaba a scrollear entre ellas.
                         item(key = "voz") {
                             Button(
-                                onClick = { voz.launch(intentDeVoz(state.activo?.langSource ?: "es")) },
+                                onClick = { voice.launch(voiceIntent(state.active?.langSource ?: "es")) },
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
                             ) { Text("Decir una palabra") }
@@ -169,12 +169,12 @@ fun SearchScreen(
                         // Una por diccionario cargado, la del activo primero. El encabezado
                         // aparece SOLO si hay alguna: un titulo sin nada debajo es peor que no
                         // tener titulo.
-                        val delDia = state.disponibles
-                            .filterIsInstance<PackHandle.Abierto>()
+                        val delDia = state.available
+                            .filterIsInstance<PackHandle.Open>()
                             .mapNotNull { handle ->
-                                state.palabrasDelDia[handle.packId]?.let { handle to it }
+                                state.wordsOfTheDay[handle.packId]?.let { handle to it }
                             }
-                            .sortedByDescending { it.first.packId == state.activo?.packId }
+                            .sortedByDescending { it.first.packId == state.active?.packId }
                         if (delDia.isNotEmpty()) {
                             item(key = "titulo-del-dia") {
                                 ListHeader(
@@ -185,18 +185,18 @@ fun SearchScreen(
                         }
                         items(
                             count = delDia.size,
-                            key = { indice -> "pdd:${delDia[indice].first.packId}" },
-                        ) { indice ->
-                            val (handle, palabra) = delDia[indice]
+                            key = { index -> "pdd:${delDia[index].first.packId}" },
+                        ) { index ->
+                            val (handle, word) = delDia[index]
                             // Siempre el nombre del diccionario: el encabezado ya dice que es
                             // la palabra del dia, asi que repetirlo aca gastaba un renglon.
-                            PalabraDelDiaDeHoy(
-                                palabra = palabra,
+                            WordOfTheDayRow(
+                                word = word,
                                 // Nombre corto Y tipo: desde D-125 el nombre es solo "Español",
                                 // asi que sin la etiqueta no se sabe que clase de diccionario es.
-                                subtitulo = "${handle.metadata.name} · " +
-                                    etiquetaDeTipo(handle.metadata.kind),
-                            ) { onOpenPalabraDelDia(handle.packId, palabra) }
+                                subtitle = "${handle.metadata.name} · " +
+                                    packTypeLabel(handle.metadata.kind),
+                            ) { onOpenPalabraDelDia(handle.packId, word) }
                         }
                     }
 
@@ -208,7 +208,7 @@ fun SearchScreen(
                     // dos tercios de una fila y aca no hay nada con que confundirlas" -- pero con
                     // la palabra del dia arriba y las opciones abajo, la unica lista sin titulo
                     // pasaba a ser la rara.
-                    if (state.query.isEmpty() && state.historial.isNotEmpty()) {
+                    if (state.query.isEmpty() && state.history.isNotEmpty()) {
                         item(key = "titulo-recientes") {
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -216,24 +216,24 @@ fun SearchScreen(
                             ) { Text("Recientes") }
                         }
                         items(
-                            count = state.historial.size,
-                            key = { indice ->
-                                val v = state.historial[indice]
+                            count = state.history.size,
+                            key = { index ->
+                                val v = state.history[index]
                                 "h:${v.packId}:${v.entryId}"
                             },
-                        ) { indice ->
-                            val visita = state.historial[indice]
-                            Fila(
-                                lema = visita.headword,
-                                detalle = visita.partOfSpeech?.let(::posEnEspanol),
-                            ) { onOpenVisita(visita) }
+                        ) { index ->
+                            val visit = state.history[index]
+                            ListRow(
+                                lema = visit.headword,
+                                detail = visit.partOfSpeech?.let(::posInSpanish),
+                            ) { onOpenVisita(visit) }
                         }
                     }
 
                     if (state.query.isNotBlank() && state.results.isEmpty()) {
                         item(key = "sin-resultados") {
                             Text(
-                                text = if (state.modo == SearchState.Modo.DEFINICIONES) {
+                                text = if (state.mode == SearchState.Mode.DEFINICIONES) {
                                     "Sin resultados en las definiciones"
                                 } else {
                                     "Sin resultados para “${state.query}”"
@@ -246,32 +246,32 @@ fun SearchScreen(
                         }
                         // Buscar la palabra DENTRO de las definiciones. No se ofrece si ya
                         // estamos viendo definiciones: seria un bucle.
-                        if (state.modo != SearchState.Modo.DEFINICIONES) {
+                        if (state.mode != SearchState.Mode.DEFINICIONES) {
                             item(key = "escotilla-definiciones") {
-                                val buscando = state.modo == SearchState.Modo.BUSCANDO_DEFINICIONES
-                                Pildora(
-                                    texto = if (buscando) {
+                                val searching = state.mode == SearchState.Mode.BUSCANDO_DEFINICIONES
+                                Pill(
+                                    text = if (searching) {
                                         "Buscando en las definiciones…"
                                     } else {
                                         "Buscar en las definiciones"
                                     },
                                     // Sin onClick mientras busca: sigue en pantalla para que la
                                     // lista no salte, pero no dispara una segunda consulta.
-                                    onClick = if (buscando) null else onSearchDefinitions,
+                                    onClick = if (searching) null else onSearchDefinitions,
                                 )
                             }
                         }
                         // La escotilla de escape, y aparece SOLO aca: el usuario escribio algo
                         // que este idioma no tiene. Con resultados en pantalla el selector
                         // costaria una fila, o sea un tercio de la lista (D-073).
-                        val otro = state.disponibles
-                            .filterIsInstance<PackHandle.Abierto>()
-                            .firstOrNull { it.packId != state.activo?.packId }
-                        if (otro != null) {
+                        val other = state.available
+                            .filterIsInstance<PackHandle.Open>()
+                            .firstOrNull { it.packId != state.active?.packId }
+                        if (other != null) {
                             item(key = "escotilla-idioma") {
-                                Pildora(
-                                    texto = "Buscar en ${otro.metadata.name}",
-                                    onClick = { onPackChange(otro.packId) },
+                                Pill(
+                                    text = "Buscar en ${other.metadata.name}",
+                                    onClick = { onPackChange(other.packId) },
                                 )
                             }
                         }
@@ -279,12 +279,12 @@ fun SearchScreen(
 
                     items(
                         count = state.results.size,
-                        key = { indice ->
-                            val s = state.results[indice]
+                        key = { index ->
+                            val s = state.results[index]
                             "r:${s.packId}:${s.entryId}"
                         },
-                    ) { indice ->
-                        FilaDeResultado(state.results[indice]) { onOpenEntry(state.results[indice]) }
+                    ) { index ->
+                        ResultRow(state.results[index]) { onOpenEntry(state.results[index]) }
                     }
 
                     // Ajustes solo con la busqueda vacia: con resultados en pantalla una fila
@@ -300,21 +300,21 @@ fun SearchScreen(
                         // Eso cambia lo que decia D-078 --que costaba CERO filas-- y el costo
                         // nuevo es una fila propia; a cambio deja de competir con la barra por
                         // el lugar de arriba, que es donde tiene que estar la busqueda.
-                        if (state.disponibles.size > 1) {
-                            item(key = "selector") { SelectorDeIdioma(state, onPackChange) }
+                        if (state.available.size > 1) {
+                            item(key = "selector") { LanguageSelector(state, onPackChange) }
                         }
                         // Siempre, aunque este vacia: quien nunca guardo una palabra no tenia
                         // como descubrir que se puede. La pantalla ya trae un estado vacio que
                         // explica el gesto, asi que llegar ahi con cero no es un callejon.
                         item(key = "favoritos") {
-                            Fila(
+                            ListRow(
                                 lema = "Guardadas",
-                                detalle = state.favoritos.size.takeIf { it > 0 }?.toString(),
+                                detail = state.favorites.size.takeIf { it > 0 }?.toString(),
                                 onClick = onOpenFavoritos,
                             )
                         }
                         item(key = "ajustes") {
-                            Fila(lema = "Ajustes", detalle = null, onClick = onOpenAjustes)
+                            ListRow(lema = "Ajustes", detail = null, onClick = onOpenAjustes)
                         }
                     }
 
@@ -345,11 +345,11 @@ fun SearchScreen(
  * bajar de ahi seria ganar densidad rompiendo algo peor.
  */
 @Composable
-private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
-    Fila(
-        lema = sugerencia.headword,
-        detalle = etiquetaDeNivel(sugerencia.matchKind)
-            ?: sugerencia.partOfSpeech?.let(::posEnEspanol),
+private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
+    ListRow(
+        lema = suggestion.headword,
+        detail = matchLabel(suggestion.matchKind)
+            ?: suggestion.partOfSpeech?.let(::posInSpanish),
         onClick = onClick,
     )
 }
@@ -363,12 +363,12 @@ private fun FilaDeResultado(sugerencia: Suggestion, onClick: () -> Unit) {
  * teclado el que ejercita la busqueda incremental: la voz entrega la frase entera de una vez.
  */
 @Composable
-private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVoz: () -> Unit) {
+private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoz: () -> Unit) {
     // "Aceptar" no hacia nada: habia un ImeAction declarado y ningun handler, y
     // KeyboardActions.Default no define comportamiento para Search --a diferencia de
     // Next/Previous, que mueven foco--. La unica salida era el gesto de volver del sistema.
-    val teclado = LocalSoftwareKeyboardController.current
-    val foco = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -377,14 +377,14 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
         Box(
             modifier = Modifier
                 .weight(1f)
-                .clip(FORMA_PILDORA)
+                .clip(PILL_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 // El borde es lo que la distingue, y es deliberado que sea borde y no relleno:
                 // la barra usaba `surfaceContainer`, el MISMO token que una fila de resultado y
                 // que el boton "Ver mas", asi que el campo era indistinguible de un item de
                 // lista. Un relleno entero encenderia toda la banda en un OLED; el contorno
                 // enciende el perimetro y se nota igual.
-                .border(2.dp, MaterialTheme.colorScheme.primary, FORMA_PILDORA)
+                .border(2.dp, MaterialTheme.colorScheme.primary, PILL_SHAPE)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
@@ -407,11 +407,11 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
                 // teclado y suelta el foco, que es lo que devuelve la corona a la lista.
                 keyboardActions = KeyboardActions(
                     onSearch = {
-                        teclado?.hide()
+                        keyboard?.hide()
                         // Medido: soltar el foco NO se come el texto que venia
                         // componiendo el IME --se comprobo quitandolo y el campo
                         // quedaba igual--, y es lo que devuelve la corona a la lista.
-                        foco.clearFocus()
+                        focus.clearFocus()
                     },
                 ),
                 modifier = Modifier.fillMaxWidth(),
@@ -422,7 +422,7 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
         if (query.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .clip(FORMA_PILDORA)
+                    .clip(PILL_SHAPE)
                     .background(MaterialTheme.colorScheme.primaryContainer)
                     .clickable(onClick = onVoz)
                     .heightIn(min = TOUCH_TARGET)
@@ -446,15 +446,15 @@ private fun BarraDeBusqueda(query: String, onQueryChange: (String) -> Unit, onVo
  * diria "perro · sust." y eso ya existe tres veces mas abajo.
  */
 @Composable
-private fun PalabraDelDiaDeHoy(
-    palabra: EntrySummary,
-    subtitulo: String,
+private fun WordOfTheDayRow(
+    word: EntrySummary,
+    subtitle: String,
     onClick: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FORMA_PILDORA)
+            .clip(PILL_SHAPE)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick)
             .heightIn(min = TOUCH_TARGET)
@@ -462,13 +462,13 @@ private fun PalabraDelDiaDeHoy(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = palabra.headword,
+            text = word.headword,
             style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = subtitulo,
+            text = subtitle,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -485,29 +485,29 @@ private fun PalabraDelDiaDeHoy(
  * `allWarningsAsErrors`, una API que se deprecie en el proximo bump rompe el build.
  */
 @Composable
-private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit) {
+private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        state.disponibles.forEach { handle ->
-            val activo = handle.packId == state.activo?.packId
-            val etiqueta = (handle as PackHandle.Abierto).metadata.langSource.uppercase()
+        state.available.forEach { handle ->
+            val active = handle.packId == state.active?.packId
+            val label = (handle as PackHandle.Open).metadata.langSource.uppercase()
             Text(
-                text = etiqueta,
+                text = label,
                 style = MaterialTheme.typography.labelMedium,
                 textAlign = TextAlign.Center,
-                color = if (activo) {
+                color = if (active) {
                     MaterialTheme.colorScheme.onPrimaryContainer
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .clip(FORMA_PILDORA)
+                    .clip(PILL_SHAPE)
                     .background(
-                        if (activo) {
+                        if (active) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
                             MaterialTheme.colorScheme.surfaceContainer
@@ -521,7 +521,7 @@ private fun SelectorDeIdioma(state: SearchState, onPackChange: (String) -> Unit)
     }
 }
 
-private fun intentDeVoz(lang: String): Intent =
+private fun voiceIntent(lang: String): Intent =
     Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -536,7 +536,7 @@ private fun intentDeVoz(lang: String): Intent =
  * El pack guarda el `pos` con el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
  * UI: meterlo en el pack lo ataria a un idioma de interfaz y costaria bytes por entrada.
  */
-internal fun posEnEspanol(pos: String): String = when (pos) {
+internal fun posInSpanish(pos: String): String = when (pos) {
     "noun" -> "sust."
     "verb" -> "verbo"
     "adj" -> "adj."
@@ -562,7 +562,7 @@ internal fun posEnEspanol(pos: String): String = when (pos) {
  * 192 dp. Que salga por una forma flexionada o por parecido si: explica por que aparece algo
  * que el usuario no escribio.
  */
-private fun etiquetaDeNivel(kind: MatchKind): String? = when (kind) {
+private fun matchLabel(kind: MatchKind): String? = when (kind) {
     MatchKind.PREFIX -> null
     MatchKind.INFLECTED_FORM -> "forma"
     MatchKind.TRANSLATION -> "traducción"

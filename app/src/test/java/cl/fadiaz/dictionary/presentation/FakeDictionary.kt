@@ -34,13 +34,13 @@ class FakeDictionary(
      * tiene de donde elegir-- asi que dos packs distintos parecian elegir lo mismo y el test que
      * lo miraba fallaba por el fake, no por el codigo.
      */
-    private val entradas: Int = 1,
+    private val entryCount: Int = 1,
 ) : DictionarySource {
 
-    val consultas = mutableListOf<String>()
+    val queries = mutableListOf<String>()
 
     /** Las consultas que entraron por el camino de texto libre, aparte de las incrementales. */
-    val definiciones = mutableListOf<String>()
+    val definitionMode = mutableListOf<String>()
     var cerrado = false
         private set
 
@@ -58,14 +58,14 @@ class FakeDictionary(
         langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,
-        entryCount = entradas,
+        entryCount = entryCount,
         dataVersion = 1,
         license = "CC0-1.0",
         attribution = "sin atribucion: es un fake",
     )
 
     override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
-        consultas += query
+        queries += query
         var termino = false
         try {
             if (demora > 0) delay(demora)
@@ -95,23 +95,23 @@ class FakeDictionary(
     )
 
     /** Las cabeceras que este fake conoce, por entryId. Vacio = ninguna entrada existe. */
-    var resumenes: Map<Long, EntrySummary> = emptyMap()
+    var summaries: Map<Long, EntrySummary> = emptyMap()
 
-    override suspend fun summary(entryId: Long): EntrySummary? = resumenes[entryId]
+    override suspend fun summary(entryId: Long): EntrySummary? = summaries[entryId]
 
     /** Lo que este fake sabe resolver: las palabras que nombra `lemasConocidos`. */
-    var lemasConocidos: Map<String, Long> = emptyMap()
+    var knownHeadwords: Map<String, Long> = emptyMap()
 
     override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
         resueltas += norms
-        return lemasConocidos.filterKeys { it in norms }
+        return knownHeadwords.filterKeys { it in norms }
     }
 
     /** Con que conjuntos se pidio resolver. Sirve para contar consultas, no solo resultados. */
     val resueltas = mutableListOf<Set<String>>()
 
     override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
-        definiciones += query
+        definitionMode += query
         if (demora > 0) delay(demora)
         return listOf(
             Suggestion(
@@ -131,15 +131,15 @@ class FakeDictionary(
 }
 
 /** Un `abrirPacks` que el test decide cuando completar. */
-class PackDiferido {
+class DeferredPack {
     private val listo = CompletableDeferred<PackSet>()
 
-    suspend fun abrir(onExtracting: () -> Unit): PackSet {
+    suspend fun openFile(onExtracting: () -> Unit): PackSet {
         onExtracting()
         return listo.await()
     }
 
-    fun completarCon(resultado: PackSet) {
+    fun padWith(resultado: PackSet) {
         listo.complete(resultado)
     }
 }
@@ -147,10 +147,10 @@ class PackDiferido {
 /** Azucar: un PackSet listo con estos packs, el primero activo. */
 fun listos(vararg packs: FakeDictionary, demos: Set<String> = emptySet()): PackSet {
     val handles = packs.map {
-        PackHandle.Abierto(
+        PackHandle.Open(
             source = it,
-            esDemo = it.metadata.packId in demos,
-            archivo = "${it.metadata.packId}.db",
+            isDemo = it.metadata.packId in demos,
+            fileName = "${it.metadata.packId}.db",
             bytes = 1024,
         )
     }

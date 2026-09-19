@@ -19,8 +19,8 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.Visita
-import cl.fadiaz.dictionary.tile.ContenidoDeTiles
+import cl.fadiaz.dictionary.data.Visit
+import cl.fadiaz.dictionary.tile.TileContents
 
 /**
  * La concurrencia de la busqueda, que es donde un bug NO da error.
@@ -38,8 +38,8 @@ class SearchViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    private fun handle(d: FakeDictionary, esDemo: Boolean = false) =
-        PackHandle.Abierto(d, esDemo)
+    private fun handle(d: FakeDictionary, isDemo: Boolean = false) =
+        PackHandle.Open(d, isDemo)
 
     @BeforeTest
     fun antes() = Dispatchers.setMain(dispatcher)
@@ -61,11 +61,11 @@ class SearchViewModelTest {
         var cerradoAlBorrar: Boolean? = null
         val vm = SearchViewModel(
             { listos(es, en) },
-            borrarDelDisco = { cerradoAlBorrar = en.cerrado; true },
+            deleteFromDisk = { cerradoAlBorrar = en.cerrado; true },
         )
         advanceUntilIdle()
 
-        vm.borrarPack("en-def")
+        vm.deletePack("en-def")
         advanceUntilIdle()
 
         assertEquals(true, cerradoAlBorrar, "se borro el archivo con la conexion todavia abierta")
@@ -78,18 +78,18 @@ class SearchViewModelTest {
         var quedan = listOf(es, en)
         val vm = SearchViewModel(
             { listos(*quedan.toTypedArray()) },
-            borrarDelDisco = { archivo ->
-                quedan = quedan.filterNot { it.metadata.packId + ".db" == archivo }
+            deleteFromDisk = { fileName ->
+                quedan = quedan.filterNot { it.metadata.packId + ".db" == fileName }
                 true
             },
         )
         advanceUntilIdle()
-        assertEquals(2, vm.state.value.disponibles.size)
+        assertEquals(2, vm.state.value.available.size)
 
-        vm.borrarPack("en-def")
+        vm.deletePack("en-def")
         advanceUntilIdle()
 
-        assertEquals(listOf("es-def"), vm.state.value.disponibles.map { it.packId })
+        assertEquals(listOf("es-def"), vm.state.value.available.map { it.packId })
     }
 
     @Test
@@ -100,19 +100,19 @@ class SearchViewModelTest {
         var quedan = listOf(es, en)
         val vm = SearchViewModel(
             { listos(*quedan.toTypedArray()) },
-            borrarDelDisco = { archivo ->
-                quedan = quedan.filterNot { it.metadata.packId + ".db" == archivo }
+            deleteFromDisk = { fileName ->
+                quedan = quedan.filterNot { it.metadata.packId + ".db" == fileName }
                 true
             },
         )
         advanceUntilIdle()
-        val activoAntes = vm.state.value.activo?.packId
+        val activoAntes = vm.state.value.active?.packId
         assertEquals("es-def", activoAntes)
 
-        vm.borrarPack("es-def")
+        vm.deletePack("es-def")
         advanceUntilIdle()
 
-        assertEquals("en-def", vm.state.value.activo?.packId)
+        assertEquals("en-def", vm.state.value.active?.packId)
     }
 
     @Test
@@ -123,11 +123,11 @@ class SearchViewModelTest {
         var seIntentoBorrar = false
         val vm = SearchViewModel(
             { listos(demo, demos = setOf("demo")) },
-            borrarDelDisco = { seIntentoBorrar = true; true },
+            deleteFromDisk = { seIntentoBorrar = true; true },
         )
         advanceUntilIdle()
 
-        vm.borrarPack("demo")
+        vm.deletePack("demo")
         advanceUntilIdle()
 
         assertTrue(!seIntentoBorrar, "intento borrar el pack de demostracion")
@@ -135,19 +135,19 @@ class SearchViewModelTest {
 
     // --- Las palabras guardadas ---------------------------------------------------------------
 
-    private fun visita(lema: String, id: Long = 1, pack: String = "es-def") =
-        Visita(packId = pack, entryId = id, headword = lema, partOfSpeech = "noun")
+    private fun visit(lema: String, id: Long = 1, pack: String = "es-def") =
+        Visit(packId = pack, entryId = id, headword = lema, partOfSpeech = "noun")
 
     @Test
     fun guardarUnaPalabraLaDejaEnLaLista() = runTest {
-        val guardadas = mutableListOf<List<Visita>>()
-        val vm = SearchViewModel({ listos(FakeDictionary()) }, guardarFavoritos = { guardadas += it })
+        val guardadas = mutableListOf<List<Visit>>()
+        val vm = SearchViewModel({ listos(FakeDictionary()) }, saveFavorites = { guardadas += it })
         advanceUntilIdle()
 
-        vm.alternarFavorita(visita("perro"))
+        vm.toggleFavorite(visit("perro"))
 
-        assertEquals(listOf("perro"), vm.state.value.favoritos.map { it.headword })
-        assertTrue(vm.esFavorita("es-def", 1))
+        assertEquals(listOf("perro"), vm.state.value.favorites.map { it.headword })
+        assertTrue(vm.isFavorite("es-def", 1))
         assertEquals(1, guardadas.size, "tiene que persistirse, no solo quedar en memoria")
     }
 
@@ -156,11 +156,11 @@ class SearchViewModelTest {
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
 
-        vm.alternarFavorita(visita("perro"))
-        vm.alternarFavorita(visita("perro"))
+        vm.toggleFavorite(visit("perro"))
+        vm.toggleFavorite(visit("perro"))
 
-        assertTrue(vm.state.value.favoritos.isEmpty())
-        assertTrue(!vm.esFavorita("es-def", 1))
+        assertTrue(vm.state.value.favorites.isEmpty())
+        assertTrue(!vm.isFavorite("es-def", 1))
     }
 
     @Test
@@ -170,18 +170,18 @@ class SearchViewModelTest {
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
 
-        vm.alternarFavorita(visita("perro", id = 1, pack = "es-def"))
+        vm.toggleFavorite(visit("perro", id = 1, pack = "es-def"))
 
-        assertTrue(vm.esFavorita("es-def", 1))
-        assertTrue(!vm.esFavorita("en-def", 1), "el mismo id en otro pack es otra palabra")
+        assertTrue(vm.isFavorite("es-def", 1))
+        assertTrue(!vm.isFavorite("en-def", 1), "el mismo id en otro pack es otra palabra")
     }
 
     @Test
     fun lasGuardadasSeLeenAlArrancar() = runTest {
-        val previas = listOf(visita("casa", 7), visita("perro", 9))
-        val vm = SearchViewModel({ listos(FakeDictionary()) }, favoritosGuardados = { previas })
+        val previas = listOf(visit("casa", 7), visit("perro", 9))
+        val vm = SearchViewModel({ listos(FakeDictionary()) }, savedFavorites = { previas })
         advanceUntilIdle()
-        assertEquals(previas, vm.state.value.favoritos)
+        assertEquals(previas, vm.state.value.favorites)
     }
 
     @Test
@@ -189,10 +189,10 @@ class SearchViewModelTest {
         // Termina en un String de SharedPreferences: sin tope crece sin limite.
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
-        repeat(SearchViewModel.FAVORITOS_MAX + 10) { i -> vm.alternarFavorita(visita("p$i", i.toLong())) }
-        assertEquals(SearchViewModel.FAVORITOS_MAX, vm.state.value.favoritos.size)
+        repeat(SearchViewModel.MAX_FAVORITES + 10) { i -> vm.toggleFavorite(visit("p$i", i.toLong())) }
+        assertEquals(SearchViewModel.MAX_FAVORITES, vm.state.value.favorites.size)
         // La ultima guardada va primero: es la que mas probablemente quieras volver a ver.
-        assertEquals("p${SearchViewModel.FAVORITOS_MAX + 9}", vm.state.value.favoritos.first().headword)
+        assertEquals("p${SearchViewModel.MAX_FAVORITES + 9}", vm.state.value.favorites.first().headword)
     }
 
     // --- La palabra del dia ------------------------------------------------------------------
@@ -202,53 +202,53 @@ class SearchViewModelTest {
         // Que la politica sea correcta no alcanza: tiene que llegar al estado. Esto se escribio
         // porque la primera version compilaba, pasaba sus tests y **no mostraba nada** en el
         // reloj, y una captura de pantalla no dice por que.
-        val fake = FakeDictionary(entradas = 50)
-        fake.resumenes = (1L..50L).associateWith {
+        val fake = FakeDictionary(entryCount = 50)
+        fake.summaries = (1L..50L).associateWith {
             EntrySummary(it, "palabra$it", "noun", (1000 - it).toInt())
         }
-        val vm = SearchViewModel({ listos(fake) }, fechaDeHoy = { "2026-09-18" })
+        val vm = SearchViewModel({ listos(fake) }, todayDate = { "2026-09-18" })
         advanceUntilIdle()
 
-        val hoy = vm.state.value.palabrasDelDia[fake.metadata.packId]
-        assertTrue(hoy != null, "no se publico ninguna palabra del dia")
-        assertTrue(hoy.headword.startsWith("palabra"), "salio algo raro: ${hoy.headword}")
+        val today = vm.state.value.wordsOfTheDay[fake.metadata.packId]
+        assertTrue(today != null, "no se publico ninguna palabra del dia")
+        assertTrue(today.headword.startsWith("palabra"), "salio algo raro: ${today.headword}")
     }
 
     @Test
     fun hayUnaPalabraDelDiaPorCadaDiccionarioCargado() = runTest {
         // Con dos idiomas instalados las dos palabras interesan, y cambiar de idioma no puede
         // tener que recalcular nada.
-        val es = FakeDictionary(packId = "es-def", entradas = 50).apply {
-            resumenes = (1L..50L).associateWith { EntrySummary(it, "es$it", "noun", 900) }
+        val es = FakeDictionary(packId = "es-def", entryCount = 50).apply {
+            summaries = (1L..50L).associateWith { EntrySummary(it, "es$it", "noun", 900) }
         }
-        val en = FakeDictionary(packId = "en-def", entradas = 50).apply {
-            resumenes = (1L..50L).associateWith { EntrySummary(it, "en$it", "noun", 900) }
+        val en = FakeDictionary(packId = "en-def", entryCount = 50).apply {
+            summaries = (1L..50L).associateWith { EntrySummary(it, "en$it", "noun", 900) }
         }
-        val vm = SearchViewModel({ listos(es, en) }, fechaDeHoy = { "2026-09-18" })
+        val vm = SearchViewModel({ listos(es, en) }, todayDate = { "2026-09-18" })
         advanceUntilIdle()
 
-        val palabras = vm.state.value.palabrasDelDia
-        assertEquals(setOf("es-def", "en-def"), palabras.keys)
-        assertTrue(palabras.getValue("es-def").headword.startsWith("es"))
-        assertTrue(palabras.getValue("en-def").headword.startsWith("en"))
+        val words = vm.state.value.wordsOfTheDay
+        assertEquals(setOf("es-def", "en-def"), words.keys)
+        assertTrue(words.getValue("es-def").headword.startsWith("es"))
+        assertTrue(words.getValue("en-def").headword.startsWith("en"))
     }
 
     @Test
     fun cadaDiccionarioTieneSuPropiaPalabra() = runTest {
         // Misma fecha, mismos datos, distinto packId: si la semilla ignorara el pack, los dos
         // diccionarios mostrarian la entrada del mismo id, que en cada uno es otra palabra.
-        val a = FakeDictionary(packId = "aaa", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val a = FakeDictionary(packId = "aaa", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        val b = FakeDictionary(packId = "bbb", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val b = FakeDictionary(packId = "bbb", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        val vm = SearchViewModel({ listos(a, b) }, fechaDeHoy = { "2026-09-18" })
+        val vm = SearchViewModel({ listos(a, b) }, todayDate = { "2026-09-18" })
         advanceUntilIdle()
 
-        val palabras = vm.state.value.palabrasDelDia
+        val words = vm.state.value.wordsOfTheDay
         assertTrue(
-            palabras.getValue("aaa").entryId != palabras.getValue("bbb").entryId,
+            words.getValue("aaa").entryId != words.getValue("bbb").entryId,
             "los dos packs eligieron la misma entrada: la semilla no mira el packId",
         )
     }
@@ -259,36 +259,36 @@ class SearchViewModelTest {
     fun alAbrirLosPacksSeCacheaLaSemanaDePalabrasParaElTile() = runTest {
         // El tile NO abre el pack --onTileRequest corre en el hilo principal con 10 s de tope--
         // asi que si la app no deja la semana escrita, el tile no tiene nada que mostrar.
-        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: Pair<String, List<Visita>>? = null
+        var guardadas: Pair<String, List<Visit>>? = null
         val vm = SearchViewModel(
             { listos(fake) },
-            fechaDeHoy = { "2026-09-19" },
-            guardarPalabrasDeLaSemana = { desde, palabras -> guardadas = desde to palabras },
+            todayDate = { "2026-09-19" },
+            saveWeekWords = { since, words -> guardadas = since to words },
         )
         advanceUntilIdle()
 
-        val cache = guardadas
-        assertTrue(cache != null, "no se cacheo ninguna palabra para el tile")
-        assertEquals("2026-09-19", cache.first)
-        assertEquals(ContenidoDeTiles.DIAS_CACHEADOS, cache.second.size)
-        assertTrue(cache.second.all { it.packId == "es-def" }, "la cache mezclo packs")
+        val cached = guardadas
+        assertTrue(cached != null, "no se cacheo ninguna palabra para el tile")
+        assertEquals("2026-09-19", cached.first)
+        assertEquals(TileContents.CACHED_DAYS, cached.second.size)
+        assertTrue(cached.second.all { it.packId == "es-def" }, "la cache mezclo packs")
     }
 
     @Test
     fun laSemanaCacheadaTieneUnaPalabraDistintaPorDia() = runTest {
         // Si el hash ignorara la fecha, el Timeline del tile tendria siete ventanas con la misma
         // palabra y "palabra del dia" seria una palabra a secas.
-        val fake = FakeDictionary(packId = "es-def", entradas = 5000).apply {
-            resumenes = (1L..5000L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(packId = "es-def", entryCount = 5000).apply {
+            summaries = (1L..5000L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: List<Visita> = emptyList()
+        var guardadas: List<Visit> = emptyList()
         val vm = SearchViewModel(
             { listos(fake) },
-            fechaDeHoy = { "2026-09-19" },
-            guardarPalabrasDeLaSemana = { _, palabras -> guardadas = palabras },
+            todayDate = { "2026-09-19" },
+            saveWeekWords = { _, words -> guardadas = words },
         )
         advanceUntilIdle()
 
@@ -301,17 +301,17 @@ class SearchViewModelTest {
     @Test
     fun unaCacheDeHoyYDelMismoPackNoSeRecalcula() = runTest {
         // Son 32 lecturas por dia: rehacerlas en cada arranque es trabajo que no cambia nada.
-        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
         var vecesGuardadas = 0
         val vm = SearchViewModel(
             { listos(fake) },
-            fechaDeHoy = { "2026-09-19" },
-            palabrasDeLaSemanaGuardadas = {
-                "2026-09-19" to listOf(Visita("es-def", 1, "ya-estaba", "noun"))
+            todayDate = { "2026-09-19" },
+            savedWeekWords = {
+                "2026-09-19" to listOf(Visit("es-def", 1, "ya-estaba", "noun"))
             },
-            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+            saveWeekWords = { _, _ -> vecesGuardadas++ },
         )
         advanceUntilIdle()
 
@@ -320,17 +320,17 @@ class SearchViewModelTest {
 
     @Test
     fun unaCacheDeAyerSeRehace() = runTest {
-        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
         var vecesGuardadas = 0
         val vm = SearchViewModel(
             { listos(fake) },
-            fechaDeHoy = { "2026-09-19" },
-            palabrasDeLaSemanaGuardadas = {
-                "2026-09-18" to listOf(Visita("es-def", 1, "de-ayer", "noun"))
+            todayDate = { "2026-09-19" },
+            savedWeekWords = {
+                "2026-09-18" to listOf(Visit("es-def", 1, "de-ayer", "noun"))
             },
-            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+            saveWeekWords = { _, _ -> vecesGuardadas++ },
         )
         advanceUntilIdle()
 
@@ -341,17 +341,17 @@ class SearchViewModelTest {
     fun unaCacheDeOtroDiccionarioSeRehace() = runTest {
         // Cambiar de idioma tiene que cambiar la palabra del tile: si no, el tile queda mostrando
         // espanol con la app en ingles, y eso no se reporta porque nadie abre un tile a proposito.
-        val fake = FakeDictionary(packId = "en-def", entradas = 500).apply {
-            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(packId = "en-def", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: List<Visita> = emptyList()
+        var guardadas: List<Visit> = emptyList()
         val vm = SearchViewModel(
             { listos(fake) },
-            fechaDeHoy = { "2026-09-19" },
-            palabrasDeLaSemanaGuardadas = {
-                "2026-09-19" to listOf(Visita("es-def", 1, "de-otro-pack", "noun"))
+            todayDate = { "2026-09-19" },
+            savedWeekWords = {
+                "2026-09-19" to listOf(Visit("es-def", 1, "de-otro-pack", "noun"))
             },
-            guardarPalabrasDeLaSemana = { _, palabras -> guardadas = palabras },
+            saveWeekWords = { _, words -> guardadas = words },
         )
         advanceUntilIdle()
 
@@ -361,13 +361,13 @@ class SearchViewModelTest {
 
     @Test
     fun sinFechaNoSeCacheaNada() = runTest {
-        val fake = FakeDictionary(entradas = 50).apply {
-            resumenes = (1L..50L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        val fake = FakeDictionary(entryCount = 50).apply {
+            summaries = (1L..50L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
         var vecesGuardadas = 0
         val vm = SearchViewModel(
             { listos(fake) },
-            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+            saveWeekWords = { _, _ -> vecesGuardadas++ },
         )
         advanceUntilIdle()
         assertEquals(0, vecesGuardadas)
@@ -381,10 +381,10 @@ class SearchViewModelTest {
         // sistema no vuelve a llamarlo. Si la app no lo empuja, se queda con lo de la instalacion.
         val fake = FakeDictionary()
         var avisos = 0
-        val vm = SearchViewModel({ listos(fake) }, avisarTiles = { avisos++ })
+        val vm = SearchViewModel({ listos(fake) }, notifyTiles = { avisos++ })
         advanceUntilIdle()
 
-        vm.registrarVisita(Suggestion("es-def", 1, "perro", "noun", MatchKind.PREFIX, 0))
+        vm.recordVisit(Suggestion("es-def", 1, "perro", "noun", MatchKind.PREFIX, 0))
         advanceUntilIdle()
 
         assertEquals(1, avisos, "abrir una entrada no avisa al tile")
@@ -394,10 +394,10 @@ class SearchViewModelTest {
     fun guardarUnaPalabraTambienAvisaAlTile() = runTest {
         val fake = FakeDictionary()
         var avisos = 0
-        val vm = SearchViewModel({ listos(fake) }, avisarTiles = { avisos++ })
+        val vm = SearchViewModel({ listos(fake) }, notifyTiles = { avisos++ })
         advanceUntilIdle()
 
-        vm.alternarFavorita(Visita("es-def", 1, "perro", "noun"))
+        vm.toggleFavorite(Visit("es-def", 1, "perro", "noun"))
         advanceUntilIdle()
 
         assertTrue(avisos >= 1, "guardar una palabra no avisa al tile")
@@ -408,10 +408,10 @@ class SearchViewModelTest {
         // El default: si nadie cablea el reloj, la ausencia se ve en pantalla en vez de mostrar
         // una palabra que nunca cambia.
         val fake = FakeDictionary()
-        fake.resumenes = mapOf(1L to EntrySummary(1, "unica", "noun", 900))
+        fake.summaries = mapOf(1L to EntrySummary(1, "unica", "noun", 900))
         val vm = SearchViewModel({ listos(fake) })
         advanceUntilIdle()
-        assertTrue(vm.state.value.palabrasDelDia.isEmpty())
+        assertTrue(vm.state.value.wordsOfTheDay.isEmpty())
     }
 
     // --- La carrera al abrir el pack (TDD: este fallaba) -------------------------------------
@@ -421,18 +421,18 @@ class SearchViewModelTest {
         // El pack de español pesa 69 MB y tarda en abrir; la pantalla ya acepta texto. Si lo
         // escrito durante ese rato no se vuelve a consultar, la busqueda queda MUERTA: el
         // usuario ve "Sin resultados" para siempre, hasta que borra una letra y la reescribe.
-        val diferido = PackDiferido()
+        val diferido = DeferredPack()
         val fake = FakeDictionary()
-        val vm = SearchViewModel(diferido::abrir)
+        val vm = SearchViewModel(diferido::openFile)
 
         vm.onQueryChange("per")
         advanceUntilIdle()
-        assertTrue(fake.consultas.isEmpty(), "no hay pack todavia: no deberia haber consultado")
+        assertTrue(fake.queries.isEmpty(), "no hay pack todavia: no deberia haber consultado")
 
-        diferido.completarCon(listos(fake))
+        diferido.padWith(listos(fake))
         advanceUntilIdle()
 
-        assertEquals(listOf("per"), fake.consultas, "al abrir el pack tiene que buscar lo escrito")
+        assertEquals(listOf("per"), fake.queries, "al abrir el pack tiene que buscar lo escrito")
         assertEquals(listOf("per"), vm.state.value.results.map { it.headword })
     }
 
@@ -446,12 +446,12 @@ class SearchViewModelTest {
 
     @Test
     fun mientrasSeExtraeElPackLaPantallaDiceQueEstaInstalando() = runTest {
-        val diferido = PackDiferido()
-        val vm = SearchViewModel(diferido::abrir)
+        val diferido = DeferredPack()
+        val vm = SearchViewModel(diferido::openFile)
         advanceUntilIdle()
         assertEquals(SearchState.Status.Installing, vm.state.value.status)
 
-        diferido.completarCon(listos(FakeDictionary()))
+        diferido.padWith(listos(FakeDictionary()))
         advanceUntilIdle()
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
     }
@@ -466,13 +466,13 @@ class SearchViewModelTest {
         val vm = conPack(fake)
         advanceUntilIdle()
 
-        listOf("p", "pe", "per", "perr").forEach { texto ->
-            vm.onQueryChange(texto)
+        listOf("p", "pe", "per", "perr").forEach { text ->
+            vm.onQueryChange(text)
             advanceTimeBy(SearchViewModel.DEBOUNCE_MS / 2)
         }
         advanceUntilIdle()
 
-        assertEquals(listOf("perr"), fake.consultas)
+        assertEquals(listOf("perr"), fake.queries)
     }
 
     @Test
@@ -486,7 +486,7 @@ class SearchViewModelTest {
         vm.onQueryChange("casa")
         advanceUntilIdle()
 
-        assertEquals(listOf("per", "casa"), fake.consultas)
+        assertEquals(listOf("per", "casa"), fake.queries)
     }
 
     @Test
@@ -502,7 +502,7 @@ class SearchViewModelTest {
         vm.onQueryChange("casa")
         advanceUntilIdle()
 
-        assertEquals(listOf("per", "casa"), fake.consultas, "las dos tienen que haber empezado")
+        assertEquals(listOf("per", "casa"), fake.queries, "las dos tienen que haber empezado")
         assertEquals(listOf("per"), fake.canceladas, "la vieja tiene que haberse cancelado")
         assertEquals(listOf("casa"), vm.state.value.results.map { it.headword })
         assertEquals("casa", vm.state.value.query)
@@ -520,7 +520,7 @@ class SearchViewModelTest {
 
         vm.onQueryChange("")
         advanceUntilIdle()
-        assertEquals(listOf("per"), fake.consultas, "una query vacia no tiene que ir al pack")
+        assertEquals(listOf("per"), fake.queries, "una query vacia no tiene que ir al pack")
         assertTrue(vm.state.value.results.isEmpty(), "y tiene que limpiar la lista")
     }
 
@@ -534,7 +534,7 @@ class SearchViewModelTest {
 
         vm.onQueryChange("per")
         assertEquals("per", vm.state.value.query)
-        assertTrue(fake.consultas.isEmpty(), "todavia no paso el debounce")
+        assertTrue(fake.queries.isEmpty(), "todavia no paso el debounce")
     }
 
     @Test
@@ -544,7 +544,7 @@ class SearchViewModelTest {
         val vm = conPack(fake)
         advanceUntilIdle()
 
-        vm.cerrar()
+        vm.close()
         assertTrue(fake.cerrado)
     }
 
@@ -557,9 +557,9 @@ class SearchViewModelTest {
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(en), listOf(handle(en), handle(es))) },
-                                 preferido = { "es-def" })
+                                 preferred = { "es-def" })
         advanceUntilIdle()
-        assertEquals("es-def", vm.state.value.activo?.packId)
+        assertEquals("es-def", vm.state.value.active?.packId)
     }
 
     @Test
@@ -567,9 +567,9 @@ class SearchViewModelTest {
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(en), listOf(handle(en), handle(es))) },
-                                 preferido = { "es" })
+                                 preferred = { "es" })
         advanceUntilIdle()
-        assertEquals("es-def", vm.state.value.activo?.packId, "deberia caer al pack de ese idioma")
+        assertEquals("es-def", vm.state.value.active?.packId, "deberia caer al pack de ese idioma")
     }
 
     @Test
@@ -584,10 +584,10 @@ class SearchViewModelTest {
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(demo), listOf(handle(demo, esDemo = true), handle(real)))
-        }, preferido = { "en" })
+            PackSet.Ready(handle(demo), listOf(handle(demo, isDemo = true), handle(real)))
+        }, preferred = { "en" })
         advanceUntilIdle()
-        assertEquals("es-def-wikc", vm.state.value.activo?.packId)
+        assertEquals("es-def-wikc", vm.state.value.active?.packId)
     }
 
     @Test
@@ -598,10 +598,10 @@ class SearchViewModelTest {
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(real), listOf(handle(demo, esDemo = true), handle(real)))
+            PackSet.Ready(handle(real), listOf(handle(demo, isDemo = true), handle(real)))
         })
         advanceUntilIdle()
-        assertEquals(listOf("es-def-wikc"), vm.state.value.disponibles.map { it.packId })
+        assertEquals(listOf("es-def-wikc"), vm.state.value.available.map { it.packId })
     }
 
     @Test
@@ -609,10 +609,10 @@ class SearchViewModelTest {
         // Para eso existe: que la app recien instalada tenga algo que mostrar.
         val demo = FakeDictionary("toy-es-en", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(demo, esDemo = true), listOf(handle(demo, esDemo = true)))
+            PackSet.Ready(handle(demo, isDemo = true), listOf(handle(demo, isDemo = true)))
         })
         advanceUntilIdle()
-        assertEquals("toy-es-en", vm.state.value.activo?.packId)
+        assertEquals("toy-es-en", vm.state.value.active?.packId)
     }
 
     @Test
@@ -626,13 +626,13 @@ class SearchViewModelTest {
 
         vm.onQueryChange("per")
         advanceUntilIdle()
-        assertEquals(listOf("per"), es.consultas)
+        assertEquals(listOf("per"), es.queries)
 
         vm.onPackChange("en-def")
         advanceUntilIdle()
-        assertEquals(listOf("per"), en.consultas, "la query tiene que repetirse en el pack nuevo")
+        assertEquals(listOf("per"), en.queries, "la query tiene que repetirse en el pack nuevo")
         assertEquals("per", vm.state.value.query)
-        assertEquals("en-def", vm.state.value.activo?.packId)
+        assertEquals("en-def", vm.state.value.active?.packId)
     }
 
     @Test
@@ -641,7 +641,7 @@ class SearchViewModelTest {
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) },
-                                 recordar = { recordado = it })
+                                 saveActivePack = { recordado = it })
         advanceUntilIdle()
         vm.onPackChange("en-def")
         advanceUntilIdle()
@@ -673,11 +673,11 @@ class SearchViewModelTest {
     fun unPackRotoNoSeLlevaAlOtro() = runTest {
         val es = FakeDictionary("es-def", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(es), listOf(handle(es)), problemas = listOf("en-def: dañado"))
+            PackSet.Ready(handle(es), listOf(handle(es)), problems = listOf("en-def: dañado"))
         })
         advanceUntilIdle()
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
-        assertEquals(listOf("en-def: dañado"), vm.state.value.problemas)
+        assertEquals(listOf("en-def: dañado"), vm.state.value.problems)
     }
 
     @Test
@@ -686,13 +686,13 @@ class SearchViewModelTest {
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) })
         advanceUntilIdle()
-        vm.cerrar()
+        vm.close()
         assertTrue(es.cerrado && en.cerrado, "un pack sin cerrar deja viva su conexion de SQLite")
     }
 
     // --- El historial de entradas abiertas -------------------------------------------------------
 
-    private fun sugerencia(pack: String, id: Long, lema: String) = Suggestion(
+    private fun suggestion(pack: String, id: Long, lema: String) = Suggestion(
         packId = pack, entryId = id, headword = lema, partOfSpeech = "noun",
         matchKind = MatchKind.PREFIX, score = 0,
     )
@@ -701,17 +701,17 @@ class SearchViewModelTest {
     fun abrirUnaEntradaLaDejaEnElHistorial() {
         val fake = FakeDictionary("es-def", "es")
         val vm = conPack(fake)
-        vm.registrarVisita(sugerencia("es-def", 7, "perro"))
-        assertEquals(listOf("perro"), vm.state.value.historial.map { it.headword })
+        vm.recordVisit(suggestion("es-def", 7, "perro"))
+        assertEquals(listOf("perro"), vm.state.value.history.map { it.headword })
     }
 
     @Test
     fun abrirLaMismaEntradaDosVecesNoLaDuplicaYLaSubeAlTope() {
         val vm = conPack(FakeDictionary("es-def", "es"))
-        vm.registrarVisita(sugerencia("es-def", 1, "perro"))
-        vm.registrarVisita(sugerencia("es-def", 2, "casa"))
-        vm.registrarVisita(sugerencia("es-def", 1, "perro"))
-        assertEquals(listOf("perro", "casa"), vm.state.value.historial.map { it.headword })
+        vm.recordVisit(suggestion("es-def", 1, "perro"))
+        vm.recordVisit(suggestion("es-def", 2, "casa"))
+        vm.recordVisit(suggestion("es-def", 1, "perro"))
+        assertEquals(listOf("perro", "casa"), vm.state.value.history.map { it.headword })
     }
 
     @Test
@@ -719,9 +719,9 @@ class SearchViewModelTest {
         // El tope no es arbitrario: la pantalla da tres filas de 48 dp (D-073). Guardar mas seria
         // guardar lo que no se ve.
         val vm = conPack(FakeDictionary("es-def", "es"))
-        (1..6).forEach { vm.registrarVisita(sugerencia("es-def", it.toLong(), "lema$it")) }
-        assertEquals(SearchViewModel.HISTORIAL_MAX, vm.state.value.historial.size)
-        assertEquals("lema6", vm.state.value.historial.first().headword)
+        (1..6).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
+        assertEquals(SearchViewModel.MAX_HISTORY, vm.state.value.history.size)
+        assertEquals("lema6", vm.state.value.history.first().headword)
     }
 
     @Test
@@ -732,23 +732,23 @@ class SearchViewModelTest {
         val es = FakeDictionary("es-def", "es")
         val vm = SearchViewModel(
             { PackSet.Ready(handle(es), listOf(handle(es))) },
-            historialGuardado = {
+            savedHistory = {
                 listOf(
-                    Visita("es-def", 1, "perro", "noun"),
-                    Visita("de-def", 2, "Hund", "noun"),
+                    Visit("es-def", 1, "perro", "noun"),
+                    Visit("de-def", 2, "Hund", "noun"),
                 )
             },
         )
         advanceUntilIdle()
-        assertEquals(listOf("perro"), vm.state.value.historial.map { it.headword })
+        assertEquals(listOf("perro"), vm.state.value.history.map { it.headword })
     }
 
     @Test
     fun elHistorialSePersiste() {
-        var guardado: List<Visita> = emptyList()
+        var guardado: List<Visit> = emptyList()
         val vm = SearchViewModel({ listos(FakeDictionary("es-def", "es")) },
-                                 guardarHistorial = { guardado = it })
-        vm.registrarVisita(sugerencia("es-def", 7, "perro"))
+                                 saveHistory = { guardado = it })
+        vm.recordVisit(suggestion("es-def", 7, "perro"))
         assertEquals(listOf("perro"), guardado.map { it.headword })
     }
 
@@ -765,8 +765,8 @@ class SearchViewModelTest {
         vm.onSearchDefinitions()
         advanceUntilIdle()
 
-        assertEquals(listOf("animal que ladra"), fake.definiciones)
-        assertEquals(SearchState.Modo.DEFINICIONES, vm.state.value.modo)
+        assertEquals(listOf("animal que ladra"), fake.definitionMode)
+        assertEquals(SearchState.Mode.DEFINICIONES, vm.state.value.mode)
         assertEquals(listOf("def:animal que ladra"), vm.state.value.results.map { it.headword })
     }
 
@@ -781,7 +781,7 @@ class SearchViewModelTest {
         vm.onQueryChange("animal")
         advanceUntilIdle()
 
-        assertTrue(fake.definiciones.isEmpty(), "escribir no puede tocar el indice de texto libre")
+        assertTrue(fake.definitionMode.isEmpty(), "escribir no puede tocar el indice de texto libre")
     }
 
     @Test
@@ -794,12 +794,12 @@ class SearchViewModelTest {
         advanceUntilIdle()
         vm.onSearchDefinitions()
         advanceUntilIdle()
-        assertEquals(SearchState.Modo.DEFINICIONES, vm.state.value.modo)
+        assertEquals(SearchState.Mode.DEFINICIONES, vm.state.value.mode)
 
         vm.onQueryChange("animales")
         advanceUntilIdle()
 
-        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
+        assertEquals(SearchState.Mode.NORMAL, vm.state.value.mode)
         assertEquals(listOf("animales"), vm.state.value.results.map { it.headword })
     }
 
@@ -818,7 +818,7 @@ class SearchViewModelTest {
         vm.onQueryChange("casa")
         advanceUntilIdle()
 
-        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
+        assertEquals(SearchState.Mode.NORMAL, vm.state.value.mode)
         assertEquals(listOf("casa"), vm.state.value.results.map { it.headword })
     }
 
@@ -833,7 +833,7 @@ class SearchViewModelTest {
         vm.onSearchDefinitions()
         advanceTimeBy(10)
 
-        assertEquals(SearchState.Modo.BUSCANDO_DEFINICIONES, vm.state.value.modo)
+        assertEquals(SearchState.Mode.BUSCANDO_DEFINICIONES, vm.state.value.mode)
     }
 
     @Test
@@ -850,8 +850,8 @@ class SearchViewModelTest {
         vm.onPackChange("en-def")
         advanceUntilIdle()
 
-        assertEquals(SearchState.Modo.NORMAL, vm.state.value.modo)
-        assertEquals(listOf("animal"), en.consultas, "el pack nuevo recibe la query por prefijo")
+        assertEquals(SearchState.Mode.NORMAL, vm.state.value.mode)
+        assertEquals(listOf("animal"), en.queries, "el pack nuevo recibe la query por prefijo")
     }
 
     @Test
@@ -862,8 +862,8 @@ class SearchViewModelTest {
         val vm = conPack(fake)
         advanceUntilIdle()
 
-        assertEquals(fake.metadata.attribution, vm.state.value.activo?.attribution)
-        assertEquals(fake.metadata.license, vm.state.value.activo?.license)
-        assertEquals(fake.metadata.name, vm.state.value.activo?.name)
+        assertEquals(fake.metadata.attribution, vm.state.value.active?.attribution)
+        assertEquals(fake.metadata.license, vm.state.value.active?.license)
+        assertEquals(fake.metadata.name, vm.state.value.active?.name)
     }
 }

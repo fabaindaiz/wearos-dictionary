@@ -23,7 +23,7 @@
           grupo es el nombre de la clase. Declararlo los fundiria en uno solo.
         -->
         <service
-            android:name=".tile.HistorialTileService"
+            android:name=".tile.HistoryTileService"
             android:exported="true"
             android:label="@string/tile_historial_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
@@ -36,7 +36,7 @@
                 android:resource="@drawable/tile_preview" />
         </service>
         <service
-            android:name=".tile.PalabraTileService"
+            android:name=".tile.WordOfTheDayTileService"
             android:exported="true"
             android:label="@string/tile_palabra_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">

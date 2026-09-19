@@ -22,7 +22,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.etiquetaDeTipo
+import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
  * La atribucion, y **no es opcional** (D-031).
@@ -32,14 +32,14 @@ import cl.fadiaz.dictionary.data.etiquetaDeTipo
  * `meta.attribution` del pack abierto, para que un pack de otra fuente traiga la suya.
  */
 @Composable
-fun AttributionScreen(packs: List<PackHandle>, problemas: List<String> = emptyList()) {
+fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyList()) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
         ) {
             item {
@@ -50,11 +50,11 @@ fun AttributionScreen(packs: List<PackHandle>, problemas: List<String> = emptyLi
             }
             // Cada pack trae SU licencia: con dos fuentes, mostrar una sola seria incumplir la
             // condicion de uso de la otra.
-            packs.filterIsInstance<PackHandle.Abierto>().forEach { handle ->
+            packs.filterIsInstance<PackHandle.Open>().forEach { handle ->
                 val meta = handle.metadata
                 item {
                     Text(
-                        text = "${meta.name} · ${etiquetaDeTipo(meta.kind)}",
+                        text = "${meta.name} · ${packTypeLabel(meta.kind)}",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     )
@@ -92,7 +92,7 @@ fun AttributionScreen(packs: List<PackHandle>, problemas: List<String> = emptyLi
                 }
             }
             // Un pack rechazado no puede desaparecer en silencio del selector.
-            problemas.forEach { problema ->
+            problems.forEach { problema ->
                 item {
                     Text(
                         text = problema,

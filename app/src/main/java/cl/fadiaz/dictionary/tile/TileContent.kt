@@ -1,6 +1,6 @@
 package cl.fadiaz.dictionary.tile
 
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
@@ -16,13 +16,13 @@ import java.time.temporal.ChronoUnit
  * son la misma forma de dato --`packId`, `entryId`, lema y categoria-- y un segundo tipo seria un
  * segundo formato que puede divergir del que ya esta en disco.
  */
-internal sealed interface TileContenido {
+internal sealed interface TileContent {
 
     /** Las ultimas entradas abiertas, en el orden en que las dejo el ViewModel. */
-    data class Filas(val visitas: List<Visita>) : TileContenido
+    data class ListRows(val visits: List<Visit>) : TileContent
 
     /** La palabra de hoy. */
-    data class Palabra(val visita: Visita) : TileContenido
+    data class Word(val visit: Visit) : TileContent
 
     /**
      * No hay nada que mostrar, y el tile tiene que decirlo.
@@ -30,10 +30,10 @@ internal sealed interface TileContenido {
      * **Nunca dibujar un tile en blanco**: en el carrusel se ve roto, no vacio. El adaptador pone
      * una invitacion a abrir la app, que ademas es la unica forma de que deje de estar vacio.
      */
-    data object Vacio : TileContenido
+    data object Empty : TileContent
 }
 
-internal object ContenidoDeTiles {
+internal object TileContents {
 
     /**
      * Cuantas filas entran.
@@ -42,7 +42,7 @@ internal object ContenidoDeTiles {
      * es un parametro y no una constante enterrada: el reloj del proyecto mide **234 dp y no
      * 192**, y cuando eso se confirme dentro de la app puede entrar una cuarta fila.
      */
-    const val FILAS_MAX: Int = 3
+    const val MAX_ROWS: Int = 3
 
     /**
      * Cuantos dias de palabra del dia se precalculan.
@@ -52,12 +52,12 @@ internal object ContenidoDeTiles {
      * haya abierto la app. Con siete, se sostiene una semana, y ademas son las siete ventanas del
      * `Timeline` que dejan que el renderer cambie de palabra solo, sin un solo despertar.
      */
-    const val DIAS_CACHEADOS: Int = 7
+    const val CACHED_DAYS: Int = 7
 
     /** Las ultimas entradas abiertas. No reordena: el move-to-front ya lo aplico el ViewModel. */
-    fun historial(visitas: List<Visita>, max: Int = FILAS_MAX): TileContenido {
-        val visibles = visitas.take(max)
-        return if (visibles.isEmpty()) TileContenido.Vacio else TileContenido.Filas(visibles)
+    fun history(visits: List<Visit>, max: Int = MAX_ROWS): TileContent {
+        val visibleOnes = visits.take(max)
+        return if (visibleOnes.isEmpty()) TileContent.Empty else TileContent.ListRows(visibleOnes)
     }
 
     /**
@@ -72,14 +72,14 @@ internal object ContenidoDeTiles {
      * no se puede leer se descarta en vez de tirar: esto se lee de SharedPreferences, que es un
      * contrato con el disco, y corre en el hilo principal.
      */
-    fun palabraDelDia(desde: String?, palabras: List<Visita>, hoy: String?): TileContenido {
-        if (palabras.isEmpty()) return TileContenido.Vacio
-        val inicio = fecha(desde) ?: return TileContenido.Vacio
-        val actual = fecha(hoy) ?: return TileContenido.Vacio
+    fun wordOfTheDay(since: String?, words: List<Visit>, today: String?): TileContent {
+        if (words.isEmpty()) return TileContent.Empty
+        val start = date(since) ?: return TileContent.Empty
+        val current = date(today) ?: return TileContent.Empty
 
-        val indice = ChronoUnit.DAYS.between(inicio, actual)
-        if (indice < 0 || indice >= palabras.size) return TileContenido.Vacio
-        return TileContenido.Palabra(palabras[indice.toInt()])
+        val index = ChronoUnit.DAYS.between(start, current)
+        if (index < 0 || index >= words.size) return TileContent.Empty
+        return TileContent.Word(words[index.toInt()])
     }
 
     /**
@@ -89,13 +89,13 @@ internal object ContenidoDeTiles {
      * calcula la diferencia para leerla. Vivir en el mismo archivo es lo que hace evidente que
      * los dos tienen que usar la misma aritmetica de calendario.
      */
-    fun sumarDias(desde: String?, dias: Int): String? =
-        fecha(desde)?.plusDays(dias.toLong())?.toString()
+    fun plusDays(since: String?, days: Int): String? =
+        date(since)?.plusDays(days.toLong())?.toString()
 
-    private fun fecha(texto: String?): LocalDate? {
-        if (texto.isNullOrBlank()) return null
+    private fun date(text: String?): LocalDate? {
+        if (text.isNullOrBlank()) return null
         return try {
-            LocalDate.parse(texto.trim())
+            LocalDate.parse(text.trim())
         } catch (e: DateTimeParseException) {
             null
         }

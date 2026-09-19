@@ -7,8 +7,8 @@ import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.tile.EXTRA_ENTRY_ID
 import cl.fadiaz.dictionary.tile.EXTRA_HEADWORD
 import cl.fadiaz.dictionary.tile.EXTRA_PACK_ID
-import cl.fadiaz.dictionary.tile.HistorialTileService
-import cl.fadiaz.dictionary.tile.PalabraTileService
+import cl.fadiaz.dictionary.tile.HistoryTileService
+import cl.fadiaz.dictionary.tile.WordOfTheDayTileService
 import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
@@ -30,7 +30,7 @@ import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackStore
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.Locale
@@ -45,7 +45,7 @@ import cl.fadiaz.dictionary.presentation.theme.DictionaryTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { DictionaryApp(entradaPedida(intent)) }
+        setContent { DictionaryApp(requestedEntry(intent)) }
     }
 
     /**
@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
      * la ruta se arma sola: un `packId` que no existe no llega a abrir otra palabra, se ignora y
      * la app arranca en la busqueda, que es su estado normal.
      */
-    private fun entradaPedida(intent: Intent?): Visita? {
+    private fun requestedEntry(intent: Intent?): Visit? {
         val packId = intent?.getStringExtra(EXTRA_PACK_ID)?.takeIf { it.isNotBlank() } ?: return null
         val entryId = intent.getLongExtra(EXTRA_ENTRY_ID, 0L)
         if (entryId <= 0L) return null
@@ -65,16 +65,16 @@ class MainActivity : ComponentActivity() {
         // (D-055). Si no viene --un intent de otra app, o un tile viejo-- se cae a confiar en el
         // id, que es lo que se hacia antes.
         val headword = intent.getStringExtra(EXTRA_HEADWORD).orEmpty()
-        return Visita(packId = packId, entryId = entryId, headword = headword, partOfSpeech = null)
+        return Visit(packId = packId, entryId = entryId, headword = headword, partOfSpeech = null)
     }
 }
 
-private const val RUTA_BUSQUEDA = "busqueda"
-private const val RUTA_ENTRADA = "entrada"
-private const val RUTA_ATRIBUCION = "atribucion"
-private const val RUTA_AJUSTES = "ajustes"
-private const val RUTA_FAVORITOS = "favoritos"
-private const val RUTA_PACKS = "packs"
+private const val ROUTE_SEARCH = "busqueda"
+private const val ROUTE_ENTRY = "entrada"
+private const val ROUTE_ATTRIBUTION = "atribucion"
+private const val ROUTE_SETTINGS = "ajustes"
+private const val ROUTE_FAVORITES = "favoritos"
+private const val ROUTE_PACKS = "packs"
 
 /**
  * Le pide a los dos tiles que se vuelvan a dibujar.
@@ -83,14 +83,14 @@ private const val RUTA_PACKS = "packs"
  * `freshnessIntervalMillis = 0`, que segun el javadoc significa que el sistema **no** lo va a
  * refrescar solo.
  */
-private fun avisarALosTiles(context: Context) {
+private fun notifyTiles(context: Context) {
     val updater = TileService.getUpdater(context)
-    updater.requestUpdate(HistorialTileService::class.java)
-    updater.requestUpdate(PalabraTileService::class.java)
+    updater.requestUpdate(HistoryTileService::class.java)
+    updater.requestUpdate(WordOfTheDayTileService::class.java)
 }
 
 @Composable
-fun DictionaryApp(entradaInicial: Visita? = null) {
+fun DictionaryApp(entradaInicial: Visit? = null) {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
@@ -102,33 +102,33 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                 factory = viewModelFactory {
                     initializer {
                         SearchViewModel(
-                            abrirPacks = { onExtracting ->
-                                PackStore.open(context, PackStore.packPreferido(context), onExtracting)
+                            openPacks = { onExtracting ->
+                                PackStore.open(context, PackStore.preferredPack(context), onExtracting)
                             },
                             // Sin preferencia guardada manda el idioma del reloj, no el alfabeto.
-                            preferido = {
-                                PackStore.packPreferido(context) ?: Locale.getDefault().language
+                            preferred = {
+                                PackStore.preferredPack(context) ?: Locale.getDefault().language
                             },
-                            recordar = { id -> PackStore.recordarPack(context, id) },
-                            historialGuardado = { PackStore.historial(context) },
-                            guardarHistorial = { PackStore.recordarHistorial(context, it) },
+                            saveActivePack = { id -> PackStore.rememberPack(context, id) },
+                            savedHistory = { PackStore.history(context) },
+                            saveHistory = { PackStore.rememberHistory(context, it) },
                             // La fecha entra por aca y no sale de un reloj dentro del ViewModel:
                             // es lo que deja testear la palabra del dia en la JVM (D-072).
-                            fechaDeHoy = { LocalDate.now().toString() },
-                            ajustesGuardados = { PackStore.ajustes(context) },
-                            guardarAjustes = { PackStore.recordarAjustes(context, it) },
-                            favoritosGuardados = { PackStore.favoritos(context) },
-                            guardarFavoritos = { PackStore.recordarFavoritos(context, it) },
-                            borrarDelDisco = { archivo -> PackStore.borrarPack(context, archivo) },
-                            palabrasDeLaSemanaGuardadas = {
-                                PackStore.palabrasDeLaSemana(context)
+                            todayDate = { LocalDate.now().toString() },
+                            savedSettings = { PackStore.settings(context) },
+                            saveSettings = { PackStore.rememberSettings(context, it) },
+                            savedFavorites = { PackStore.favorites(context) },
+                            saveFavorites = { PackStore.rememberFavorites(context, it) },
+                            deleteFromDisk = { fileName -> PackStore.deletePack(context, fileName) },
+                            savedWeekWords = {
+                                PackStore.weekWords(context)
                             },
-                            guardarPalabrasDeLaSemana = { desde, palabras ->
-                                PackStore.recordarPalabrasDeLaSemana(context, desde, palabras)
+                            saveWeekWords = { since, words ->
+                                PackStore.rememberWeekWords(context, since, words)
                             },
                             // Los tiles no tienen refresco programado: si la app no los empuja,
                             // se quedan con lo que tenian.
-                            avisarTiles = { avisarALosTiles(context) },
+                            notifyTiles = { notifyTiles(context) },
                         )
                     }
                 },
@@ -143,7 +143,7 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
             CompositionLocalProvider(
                 LocalDensity provides Density(
                     density = base.density,
-                    fontScale = base.fontScale * state.ajustes.escalaDeTexto.factor,
+                    fontScale = base.fontScale * state.settings.textScale.factor,
                 ),
             ) {
             // Si la app se abrio desde un tile, se navega a esa entrada UNA vez.
@@ -153,19 +153,19 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
             // diccionarios realmente abiertos --no contra el activo-- porque caer al activo es
             // justo el bug que D-080 arreglo: mostrar OTRA palabra, sin error.
             LaunchedEffect(entradaInicial, state.status) {
-                val pedida = entradaInicial ?: return@LaunchedEffect
+                val requested = entradaInicial ?: return@LaunchedEffect
                 if (state.status != SearchState.Status.Ready) return@LaunchedEffect
-                val destino = viewModel.destinoDe(pedida) ?: return@LaunchedEffect
+                val target = viewModel.targetOf(requested) ?: return@LaunchedEffect
                 navController.navigate(
-                    "$RUTA_ENTRADA/${Uri.encode(pedida.packId)}/$destino",
+                    "$ROUTE_ENTRY/${Uri.encode(requested.packId)}/$target",
                 )
             }
 
             SwipeDismissableNavHost(
                 navController = navController,
-                startDestination = RUTA_BUSQUEDA,
+                startDestination = ROUTE_SEARCH,
             ) {
-                composable(RUTA_BUSQUEDA) {
+                composable(ROUTE_SEARCH) {
                     SearchScreen(
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
@@ -174,45 +174,45 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                         // El packId viaja con la entrada: sin el, con dos packs abiertos se
                         // resolveria contra el activo y mostraria otra palabra.
                         onOpenEntry = {
-                            viewModel.registrarVisita(it)
-                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
+                            viewModel.recordVisit(it)
+                            navController.navigate("$ROUTE_ENTRY/${Uri.encode(it.packId)}/${it.entryId}")
                         },
                         // No se navega con el `entryId` guardado tal cual: si el pack se
                         // reconstruyo, ese id es ahora OTRA palabra (D-055). `destinoDe` lo
                         // valida contra el lema y lo corrige, o devuelve null si la palabra ya
                         // no esta --y entonces no se navega a ningun lado, que es mejor que
                         // abrir cualquier otra--.
-                        onOpenVisita = { visita ->
+                        onOpenVisita = { visit ->
                             scope.launch {
-                                val destino = viewModel.destinoDe(visita)
-                                if (destino != null) {
+                                val target = viewModel.targetOf(visit)
+                                if (target != null) {
                                     navController.navigate(
-                                        "$RUTA_ENTRADA/${Uri.encode(visita.packId)}/$destino",
+                                        "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
                                     )
                                 }
                             }
                         },
-                        onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },
-                        onOpenAjustes = { navController.navigate(RUTA_AJUSTES) },
-                        onOpenFavoritos = { navController.navigate(RUTA_FAVORITOS) },
+                        onOpenAttribution = { navController.navigate(ROUTE_ATTRIBUTION) },
+                        onOpenAjustes = { navController.navigate(ROUTE_SETTINGS) },
+                        onOpenFavoritos = { navController.navigate(ROUTE_FAVORITES) },
                         // Cada palabra del dia se abre en SU diccionario, que con dos idiomas
                         // cargados no es necesariamente el activo.
                         // Por `destinoDe` igual que el historial, y aca importa MAS: la palabra
                         // del dia se adelanta una semana y se cachea (D-097), asi que un rebuild
                         // a mitad de semana deja esos `entryId` apuntando a otra palabra durante
                         // hasta siete dias. Es el caso mas probable del defecto de D-055.
-                        onOpenPalabraDelDia = { packDeLaPalabra, palabra ->
+                        onOpenPalabraDelDia = { packDeLaPalabra, word ->
                             scope.launch {
-                                val visita = Visita(
+                                val visit = Visit(
                                     packId = packDeLaPalabra,
-                                    entryId = palabra.entryId,
-                                    headword = palabra.headword,
-                                    partOfSpeech = palabra.partOfSpeech,
+                                    entryId = word.entryId,
+                                    headword = word.headword,
+                                    partOfSpeech = word.partOfSpeech,
                                 )
-                                val destino = viewModel.destinoDe(visita)
-                                if (destino != null) {
+                                val target = viewModel.targetOf(visit)
+                                if (target != null) {
                                     navController.navigate(
-                                        "$RUTA_ENTRADA/${Uri.encode(packDeLaPalabra)}/$destino",
+                                        "$ROUTE_ENTRY/${Uri.encode(packDeLaPalabra)}/$target",
                                     )
                                 }
                             }
@@ -220,7 +220,7 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                     )
                 }
                 composable(
-                    route = "$RUTA_ENTRADA/{packId}/{entryId}",
+                    route = "$ROUTE_ENTRY/{packId}/{entryId}",
                     arguments = listOf(
                         navArgument("packId") { type = NavType.StringType },
                         navArgument("entryId") { type = NavType.LongType },
@@ -233,35 +233,35 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                         // la contiene. Mandarla al pack activo seria el bug de D-080 otra vez:
                         // abriria otra palabra y sin error.
                         onOpenPalabra = { id ->
-                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(packId)}/$id")
+                            navController.navigate("$ROUTE_ENTRY/${Uri.encode(packId)}/$id")
                         },
                         // Tocar palabras apila entradas sobre entradas. Volver de a una es el
                         // swipe de siempre; esto es el atajo al principio, y es el primer
                         // popBackStack del repo.
                         onVolverABuscar = {
-                            navController.popBackStack(RUTA_BUSQUEDA, inclusive = false)
+                            navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
-                        resolver = { norms -> viewModel.resolver(packId, norms) },
-                        acciones = { entrada ->
-                            accionesDeLaPalabra(
-                                esFavorita = viewModel.esFavorita(packId, entrada.entryId),
+                        resolveIn = { norms -> viewModel.resolveIn(packId, norms) },
+                        actions = { entry ->
+                            wordActions(
+                                isFavorite = viewModel.isFavorite(packId, entry.entryId),
                                 onAlternarFavorita = {
-                                    viewModel.alternarFavorita(
-                                        Visita(packId, entrada.entryId, entrada.headword, entrada.partOfSpeech),
+                                    viewModel.toggleFavorite(
+                                        Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
                                     )
                                 },
-                                packDeTraduccion = packDeTraduccion(state.disponibles, packId),
-                                onVerTraduccion = { otro ->
+                                translationPack = translationPack(state.available, packId),
+                                onVerTraduccion = { other ->
                                     // La misma palabra en el otro diccionario: se resuelve por
                                     // `norm`, que es la clave con la que se indexo, y se abre EN
                                     // SU pack -- si se abriera en el activo seria D-080 otra vez.
                                     scope.launch {
-                                        val clave = TextNormalizer.norm(entrada.headword)
-                                        val destino = viewModel
-                                            .resolver(otro.packId, setOf(clave))[clave]
-                                        if (destino != null) {
+                                        val key = TextNormalizer.norm(entry.headword)
+                                        val target = viewModel
+                                            .resolveIn(other.packId, setOf(key))[key]
+                                        if (target != null) {
                                             navController.navigate(
-                                                "$RUTA_ENTRADA/${Uri.encode(otro.packId)}/$destino",
+                                                "$ROUTE_ENTRY/${Uri.encode(other.packId)}/$target",
                                             )
                                         }
                                     }
@@ -269,10 +269,10 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                                 onCopiar = {
                                     // ClipboardManager es android.*, asi que entra por aca y no
                                     // por el ViewModel, que tiene que seguir corriendo en la JVM.
-                                    val portapapeles = context
+                                    val clipboard = context
                                         .getSystemService(ClipboardManager::class.java)
-                                    portapapeles?.setPrimaryClip(
-                                        ClipData.newPlainText(entrada.headword, entrada.headword),
+                                    clipboard?.setPrimaryClip(
+                                        ClipData.newPlainText(entry.headword, entry.headword),
                                     )
                                 },
                             )
@@ -280,45 +280,45 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                         cargar = { id -> viewModel.entry(packId, id) },
                     )
                 }
-                composable(RUTA_ATRIBUCION) {
+                composable(ROUTE_ATTRIBUTION) {
                     AttributionScreen(
-                        packs = state.disponibles,
-                        problemas = state.problemas,
+                        packs = state.available,
+                        problems = state.problems,
                     )
                 }
-                composable(RUTA_FAVORITOS) {
+                composable(ROUTE_FAVORITES) {
                     FavoritesScreen(
-                        favoritos = state.favoritos,
+                        favorites = state.favorites,
                         // Mismo motivo que el historial: el id guardado puede ser de un
                         // pack anterior. Ver `SearchViewModel.destinoDe`.
-                        onOpen = { visita ->
+                        onOpen = { visit ->
                             scope.launch {
-                                val destino = viewModel.destinoDe(visita)
-                                if (destino != null) {
+                                val target = viewModel.targetOf(visit)
+                                if (target != null) {
                                     navController.navigate(
-                                        "$RUTA_ENTRADA/${Uri.encode(visita.packId)}/$destino",
+                                        "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
                                     )
                                 }
                             }
                         },
                     )
                 }
-                composable(RUTA_PACKS) {
+                composable(ROUTE_PACKS) {
                     PacksScreen(
-                        packs = state.disponibles,
-                        activo = state.activo?.packId,
+                        packs = state.available,
+                        active = state.active?.packId,
                         onActivar = viewModel::onPackChange,
-                        onBorrar = viewModel::borrarPack,
+                        onBorrar = viewModel::deletePack,
                     )
                 }
-                composable(RUTA_AJUSTES) {
+                composable(ROUTE_SETTINGS) {
                     SettingsScreen(
-                        packs = state.disponibles,
-                        escala = state.ajustes.escalaDeTexto,
-                        onGestionarPacks = { navController.navigate(RUTA_PACKS) },
-                        onEscalaChange = viewModel::onEscalaDeTextoChange,
-                        onLimpiarHistorial = viewModel::limpiarHistorial,
-                        hayHistorial = state.historial.isNotEmpty(),
+                        packs = state.available,
+                        scale = state.settings.textScale,
+                        onGestionarPacks = { navController.navigate(ROUTE_PACKS) },
+                        onEscalaChange = viewModel::onTextScaleChange,
+                        onLimpiarHistorial = viewModel::clearHistory,
+                        hayHistorial = state.history.isNotEmpty(),
                     )
                 }
             }

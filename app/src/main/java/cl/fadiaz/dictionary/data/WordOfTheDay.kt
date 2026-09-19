@@ -32,7 +32,7 @@ import cl.fadiaz.dictionary.core.EntrySummary
  * habria necesitado otro numero a mano, y esa es exactamente la clase de constante que se
  * degrada en silencio cuando nadie la vuelve a medir.
  */
-internal object PalabraDelDia {
+internal object WordOfTheDay {
 
     /**
      * Cuantos candidatos se prueban antes de quedarse con el mejor.
@@ -41,7 +41,7 @@ internal object PalabraDelDia {
      * la palabra del dia vuelve a ser rara. 32 lecturas de una fila cuestan nada y la pantalla de
      * inicio se arma una sola vez.
      */
-    const val CANDIDATOS: Int = 32
+    const val CANDIDATES: Int = 32
 
     /**
      * Los `pos` que nunca son palabra del dia.
@@ -64,7 +64,7 @@ internal object PalabraDelDia {
      * en el otro vocabulario, y un fixture de un solo pack no lo muestra. `verify_pack.py`
      * comprueba los dos por el mismo motivo.
      */
-    private val POS_EXCLUIDOS = setOf(
+    private val EXCLUDED_POS = setOf(
         "name", "proper noun",
         "prefix", "suffix", "abbrev", "num",
     )
@@ -81,10 +81,10 @@ internal object PalabraDelDia {
      * Es una **preferencia, no un filtro**: un pack sin adverbios no puede quedarse sin palabra
      * del dia el dia que toca adverbio.
      */
-    private val ROTACION_DE_CATEGORIA = listOf("noun", "verb", "adj", "adv")
+    private val CATEGORY_ROTATION = listOf("noun", "verb", "adj", "adv")
 
     /** Un indice de intento que no colisiona con los de los candidatos (0 hasta `candidatos`). */
-    private const val INTENTO_DE_CATEGORIA = -1
+    private const val CATEGORY_PASS = -1
 
     /**
      * La entrada de hoy, o null si el pack esta vacio.
@@ -93,55 +93,55 @@ internal object PalabraDelDia {
      * Si todos lo fueran, devuelve igual la mejor: un hueco en la pantalla es peor que una
      * palabra rara.
      */
-    suspend fun elegir(
-        fecha: String,
+    suspend fun pick(
+        date: String,
         packId: String,
-        entradas: Int,
-        leer: suspend (Long) -> EntrySummary?,
-        candidatos: Int = CANDIDATOS,
+        entryCount: Int,
+        read: suspend (Long) -> EntrySummary?,
+        candidates: Int = CANDIDATES,
     ): EntrySummary? {
-        if (entradas <= 0) return null
+        if (entryCount <= 0) return null
 
-        val categoriaDelDia = ROTACION_DE_CATEGORIA[
-            moduloPositivo(
-                semilla(fecha, packId, INTENTO_DE_CATEGORIA),
-                ROTACION_DE_CATEGORIA.size.toLong(),
+        val categoryOfTheDay = CATEGORY_ROTATION[
+            positiveModulo(
+                seed(date, packId, CATEGORY_PASS),
+                CATEGORY_ROTATION.size.toLong(),
             ).toInt(),
         ]
 
-        var mejorDeLaCategoria: EntrySummary? = null
-        var mejor: EntrySummary? = null
-        var mejorAunqueSeaNombre: EntrySummary? = null
-        for (intento in 0 until candidatos) {
+        var bestInCategory: EntrySummary? = null
+        var best: EntrySummary? = null
+        var bestEvenIfProperNoun: EntrySummary? = null
+        for (pass in 0 until candidates) {
             // Los id son densos y arrancan en 1, asi que el modulo cae siempre en una entrada
             // que existe. Si alguna vez dejaran de serlo, `leer` devuelve null y se sigue.
-            val id = 1L + moduloPositivo(semilla(fecha, packId, intento), entradas.toLong())
-            val candidato = leer(id) ?: continue
+            val id = 1L + positiveModulo(seed(date, packId, pass), entryCount.toLong())
+            val candidate = read(id) ?: continue
 
-            val previoCualquiera = mejorAunqueSeaNombre
-            if (previoCualquiera == null || candidato.rank < previoCualquiera.rank) {
-                mejorAunqueSeaNombre = candidato
+            val previousAny = bestEvenIfProperNoun
+            if (previousAny == null || candidate.rank < previousAny.rank) {
+                bestEvenIfProperNoun = candidate
             }
-            if (esExcluido(candidato.partOfSpeech)) continue
+            if (isExcluded(candidate.partOfSpeech)) continue
             // Estricto, no `<=`: con empate gana el primero, y asi el resultado tambien es
             // determinista cuando varios candidatos comparten rank --que con esta distribucion
             // pasa seguido--.
-            val previo = mejor
-            if (previo == null || candidato.rank < previo.rank) mejor = candidato
+            val previous = best
+            if (previous == null || candidate.rank < previous.rank) best = candidate
 
-            if (candidato.partOfSpeech == categoriaDelDia) {
-                val previoDeLaCategoria = mejorDeLaCategoria
-                if (previoDeLaCategoria == null || candidato.rank < previoDeLaCategoria.rank) {
-                    mejorDeLaCategoria = candidato
+            if (candidate.partOfSpeech == categoryOfTheDay) {
+                val previousInCategory = bestInCategory
+                if (previousInCategory == null || candidate.rank < previousInCategory.rank) {
+                    bestInCategory = candidate
                 }
             }
         }
         // El orden de las tres redes: la categoria del dia, cualquiera valida, y en ultimo
         // extremo una excluida. Un hueco en la pantalla es peor que las tres.
-        return mejorDeLaCategoria ?: mejor ?: mejorAunqueSeaNombre
+        return bestInCategory ?: best ?: bestEvenIfProperNoun
     }
 
-    private fun esExcluido(pos: String?): Boolean = pos != null && pos in POS_EXCLUIDOS
+    private fun isExcluded(pos: String?): Boolean = pos != null && pos in EXCLUDED_POS
 
     /**
      * FNV-1a sobre (fecha, pack, intento) con un mezclador final tipo splitmix64.
@@ -151,12 +151,12 @@ internal object PalabraDelDia {
      * Android deja de ser del dia-- y el segundo es una API de plataforma para algo que no
      * necesita ser criptografico.
      */
-    private fun semilla(fecha: String, packId: String, intento: Int): Long {
+    private fun seed(date: String, packId: String, pass: Int): Long {
         var h = -0x340d631b7bdddcdbL // offset basis de FNV-1a, 64 bits
-        for (caracter in fecha) h = (h xor caracter.code.toLong()) * PRIMO
-        h = (h xor SEPARADOR) * PRIMO
-        for (caracter in packId) h = (h xor caracter.code.toLong()) * PRIMO
-        h = (h xor intento.toLong()) * PRIMO
+        for (caracter in date) h = (h xor caracter.code.toLong()) * PRIME
+        h = (h xor SEPARATOR) * PRIME
+        for (caracter in packId) h = (h xor caracter.code.toLong()) * PRIME
+        h = (h xor pass.toLong()) * PRIME
 
         // Sin este mezclado, intentos consecutivos dan ids vecinos y el rechazo recorreria una
         // franja contigua del diccionario en vez de muestrearlo entero.
@@ -166,11 +166,11 @@ internal object PalabraDelDia {
         return z xor (z ushr 31)
     }
 
-    private fun moduloPositivo(valor: Long, modulo: Long): Long {
-        val resto = valor % modulo
-        return if (resto < 0) resto + modulo else resto
+    private fun positiveModulo(valor: Long, modulo: Long): Long {
+        val remainder = valor % modulo
+        return if (remainder < 0) remainder + modulo else remainder
     }
 
-    private const val PRIMO = 0x100000001b3L
-    private const val SEPARADOR = 0x7CL // '|', para que ("ab","c") y ("a","bc") no colisionen
+    private const val PRIME = 0x100000001b3L
+    private const val SEPARATOR = 0x7CL // '|', para que ("ab","c") y ("a","bc") no colisionen
 }

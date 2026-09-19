@@ -19,7 +19,7 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 
 /**
  * Las palabras guardadas.
@@ -31,13 +31,13 @@ import cl.fadiaz.dictionary.data.Visita
  * pantalla con los resultados, y esto no compite con nada.
  */
 @Composable
-fun FavoritesScreen(favoritos: List<Visita>, onOpen: (Visita) -> Unit) {
+fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -47,7 +47,7 @@ fun FavoritesScreen(favoritos: List<Visita>, onOpen: (Visita) -> Unit) {
         ) {
             item(key = "cabecera") { ListHeader { Text("Guardadas") } }
 
-            if (favoritos.isEmpty()) {
+            if (favorites.isEmpty()) {
                 item(key = "vacio") {
                     Text(
                         // Dice COMO se guarda, no solo que no hay: un estado vacio que no explica
@@ -62,17 +62,17 @@ fun FavoritesScreen(favoritos: List<Visita>, onOpen: (Visita) -> Unit) {
             }
 
             items(
-                count = favoritos.size,
-                key = { indice ->
-                    val visita = favoritos[indice]
-                    "f:${visita.packId}:${visita.entryId}"
+                count = favorites.size,
+                key = { index ->
+                    val visit = favorites[index]
+                    "f:${visit.packId}:${visit.entryId}"
                 },
-            ) { indice ->
-                val visita = favoritos[indice]
-                Fila(
-                    lema = visita.headword,
-                    detalle = visita.partOfSpeech?.let(::posEnEspanol),
-                ) { onOpen(visita) }
+            ) { index ->
+                val visit = favorites[index]
+                ListRow(
+                    lema = visit.headword,
+                    detail = visit.partOfSpeech?.let(::posInSpanish),
+                ) { onOpen(visit) }
             }
         }
     }
