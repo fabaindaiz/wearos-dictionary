@@ -197,10 +197,25 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                         onOpenFavoritos = { navController.navigate(RUTA_FAVORITOS) },
                         // Cada palabra del dia se abre en SU diccionario, que con dos idiomas
                         // cargados no es necesariamente el activo.
+                        // Por `destinoDe` igual que el historial, y aca importa MAS: la palabra
+                        // del dia se adelanta una semana y se cachea (D-097), asi que un rebuild
+                        // a mitad de semana deja esos `entryId` apuntando a otra palabra durante
+                        // hasta siete dias. Es el caso mas probable del defecto de D-055.
                         onOpenPalabraDelDia = { packDeLaPalabra, palabra ->
-                            navController.navigate(
-                                "$RUTA_ENTRADA/${Uri.encode(packDeLaPalabra)}/${palabra.entryId}",
-                            )
+                            scope.launch {
+                                val visita = Visita(
+                                    packId = packDeLaPalabra,
+                                    entryId = palabra.entryId,
+                                    headword = palabra.headword,
+                                    partOfSpeech = palabra.partOfSpeech,
+                                )
+                                val destino = viewModel.destinoDe(visita)
+                                if (destino != null) {
+                                    navController.navigate(
+                                        "$RUTA_ENTRADA/${Uri.encode(packDeLaPalabra)}/$destino",
+                                    )
+                                }
+                            }
                         },
                     )
                 }
