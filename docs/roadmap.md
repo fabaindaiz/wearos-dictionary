@@ -45,8 +45,10 @@ APK instalado y el diccionario español adentro. En minutos destapó tres defect
 veían, y una medición que contradice al repo: **la pantalla son 234 dp, no 192**. Lo que sigue
 sin medirse es **rendimiento y batería** (D-043), y un crash de *Ver más* que no se reprodujo.
 
-**Hay dos diccionarios y el MVP los usa.** Español (146.194 entradas, 68,9 MiB) e inglés
-(956.150 entradas, **295,1 MiB**), con selector de idioma. **El APK sólo lleva el pack de
+**Hay dos diccionarios y el MVP los usa.** Español (**114.619 entradas, 65,0 MiB**) e inglés
+(**794.355 entradas, 255,7 MiB**), con selector de idioma. ⚠️ **Los packs que están hoy en el
+reloj son los anteriores a D-116** y la app los rechaza: el `payload_codec` pasó a `deflate-v2`
+(D-119). Hay que reconstruirlos y volver a instalarlos antes de probar en dispositivo. **El APK sólo lleva el pack de
 demostración de 53 KB** (D-081): los diccionarios reales entran por `tools/devpack.py`
 —atómico y con sha256 de los dos lados (D-082)— a `filesDir/packs/`, que es donde también
 escribirá el instalador. Eso cerró D-071 antes de tiempo, y lo adelantó el número del inglés.
@@ -497,7 +499,7 @@ puede rechazar un pack nuevo con un mensaje útil o simplemente no verlo.
 295,1, y **el 45 % restante —`fts_def` e índices— es derivable**. Mandar sólo lo no derivable y
 reconstruir en el dispositivo achicaría la descarga de forma seria.
 
-Lo que cuesta, y por qué no es obvio: construir FTS5 sobre 956.150 entradas y dos índices en una
+Lo que cuesta, y por qué no es obvio: construir FTS5 sobre 794.355 entradas y dos índices en una
 CPU de reloj es **minutos de CPU sostenida**, que la guía oficial clasifica como *high impact*.
 Pasa mientras carga, así que quizás se tolere — pero además **el artefacto deja de ser el que
 `verify_pack.py` validó**, y ahí entra la clase de bug que este proyecto entero evita. Habría
@@ -603,7 +605,7 @@ packs reconstruidos:
 
 | | Antes | Ahora | Δ |
 |---|---|---|---|
-| Español | 146.194 entradas · 72,2 MB | **114.620 · 68,1 MB** | −21,6 % entradas, −5,7 % bytes |
+| Español | 146.194 entradas · 72,2 MB | **114.619 · 68,1 MB** | −21,6 % entradas, −5,7 % bytes |
 | Inglés | 956.150 entradas · 295,1 MiB | **794.355 · 255,7 MiB** | −16,9 % entradas, **−13,4 % bytes** |
 
 **Y la lección es que en español la ganancia NO fue de bytes.** Los 32.305 nombres propios eran
@@ -729,6 +731,42 @@ deja el PNG donde se pueda mirar. No necesita dependencias nuevas.
 (*"ya había pasado la sesión anterior y volvió a pasar"*), y 2026-09-18 (swipe, taps y `input
 text`). **Tercer golpe**, y el primero donde el costo no fue tiempo sino casi un diagnóstico
 equivocado.
+
+### No hay forma repetible de preguntarle al pack si su CONTENIDO es bueno
+
+**Qué pasa ahora.** `verify_pack.py` comprueba **invariantes**: que los índices existan, que
+`fts_def.rowid == entry.id`, que `norm` coincida. El `pack-workflow` skill ya advierte que eso
+*"no dice que el contenido sea bueno"* y manda a leer entradas a mano. Pero leer a mano no es
+repetible: cada sesión escribe su propia consulta, mira lo que se le ocurre mirar, y lo que no
+se le ocurrió no aparece.
+
+**Costo, con la aritmética de esta sesión.** La sonda de vocabulario —una lista de palabras y un
+`SELECT` por cada una— encontró **dos cosas que el gate no puede ver**:
+
+1. que el 39,6 % de las entradas del pack español no definía nada, con `verify_pack.py` en verde
+   y 119 tests pasando;
+2. que la poda por `pos = name` **borraba 6 de los 12 meses en inglés**. Eso estuvo a punto de
+   quedar commiteado: el gate daba verde, `verify_pack.py` daba verde, y los tests también,
+   porque ninguno de los tres sabe qué palabras *debería* tener un diccionario.
+
+⚠️ **Los dos golpes son de la misma sesión, no de dos**, así que por la regla del segundo golpe
+esto entra acá **a préstamo**: si la próxima sesión que toque un pack no la necesita, se baja.
+Lo que lo justifica igual es el tipo de falla — no costó tiempo, casi costó un defecto en el
+producto, que es el mismo salto que hizo subir la fricción del emulador.
+
+**El arreglo.** Un `vectors/cobertura-es.txt` y `vectors/cobertura-en.txt` con listas de palabras
+que **tienen** que estar —vocabulario común, chilenismos, meses, días, países, términos
+técnicos— y un modo de `verify_pack.py` que las consulte y reporte las faltantes. Es el mismo
+patrón que `normalization-vectors.tsv`: el archivo de expectativas es el mecanismo, y el
+valor está en que **el que agrega una palabra a la lista documenta una decisión de producto**.
+No necesita dependencias nuevas y reusa el `--sample` que ya existe para correr barato.
+
+**Lo que NO resuelve, y hay que decirlo**: una lista escrita a mano tiene el mismo sesgo que
+mirar a mano. No sabe lo que nadie pensó en poner. Sirve contra regresiones, no contra huecos
+desconocidos.
+
+**Visto en.** 2026-09-19, dos veces en la misma sesión (el 39,6 % de entradas vacías; los meses
+en inglés). **Primer golpe de changelog.**
 
 ### La auditoría dice que `CLAUDE.md` se pasó, pero no qué sección creció
 

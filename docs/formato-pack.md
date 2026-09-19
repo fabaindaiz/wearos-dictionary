@@ -240,20 +240,25 @@ no hay.
 
 | Métrica | Objetivo | Medido |
 |---|---|---|
-| Pack en disco | ≤ 50 MB *(blando)* | **72,2 MB** — 44 % por encima (2026-09-17) |
+| Pack en disco | ≤ 50 MB *(blando)* | **68,1 MB** — 36 % por encima (2026-09-19, tras D-116 y D-117) |
 | `suggest()` con prefijo de 3 letras | p95 < 20 ms | sin medir: falta reloj |
 | Primer resultado visible desde la última tecla | < 150 ms | sin medir: falta reloj |
 | Cold start hasta pantalla de búsqueda usable | < 700 ms | sin medir: falta reloj |
 
 ### Los dos packs, pesados — y por qué pesa cada uno
 
-| | Español | Inglés | Inglés sin nombres propios |
+*(Estado actual, tras D-116 —los nombres propios salen— y D-117 —entran los sinónimos—. La
+columna de la derecha es lo que había antes, para poder leer el delta.)*
+
+| | Español | Inglés | *Antes de D-116 (ES / EN)* |
 |---|---|---|---|
 | Fuente | eswiktionary Español, 1,42 GB | enwiktionary English, **3,24 GB** | ídem |
-| Entradas | 146.194 | **956.150** | 792.680 |
-| En disco | 72.212.480 B (68,9 MiB) | **309.424.128 B (295,1 MiB)** | 266.711.040 B (254,4 MiB) |
-| Comprimido | 34,3 MiB (50 %) | **184,7 MiB (37 %)** | — |
-| Build | 53,9 s, 214 MB RSS | 180,6 s, 290 MB RSS | — |
+| Entradas | **114.619** | **794.355** | *146.194 / 956.150* |
+| En disco | **68.132.864 B (65,0 MiB)** | **268.083.200 B (255,7 MiB)** | *72.212.480 B (68,9 MiB) / 309.424.128 B (295,1 MiB)* |
+| Comprimido | 34,3 MiB (50 %) | **184,7 MiB (37 %)** | *(medido antes de la poda)* |
+| Build | ~46 s, 214 MB RSS | ~180 s, 290 MB RSS | *53,9 s / 180,6 s* |
+| Nombres propios | 731 (0,6 %) | 1.675 (0,2 %) | *32.305 (22,1 %) / 163.470 (17,1 %)* |
+| Entradas con sinónimos | **26.369 (23,2 %)** | 0 — la fuente no los atribuye | *0 / 0* |
 
 **La forma de los dos packs no se parece, y eso mata la intuición fácil.** Un pack no es
 "sobre todo morfología": eso es una verdad **del español**.
@@ -321,9 +326,11 @@ python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 |---|---|
 | Senses en el dump | 1.036.458 *(en 854.460 registros)* |
 | Registros que son página de forma flexionada | 703.506 = **82,33 %** — no son entradas (D-065) |
-| **Entradas en el pack** | **146.194** |
-| **Pack en disco** | **72.212.480 bytes (68,9 MiB)** |
-| Build | 53,9 s, **214 MB** de RSS máximo (la pasada 1 arma el mapa de formas en memoria) |
+| Entradas `pos = name` podadas (D-116) | 31.574 de 32.305 — quedan 731 por vida léxica |
+| Acepciones con etiqueta editorial limpiadas (D-121) | 665 → **0** |
+| **Entradas en el pack** | **114.619** |
+| **Pack en disco** | **68.132.864 bytes (65,0 MiB)** |
+| Build | ~46 s, **214 MB** de RSS máximo (la pasada 1 arma el mapa de formas en memoria) |
 
 Dónde se va el pack, y es la respuesta que decide O-3:
 

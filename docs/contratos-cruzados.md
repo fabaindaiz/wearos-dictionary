@@ -7,6 +7,17 @@ X", meses después, y no hay nada en el stack trace.
 
 Este documento es la lista de esos acuerdos y del mecanismo que protege cada uno.
 
+> **Antes de abrir este documento, descartá lo que no es un bug.** Desde D-116 el pack **no
+> trae nombres propios** —apellidos, topónimos, nombres de pila—, salvo los que tienen vida
+> léxica. Son el 22,1 % de las entradas en español y el 17,1 % en inglés: *Ivanivka*, *Troya*,
+> *Etchechury* **faltan a propósito**, y *January*, *Paris*, *España* y *Chile* están por la
+> excepción. Un `SELECT value FROM meta WHERE key='proper_nouns'` que diga `lexical-only`
+> responde la pregunta sin leer nada más.
+>
+> El síntoma de una decisión de producto y el de un contrato roto **son idénticos**, y ésa es
+> justamente la razón por la que la política se escribe en `meta` y no sólo en el código: un
+> pack tiene que poder explicar por sí solo por qué le falta una palabra.
+
 ## 1. `norm()` y `fuzzy()` existen dos veces
 
 | | |

@@ -1,6 +1,6 @@
 # app
 
-App Wear OS, **corriendo en un reloj físico** sobre el pack real de 146.194 entradas.
+App Wear OS, **corriendo en un reloj físico** sobre el pack real de 114.619 entradas.
 
 Las pantallas viven en `presentation/`: búsqueda (que además **es el inicio**), entrada,
 atribución, ajustes, gestión de diccionarios y guardadas. `data/PackStore.kt` es lo único que
@@ -86,6 +86,7 @@ Se cierran **todas** las conexiones antes de tocar el disco, y recién después 
 (D-104). No es precaución teórica: en Unix un archivo borrado con un descriptor abierto sigue
 ocupando el disco, así que el usuario vería *"borrado"* y cero espacio liberado. **Medido**:
 libre 9.802.568 kB → con el pack de 72,2 MB, 9.732.048 kB → tras borrar, 9.802.568 kB otra vez.
+(Medido con el pack anterior a D-116; hoy son 68,1 MB y la conclusión no cambia.)
 
 El pack de demostración **no se puede borrar**: viene en el APK y `PackStore.open` lo re-extrae
 al reabrir, así que el botón no haría nada.
