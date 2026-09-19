@@ -1,9 +1,9 @@
 <resources>
     <string name="app_name">Dictionary</string>
-    <string name="tile_historial_label">Últimas palabras</string>
-    <string name="tile_historial_titulo">Últimas</string>
-    <string name="tile_historial_vacio">Buscá una palabra</string>
-    <string name="tile_palabra_label">Palabra del día</string>
-    <string name="tile_palabra_titulo">Hoy</string>
-    <string name="tile_palabra_vacia">Abrí el diccionario</string>
+    <string name="tile_history_label">Últimas palabras</string>
+    <string name="tile_history_title">Últimas</string>
+    <string name="tile_history_empty">Buscá una palabra</string>
+    <string name="tile_word_label">Palabra del día</string>
+    <string name="tile_word_title">Hoy</string>
+    <string name="tile_word_empty">Abrí el diccionario</string>
 </resources>

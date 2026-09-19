@@ -25,7 +25,7 @@
         <service
             android:name=".tile.HistoryTileService"
             android:exported="true"
-            android:label="@string/tile_historial_label"
+            android:label="@string/tile_history_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
@@ -38,7 +38,7 @@
         <service
             android:name=".tile.WordOfTheDayTileService"
             android:exported="true"
-            android:label="@string/tile_palabra_label"
+            android:label="@string/tile_word_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
