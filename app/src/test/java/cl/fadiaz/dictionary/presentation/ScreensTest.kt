@@ -58,10 +58,10 @@ class ScreensTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private fun suggestion(lema: String, pos: String? = "noun") = Suggestion(
+    private fun suggestion(headword: String, pos: String? = "noun") = Suggestion(
         packId = "test",
-        entryId = lema.hashCode().toLong(),
-        headword = lema,
+        entryId = headword.hashCode().toLong(),
+        headword = headword,
         partOfSpeech = pos,
         matchKind = MatchKind.PREFIX,
         score = 0,
@@ -91,19 +91,19 @@ class ScreensTest {
 
     private fun handle(m: PackMetadata) = PackHandle.Open(FakeSource(m))
 
-    private fun readyState(vararg lemas: String) = SearchState(
+    private fun readyState(vararg headwords: String) = SearchState(
         query = "per",
-        results = lemas.map { suggestion(it) },
+        results = headwords.map { suggestion(it) },
         status = SearchState.Status.Ready,
         active = meta(),
         available = listOf(handle(meta())),
     )
 
     /** Dos packs: es el estado que ejercita el selector. */
-    private fun twoPackState(vararg lemas: String): SearchState {
+    private fun twoPackState(vararg headwords: String): SearchState {
         val es = meta()
         val en = meta("en-def", "en", "English")
-        return readyState(*lemas).copy(
+        return readyState(*headwords).copy(
             active = es,
             available = listOf(handle(es), handle(en)),
         )
@@ -193,13 +193,13 @@ class ScreensTest {
 
     // --- La entrada -------------------------------------------------------------------------
 
-    private fun entry(vararg glosas: String) = Entry(
+    private fun entry(vararg glosses: String) = Entry(
         packId = "test",
         entryId = 1,
         uid = 1,
         headword = "perro",
         partOfSpeech = "noun",
-        senses = glosas.map { Sense(it) },
+        senses = glosses.map { Sense(it) },
     )
 
     /** Un enlace dentro de una glosa: lo unico que lo identifica es que es clickeable y de quien
@@ -320,7 +320,7 @@ class ScreensTest {
         // El bug que aparecio en el reloj: a la primera letra desaparecen encabezado, boton de
         // voz e historial, el campo salta del indice 2 al 0 y --sin `key`-- el lazy layout lo da
         // por otro nodo, lo destruye y lo recompone. El foco se va con el, y el teclado detras.
-        showTypableSearch(readyState("perder").copy(query = "", history = recientes))
+        showTypableSearch(readyState("perder").copy(query = "", history = recent))
 
         compose.onNode(hasSetTextAction()).performClick()
         compose.onNode(hasSetTextAction()).assertIsFocused()
@@ -752,7 +752,7 @@ class ScreensTest {
             twoPackState().copy(
                 query = "",
                 wordsOfTheDay = mapOf("es-def" to todaysWord),
-                history = recientes,
+                history = recent,
             ),
         )
         for (title in listOf("Palabra del día", "Recientes", "Opciones")) {
@@ -850,14 +850,14 @@ class ScreensTest {
 
     // --- El historial -----------------------------------------------------------------------
 
-    private val recientes = listOf(
+    private val recent = listOf(
         Visit("es-def", 1, "perro", "noun"),
         Visit("en-def", 2, "house", "noun"),
     )
 
     @Test
     fun withAnEmptySearchTheRecentEntriesShow() {
-        showSearch(readyState().copy(query = "", history = recientes))
+        showSearch(readyState().copy(query = "", history = recent))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
         compose.onNodeWithText("perro").assertIsDisplayed()
     }
@@ -865,7 +865,7 @@ class ScreensTest {
     @Test
     fun whenTypingTheHistoryDisappears() {
         // No puede competir con los resultados: con 192 dp entran tres filas.
-        showSearch(readyState("perder").copy(query = "per", history = recientes))
+        showSearch(readyState("perder").copy(query = "per", history = recent))
         assertEquals(0, compose.onAllNodesWithText("house").fetchSemanticsNodes().size)
     }
 
@@ -873,7 +873,7 @@ class ScreensTest {
     fun tappingARecentEntryOpensIt() {
         var abierta: Visit? = null
         showSearch(
-            readyState().copy(query = "", history = recientes),
+            readyState().copy(query = "", history = recent),
             onOpenVisita = { abierta = it },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))

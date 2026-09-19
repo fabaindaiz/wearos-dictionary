@@ -14,8 +14,8 @@ import kotlin.test.assertTrue
  */
 class VisitTest {
 
-    private fun visit(lema: String, pack: String = "es-def", id: Long = 1, pos: String? = "noun") =
-        Visit(packId = pack, entryId = id, headword = lema, partOfSpeech = pos)
+    private fun visit(headword: String, pack: String = "es-def", id: Long = 1, pos: String? = "noun") =
+        Visit(packId = pack, entryId = id, headword = headword, partOfSpeech = pos)
 
     @Test
     fun whatIsStoredComesBack() {

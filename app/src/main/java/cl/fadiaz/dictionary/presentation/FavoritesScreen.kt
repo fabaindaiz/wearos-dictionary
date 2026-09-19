@@ -70,7 +70,7 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
             ) { index ->
                 val visit = favorites[index]
                 ListRow(
-                    lema = visit.headword,
+                    headword = visit.headword,
                     detail = visit.partOfSpeech?.let(::posInSpanish),
                 ) { onOpen(visit) }
             }
