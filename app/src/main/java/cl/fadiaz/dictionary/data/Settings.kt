@@ -1,22 +1,22 @@
 package cl.fadiaz.dictionary.data
 
 /**
- * Cuanto se agranda el texto **por encima** de la escala del sistema.
+ * How much the text grows **on top of** the system scale.
  *
- * Por encima y no en lugar de: la lista de calidad de Wear OS (WO-V1) exige que la app respete
- * el tamano de fuente del sistema, asi que esto multiplica sobre esa escala, nunca la reemplaza.
- * Quien ya subio la letra en todo el reloj la sigue viendo subida.
+ * On top of and not instead of: the Wear OS quality list (WO-V1) requires the app to respect the
+ * system font size, so this multiplies that scale and never replaces it. Someone who already
+ * raised the font size across the whole watch keeps seeing it raised.
  *
- * Dos valores y no un slider continuo: un continuo no se puede testear contra el presupuesto de
- * densidad (D-073), que define cuantas filas entran en pantalla. Con dos, el test de densidad se
- * parametriza y sigue significando algo.
+ * Two values and not a continuous slider: a continuous one cannot be tested against the density
+ * budget (D-073), which defines how many rows fit on screen. With two, the density test can be
+ * parameterised and still means something.
  */
 enum class TextScale(val factor: Float) {
     NORMAL(1.0f),
     LARGE(1.15f),
 }
 
-/** Lo que el usuario eligio. Sin Android: la politica se testea en la JVM (D-072). */
+/** What the user chose. No Android: the policy is tested on the JVM (D-072). */
 data class Settings(
     val textScale: TextScale = TextScale.NORMAL,
 )
@@ -27,11 +27,11 @@ internal fun serializeSettings(settings: Settings): String =
     "$KEY_SCALE=${settings.textScale.name}"
 
 /**
- * Lee los ajustes guardados, **cayendo a los de fabrica** en vez de fallar.
+ * Reads the stored settings, **falling back to the factory ones** instead of failing.
  *
- * Mismo criterio que [parsearVisitas]: esto se lee al arrancar, y un formato viejo tras una
- * actualizacion o un byte corrupto no pueden impedir que la app abra. Perder una preferencia es
- * aceptable; no arrancar, no.
+ * Same rule as [parseVisits]: this is read at startup, and an old format after an update or a
+ * corrupt byte cannot stop the app from opening. Losing a preference is acceptable; not starting
+ * is not.
  */
 internal fun parseSettings(text: String): Settings {
     val values = text.lineSequence()
