@@ -1,49 +1,50 @@
-# Formato de pack (`schema_version = 3`)
+# Pack format (`schema_version = 3`)
 
-Un pack es un archivo SQLite de **solo lectura** con un diccionario. La app abre uno por idioma
-activo y nunca le escribe.
+A pack is a **read-only** SQLite file holding a dictionary. The app opens one per active language
+and never writes to it.
 
-Que sea inmutable y read-only es lo que permite optimizar el esquema únicamente para lectura: no
-hay migraciones, no hay claves foráneas que mantener, no hay journal. Un pack con
-`schema_version` distinta se rechaza al abrirlo y se descarga de nuevo.
+Being immutable and read-only is what allows the schema to be optimised purely for reading: no
+migrations, no foreign keys to maintain, no journal. A pack with a different `schema_version` is
+rejected on open and downloaded again.
 
-Definición ejecutable: [`tools/packbuilder/schema.sql`](../tools/packbuilder/schema.sql) y
+Executable definition: [`tools/packbuilder/schema.sql`](../tools/packbuilder/schema.sql) and
 [`indexes.sql`](../tools/packbuilder/indexes.sql).
 
-> **El caso primario es monolingüe** (D-034): el primer pack son definiciones en español. El
-> esquema soporta ambos tipos y cada pack declara el suyo en `meta.kind`, pero el bilingüe es el
-> caso secundario.
+> **The primary case is monolingual** (D-034): the first pack is Spanish definitions. The schema
+> supports both kinds and every pack declares its own in `meta.kind`, but bilingual is the
+> secondary case.
 >
-> Consecuencia pendiente en el código: en un pack monolingüe, `trans` guarda "las palabras que
-> aparecen en la glosa", que es exactamente lo que `fts_def` ya indexa mejor. Esa tabla debería
-> volverse opcional. Ver [roadmap](roadmap.md#reorientar-el-esquema-a-monolingüe).
+> Consequence still pending in the code: in a monolingual pack, `trans` stores "the words that
+> appear in the gloss", which is exactly what `fts_def` already indexes better. That table should
+> become optional. See the [roadmap](roadmap.md#reorientar-el-esquema-a-monolingüe).
 
-## Tabla `meta`
+## The `meta` table
 
-Todo lo que la app necesita saber antes de consultar. Se lee entera, una vez, al abrir.
+Everything the app needs to know before querying. It is read whole, once, on open.
 
-| Clave | Para qué |
+| Key | What for |
 |---|---|
-| `schema_version` | Compatibilidad del esquema. Distinta → rechazar el pack |
-| `norm_version` | Versión de las reglas de normalización. Distinta → **rechazar**, ver abajo |
-| `pack_id`, `name` | Identidad del pack |
-| `kind` | `bilingual` o `monolingual` |
-| `lang_src`, `lang_dst` | Idiomas; `lang_dst` es obligatorio si es bilingüe |
-| `fuzzy_profile` | Perfil de plegado fonético: `es`, `en`, `de`, `generic` |
-| `payload_codec` | `deflate-v2`. **Distinta → rechazar el pack** (`PackFile.open` compara con `!=`). Ver D-119 |
-| `payload_dict` | Diccionario de compresión compartido, en hex |
-| `payload_dict_sha256` | Integridad del anterior. **No es opcional** |
-| `uid_recipe` | Con qué receta se calculó `entry.uid`. Otra receta ⟹ los packs auxiliares apuntan mal |
-| `entry_count`, `data_version`, `built_at` | Metadatos del build |
-| `license`, `attribution`, `source_url` | Obligaciones legales de la fuente |
-| `trans_dropped` | Cuántas filas recortó el tope por clave de traducción |
-| `proper_nouns` | Política de contenido: `lexical-only` (los packs reales), `excluded` o `included`. **Obligatoria**: sin ella nadie sabe si a un pack le faltan los nombres propios porque se decidió o porque la fuente venía rota. D-116 |
+| `schema_version` | Schema compatibility. Different → reject the pack |
+| `norm_version` | Version of the normalization rules. Different → **reject**, see below |
+| `pack_id`, `name` | The pack's identity. `name` is **short** — "Español", not "Español — definiciones" (D-125) |
+| `description` | The long text, for the attribution screen. Optional: a pack older than D-125 does not carry it |
+| `kind` | `bilingual` or `monolingual` |
+| `lang_src`, `lang_dst` | Languages; `lang_dst` is mandatory if bilingual |
+| `fuzzy_profile` | Phonetic folding profile: `es`, `en`, `de`, `generic` |
+| `payload_codec` | `deflate-v2`. **Different → reject the pack** (`PackFile.open` compares with `!=`). See D-119 |
+| `payload_dict` | Shared compression dictionary, in hex |
+| `payload_dict_sha256` | Integrity of the above. **Not optional** |
+| `uid_recipe` | Which recipe computed `entry.uid`. A different recipe ⟹ auxiliary packs point at the wrong thing |
+| `entry_count`, `data_version`, `built_at` | Build metadata |
+| `license`, `attribution`, `source_url` | Legal obligations of the source |
+| `trans_dropped` | How many rows the per-translation-key cap trimmed |
+| `proper_nouns` | Content policy: `lexical-only` (the real packs), `excluded` or `included`. **Mandatory**: without it nobody knows whether a pack is missing its proper nouns because that was decided or because the source was broken. D-116 |
 
-**`norm_version` distinta no es un detalle cosmético.** El pack está indexado con unas reglas de
-normalización concretas; si la app calcula otras, las consultas no matchean y el pack devuelve
-menos resultados de los que tiene, sin ningún error. Hay que rechazarlo, no intentar usarlo.
+**A different `norm_version` is not cosmetic.** The pack is indexed with one concrete set of
+normalization rules; if the app computes different ones, the queries do not match and the pack
+returns fewer results than it holds, with no error at all. It has to be rejected, not used anyway.
 
-## Tablas
+## Tables
 
 ### `entry`
 
@@ -60,32 +61,31 @@ CREATE TABLE entry (
 );
 ```
 
-**`id` y `uid` son dos identidades distintas y no son intercambiables** (D-055):
+**`id` and `uid` are two different identities and are not interchangeable** (D-055):
 
 | | `entry.id` | `entry.uid` |
 |---|---|---|
-| Qué es | Identidad **física**: el rowid local | Identidad **lógica** de la palabra |
-| Quién lo referencia | `fts_def.rowid`, `form.entry_id`, `trans.entry_id` | Los packs auxiliares |
-| Sobrevive a reconstruir el pack | **No**: una palabra nueva en el medio corre todos los siguientes | **Sí** |
-| Por qué es así | Secuencial es lo que lo hace barato: FTS5 guarda *deltas* de rowid | Es hash de `(lang_src, NFC(headword), pos, sense_key)` |
+| What it is | **Physical** identity: the local rowid | **Logical** identity of the word |
+| Who references it | `fts_def.rowid`, `form.entry_id`, `trans.entry_id` | The auxiliary packs |
+| Survives rebuilding the pack | **No**: one new word in the middle shifts every following one | **Yes** |
+| Why it is that way | Sequential is what makes it cheap: FTS5 stores rowid *deltas* | It is a hash of `(lang_src, NFC(headword), pos, sense_key)` |
 
-Medido sobre 200.000 entradas sintéticas: usar el hash *como* `entry.id` cuesta **+35,2 %** de
-tamaño —`fts_def_data` pasa de 10,39 a 28,35 MB—, mientras que la columna aparte cuesta **+2,3 %**.
+Measured over 200,000 synthetic entries: using the hash *as* `entry.id` costs **+35.2 %** in size
+—`fts_def_data` goes from 10.39 to 28.35 MB— while a separate column costs **+2.3 %**.
 
-`uid` **no tiene índice en este pack** (D-056): el join ocurre al **abrir** una entrada, cuando la
-fila ya se leyó entera para traer el payload, no en la lista de resultados. El índice sobre `uid`
-vive en el pack auxiliar, que sí busca por él.
+`uid` **has no index in this pack** (D-056): the join happens when an entry is **opened**, when
+the row has already been read whole to fetch the payload, not in the results list. The index over
+`uid` lives in the auxiliary pack, which does search by it.
 
-`uid` se calcula sobre el headword **crudo**, no sobre `norm`: así no depende de `NORM_VERSION` y
-subir las reglas de normalización no invalida los packs auxiliares. Lo calcula **solo el builder**
-(D-057); la app lo lee de la fila y nunca lo recalcula, que es lo que evita que sea un segundo
-contrato cruzado como `norm()`/`fuzzy()`.
+`uid` is computed over the **raw** headword, not over `norm`: that way it does not depend on
+`NORM_VERSION` and bumping the normalization rules does not invalidate the auxiliary packs. It is
+computed by **the builder alone** (D-057); the app reads it from the row and never recomputes it,
+which is what keeps it from becoming a second cross-cutting contract like `norm()`/`fuzzy()`.
 
-`norm` se compara con collation **BINARY sobre texto ya normalizado en build-time**. Eso es lo
-que evita necesitar ICU en el reloj y hace que el comportamiento sea idéntico en todo
-dispositivo.
+`norm` is compared with **BINARY collation over text already normalized at build time**. That is
+what avoids needing ICU on the watch and makes the behaviour identical on every device.
 
-### `form` y `trans`
+### `form` and `trans`
 
 ```sql
 CREATE TABLE form (
@@ -94,18 +94,17 @@ CREATE TABLE form (
 ) WITHOUT ROWID;
 ```
 
-`form` son las formas flexionadas (plurales, conjugaciones). `trans` es la palabra del idioma
-destino en un pack bilingüe.
+`form` holds the inflected forms (plurals, conjugations). `trans` is the target-language word in a
+bilingual pack.
 
-**`WITHOUT ROWID` con PK compuesta hace que la tabla *sea* el índice**: sin rowid y sin un
-B-tree secundario que duplique los mismos datos.
+**`WITHOUT ROWID` with a composite PK makes the table *be* the index**: no rowid and no secondary
+B-tree duplicating the same data.
 
-**`trans` indexa la frase completa y cada palabra suelta.** Las traducciones son frases ("to
-run"), así que sin tokenizar, buscar "run" no encontraría nada — que es lo que un usuario
-escribe en un reloj. El efecto colateral es que las palabras funcionales ("to", "of") apuntarían
-a decenas de miles de entradas, así que el builder topea en `TRANS_MAX_PER_KEY = 50`
-conservando las de mejor `rank`. Se topea en vez de descartar la clave: buscar "to" sigue
-devolviendo algo útil en lugar de nada.
+**`trans` indexes the whole phrase and each separate word.** Translations are phrases ("to run"),
+so without tokenizing, searching "run" would find nothing — and that is what a user types on a
+watch. The side effect is that function words ("to", "of") would point at tens of thousands of
+entries, so the builder caps at `TRANS_MAX_PER_KEY = 50`, keeping the best-ranked ones. It caps
+instead of dropping the key: searching "to" still returns something useful instead of nothing.
 
 ### `fts_def`
 
@@ -115,40 +114,40 @@ CREATE VIRTUAL TABLE fts_def USING fts5(
 );
 ```
 
-Contentless: guarda solo el índice invertido, no una segunda copia del texto. Devuelve únicamente
-rowids, que es exactamente lo que hace falta porque `fts_def.rowid == entry.id`.
+Contentless: it stores only the inverted index, not a second copy of the text. It returns rowids
+alone, which is exactly what is needed because `fts_def.rowid == entry.id`.
 
-> **FTS5 no está garantizado en el SQLite del sistema Android.** El pack requiere que la app use
-> SQLite empacado (`androidx.sqlite:sqlite-bundled`), cuyo build incluye `ENABLE_FTS5`.
+> **FTS5 is not guaranteed in Android's system SQLite.** The pack requires the app to use bundled
+> SQLite (`androidx.sqlite:sqlite-bundled`), whose build includes `ENABLE_FTS5`.
 
-## Índices
+## Indexes
 
 ```sql
 CREATE INDEX idx_entry_norm  ON entry (norm, rank, headword, pos);
 CREATE INDEX idx_entry_fuzzy ON entry (fuzzy, norm);
 ```
 
-`idx_entry_norm` es **de cobertura**: tiene las cuatro columnas que la lista de resultados
-necesita, así que SQLite responde la búsqueda por prefijo sin tocar la tabla y sin leer un solo
-payload. El orden `(norm, rank)` además satisface el `ORDER BY` sin paso de sort — y es
-**ascendente** porque en `rank` menor es más común. Estuvo en `DESC` hasta `schema_version 3`:
-el síntoma solo se ve con un pack real, donde "escrit" devolvía *escrito / Participio de
-escribir* antes que el sustantivo. Si el índice y el `ORDER BY` se separan, SQLite agrega
-`USE TEMP B-TREE` y la consulta deja de ser de cobertura. `id` no
-se incluye porque, al ser alias de rowid, ya está en todo índice.
+`idx_entry_norm` is a **covering** index: it holds the four columns the results list needs, so
+SQLite answers the prefix search without touching the table and without reading a single payload.
+The `(norm, rank)` order also satisfies the `ORDER BY` with no sort step — and it is **ascending**
+because in `rank` lower is more common. It was `DESC` until `schema_version 3`: the symptom only
+shows with a real pack, where "escrit" returned *escrito / Participio de escribir* ahead of the
+noun. If the index and the `ORDER BY` drift apart, SQLite adds `USE TEMP B-TREE` and the query
+stops being covering. `id` is not included because, being an alias of rowid, it is already in
+every index.
 
-`idx_entry_fuzzy` es deliberadamente angosto: incluye `norm` para poder reordenar los candidatos
-por distancia de edición sin leer la tabla, y después se leen de la tabla solo los diez que
-sobrevivieron. Agregar `headword`/`pos` lo haría de cobertura pero duplicaría varios MB por un
-camino que solo se recorre cuando el prefijo no dio resultados.
+`idx_entry_fuzzy` is deliberately narrow: it includes `norm` so the candidates can be reordered by
+edit distance without reading the table, and only the ten that survive are then read from the
+table. Adding `headword`/`pos` would make it covering but would duplicate several MB for a path
+only walked when the prefix returned nothing.
 
-`verify_pack.py` comprueba con `EXPLAIN QUERY PLAN` que el prefijo use `COVERING INDEX`. Si ese
-plan cambiara a un scan de tabla, la búsqueda incremental dejaría de cumplir el presupuesto de
-latencia y nada más lo notaría.
+`verify_pack.py` checks with `EXPLAIN QUERY PLAN` that the prefix uses a `COVERING INDEX`. If that
+plan ever changed to a table scan, the incremental search would stop meeting the latency budget
+and nothing else would notice.
 
-## Las cinco consultas
+## The five queries
 
-**1. Prefijo** — sale íntegra del índice de cobertura:
+**1. Prefix** — served entirely from the covering index:
 
 ```sql
 SELECT id, headword, pos FROM entry
@@ -156,16 +155,16 @@ WHERE norm >= :q AND norm < :qUpper
 ORDER BY norm, rank LIMIT 30;
 ```
 
-`:qUpper` es el sucesor lexicográfico que calcula `PrefixRange.upperBound`. Se usa el rango
-explícito y no `LIKE 'q%'` porque LIKE solo se optimiza a un range scan si `case_sensitive_like`
-está en el valor correcto, cosa que depende de la conexión; ante la duda SQLite hace un full
-scan.
+`:qUpper` is the lexicographic successor computed by `PrefixRange.upperBound`. The explicit range
+is used instead of `LIKE 'q%'` because LIKE is only optimised into a range scan if
+`case_sensitive_like` is set correctly, which depends on the connection; in doubt SQLite does a
+full scan.
 
-**2. Forma flexionada** — `form.norm = :q`, join a `entry`, LIMIT 10.
+**2. Inflected form** — `form.norm = :q`, join to `entry`, LIMIT 10.
 
-**3. Traducción inversa** — mismo patrón de rango sobre `trans.norm`. **Necesita deduplicar por
-entrada**: el rango matchea varias claves de la misma entrada ("to", "to run", "to pass") y sin
-esto sale repetida.
+**3. Reverse translation** — the same range pattern over `trans.norm`. **It needs deduplicating by
+entry**: the range matches several keys of the same entry ("to", "to run", "to pass") and without
+this it comes out repeated.
 
 ```sql
 SELECT e.id, e.headword, e.pos FROM entry e
@@ -173,149 +172,157 @@ WHERE e.id IN (SELECT entry_id FROM trans WHERE norm >= :q AND norm < :qUpper)
 ORDER BY e.rank LIMIT 20;
 ```
 
-**4. Tolerante a errores** — se dispara **solo si 1+2+3 devolvieron menos de 5 resultados**.
-Consulta por un **prefijo** de la clave fuzzy (no la clave completa) para traer un vecindario y
-no solo las colisiones exactas; después se reordena en Kotlin por Damerau-Levenshtein contra
-`norm(q)`, se descarta lo que pase de distancia 2 y se devuelven los diez mejores.
+**4. Error tolerant** — fires **only if 1+2+3 returned fewer than 5 results**. It queries by a
+**prefix** of the fuzzy key (not the whole key) to bring in a neighbourhood and not just exact
+collisions; it is then reordered in Kotlin by Damerau-Levenshtein against `norm(q)`, anything past
+distance 2 is discarded and the best ten are returned.
 
-**5. Texto libre** — acción explícita del usuario, **nunca** mientras escribe:
+**5. Free text** — an explicit user action, **never** while typing:
 
 ```sql
 SELECT rowid FROM fts_def WHERE fts_def MATCH :ftsQuery ORDER BY rank LIMIT 30;
 ```
 
-Hay que sanitizar `:ftsQuery` envolviendo cada token en comillas dobles, para que texto libre
-del usuario nunca se interprete como sintaxis de FTS5.
+`:ftsQuery` has to be sanitised by wrapping every token in double quotes, so free user text is
+never interpreted as FTS5 syntax.
 
 ## Payload
 
-Texto UTF-8 delimitado, comprimido con deflate crudo y el diccionario compartido del pack:
+Delimited UTF-8 text, compressed with raw deflate and the pack's shared dictionary:
 
 ```
 P<TAB>verb                     part of speech, opcional, antes de cualquier S
 S<TAB>moverse rapidamente      abre una acepción
 E<TAB>corrio hasta la esquina  ejemplo de la acepción abierta
 T<TAB>to run                   traducción de la acepción abierta
+Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
+A<TAB>detenerse                antónimo de la acepción abierta (D-126)
 ```
 
-Texto delimitado en vez de JSON o CBOR a propósito: se parsea sin ninguna dependencia en los dos
-lenguajes, se puede leer con la vista al depurar un pack, y después de comprimir la diferencia
-de tamaño con un formato binario es ruido.
+Delimited text instead of JSON or CBOR on purpose: it parses with no dependency at all in both
+languages, it can be read by eye while debugging a pack, and after compression the size
+difference against a binary format is noise.
 
-**Los tags desconocidos se ignoran**, así un builder más nuevo puede agregar campos sin romper
-una app vieja.
+**Unknown tags are ignored**, so a newer builder can add fields without breaking an older app.
+That tolerance is exactly why the antonym tag `A` **did not** bump `payload_codec` (D-126).
 
-**Por qué deflate y no zstd**, aunque zstd comprime más: deflate está en `java.util.zip`
-(plataforma Android, sin `.so` extra) y en el `zlib` de la stdlib de Python. zstd obligaría a una
-librería nativa en el reloj *además* de la de SQLite, y a una dependencia de pip en el builder.
+**Why deflate and not zstd**, even though zstd compresses better: deflate is in `java.util.zip`
+(an Android platform API, no extra `.so`) and in Python's stdlib `zlib`. zstd would force a native
+library on the watch *in addition* to SQLite's, and a pip dependency in the builder.
 
-**Por qué el diccionario compartido**: las entradas son de unos cientos de bytes, demasiado
-cortas para que deflate encuentre redundancia por sí solo. El diccionario le da la ventana ya
-primada con los fragmentos frecuentes del corpus.
+**Why the shared dictionary**: entries are a few hundred bytes, far too short for deflate to find
+redundancy on its own. The dictionary gives it a window already primed with the corpus's frequent
+fragments.
 
-⚠️ deflate **no valida** el diccionario: con uno equivocado descomprime sin error y devuelve
-texto corrupto. Ver [contratos-cruzados.md](contratos-cruzados.md#3-deflate-no-valida-su-diccionario-precargado).
+⚠️ deflate **does not validate** the dictionary: with the wrong one it decompresses without error
+and returns corrupt text. See
+[contratos-cruzados.md](contratos-cruzados.md#3-deflate-does-not-validate-its-preloaded-dictionary).
 
-## Cómo lo construye el builder
+## How the builder builds it
 
-Dos pasadas sobre una tabla de staging dentro del propio archivo, nunca en memoria: las fuentes
-reales son de gigabytes y no caben.
+Two passes over a staging table inside the file itself, never in memory: the real sources are
+gigabytes and do not fit.
 
-1. **Pasada 1** — escribe los cuerpos sin comprimir y toma una muestra por reservorio.
-2. Arma el diccionario de compresión con esa muestra.
-3. **Pasada 2** — comprime y llena `entry` y `fts_def`.
-4. Materializa `trans` aplicando el tope por clave.
-5. Borra el staging y **recién ahí crea los índices**, sobre las tablas ya pobladas.
-6. `PRAGMA optimize` y `VACUUM`, que deja el archivo compacto y con las páginas en el orden en
-   que se va a leer en el reloj.
+1. **Pass 1** — writes the uncompressed bodies and takes a reservoir sample.
+2. Builds the compression dictionary from that sample.
+3. **Pass 2** — compresses and fills `entry` and `fts_def`.
+4. Materialises `trans`, applying the per-key cap.
+5. Drops the staging table and **only then creates the indexes**, over already populated tables.
+6. `PRAGMA optimize` and `VACUUM`, which leaves the file compact and its pages in the order they
+   will be read on the watch.
 
-El resultado es determinista: dos builds del mismo input dan el mismo contenido, salvo
+The result is deterministic: two builds of the same input give the same content, except for
 `meta.built_at`.
 
-## Presupuestos
+## Budgets
 
-**El primero ya está medido y no se cumple.** Los otros tres siguen siendo objetivos escritos a
-priori: son de latencia, y la latencia solo vale medida en un reloj físico (D-043), que todavía
-no hay.
+**The first one is already measured and is not met.** The other three are still goals written a
+priori: they are latency figures, and latency is only worth anything measured on a physical watch
+(D-043), which there still is not.
 
-| Métrica | Objetivo | Medido |
+| Metric | Target | Measured |
 |---|---|---|
-| Pack en disco | ≤ 50 MB *(blando)* | **68,1 MB** — 36 % por encima (2026-09-19, tras D-116 y D-117) |
-| `suggest()` con prefijo de 3 letras | p95 < 20 ms | sin medir: falta reloj |
-| Primer resultado visible desde la última tecla | < 150 ms | sin medir: falta reloj |
-| Cold start hasta pantalla de búsqueda usable | < 700 ms | sin medir: falta reloj |
+| Pack on disk | ≤ 50 MB *(soft)* | **68.2 MB** — 36 % over (2026-09-19, after D-116 to D-126) |
+| `suggest()` with a 3-letter prefix | p95 < 20 ms | unmeasured: no watch |
+| First result visible from the last keystroke | < 150 ms | unmeasured: no watch |
+| Cold start to a usable search screen | < 700 ms | unmeasured: no watch |
 
-### Los dos packs, pesados — y por qué pesa cada uno
+### Both packs, weighed — and why each one weighs what it does
 
-*(Estado actual, tras D-116 —los nombres propios salen— y D-117 —entran los sinónimos—. La
-columna de la derecha es lo que había antes, para poder leer el delta.)*
+*(Current state, after D-116 —proper nouns go— D-117/D-124 —synonyms come in, in both languages—
+and D-126 —antonyms—. The right-hand column is what was there before, so the delta can be read.)*
 
-| | Español | Inglés | *Antes de D-116 (ES / EN)* |
+| | Spanish | English | *Before D-116 (ES / EN)* |
 |---|---|---|---|
-| Fuente | eswiktionary Español, 1,42 GB | enwiktionary English, **3,24 GB** | ídem |
-| Entradas | **114.619** | **794.355** | *146.194 / 956.150* |
-| En disco | **68.132.864 B (65,0 MiB)** | **268.083.200 B (255,7 MiB)** | *72.212.480 B (68,9 MiB) / 309.424.128 B (295,1 MiB)* |
-| Comprimido | 34,3 MiB (50 %) | **184,7 MiB (37 %)** | *(medido antes de la poda)* |
-| Build | ~46 s, 214 MB RSS | ~180 s, 290 MB RSS | *53,9 s / 180,6 s* |
-| Nombres propios | 731 (0,6 %) | 1.675 (0,2 %) | *32.305 (22,1 %) / 163.470 (17,1 %)* |
-| Entradas con sinónimos | **26.369 (23,2 %)** | 0 — la fuente no los atribuye | *0 / 0* |
+| Source | eswiktionary Español, 1.42 GB | enwiktionary English, **3.24 GB** | same |
+| Entries | **114,619** | **794,355** | *146,194 / 956,150* |
+| On disk | **68,173,824 B (65.0 MiB)** | **271,015,936 B (258.5 MiB)** | *72,212,480 B (68.9 MiB) / 309,424,128 B (295.1 MiB)* |
+| Build | **63.6 s** | **2 min 45 s** | *53.9 s / 180.6 s* |
+| Proper nouns | 731 (0.6 %) | 1,675 (0.2 %) | *32,305 (22.1 %) / 163,470 (17.1 %)* |
+| Entries with synonyms | **26,481 (23.1 %)** — 71,779 items | **122,454 (15.4 %)** — 240,195 items | *0 / 0* |
+| Entries with antonyms | **3,317 (2.9 %)** — 6,979 items | **9,095 (1.1 %)** — 18,537 items | *0 / 0* |
 
-**La forma de los dos packs no se parece, y eso mata la intuición fácil.** Un pack no es
-"sobre todo morfología": eso es una verdad **del español**.
+**The two packs are not shaped alike, and that kills the easy intuition.** A pack is not "mostly
+morphology": that is a truth **about Spanish**.
 
-| Objeto | Español | Inglés |
+| Object | Spanish | English |
 |---|---|---|
-| `form` | **34,2 MB (47,4 %)** — 1.487.695 filas, 93,5 % conjugaciones | 20,0 MB (**7 %**) — 984.473 filas |
-| `entry` | 18,2 MB (25,2 %) | **142,3 MB (48 %)** |
-| `fts_def` | 10,3 MB (14,1 %) | 80,7 MB (26 %) |
-| `idx_entry_norm` + `idx_entry_fuzzy` | 9,5 MB (13,1 %) | 66,0 MB (21 %) |
+| `form` | **34.2 MB (47.4 %)** — 1,487,695 rows, 93.5 % conjugations | 20.0 MB (**7 %**) — 984,473 rows |
+| `entry` | 18.2 MB (25.2 %) | **142.3 MB (48 %)** |
+| `fts_def` | 10.3 MB (14.1 %) | 80.7 MB (26 %) |
+| `idx_entry_norm` + `idx_entry_fuzzy` | 9.5 MB (13.1 %) | 66.0 MB (21 %) |
 
-Un verbo español trae hasta 222 formas; uno inglés, cuatro. **El inglés pesa porque tiene 6,5×
-más entradas**, no por flexión. También comprime peor (37 % contra 50 %) porque casi todo su
-peso son payloads que ya están comprimidos.
+A Spanish verb brings up to 222 forms; an English one, four. **English weighs what it does because
+it has 6.5× more entries**, not because of inflection. It also compresses worse (37 % against
+50 %) because nearly all of its weight is payloads that are already compressed.
 
-### La fuente alternativa, medida (spike D-120)
+### The alternative source, measured (spike D-120)
 
-| | enwiktionary podado | Open English WordNet 2025 |
+| | pruned enwiktionary | Open English WordNet 2025 |
 |---|---|---|
-| Entradas | 794.355 | **135.969** |
-| En disco | 255,7 MiB | **38,4 MiB** (6,7× menos) |
-| Build | ~180 s | **17,9 s** |
-| Sonda de vocabulario común (57) | 57/57 | 56/57 |
-| Sonda dura: moderno, slang, técnico (39) | **39/39** | **25/39 (64 %)** |
-| Entradas con sinónimos | 0 % | **70,8 %** |
-| Licencia | CC BY-SA 4.0 | CC BY 4.0 |
+| Entries | 794,355 | **135,969** |
+| On disk | 255.7 MiB | **38.4 MiB** (6.7× smaller) |
+| Build | ~180 s | **17.9 s** |
+| Common-vocabulary probe (57) | 57/57 | 56/57 |
+| Hard probe: modern, slang, technical (39) | **39/39** | **25/39 (64 %)** |
+| Entries with synonyms | 0 % *(at the time; D-124 changed this)* | **70.8 %** |
+| License | CC BY-SA 4.0 | CC BY 4.0 |
 
-Lo que a OEWN le falta, concreto: *selfie, blockchain, deepfake, ghosting, woke, burnout,
-workaround, mitochondria, petrichor*. Es vocabulario académico congelado. **No reemplaza**, y el
-razonamiento está en D-120.
+Concretely, what OEWN lacks: *selfie, blockchain, deepfake, ghosting, woke, burnout, workaround,
+mitochondria, petrichor*. It is frozen academic vocabulary. **It does not replace**, and the
+reasoning is in D-120.
 
-### Qué se puede recortar, medido — y por qué no se recortó
+⚠️ Its headline advantage —synonyms— **shrank with D-124**: English now has synonyms from
+enwiktionary itself, on 15.4 % of the entries. OEWN still reaches 70.8 %, but the gap is no longer
+"zero against everything".
 
-| Palanca | Ahorro | Qué se pierde |
+### What can be trimmed, measured — and why it was not
+
+| Lever | Saving | What is lost |
 |---|---|---|
-| Dedup sin pérdida: la forma es prefijo de su lema | **0,2 MB (0,3 %)** | nada — y por eso no sirve |
-| ~~Nombres propios~~ — **tirada, D-116** | **39,4 MiB en inglés (13,4 %)**, 4,1 MB en español | los topónimos y apellidos sin vida léxica. *January*, *Paris*, *España* y *Chile* **se conservan** |
-| Quitar `fts_def` | 10,3 MB en español (14 %) | buscar por definición |
-| Quitar `idx_entry_fuzzy` | 4,1 MB en español (5,7 %) | tolerancia a errores — el punto del dictado (D-027) |
-| Podar `form` por divergencia ≥4 | 13,6 MB en español (19 %) | **602.681 formas dejan de resolver** escritas enteras |
-| Conjugador algorítmico en vez de tabla | hasta 34 MB en español (47 %) | un segundo contrato entre dos lenguajes (la clase de bug de D-005) |
+| Lossless dedup: the form is a prefix of its headword | **0.2 MB (0.3 %)** | nothing — which is why it is useless |
+| ~~Proper nouns~~ — **pulled, D-116** | **39.4 MiB in English (13.4 %)**, 4.1 MB in Spanish | place names and surnames with no lexical life. *January*, *Paris*, *España* and *Chile* **are kept** |
+| Dropping `fts_def` | 10.3 MB in Spanish (14 %) | searching by definition |
+| Dropping `idx_entry_fuzzy` | 4.1 MB in Spanish (5.7 %) | error tolerance — the whole point of dictation (D-027) |
+| Pruning `form` by divergence ≥4 | 13.6 MB in Spanish (19 %) | **602,681 forms stop resolving** when typed in full |
+| An algorithmic conjugator instead of a table | up to 34 MB in Spanish (47 %) | a second contract between two languages (the class of bug in D-005) |
 
-**El pack ya es la base de datos interna**: 1,42 GB de dump → 68,1 MB. Lo que queda no es basura
-de Wiktionary, es capacidad de búsqueda, y **toda palanca cuesta una función** (D-077).
+**The pack already is the internal database**: 1.42 GB of dump → 68.2 MB. What is left is not
+Wiktionary garbage, it is search capability, and **every lever costs a feature** (D-077).
 
-**La fila de los nombres propios es la única que se tiró, y enseñó algo que el resto de la tabla
-no dice**: en español no ahorró casi nada —el payload de los 32.305 era 0,63 MB— pero sacó el
-ruido del 22,1 % de los `norm`. **Una palanca puede valer la pena por lo que NO pesa.** En
-inglés sí ahorró: 295,1 → 255,7 MiB.
+**The proper-noun row is the only one that was pulled, and it taught something the rest of the
+table does not say**: in Spanish it saved almost nothing —the payload of those 32,305 was
+0.63 MB— but it removed the noise from 22.1 % of the `norm` values. **A lever can be worth it for
+what it does NOT weigh.** In English it did save: 295.1 → 255.7 MiB.
 
-Y hay una fila nueva que va en el sentido contrario: los **sinónimos** (D-117) **suman** 0,89 MB
-al español. Es contenido que la fuente ya traía y el builder tiraba.
+And there are two rows going the other way: **synonyms** (D-117, D-124) **add** 0.89 MB to Spanish
+and 2.82 MB to English, and **antonyms** (D-126) add 0.04 and 0.11 MB. It is content the source
+already carried and the builder was throwing away.
 
-### El pack real de español, pesado
+### The real Spanish pack, weighed
 
-Construido el **2026-09-17** desde el dump del Wikcionario de kaikki.org del **2026-09-15**
-(eswiktionary, sección Español, 1.423.631.693 bytes). Reproducible:
+Built on **2026-09-19** from the kaikki.org Wikcionario dump of **2026-09-15** (eswiktionary,
+Español section, 1,423,631,693 bytes). Reproducible:
 
 ```sh
 python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
@@ -324,26 +331,26 @@ python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 
 | | |
 |---|---|
-| Senses en el dump | 1.036.458 *(en 854.460 registros)* |
-| Registros que son página de forma flexionada | 703.506 = **82,33 %** — no son entradas (D-065) |
-| Entradas `pos = name` podadas (D-116) | 31.574 de 32.305 — quedan 731 por vida léxica |
-| Acepciones con etiqueta editorial limpiadas (D-121) | 665 → **0** |
-| **Entradas en el pack** | **114.619** |
-| **Pack en disco** | **68.132.864 bytes (65,0 MiB)** |
-| Build | ~46 s, **214 MB** de RSS máximo (la pasada 1 arma el mapa de formas en memoria) |
+| Senses in the dump | 1,036,458 *(across 854,460 records)* |
+| Records that are inflected-form pages | 703,506 = **82.33 %** — not entries (D-065) |
+| `pos = name` entries pruned (D-116) | 31,574 of 32,305 — 731 remain through lexical life |
+| Senses with editorial markup cleaned (D-121) | 665 → **0** |
+| **Entries in the pack** | **114,619** |
+| **Pack on disk** | **68,173,824 bytes (65.0 MiB)** |
+| Build | **63.6 s** |
 
-Dónde se va el pack, y es la respuesta que decide O-3:
+Where the pack goes, and it is the answer that decides O-3:
 
-| Objeto | Tamaño | Parte |
+| Object | Size | Share |
 |---|---|---|
-| `form` | 33,4 MB | **46,3 %** — 1.487.695 filas, **93,5 % conjugaciones de verbos** |
-| `entry` | 17,8 MB | 24,6 % — payloads comprimidos, 2,8 acepciones por entrada |
-| `fts_def_data` | 8,6 MB | 11,8 % |
-| `idx_entry_norm` | 5,2 MB | 7,3 % |
-| `idx_entry_fuzzy` | 4,0 MB | 5,6 % |
-| `fts_def_docsize` | 1,4 MB | 2,0 % |
-| `trans` | 4 KB | vacía: el pack es monolingüe (D-034) |
+| `form` | 33.4 MB | **46.3 %** — 1,487,695 rows, **93.5 % verb conjugations** |
+| `entry` | 17.8 MB | 24.6 % — compressed payloads, 2.8 senses per entry |
+| `fts_def_data` | 8.6 MB | 11.8 % |
+| `idx_entry_norm` | 5.2 MB | 7.3 % |
+| `idx_entry_fuzzy` | 4.0 MB | 5.6 % |
+| `fts_def_docsize` | 1.4 MB | 2.0 % |
+| `trans` | 4 KB | empty: the pack is monolingual (D-034) |
 
-**El pack es la tabla `form`**, y no es grasa: es el precio de que escribir "corriendo"
-encuentre "correr". Un verbo español trae hasta 222 formas. Cualquier recorte ahí se paga en
-la moneda que este repo no acepta pagar — *falta una palabra*.
+**The pack is the `form` table**, and that is not fat: it is the price of "corriendo" finding
+"correr". A Spanish verb brings up to 222 forms. Any cut there is paid in the currency this repo
+refuses to pay — *a word is missing*.
