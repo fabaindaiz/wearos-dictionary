@@ -39,9 +39,9 @@ class WordOfTheDayTest {
     fun theSameDateAlwaysGivesTheSameWord() = runTest {
         // Es la propiedad que la hace "del dia": si cambiara al recomponer, no se la podrias
         // mostrar a nadie ni volver a ella.
-        val primera = pick()
-        assertNotNull(primera)
-        repeat(5) { assertEquals(primera, pick()) }
+        val first = pick()
+        assertNotNull(first)
+        repeat(5) { assertEquals(first, pick()) }
     }
 
     @Test

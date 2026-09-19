@@ -541,7 +541,7 @@ class SearchViewModel(
 
     /** Reescribe el `entryId` de esta visita en el historial y en las guardadas. */
     private fun fixEntryId(visit: Visit, entryId: Long) {
-        fun fix(lista: List<Visit>) = lista.map {
+        fun fix(list: List<Visit>) = list.map {
             if (it.packId == visit.packId && it.entryId == visit.entryId) {
                 it.copy(entryId = entryId)
             } else {
