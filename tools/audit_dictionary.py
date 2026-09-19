@@ -344,6 +344,41 @@ def check_forbidden_mirror(report):
                                 )
 
 
+def check_module_direction(report):
+    """Regla: :app -> :dict-data -> :dict-core, y nunca al reves. (docs/architecture.md)
+
+    `docs/architecture.md` lo pide por escrito desde que existe --"comprobar la direccion es lo
+    primero que la auditoria tiene que agregar"-- y durante tres sesiones el documento describio
+    un check que no existia. Ahora existe.
+
+    Se mira el build file y no los imports a proposito: `:app` y `:dict-data` **comparten el
+    nombre de paquete** `cl.fadiaz.dictionary.data`, asi que un import no dice de que modulo
+    viene. La declaracion de dependencia si.
+
+    Lo que rompe si esto se invierte no es estetico: `:dict-core` es el que se testea en
+    milisegundos sin emulador y el que se espeja con el builder (D-005). Una dependencia hacia
+    arriba lo ata a Android y esos tests dejan de poder correr.
+    """
+    permitido = {
+        "dict-core": set(),
+        "dict-data": {":dict-core"},
+        "app": {":dict-data", ":dict-core"},
+    }
+    for modulo, puede in permitido.items():
+        relativo = os.path.join(modulo, "build.gradle.kts")
+        if not os.path.isfile(os.path.join(ROOT, relativo)):
+            report.failure("falta %s" % relativo, "si el modulo se renombro, mover este check")
+            continue
+        usados = set(re.findall(r'project\("(:[a-z-]+)"\)', read(relativo)))
+        prohibidos = usados - puede
+        if prohibidos:
+            report.failure(
+                ":%s depende hacia arriba" % modulo,
+                "%s -- la direccion es :app -> :dict-data -> :dict-core y nunca al reves"
+                % ", ".join(sorted(prohibidos)),
+            )
+
+
 def check_app_logic_is_jvm_testable(report):
     """Regla: la logica de :app no importa android.*; lo de Android entra por parametro. (D-072)
 
@@ -617,6 +652,7 @@ CHECKS = [
     check_forbidden_dependency,
     check_shadowed_extensions,
     check_forbidden_mirror,
+    check_module_direction,
     check_app_logic_is_jvm_testable,
     check_attribution_screen,
     check_release_signing,
