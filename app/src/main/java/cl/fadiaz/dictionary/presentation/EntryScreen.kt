@@ -365,26 +365,26 @@ private fun SenseBlock(
 @Composable
 private fun annotatedGloss(
     prefijo: String,
-    glosa: String,
+    gloss: String,
     links: Map<String, Long>,
     onOpenWord: (Long) -> Unit,
 ): AnnotatedString {
     val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
-    return remember(prefijo, glosa, links, style) {
+    return remember(prefijo, gloss, links, style) {
         buildAnnotatedString {
             append(prefijo)
             var cursor = 0
-            for (word in GlossTokenizer.tokenize(glosa)) {
+            for (word in GlossTokenizer.tokenize(gloss)) {
                 val target = links[word.norm] ?: continue
-                if (word.start > cursor) append(glosa.substring(cursor, word.start))
+                if (word.start > cursor) append(gloss.substring(cursor, word.start))
                 withLink(
                     LinkAnnotation.Clickable("palabra:$target", style) { onOpenWord(target) },
                 ) {
-                    append(glosa.substring(word.start, word.end))
+                    append(gloss.substring(word.start, word.end))
                 }
                 cursor = word.end
             }
-            if (cursor < glosa.length) append(glosa.substring(cursor))
+            if (cursor < gloss.length) append(gloss.substring(cursor))
         }
     }
 }

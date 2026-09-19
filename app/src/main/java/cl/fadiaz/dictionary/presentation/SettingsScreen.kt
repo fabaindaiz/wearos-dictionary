@@ -67,7 +67,7 @@ fun SettingsScreen(
                 // Ya no es el selector: elegir idioma se hace en el inicio, que es donde se
                 // necesita rapido. Aca se entra a ver cuanto ocupan y a sacar los que sobran.
                 ListRow(
-                    lema = "Gestionar",
+                    headword = "Gestionar",
                     detail = opened.size.toString(),
                     onClick = onManagePacks,
                 )

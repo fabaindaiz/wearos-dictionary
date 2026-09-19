@@ -37,8 +37,8 @@ class TilesTest {
         .setScreenShape(DeviceParametersBuilders.SCREEN_SHAPE_ROUND)
         .build()
 
-    private fun visit(lema: String, id: Long = 1) =
-        Visit(packId = "es-def-wikc", entryId = id, headword = lema, partOfSpeech = "noun")
+    private fun visit(headword: String, id: Long = 1) =
+        Visit(packId = "es-def-wikc", entryId = id, headword = headword, partOfSpeech = "noun")
 
     @Test
     fun aFullHistoryRenders() {

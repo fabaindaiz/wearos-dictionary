@@ -139,8 +139,8 @@ class DeferredPack {
         return listo.await()
     }
 
-    fun padWith(resultado: PackSet) {
-        listo.complete(resultado)
+    fun padWith(result: PackSet) {
+        listo.complete(result)
     }
 }
 
