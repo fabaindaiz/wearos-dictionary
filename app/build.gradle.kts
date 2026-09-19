@@ -94,6 +94,13 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests {
+            // Robolectric necesita los recursos reales --strings, temas, densidades-- para poder
+            // medir un Composable. Sin esto los tests compilan y fallan al inflar.
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 // Mismo rigor que :dict-core y :dict-data. `:app` era el unico modulo donde una advertencia del
@@ -206,6 +213,11 @@ dependencies {
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.coroutines.test)
+    // Las pantallas, en la JVM. Necesitan el mismo par que en dispositivo mas el runtime simulado.
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.ui.test.junit4)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.robolectric)
     implementation(libs.material.icons.core)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)

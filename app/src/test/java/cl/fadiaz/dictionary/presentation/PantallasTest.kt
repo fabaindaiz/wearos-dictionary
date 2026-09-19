@@ -399,23 +399,9 @@ class PantallasTest {
 
     // --- Palabras tocables dentro de una glosa ------------------------------------------------
 
-    @Test
-    fun tocarUnaPalabraConocidaDeLaGlosaAbreSuEntrada() {
-        var abierta: Long? = null
-        compose.setContent {
-            EntryScreen(
-                entryId = 1,
-                onOpenPalabra = { abierta = it },
-                resolver = { mapOf("cera" to 77L) },
-            ) { entrada().copy(senses = listOf(Sense("cilindro de cera con mecha"))) }
-        }
-        compose.waitForIdle()
-
-        // El nodo del enlace NO tiene semantica de texto propia --Compose le pone solo OnClick
-        // sobre el rectangulo de la palabra-- asi que se identifica por el texto que lo contiene.
-        compose.onNode(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true).performClick()
-        assertEquals(77L, abierta)
-    }
+    // `tocarUnaPalabraConocidaDeLaGlosaAbreSuEntrada` vive en `androidTest`, en
+    // `EnlacesEnDispositivoTest`: tocar una palabra dentro de un parrafo depende del layout de
+    // texto real y bajo Robolectric el callback no se dispara. Es el unico de los 47.
 
     @Test
     fun unaPalabraQueNoEsLemaNoSePuedeTocar() {

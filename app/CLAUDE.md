@@ -22,8 +22,15 @@ De ahí la regla, que es D-072 y la enforcea el audit: **la lógica de `:app` no
 `android.*`**. Lo que necesita Android entra por parámetro —`SearchViewModel` recibe `abrirPack`,
 no un `Context`— y la frontera es `PackLoad`, un tipo sin Android por el que pasa un fake.
 
-Las **pantallas están fuera de la regla**: un Composable es Android por definición. Se prueban
-en dispositivo, con `PantallasTest`, y **no entran al gate**.
+Las **pantallas están fuera de la regla** como código —un Composable es Android por definición—
+pero **ya no como tests**: corren con Robolectric en la JVM y **sí entran al gate** (D-110). De
+los 47, **46 corren así en 21 s**; el único que no es tocar una palabra dentro de una glosa, que
+depende del layout de texto real.
+
+⚠️ **Robolectric corre en SDK 36, no en 37**, que es el nivel del reloj: llega hasta ahí
+(`app/src/test/resources/robolectric.properties`). Lo que dependa de API 37 sigue necesitando
+dispositivo — y este proyecto ya tuvo un caso, la inyección de input que obligó a fijar espresso
+3.7.0 (D-093).
 
 Esos tests no arman un `DictionarySource`: las pantallas son funciones del estado, así que el
 estado se construye a mano. Si alguna vez una pantalla necesita un fake, es señal de que se le
@@ -46,8 +53,8 @@ Si alguien baja de 48 dp para meter una cuarta fila, el test de densidad **sigue
 que se rompe es el área tocable. Por eso el mínimo vive en una constante con nombre.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 85 tests JVM, milisegundos, dentro del gate
-./gradlew :app:connectedDebugAndroidTest # 47 tests de pantalla, necesitan emulador
+./gradlew :app:testDebugUnitTest         # 154 tests JVM, las pantallas incluidas
+./gradlew :app:connectedDebugAndroidTest # 7 tests que sí necesitan dispositivo
 ./gradlew :app:releasePrecheck           # hay keystore para firmar? dice que falta
 ./gradlew :app:assembleRelease           # 35 MB; sin keystore sale SIN FIRMAR, no rompe
 ```
