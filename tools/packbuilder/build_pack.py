@@ -58,7 +58,7 @@ PACKS = {
         "name": "Español",
         "description": (
             "Definiciones en español del Wikcionario, sin nombres propios. "
-            "Incluye sinónimos por acepción."
+            "Incluye sinónimos y antónimos por acepción."
         ),
         "lang_src": "es",
         "fuzzy_profile": "es",
@@ -77,7 +77,7 @@ PACKS = {
         "name": "English",
         "description": (
             "English definitions from Wiktionary, proper nouns pruned. "
-            "Includes synonyms per sense."
+            "Includes synonyms and antonyms per sense."
         ),
         "lang_src": "en",
         "fuzzy_profile": "en",
