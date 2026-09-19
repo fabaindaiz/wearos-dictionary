@@ -53,39 +53,39 @@ import cl.fadiaz.dictionary.data.packTypeLabel
 import cl.fadiaz.dictionary.data.Visit
 
 /**
- * La pantalla de busqueda. Es la app: D-026 dice que la busqueda vive aca adentro porque ni los
- * tiles ni los widgets aceptan text input.
+ * The search screen. It is the app: D-026 says the search lives in here because neither tiles nor
+ * widgets accept text input.
  *
- * EL DISEÑO ESTA GOBERNADO POR UN PRESUPUESTO DE 192 dp
+ * THE DESIGN IS GOVERNED BY A 192 dp BUDGET
  *
- * La pantalla son 384x384 px a 320 dpi, o sea **192x192 dp**, y la guia de Wear OS pide 48 dp
- * minimos de area tocable. Eso da cuatro filas y nada mas: cada dp que gasta el encabezado es un
- * resultado que el usuario no ve. De ahi las dos decisiones que se ven raras sueltas:
+ * The screen is 384x384 px at 320 dpi, that is **192x192 dp**, and the Wear OS guidance asks for
+ * a 48 dp minimum touch area. That gives four rows and nothing more: every dp the header spends
+ * is a result the user does not see. Hence the two decisions that look odd on their own:
  *
- * - **La entrada de texto cambia de tamaño.** Con la busqueda vacia, el boton de voz ocupa lo
- *   que tiene que ocupar: es el camino principal en una muñeca (`app/CLAUDE.md`) y no hay nada
- *   que compita con el. En cuanto hay algo escrito se colapsa a una fila, porque a partir de
- *   ahi lo que importa son los resultados.
- * - **Las filas son de una linea y truncan.** Los refranes del Wikcionario son entradas y
- *   llegan a 96 caracteres; una fila que creciera para mostrarlos enteros se comeria media
- *   pantalla por un caso raro. El lema completo esta a un toque.
+ * - **The text input changes size.** With an empty search, the voice button takes as much room as
+ *   it should: it is the primary path on a wrist (`app/CLAUDE.md`) and nothing competes with it.
+ *   As soon as something is typed it collapses to one row, because from then on what matters is
+ *   the results.
+ * - **The rows are one line and truncate.** Wiktionary's sayings are entries and reach 96
+ *   characters; a row that grew to show them whole would eat half the screen for a rare case.
+ *   The full headword is one tap away.
  */
 @Composable
 fun SearchScreen(
     state: SearchState,
     onQueryChange: (String) -> Unit,
     onPackChange: (String) -> Unit = {},
-    // Sin default a proposito: un callback olvidado en MainActivity seria una escotilla muerta
-    // que no se distingue de una que funciona.
+    // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
+    // hatch, indistinguishable from one that works.
     onSearchDefinitions: () -> Unit,
     onOpenEntry: (Suggestion) -> Unit,
     onOpenVisita: (Visit) -> Unit = {},
     onOpenAttribution: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onOpenFavoritos: () -> Unit = {},
-    // Lleva el packId ademas de la entrada: con dos idiomas cargados hay dos palabras del dia y
-    // cada una vive en SU diccionario. Resolverla contra el activo seria D-080 otra vez.
-    // Sin default: una palabra del dia que se ve y no abre nada es peor que no tenerla.
+    // It carries the packId as well as the entry: with two languages loaded there are two words
+    // of the day and each lives in ITS dictionary. Resolving it against the active one would be
+    // D-080 again. No default: a word of the day that shows and opens nothing is worse than none.
     onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -107,8 +107,8 @@ fun SearchScreen(
         TransformingLazyColumn(
             contentPadding = withBottomMargin(contentPadding),
             state = listState,
-            // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
-            // esta leyendo. No viene cableada por defecto.
+            // The crown is a watch's primary scroll: the finger covers exactly what is being
+            // read. It is not wired up by default.
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
                 focusRequester,
@@ -146,9 +146,9 @@ fun SearchScreen(
                 }
 
                 SearchState.Status.Ready -> {
-                    // LA BARRA VA PRIMERA. Antes quedaba debajo del encabezado, de la palabra
-                    // del dia y del boton de voz, y buscar es la accion primaria: la guia de
-                    // Wear OS pide elevarla para que se actue sin navegar.
+                    // THE BAR GOES FIRST. It used to sit below the header, the word of the
+                    // day and the voice button, and searching is the primary action: the
+                    // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
                         SearchBar(state.query, onQueryChange) {
                             voice.launch(voiceIntent(state.active?.langSource ?: "es"))
@@ -156,8 +156,8 @@ fun SearchScreen(
                     }
 
                     if (state.query.isEmpty()) {
-                        // La voz va pegada a la barra: las dos son la misma pregunta --como
-                        // escribo lo que busco-- y separarlas obligaba a scrollear entre ellas.
+                        // Voice sits next to the bar: both answer the same question --how do I
+                        // enter what I am looking for-- and separating them forced a scroll.
                         item(key = "voz") {
                             Button(
                                 onClick = { voice.launch(voiceIntent(state.active?.langSource ?: "es")) },
@@ -166,9 +166,9 @@ fun SearchScreen(
                             ) { Text("Decir una palabra") }
                         }
 
-                        // Una por diccionario cargado, la del activo primero. El encabezado
-                        // aparece SOLO si hay alguna: un titulo sin nada debajo es peor que no
-                        // tener titulo.
+                        // One per loaded dictionary, the active one's first. The header shows
+                        // ONLY if there is at least one: a heading with nothing under it is
+                        // worse than no heading.
                         val ofTheDay = state.available
                             .filterIsInstance<PackHandle.Open>()
                             .mapNotNull { handle ->
@@ -188,26 +188,26 @@ fun SearchScreen(
                             key = { index -> "pdd:${ofTheDay[index].first.packId}" },
                         ) { index ->
                             val (handle, word) = ofTheDay[index]
-                            // Siempre el nombre del diccionario: el encabezado ya dice que es
-                            // la palabra del dia, asi que repetirlo aca gastaba un renglon.
+                            // Always the dictionary's name: the header already says this is
+                            // the word of the day, so repeating it here wasted a line.
                             WordOfTheDayRow(
                                 word = word,
-                                // Nombre corto Y tipo: desde D-125 el nombre es solo "Español",
-                                // asi que sin la etiqueta no se sabe que clase de diccionario es.
+                                // Short name AND kind: since D-125 the name is just "Español",
+                                // so without the label you cannot tell what kind it is.
                                 subtitle = "${handle.metadata.name} · " +
                                     packTypeLabel(handle.metadata.kind),
                             ) { onOpenWordOfTheDay(handle.packId, word) }
                         }
                     }
 
-                    // Las ultimas palabras abiertas, solo con la busqueda vacia: desaparecen al
-                    // escribir por construccion, sin un `if` extra, asi que no compiten nunca con
-                    // los resultados.
+                    // The most recently opened words, only with an empty search: they disappear
+                    // when typing by construction, without an extra `if`, so they never compete
+                    // with the results.
                     //
-                    // AHORA SI llevan encabezado. Antes no lo tenian porque "un ListHeader cuesta
-                    // dos tercios de una fila y aca no hay nada con que confundirlas" -- pero con
-                    // la palabra del dia arriba y las opciones abajo, la unica lista sin titulo
-                    // pasaba a ser la rara.
+                    // They DO carry a header now. They did not before because "a ListHeader costs
+                    // two thirds of a row and there is nothing here to confuse them with" -- but
+                    // with the word of the day above and the options below, the only list without
+                    // a heading became the odd one out.
                     if (state.query.isEmpty() && state.history.isNotEmpty()) {
                         item(key = "titulo-recientes") {
                             ListHeader(
@@ -244,8 +244,8 @@ fun SearchScreen(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                             )
                         }
-                        // Buscar la palabra DENTRO de las definiciones. No se ofrece si ya
-                        // estamos viendo definiciones: seria un bucle.
+                        // Search the word INSIDE the definitions. Not offered if we are
+                        // already looking at definitions: that would be a loop.
                         if (state.mode != SearchState.Mode.DEFINICIONES) {
                             item(key = "escotilla-definiciones") {
                                 val searching = state.mode == SearchState.Mode.BUSCANDO_DEFINICIONES
@@ -255,15 +255,15 @@ fun SearchScreen(
                                     } else {
                                         "Buscar en las definiciones"
                                     },
-                                    // Sin onClick mientras busca: sigue en pantalla para que la
-                                    // lista no salte, pero no dispara una segunda consulta.
+                                    // No onClick while searching: it stays on screen so the
+                                    // list does not jump, but it fires no second query.
                                     onClick = if (searching) null else onSearchDefinitions,
                                 )
                             }
                         }
-                        // La escotilla de escape, y aparece SOLO aca: el usuario escribio algo
-                        // que este idioma no tiene. Con resultados en pantalla el selector
-                        // costaria una fila, o sea un tercio de la lista (D-073).
+                        // The escape hatch, and it shows up ONLY here: the user typed something
+                        // this language does not have. With results on screen the selector would
+                        // cost a row, that is a third of the list (D-073).
                         val other = state.available
                             .filterIsInstance<PackHandle.Open>()
                             .firstOrNull { it.packId != state.active?.packId }
@@ -287,8 +287,8 @@ fun SearchScreen(
                         ResultRow(state.results[index]) { onOpenEntry(state.results[index]) }
                     }
 
-                    // Ajustes solo con la busqueda vacia: con resultados en pantalla una fila
-                    // de chrome es un resultado menos (D-073).
+                    // Settings only with an empty search: with results on screen a row of
+                    // chrome is one result less (D-073).
                     if (state.query.isEmpty()) {
                         item(key = "titulo-opciones") {
                             ListHeader(
@@ -296,16 +296,16 @@ fun SearchScreen(
                                 transformation = SurfaceTransformation(spec),
                             ) { Text("Opciones") }
                         }
-                        // El selector de idioma vive aca y ya no reemplaza al titulo del inicio.
-                        // Eso cambia lo que decia D-078 --que costaba CERO filas-- y el costo
-                        // nuevo es una fila propia; a cambio deja de competir con la barra por
-                        // el lugar de arriba, que es donde tiene que estar la busqueda.
+                        // The language selector lives here and no longer replaces the home
+                        // heading. That changes what D-078 said --that it cost ZERO rows-- and
+                        // the new cost is a row of its own; in exchange it stops competing with
+                        // the bar for the top spot, which is where the search has to be.
                         if (state.available.size > 1) {
                             item(key = "selector") { LanguageSelector(state, onPackChange) }
                         }
-                        // Siempre, aunque este vacia: quien nunca guardo una palabra no tenia
-                        // como descubrir que se puede. La pantalla ya trae un estado vacio que
-                        // explica el gesto, asi que llegar ahi con cero no es un callejon.
+                        // Always, even when empty: someone who never saved a word had no way
+                        // to discover they could. The screen already carries an empty state
+                        // that explains the gesture, so arriving with zero is not a dead end.
                         item(key = "favoritos") {
                             ListRow(
                                 headword = "Guardadas",
@@ -338,11 +338,11 @@ fun SearchScreen(
 }
 
 /**
- * Una fila de resultado: 48 dp, una linea, el lema manda y la categoria acompaña.
+ * A result row: 48 dp, one line, the headword leads and the part of speech follows.
  *
- * No usa `Button` de Wear Compose a proposito: su alto minimo es 52 dp y con el encabezado no
- * entraban cuatro filas. 48 dp es el minimo que pide la guia de Wear OS para un area tocable, y
- * bajar de ahi seria ganar densidad rompiendo algo peor.
+ * It deliberately does not use Wear Compose's `Button`: its minimum height is 52 dp and with the
+ * header four rows did not fit. 48 dp is the minimum the Wear OS guidance asks for a touch area,
+ * and going below that would buy density by breaking something worse.
  */
 @Composable
 private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
@@ -356,17 +356,17 @@ private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
 
 
 /**
- * Teclado y voz en una sola fila.
+ * Keyboard and voice on a single row.
  *
- * Es `BasicTextField` y no un componente de Wear Compose porque **Wear Compose no trae campo de
- * texto**: la libreria asume que el input entra por voz o por el activity del sistema. Y es el
- * teclado el que ejercita la busqueda incremental: la voz entrega la frase entera de una vez.
+ * It is a `BasicTextField` and not a Wear Compose component because **Wear Compose ships no text
+ * field**: the library assumes input arrives by voice or through the system activity. And it is
+ * the keyboard that exercises the incremental search: voice delivers the whole phrase at once.
  */
 @Composable
 private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: () -> Unit) {
-    // "Aceptar" no hacia nada: habia un ImeAction declarado y ningun handler, y
-    // KeyboardActions.Default no define comportamiento para Search --a diferencia de
-    // Next/Previous, que mueven foco--. La unica salida era el gesto de volver del sistema.
+    // "Accept" did nothing: there was an ImeAction declared and no handler, and
+    // KeyboardActions.Default defines no behaviour for Search --unlike Next/Previous,
+    // which move focus--. The only way out was the system's back gesture.
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
     Row(
@@ -379,11 +379,11 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: (
                 .weight(1f)
                 .clip(PILL_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
-                // El borde es lo que la distingue, y es deliberado que sea borde y no relleno:
-                // la barra usaba `surfaceContainer`, el MISMO token que una fila de resultado y
-                // que el boton "Ver mas", asi que el campo era indistinguible de un item de
-                // lista. Un relleno entero encenderia toda la banda en un OLED; el contorno
-                // enciende el perimetro y se nota igual.
+                // The border is what sets it apart, and border rather than fill is deliberate:
+                // the bar used `surfaceContainer`, the SAME token as a result row and as the
+                // "Show more" button, so the field was indistinguishable from a list item. A
+                // full fill would light the whole band on an OLED; the outline lights the
+                // perimeter and reads just as well.
                 .border(2.dp, MaterialTheme.colorScheme.primary, PILL_SHAPE)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -403,22 +403,22 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: (
                     color = MaterialTheme.colorScheme.onSurface,
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                // No dispara una consulta: la busqueda ya corrio por el debounce. Cierra el
-                // teclado y suelta el foco, que es lo que devuelve la corona a la lista.
+                // It fires no query: the search already ran through the debounce. It closes
+                // the keyboard and releases focus, which gives the crown back to the list.
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         keyboard?.hide()
-                        // Medido: soltar el foco NO se come el texto que venia
-                        // componiendo el IME --se comprobo quitandolo y el campo
-                        // quedaba igual--, y es lo que devuelve la corona a la lista.
+                        // Measured: releasing focus does NOT eat the text the IME
+                        // was composing --checked by removing it and the field
+                        // stayed the same-- and it gives the crown back to the list.
                         focus.clearFocus()
                     },
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        // Con algo escrito el boton grande de voz desaparece, pero la voz no puede desaparecer
-        // con el: sigue siendo el camino principal en una muñeca.
+        // With something typed the large voice button goes away, but voice cannot go away
+        // with it: it is still the primary path on a wrist.
         if (query.isNotEmpty()) {
             Box(
                 modifier = Modifier
@@ -439,11 +439,11 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: (
 }
 
 /**
- * La palabra de hoy: el lema grande y una etiqueta chica que dice que es.
+ * Today's word: the headword large and a small label saying what it is.
  *
- * Lleva la etiqueta aunque cueste altura porque sin ella es indistinguible de una entrada del
- * historial, y entonces no comunica nada. No usa [Fila] por lo mismo: una fila de una linea
- * diria "perro · sust." y eso ya existe tres veces mas abajo.
+ * It carries the label even though it costs height because without it it is indistinguishable
+ * from a history entry, and then it communicates nothing. It does not use [ListRow] for the same
+ * reason: a one-line row would read "perro · sust." and that already exists three times below.
  */
 @Composable
 private fun WordOfTheDayRow(
@@ -478,11 +478,11 @@ private fun WordOfTheDayRow(
 }
 
 /**
- * Los idiomas disponibles, en la banda donde antes estaba el titulo.
+ * The available languages, in the band where the heading used to be.
  *
- * Chips de 48 dp --el minimo tocable de Wear OS-- repartidos a lo ancho. Se construye con
- * `Row`/`Box`/`clickable` y no con un componente de Wear Compose a proposito: con
- * `allWarningsAsErrors`, una API que se deprecie en el proximo bump rompe el build.
+ * 48 dp chips --the Wear OS touch minimum-- spread across the width. Built with
+ * `Row`/`Box`/`clickable` and deliberately not with a Wear Compose component: with
+ * `allWarningsAsErrors`, an API deprecated in the next bump breaks the build.
  */
 @Composable
 private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit) {
@@ -527,14 +527,14 @@ private fun voiceIntent(lang: String): Intent =
             RecognizerIntent.EXTRA_LANGUAGE_MODEL,
             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
         )
-        // El reconocedor tiene que buscar en el idioma del pack ACTIVO, no en el del sistema:
-        // un reloj en ingles dictando "perro" devolveria cualquier cosa, y al reves igual.
+        // The recogniser has to listen in the ACTIVE pack's language, not the system's: a
+        // watch in English dictating "perro" would return anything, and vice versa.
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
     }
 
 /**
- * El pack guarda el `pos` con el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
- * UI: meterlo en el pack lo ataria a un idioma de interfaz y costaria bytes por entrada.
+ * The pack stores `pos` with kaikki's code (`noun`, `verb`). Translating it is the UI's job:
+ * putting it in the pack would tie it to one interface language and cost bytes per entry.
  */
 internal fun posInSpanish(pos: String): String = when (pos) {
     "noun" -> "sust."
@@ -556,11 +556,11 @@ internal fun posInSpanish(pos: String): String = when (pos) {
 }
 
 /**
- * Solo se etiquetan los niveles que sorprenden.
+ * Only the surprising match levels get a label.
  *
- * Que un resultado salga por prefijo es lo esperado y no merece una palabra en una pantalla de
- * 192 dp. Que salga por una forma flexionada o por parecido si: explica por que aparece algo
- * que el usuario no escribio.
+ * A result coming from a prefix is what you expect and does not deserve a word on a 192 dp
+ * screen. One coming from an inflected form or from fuzzy matching does: it explains why
+ * something the user did not type is showing up.
  */
 private fun matchLabel(kind: MatchKind): String? = when (kind) {
     MatchKind.PREFIX -> null
