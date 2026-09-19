@@ -31,7 +31,7 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
@@ -53,12 +53,12 @@ import org.junit.runner.RunWith
  * construye a mano. Por eso tampoco hace falta duplicar aca el fake de `src/test`.
  */
 @RunWith(AndroidJUnit4::class)
-class PantallasTest {
+class ScreensTest {
 
     @get:Rule
     val compose = createComposeRule()
 
-    private fun sugerencia(lema: String, pos: String? = "noun") = Suggestion(
+    private fun suggestion(lema: String, pos: String? = "noun") = Suggestion(
         packId = "test",
         entryId = lema.hashCode().toLong(),
         headword = lema,
@@ -89,14 +89,14 @@ class PantallasTest {
         attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
     )
 
-    private fun handle(m: PackMetadata) = PackHandle.Abierto(FakeSource(m))
+    private fun handle(m: PackMetadata) = PackHandle.Open(FakeSource(m))
 
     private fun estadoListo(vararg lemas: String) = SearchState(
         query = "per",
-        results = lemas.map { sugerencia(it) },
+        results = lemas.map { suggestion(it) },
         status = SearchState.Status.Ready,
-        activo = meta(),
-        disponibles = listOf(handle(meta())),
+        active = meta(),
+        available = listOf(handle(meta())),
     )
 
     /** Dos packs: es el estado que ejercita el selector. */
@@ -104,8 +104,8 @@ class PantallasTest {
         val es = meta()
         val en = meta("en-def", "en", "English")
         return estadoListo(*lemas).copy(
-            activo = es,
-            disponibles = listOf(handle(es), handle(en)),
+            active = es,
+            available = listOf(handle(es), handle(en)),
         )
     }
 
@@ -115,7 +115,7 @@ class PantallasTest {
         onOpenAttribution: () -> Unit = {},
         onPackChange: (String) -> Unit = {},
         onSearchDefinitions: () -> Unit = {},
-        onOpenVisita: (Visita) -> Unit = {},
+        onOpenVisita: (Visit) -> Unit = {},
         onOpenAjustes: () -> Unit = {},
         onOpenFavoritos: () -> Unit = {},
         onOpenPalabraDelDia: (String, EntrySummary) -> Unit = { _, _ -> },
@@ -193,7 +193,7 @@ class PantallasTest {
 
     // --- La entrada -------------------------------------------------------------------------
 
-    private fun entrada(vararg glosas: String) = Entry(
+    private fun entry(vararg glosas: String) = Entry(
         packId = "test",
         entryId = 1,
         uid = 1,
@@ -204,12 +204,12 @@ class PantallasTest {
 
     /** Un enlace dentro de una glosa: lo unico que lo identifica es que es clickeable y de quien
      *  cuelga. Compose no le da texto propio al rectangulo del link. */
-    private fun enlaceDentroDe(textoDeLaGlosa: String) =
+    private fun linkAt(textoDeLaGlosa: String) =
         hasClickAction() and hasAnyAncestor(hasText(textoDeLaGlosa, substring = true))
 
     @Test
     fun laEntradaMuestraLemaCategoriaYAcepcionesNumeradas() {
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada("Mamífero cánido doméstico.") } }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()
         compose.onNodeWithText("sust.", substring = true).assertExists()
         compose.onNodeWithText("1.", substring = true).assertExists()
@@ -221,7 +221,7 @@ class PantallasTest {
         // sobre todo donde la glosa es de una palabra ("Tonto."), que es el 25,6 % del pack.
         compose.setContent {
             EntryScreen(1, onOpenPalabra = {}) {
-                entrada().copy(
+                entry().copy(
                     senses = listOf(Sense("de poco entendimiento", synonyms = listOf("bobo", "zonzo"))),
                 )
             }
@@ -237,7 +237,7 @@ class PantallasTest {
         // contrario" es el prefijo. Este test fija los dos prefijos, no la presencia.
         compose.setContent {
             EntryScreen(1, onOpenPalabra = {}) {
-                entrada().copy(
+                entry().copy(
                     senses = listOf(
                         Sense(
                             "de temperatura alta",
@@ -257,7 +257,7 @@ class PantallasTest {
         // "justicia" tiene 10 acepciones y el maximo medido es 47. Sin tope, la pantalla se
         // vuelve un rollo y la acepcion util queda debajo de nueve que no se buscaban.
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("cuatro", substring = true).fetchSemanticsNodes().size)
@@ -271,7 +271,7 @@ class PantallasTest {
     @Test
     fun verMasDespliegaElResto() {
         compose.setContent {
-            EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres", "cuatro", "cinco") }
+            EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
         // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
         // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
@@ -285,7 +285,7 @@ class PantallasTest {
     @Test
     fun conTresAcepcionesOMenosNoHayVerMas() {
         // La mediana es 3: en la mitad de las entradas el boton no tiene que aparecer siquiera.
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada("uno", "dos", "tres") } }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry("uno", "dos", "tres") } }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("Ver más", substring = true).fetchSemanticsNodes().size)
     }
@@ -320,7 +320,7 @@ class PantallasTest {
         // El bug que aparecio en el reloj: a la primera letra desaparecen encabezado, boton de
         // voz e historial, el campo salta del indice 2 al 0 y --sin `key`-- el lazy layout lo da
         // por otro nodo, lo destruye y lo recompone. El foco se va con el, y el teclado detras.
-        mostrarBusquedaEscribible(estadoListo("perder").copy(query = "", historial = recientes))
+        mostrarBusquedaEscribible(estadoListo("perder").copy(query = "", history = recientes))
 
         compose.onNode(hasSetTextAction()).performClick()
         compose.onNode(hasSetTextAction()).assertIsFocused()
@@ -360,7 +360,7 @@ class PantallasTest {
                 examples = if (numero == 1) listOf(ejemploLargo) else emptyList(),
             )
         }
-        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entrada().copy(senses = muchas) } }
+        compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry().copy(senses = muchas) } }
 
         // Hay que scrollear para llegar al boton: el ejemplo de 917 caracteres lo empuja
         // fuera de pantalla. Ese es, literalmente, el muro que D-074 documenta.
@@ -385,18 +385,18 @@ class PantallasTest {
             EntryScreen(
                 entryId = 1,
                 onOpenPalabra = {},
-                acciones = { listOf(AccionDeEntrada("Guardar") {}) },
-            ) { entrada("una glosa") }
+                actions = { listOf(EntryAction("Guardar") {}) },
+            ) { entry("una glosa") }
         }
         compose.waitForIdle()
 
         val buscar = compose.onNodeWithContentDescription("Buscar").getBoundsInRoot()
-        val opciones = compose.onNodeWithContentDescription("Opciones").getBoundsInRoot()
-        assertEquals("no estan en la misma fila", buscar.top, opciones.top)
+        val options = compose.onNodeWithContentDescription("Opciones").getBoundsInRoot()
+        assertEquals("no estan en la misma fila", buscar.top, options.top)
         assertEquals(
             "no tienen el mismo alto",
             buscar.bottom - buscar.top,
-            opciones.bottom - opciones.top,
+            options.bottom - options.top,
         )
     }
 
@@ -404,7 +404,7 @@ class PantallasTest {
     fun sinAccionesNoSeOfreceElMenu() {
         // Un boton que abre un menu vacio es peor que no tener boton.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}) { entrada("una glosa") }
+            EntryScreen(entryId = 1, onOpenPalabra = {}) { entry("una glosa") }
         }
         compose.waitForIdle()
         compose.onNodeWithContentDescription("Buscar").assertExists()
@@ -421,13 +421,13 @@ class PantallasTest {
             EntryScreen(
                 entryId = 1,
                 onOpenPalabra = {},
-                acciones = {
+                actions = {
                     listOf(
-                        AccionDeEntrada("Guardar") { ejecutada = "Guardar" },
-                        AccionDeEntrada("Copiar") { ejecutada = "Copiar" },
+                        EntryAction("Guardar") { ejecutada = "Guardar" },
+                        EntryAction("Copiar") { ejecutada = "Copiar" },
                     )
                 },
-            ) { entrada("una glosa") }
+            ) { entry("una glosa") }
         }
         compose.waitForIdle()
 
@@ -450,15 +450,15 @@ class PantallasTest {
         // El color es una promesa: si se pinta tocable algo que no lleva a ningun lado, el
         // usuario aprende a no confiar en el color y la funcion deja de servir.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}, resolver = { emptyMap() }) {
-                entrada().copy(senses = listOf(Sense("cilindro de cera con mecha")))
+            EntryScreen(entryId = 1, onOpenPalabra = {}, resolveIn = { emptyMap() }) {
+                entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
         compose.waitForIdle()
 
         assertEquals(
             0,
-            compose.onAllNodes(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true)
+            compose.onAllNodes(linkAt("cilindro de cera"), useUnmergedTree = true)
                 .fetchSemanticsNodes().size,
         )
     }
@@ -467,15 +467,15 @@ class PantallasTest {
     fun laPalabraQueApuntaAEstaMismaEntradaNoSePinta() {
         // Resolver devuelve la entrada abierta: un enlace a donde ya estamos no lleva a nada.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenPalabra = {}, resolver = { mapOf("cera" to 1L) }) {
-                entrada().copy(senses = listOf(Sense("cilindro de cera con mecha")))
+            EntryScreen(entryId = 1, onOpenPalabra = {}, resolveIn = { mapOf("cera" to 1L) }) {
+                entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
         compose.waitForIdle()
 
         assertEquals(
             0,
-            compose.onAllNodes(enlaceDentroDe("cilindro de cera"), useUnmergedTree = true)
+            compose.onAllNodes(linkAt("cilindro de cera"), useUnmergedTree = true)
                 .fetchSemanticsNodes().size,
         )
     }
@@ -488,7 +488,7 @@ class PantallasTest {
         var volvio = false
         compose.setContent {
             EntryScreen(entryId = 1, onOpenPalabra = {}, onVolverABuscar = { volvio = true }) {
-                entrada("una glosa")
+                entry("una glosa")
             }
         }
         compose.onNodeWithContentDescription("Buscar").performClick()
@@ -508,8 +508,8 @@ class PantallasTest {
         var abierta: EntrySummary? = null
         var packDeLaPalabra: String? = null
         mostrarBusqueda(
-            estadoListo().copy(query = "", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
-            onOpenPalabraDelDia = { pack, palabra -> packDeLaPalabra = pack; abierta = palabra },
+            estadoListo().copy(query = "", wordsOfTheDay = mapOf("es-def" to palabraDeHoy)),
+            onOpenPalabraDelDia = { pack, word -> packDeLaPalabra = pack; abierta = word },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("permanecer"))
         compose.onNodeWithText("Palabra del día").assertExists()
@@ -526,7 +526,7 @@ class PantallasTest {
         mostrarBusqueda(
             estadoDosPacks().copy(
                 query = "",
-                palabrasDelDia = mapOf(
+                wordsOfTheDay = mapOf(
                     "es-def" to palabraDeHoy,
                     "en-def" to EntrySummary(7, "remain", "verb", 880),
                 ),
@@ -549,7 +549,7 @@ class PantallasTest {
     fun sinPalabraDelDiaNoSeVeElHueco() {
         // Un pack vacio, o el primer arranque antes de que termine de elegirse: la fila no
         // aparece en vez de aparecer vacia.
-        mostrarBusqueda(estadoListo().copy(query = "", palabrasDelDia = emptyMap()))
+        mostrarBusqueda(estadoListo().copy(query = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
             compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
@@ -561,7 +561,7 @@ class PantallasTest {
         // Misma regla que el historial: con resultados en pantalla, cada fila de chrome es un
         // resultado menos, y con 48 dp de area tocable eso se nota (D-073).
         mostrarBusqueda(
-            estadoListo("perder").copy(query = "per", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
+            estadoListo("perder").copy(query = "per", wordsOfTheDay = mapOf("es-def" to palabraDeHoy)),
         )
         assertEquals(0, compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("Ajustes").fetchSemanticsNodes().size)
@@ -580,15 +580,15 @@ class PantallasTest {
 
     private fun packAbierto(
         id: String,
-        nombre: String,
+        name: String,
         bytes: Long,
         demo: Boolean = false,
         lang: String = "es",
     ) =
-        PackHandle.Abierto(
-            source = FakeSource(meta(packId = id, lang = lang, name = nombre)),
-            esDemo = demo,
-            archivo = "$id.db",
+        PackHandle.Open(
+            source = FakeSource(meta(packId = id, lang = lang, name = name)),
+            isDemo = demo,
+            fileName = "$id.db",
             bytes = bytes,
         )
 
@@ -602,7 +602,7 @@ class PantallasTest {
                     packAbierto("es-def", "Español", 72_212_480),
                     packAbierto("en-def", "English", 309_452_800, lang = "en"),
                 ),
-                activo = "es-def",
+                active = "es-def",
                 onActivar = {},
                 onBorrar = {},
             )
@@ -628,7 +628,7 @@ class PantallasTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(packAbierto("demo", "Juguete", 53_248, demo = true)),
-                activo = "demo",
+                active = "demo",
                 onActivar = {},
                 onBorrar = {},
             )
@@ -647,7 +647,7 @@ class PantallasTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(packAbierto("en-def", "English", 309_452_800)),
-                activo = "en-def",
+                active = "en-def",
                 onActivar = {},
                 onBorrar = { borrado = it },
             )
@@ -668,7 +668,7 @@ class PantallasTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(packAbierto("en-def", "English", 309_452_800)),
-                activo = "en-def",
+                active = "en-def",
                 onActivar = {},
                 onBorrar = { borrado = it },
             )
@@ -686,7 +686,7 @@ class PantallasTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(packAbierto("es-def", "Español", 72_212_480)),
-                activo = "es-def",
+                active = "es-def",
                 onActivar = {},
                 onBorrar = {},
             )
@@ -700,7 +700,7 @@ class PantallasTest {
         // Antes la fila solo aparecia con favoritas: quien nunca guardo una no tenia como
         // descubrir que se puede. La pantalla ya trae un estado vacio que lo explica.
         var abrio = false
-        mostrarBusqueda(estadoListo().copy(query = "", favoritos = emptyList()),
+        mostrarBusqueda(estadoListo().copy(query = "", favorites = emptyList()),
             onOpenFavoritos = { abrio = true })
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Guardadas"))
         compose.onNodeWithText("Guardadas").performClick()
@@ -715,7 +715,7 @@ class PantallasTest {
         compose.setContent {
             SettingsScreen(
                 packs = emptyList(),
-                escala = cl.fadiaz.dictionary.data.EscalaDeTexto.NORMAL,
+                scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 onGestionarPacks = {},
                 onEscalaChange = {},
                 onLimpiarHistorial = { borrado++ },
@@ -737,11 +737,11 @@ class PantallasTest {
         // Es la accion primaria: la guia de Wear pide elevarla, y antes quedaba debajo del
         // encabezado, la palabra del dia y el boton de voz.
         mostrarBusqueda(
-            estadoListo().copy(query = "", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
+            estadoListo().copy(query = "", wordsOfTheDay = mapOf("es-def" to palabraDeHoy)),
         )
         val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
-        val palabra = compose.onNodeWithText("permanecer").getBoundsInRoot()
-        assertTrue("la palabra del dia quedo arriba de la barra", barra.top < palabra.top)
+        val word = compose.onNodeWithText("permanecer").getBoundsInRoot()
+        assertTrue("la palabra del dia quedo arriba de la barra", barra.top < word.top)
     }
 
     @Test
@@ -751,13 +751,13 @@ class PantallasTest {
         mostrarBusqueda(
             estadoDosPacks().copy(
                 query = "",
-                palabrasDelDia = mapOf("es-def" to palabraDeHoy),
-                historial = recientes,
+                wordsOfTheDay = mapOf("es-def" to palabraDeHoy),
+                history = recientes,
             ),
         )
-        for (titulo in listOf("Palabra del día", "Recientes", "Opciones")) {
-            compose.onNode(hasScrollAction()).performScrollToNode(hasText(titulo))
-            compose.onNodeWithText(titulo).assertExists()
+        for (title in listOf("Palabra del día", "Recientes", "Opciones")) {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(title))
+            compose.onNodeWithText(title).assertExists()
         }
     }
 
@@ -765,15 +765,15 @@ class PantallasTest {
     fun elSelectorDeIdiomaViveEnOpciones() {
         mostrarBusqueda(estadoDosPacks().copy(query = ""))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Opciones"))
-        val opciones = compose.onNodeWithText("Opciones").getBoundsInRoot()
+        val options = compose.onNodeWithText("Opciones").getBoundsInRoot()
         val selector = compose.onNodeWithText("ES").getBoundsInRoot()
-        assertTrue("el selector quedo fuera de Opciones", selector.top >= opciones.top)
+        assertTrue("el selector quedo fuera de Opciones", selector.top >= options.top)
     }
 
     @Test
     fun conUnSoloDiccionarioNoHaySeccionDePalabraDelDiaVacia() {
         // Un titulo sin nada debajo es peor que no tener titulo.
-        mostrarBusqueda(estadoListo().copy(query = "", palabrasDelDia = emptyMap()))
+        mostrarBusqueda(estadoListo().copy(query = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
             compose.onAllNodesWithText("Palabra del día").fetchSemanticsNodes().size,
@@ -811,10 +811,10 @@ class PantallasTest {
 
     @Test
     fun tocarElOtroIdiomaLoAvisa() {
-        var elegido: String? = null
-        mostrarBusqueda(estadoDosPacks().copy(query = ""), onPackChange = { elegido = it })
+        var chosen: String? = null
+        mostrarBusqueda(estadoDosPacks().copy(query = ""), onPackChange = { chosen = it })
         compose.onNodeWithText("EN").performClick()
-        assertEquals("en-def", elegido)
+        assertEquals("en-def", chosen)
     }
 
     @Test
@@ -838,7 +838,7 @@ class PantallasTest {
         compose.setContent {
             AttributionScreen(
                 packs = listOf(handle(meta()), handle(meta("en-def", "en", "English"))),
-                problemas = listOf("de-def: dañado"),
+                problems = listOf("de-def: dañado"),
             )
         }
         compose.onNodeWithText("Español", substring = true).assertExists()
@@ -851,13 +851,13 @@ class PantallasTest {
     // --- El historial -----------------------------------------------------------------------
 
     private val recientes = listOf(
-        Visita("es-def", 1, "perro", "noun"),
-        Visita("en-def", 2, "house", "noun"),
+        Visit("es-def", 1, "perro", "noun"),
+        Visit("en-def", 2, "house", "noun"),
     )
 
     @Test
     fun conLaBusquedaVaciaSeVenLasEntradasRecientes() {
-        mostrarBusqueda(estadoListo().copy(query = "", historial = recientes))
+        mostrarBusqueda(estadoListo().copy(query = "", history = recientes))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
         compose.onNodeWithText("perro").assertIsDisplayed()
     }
@@ -865,15 +865,15 @@ class PantallasTest {
     @Test
     fun alEscribirElHistorialDesaparece() {
         // No puede competir con los resultados: con 192 dp entran tres filas.
-        mostrarBusqueda(estadoListo("perder").copy(query = "per", historial = recientes))
+        mostrarBusqueda(estadoListo("perder").copy(query = "per", history = recientes))
         assertEquals(0, compose.onAllNodesWithText("house").fetchSemanticsNodes().size)
     }
 
     @Test
     fun tocarUnaEntradaRecienteLaAbre() {
-        var abierta: Visita? = null
+        var abierta: Visit? = null
         mostrarBusqueda(
-            estadoListo().copy(query = "", historial = recientes),
+            estadoListo().copy(query = "", history = recientes),
             onOpenVisita = { abierta = it },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
@@ -912,7 +912,7 @@ class PantallasTest {
     fun enModoDefinicionesSinResultadosNoSeOfreceLoMismoDeNuevo() {
         // Ofrecerlo otra vez seria un bucle: ya se busco y no hay nada.
         mostrarBusqueda(
-            estadoListo().copy(query = "xyzzy", modo = SearchState.Modo.DEFINICIONES),
+            estadoListo().copy(query = "xyzzy", mode = SearchState.Mode.DEFINICIONES),
         )
         compose.onNodeWithText("Sin resultados en las definiciones").assertIsDisplayed()
         assertEquals(
@@ -924,7 +924,7 @@ class PantallasTest {
     @Test
     fun mientrasBuscaEnLasDefinicionesLoDice() {
         mostrarBusqueda(
-            estadoListo().copy(query = "ladra", modo = SearchState.Modo.BUSCANDO_DEFINICIONES),
+            estadoListo().copy(query = "ladra", mode = SearchState.Mode.BUSCANDO_DEFINICIONES),
         )
         compose.onNodeWithText("Buscando", substring = true).assertIsDisplayed()
     }

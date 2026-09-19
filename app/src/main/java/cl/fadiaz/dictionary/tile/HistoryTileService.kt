@@ -24,25 +24,25 @@ import com.google.common.util.concurrent.ListenableFuture
  *
  * Es la unica superficie de este proyecto que cuesta **cero** despertares.
  */
-class HistorialTileService : TileService() {
+class HistoryTileService : TileService() {
 
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
         // Se lee de SharedPreferences y nada mas: no se abre ningun pack. Ver TileRender.kt.
-        val contenido = ContenidoDeTiles.historial(PackStore.historial(this))
+        val content = TileContents.history(PackStore.history(this))
         val layout = materialScope(this, requestParams.deviceConfiguration) {
-            when (contenido) {
-                is TileContenido.Filas -> filasDeHistorial(this@HistorialTileService, contenido.visitas)
+            when (content) {
+                is TileContent.ListRows -> filasDeHistorial(this@HistoryTileService, content.visits)
                 else -> tileVacio(
-                    this@HistorialTileService,
+                    this@HistoryTileService,
                     getString(R.string.tile_historial_vacio),
                 )
             }
         }
         return Futures.immediateFuture(
             TileBuilders.Tile.Builder()
-                .setResourcesVersion(RECURSOS)
+                .setResourcesVersion(RESOURCES)
                 .setFreshnessIntervalMillis(0)
                 .setTileTimeline(TimelineBuilders.Timeline.fromLayoutElement(layout))
                 .build(),
@@ -52,7 +52,7 @@ class HistorialTileService : TileService() {
     override fun onTileResourcesRequest(
         requestParams: RequestBuilders.ResourcesRequest,
     ): ListenableFuture<Resources> =
-        Futures.immediateFuture(Resources.Builder().setVersion(RECURSOS).build())
+        Futures.immediateFuture(Resources.Builder().setVersion(RESOURCES).build())
 }
 
 /**
@@ -62,4 +62,4 @@ class HistorialTileService : TileService() {
  * recursos por este string, asi que el dia que alguno agregue una imagen sin cambiarlo, el
  * renderer sirve el bundle viejo.
  */
-internal const val RECURSOS: String = "0"
+internal const val RESOURCES: String = "0"

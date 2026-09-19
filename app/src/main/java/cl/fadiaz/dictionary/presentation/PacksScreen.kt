@@ -39,8 +39,8 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.enTamanoLegible
-import cl.fadiaz.dictionary.data.etiquetaDeTipo
+import cl.fadiaz.dictionary.data.asHumanSize
+import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
  * Gestion de diccionarios: cuales estan, cual se usa, cuanto ocupan y como sacarlos.
@@ -55,19 +55,19 @@ import cl.fadiaz.dictionary.data.etiquetaDeTipo
 @Composable
 fun PacksScreen(
     packs: List<PackHandle>,
-    activo: String?,
+    active: String?,
     onActivar: (String) -> Unit,
     onBorrar: (String) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
-    var aBorrar by remember { mutableStateOf<PackHandle.Abierto?>(null) }
+    var pendingDelete by remember { mutableStateOf<PackHandle.Open?>(null) }
 
-    val instalados = packs.filterIsInstance<PackHandle.Abierto>()
+    val installed = packs.filterIsInstance<PackHandle.Open>()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -77,18 +77,18 @@ fun PacksScreen(
         ) {
             item(key = "cabecera-instalados") { ListHeader { Text("En el reloj") } }
 
-            items(count = instalados.size, key = { "pack:${instalados[it].packId}" }) { indice ->
-                val pack = instalados[indice]
-                FilaDePack(
-                    nombre = pack.metadata.name,
+            items(count = installed.size, key = { "pack:${installed[it].packId}" }) { index ->
+                val pack = installed[index]
+                PackRow(
+                    name = pack.metadata.name,
                     // Tipo, tamaño e idioma. El tipo entro con D-125: el nombre paso a ser
                     // corto --"Español"-- y lo que decia la otra mitad sale ahora de `kind`.
-                    detalle = "${etiquetaDeTipo(pack.metadata.kind)} · " +
-                        "${enTamanoLegible(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
-                    activo = pack.packId == activo,
+                    detail = "${packTypeLabel(pack.metadata.kind)} · " +
+                        "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
+                    active = pack.packId == active,
                     onActivar = { onActivar(pack.packId) },
                     // El de demostracion no se puede borrar: volveria solo.
-                    onBorrar = if (pack.esDemo) null else { { aBorrar = pack } },
+                    onBorrar = if (pack.isDemo) null else { { pendingDelete = pack } },
                 )
             }
 
@@ -108,17 +108,17 @@ fun PacksScreen(
         }
     }
 
-    val candidato = aBorrar
+    val candidate = pendingDelete
     AlertDialog(
-        visible = candidato != null,
-        onDismissRequest = { aBorrar = null },
-        title = { Text("¿Borrar ${candidato?.metadata?.name.orEmpty()}?") },
+        visible = candidate != null,
+        onDismissRequest = { pendingDelete = null },
+        title = { Text("¿Borrar ${candidate?.metadata?.name.orEmpty()}?") },
     ) {
         item {
             Text(
                 // El costo de deshacerlo, antes de hacerlo. Es la unica accion de la app que no
                 // se puede revertir desde la app.
-                text = "Ocupa ${enTamanoLegible(candidato?.bytes ?: 0)}. Para recuperarlo hay " +
+                text = "Ocupa ${asHumanSize(candidate?.bytes ?: 0)}. Para recuperarlo hay " +
                     "que volver a instalarlo desde la computadora.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -127,24 +127,24 @@ fun PacksScreen(
             )
         }
         item {
-            Pildora(
-                texto = "Borrar",
-                fondo = MaterialTheme.colorScheme.error,
-                tinta = MaterialTheme.colorScheme.onError,
-                margen = 8.dp,
+            Pill(
+                text = "Borrar",
+                background = MaterialTheme.colorScheme.error,
+                ink = MaterialTheme.colorScheme.onError,
+                margin = 8.dp,
                 onClick = {
-                    candidato?.let { onBorrar(it.packId) }
-                    aBorrar = null
+                    candidate?.let { onBorrar(it.packId) }
+                    pendingDelete = null
                 },
             )
         }
         item {
-            Pildora(
-                texto = "Cancelar",
-                fondo = MaterialTheme.colorScheme.surfaceContainer,
-                tinta = MaterialTheme.colorScheme.onSurfaceVariant,
-                margen = 8.dp,
-                onClick = { aBorrar = null },
+            Pill(
+                text = "Cancelar",
+                background = MaterialTheme.colorScheme.surfaceContainer,
+                ink = MaterialTheme.colorScheme.onSurfaceVariant,
+                margin = 8.dp,
+                onClick = { pendingDelete = null },
             )
         }
     }
@@ -158,10 +158,10 @@ fun PacksScreen(
  * diccionario.
  */
 @Composable
-private fun FilaDePack(
-    nombre: String,
-    detalle: String,
-    activo: Boolean,
+private fun PackRow(
+    name: String,
+    detail: String,
+    active: Boolean,
     onActivar: () -> Unit,
     onBorrar: (() -> Unit)?,
 ) {
@@ -173,7 +173,7 @@ private fun FilaDePack(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clip(FORMA_TARJETA)
+                .clip(CARD_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .clickable(onClick = onActivar)
                 .heightIn(min = TOUCH_TARGET)
@@ -183,7 +183,7 @@ private fun FilaDePack(
             // El espacio del check se reserva siempre: si apareciera y desapareciera, el nombre
             // se correria al cambiar de diccionario.
             Box(modifier = Modifier.width(20.dp), contentAlignment = Alignment.Center) {
-                if (activo) {
+                if (active) {
                     Icon(
                         imageVector = Icons.Filled.Check,
                         contentDescription = "En uso",
@@ -196,7 +196,7 @@ private fun FilaDePack(
                 modifier = Modifier.weight(1f).padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
             ) {
                 Text(
-                    text = nombre,
+                    text = name,
                     style = MaterialTheme.typography.bodyMedium,
                     // DOS lineas y no una. Medido a ojo sobre el reloj: despues del check
                     // reservado, los paddings y el boton de borrar de 48 dp, al nombre le quedan
@@ -206,7 +206,7 @@ private fun FilaDePack(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = detalle,
+                    text = detail,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -217,7 +217,7 @@ private fun FilaDePack(
         if (onBorrar != null) {
             Box(
                 modifier = Modifier
-                    .clip(FORMA_PILDORA)
+                    .clip(PILL_SHAPE)
                     .background(MaterialTheme.colorScheme.surfaceContainer)
                     .clickable(onClick = onBorrar)
                     .heightIn(min = TOUCH_TARGET)
@@ -226,7 +226,7 @@ private fun FilaDePack(
             ) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    contentDescription = "Borrar $nombre",
+                    contentDescription = "Borrar $name",
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

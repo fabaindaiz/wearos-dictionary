@@ -15,7 +15,7 @@ import androidx.wear.protolayout.material3.textButton
 import androidx.wear.protolayout.material3.titleCard
 import androidx.wear.protolayout.types.layoutString
 import cl.fadiaz.dictionary.R
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 
 /**
  * De [TileContenido] a pixeles. Lo unico que estos archivos deciden es como se ve.
@@ -55,7 +55,7 @@ const val EXTRA_HEADWORD: String = "cl.fadiaz.dictionary.HEADWORD"
  * Componente explicito y no un deep link con `<data>`: un scheme convertiria la ruta de una
  * entrada en API publica del reloj a cambio de nada, porque los dos extremos viven en este APK.
  */
-private fun abrirLaApp(context: Context): Clickable =
+private fun openTheApp(context: Context): Clickable =
     Clickable.Builder()
         .setId("abrir")
         .setOnClick(ActionBuilders.launchAction(mainActivity(context)))
@@ -67,16 +67,16 @@ private fun abrirLaApp(context: Context): Clickable =
  * El `packId` viaja junto al `entryId` porque sin el, con dos diccionarios abiertos, la entrada
  * se resolveria contra el activo y mostraria **otra palabra** sin error (D-080).
  */
-private fun abrirLaEntrada(context: Context, visita: Visita): Clickable =
+private fun openTheEntry(context: Context, visit: Visit): Clickable =
     Clickable.Builder()
-        .setId("entrada-${visita.packId}-${visita.entryId}")
+        .setId("entrada-${visit.packId}-${visit.entryId}")
         .setOnClick(
             ActionBuilders.launchAction(
                 mainActivity(context),
                 mapOf(
-                    EXTRA_PACK_ID to ActionBuilders.stringExtra(visita.packId),
-                    EXTRA_ENTRY_ID to ActionBuilders.longExtra(visita.entryId),
-                    EXTRA_HEADWORD to ActionBuilders.stringExtra(visita.headword),
+                    EXTRA_PACK_ID to ActionBuilders.stringExtra(visit.packId),
+                    EXTRA_ENTRY_ID to ActionBuilders.longExtra(visit.entryId),
+                    EXTRA_HEADWORD to ActionBuilders.stringExtra(visit.headword),
                 ),
             ),
         )
@@ -90,14 +90,14 @@ private fun abrirLaEntrada(context: Context, visita: Visita): Clickable =
  */
 internal fun MaterialScope.tileVacio(context: Context, mensaje: String): LayoutElement =
     primaryLayout(
-        onClick = abrirLaApp(context),
+        onClick = openTheApp(context),
         mainSlot = { text(mensaje.layoutString, typography = Typography.BODY_LARGE) },
     )
 
 /** Las ultimas entradas abiertas, una por fila, cada una abriendo su propia entrada. */
 internal fun MaterialScope.filasDeHistorial(
     context: Context,
-    visitas: List<Visita>,
+    visits: List<Visit>,
 ): LayoutElement =
     primaryLayout(
         titleSlot = {
@@ -107,24 +107,24 @@ internal fun MaterialScope.filasDeHistorial(
             )
         },
         mainSlot = {
-            val columna = Column.Builder().setWidth(expand()).setHeight(expand())
-            for (visita in visitas) {
-                columna.addContent(
+            val column = Column.Builder().setWidth(expand()).setHeight(expand())
+            for (visit in visits) {
+                column.addContent(
                     textButton(
-                        onClick = abrirLaEntrada(context, visita),
+                        onClick = openTheEntry(context, visit),
                         width = expand(),
-                        labelContent = { text(visita.headword.layoutString, maxLines = 1) },
+                        labelContent = { text(visit.headword.layoutString, maxLines = 1) },
                     ),
                 )
             }
-            columna.build()
+            column.build()
         },
     )
 
 /** La palabra de hoy: el lema grande y su categoria debajo. */
 internal fun MaterialScope.tarjetaDePalabra(
     context: Context,
-    visita: Visita,
+    visit: Visit,
     categoria: String?,
 ): LayoutElement =
     primaryLayout(
@@ -136,8 +136,8 @@ internal fun MaterialScope.tarjetaDePalabra(
         },
         mainSlot = {
             titleCard(
-                onClick = abrirLaEntrada(context, visita),
-                title = { text(visita.headword.layoutString, maxLines = 1) },
+                onClick = openTheEntry(context, visit),
+                title = { text(visit.headword.layoutString, maxLines = 1) },
                 content = categoria?.let { { text(it.layoutString, maxLines = 1) } },
             )
         },

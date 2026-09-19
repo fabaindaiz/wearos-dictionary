@@ -23,7 +23,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.RadioButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
-import cl.fadiaz.dictionary.data.EscalaDeTexto
+import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
@@ -40,20 +40,20 @@ import cl.fadiaz.dictionary.data.PackHandle
 @Composable
 fun SettingsScreen(
     packs: List<PackHandle>,
-    escala: EscalaDeTexto,
+    scale: TextScale,
     onGestionarPacks: () -> Unit,
-    onEscalaChange: (EscalaDeTexto) -> Unit,
+    onEscalaChange: (TextScale) -> Unit,
     onLimpiarHistorial: () -> Unit,
     hayHistorial: Boolean,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
-    var historialLimpio by remember { mutableStateOf(false) }
-    var confirmando by remember { mutableStateOf(false) }
+    var emptyHistory by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -61,25 +61,25 @@ fun SettingsScreen(
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            val abiertos = packs.filterIsInstance<PackHandle.Abierto>()
+            val opened = packs.filterIsInstance<PackHandle.Open>()
             item(key = "cabecera-idioma") { ListHeader { Text("Diccionarios") } }
             item(key = "gestionar-packs") {
                 // Ya no es el selector: elegir idioma se hace en el inicio, que es donde se
                 // necesita rapido. Aca se entra a ver cuanto ocupan y a sacar los que sobran.
-                Fila(
+                ListRow(
                     lema = "Gestionar",
-                    detalle = abiertos.size.toString(),
+                    detail = opened.size.toString(),
                     onClick = onGestionarPacks,
                 )
             }
 
             item(key = "cabecera-texto") { ListHeader { Text("Tamaño del texto") } }
-            items(count = EscalaDeTexto.entries.size, key = { "escala:$it" }) { indice ->
-                val opcion = EscalaDeTexto.entries[indice]
+            items(count = TextScale.entries.size, key = { "escala:$it" }) { index ->
+                val option = TextScale.entries[index]
                 RadioButton(
-                    selected = opcion == escala,
-                    onSelect = { onEscalaChange(opcion) },
-                    label = { Text(if (opcion == EscalaDeTexto.NORMAL) "Normal" else "Grande") },
+                    selected = option == scale,
+                    onSelect = { onEscalaChange(option) },
+                    label = { Text(if (option == TextScale.NORMAL) "Normal" else "Grande") },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -101,35 +101,35 @@ fun SettingsScreen(
                 // Dos toques en el MISMO boton, sin dialogo: el historial se rehace solo
                 // usando la app, asi que no justifica una pantalla encima. Lo que si hace falta
                 // es que un toque suelto --y en una muñeca los hay-- no lo borre.
-                Pildora(
-                    texto = when {
-                        historialLimpio -> "Historial borrado"
+                Pill(
+                    text = when {
+                        emptyHistory -> "Historial borrado"
                         !hayHistorial -> "No hay historial"
-                        confirmando -> "Confirmar"
+                        confirming -> "Confirmar"
                         else -> "Borrar el historial"
                     },
-                    fondo = if (confirmando) {
+                    background = if (confirming) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.surfaceContainer
                     },
-                    tinta = if (confirmando) {
+                    ink = if (confirming) {
                         MaterialTheme.colorScheme.onError
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     // Sin onClick cuando no hay nada que borrar o ya se borro: una accion que no
                     // hace nada y no lo dice enseña a desconfiar del resto de los botones.
-                    onClick = if (!hayHistorial || historialLimpio) {
+                    onClick = if (!hayHistorial || emptyHistory) {
                         null
-                    } else if (confirmando) {
+                    } else if (confirming) {
                         {
                             onLimpiarHistorial()
-                            historialLimpio = true
-                            confirmando = false
+                            emptyHistory = true
+                            confirming = false
                         }
                     } else {
-                        { confirmando = true }
+                        { confirming = true }
                     },
                 )
             }

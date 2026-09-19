@@ -20,9 +20,9 @@ import kotlin.test.assertTrue
  * lema en el otro diccionario, y con dos packs monolingues eso casi nunca encuentra nada. Un
  * boton que no hace nada ensena a desconfiar de los que si.
  */
-class AccionesDeLaPalabraTest {
+class WordActionsTest {
 
-    private fun pack(id: String, kind: PackKind) = PackHandle.Abierto(
+    private fun pack(id: String, kind: PackKind) = PackHandle.Open(
         source = FuenteVacia(
             PackMetadata(
                 packId = id,
@@ -43,24 +43,24 @@ class AccionesDeLaPalabraTest {
         ),
     )
 
-    private fun acciones(traduccion: PackHandle.Abierto?) = accionesDeLaPalabra(
-        esFavorita = false,
+    private fun actions(traduccion: PackHandle.Open?) = wordActions(
+        isFavorite = false,
         onAlternarFavorita = {},
-        packDeTraduccion = traduccion,
+        translationPack = traduccion,
         onVerTraduccion = {},
         onCopiar = {},
-    ).map { it.etiqueta }
+    ).map { it.label }
 
     @Test
     fun sinPackDeTraduccionNoSeOfreceTraducir() {
-        assertEquals(listOf("Guardar", "Copiar"), acciones(null))
+        assertEquals(listOf("Guardar", "Copiar"), actions(null))
     }
 
     @Test
     fun conUnPackBilingueSiSeOfrece() {
         assertEquals(
             listOf("Guardar", "Ver traducción", "Copiar"),
-            acciones(pack("es-en", PackKind.BILINGUAL)),
+            actions(pack("es-en", PackKind.BILINGUAL)),
         )
     }
 
@@ -68,34 +68,34 @@ class AccionesDeLaPalabraTest {
     fun otroDiccionarioMONOLINGUENoEsUnPackDeTraduccion() {
         // Es el caso real de hoy: espanol e ingles, los dos monolingues. Buscar "house" en el
         // diccionario espanol no devuelve una traduccion, devuelve nada.
-        val abiertos = listOf(
+        val opened = listOf(
             pack("es-def", PackKind.MONOLINGUAL),
             pack("en-def", PackKind.MONOLINGUAL),
         )
-        assertNull(packDeTraduccion(abiertos, packDeLaEntrada = "es-def"))
+        assertNull(translationPack(opened, packDeLaEntrada = "es-def"))
     }
 
     @Test
     fun elPackDeTraduccionEsBilingueYNoElQueEstamosMirando() {
-        val abiertos = listOf(
+        val opened = listOf(
             pack("es-def", PackKind.MONOLINGUAL),
             pack("es-en", PackKind.BILINGUAL),
         )
-        assertEquals("es-en", packDeTraduccion(abiertos, "es-def")?.packId)
+        assertEquals("es-en", translationPack(opened, "es-def")?.packId)
         // Mirando el bilingue, no se ofrece traducirse a si mismo.
-        assertNull(packDeTraduccion(abiertos, "es-en"))
+        assertNull(translationPack(opened, "es-en"))
     }
 
     @Test
     fun guardarCambiaDeEtiquetaSegunSiYaEstaGuardada() {
-        val guardada = accionesDeLaPalabra(
-            esFavorita = true,
+        val saved = wordActions(
+            isFavorite = true,
             onAlternarFavorita = {},
-            packDeTraduccion = null,
+            translationPack = null,
             onVerTraduccion = {},
             onCopiar = {},
         )
-        assertTrue(guardada.first().etiqueta == "Quitar de guardadas")
+        assertTrue(saved.first().label == "Quitar de guardadas")
     }
 }
 

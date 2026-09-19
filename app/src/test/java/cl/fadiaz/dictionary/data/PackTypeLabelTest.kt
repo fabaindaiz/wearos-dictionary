@@ -13,26 +13,26 @@ import kotlin.test.assertTrue
  * exhaustivo no compila, pero si alguien lo "arregla" con un `else` el pack nuevo se anuncia con
  * la etiqueta equivocada y nada falla.
  */
-class EtiquetaDeTipoTest {
+class PackTypeLabelTest {
 
     @Test
     fun cadaTipoTieneSuEtiqueta() {
-        assertEquals("definiciones", etiquetaDeTipo(PackKind.MONOLINGUAL))
-        assertEquals("traducción", etiquetaDeTipo(PackKind.BILINGUAL))
+        assertEquals("definiciones", packTypeLabel(PackKind.MONOLINGUAL))
+        assertEquals("traducción", packTypeLabel(PackKind.BILINGUAL))
     }
 
     @Test
     fun ningunTipoSeQuedaSinEtiqueta() {
         for (kind in PackKind.entries) {
-            assertTrue(etiquetaDeTipo(kind).isNotBlank(), "sin etiqueta: $kind")
+            assertTrue(packTypeLabel(kind).isNotBlank(), "sin etiqueta: $kind")
         }
     }
 
     @Test
     fun lasEtiquetasSonDistintasEntreSi() {
         // Dos tipos con la misma etiqueta no distinguen nada, que es todo el punto de mostrarla.
-        val etiquetas = PackKind.entries.map { etiquetaDeTipo(it) }
-        assertEquals(etiquetas.size, etiquetas.toSet().size, "hay etiquetas repetidas: $etiquetas")
+        val labels = PackKind.entries.map { packTypeLabel(it) }
+        assertEquals(labels.size, labels.toSet().size, "hay etiquetas repetidas: $labels")
     }
 
     @Test
@@ -40,7 +40,7 @@ class EtiquetaDeTipoTest {
         // El motivo por el que el nombre se acorto. Al detalle de la fila le quedan ~140 dp
         // despues del check y el boton de borrar; una etiqueta larga repite el problema.
         for (kind in PackKind.entries) {
-            assertTrue(etiquetaDeTipo(kind).length <= 14, "etiqueta muy larga: ${etiquetaDeTipo(kind)}")
+            assertTrue(packTypeLabel(kind).length <= 14, "etiqueta muy larga: ${packTypeLabel(kind)}")
         }
     }
 }

@@ -48,9 +48,9 @@ object PackStore {
      *  - un `.db` puesto a mano con `adb push` no se toca, que es como entran hoy los packs de
      *    verdad.
      */
-    internal fun queFaltaExtraer(assets: List<String>, instalados: List<String>): List<String> {
-        val yaEstan = instalados.toSet()
-        return assets.filterNot { it in yaEstan }.sorted()
+    internal fun missingFromDisk(assets: List<String>, installed: List<String>): List<String> {
+        val alreadyOnDisk = installed.toSet()
+        return assets.filterNot { it in alreadyOnDisk }.sorted()
     }
 
     /**
@@ -61,72 +61,72 @@ object PackStore {
      */
     suspend fun open(
         context: Context,
-        preferido: String?,
+        preferred: String?,
         onExtracting: () -> Unit = {},
     ): PackSet = withContext(Dispatchers.IO) {
         val dir = packsDir(context)
         dir.mkdirs()
 
-        val faltan = queFaltaExtraer(assetsDePack(context), packsInstalados(dir).map { it.name })
-        if (faltan.isNotEmpty()) {
+        val missing = missingFromDisk(packAssets(context), installedPacks(dir).map { it.name })
+        if (missing.isNotEmpty()) {
             onExtracting()
-            for (asset in faltan) {
-                runCatching { instalarAtomico(context.assets.open(asset), dir, asset) }
+            for (asset in missing) {
+                runCatching { installAtomically(context.assets.open(asset), dir, asset) }
             }
         }
 
-        val instalados = packsInstalados(dir)
-        if (instalados.isEmpty()) return@withContext PackSet.NoPack
+        val installed = installedPacks(dir)
+        if (installed.isEmpty()) return@withContext PackSet.NoPack
 
         // Los que vinieron del APK son de demostracion: se marcan para que no le ganen a un
         // diccionario instalado.
-        val deAssets = assetsDePack(context).toSet()
-        val abiertos = mutableListOf<PackHandle.Abierto>()
-        val problemas = mutableListOf<String>()
-        for (file in instalados) {
-            when (val cargado = abrir(file)) {
+        val fromAssets = packAssets(context).toSet()
+        val opened = mutableListOf<PackHandle.Open>()
+        val problems = mutableListOf<String>()
+        for (file in installed) {
+            when (val loaded = openFile(file)) {
                 is PackLoad.Ready ->
-                    abiertos += PackHandle.Abierto(
-                        source = cargado.source,
-                        esDemo = file.name in deAssets,
-                        archivo = file.name,
+                    opened += PackHandle.Open(
+                        source = loaded.source,
+                        isDemo = file.name in fromAssets,
+                        fileName = file.name,
                         bytes = file.length(),
                     )
-                is PackLoad.Unusable -> problemas += "${file.name}: ${cargado.reason}"
+                is PackLoad.Unusable -> problems += "${file.name}: ${loaded.reason}"
                 PackLoad.NoPack -> Unit
             }
         }
 
-        val candidatos = abiertos.filterNot { it.esDemo }.ifEmpty { abiertos }
-        val elegido = candidatos.firstOrNull { it.packId == preferido }
-            ?: candidatos.firstOrNull()
+        val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
+        val chosen = candidates.firstOrNull { it.packId == preferred }
+            ?: candidates.firstOrNull()
             ?: return@withContext PackSet.Unusable(
-                problemas.firstOrNull() ?: "Ningún diccionario se pudo abrir.",
+                problems.firstOrNull() ?: "Ningún diccionario se pudo abrir.",
             )
 
-        PackSet.Ready(elegido, abiertos, problemas)
+        PackSet.Ready(chosen, opened, problems)
     }
 
     /** El idioma elegido, para que el reloj abra el mismo diccionario que la ultima vez. */
-    fun packPreferido(context: Context): String? =
-        prefs(context).getString(CLAVE_PACK, null)
+    fun preferredPack(context: Context): String? =
+        prefs(context).getString(KEY_PACK, null)
 
-    fun recordarPack(context: Context, packId: String) {
-        prefs(context).edit().putString(CLAVE_PACK, packId).apply()
+    fun rememberPack(context: Context, packId: String) {
+        prefs(context).edit().putString(KEY_PACK, packId).apply()
     }
 
-    private fun assetsDePack(context: Context): List<String> =
+    private fun packAssets(context: Context): List<String> =
         runCatching { context.assets.list("")?.filter { it.endsWith(".db") }.orEmpty() }
             .getOrDefault(emptyList())
             .sorted()
 
     /** El historial de entradas abiertas. La politica --dedupe, orden, tope-- vive en el
      * ViewModel, que el gate ve; aca solo se serializa. */
-    fun historial(context: Context): List<Visita> =
-        parsearVisitas(prefs(context).getString(CLAVE_HISTORIAL, null).orEmpty())
+    fun history(context: Context): List<Visit> =
+        parseVisits(prefs(context).getString(KEY_HISTORY, null).orEmpty())
 
-    fun recordarHistorial(context: Context, visitas: List<Visita>) {
-        prefs(context).edit().putString(CLAVE_HISTORIAL, serializarVisitas(visitas)).apply()
+    fun rememberHistory(context: Context, visits: List<Visit>) {
+        prefs(context).edit().putString(KEY_HISTORY, serializeVisits(visits)).apply()
     }
 
     /**
@@ -140,17 +140,17 @@ object PackStore {
      * la app lo seguiria leyendo como si nada -- o sea, el usuario ve que borro y no se libero
      * nada, que es peor que no poder borrar.
      */
-    fun borrarPack(context: Context, archivo: String): Boolean {
-        val destino = File(packsDir(context), archivo)
-        return destino.isFile && destino.delete()
+    fun deletePack(context: Context, fileName: String): Boolean {
+        val target = File(packsDir(context), fileName)
+        return target.isFile && target.delete()
     }
 
     /** Las palabras guardadas. Mismo codec que el historial: son la misma forma de dato. */
-    fun favoritos(context: Context): List<Visita> =
-        parsearVisitas(prefs(context).getString(CLAVE_FAVORITOS, null).orEmpty())
+    fun favorites(context: Context): List<Visit> =
+        parseVisits(prefs(context).getString(KEY_FAVORITES, null).orEmpty())
 
-    fun recordarFavoritos(context: Context, visitas: List<Visita>) {
-        prefs(context).edit().putString(CLAVE_FAVORITOS, serializarVisitas(visitas)).apply()
+    fun rememberFavorites(context: Context, visits: List<Visit>) {
+        prefs(context).edit().putString(KEY_FAVORITES, serializeVisits(visits)).apply()
     }
 
     /**
@@ -164,36 +164,36 @@ object PackStore {
      * segundo formato es un segundo formato que puede divergir. La fecha va en su propia clave
      * en vez de como quinto campo, justamente para no tocar ese codec.
      */
-    fun palabrasDeLaSemana(context: Context): Pair<String?, List<Visita>> {
+    fun weekWords(context: Context): Pair<String?, List<Visit>> {
         val prefs = prefs(context)
-        return prefs.getString(CLAVE_PALABRAS_DESDE, null) to
-            parsearVisitas(prefs.getString(CLAVE_PALABRAS, null).orEmpty())
+        return prefs.getString(KEY_WEEK_SINCE, null) to
+            parseVisits(prefs.getString(KEY_WEEK_WORDS, null).orEmpty())
     }
 
-    fun recordarPalabrasDeLaSemana(context: Context, desde: String, palabras: List<Visita>) {
+    fun rememberWeekWords(context: Context, since: String, words: List<Visit>) {
         prefs(context).edit()
-            .putString(CLAVE_PALABRAS_DESDE, desde)
-            .putString(CLAVE_PALABRAS, serializarVisitas(palabras))
+            .putString(KEY_WEEK_SINCE, since)
+            .putString(KEY_WEEK_WORDS, serializeVisits(words))
             .apply()
     }
 
     /** Los ajustes. Igual que el historial: la politica vive arriba, aca solo se serializa. */
-    fun ajustes(context: Context): Ajustes =
-        parsearAjustes(prefs(context).getString(CLAVE_AJUSTES, null).orEmpty())
+    fun settings(context: Context): Settings =
+        parseSettings(prefs(context).getString(KEY_SETTINGS, null).orEmpty())
 
-    fun recordarAjustes(context: Context, ajustes: Ajustes) {
-        prefs(context).edit().putString(CLAVE_AJUSTES, serializarAjustes(ajustes)).apply()
+    fun rememberSettings(context: Context, settings: Settings) {
+        prefs(context).edit().putString(KEY_SETTINGS, serializeSettings(settings)).apply()
     }
 
     private fun prefs(context: Context) =
         context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
 
-    private const val CLAVE_PACK = "pack_activo"
-    private const val CLAVE_HISTORIAL = "historial"
-    private const val CLAVE_AJUSTES = "ajustes"
-    private const val CLAVE_FAVORITOS = "favoritos"
-    private const val CLAVE_PALABRAS = "palabras_semana"
-    private const val CLAVE_PALABRAS_DESDE = "palabras_desde"
+    private const val KEY_PACK = "pack_activo"
+    private const val KEY_HISTORY = "historial"
+    private const val KEY_SETTINGS = "ajustes"
+    private const val KEY_FAVORITES = "favoritos"
+    private const val KEY_WEEK_WORDS = "palabras_semana"
+    private const val KEY_WEEK_SINCE = "palabras_desde"
 
 
     /**
@@ -203,7 +203,7 @@ object PackStore {
      * silencio porque "en-..." ordena antes que "es-...". El orden sigue importando --dos
      * arranques tienen que ver la misma lista-- pero ya no decide cual se abre.
      */
-    internal fun packsInstalados(dir: File): List<File> =
+    internal fun installedPacks(dir: File): List<File> =
         dir.listFiles { f -> f.isFile && f.name.endsWith(".db") }
             ?.sortedBy { it.name }
             ?.toList()
@@ -220,13 +220,13 @@ object PackStore {
      * Es `internal` y sin `Context` para que se pueda testear en la JVM: la atomicidad es una
      * propiedad del sistema de archivos, no de Android.
      */
-    internal fun instalarAtomico(input: InputStream, dir: File, nombre: String): File {
-        val partial = File(dir, "$nombre.part")
-        val target = File(dir, nombre)
+    internal fun installAtomically(input: InputStream, dir: File, name: String): File {
+        val partial = File(dir, "$name.part")
+        val target = File(dir, name)
         partial.delete()
         try {
             input.use { origen ->
-                partial.outputStream().use { destino -> origen.copyTo(destino, BUFFER) }
+                partial.outputStream().use { target -> origen.copyTo(target, BUFFER) }
             }
         } catch (e: IOException) {
             // Si no se borra, el proximo intento arranca con basura y encima ocupa disco.
@@ -240,7 +240,7 @@ object PackStore {
         return target
     }
 
-    private fun abrir(file: File): PackLoad =
+    private fun openFile(file: File): PackLoad =
         try {
             PackLoad.Ready(SqlitePackSource(PackFile.open(file.path)))
         } catch (e: PackFile.IncompatibleException) {

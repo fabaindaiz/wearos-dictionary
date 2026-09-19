@@ -34,7 +34,7 @@ sobrevive a reconstruir un pack.
 
 **Áreas.** `tools/packbuilder/{sources/kaikki,payload,build,build_pack,verify_pack,
 gen_payload_fixture}.py`, `dict-core/{Model,PayloadCodec}.kt`, `dict-data/PackFile.kt`,
-`app/{data/Visita,data/PackSet,presentation/{MainActivity,SearchScreen,PacksScreen,
+`app/{data/Visit,data/PackSet,presentation/{MainActivity,SearchScreen,PacksScreen,
 AttributionScreen,EntryScreen}}.kt`, `docs/decisions.md` (D-123 a D-126).
 
 **Por qué.** Pedido: *"revisa posibles mejoras… el nombre del pack sigue viéndose cortado como
@@ -97,8 +97,8 @@ pendiente-- el aporte de enwiktionary §Spanish. **D-116 a D-122.**
 `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt` y `Model.kt`,
 `dict-core/src/test/kotlin/cl/fadiaz/dictionary/core/PayloadCodecTest.kt`,
 `app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`,
-`app/src/main/java/cl/fadiaz/dictionary/data/PalabraDelDia.kt` (sólo KDoc),
-`app/src/test/java/cl/fadiaz/dictionary/presentation/PantallasTest.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/WordOfTheDay.kt` (sólo KDoc),
+`app/src/test/java/cl/fadiaz/dictionary/presentation/ScreensTest.kt`,
 `dict-data/src/androidTest/assets/toy-es-en.db`,
 más `docs/decisions.md`, `docs/references.md`, `docs/roadmap.md`, `docs/formato-pack.md`.
 
@@ -361,7 +361,7 @@ que nació. D-106 a D-109.
 puro, `TileRender.kt`, y los dos servicios; borrado `MainTileService.kt`),
 el paquete `complication` entero (borrado), `data/PackStore.kt`,
 `presentation/SearchViewModel.kt` y `MainActivity.kt`, `AndroidManifest.xml`, `strings.xml`,
-`tools/audit_dictionary.py`, `app/src/test/java/cl/fadiaz/dictionary/tile/TileContenidoTest.kt` y
+`tools/audit_dictionary.py`, `app/src/test/java/cl/fadiaz/dictionary/tile/TileContentTest.kt` y
 `app/src/androidTest/java/cl/fadiaz/dictionary/tile/TilesTest.kt` (nuevos), más `docs/` y el `verify` skill.
 
 **Por qué.** Pedido: planificar e implementar los dos tiles. La deuda estaba escrita **idéntica
@@ -454,10 +454,10 @@ dos botones en una fila y un menú de opciones con guardar, copiar y ver en el o
 D-101, D-102), más una pantalla de palabras guardadas.
 
 **Áreas.** `gradle.properties`, `app/build.gradle.kts`, `tools/audit_dictionary.py`, los archivos
-nuevos `app/src/main/java/cl/fadiaz/dictionary/presentation/Componentes.kt`,
+nuevos `app/src/main/java/cl/fadiaz/dictionary/presentation/Components.kt`,
 `app/src/main/java/cl/fadiaz/dictionary/presentation/SettingsScreen.kt`,
-`app/src/main/java/cl/fadiaz/dictionary/data/PalabraDelDia.kt` y
-`app/src/main/java/cl/fadiaz/dictionary/data/Ajustes.kt`; más `EntrySummary` en
+`app/src/main/java/cl/fadiaz/dictionary/data/WordOfTheDay.kt` y
+`app/src/main/java/cl/fadiaz/dictionary/data/Settings.kt`; más `EntrySummary` en
 `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt` y su `summary()` en
 `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`.
 
@@ -689,7 +689,7 @@ funciones que faltaban: **buscar por definición**, **historial de entradas abie
 **Áreas.** `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`,
 `tools/packbuilder/sources/toy.py`,
 `tools/packbuilder/tests/test_build.py`, `dict-data/src/androidTest/`,
-`app/src/main/java/cl/fadiaz/dictionary/data/Visita.kt` (nuevo), `PackStore.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/Visit.kt` (nuevo), `PackStore.kt`,
 las cuatro pantallas de `app/src/main/java/cl/fadiaz/dictionary/presentation/`,
 `app/src/test/` y `app/src/androidTest/`,
 `app/build.gradle.kts`, `tools/audit_dictionary.py`, `.gitignore`, `app/CLAUDE.md`,
