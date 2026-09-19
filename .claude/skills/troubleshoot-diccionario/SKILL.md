@@ -4,89 +4,100 @@ description: Diagnostica fallas del diccionario a partir del síntoma. Usar cuan
 allowed-tools: Bash, Read, Grep
 ---
 
-# Diagnosticar el diccionario
+# Diagnosing the dictionary
 
-**El conocimiento de fallas de este repo no está en el historial de git.** Está en
-`docs/contratos-cruzados.md` y en los encabezados de los archivos con espejo. Empezá por ahí, no
-por `git log`.
+> The `description` above stays in Spanish: those are the phrases **the user says**, and the
+> symptoms they are matched against.
 
-Casi todas las fallas de este proyecto comparten un síntoma —*falta una palabra*— y ninguna
-produce excepción. Diagnosticá por síntoma.
+**This repo's failure knowledge is not in the git history.** It is in `docs/contratos-cruzados.md`
+and in the headers of the mirrored files. Start there, not with `git log`.
 
-## "Falta una palabra" / "no encuentra X"
+Almost every failure in this project shares one symptom —*a word is missing*— and none of them
+produces an exception. Diagnose by symptom.
 
-El más común y el más peligroso. En orden de probabilidad:
+## "A word is missing" / "it cannot find X"
 
-0. **¿Es un nombre propio?** Desde D-116 los packs **no traen apellidos, topónimos ni nombres
-   de pila**, salvo los que tienen vida léxica. *Ivanivka*, *Troya*, *Etchechury* y *Hopewell*
-   **no están, y no es un bug**: son 22,1 % de las entradas en español y 17,1 % en inglés, y el
-   90,4 % de lo que se sacó no definía nada. Comprobalo en un segundo, antes de tocar nada:
+The most common and the most dangerous. In order of likelihood:
+
+0. **Is it a proper noun?** Since D-116 the packs **carry no surnames, place names or given
+   names**, except the ones with lexical life. *Ivanivka*, *Troya*, *Etchechury* and *Hopewell*
+   **are not there, and that is not a bug**: they are 22.1 % of the entries in Spanish and 17.1 %
+   in English, and 90.4 % of what was removed defined nothing. Check it in a second, before
+   touching anything:
    ```bash
    sqlite3 <pack.db> "SELECT value FROM meta WHERE key='proper_nouns'"   # lexical-only
    ```
-   Si el lema es un nombre propio y el pack dice `lexical-only`, **la respuesta es "así se
-   diseñó"**. Los que sí quedaron son los que tienen `translations + descendants + derived >= 5`
-   en el dump: los meses, los países, los idiomas — *January*, *Paris*, *España*, *Chile*.
-   Para medir cuánto cambia eso, se reconstruye con `--con-nombres`.
+   If the headword is a proper noun and the pack says `lexical-only`, **the answer is "that is how
+   it was designed"**. The ones that stayed are those with `translations + descendants +
+   derived >= 5` in the dump: the months, the countries, the languages — *January*, *Paris*,
+   *España*, *Chile*. To measure how much that changes, rebuild with `--con-nombres`.
 
-1. **Las dos implementaciones de `norm()` divergieron.** Comprobalo directo:
+1. **The two implementations of `norm()` diverged.** Check it directly:
    ```bash
    cd tools/packbuilder && python3 -c "import normalize; print(repr(normalize.norm('LA PALABRA')))"
    ```
-   y compará con lo que guardó el pack:
+   and compare against what the pack stored:
    ```bash
    sqlite3 <pack.db> "SELECT headword, norm, fuzzy FROM entry WHERE headword LIKE 'LA PALABRA%'"
    ```
-   Si difieren, alguien tocó un solo lenguaje. Ver `contratos-cruzados.md` §1.
+   If they differ, somebody touched only one language. See `contratos-cruzados.md` §1.
 
-2. **`norm_version` del pack ≠ `NORM_VERSION` de la app.** El pack está indexado con otras
-   reglas. `SELECT value FROM meta WHERE key='norm_version'`.
+2. **The pack's `norm_version` ≠ the app's `NORM_VERSION`.** The pack is indexed with different
+   rules. `SELECT value FROM meta WHERE key='norm_version'`.
 
-3. **La palabra tiene un carácter fuera del repertorio fijado.** Los code points asignados
-   después de Unicode 13 se tratan como separador, así que "abXcd" se indexa como dos palabras.
-   Ver `contratos-cruzados.md` §2.
+3. **The word has a character outside the pinned repertoire.** Code points assigned after Unicode
+   13 are treated as separators, so "abXcd" gets indexed as two words. See
+   `contratos-cruzados.md` §2.
 
-4. **La palabra no está en la fuente.** Comprobalo antes de asumir un bug:
-   `SELECT COUNT(*) FROM entry WHERE norm = '<la clave normalizada>'`.
+4. **The word is not in the source.** Check that before assuming a bug:
+   `SELECT COUNT(*) FROM entry WHERE norm = '<the normalized key>'`.
 
-## "Salen resultados repetidos"
+## "Duplicate results show up"
 
-Casi seguro la búsqueda inversa sin deduplicar. El rango de prefijo matchea varias claves de
-`trans` de la misma entrada ("to", "to run", "to pass") y sin `DISTINCT` la entrada sale una vez
-por clave. Está documentado en `docs/formato-pack.md`, consulta #3.
+Almost certainly the reverse search without deduplicating. The prefix range matches several
+`trans` keys of the same entry ("to", "to run", "to pass") and without `DISTINCT` the entry comes
+out once per key. It is documented in `docs/formato-pack.md`, query #3.
 
-## "Texto corrupto" / símbolos raros en una entrada
+## "Corrupt text" / strange symbols in an entry
 
-**El diccionario de compresión no corresponde.** deflate no lo detecta: descomprime sin lanzar
-nada y devuelve basura. Medido: "moverse rapidamente" → " nadrse rapidamente".
+**The compression dictionary does not match.** deflate does not detect it: it decompresses without
+throwing anything and returns garbage. Measured: "moverse rapidamente" → " nadrse rapidamente".
 
 ```bash
-python3 tools/packbuilder/verify_pack.py <pack.db>   # comprueba payload_dict_sha256
+python3 tools/packbuilder/verify_pack.py <pack.db>   # checks payload_dict_sha256
 ```
 
-Si el hash no corresponde, el pack está mal construido, no mal leído.
+If the hash does not match, the pack is badly built, not badly read.
 
-## "El pack no abre"
+## "The pack will not open"
 
-En orden: `schema_version` incompatible → `norm_version` incompatible → descarga truncada
-(verificar sha256 del archivo) → FTS5 ausente en el SQLite que se está usando (si no es el
-empacado, no hay FTS5).
+In order: incompatible `schema_version` → incompatible `norm_version` → incompatible
+`payload_codec` (`PackFile.open` compares with `!=`, D-119) → a truncated download (verify the
+file's sha256) → FTS5 missing from the SQLite being used (if it is not the bundled one, there is
+no FTS5).
 
-## "La búsqueda se puso lenta"
+## "The search got slow"
 
 ```bash
 sqlite3 <pack.db> "EXPLAIN QUERY PLAN SELECT id, headword, pos FROM entry WHERE norm >= 'cor' AND norm < 'cos' ORDER BY norm, rank DESC LIMIT 30"
 ```
 
-Tiene que decir `COVERING INDEX idx_entry_norm`. Si dice `SCAN entry`, se perdió el índice o la
-consulta dejó de encajar con él.
+It has to say `COVERING INDEX idx_entry_norm`. If it says `SCAN entry`, the index was lost or the
+query stopped fitting it.
 
-## Antes de dar por sentado que es un bug
+## "The history opens the wrong word"
 
-**Preguntá primero si falta por decisión o por bug.** Desde D-116 hay palabras ausentes a
-propósito, y desde D-121 hay una entrada menos porque su definición era una etiqueta de
-mantenimiento del wiki. Ninguna de las dos es un contrato roto.
+Not a broken contract: `entry.id` is the rowid and **does not survive rebuilding a pack** (D-055).
+Since D-123 the app validates the stored id against the headword and fixes it through
+`idx_entry_norm`, but a build older than that, or a tile deep link with no headword, still lands
+on whatever now sits at that id.
 
-Después de descartarlo: este repo tiene **cuatro modos de falla conocidos y documentados**, y
-tres de ellos no producen error. Leé `docs/contratos-cruzados.md` entero antes de escribir código nuevo para arreglar algo:
-es probable que el mecanismo que falta ya esté descrito ahí.
+## Before assuming it is a bug
+
+**Ask first whether it is missing by decision or by bug.** Since D-116 there are words absent on
+purpose, and since D-121 there is one entry fewer because its definition was a wiki maintenance
+tag. Neither is a broken contract.
+
+After ruling that out: this repo has **four known, documented failure modes**, and three of them
+produce no error. Read `docs/contratos-cruzados.md` in full before writing new code to fix
+something: the missing mechanism is probably already described there.

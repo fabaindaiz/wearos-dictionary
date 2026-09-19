@@ -6,62 +6,65 @@ allowed-tools: Bash, Read
 
 # Verify
 
-Este repo tiene contratos que se rompen sin producir ningún error: el síntoma es una palabra que
-falta, meses después. El gate es lo único que los detecta antes de que eso pase.
+> The `description` above stays in Spanish on purpose: those are the phrases **the user says**,
+> and that is what this skill is matched against. The body is English like the rest of the repo.
 
-## El gate
+This repo has contracts that break without producing any error: the symptom is a missing word,
+months later. The gate is the only thing that catches them before that happens.
+
+## The gate
 
 ```bash
 ./gradlew check
 ```
 
-Corre compilación, Android Lint, los **54 de `:dict-core`**, los **178 JVM de `:app`** (las pantallas incluidas, con Robolectric), los
-**147 del builder Python** y la auditoría estructural (**19 checks**).
-**Medido: ~1m07s en frío.**
+It runs compilation, Android Lint, the **54 of `:dict-core`**, the **178 JVM of `:app`** (screens
+included, under Robolectric), the **147 of the Python builder** and the structural audit
+(**19 checks**). **Measured: ~1m07s cold.**
 
-## Si tocaste `norm()`, `fuzzy()` o el repertorio Unicode
+## If you touched `norm()`, `fuzzy()` or the Unicode repertoire
 
-El gate ya corre los vectores compartidos, pero un pack construido antes del cambio quedó
-indexado con las reglas viejas:
+The gate already runs the shared vectors, but a pack built before the change was indexed with the
+old rules:
 
 ```bash
 python3 tools/packbuilder/build_toy.py
 python3 tools/packbuilder/verify_pack.py dict-data/src/androidTest/assets/toy-es-en.db
 ```
 
-Si `NORM_VERSION` no subió y las claves cambiaron, **los tests pasan y el bug queda**. Es el
-único caso donde el gate no alcanza.
+If `NORM_VERSION` did not go up and the keys changed, **the tests pass and the bug stays**. It is
+the one case where the gate is not enough.
 
-## Si tocaste el formato del pack
+## If you touched the pack format
 
-Además de lo anterior, `verify_pack.py` sobre cualquier pack real que haya. Mirá específicamente
-la sección `[planes de consulta]`: si el prefijo deja de usar `COVERING INDEX`, la búsqueda
-incremental deja de cumplir su presupuesto de latencia y **nada más lo notaría**.
+On top of the above, `verify_pack.py` over any real pack there is. Look specifically at the
+`[planes de consulta]` section: if the prefix stops using `COVERING INDEX`, the incremental search
+stops meeting its latency budget and **nothing else would notice**.
 
-## Reportar
+## Reporting
 
-Decí qué pasó y qué no, con la salida. **Nunca llames verificado a algo que no corriste.** Si
-algo ya venía fallando, nombralo para que no se presente como nuevo.
+Say what happened and what did not, with the output. **Never call something verified that you did
+not run.** If something was already failing, name it so it does not get presented as new.
 
-## Los tests en dispositivo, que el gate no corre
+## The on-device tests, which the gate does not run
 
 ```bash
-./gradlew :dict-data:devicePrecheck             # ¿hay con qué? Dice qué falta si no
-./gradlew :dict-data:connectedDebugAndroidTest  # los 31 tests
-./gradlew :app:connectedDebugAndroidTest       # los 47 de pantalla
+./gradlew :dict-data:devicePrecheck             # is there anything to run them on? says what is missing
+./gradlew :dict-data:connectedDebugAndroidTest  # the 31 tests
+./gradlew :app:connectedDebugAndroidTest        # the 7 that really do need a device
 ```
 
-Necesitan un emulador o un reloj conectado, por eso están fuera del gate. `devicePrecheck`
-existe porque sin dispositivo Gradle falla con un error que no dice qué hacer. Son los únicos que
-cierran las asunciones sobre Android: que el SQLite empacado traiga FTS5, que el prefijo use el
-covering index en ese dispositivo, y sobre todo que `norm()` dé lo mismo en el reloj que en el
-builder.
+They need an emulator or a connected watch, which is why they are outside the gate.
+`devicePrecheck` exists because without a device Gradle fails with an error that does not say what
+to do. They are the only ones that close the assumptions about Android: that the bundled SQLite
+carries FTS5, that the prefix uses the covering index on that device, and above all that `norm()`
+gives the same thing on the watch as in the builder.
 
-Corrélos en **cada nivel de API soportado**. Correr uno solo no prueba lo que el test intenta
-probar, que es justamente que las versiones difieren.
+Run them on **every supported API level**. Running one alone does not prove what the test is
+trying to prove, which is precisely that the versions differ.
 
-Lo que el gate **no** cubre, y hay que decirlo cuando alguien pregunta si está listo:
+What the gate does **not** cover, and has to be said when somebody asks whether it is ready:
 
-- **Los tests instrumentados existen pero pueden no haberse corrido nunca.** Compilan en el
-  gate; ejecutarse, no. Chequeá antes de afirmar que algo funciona en Android.
-- Los presupuestos de latencia y tamaño de `docs/formato-pack.md` son **objetivos sin medir**.
+- **The instrumented tests exist but may never have been run.** They compile in the gate; running
+  is another matter. Check before claiming something works on Android.
+- The latency and size budgets in `docs/formato-pack.md` are **unmeasured targets**.

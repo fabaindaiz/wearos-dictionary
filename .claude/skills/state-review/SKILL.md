@@ -4,89 +4,90 @@ description: Revisión periódica de la salud del sistema de instrucciones del r
 allowed-tools: Bash, Read, Grep
 ---
 
-# Revisión de estado
+# State review
 
-Bootstrapear no es el final: el sistema se pudre sin un ritual. Estas seis preguntas, con
-evidencia, no de memoria.
+> The `description` above stays in Spanish: those are the phrases **the user says**.
 
-## 1. ¿Existe cada documento del mapa, y sigue siendo cierto?
+Bootstrapping is not the end: the system rots without a ritual. These questions, with evidence,
+not from memory.
+
+## 1. Does every document on the map exist, and is it still true?
 
 ```bash
 python3 tools/audit_dictionary.py
 ```
 
-La auditoría comprueba que el mapa resuelva. Que el **contenido** siga siendo cierto hay que
-mirarlo: contrastá cada número de `docs/formato-pack.md` y `docs/architecture.md` contra el
-código. **Un documento que apunta a un archivo borrado es peor que no tener documento**, y es la
-decadencia más común en un repo asistido por agentes, porque borran código más rápido de lo que
-releen prosa.
+The audit checks that the map resolves. Whether the **content** is still true has to be looked at:
+check every number in `docs/formato-pack.md` and `docs/architecture.md` against the code. **A
+document pointing at a deleted file is worse than no document**, and it is the most common decay
+in an agent-assisted repo, because agents delete code faster than they re-read prose.
 
-## 2. ¿Cada regla sigue teniendo enforcer, y alguno saltó este período?
+## 2. Does every rule still have an enforcer, and did any of them fire this period?
 
 ```bash
-grep -c "| —" docs/decisions.md     # decisiones que se pueden romper en silencio
+grep -c "| —" docs/decisions.md     # decisions that can be broken in silence
 ```
 
-Ese número subiendo es la señal de alarma. Una regla que perdió su enforcer volvió a rung 1 sin
-que nadie lo decidiera.
+That number going up is the alarm. A rule that lost its enforcer went back to rung 1 without
+anyone deciding it.
 
-## 3. ¿Qué cambió que debería haber sido una fila de decisión y no lo fue?
+## 3. What changed that should have been a decision row and was not?
 
 ```bash
 git log --oneline $(git log -1 --format=%H -- docs/decisions.md)..HEAD
 ```
 
-Commits posteriores al último cambio de `decisions.md`. Si alguno tomó una decisión de diseño,
-falta su fila.
+Commits after the last change to `decisions.md`. If any of them took a design decision, its row is
+missing.
 
-## 4. ¿Qué del roadmap ya está cerrado?
+## 4. What on the roadmap is already closed?
 
-Por construido, o **por medición**. Lo segundo es lo valioso: si un número retiró una idea, va a
-*Cerrado por medición* con el número, para que siga retirada.
+By being built, or **by measurement**. The second is the valuable one: if a number retired an
+idea, it goes to *Cerrado por medición* with the number, so it stays retired.
 
-## 5. ¿`CLAUDE.md` pasó su presupuesto?
+## 5. Did `CLAUDE.md` blow its budget?
 
 ```bash
-wc -l CLAUDE.md    # tiene que estar bajo 200
+wc -l CLAUDE.md    # has to stay under 200
 ```
 
-Si creció, **qué sección creció** es la pregunta. Una sección que crece es la señal de que se
-volvió un documento y hay que moverla, dejando un puntero.
+If it grew, **which section grew** is the question. A section that grows is the sign that it
+became a document and has to be moved, leaving a pointer.
 
-## 6. ¿Qué reglas siguen en rung 1 y se podrían promover barato?
+## 6. Which rules are still at rung 1 and could be promoted cheaply?
 
-Las de `docs/decisions.md` con `—` en *Enforced in*. En este repo, las candidatas conocidas:
+The ones in `docs/decisions.md` with `—` in *Enforced in*. In this repo, the known candidates:
 
-- **D-025** (`glance-wear-tiles` prohibido) → un grep en la auditoría, trivial.
-- **D-031** (atribución CC BY-SA visible) → ship-blocking check cuando exista la UI.
-- **D-002** (packs con `BundledSQLiteDriver`) → chequeable cuando exista `:dict-data`.
+- **D-025** (`glance-wear-tiles` forbidden) → a grep in the audit, trivial.
+- **D-031** (CC BY-SA attribution visible) → a ship-blocking check once the UI exists.
+- **D-002** (packs through `BundledSQLiteDriver`) → checkable once `:dict-data` exists.
 
-## 7. ¿El método sigue siendo el que decimos seguir?
+## 7. Is the method still the one we say we follow?
 
 ```sh
 grep -h "^version:\|^digest:\|^adopted:" docs/agents/prompt-update.md
-python3 tools/audit_dictionary.py | grep metodo   # silencio = el digest cuadra
+python3 tools/audit_dictionary.py | grep metodo   # silence = the digest checks out
 ```
 
-`adapted` y `declined` **vacíos** después de un update es la señal de que el header no se está
-manteniendo, y el próximo update va a re-proponer todo lo ya rechazado (D-059, D-060).
+`adapted` and `declined` **empty** after an update is the sign the header is not being maintained,
+and the next update will re-propose everything already rejected (D-059, D-060).
 
-## 8. Los smells, que se chequean en un minuto
+## 8. The smells, checkable in a minute
 
-Cada uno tiene una respuesta corta; lo que importa es que ninguno se conteste de memoria.
+Each one has a short answer; what matters is that none of them gets answered from memory.
 
-| Smell | Cómo se mira |
+| Smell | How to look |
 |---|---|
-| El roadmap no tiene ninguna entrada **Hecho** | `grep -c "Estado.*Hecho" docs/roadmap.md` — o no se terminó nada, o terminar no escribe de vuelta |
-| §Proceso y herramientas **vacía** | La fricción no se está anotando. No es que no haya |
-| Todas las entradas del changelog salieron perfectas | `grep -c "Qué salió mal" .claude/logs/agent-changelog.md` contra el total de entradas. Nadie trabaja así: los desvíos se están editando afuera |
-| Una decisión con enforcer `— ` que **sí** se podría chequear | Pregunta 6 |
-| Dos documentos afirman el mismo número | Uno ya está viejo y no se sabe cuál |
-| Un límite del gate se subió junto con una feature | `git log -p -- tools/audit_dictionary.py` — el límite *era* el mensaje |
-| Ninguna sesión propuso nunca una mejora de proceso | Es el modo de falla 6, y es invisible justamente porque nada se rompe |
+| The roadmap has no **Hecho** entry at all | `grep -c "Estado.*Hecho" docs/roadmap.md` — either nothing was finished, or finishing does not write back |
+| §Proceso y herramientas is **empty** | Friction is not being written down. Not that there is none |
+| Every changelog entry came out perfect | `grep -c "Qué salió mal" .claude/logs/agent-changelog.md` against the total number of entries. Nobody works like that: the detours are being edited out |
+| A decision with enforcer `—` that **could** be checked | Question 6 |
+| Two documents assert the same number | One of them is already stale and nobody knows which |
+| A gate limit was raised alongside a feature | `git log -p -- tools/audit_dictionary.py` — the limit *was* the message |
+| No session ever proposed a process improvement | It is failure mode 6, and it is invisible precisely because nothing breaks |
 
-## Y la pregunta que no está en la lista
+## And the question that is not on the list
 
-**¿Sigue sin haber un test corriendo en un reloj?** Es la clase de bug que este repo no puede
-ver, y mientras la respuesta sea "sí", cualquier afirmación sobre el comportamiento en Android
-es ASSUMPTION — por bien testeado que esté en escritorio.
+**Is there still no test running on a watch?** It is the class of bug this repo cannot see, and
+while the answer is "yes", any claim about behaviour on Android is ASSUMPTION — however well
+tested it is on the desktop.
