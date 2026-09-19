@@ -6,6 +6,7 @@ import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.data.Ajustes
@@ -13,7 +14,9 @@ import cl.fadiaz.dictionary.data.EscalaDeTexto
 import cl.fadiaz.dictionary.data.PackSet
 import cl.fadiaz.dictionary.data.PalabraDelDia
 import cl.fadiaz.dictionary.tile.ContenidoDeTiles
+import cl.fadiaz.dictionary.data.DestinoDeVisita
 import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.destinoDeVisita
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -500,6 +503,56 @@ class SearchViewModel(
         visitas = emptyList()
         guardarHistorial(visitas)
         _state.update { it.copy(historial = emptyList()) }
+    }
+
+    /**
+     * A que entrada lleva una visita guardada, **corrigiendola si el pack se reconstruyo**.
+     *
+     * `entry.id` es el rowid y no sobrevive a un rebuild (D-055): el historial y las guardadas
+     * se respaldan con el, asi que tras reconstruir un pack apuntan a otra palabra --con el lema
+     * correcto escrito en la fila, o sea sin nada que lo delate--.
+     *
+     * **No cuesta una consulta extra en el caso normal**: si el lema que hay en ese id es el
+     * guardado, [destinoDeVisita] devuelve `Directo` y `resolveHeadwords` no se llama. El
+     * `summary` que si se paga es una lectura de la fila por rowid, que es la misma que la
+     * pantalla de entrada hace igual un instante despues.
+     *
+     * Cuando corrige, **reescribe el respaldo**: si no, cada apertura volveria a pagar la
+     * re-resolucion y el tile seguiria publicando el id viejo.
+     */
+    suspend fun destinoDe(visita: Visita): Long? {
+        val fuente = abiertos.firstOrNull { it.metadata.packId == visita.packId } ?: return null
+        val enElId = fuente.summary(visita.entryId)?.headword
+        val reresuelto = if (enElId == visita.headword) {
+            null
+        } else {
+            val clave = TextNormalizer.norm(visita.headword)
+            fuente.resolveHeadwords(setOf(clave))[clave]
+        }
+        return when (val destino = destinoDeVisita(visita, enElId, reresuelto)) {
+            is DestinoDeVisita.Directo -> destino.entryId
+            is DestinoDeVisita.Reresuelto -> {
+                corregirId(visita, destino.entryId)
+                destino.entryId
+            }
+            DestinoDeVisita.Perdido -> null
+        }
+    }
+
+    /** Reescribe el `entryId` de esta visita en el historial y en las guardadas. */
+    private fun corregirId(visita: Visita, entryId: Long) {
+        fun corregir(lista: List<Visita>) = lista.map {
+            if (it.packId == visita.packId && it.entryId == visita.entryId) {
+                it.copy(entryId = entryId)
+            } else {
+                it
+            }
+        }
+        visitas = corregir(visitas)
+        favoritas = corregir(favoritas)
+        guardarHistorial(visitas)
+        guardarFavoritos(favoritas)
+        _state.update { it.copy(historial = visibles(visitas), favoritos = favoritas) }
     }
 
     suspend fun entry(packId: String, entryId: Long): Entry? =
