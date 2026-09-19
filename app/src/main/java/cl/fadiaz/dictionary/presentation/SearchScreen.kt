@@ -169,13 +169,13 @@ fun SearchScreen(
                         // Una por diccionario cargado, la del activo primero. El encabezado
                         // aparece SOLO si hay alguna: un titulo sin nada debajo es peor que no
                         // tener titulo.
-                        val delDia = state.available
+                        val ofTheDay = state.available
                             .filterIsInstance<PackHandle.Open>()
                             .mapNotNull { handle ->
                                 state.wordsOfTheDay[handle.packId]?.let { handle to it }
                             }
                             .sortedByDescending { it.first.packId == state.active?.packId }
-                        if (delDia.isNotEmpty()) {
+                        if (ofTheDay.isNotEmpty()) {
                             item(key = "titulo-del-dia") {
                                 ListHeader(
                                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -184,10 +184,10 @@ fun SearchScreen(
                             }
                         }
                         items(
-                            count = delDia.size,
-                            key = { index -> "pdd:${delDia[index].first.packId}" },
+                            count = ofTheDay.size,
+                            key = { index -> "pdd:${ofTheDay[index].first.packId}" },
                         ) { index ->
-                            val (handle, word) = delDia[index]
+                            val (handle, word) = ofTheDay[index]
                             // Siempre el nombre del diccionario: el encabezado ya dice que es
                             // la palabra del dia, asi que repetirlo aca gastaba un renglon.
                             WordOfTheDayRow(
