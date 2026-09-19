@@ -53,7 +53,7 @@ fun SettingsScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),

@@ -39,7 +39,7 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
         ) {
             item {

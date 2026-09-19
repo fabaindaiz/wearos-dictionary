@@ -38,7 +38,7 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -53,7 +53,7 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
                     Text(
                         // It says HOW to save, not just that there is nothing: an empty state
                         // that does not explain the way out of it is a dead end.
-                        text = "Abrí una palabra y usá Opciones para guardarla.",
+                        text = "Abre una palabra y usa Opciones para guardarla.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,

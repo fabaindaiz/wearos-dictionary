@@ -75,17 +75,29 @@ internal val CARD_SHAPE = RoundedCornerShape(24.dp)
 private val BOTTOM_MARGIN: Dp = 32.dp
 
 /**
- * The scaffold's `contentPadding`, with room to breathe at the end.
+ * How much the HOME leaves clear at the top, under the clock.
+ *
+ * `ScreenScaffold` draws `TimeText` as an overlay and its `contentPadding` does not reserve the
+ * whole of it, so the first item starts under the time. On the six screens that open on a title
+ * that does not matter; on the home the first item is the **search bar** (D-111), and a text
+ * field with the clock on top of it reads as broken.
+ *
+ * Only the home passes it: everywhere else this is 0 and the list starts where it always did.
+ */
+private val TOP_MARGIN: Dp = 12.dp
+
+/**
+ * The scaffold's `contentPadding`, with room to breathe at the end and --on the home-- at the top.
  *
  * A function and not 32.dp repeated across six files: the day the number changes --or somebody
  * measures how much the curve really eats-- there is a single place to touch.
  */
 @Composable
-internal fun withBottomMargin(base: PaddingValues): PaddingValues {
+internal fun withScreenMargins(base: PaddingValues, clearTheClock: Boolean = false): PaddingValues {
     val direction = LocalLayoutDirection.current
     return PaddingValues(
         start = base.calculateStartPadding(direction),
-        top = base.calculateTopPadding(),
+        top = base.calculateTopPadding() + if (clearTheClock) TOP_MARGIN else 0.dp,
         end = base.calculateEndPadding(direction),
         bottom = base.calculateBottomPadding() + BOTTOM_MARGIN,
     )

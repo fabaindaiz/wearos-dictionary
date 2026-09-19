@@ -69,7 +69,7 @@ fun PacksScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -100,7 +100,7 @@ fun PacksScreen(
                     // It says what is missing and what it will do. A bare "coming soon" helps
                     // nobody; this also explains why dictionaries arrive over a cable today.
                     text = "Todavía no. Hoy los diccionarios se instalan por cable, desde la " +
-                        "computadora. Acá va a aparecer el catálogo para bajarlos desde el reloj.",
+                        "computadora. Aquí va a aparecer el catálogo para descargarlos desde el reloj.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
