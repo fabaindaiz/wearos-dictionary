@@ -77,7 +77,7 @@ class TilesTest {
     fun theEmptyStateRenders() {
         // The most likely case of all: a freshly installed app. A blank tile in the carousel
         // does not read as "empty" but as "broken".
-        val layout = materialScope(context, dispositivo) { emptyTile(context, "Buscá una palabra") }
+        val layout = materialScope(context, dispositivo) { emptyTile(context, "Busca una palabra") }
         assertNotNull(layout)
     }
 

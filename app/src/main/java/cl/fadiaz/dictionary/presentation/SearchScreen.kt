@@ -105,7 +105,8 @@ fun SearchScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            // El unico que lo pide: aca el primer item es la barra de busqueda.
+            contentPadding = withScreenMargins(contentPadding, clearTheClock = true),
             state = listState,
             // The crown is a watch's primary scroll: the finger covers exactly what is being
             // read. It is not wired up by default.
