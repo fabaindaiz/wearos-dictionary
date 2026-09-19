@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.tile.EXTRA_ENTRY_ID
+import cl.fadiaz.dictionary.tile.EXTRA_HEADWORD
 import cl.fadiaz.dictionary.tile.EXTRA_PACK_ID
 import cl.fadiaz.dictionary.tile.HistorialTileService
 import cl.fadiaz.dictionary.tile.PalabraTileService
@@ -59,7 +60,12 @@ class MainActivity : ComponentActivity() {
         val packId = intent?.getStringExtra(EXTRA_PACK_ID)?.takeIf { it.isNotBlank() } ?: return null
         val entryId = intent.getLongExtra(EXTRA_ENTRY_ID, 0L)
         if (entryId <= 0L) return null
-        return Visita(packId = packId, entryId = entryId, headword = "", partOfSpeech = null)
+        // El lema viaja para poder CORREGIR el id, no para mostrarlo: el tile publica un
+        // `entryId` de `SharedPreferences` que un rebuild del pack deja apuntando a otra palabra
+        // (D-055). Si no viene --un intent de otra app, o un tile viejo-- se cae a confiar en el
+        // id, que es lo que se hacia antes.
+        val headword = intent.getStringExtra(EXTRA_HEADWORD).orEmpty()
+        return Visita(packId = packId, entryId = entryId, headword = headword, partOfSpeech = null)
     }
 }
 
@@ -149,9 +155,9 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
             LaunchedEffect(entradaInicial, state.status) {
                 val pedida = entradaInicial ?: return@LaunchedEffect
                 if (state.status != SearchState.Status.Ready) return@LaunchedEffect
-                if (viewModel.entry(pedida.packId, pedida.entryId) == null) return@LaunchedEffect
+                val destino = viewModel.destinoDe(pedida) ?: return@LaunchedEffect
                 navController.navigate(
-                    "$RUTA_ENTRADA/${Uri.encode(pedida.packId)}/${pedida.entryId}",
+                    "$RUTA_ENTRADA/${Uri.encode(pedida.packId)}/$destino",
                 )
             }
 
@@ -171,8 +177,20 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                             viewModel.registrarVisita(it)
                             navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
                         },
-                        onOpenVisita = {
-                            navController.navigate("$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}")
+                        // No se navega con el `entryId` guardado tal cual: si el pack se
+                        // reconstruyo, ese id es ahora OTRA palabra (D-055). `destinoDe` lo
+                        // valida contra el lema y lo corrige, o devuelve null si la palabra ya
+                        // no esta --y entonces no se navega a ningun lado, que es mejor que
+                        // abrir cualquier otra--.
+                        onOpenVisita = { visita ->
+                            scope.launch {
+                                val destino = viewModel.destinoDe(visita)
+                                if (destino != null) {
+                                    navController.navigate(
+                                        "$RUTA_ENTRADA/${Uri.encode(visita.packId)}/$destino",
+                                    )
+                                }
+                            }
                         },
                         onOpenAttribution = { navController.navigate(RUTA_ATRIBUCION) },
                         onOpenAjustes = { navController.navigate(RUTA_AJUSTES) },
@@ -256,10 +274,17 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                 composable(RUTA_FAVORITOS) {
                     FavoritesScreen(
                         favoritos = state.favoritos,
-                        onOpen = {
-                            navController.navigate(
-                                "$RUTA_ENTRADA/${Uri.encode(it.packId)}/${it.entryId}",
-                            )
+                        // Mismo motivo que el historial: el id guardado puede ser de un
+                        // pack anterior. Ver `SearchViewModel.destinoDe`.
+                        onOpen = { visita ->
+                            scope.launch {
+                                val destino = viewModel.destinoDe(visita)
+                                if (destino != null) {
+                                    navController.navigate(
+                                        "$RUTA_ENTRADA/${Uri.encode(visita.packId)}/$destino",
+                                    )
+                                }
+                            }
                         },
                     )
                 }
