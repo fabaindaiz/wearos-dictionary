@@ -6,16 +6,18 @@ allowed-tools: Bash, Read
 
 # Commit
 
-## Se parten por dependencia, no por tamaño
+> The `description` above stays in Spanish: those are the phrases **the user says**, and that is
+> what this skill is matched against.
 
-**Cada commit tiene que quedar verde por sí solo**, o el historial no es bisecable y no sirve
-para encontrar cuándo se rompió algo.
+## They split by dependency, not by size
 
-En este repo eso impone un orden concreto: `tools/` antes que `dict-core/`, porque los tests de
-Kotlin consumen los vectores compartidos que viven ahí. Al revés, el commit intermedio queda
-rojo.
+**Every commit has to be green on its own**, or the history is not bisectable and is no use for
+finding when something broke.
 
-## Verificalo, no lo supongas
+In this repo that imposes a concrete order: `tools/` before `dict-core/`, because the Kotlin tests
+consume the shared vectors that live there. The other way round, the intermediate commit is red.
+
+## Verify it, do not assume it
 
 ```bash
 git worktree add -q --detach /tmp/wt-<ref> <ref>
@@ -24,20 +26,20 @@ cd /tmp/wt-<ref> && echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 git worktree remove --force /tmp/wt-<ref>
 ```
 
-Un clone limpio también: es lo que detectó que `gradle-wrapper.jar` nunca había estado trackeado
-y el repo no se podía buildear desde cero (D-021).
+A clean clone too: that is what caught that `gradle-wrapper.jar` had never been tracked and the
+repo could not be built from scratch (D-021).
 
-## El mensaje dice por qué
+## The message says why
 
-Qué archivos cambiaron ya lo dice el diff. El cuerpo explica la decisión, y si una medición mató
-una creencia, ese es el contenido más valioso del commit.
+Which files changed is already in the diff. The body explains the decision, and if a measurement
+killed a belief, that is the most valuable content in the commit.
 
-## Antes de ofrecer commitear
+## Before offering to commit
 
-- El gate pasa (`verify` skill).
-- La entrada del changelog está escrita: `.claude/logs/agent-changelog.md`.
-- Si se tomó una decisión nueva, tiene su fila en `docs/decisions.md` con la columna
-  *Enforced in* llena — aunque diga `—`.
-- Nada generado entra al repo: ver la lista en `CLAUDE.md`.
+- The gate passes (the `verify` skill).
+- The changelog entry is written: `.claude/logs/agent-changelog.md`.
+- If a new decision was taken, it has its row in `docs/decisions.md` with the *Enforced in* column
+  filled — even if it says `—`.
+- Nothing generated enters the repo: see the list in `CLAUDE.md`.
 
-**No se commitea por iniciativa propia a mitad de tarea.** Se ofrece cuando el trabajo terminó.
+**Never commit on your own initiative mid-task.** It is offered when the work is finished.
