@@ -12,6 +12,7 @@ import cl.fadiaz.dictionary.data.Ajustes
 import cl.fadiaz.dictionary.data.EscalaDeTexto
 import cl.fadiaz.dictionary.data.PackSet
 import cl.fadiaz.dictionary.data.PalabraDelDia
+import cl.fadiaz.dictionary.tile.ContenidoDeTiles
 import cl.fadiaz.dictionary.data.Visita
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -105,6 +106,24 @@ class SearchViewModel(
     private val borrarDelDisco: (archivo: String) -> Boolean = { false },
     private val favoritosGuardados: () -> List<Visita> = { emptyList() },
     private val guardarFavoritos: (List<Visita>) -> Unit = {},
+    /**
+     * La semana de palabras que ya estaba cacheada para el tile: desde que dia, y cuales.
+     *
+     * Se consulta para **no recalcularla en cada arranque**: son [ContenidoDeTiles.DIAS_CACHEADOS]
+     * x [PalabraDelDia.CANDIDATOS] lecturas y solo cambian una vez por dia.
+     */
+    private val palabrasDeLaSemanaGuardadas: () -> Pair<String?, List<Visita>> =
+        { null to emptyList() },
+    private val guardarPalabrasDeLaSemana: (desde: String, palabras: List<Visita>) -> Unit =
+        { _, _ -> },
+    /**
+     * Avisa a los tiles que lo que muestran cambio.
+     *
+     * Entra por parametro porque `TileService.getUpdater` es Android (D-072). No es opcional: el
+     * tile de historial se pide con `freshnessIntervalMillis = 0`, o sea que **el sistema no lo
+     * vuelve a llamar solo**; sin este empujon se queda con lo que tenia al instalarse.
+     */
+    private val avisarTiles: () -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -221,6 +240,7 @@ class SearchViewModel(
                     ofrecibles(result.todos).filterIsInstance<PackHandle.Abierto>()
                         .map { it.source },
                 )
+                cachearLaSemanaDelTile(elegido.source)
             }
 
             PackSet.NoPack -> _state.update {
@@ -240,7 +260,11 @@ class SearchViewModel(
         volverAModoNormal()
         source.value = pack
         _state.update { it.copy(activo = pack.metadata) }
-        // No se recalcula nada: las palabras del dia de todos los packs ya estan.
+        // No se recalcula nada para la PANTALLA: las palabras del dia de todos los packs ya
+        // estan. El tile si, porque muestra una sola y es la del activo -- dejarlo en el idioma
+        // anterior seria una palabra equivocada que nadie reporta, porque nadie abre un tile a
+        // proposito.
+        cachearLaSemanaDelTile(pack)
         recordar(packId)
     }
 
@@ -298,6 +322,7 @@ class SearchViewModel(
         }).take(HISTORIAL_MAX)
         guardarHistorial(visitas)
         _state.update { it.copy(historial = visibles(visitas)) }
+        avisarTiles()
     }
 
     private fun ofrecibles(todos: List<PackHandle>): List<PackHandle> {
@@ -335,6 +360,49 @@ class SearchViewModel(
      * Si un pack falla se queda sin palabra del dia y los demas siguen: una pantalla de inicio
      * incompleta es mejor que una que no carga.
      */
+    /**
+     * Deja escrita la semana de palabras del pack activo, para que el tile no tenga que abrirlo.
+     *
+     * **El tile no puede calcular esto.** `onTileRequest` corre en el hilo principal con 10 s de
+     * tope, y abrir un pack de 69 o 295 MB ahi esta fuera de discusion por contrato de la API,
+     * no por sospecha de rendimiento. Pero la palabra es determinista por (fecha, pack), asi que
+     * la app --que ya tiene el pack abierto-- puede adelantar los proximos dias y guardarlos.
+     *
+     * Siete dias y no uno: son las siete ventanas del `Timeline` que dejan que el renderer cambie
+     * de palabra a medianoche **sin un solo despertar del proceso**.
+     *
+     * No se rehace si la cache ya es de hoy y del mismo pack: eso la convierte en trabajo de una
+     * vez por dia en vez de una vez por arranque.
+     */
+    private fun cachearLaSemanaDelTile(activo: DictionarySource) {
+        val hoy = fechaDeHoy() ?: return
+        val packId = activo.metadata.packId
+        val (desde, cacheadas) = palabrasDeLaSemanaGuardadas()
+        if (desde == hoy && cacheadas.isNotEmpty() && cacheadas.all { it.packId == packId }) return
+
+        viewModelScope.launch {
+            val semana = mutableListOf<Visita>()
+            for (dia in 0 until ContenidoDeTiles.DIAS_CACHEADOS) {
+                val elegida = runCatching {
+                    PalabraDelDia.elegir(
+                        fecha = ContenidoDeTiles.sumarDias(hoy, dia) ?: return@launch,
+                        packId = packId,
+                        entradas = activo.metadata.entryCount,
+                        leer = { id -> activo.summary(id) },
+                    )
+                }.getOrNull() ?: return@launch
+                semana += Visita(
+                    packId = packId,
+                    entryId = elegida.entryId,
+                    headword = elegida.headword,
+                    partOfSpeech = elegida.partOfSpeech,
+                )
+            }
+            guardarPalabrasDeLaSemana(hoy, semana)
+            avisarTiles()
+        }
+    }
+
     private fun refrescarPalabrasDelDia(packs: List<DictionarySource>) {
         val fecha = fechaDeHoy() ?: return
         for (pack in packs) {
@@ -412,6 +480,7 @@ class SearchViewModel(
         }
         guardarFavoritos(favoritas)
         _state.update { it.copy(favoritos = favoritas) }
+        avisarTiles()
     }
 
     /** Cambia la escala del texto y la deja guardada. */
