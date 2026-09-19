@@ -579,8 +579,8 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
-**Estado.** Planificado, y **ya no espera al pack real: está pesado**. 72,2 MB contra un
-presupuesto blando de 50 (D-028). Sigue esperando el número de latencia de O-1 para saber qué
+**Estado.** Planificado. **68,1 MB** contra un presupuesto blando de 50 (D-028), después de la
+poda de D-116. Sigue esperando el número de latencia de O-1 para saber qué
 se puede sacrificar sin romper la búsqueda.
 
 **Dónde está el peso, medido** (desglose completo en `docs/formato-pack.md` §Presupuestos):
@@ -594,10 +594,25 @@ se puede sacrificar sin romper la búsqueda.
 
 **El recorte obvio no existe.** Las tres opciones abiertas de `docs/decisions.md`
 (`detail=none`, `columnsize=0`, bloques vs fila) juntas atacan el 13,8 % del pack; el 46,3 %
-está en una tabla que no se puede tocar sin romper la búsqueda por forma flexionada. Si 72 MB
-resulta inaceptable, la palanca real es **de producto, no de formato**: cuántas de las 146.194
-entradas se envían. Las 32.305 de `pos = name` (apellidos y topónimos, 22 % de las entradas) son
-el primer candidato a mirar, y nadie decidió todavía si un diccionario de muñeca las quiere.
+está en una tabla que no se puede tocar sin romper la búsqueda por forma flexionada.
+
+**La palanca de producto ya se tiró, y está decidida (D-116).** Lo que decía esta fila —*"las
+32.305 de `pos = name` son el primer candidato y nadie decidió si un diccionario de muñeca las
+quiere"*— quedó cerrado: **no las quiere**, salvo las que tienen vida léxica. Medido sobre los
+packs reconstruidos:
+
+| | Antes | Ahora | Δ |
+|---|---|---|---|
+| Español | 146.194 entradas · 72,2 MB | **114.620 · 68,1 MB** | −21,6 % entradas, −5,7 % bytes |
+| Inglés | 956.150 entradas · 295,1 MiB | **794.355 · 255,7 MiB** | −16,9 % entradas, **−13,4 % bytes** |
+
+**Y la lección es que en español la ganancia NO fue de bytes.** Los 32.305 nombres propios eran
+sólo 0,63 MB de payload: lo que se ganó fue dejar de devolver *"Apellido."* en el 22,1 % de los
+`norm`. En inglés sí fue de bytes además de ruido. El español subió 0,89 MB por los sinónimos
+(D-117), así que el neto es −4,1 MB.
+
+**Sigue sobre el presupuesto de 50 MB (D-028)** y el recorte grande que queda es el mismo de
+antes: `form`, que no se toca sin romper la búsqueda por flexión.
 
 **Con qué choca.** Con D-028 (50 MB blandos) y con las tres decisiones abiertas de
 `docs/decisions.md`. Ninguna se puede cerrar sin el número de latencia de O-1.

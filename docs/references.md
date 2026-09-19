@@ -160,6 +160,67 @@ Si una de esas entradas va a sostener una decisión, leé la fuente antes.
 
   Produjo: D-034. Dejó el presupuesto de D-028 sin respaldo.
 
+- **Las fuentes alternativas, evaluadas y rechazadas** — *(barrida completa, con medición
+  local sobre los dumps y los packs)*
+
+  **Por qué esta entrada existe:** el pedido fue *"comparar distintas fuentes de diccionarios de
+  definiciones en inglés y español"*, con dos síntomas — el español se siente incompleto, el
+  inglés trae nombres propios de más. **La conclusión fue que ninguna fuente alternativa mejora
+  lo que hay, y que los dos síntomas eran el mismo problema de poda.** Sin esto escrito, la
+  próxima sesión vuelve a bajar 1 GB para llegar acá.
+
+  ⚠️ **Corrección, y es la entrada más valiosa de esta página.** La primera pasada comparó
+  **totales** —118.458 lemas de enwiktionary §Spanish contra 113.889 nuestros— y concluyó *"cero
+  ganancia de cobertura"*. **Eso es una falacia**: dos conjuntos del mismo tamaño pueden no
+  solaparse. Medido de verdad, bajando el dataset y cruzando por `norm()`:
+
+  | | lemas |
+  |---|---|
+  | Sólo en el Wikcionario | 57.852 |
+  | En las dos fuentes | **46.326** (sólo el 44 %) |
+  | **Sólo en enwiktionary §Spanish** | **56.741** |
+  | Unión | **160.919** (+54 % sobre lo que hay) |
+
+  O sea que **la ganancia de cobertura existe y es grande**. Lo que la descarta es otra cosa:
+  **sus glosas no son definiciones, son traducciones al inglés**. Muestra real de lo que se
+  ganaría — *entretecho* → "loft; attic; garret", *triturador* → "shredder", *chilero* → "cool,
+  terrific", *regresor* → "regressor". Son **palabras españolas legítimas** (y hay 806 marcadas
+  de México, 756 de El Salvador), pero meterlas en el pack monolingüe pondría glosas inglesas en
+  un diccionario de español, contra D-034. **No es una fuente peor: es otro producto** — un pack
+  bilingüe es-en, que el esquema ya contempla (`kind`, la tabla `trans`).
+
+  **Lo que sí es aprovechable sin romper nada: los ejemplos de uso.** De los 46.326 lemas
+  compartidos, **38.306 no tienen ejemplo en el Wikcionario y 5.307 de ellos sí lo tienen en
+  enwiktionary** — y **están en español**, con la traducción inglesa en un campo `english`
+  aparte que se ignora: *"Lo acordaron por unanimidad."*, *"Reían y lloraban al mismo tiempo."*
+  Subiría los lemas compartidos de **17,3 % a 28,8 %** con ejemplo. Sigue pendiente porque el
+  riesgo no es la licencia (las dos son CC BY-SA 4.0) sino **a qué acepción se pega el ejemplo**:
+  cruzar por lema y no por acepción pone "Lo acordaron por unanimidad" en la acepción equivocada
+  de *acordar*, que es contenido incorrecto que parece correcto.
+
+  **La cobertura del español nunca fue el problema.** Una sonda de 70 palabras comunes, técnicas
+  y chilenismos (*pololear*, *cachai*, *flaite*, *marraqueta*, *luca*, *carrete*, *guagua*,
+  *teletrabajo*, *algoritmo*) da **70/70 presentes como entrada directa**; el inglés da 57/57.
+  El español tiene 6,5× menos entradas porque **el proyecto English Wiktionary es 6,5× más
+  grande**, no porque le falte vocabulario usable. Lo que se sentía era el ruido: **el 39,6 % de
+  las entradas no definía nada** en menos de 25 caracteres.
+
+  | Fuente | Licencia | Veredicto |
+  |---|---|---|
+  | **enwiktionary §Spanish** (kaikki, 1,04 GB) | CC BY-SA | **No como reemplazo ni como fusión.** Aportaría **56.741 lemas nuevos** (+54 %), pero con **glosas en inglés**: es un pack bilingüe, no una mejora del monolingüe (D-034). Sus **ejemplos en español** sí son aprovechables y quedan pendientes (D-122). |
+  | **RAE / DLE** | cerrada | **No.** Ya rechazada en D-031. Ver su entrada acá abajo. |
+  | **[Spanish WordNet / MCR 3.0](https://adimen.ehu.eus/web/MCR)** | CC BY 3.0 | **No.** Más chico que lo que hay y sus glosas españolas son escasas o heredadas del WordNet inglés. |
+  | **[DBnary](http://kaiko.getalp.org/about-dbnary/)** (Ontolex RDF) | CC BY-SA 3.0 | **No.** Es el **mismo Wiktionary** con otro extractor: cero contenido nuevo y un formato más caro de parsear que el JSONL. |
+  | **Wikidata Lexemes** | CC0 | **No.** Sense glosses ralas, sin masa crítica. |
+  | **[GCIDE 0.54](https://gcide.gnu.org.ua/) / Webster 1913** | GPL | **No.** ~130.000 headwords de inglés **de 1913**. Un diccionario de muñeca no puede definir *house* con una entrada victoriana. |
+  | **[Open English WordNet 2025](https://en-word.net/)** | **CC BY 4.0** | **La única alternativa real.** 120.068 synsets / 153.261 entradas, publicada 2025-12-31. Los nombres propios están **fuera por diseño**, en *Open English Namenet* / la edición `2025+`. WN-LMF XML de 10,8 MB comprimidos. Queda como spike pendiente, no descartada. |
+
+  **Qué confirma, y es lo que más vale:** que OEWN 2025 haya sacado los nombres propios a un
+  recurso aparte es la fuente de referencia del dominio llegando a la misma conclusión que
+  D-116.
+
+  Produjo: D-116, D-117, D-118, D-122.
+
 - **[Formatos de diccionario — GoldenDict](https://xiaoyifang.github.io/goldendict-ng/dictformats/)**
   — **ASSUMPTION**, de resumen. dictzip, StarDict, slob.
 

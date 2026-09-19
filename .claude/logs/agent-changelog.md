@@ -26,6 +26,133 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-19 — La fuente no era el problema: 26.265 entradas decían "Apellido."
+
+**Qué.** Se evaluaron las fuentes alternativas de diccionario para los dos idiomas y **ninguna
+reemplaza a la actual**. El trabajo terminó siendo de poda y de recuperar contenido que la
+fuente ya traía: los nombres propios salen de los packs, los sinónimos del Wikcionario entran, y
+Open English WordNet queda medido pero no adoptado. Después, a pedido, se revisó cobertura y
+calidad del español: se limpian las etiquetas de mantenimiento del wiki y queda medido --y
+pendiente-- el aporte de enwiktionary §Spanish. **D-116 a D-122.**
+
+**Áreas.** `tools/packbuilder/` (`sources/kaikki.py`, `sources/oewn.py` **nuevo**,
+`sources/toy.py`, `build.py`, `build_pack.py`, `payload.py`, `verify_pack.py`,
+`gen_payload_fixture.py`, `vectors/payload-fixture.tsv` regenerado, 4 archivos de tests),
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt` y `Model.kt`,
+`dict-core/src/test/kotlin/cl/fadiaz/dictionary/core/PayloadCodecTest.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PalabraDelDia.kt` (sólo KDoc),
+`app/src/test/java/cl/fadiaz/dictionary/presentation/PantallasTest.kt`,
+`dict-data/src/androidTest/assets/toy-es-en.db`,
+más `docs/decisions.md`, `docs/references.md`, `docs/roadmap.md`, `docs/formato-pack.md`.
+
+**Por qué.** Pedido: comparar fuentes de definiciones en inglés y español y evaluar si vale la
+pena cambiar, con dos síntomas — el español se siente incompleto, el inglés trae nombres propios
+de más.
+
+**Arquitectura.** ✅ Cumple. La poda sigue siendo **estructural**: se apoya en tags de
+wiktextract, no en texto de ningún idioma (D-076). El cambio de payload viaja en los dos
+lenguajes y la auditoría compara las constantes.
+
+**Medido.**
+- **Los dos síntomas eran el mismo bug, y no era de fuente.** **26.265 entradas del pack español
+  tenían como definición completa la palabra "Apellido."** — el 18 % del pack. El 39,6 % de las
+  entradas no definía nada en menos de 25 caracteres.
+- **En 4.267 `norm` del inglés el nombre propio le ganaba en rank a la palabra común.** Buscar
+  *freedom* devolvía primero *Freedom*, un *census-designated place* del condado de Santa Cruz.
+- **La cobertura del español nunca fue el problema**: 70/70 en una sonda con chilenismos
+  (*pololear*, *cachai*, *flaite*, *marraqueta*). El inglés, 57/57.
+- **enwiktionary §Spanish, el candidato obvio, no da nada**: 118.458 lemas contra las 113.889
+  entradas no-propias que ya había, y con glosas en inglés.
+- **Packs reconstruidos:** español 146.194 → **114.620 entradas**, 72,2 → **68,1 MB**. Inglés
+  956.150 → **794.355**, 295,1 → **255,7 MiB**. De los 29.599 `norm` que el español pierde, el
+  **90,4 % no definía nada**.
+- **Sinónimos:** 26.369 entradas (23,2 %) ganaron 71.609 sinónimos **por acepción**, por
+  **+0,89 MB** — tres veces mi estimación de 0,30, porque `fts_def` los indexa además del payload.
+- **Markup editorial fuera:** **665 → 0 acepciones** con `^([cita requerida])` /
+  `^([definición imprecisa])`. El pack pierde **exactamente una entrada**, `arterializar`, cuya
+  definición completa en el Wikcionario *es* la etiqueta — o sea que no tenía definición.
+- **La cobertura del español SÍ se puede ampliar, y me había equivocado al decir que no**: el
+  solapamiento con enwiktionary §Spanish es **sólo del 44 %** (46.326 lemas), y allá hay
+  **56.741 que acá no están** — unión de **160.919, +54 %**. No se fusiona igual, pero por otro
+  motivo: sus glosas son **traducciones al inglés**, no definiciones (*entretecho* → "loft;
+  attic; garret"). Eso es un pack bilingüe, no una mejora del monolingüe.
+- **Lo aprovechable de esa fuente son los ejemplos, y están en español**: 5.307 entradas que hoy
+  no tienen ejemplo lo tendrían (17,3 % → 28,8 % sobre los lemas compartidos).
+- **Spike OEWN:** 135.969 entradas en **38,4 MiB** (6,7× menos que Wiktionary podado), build en
+  17,9 s, **70,8 % de entradas con sinónimos**. Pero **64 % en una sonda dura de 39 palabras**
+  contra 100 %: no tiene *selfie*, *blockchain*, *deepfake*, *ghosting*, *burnout*,
+  *mitochondria*. Por eso no reemplaza.
+
+**Qué salió mal.**
+- **La poda por `pos = name` a secas se llevaba puesto "January".** Los meses en inglés son
+  nombres propios y **6 de los 12 desaparecieron** — lo agarró la sonda de vocabulario, no el
+  gate ni `verify_pack.py`, que daban verde sobre un pack sin *january*. Hubo que volver a
+  preguntar y agregar una excepción por señal léxica (`translations + descendants + derived`).
+  **La lección: la sonda de vocabulario encontró lo que 119 tests no vieron.**
+- **Afirmé en el plan que "buscar *bobo* encontraría *chulengo*" y era inventado.** El registro
+  real de `chulengo [adj] "Tonto."` **no tiene sinónimos**. El mecanismo funciona —lo prueban
+  *domingo*, *tonto*, *casa*, *pololear*— pero el ejemplo estaba sacado de la nada. De rebote
+  apareció algo mejor: *chulengo* **se lista a sí mismo** como sinónimo, que es justo lo que el
+  guard del lema ataja.
+- **Estimé el costo de los sinónimos en 0,30 MB y fueron 0,89.** Me olvidé de que entran a
+  `fts_def` además del payload, que es media razón del cambio.
+- **Dije que no había que subir `CODEC_ID`** para no forzar a redescargar 364 MiB. Falso en el
+  sentido que importa: no hay instalador, los packs se sideloadean, y el costo real son 3 min
+  38 s de `adb`. Se subió a `deflate-v2`, y lo que quedó escrito es la contracara (D-119).
+- **El primer `sed` que usé para comprobar que un test fallaba fue un no-op** y el test "pasó"
+  con la clave borrada. Lo rehíce en Python y ahí sí falló. Es exactamente por qué hay que
+  **mirar fallar** en vez de asumir que falló.
+- **El spike de OEWN hizo saltar el guard de colisión de `uid` dos veces**: `pate` (dos
+  `LexicalEntry` sin nada que las separe) y `green` (porque `a` y `s` —adjetivo satélite—
+  mapean los dos a `adj`, y yo contaba duplicados por el `pos` crudo). Que abortara fue correcto
+  las dos veces.
+- **Afirmé "cero ganancia de cobertura" comparando totales, y es una falacia.** Dije que
+  enwiktionary §Spanish no aportaba nada porque tiene 118.458 lemas contra nuestros 113.889 —
+  pero **dos conjuntos del mismo tamaño pueden no solaparse**. Bajando el GB y cruzando de
+  verdad, el solapamiento es del 44 % y hay 56.741 lemas nuevos. La conclusión final no cambió,
+  pero **el razonamiento que la sostenía estaba mal**, y quedó corregido en `docs/references.md`
+  con la tabla del cruce.
+- **El primer filtro de markup que se me ocurrió habría destruido contenido.** `^(...)` a secas
+  parece markup, pero en inglés es **superíndice matemático**: `10^(100)`, `e^(iπ)`. Lo agarró
+  mirar las 775 ocurrencias del dump en vez de las 6 de la muestra. El filtro exige corchetes.
+- **Armando los commits, un `git add -A` se llevó el spike de OEWN adentro del commit de la
+  poda.** Los dos archivos de `sources/oewn.py` terminaron en un commit que no los nombra. Lo
+  agarró revisar `git show --stat` antes de seguir, no el gate — un commit mal partido compila
+  igual. Se rehizo la historia con `reset --hard` + `checkout <sha> -- .` y `git add` explícito
+  por archivo. **Lección: `git add -A` no sirve cuando el trabajo se parte en commits**, porque
+  barre lo que todavía no le toca.
+- **La primera verificación de los cinco commits dio un falso rojo.** El loop contaba líneas con
+  `grep -c FAILED` en vez de mirar el exit code, y el commit de documentación salió "ROJO"
+  siendo verde. Se rehízo con `exit=$?`: los cinco dan 0 en worktree limpio.
+- **El máximo de decisiones era D-115, no D-110.** Dos commits de otra sesión habían entrado
+  mientras planificaba; el brief del arranque ya estaba vencido.
+
+**Qué quedó sin hacer.**
+- **Los packs reales no se instalaron en el reloj.** Están construidos y verificados en el
+  scratchpad, no en `wearos-dictionary-data/`. Los tres del reloj tienen `deflate-v1` y la app
+  nueva **los va a rechazar** con `IncompatibleException`: hay que reconstruir y re-sideloadear
+  **antes de probar nada en el dispositivo**.
+- **El orden de resultados sigue sin arreglar.** Buscar un sinónimo **encuentra** la entrada
+  pero la ordena por el proxy de `rank` (D-067): *bobo* devuelve 42 entradas y las útiles no
+  están arriba. La poda sacó 22 % de ruido pero no recalibró nada, y `cas` sigue devolviendo
+  *castigar* antes que *casa*.
+- **Los ejemplos de uso del español siguen en 8,7 %** contra 29,6 % del inglés. La única fuente
+  sería enwiktionary §Spanish —cuyos ejemplos **sí están en español**— y es una segunda fuente y
+  una segunda licencia.
+- **El 28,0 % del pack español sigue siendo entradas de una sola palabra**, y los sinónimos sólo
+  alcanzaron al 6,8 % de ellas.
+- **Los 2.204 subíndices de referencia cruzada siguen** (*"semejanza a un guanaco₁"*): son
+  válidos como texto pero en un reloj no hay ningún *guanaco₁* al que ir.
+- **Los ejemplos de enwiktionary §Spanish no se integraron** (D-122). El dataset quedó bajado en
+  `wearos-dictionary-data/es-en-wikt.jsonl`, 1,04 GB, para que la próxima sesión no lo repita.
+  Lo que falta diseñar es **a qué acepción se pega cada ejemplo**: por lema es contenido
+  incorrecto que parece correcto.
+- **La excepción léxica cuela ~350 nombres de pila españoles** (*Jorge*, *María*): 0,3 % del
+  pack, aceptado a cambio de recuperar *España*, *Chile*, *México*.
+- **El pack `en-core` de OEWN no está decidido.** El spike entregó el número; si prospera, lo
+  bloquea "dos packs del mismo idioma se pisan", que necesita `SearchRepository`.
+
 ## 2026-09-18 — Los 364 MiB entran, y el inglés llegó al reloj a la tercera
 
 **Qué.** Se subieron los tres packs y la app al reloj físico (SM-L715F, API 37).
