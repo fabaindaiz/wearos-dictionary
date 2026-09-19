@@ -12,26 +12,28 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault">
+        <!--
+          Dos tiles, y NINGUNO declara androidx.wear.tiles.GROUP: el javadoc dice que "tile
+          providers in the same group represent the same tile on the device", y el default del
+          grupo es el nombre de la clase. Declararlo los fundiria en uno solo.
+        -->
         <service
-            android:name=".complication.MainComplicationService"
+            android:name=".tile.HistorialTileService"
             android:exported="true"
-            android:label="@string/complication_label"
-            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            android:label="@string/tile_historial_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
-                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
 
             <meta-data
-                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
-                android:value="SHORT_TEXT" />
-            <meta-data
-                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
-                android:value="3600" />
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
         </service>
         <service
-            android:name=".tile.MainTileService"
+            android:name=".tile.PalabraTileService"
             android:exported="true"
-            android:label="@string/tile_label"
+            android:label="@string/tile_palabra_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />

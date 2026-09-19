@@ -153,6 +153,30 @@ object PackStore {
         prefs(context).edit().putString(CLAVE_FAVORITOS, serializarVisitas(visitas)).apply()
     }
 
+    /**
+     * La semana de palabras del dia que los tiles leen, y desde que fecha corre.
+     *
+     * Existe porque **un tile no puede calcularla**: `onTileRequest` corre en el hilo principal
+     * con 10 s de tope, y abrir un pack de decenas o cientos de MB ahi esta descartado por
+     * contrato de la API. La app, que ya lo tiene abierto, la adelanta y la deja escrita.
+     *
+     * Mismo codec que el historial y las guardadas (D-102): es la misma forma de dato y un
+     * segundo formato es un segundo formato que puede divergir. La fecha va en su propia clave
+     * en vez de como quinto campo, justamente para no tocar ese codec.
+     */
+    fun palabrasDeLaSemana(context: Context): Pair<String?, List<Visita>> {
+        val prefs = prefs(context)
+        return prefs.getString(CLAVE_PALABRAS_DESDE, null) to
+            parsearVisitas(prefs.getString(CLAVE_PALABRAS, null).orEmpty())
+    }
+
+    fun recordarPalabrasDeLaSemana(context: Context, desde: String, palabras: List<Visita>) {
+        prefs(context).edit()
+            .putString(CLAVE_PALABRAS_DESDE, desde)
+            .putString(CLAVE_PALABRAS, serializarVisitas(palabras))
+            .apply()
+    }
+
     /** Los ajustes. Igual que el historial: la politica vive arriba, aca solo se serializa. */
     fun ajustes(context: Context): Ajustes =
         parsearAjustes(prefs(context).getString(CLAVE_AJUSTES, null).orEmpty())
@@ -168,6 +192,8 @@ object PackStore {
     private const val CLAVE_HISTORIAL = "historial"
     private const val CLAVE_AJUSTES = "ajustes"
     private const val CLAVE_FAVORITOS = "favoritos"
+    private const val CLAVE_PALABRAS = "palabras_semana"
+    private const val CLAVE_PALABRAS_DESDE = "palabras_desde"
 
 
     /**
