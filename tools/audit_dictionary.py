@@ -404,6 +404,8 @@ def check_app_logic_is_jvm_testable(report):
                      "data", "PalabraDelDia.kt"),
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "data", "Ajustes.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "tile", "TileContenido.kt"),
     )
     for relativo in vigilados:
         path = os.path.join(ROOT, relativo)
@@ -424,6 +426,42 @@ def check_app_logic_is_jvm_testable(report):
                         "dispositivo: lo que necesite Android tiene que entrar por parametro, "
                         "como `abrirPack` (D-072)." % (relativo, number),
                     )
+
+
+def check_tiles_dont_open_packs(report):
+    """Regla: ningun Tile abre un pack. (D-042, y el contrato de onTileRequest)
+
+    No es una precaucion de rendimiento --que sin medir estaria prohibida-- sino el contrato de
+    la API: `onTileRequest` esta anotado @MainThread y "must complete after at most 10 seconds".
+    Abrir un pack de 69 o 295 MB ahi esta descartado por escrito.
+
+    El diseno lo evita leyendo SharedPreferences, pero nada lo impedia: un TileService no tiene
+    `onCleared`, asi que un pack abierto desde ahi se filtra --un handle nativo de SQLite y un
+    dispatcher de un hilo-- por toda la vida del proceso, y en silencio.
+    """
+    prohibidos = ("PackStore.open", "PackFile.", "SqlitePackSource")
+    carpeta = os.path.join(ROOT, "app", "src", "main", "java", "cl", "fadiaz", "dictionary", "tile")
+    if not os.path.isdir(carpeta):
+        report.failure(
+            "el paquete de tiles no existe",
+            "Si se movio, mover tambien este check: sin el, un tile puede abrir un pack de "
+            "295 MB en el hilo principal y nadie lo nota hasta que el reloj se traba.",
+        )
+        return
+    for nombre in sorted(os.listdir(carpeta)):
+        if not nombre.endswith(".kt"):
+            continue
+        with open(os.path.join(carpeta, nombre), encoding="utf-8") as handle:
+            for number, line in enumerate(handle, start=1):
+                code = line.split("//")[0]
+                for aguja in prohibidos:
+                    if aguja in code:
+                        report.failure(
+                            "un tile abre un pack",
+                            "tile/%s:%d menciona %s. onTileRequest corre en el hilo principal "
+                            "con 10 s de tope: lo que el tile necesite tiene que dejarlo escrito "
+                            "la app." % (nombre, number, aguja),
+                        )
 
 
 def check_attribution_screen(report):
@@ -654,6 +692,7 @@ CHECKS = [
     check_forbidden_mirror,
     check_module_direction,
     check_app_logic_is_jvm_testable,
+    check_tiles_dont_open_packs,
     check_attribution_screen,
     check_release_signing,
     check_app_version,
