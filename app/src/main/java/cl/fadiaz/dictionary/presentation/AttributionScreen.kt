@@ -22,6 +22,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.etiquetaDeTipo
 
 /**
  * La atribucion, y **no es opcional** (D-031).
@@ -53,10 +54,24 @@ fun AttributionScreen(packs: List<PackHandle>, problemas: List<String> = emptyLi
                 val meta = handle.metadata
                 item {
                     Text(
-                        text = meta.name,
+                        text = "${meta.name} · ${etiquetaDeTipo(meta.kind)}",
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     )
+                }
+                // **Aca** van los detalles que se sacaron del nombre (D-125): esta es la
+                // pantalla que se abre para leer, no una fila de lista que hay que scrollear.
+                // Null en un pack anterior a D-125, y entonces no se dibuja nada.
+                meta.description?.let { descripcion ->
+                    item {
+                        Text(
+                            text = descripcion,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        )
+                    }
                 }
                 item {
                     Text(

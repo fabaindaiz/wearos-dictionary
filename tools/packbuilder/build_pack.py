@@ -35,6 +35,12 @@ from build import PackBuilder
 # D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
 # son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
 #
+# `name` es CORTO y `description` lleva el texto largo (D-125). El nombre se muestra en una
+# fila de reloj --en el selector del inicio, en la pantalla de diccionarios, en el dialogo de
+# borrar y en la atribucion-- y "Español - definiciones" son 22 caracteres: se cortaba en los
+# cuatro. Lo que el nombre largo decia --que trae definiciones-- sale ahora de `kind`, que es un
+# dato y no una cadena que alguien tiene que leer.
+#
 # `proper_nouns` declara la politica de contenido del pack (D-116). Se escribe en `meta` el
 # valor EFECTIVO, no el declarado: meta tiene que decir que paso, no que se pretendia.
 #
@@ -49,7 +55,11 @@ PACKS = {
     "es": {
         "pack_id": "es-def-wikc",
         "kind": "monolingual",
-        "name": "Español — definiciones",
+        "name": "Español",
+        "description": (
+            "Definiciones en español del Wikcionario, sin nombres propios. "
+            "Incluye sinónimos por acepción."
+        ),
         "lang_src": "es",
         "fuzzy_profile": "es",
         "data_version": "20260915",
@@ -64,7 +74,11 @@ PACKS = {
     "en": {
         "pack_id": "en-def-wikt",
         "kind": "monolingual",
-        "name": "English — definitions",
+        "name": "English",
+        "description": (
+            "English definitions from Wiktionary, proper nouns pruned. "
+            "Includes synonyms per sense."
+        ),
         "lang_src": "en",
         "fuzzy_profile": "en",
         "data_version": "20260909",
@@ -81,7 +95,8 @@ PACKS = {
     "en-core": {
         "pack_id": "en-core-oewn",
         "kind": "monolingual",
-        "name": "English — core (spike)",
+        "name": "English core",
+        "description": "Spike: Open English WordNet 2025. Not a production pack (D-120).",
         # `lang_src` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
         # igual al pack de kaikki es lo unico que deja comparable la identidad logica de las
         # dos fuentes si algun dia se quieren cruzar.

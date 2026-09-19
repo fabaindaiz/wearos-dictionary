@@ -340,6 +340,17 @@ private fun Acepcion(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
+        // Los antonimos, debajo y con el mismo peso visual (D-126). El prefijo NO es opcional y
+        // no puede parecerse a "sin.": las dos listas se ven igual y la unica diferencia entre
+        // "otra forma de decirlo" y "lo contrario" son esas cuatro letras.
+        if (sense.antonyms.isNotEmpty()) {
+            Text(
+                text = "ant. " + sense.antonyms.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
+            )
+        }
     }
 }
 

@@ -40,6 +40,7 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.enTamanoLegible
+import cl.fadiaz.dictionary.data.etiquetaDeTipo
 
 /**
  * Gestion de diccionarios: cuales estan, cual se usa, cuanto ocupan y como sacarlos.
@@ -80,9 +81,10 @@ fun PacksScreen(
                 val pack = instalados[indice]
                 FilaDePack(
                     nombre = pack.metadata.name,
-                    // Tamaño Y idioma: el nombre viene de adentro del pack y no siempre dice de
-                    // que idioma es, y el idioma es lo que distingue dos diccionarios parecidos.
-                    detalle = "${enTamanoLegible(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
+                    // Tipo, tamaño e idioma. El tipo entro con D-125: el nombre paso a ser
+                    // corto --"Español"-- y lo que decia la otra mitad sale ahora de `kind`.
+                    detalle = "${etiquetaDeTipo(pack.metadata.kind)} · " +
+                        "${enTamanoLegible(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
                     activo = pack.packId == activo,
                     onActivar = { onActivar(pack.packId) },
                     // El de demostracion no se puede borrar: volveria solo.

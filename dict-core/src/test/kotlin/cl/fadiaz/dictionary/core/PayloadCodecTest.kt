@@ -112,6 +112,46 @@ class PayloadCodecTest {
     }
 
     @Test
+    fun `una acepcion se queda con sus antonimos y no con los de la siguiente`() {
+        // Mismo modo de falla que los sinonimos, con peor consecuencia: un antonimo mal
+        // atribuido no se lee como raro, se lee como lo contrario de otra cosa.
+        val body = PayloadCodec.parse("S\tuna\nA\tfrio\nS\totra\nA\tlento\n")
+        assertEquals(listOf("frio"), body.senses[0].antonyms)
+        assertEquals(listOf("lento"), body.senses[1].antonyms)
+    }
+
+    @Test
+    fun `un antonimo antes de la primera acepcion no tiene donde colgar`() {
+        val body = PayloadCodec.parse("A\thuerfano\nS\tla acepcion\n")
+        assertEquals(1, body.senses.size)
+        assertEquals(emptyList<String>(), body.senses[0].antonyms)
+    }
+
+    @Test
+    fun `sinonimos y antonimos no se mezclan`() {
+        // El tag es lo unico que los separa, y confundirlos invierte el significado.
+        val body = PayloadCodec.parse("S\tcaliente\nY\tardiente\nA\tfrio\n")
+        assertEquals(listOf("ardiente"), body.senses[0].synonyms)
+        assertEquals(listOf("frio"), body.senses[0].antonyms)
+    }
+
+    @Test
+    fun `el fixture trae un caso con antonimos, y no los confunde con sinonimos`() {
+        // El fixture es lo unico que comprueba que java.util.zip descomprima exactamente lo que
+        // zlib comprimio. Un caso con los dos tags CRUZADOS es lo que detecta un parser que
+        // confunde 'Y' con 'A' -- y confundirlos no da un resultado raro, da el inverso.
+        val fixture = loadFixture()
+        val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
+        val conAmbos = bodies.flatMap { it.senses }
+            .filter { it.synonyms.isNotEmpty() && it.antonyms.isNotEmpty() }
+        assertTrue(conAmbos.isNotEmpty(), "el fixture no trae ninguna acepcion con los dos tags")
+        assertTrue(
+            conAmbos.none { sense -> sense.synonyms.any { it in sense.antonyms } },
+            "hay un termino que figura como sinonimo Y antonimo de la misma acepcion",
+        )
+    }
+
+    @Test
     fun `el fixture trae un caso con sinonimos`() {
         // Sin esto, el espejo Python-Kotlin del tag Y no estaria verificado contra bytes
         // reales: los dos tests de arriba solo prueban el parser de este lado.

@@ -28,7 +28,25 @@ data class PackMetadata(
     val schemaVersion: Int,
     val normVersion: Int,
     val kind: PackKind,
+    /**
+     * El nombre CORTO, para una fila de reloj. "Español", no "Español - definiciones".
+     *
+     * Medido a ojo sobre el reloj: en la fila de la pantalla de diccionarios, despues del check
+     * reservado, los paddings y el boton de borrar, al nombre le quedan ~140 dp. "Español -
+     * definiciones" son 22 caracteres y se cortaba en los cuatro lugares donde se muestra. Lo
+     * que el nombre largo decia --que trae definiciones-- ahora sale de [kind], que es un dato
+     * y no una cadena que hay que leer.
+     */
     val name: String,
+    /**
+     * El texto largo, para la pantalla de atribucion. Null en un pack anterior a D-125.
+     *
+     * Opcional a proposito: se lee con `meta[...]` y no con `getValue`, asi que un pack viejo
+     * sigue abriendo. El formato no tiene migraciones (D-001) pero eso aplica a
+     * `schema_version`; una clave nueva y aditiva es justo lo que la tolerancia existe para
+     * soportar.
+     */
+    val description: String?,
     val langSource: String,
     val langTarget: String?,
     val fuzzyProfile: FuzzyProfile,
@@ -104,13 +122,24 @@ data class Sense(
      * La distincion importa: "domingo" tiene `mesada, paga` en una acepcion y `pollerudo,
      * calzonazos` en otra. Juntos no significan nada.
      *
-     * Solo los packs en español los traen: el dump ingles no marca a que acepcion pertenece
-     * cada sinonimo, asi que no hay forma honesta de atribuirlos.
+     * **Los dos idiomas los traen** (D-124). El español los declara con `sense_index` y el
+     * ingles los sirve anidados dentro de cada acepcion; las dos formas dan la misma atribucion.
      *
      * Va ultimo a proposito: los diez call sites existentes son posicionales de tres argumentos
      * o menos, y asi compilan sin tocarse.
      */
     val synonyms: List<String> = emptyList(),
+    /**
+     * Antonimos de ESTA acepcion (D-126).
+     *
+     * Misma regla que [synonyms] y **peor consecuencia si se atribuye mal**: un sinonimo en la
+     * acepcion equivocada se lee como raro, un antonimo se lee como lo contrario de otra cosa.
+     *
+     * A diferencia de los sinonimos, **no entran a `fts_def`**: buscar "frio" para encontrar
+     * "caliente" no es lo que nadie hace, y meterlos al indice de texto libre solo agregaria
+     * ruido a una busqueda que ya tiene el orden como deuda abierta (D-067).
+     */
+    val antonyms: List<String> = emptyList(),
 )
 
 /** El cuerpo completo de una entrada, tal como sale del payload descomprimido. */

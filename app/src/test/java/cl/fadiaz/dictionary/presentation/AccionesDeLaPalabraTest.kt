@@ -30,6 +30,8 @@ class AccionesDeLaPalabraTest {
                 normVersion = 2,
                 kind = kind,
                 name = "Diccionario $id",
+                // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+                description = null,
                 langSource = "es",
                 langTarget = if (kind == PackKind.BILINGUAL) "en" else null,
                 fuzzyProfile = FuzzyProfile.SPANISH,

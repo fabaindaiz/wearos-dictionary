@@ -23,9 +23,9 @@ class RenderParseTest(unittest.TestCase):
     def test_round_trip(self):
         senses = [
             {"gloss": "primera", "examples": ["ej uno"], "translations": ["first"],
-             "synonyms": ["bobo", "zonzo"]},
+             "synonyms": ["bobo", "zonzo"], "antonyms": ["listo"]},
             {"gloss": "segunda", "examples": [], "translations": ["second", "other"],
-             "synonyms": []},
+             "synonyms": [], "antonyms": []},
         ]
         text = payload.render("verb", senses)
         pos, parsed = payload.parse(text)
@@ -63,6 +63,31 @@ class RenderParseTest(unittest.TestCase):
         _pos, senses = payload.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
         self.assertEqual(["bobo"], senses[0]["synonyms"])
         self.assertEqual(["listo"], senses[1]["synonyms"])
+
+    def test_los_antonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
+        # Mismo modo de falla que los sinonimos y peor consecuencia: un antonimo mal atribuido
+        # no se lee como "raro", se lee como lo contrario de otra cosa.
+        _pos, senses = payload.parse("S\tuna\nA\tfrio\nS\totra\nA\tlento\n")
+        self.assertEqual(["frio"], senses[0]["antonyms"])
+        self.assertEqual(["lento"], senses[1]["antonyms"])
+
+    def test_los_antonimos_antes_de_la_primera_acepcion_se_ignoran(self):
+        _pos, senses = payload.parse("A\tsin acepcion\nS\tla acepcion\n")
+        self.assertEqual(1, len(senses))
+        self.assertEqual([], senses[0]["antonyms"])
+
+    def test_sinonimos_y_antonimos_no_se_mezclan(self):
+        # El tag es lo unico que los separa, y confundirlos invierte el significado.
+        _pos, senses = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\n")
+        self.assertEqual(["ardiente"], senses[0]["synonyms"])
+        self.assertEqual(["frio"], senses[0]["antonyms"])
+
+    def test_render_y_parse_conservan_los_antonimos(self):
+        texto = payload.render("adj", [
+            {"gloss": "caliente", "synonyms": ["ardiente"], "antonyms": ["frio", "helado"]},
+        ])
+        _pos, senses = payload.parse(texto)
+        self.assertEqual(["frio", "helado"], senses[0]["antonyms"])
 
     def test_unknown_tags_are_ignored(self):
         # Compatibilidad hacia adelante con un builder mas nuevo.

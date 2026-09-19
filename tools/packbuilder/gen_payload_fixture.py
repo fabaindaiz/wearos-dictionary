@@ -48,6 +48,18 @@ CASES = [
     ]),
     # Los sinonimos van POR ACEPCION (D-117). El caso trae dos acepciones con sinonimos
     # distintos a proposito: es lo unico que detecta un parser que los atribuye mal.
+    # Los antonimos comparten el molde de los sinonimos pero NO el tag (D-126). El caso los
+    # trae JUNTOS y cruzados a proposito: es lo unico que detecta un parser que confunde "Y"
+    # con "A", y confundirlos no da un resultado raro sino uno invertido.
+    ("sinonimos y antonimos en la misma acepcion", "adjective", [
+        {"gloss": "de temperatura elevada",
+         "examples": ["el agua está caliente"],
+         "synonyms": ["ardiente", "tórrido"],
+         "antonyms": ["frío", "gélido"]},
+        {"gloss": "enojado",
+         "synonyms": ["furioso"],
+         "antonyms": ["calmado"]},
+    ]),
     ("sinonimos por acepcion", "noun", [
         {"gloss": "paga semanal que recibe un menor",
          "synonyms": ["mesada", "paga"]},

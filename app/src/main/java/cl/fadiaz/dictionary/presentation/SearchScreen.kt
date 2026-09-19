@@ -49,6 +49,7 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.etiquetaDeTipo
 import cl.fadiaz.dictionary.data.Visita
 
 /**
@@ -191,7 +192,10 @@ fun SearchScreen(
                             // la palabra del dia, asi que repetirlo aca gastaba un renglon.
                             PalabraDelDiaDeHoy(
                                 palabra = palabra,
-                                subtitulo = handle.metadata.name,
+                                // Nombre corto Y tipo: desde D-125 el nombre es solo "Español",
+                                // asi que sin la etiqueta no se sabe que clase de diccionario es.
+                                subtitulo = "${handle.metadata.name} · " +
+                                    etiquetaDeTipo(handle.metadata.kind),
                             ) { onOpenPalabraDelDia(handle.packId, palabra) }
                         }
                     }

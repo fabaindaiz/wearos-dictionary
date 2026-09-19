@@ -118,6 +118,9 @@ class PackFile private constructor(
             normVersion = meta.getValue("norm_version").toInt(),
             kind = PackKind.fromId(meta.getValue("kind")),
             name = meta.getValue("name"),
+            // `meta[...]` y no `getValue`: un pack construido antes de D-125 no la trae y
+            // tiene que seguir abriendo.
+            description = meta["description"],
             langSource = meta.getValue("lang_src"),
             langTarget = meta["lang_dst"],
             fuzzyProfile = FuzzyProfile.fromId(meta["fuzzy_profile"]),
