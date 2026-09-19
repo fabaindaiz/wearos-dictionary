@@ -19,6 +19,9 @@ import payload as payload_codec
 
 import build
 
+# Techo de la parte de nombres propios en un pack 'lexical-only'. Ver el check de estructura.
+PROPER_NOUN_SHARE_MAX = 0.05
+
 REQUIRED_META = (
     "attribution",
     "built_at",
@@ -34,7 +37,14 @@ REQUIRED_META = (
     "payload_codec",
     "payload_dict",
     "payload_dict_sha256",
+    # Que politica de contenido se aplico (D-111). Va en REQUIRED_META y no solo en el codigo
+    # porque el pack tiene que poder explicarse solo: sin esta clave nadie sabe si a un pack le
+    # faltan los nombres propios porque se decidio, o porque la fuente venia rota.
+    "proper_nouns",
     "schema_version",
+    # Estaba documentada en docs/formato-pack.md y NO estaba exigida: un pack sin source_url
+    # pasaba el validador y despues no habia como saber de que dump salio.
+    "source_url",
     "uid_recipe",
 )
 
@@ -113,6 +123,38 @@ def verify(path):
         not db.execute("SELECT 1 FROM sqlite_master WHERE name='staging'").fetchone(),
         "no quedo la tabla de staging",
     )
+
+    # La politica de contenido se comprueba contra el ARTEFACTO, no contra el flag que la pidio.
+    # Un flag mal cableado pasa los tests de la fuente y deja el pack con los nombres propios
+    # adentro igual; lo unico que lo agarra es contar filas en el pack terminado.
+    #
+    # Los DOS vocabularios de `pos`: kaikki emite "name", sources/toy.py emite "proper noun".
+    # Excluir uno solo deja pasar el otro, y ya paso una vez.
+    politica = meta.get("proper_nouns")
+    if politica in ("excluded", "lexical-only"):
+        propios = db.execute(
+            "SELECT COUNT(*) FROM entry WHERE pos IN ('name', 'proper noun')"
+        ).fetchone()[0]
+        filas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+        if politica == "excluded":
+            report.check(
+                propios == 0,
+                "meta.proper_nouns dice 'excluded' y no hay nombres propios (%d encontrados)"
+                % propios,
+            )
+        else:
+            # 'lexical-only' deja pasar los que tienen vida lexica: los meses, los paises, los
+            # idiomas. Aca no se puede recalcular esa señal --no tenemos el dump-- asi que se
+            # comprueba lo unico visible desde el pack: que sean una MINORIA. Medido: 0,2 % en
+            # ingles y 0,6 % en español, contra 17-22 % en un pack sin podar. El margen es tan
+            # ancho que el umbral no necesita calibracion fina; lo que caza es que la poda no
+            # haya corrido en absoluto.
+            share = propios / filas if filas else 0
+            report.check(
+                share < PROPER_NOUN_SHARE_MAX,
+                "meta.proper_nouns dice 'lexical-only' y son una minoria "
+                "(%d de %d, %.1f %%)" % (propios, filas, 100 * share),
+            )
 
     entry_count = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
     report.check(entry_count > 0, "hay entradas (%d)" % entry_count)

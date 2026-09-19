@@ -32,6 +32,8 @@ BASE_META = {
     "data_version": "1",
     "license": "CC0-1.0",
     "attribution": "test",
+    "source_url": "https://example.invalid/test",
+    "proper_nouns": "excluded",
 }
 
 
@@ -272,6 +274,101 @@ class IngestTest(BuilderTestCase):
         ):
             self.assertEqual(normalize.norm(headword), norm_key)
             self.assertEqual(normalize.fuzzy(headword, "es"), fuzzy_key)
+
+
+class PacksDeclaradosTest(unittest.TestCase):
+    """Todo pack declara su politica de contenido, y el validador la comprueba (D-111).
+
+    La regla se enforcea desde Python y no desde `audit_dictionary.py` porque aca se puede
+    **importar** `PACKS`; alla habria que leerlo con una regex sobre un dict, que se rompe sola
+    en cuanto alguien reordena el archivo.
+    """
+
+    def test_todo_pack_declara_su_politica_de_nombres_propios(self):
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import build_pack
+
+        for lang, metadata in build_pack.PACKS.items():
+            self.assertIn(
+                "proper_nouns", metadata,
+                "el pack %r no dice si trae nombres propios: meta tiene que decir que paso, "
+                "y un pack sin la clave no pasa verify_pack" % lang,
+            )
+            self.assertIn(metadata["proper_nouns"], ("excluded", "lexical-only", "included"))
+
+
+class PoliticaDeContenidoTest(BuilderTestCase):
+    """El validador comprueba el ARTEFACTO, no el builder.
+
+    Un flag mal cableado pasa los tests de la fuente --que le pasan el valor a mano-- y deja el
+    pack con los nombres propios adentro igual. Lo unico que lo agarra es contar filas en el
+    pack terminado.
+    """
+
+    def test_un_pack_que_dice_excluded_y_trae_nombres_propios_se_rechaza(self):
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "excluded"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("correr"))
+            builder.add(record("Troya", gloss="Apellido.", part_of_speech="name"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "verify_pack tiene que cazar un pack que se contradice")
+        self.assertIn("proper_nouns", salida.getvalue())
+
+    def test_los_dos_vocabularios_de_pos_cuentan(self):
+        """kaikki dice "name", el toy dice "proper noun". Excluir uno solo deja pasar el otro."""
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "excluded"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("correr"))
+            builder.add(record("Mexico", part_of_speech="proper noun"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "'proper noun' tambien es un nombre propio")
+
+    def test_lexical_only_acepta_unos_pocos_pero_no_un_pack_sin_podar(self):
+        """La excepcion de la señal lexica deja pasar 1.675 nombres propios en ingles (0,2 %).
+
+        El validador no puede recalcular la señal --no tiene el dump-- asi que comprueba lo que
+        si puede ver: que sean una minoria. Un pack sin podar tiene 17-22 %, asi que el margen
+        es enorme y el check igual caza el caso que importa (que la poda no corrio).
+        """
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "lexical-only"
+        with build.PackBuilder(self.path, metadata) as builder:
+            for i in range(50):
+                builder.add(record("comun%03d" % i))
+            builder.add(record("January", part_of_speech="name"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            self.assertEqual(0, verify_pack.verify(self.path), salida.getvalue())
+
+    def test_lexical_only_rechaza_un_pack_donde_la_poda_no_corrio(self):
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "lexical-only"
+        with build.PackBuilder(self.path, metadata) as builder:
+            for i in range(10):
+                builder.add(record("comun%03d" % i))
+            for i in range(10):
+                builder.add(record("Apellido%03d" % i, part_of_speech="name"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "50 % de nombres propios no es 'lexical-only'")
+        self.assertIn("proper_nouns", salida.getvalue())
+
+    def test_un_pack_que_los_declara_no_se_rechaza(self):
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "included"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("Troya", gloss="Apellido.", part_of_speech="name"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(0, codigo, salida.getvalue())
 
 
 class StructureTest(BuilderTestCase):

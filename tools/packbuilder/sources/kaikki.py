@@ -31,6 +31,14 @@ medir el dump, no de suponer:
    duplica lo que `fts_def` ya indexa mejor.
 3. **Etimologia, pronunciacion, categorias, silabeo y las relaciones lexicas se descartan.** No
    se muestran en un reloj y son la mayor parte del peso del dump.
+4. **Los nombres propios no entran** (D-111). No es que pesen --en español son 0,63 MB de
+   payload-- es que **diluyen**: 26.265 entradas cuya definicion completa es "Apellido.", y en
+   ingles 4.267 casos donde el toponimo le gana en rank a la palabra comun.
+
+   **Con una excepcion, y hubo que medirla para encontrarla**: podar por `pos = "name"` a secas
+   se llevaba puesto "January", porque los meses en ingles son nombres propios. Seis de los doce
+   desaparecian (los otros seis sobreviven por ser tambien verbo, modal o adjetivo: "march",
+   "may", "august"). Lo que salva al mes y no a la aldea es `SENAL_LEXICA_MINIMA`. Ver ahi.
 
 Los registros del mismo `word` vienen contiguos (medido: 0 bloques no contiguos en 400.000
 registros), asi que los homografos se detectan con un buffer local en vez de un mapa global.
@@ -40,6 +48,7 @@ Si la fuente algun dia dejara de agruparlos, el que avisa es el chequeo de ident
 
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,6 +60,20 @@ from build import Record  # noqa: E402
 # Los ejemplos entran al payload y ademas a fts_def, asi que pagan dos veces. Uno alcanza para
 # desambiguar una acepcion en una pantalla de reloj; el segundo ya no se ve sin scrollear.
 MAX_EXAMPLES_PER_SENSE = 1
+
+# Umbral de la excepcion a la poda de nombres propios (D-111).
+#
+# `pos = "name"` mete en la misma bolsa a "January" y a "Ivanivka", y la primera es vocabulario
+# mientras la segunda es una aldea de Cherkasy. Lo que las separa **sin mirar el texto** es
+# cuanta vida lexica tiene la palabra: traducciones a otros idiomas, descendientes y derivados.
+#
+# Medido sobre los dumps: January 69, February 50, Paris 172, Moscow 330, España 77, Chile 73 --
+# contra **0** de Hopewell (apellido) e Ivanivka (aldea). Con el umbral en 5 se conservan 1.675
+# entradas en ingles (1,0 % de los nombres propios) y 731 en español (2,3 %).
+#
+# Sigue siendo estructural: son campos que wiktextract emite igual en todos los dumps, no una
+# heuristica contra texto en un idioma. Ver el punto 4 del docstring del modulo.
+SENAL_LEXICA_MINIMA = 5
 
 # Techo del rank. La columna es "menor es mas comun" (schema.sql), asi que el rank se calcula
 # restando: una pagina rica queda cerca de 0, una pobre cerca del techo.
@@ -92,6 +115,22 @@ PERFILES = {
 }
 
 
+# Etiquetas de mantenimiento del wiki incrustadas en la glosa (D-121).
+#
+# wiktextract las deja adentro de `glosses` y **no hay version limpia**: `raw_glosses` es None
+# en todos los casos medidos. En español son 774 acepciones: 671 "[cita requerida]" y 103
+# "[definición imprecisa]". En un reloj, "Pene.^([cita requerida])" gasta media pantalla en
+# decirle al lector que un editor queria una fuente.
+#
+# **El patron exige los CORCHETES, y no es un detalle**: en ingles `^(...)` sin corchetes es
+# superindice matematico --10^(100), e^(iπ), 2^(2/r)-- y un filtro mas ancho destruiria
+# contenido en vez de limpiarlo. Con corchetes hay un solo caso en ingles, "[sic]".
+#
+# El punto opcional del final existe porque la fuente escribe "...los labios.^([cita
+# requerida])." y sacar solo el tag deja dos puntos seguidos.
+_MARKUP_EDITORIAL = re.compile(r"\s*\^\(\[[^\]]*\]\)\.?")
+
+
 def _gloss(sense):
     """La glosa de una acepcion.
 
@@ -100,7 +139,18 @@ def _gloss(sense):
     hija, que es peso pagado dos veces en el payload y en el indice.
     """
     glosses = [g.strip() for g in (sense.get("glosses") or []) if g and g.strip()]
-    return glosses[-1] if glosses else ""
+    if not glosses:
+        return ""
+    return _MARKUP_EDITORIAL.sub("", glosses[-1]).strip()
+
+
+def _senal_lexica(raw):
+    """Cuanta vida lexica tiene la palabra: traducciones + descendientes + derivados."""
+    return (
+        len(raw.get("translations") or [])
+        + len(raw.get("descendants") or [])
+        + len(raw.get("derived") or [])
+    )
 
 
 def _is_form_of(sense):
@@ -171,11 +221,15 @@ def _sense_key(raw, index, needs_key):
     return "%s#%d" % (title, index) if index else title or "#0"
 
 
-def _emit(group, inbound, perfil, sin_nombres):
+def _emit(group, inbound, perfil, con_nombres):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
-        if sin_nombres and raw.get("pos") == "name":
+        if (
+            not con_nombres
+            and raw.get("pos") == "name"
+            and _senal_lexica(raw) < SENAL_LEXICA_MINIMA
+        ):
             continue
         senses = _senses(raw)
         if not senses:
@@ -235,11 +289,20 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path, lang="es", sin_nombres=False):
+def records(path, lang="es", con_nombres=False):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
-    `sin_nombres` descarta `pos = "name"` (toponimos, apellidos). Existe para poder MEDIR cuanto
-    pesan: en español son el 22 % de las entradas pero solo 0,63 MB de payload.
+    **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres
+    de pila). Es una decision de producto, D-111, y el default vive aca --en la libreria-- y no
+    en el flag de la CLI, para que cualquier llamador nuevo la herede sin tener que pedirla.
+
+    Lo que se saca, medido: en español **32.305 entradas, el 22,1 %**, de las cuales **26.265
+    tienen como definicion completa la palabra "Apellido."**. En ingles **163.470, el 17,1 %**,
+    que ademas pesan **40,7 MB (13,8 % del pack)** y en **4.267 casos le ganan en rank a la
+    palabra comun**: buscar "freedom" devolvia primero un pueblo del condado de Santa Cruz.
+
+    `con_nombres=True` los trae de vuelta. Sigue existiendo porque es lo que produjo esos
+    numeros, y porque volver a medirlos contra un dump nuevo tiene que seguir siendo barato.
     """
     perfil = PERFILES[lang]
     inbound = _inbound_forms(path)
@@ -254,10 +317,10 @@ def records(path, lang="es", sin_nombres=False):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, sin_nombres):
+                for record in _emit(group, inbound, perfil, con_nombres):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound, perfil, sin_nombres):
+    for record in _emit(group, inbound, perfil, con_nombres):
         yield record

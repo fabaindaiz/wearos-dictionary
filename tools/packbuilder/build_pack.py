@@ -1,6 +1,6 @@
 """Construye un pack real monolingue desde un dump de kaikki.org.
 
-    python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--sin-nombres]
+    python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--con-nombres]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -17,9 +17,11 @@ deprecado). **Cual es cual es el error facil**, porque los tres existen y son da
     enwiktionary seccion Spanish da palabras españolas con glosa **en ingles**: eso es un pack
     BILINGUE y no lo construye este script.
 
-`--sin-nombres` descarta `pos = "name"`. No es una opcion de producto: existe para poder MEDIR
-cuanto pesan los toponimos y apellidos, que en español son el 22 % de las entradas pero solo
-0,63 MB de payload.
+**Los nombres propios no entran** (D-111): apellidos, toponimos y nombres de pila se descartan
+por defecto. `--con-nombres` los trae de vuelta y deja el pack marcado --`pack_id` sufijado y
+`meta.proper_nouns = "included"`-- porque sigue siendo la forma de MEDIR cuanto pesan contra un
+dump nuevo. Lo que se saca: 32.305 entradas en español (22,1 %, de las cuales 26.265 definen
+solamente "Apellido.") y 163.470 en ingles (17,1 %, 40,7 MB).
 """
 
 import hashlib
@@ -32,8 +34,13 @@ from build import PackBuilder
 
 # D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
 # son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
-# D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
-# son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
+#
+# `proper_nouns` declara la politica de contenido del pack (D-111). Se escribe en `meta` el
+# valor EFECTIVO, no el declarado: meta tiene que decir que paso, no que se pretendia.
+#
+# "lexical-only" y no "excluded" porque la poda tiene una excepcion medida: el nombre propio con
+# vida lexica --los meses, los paises, los idiomas-- se conserva. Ver SENAL_LEXICA_MINIMA en
+# sources/kaikki.py.
 #
 # `data_version` es la fecha del dump en AAAAMMDD, **entero**: la app le hace `.toInt()` al abrir
 # y un string revienta en el reloj (D-070). Ademas asi ordena, que es lo que un instalador
@@ -52,6 +59,7 @@ PACKS = {
             "Extracción: kaikki.org / wiktextract (Tatu Ylonen)."
         ),
         "source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
+        "proper_nouns": "lexical-only",
     },
     "en": {
         "pack_id": "en-def-wikt",
@@ -66,12 +74,10 @@ PACKS = {
             "Extraction: kaikki.org / wiktextract (Tatu Ylonen)."
         ),
         "source_url": "https://kaikki.org/dictionary/English/",
+        "proper_nouns": "lexical-only",
     },
 }
 
-_RESTO = {
-"source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
-}
 
 
 def _keep(headword, sample):
@@ -90,20 +96,23 @@ def main(argv):
     sample = 1
     if "--sample" in argv:
         sample = int(argv[argv.index("--sample") + 1])
-    sin_nombres = "--sin-nombres" in argv
+    con_nombres = "--con-nombres" in argv
 
     metadata = dict(PACKS[lang])
     if sample > 1:
         metadata["pack_id"] += "-sample%d" % sample
         metadata["name"] += " (piloto 1/%d)" % sample
-    if sin_nombres:
-        metadata["pack_id"] += "-sinnombres"
+    if con_nombres:
+        # El pack por defecto conserva el pack_id pelado: si cambiara, el `pack_activo`, el
+        # historial y los favoritos del reloj quedarian apuntando a un pack que ya no existe.
+        metadata["pack_id"] += "-connombres"
+        metadata["proper_nouns"] = "included"
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata) as builder:
-        for record in kaikki.records(source, lang, sin_nombres):
+        for record in kaikki.records(source, lang, con_nombres):
             if _keep(record.headword, sample):
                 builder.add(record)
 

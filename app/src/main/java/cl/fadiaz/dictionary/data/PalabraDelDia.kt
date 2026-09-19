@@ -46,12 +46,23 @@ internal object PalabraDelDia {
     /**
      * Los `pos` que nunca son palabra del dia.
      *
+     * **Esto ya NO es el mecanismo principal: es defensa en profundidad.** Desde D-111 los packs
+     * reales se construyen sin nombres propios, asi que en `es-def-wikc` y `en-def-wikt` este
+     * filtro no descarta nada. Se queda igual, y sacarlo seria un error, por tres razones:
+     *
+     *  - **un pack no se actualiza cuando se actualiza la app.** Los packs son artefactos
+     *    aparte, y el reloj puede tener instalado uno construido antes de D-111. Sin el filtro,
+     *    la palabra del dia se rompe ahi, en silencio;
+     *  - **el pack de juguete conserva nombres propios a proposito** (`sources/toy.py`) y es el
+     *    unico fixture vivo de esta rama;
+     *  - los afijos y las abreviaturas se van por otra razon y el builder **no** los saca:
+     *    "-ito" o "EE. UU." no son palabras que alguien quiera aprender hoy. O sea que este
+     *    conjunto no es un subconjunto de la poda del pack.
+     *
      * Estan los DOS nombres del mismo concepto --los packs de kaikki dicen `name`, el de juguete
      * dice `proper noun`-- y eso no es redundancia: excluir solo uno deja pasar nombres propios
-     * en el otro vocabulario, y un fixture de un solo pack no lo muestra.
-     *
-     * Los afijos y las abreviaturas se van por otra razon: "-ito" o "EE. UU." no son palabras que
-     * alguien quiera aprender hoy.
+     * en el otro vocabulario, y un fixture de un solo pack no lo muestra. `verify_pack.py`
+     * comprueba los dos por el mismo motivo.
      */
     private val POS_EXCLUIDOS = setOf(
         "name", "proper noun",
