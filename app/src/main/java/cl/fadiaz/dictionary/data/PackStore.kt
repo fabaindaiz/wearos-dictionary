@@ -8,45 +8,45 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * De donde salen los packs que la app abre.
+ * Where the packs the app opens come from.
  *
- * Todos viven en `filesDir/packs/`; lo que cambia es como llegaron:
+ * They all live in `filesDir/packs/`; what differs is how they got there:
  *
- *  - **El pack de demostracion** viaja en el APK y se extrae al primer arranque. Es chico y
- *    existe para que la app recien instalada tenga algo que mostrar.
- *  - **Los diccionarios de verdad** entran por `adb push` hoy, y por el instalador cuando
- *    exista. Los dos escriben en el mismo directorio, asi que la app no los distingue.
+ *  - **The demo pack** ships inside the APK and is extracted on first launch. It is small and
+ *    exists so a freshly installed app has something to show.
+ *  - **The real dictionaries** arrive through `adb push` today, and through the installer once
+ *    it exists. Both write into the same directory, so the app cannot tell them apart.
  *
- * POR QUE UN PACK DE DEMO Y NO EL DICCIONARIO ENTERO (D-071, D-081)
+ * WHY A DEMO PACK AND NOT THE WHOLE DICTIONARY (D-071, D-081)
  *
- * Un pack en el APK se duplica en disco: comprimido adentro y extraido afuera. Con el
- * diccionario real eso es inaceptable --el ingles son **295 MiB en disco, 185 MiB
- * comprimido**, y con los dos idiomas el APK se iba a ~270 MB, que por Bluetooth a un reloj no
- * es un detalle. Con un pack de demostracion de decenas de KB, el mismo costo es ruido.
+ * A pack inside the APK is duplicated on disk: compressed within and extracted without. With the
+ * real dictionary that is unacceptable --English is **295 MiB on disk, 185 MiB compressed**, and
+ * with both languages the APK went to ~270 MB, which over Bluetooth to a watch is not a detail.
+ * With a demo pack of tens of KB, that same cost is noise.
  *
- * Esa es toda la diferencia: no es el mecanismo, es el tamaño.
+ * That is the whole difference: it is not the mechanism, it is the size.
  */
 object PackStore {
 
-    /** Donde viven los packs instalados. Excluido del backup en `data_extraction_rules.xml`. */
+    /** Where installed packs live. Excluded from backup in `data_extraction_rules.xml`. */
     fun packsDir(context: Context): File = File(context.filesDir, "packs")
 
     /**
-     * Abre el pack, extrayendolo del asset si hace falta.
+     * Opens the pack, extracting it from the asset if needed.
      *
-     * `onExtracting` se llama antes de copiar, no mientras: la copia de 69 MB tarda y la
-     * pantalla tiene que poder decir por que esta esperando.
+     * `onExtracting` is called before copying, not during: the 69 MB copy takes a while and the
+     * screen has to be able to say why it is waiting.
      */
     /**
-     * Que assets hay que copiar a disco, y sobre todo **cuales no**.
+     * Which assets have to be copied to disk, and above all **which do not**.
      *
-     * Pura y sin `Context` para que se pueda testear en la JVM, igual que [instalarAtomico].
-     * Los casos que un `if (dir.isEmpty())` se come:
+     * Pure and free of `Context` so it can be tested on the JVM, same as [installAtomically].
+     * The cases an `if (dir.isEmpty())` swallows:
      *
-     *  - el pack de demo ya extraido no se vuelve a copiar en cada arranque;
-     *  - actualizar el APK con otra demo la extrae aunque ya haya diccionarios instalados;
-     *  - un `.db` puesto a mano con `adb push` no se toca, que es como entran hoy los packs de
-     *    verdad.
+     *  - the already extracted demo pack is not copied again on every launch;
+     *  - updating the APK with a different demo extracts it even with dictionaries installed;
+     *  - a `.db` pushed by hand with `adb push` is left alone, which is how the real packs get
+     *    here today.
      */
     internal fun missingFromDisk(assets: List<String>, installed: List<String>): List<String> {
         val alreadyOnDisk = installed.toSet()
@@ -54,10 +54,10 @@ object PackStore {
     }
 
     /**
-     * Extrae lo que falte del APK y abre todo lo que haya.
+     * Extracts whatever is missing from the APK and opens everything there is.
      *
-     * La extraccion es inmediata y no perezosa **porque el pack de demo es chico**: diferirla
-     * costaria una maquina de estados para ahorrar decenas de KB.
+     * The extraction is eager and not lazy **because the demo pack is small**: deferring it
+     * would cost a state machine to save tens of KB.
      */
     suspend fun open(
         context: Context,
@@ -78,8 +78,8 @@ object PackStore {
         val installed = installedPacks(dir)
         if (installed.isEmpty()) return@withContext PackSet.NoPack
 
-        // Los que vinieron del APK son de demostracion: se marcan para que no le ganen a un
-        // diccionario instalado.
+        // The ones that came from the APK are demos: they get marked so they cannot beat an
+        // installed dictionary.
         val fromAssets = packAssets(context).toSet()
         val opened = mutableListOf<PackHandle.Open>()
         val problems = mutableListOf<String>()
@@ -107,7 +107,7 @@ object PackStore {
         PackSet.Ready(chosen, opened, problems)
     }
 
-    /** El idioma elegido, para que el reloj abra el mismo diccionario que la ultima vez. */
+    /** The chosen language, so the watch opens the same dictionary as last time. */
     fun preferredPack(context: Context): String? =
         prefs(context).getString(KEY_PACK, null)
 
@@ -120,8 +120,8 @@ object PackStore {
             .getOrDefault(emptyList())
             .sorted()
 
-    /** El historial de entradas abiertas. La politica --dedupe, orden, tope-- vive en el
-     * ViewModel, que el gate ve; aca solo se serializa. */
+    /** The history of opened entries. The policy --dedupe, order, cap-- lives in the
+     * ViewModel, which the gate can see; here it is only serialised. */
     fun history(context: Context): List<Visit> =
         parseVisits(prefs(context).getString(KEY_HISTORY, null).orEmpty())
 
@@ -130,22 +130,22 @@ object PackStore {
     }
 
     /**
-     * Borra un pack del disco. **Irreversible**: reponerlo cuesta ~90 s por adb.
+     * Deletes a pack from disk. **Irreversible**: putting it back costs ~90 s over adb.
      *
-     * Recibe el nombre de archivo y no el `packId` a proposito: son cosas distintas, y deducir
-     * uno del otro borraria el archivo equivocado el dia que dejen de coincidir.
+     * It takes the file name and not the `packId` on purpose: they are different things, and
+     * deriving one from the other would delete the wrong file the day they stop matching.
      *
-     * NO cierra la conexion: eso es de quien la abrio y tiene que pasar **antes**. En Unix un
-     * archivo borrado con un descriptor abierto sigue ocupando el disco hasta que se cierre, y
-     * la app lo seguiria leyendo como si nada -- o sea, el usuario ve que borro y no se libero
-     * nada, que es peor que no poder borrar.
+     * It does NOT close the connection: that belongs to whoever opened it and has to happen
+     * **first**. On Unix a deleted file with an open descriptor keeps occupying the disk until
+     * it is closed, and the app would go on reading it as if nothing happened -- meaning the
+     * user sees a deletion and no space freed, which is worse than not being able to delete.
      */
     fun deletePack(context: Context, fileName: String): Boolean {
         val target = File(packsDir(context), fileName)
         return target.isFile && target.delete()
     }
 
-    /** Las palabras guardadas. Mismo codec que el historial: son la misma forma de dato. */
+    /** The saved words. Same codec as the history: they are the same shape of data. */
     fun favorites(context: Context): List<Visit> =
         parseVisits(prefs(context).getString(KEY_FAVORITES, null).orEmpty())
 
@@ -154,15 +154,15 @@ object PackStore {
     }
 
     /**
-     * La semana de palabras del dia que los tiles leen, y desde que fecha corre.
+     * The week of words of the day the tiles read, and the date it runs from.
      *
-     * Existe porque **un tile no puede calcularla**: `onTileRequest` corre en el hilo principal
-     * con 10 s de tope, y abrir un pack de decenas o cientos de MB ahi esta descartado por
-     * contrato de la API. La app, que ya lo tiene abierto, la adelanta y la deja escrita.
+     * It exists because **a tile cannot compute it**: `onTileRequest` runs on the main thread
+     * with a 10 s cap, and opening a pack of tens or hundreds of MB there is ruled out by the
+     * API contract. The app, which already has it open, precomputes it and leaves it written.
      *
-     * Mismo codec que el historial y las guardadas (D-102): es la misma forma de dato y un
-     * segundo formato es un segundo formato que puede divergir. La fecha va en su propia clave
-     * en vez de como quinto campo, justamente para no tocar ese codec.
+     * Same codec as the history and the saved words (D-102): it is the same shape of data and a
+     * second format is a second format that can diverge. The date goes in its own key instead of
+     * as a fifth field, precisely so that codec is left untouched.
      */
     fun weekWords(context: Context): Pair<String?, List<Visit>> {
         val prefs = prefs(context)
@@ -177,7 +177,7 @@ object PackStore {
             .apply()
     }
 
-    /** Los ajustes. Igual que el historial: la politica vive arriba, aca solo se serializa. */
+    /** The settings. Same as the history: the policy lives above, here it is only serialised. */
     fun settings(context: Context): Settings =
         parseSettings(prefs(context).getString(KEY_SETTINGS, null).orEmpty())
 
@@ -197,11 +197,11 @@ object PackStore {
 
 
     /**
-     * Todos los packs instalados, por nombre.
+     * Every installed pack, by name.
      *
-     * Antes esto devolvia **solo el primero**, y con dos packs eso escondia el español en
-     * silencio porque "en-..." ordena antes que "es-...". El orden sigue importando --dos
-     * arranques tienen que ver la misma lista-- pero ya no decide cual se abre.
+     * This used to return **only the first one**, and with two packs that hid Spanish in silence
+     * because "en-..." sorts before "es-...". The order still matters --two launches have to see
+     * the same list-- but it no longer decides which one opens.
      */
     internal fun installedPacks(dir: File): List<File> =
         dir.listFiles { f -> f.isFile && f.name.endsWith(".db") }
@@ -210,15 +210,15 @@ object PackStore {
             .orEmpty()
 
     /**
-     * Copia a un archivo temporal y recien al final lo renombra.
+     * Copies to a temporary file and only renames it at the very end.
      *
-     * El rename es lo que importa, y es lo unico que hace esto correcto: si la copia se corta a
-     * la mitad --se acaba el disco, el usuario mata la app-- lo que queda es un `.part`, no un
-     * `.db` a medio escribir. **Un pack truncado se abre sin error** y devuelve menos resultados
-     * de los que tiene, que es justamente el sintoma que este proyecto no puede observar.
+     * The rename is what matters, and it is the only thing that makes this correct: if the copy
+     * is cut in half --the disk fills up, the user kills the app-- what is left is a `.part`, not
+     * a half-written `.db`. **A truncated pack opens without error** and returns fewer results
+     * than it holds, which is exactly the symptom this project cannot observe.
      *
-     * Es `internal` y sin `Context` para que se pueda testear en la JVM: la atomicidad es una
-     * propiedad del sistema de archivos, no de Android.
+     * It is `internal` and free of `Context` so it can be tested on the JVM: atomicity is a
+     * property of the filesystem, not of Android.
      */
     internal fun installAtomically(input: InputStream, dir: File, name: String): File {
         val partial = File(dir, "$name.part")
@@ -229,7 +229,7 @@ object PackStore {
                 partial.outputStream().use { target -> from.copyTo(target, BUFFER) }
             }
         } catch (e: IOException) {
-            // Si no se borra, el proximo intento arranca con basura y encima ocupa disco.
+            // If it is not deleted, the next attempt starts on garbage and wastes disk too.
             partial.delete()
             throw e
         }
@@ -244,9 +244,9 @@ object PackStore {
         try {
             PackLoad.Ready(SqlitePackSource(PackFile.open(file.path)))
         } catch (e: PackFile.IncompatibleException) {
-            // El pack es de otra version del formato o de otras reglas de normalizacion.
-            // Devolveria MENOS resultados de los que tiene, en silencio: por eso se rechaza
-            // entero en vez de abrirse igual (D-001, D-006).
+            // The pack is from another format version or from other normalization rules. It
+            // would return FEWER results than it holds, in silence: that is why it is rejected
+            // whole instead of being opened anyway (D-001, D-006).
             PackLoad.Unusable("El diccionario no es compatible con esta versión. ${e.message}")
         } catch (e: Exception) {
             PackLoad.Unusable("El diccionario está dañado o incompleto. ${e.message}")
