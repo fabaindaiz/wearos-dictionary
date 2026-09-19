@@ -4,55 +4,57 @@ description: Medir rendimiento, latencia de búsqueda, arranque, tamaño de pack
 allowed-tools: Bash, Read, Write, Edit
 ---
 
-# Medir antes de optimizar
+# Measure before optimising
 
-En este repo **ningún presupuesto de rendimiento está medido**. Los cuatro de
-`docs/formato-pack.md` son objetivos escritos a priori. Hasta que haya números, cualquier
-afirmación sobre velocidad o tamaño es una intuición (D-042).
+> The `description` above stays in Spanish: those are the phrases **the user says**.
 
-## Primero: ¿emulador o reloj?
+In this repo **no performance budget is measured**. The four in `docs/formato-pack.md` are targets
+written a priori. Until there are numbers, any claim about speed or size is a hunch (D-042).
 
-La respuesta no es "el que haya a mano" (D-043):
+## First: emulator or watch?
 
-| Qué se mide | Dónde | Por qué |
+The answer is not "whichever is at hand" (D-043):
+
+| What is measured | Where | Why |
 |---|---|---|
-| Normalización, FTS5, planes de consulta, codec | **Emulador** | Depende de la imagen del sistema. Un emulador de API 33 trae el ICU y el SQLite de API 33 |
-| Latencia, arranque, batería, jank | **Reloj físico** | La guía oficial pide *"physical Wear OS devices"*. Los números de CPU del emulador no representan nada |
+| Normalization, FTS5, query plans, codec | **Emulator** | It depends on the system image. An API 33 emulator ships the ICU and SQLite of API 33 |
+| Latency, startup, battery, jank | **Physical watch** | The official guide asks for *"physical Wear OS devices"*. The emulator's CPU numbers represent nothing |
 
-Usar el emulador para medir rendimiento es peor que no medir: da un número que parece real.
+Using the emulator to measure performance is worse than not measuring: it gives a number that
+looks real.
 
-## Qué herramienta para qué
+## Which tool for what
 
-- **Latencia y arranque** → Macrobenchmark.
-- **Batería** → el power metric de Macrobenchmark, Perfetto, o el Power Profiler.
-  **No Battery Historian**: su propia documentación dice que ya no se mantiene (D-044).
-- **Plan de consulta** → `EXPLAIN QUERY PLAN`, que `verify_pack.py` ya corre. Es lo único que se
-  puede medir hoy sin dispositivo.
-- **Tamaño del pack** → `verify_pack.py` sección `[tamanos]`, que desglosa por tabla e índice.
+- **Latency and startup** → Macrobenchmark.
+- **Battery** → Macrobenchmark's power metric, Perfetto, or the Power Profiler. **Not Battery
+  Historian**: its own documentation says it is no longer maintained (D-044).
+- **Query plan** → `EXPLAIN QUERY PLAN`, which `verify_pack.py` already runs. It is the only thing
+  measurable today without a device.
+- **Pack size** → `verify_pack.py`'s `[tamanos]` section, which breaks it down by table and index.
 
-## El orden de las fases
+## The order of the phases
 
-Está en `docs/roadmap.md` §Optimización, y el orden importa: O-1 (hacerlo medible) es
-prerrequisito de todas. No saltes a O-2 o O-3 sin baseline, porque no vas a poder decir si
-mejoró.
+It is in `docs/roadmap.md` §Optimización, and the order matters: O-1 (making it measurable) is a
+prerequisite for all of them. Do not jump to O-2 or O-3 without a baseline, because you will not
+be able to say whether it improved.
 
-## Dónde está el gasto real, y no es donde uno busca
+## Where the real cost is, and it is not where you look
 
-Para una app que se usa en ráfagas cortas en una muñeca, la guía oficial ordena así:
+For an app used in short bursts on a wrist, the official guidance orders it like this:
 
-1. **Red** — *very high impact*. Un pack de decenas de MB es el mayor consumo que esta app va a
-   provocar en su vida.
-2. **Pantalla encendida** — *high*.
-3. **CPU alta sostenida** — *high*, pero nuestro trabajo dura milisegundos.
+1. **Network** — *very high impact*. A pack of tens of MB is the biggest consumption this app will
+   ever cause.
+2. **Screen on** — *high*.
+3. **Sustained high CPU** — *high*, but our work lasts milliseconds.
 
-Optimizar la búsqueda antes que la descarga es optimizar el tercer lugar.
+Optimising the search before the download is optimising third place.
 
-## Al terminar
+## When you are done
 
-**Escribí el número donde vive**, no en el chat: el tamaño del pack va a
-`docs/formato-pack.md`, la latencia también, y la medición completa al changelog con la fecha y
-el dispositivo.
+**Write the number where it lives**, not in the chat: the pack's size goes to
+`docs/formato-pack.md`, the latency too, and the full measurement to the changelog with the date
+and the device.
 
-Y si el número **mata una creencia**, esa es la entrada más valiosa que vas a escribir: va a
-`docs/decisions.md` como fila descartada, con el número que la descartó, para que no se proponga
-de nuevo.
+And if the number **kills a belief**, that is the most valuable entry you will write: it goes to
+`docs/decisions.md` as a discarded row, with the number that discarded it, so it does not get
+proposed again.

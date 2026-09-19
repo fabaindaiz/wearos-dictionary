@@ -4,80 +4,83 @@ description: Construir, validar y medir un pack de diccionario real. Usar cuando
 allowed-tools: Bash, Read, Write, Edit
 ---
 
-# Construir un pack
+# Building a pack
 
-## Antes de empezar: de qué fuente
+> The `description` above stays in Spanish: those are the phrases **the user says**.
 
-El Wikcionario y el Wiktionary inglés son **datasets distintos**, y es el error fácil:
+## Before starting: which source
 
-| Querés | Fuente | Tamaño |
+The Wikcionario and the English Wiktionary are **different datasets**, and it is the easy mistake:
+
+| What you want | Source | Size |
 |---|---|---|
-| Definiciones en español de palabras españolas | eswiktionary, sección Español | 1.036.458 senses |
-| Definiciones en inglés de palabras inglesas | enwiktionary, sección English | 1.787.236 senses |
-| Palabras españolas con glosa en inglés (bilingüe) | enwiktionary, sección Spanish | 875.726 senses |
+| Spanish definitions of Spanish words | eswiktionary, Español section | 1,036,458 senses |
+| English definitions of English words | enwiktionary, English section | 1,787,236 senses |
+| Spanish words with English glosses (bilingual) | enwiktionary, Spanish section | 875,726 senses |
 
-Definiciones en español de palabras inglesas **no es una fuente que exista** en calidad usable:
-el Wikcionario cubre inglés con 35.021 senses.
+Spanish definitions of English words **is not a source that exists** in usable quality: the
+Wikcionario covers English with 35,021 senses.
 
-Usá las páginas procesadas por idioma de kaikki.org. El formato de datos crudos está deprecado.
+Use kaikki.org's per-language processed pages. The raw-data format is deprecated.
 
-## El flujo
+## The flow
 
-El español ya está construido. **No escribas una fuente nueva para rehacerlo**:
+Spanish is already built. **Do not write a new source to redo it**:
 
 ```bash
-# 0. El dump (1,42 GB; el de 2026-09-15 dio 1.036.458 senses)
+# 0. The dump (1.42 GB; the 2026-09-15 one gave 1,036,458 senses)
 curl -o es.jsonl "https://kaikki.org/eswiktionary/Espa%C3%B1ol/kaikki.org-dictionary-Espa%C3%B1ol.jsonl"
 
-# 1. Construir. --sample N hace un piloto con 1 de cada N lemas, sin sesgo posicional:
-#    miralo antes de gastar el build completo.
-python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db --sample 20  # piloto, ~30 s
-python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db             # completo, ~54 s, 214 MB RSS
+# 1. Build. --sample N makes a pilot with 1 in every N headwords, with no positional bias:
+#    look at it before spending the full build.
+python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db --sample 20  # pilot, ~30 s
+python3 tools/packbuilder/build_pack.py es es.jsonl es-def-wikc.db             # full, 63.6 s measured
 
-# 2. Validar SIEMPRE. Un pack a medio construir se abre sin error.
+# 2. ALWAYS validate. A half-built pack opens without error.
 python3 tools/packbuilder/verify_pack.py es-def-wikc.db
 
-# 3. Medir y registrar
+# 3. Measure and record
 ls -lh es-def-wikc.db
 
-# 4. Meterlo en el reloj. NO uses `adb push` a mano: no es atomico (D-082).
+# 4. Put it on the watch. Do NOT use `adb push` by hand: it is not atomic (D-082).
 python3 tools/devpack.py install es-def-wikc.db
 ```
 
-Para **otro** idioma o tipo de pack: la fuente va en `tools/packbuilder/sources/` y entrega
-`Record`. Streaming siempre. Mirá `kaikki.py` antes de escribirla — la poda ya está resuelta
-ahí, con las mediciones que la decidieron.
+For **another** language or pack kind: the source goes in `tools/packbuilder/sources/` and yields
+`Record`. Always streaming. Look at `kaikki.py` before writing one — the pruning is already solved
+there, with the measurements that decided it.
 
-## La poda es donde se decide el tamaño
+## Pruning is where the size is decided
 
-No es un detalle de implementación: es el trabajo. Conservar `word`, `pos`, glosas, formas y
-traducciones. Descartar etimologías, pronunciaciones, categorías, plantillas y citas.
+It is not an implementation detail: it is the work. Keep `word`, `pos`, glosses, forms and
+translations. Discard etymologies, pronunciations, categories, templates and citations.
 
-**Registrá el tamaño en el changelog con la poda que lo produjo.** El de español ya está
-medido y vive en `docs/formato-pack.md` §Presupuestos: **114.619 entradas, 68,1 MB** — un 36 %
-por encima del presupuesto blando de D-028, que era una suposición hasta el 2026-09-17.
+**Record the size in the changelog along with the pruning that produced it.** Spanish is already
+measured and lives in `docs/formato-pack.md` §Presupuestos: **114,619 entries, 68.2 MB** — 36 %
+over D-028's soft budget, which was an assumption until 2026-09-17.
 
-**El 46,3 % del pack es la tabla `form`**, casi toda conjugaciones de verbos. Si venís a achicar
-un pack, ese es el número contra el que estás peleando, y no se recorta: es lo que hace que
-"corriendo" encuentre "correr".
+**46.3 % of the pack is the `form` table**, almost all verb conjugations. If you come to shrink a
+pack, that is the number you are fighting, and it does not get trimmed: it is what makes
+"corriendo" find "correr".
 
-## Qué mirar en la salida de `verify_pack.py`
+## What to look at in `verify_pack.py`'s output
 
-- **`[normalizacion]`** — que `entry.norm == norm(headword)` en todas las filas. Si falla, el
-  pack se construyó con otra versión de `normalize.py`.
-- **`[planes de consulta]`** — que el prefijo use `COVERING INDEX`. Es la afirmación central del
-  diseño y lo único que la sostiene.
-- **`[tamanos]`** — dónde se va el pack. Con definiciones, `fts_def_data` va a ser grande; ese
-  número es el que decide si vale la pena mirar `detail=none` (decisión abierta).
+- **`[normalizacion]`** — that `entry.norm == norm(headword)` on every row. If it fails, the pack
+  was built with another version of `normalize.py`.
+- **`[planes de consulta]`** — that the prefix uses `COVERING INDEX`. It is the design's central
+  claim and the only thing holding it up.
+- **`[tamanos]`** — where the pack goes. With definitions, `fts_def_data` is going to be large;
+  that number is the one that decides whether `detail=none` is worth looking at (an open
+  decision).
 
-## Después de `verify_pack.py`: abrí el pack y leelo
+## After `verify_pack.py`: open the pack and read it
 
-`verify_pack.py` en verde dice que el pack cumple sus invariantes. **No dice que el contenido
-sea bueno.** Un pack puede pasar todas las comprobaciones con glosas vacías, con la fuente mal
-parseada, o con acentos comidos, porque nada de eso viola una invariante — y es obvio para el
-primer humano que lo mira.
+A green `verify_pack.py` says the pack meets its invariants. **It does not say the content is
+good.** A pack can pass every check with empty glosses, with the source badly parsed, or with the
+accents eaten, because none of that violates an invariant — and it is obvious to the first human
+who looks.
 
-Antes de dar un pack por bueno, **miralo**:
+Before calling a pack good, **look at it**:
 
 ```sh
 sqlite3 <pack.db> "SELECT headword, pos, norm FROM entry ORDER BY random() LIMIT 15;"
@@ -85,29 +88,31 @@ sqlite3 <pack.db> "SELECT headword, length(payload) FROM entry ORDER BY length(p
 sqlite3 <pack.db> "SELECT headword, length(payload) FROM entry ORDER BY length(payload) DESC LIMIT 5;"
 ```
 
-Qué estás buscando, que ninguna invariante agarra:
+What you are looking for, which no invariant catches:
 
-- **Las 15 al azar**: ¿son palabras de verdad? ¿El `pos` tiene sentido? ¿Los acentos sobreviven?
-- **Las más cortas**: una glosa de 3 bytes es una entrada vacía que igual cuenta como entrada.
-- **Las más largas**: una glosa de 40 kB suele ser markup de la fuente que la poda no sacó.
-- **Descomprimí una de verdad** y leela entera. El codec puede devolver texto corrupto sin
-  error: por eso existe `payload_dict_sha256` (D-008), y por eso mirarlo sigue valiendo.
+- **The 15 random ones**: are they real words? Does the `pos` make sense? Do the accents survive?
+- **The shortest ones**: a 3-byte gloss is an empty entry that still counts as an entry.
+- **The longest ones**: a 40 kB gloss is usually source markup the pruning did not remove.
+- **Decompress a real one** and read it whole. The codec can return corrupt text with no error:
+  that is why `payload_dict_sha256` exists (D-008), and why looking is still worth it.
 
-`meta.payload_dict` está guardado **en hex**, no en binario. Si le pasás el string a
-`payload.decompress()` no explota: devuelve texto que *parece* corrupto y te manda a cazar un
-bug del codec que no existe. El camino correcto, que es el que usa `verify_pack.py`:
+⚠️ `meta.payload_dict` is stored **in hex**, not in binary. If you hand the string to
+`payload.decompress()` it does not blow up: it returns text that *looks* corrupt and sends you
+hunting a codec bug that does not exist. **This has already cost a session an hour** even with the
+warning written here — read it before writing the reader, not after. The correct path, which is
+the one `verify_pack.py` uses:
 
 ```python
-import payload as codec                              # desde tools/packbuilder/
+import payload as codec                              # from tools/packbuilder/
 dic = bytes.fromhex(db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
 print(codec.decompress(blob, dic))
 ```
 
-**Distinguí los dos silencios.** "Vacío porque la fuente no tenía nada" y "vacío porque la poda
-se lo comió" son la misma celda vacía y dos bugs completamente distintos. Si el pack tiene
-entradas vacías, decí cuál de los dos es, con el número.
+**Tell the two silences apart.** "Empty because the source had nothing" and "empty because the
+pruning ate it" are the same empty cell and two completely different bugs. If the pack has empty
+entries, say which of the two it is, with the number.
 
-## Licencia, y no es opcional
+## License, and it is not optional
 
-El contenido es CC BY-SA. Cada pack declara `license` y `attribution` en `meta`, y **la app
-tiene que mostrarlos**. No es burocracia: es la condición de uso de los datos (D-031).
+The content is CC BY-SA. Every pack declares `license` and `attribution` in `meta`, and **the app
+has to show them**. It is not bureaucracy: it is the condition for using the data (D-031).
