@@ -10,20 +10,20 @@ import org.junit.runner.RunWith
 import org.junit.Assert.assertNotNull
 
 /**
- * Que los layouts de los dos tiles **se construyan**.
+ * That both tiles' layouts **get built**.
  *
- * `TileContenidoTest` prueba la decision --que fila se muestra, que dia toca, cuando no mostrar
- * nada-- en la JVM y dentro del gate. Lo que no puede probar es el paso siguiente: que esa
- * decision se convierta en un arbol de protolayout sin tirar. Un builder de protolayout que
- * rechaza algo lo hace **en tiempo de ejecucion**, y un tile que tira dentro de `onTileRequest`
- * se ve en el carrusel como un cuadro vacio, sin un error que alguien vaya a leer.
+ * `TileContentTest` proves the decision --which row shows, which day it is, when to show
+ * nothing-- on the JVM and inside the gate. What it cannot prove is the next step: that the
+ * decision turns into a protolayout tree without throwing. A protolayout builder that rejects
+ * something does so **at runtime**, and a tile that throws inside `onTileRequest` looks in the
+ * carousel like an empty square, with no error anyone is going to read.
  *
- * Es instrumentado y **no entra al gate**, igual que `PantallasTest`: `materialScope` necesita un
- * Context y los recursos de Android.
+ * It is instrumented and **does not enter the gate**, same as `ScreensTest`: `materialScope`
+ * needs a Context and Android resources.
  *
- * Se probo `androidx.wear.tiles:tiles-testing:1.6.2`, que existe, y **se descarto**: arrastra
- * Robolectric 4.16.1, y meter un runner nuevo en un gate de segundos es un cambio mucho mas
- * grande que lo que compra. Con un Context de verdad alcanza para lo que hay que comprobar.
+ * `androidx.wear.tiles:tiles-testing:1.6.2` was tried, it exists, and **was discarded**: it drags
+ * in Robolectric 4.16.1, and putting a new runner into a gate that runs in seconds is a far
+ * bigger change than what it buys. A real Context is enough for what has to be checked.
  */
 @RunWith(AndroidJUnit4::class)
 class TilesTest {
@@ -66,7 +66,7 @@ class TilesTest {
 
     @Test
     fun aWordWithoutAPartOfSpeechRenders() {
-        // `partOfSpeech` es nullable en Visita y el pack real trae entradas sin pos.
+        // `partOfSpeech` is nullable in Visit and the real pack carries entries with no pos.
         val layout = materialScope(context, dispositivo) {
             wordCard(context, visit("corriente"), null)
         }
@@ -75,15 +75,15 @@ class TilesTest {
 
     @Test
     fun theEmptyStateRenders() {
-        // El caso mas probable de todos: app recien instalada. Un tile en blanco en el carrusel
-        // no se lee como "vacio" sino como "roto".
+        // The most likely case of all: a freshly installed app. A blank tile in the carousel
+        // does not read as "empty" but as "broken".
         val layout = materialScope(context, dispositivo) { emptyTile(context, "Buscá una palabra") }
         assertNotNull(layout)
     }
 
     @Test
     fun aVeryLongHeadwordDoesNotBreakTheLayout() {
-        // Los lemas salen del Wikcionario y hay refranes enteros como lema.
+        // Headwords come from Wiktionary and there are whole sayings used as headwords.
         val length = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
         val layout = materialScope(context, dispositivo) {
             historyRows(context, listOf(length, length, length))

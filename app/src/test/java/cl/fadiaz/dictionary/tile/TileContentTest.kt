@@ -5,19 +5,19 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Que dibuja cada tile, decidido sin Android y por lo tanto dentro del gate.
+ * What each tile draws, decided without Android and therefore inside the gate.
  *
- * Un tile falla distinto que una pantalla: nadie lo abre a proposito, asi que **un tile que
- * muestra algo viejo no se reporta**. De ahi que la mitad de estos tests sean sobre la cache
- * vencida, el reloj corrido y el texto corrupto --los tres casos en los que la respuesta correcta
- * es no mostrar nada-- y no sobre el camino feliz.
+ * A tile fails differently from a screen: nobody opens it on purpose, so **a tile showing
+ * something stale never gets reported**. Hence half of these tests are about the expired cache,
+ * the drifted clock and corrupt text --the three cases where the right answer is to show
+ * nothing-- and not about the happy path.
  */
 class TileContentTest {
 
     private fun visit(headword: String, id: Long = 1, pack: String = "es-def-wikc") =
         Visit(packId = pack, entryId = id, headword = headword, partOfSpeech = "noun")
 
-    // ----------------------------------------------------------------- historial
+    // ------------------------------------------------------------------- history
 
     @Test
     fun withNoHistoryThereIsNothingToShow() {
@@ -39,13 +39,13 @@ class TileContentTest {
 
     @Test
     fun theHistoryOrderIsKept() {
-        // El move-to-front ya lo aplico el ViewModel al guardar: el tile no reordena nada, y si
-        // lo hiciera la fila de arriba dejaria de ser la ultima palabra abierta.
+        // The ViewModel already applied move-to-front when saving: the tile reorders nothing,
+        // and if it did the top row would stop being the last word opened.
         val order = listOf(visit("tres", 3), visit("dos", 2), visit("uno", 1))
         assertEquals(TileContent.ListRows(order), TileContents.history(order))
     }
 
-    // ----------------------------------------------------------- palabra del dia
+    // ------------------------------------------------------------ word of the day
 
     private val week = listOf(
         visit("lunes", 1), visit("martes", 2), visit("miercoles", 3),
@@ -66,16 +66,16 @@ class TileContentTest {
 
     @Test
     fun crossingAMonthBoundaryDoesNotMisalign() {
-        // El indice es una diferencia de fechas, no una resta de dias del mes.
+        // The index is a difference between dates, not a subtraction of days of the month.
         val content = TileContents.wordOfTheDay("2026-09-29", week, "2026-10-02")
         assertEquals(TileContent.Word(week[3]), content)
     }
 
     @Test
     fun anExpiredCacheShowsNoStaleWord() {
-        // ESTE ES EL TEST QUE PAGA EL ARCHIVO. Si la app no se abrio en mas de una semana, la
-        // cache se queda corta; mostrar la ultima palabra que tenia seria una "palabra del dia"
-        // equivocada, todos los dias, sin que nada avise.
+        // THIS IS THE TEST THAT PAYS FOR THE FILE. If the app was not opened for over a week,
+        // the cache runs out; showing the last word it had would be a wrong "word of the day",
+        // every single day, with nothing to warn anyone.
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-30")
         assertEquals(TileContent.Empty, content)
     }
@@ -94,17 +94,17 @@ class TileContentTest {
 
     @Test
     fun withNoTodaysDateThereIsNoWord() {
-        // Mismo criterio que el ViewModel: sin fecha cableada no hay palabra del dia, y la
-        // ausencia se ve en vez de congelar una.
+        // Same rule as the ViewModel: with no date wired there is no word of the day, and the
+        // absence is visible instead of freezing one.
         assertEquals(TileContent.Empty, TileContents.wordOfTheDay("2026-09-19", week, null))
     }
 
     @Test
     fun whatTheAppPrecomputesIsExactlyWhatTheTileReads() {
-        // La propiedad que importa, y la razon de que las dos mitades vivan en el mismo archivo:
-        // la app llena la cache sumando dias y el tile la lee restandolos. Si las dos aritmeticas
-        // se separaran, el tile mostraria la palabra del dia equivocado --corrida un dia-- que es
-        // justo el error que nadie nota.
+        // The property that matters, and the reason both halves live in the same file: the app
+        // fills the cache by adding days and the tile reads it by subtracting them. If the two
+        // arithmetics drifted apart, the tile would show the word of the wrong day --off by
+        // one-- which is exactly the error nobody notices.
         val today = "2026-09-19"
         for (day in week.indices) {
             val eseDia = TileContents.plusDays(today, day)
@@ -131,8 +131,8 @@ class TileContentTest {
 
     @Test
     fun aCorruptDateDoesNotBringDownTheTile() {
-        // Se lee de SharedPreferences, que es un contrato con el disco: una version vieja o un
-        // byte cambiado no pueden hacer que el tile tire una excepcion en el hilo principal.
+        // It is read from SharedPreferences, which is a contract with the disk: an old version
+        // or one changed byte cannot make the tile throw on the main thread.
         for (basura in listOf("", "   ", "ayer", "2026-13-45", "2026-09")) {
             assertEquals(
                 TileContent.Empty,
