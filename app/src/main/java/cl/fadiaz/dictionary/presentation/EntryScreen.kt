@@ -59,7 +59,7 @@ import cl.fadiaz.dictionary.core.Sense
  * entradas intactas --sin boton ni gesto de mas-- y evita que "justicia", con sus diez, se
  * convierta en un rollo donde la acepcion util queda debajo de nueve que nadie buscaba.
  */
-private const val ACEPCIONES_VISIBLES = 3
+private const val VISIBLE_SENSES = 3
 
 @Composable
 fun EntryScreen(
@@ -75,35 +75,35 @@ fun EntryScreen(
      * lema hace falta para copiarlo. Devolver vacio = no se ofrece el menu, que es distinto de
      * ofrecer un menu vacio.
      */
-    acciones: (Entry) -> List<AccionDeEntrada> = { emptyList() },
-    resolver: suspend (Set<String>) -> Map<String, Long> = { emptyMap() },
+    actions: (Entry) -> List<EntryAction> = { emptyList() },
+    resolveIn: suspend (Set<String>) -> Map<String, Long> = { emptyMap() },
     // Va ultimo para que siga siendo el lambda final: es como lo llaman las pantallas y los tests.
     cargar: suspend (Long) -> Entry?,
 ) {
     var entry by remember(entryId) { mutableStateOf<Entry?>(null) }
-    var fallo by remember(entryId) { mutableStateOf(false) }
-    var desplegada by remember(entryId) { mutableStateOf(false) }
-    var enlaces by remember(entryId) { mutableStateOf(emptyMap<String, Long>()) }
-    var menuAbierto by remember(entryId) { mutableStateOf(false) }
-    val accionesDeEsta = entry?.let(acciones).orEmpty()
+    var failure by remember(entryId) { mutableStateOf(false) }
+    var expanded by remember(entryId) { mutableStateOf(false) }
+    var links by remember(entryId) { mutableStateOf(emptyMap<String, Long>()) }
+    var menuOpen by remember(entryId) { mutableStateOf(false) }
+    val actionsFor = entry?.let(actions).orEmpty()
 
     LaunchedEffect(entryId) {
         // Sin el try, cualquier cosa que tire `cargar` --una SQLiteException, un inflate sobre un
         // pack truncado-- sube por la corrutina de composicion y mata el proceso. Un pack ilegible
         // tiene que degradar al mensaje que ya existe abajo, igual que una entrada que no esta.
         entry = runCatching { cargar(entryId) }.getOrNull()
-        fallo = entry == null
+        failure = entry == null
     }
 
     // Que palabras de las glosas son lema del pack, en UNA consulta para toda la pantalla y no
     // una por palabra. Se pintan solo las que existen, asi el color dice de antemano que lleva a
     // algun lado. Va en su propio efecto porque depende de la entrada ya cargada.
     LaunchedEffect(entry) {
-        val cargada = entry ?: return@LaunchedEffect
-        val claves = cargada.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
+        val loaded = entry ?: return@LaunchedEffect
+        val keys = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
             .map { it.norm }
             .toSet()
-        enlaces = runCatching { resolver(claves) }
+        links = runCatching { resolveIn(keys) }
             .getOrDefault(emptyMap())
             // Un enlace a la entrada que ya estamos mirando no lleva a ningun lado.
             .filterValues { it != entryId }
@@ -118,7 +118,7 @@ fun EntryScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = conMargenFinal(contentPadding),
+            contentPadding = withBottomMargin(contentPadding),
             state = listState,
             // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
             // esta leyendo. No viene cableada por defecto.
@@ -128,18 +128,18 @@ fun EntryScreen(
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val actual = entry
+            val current = entry
             // La salida rapida a la busqueda, y vive como PRIMERA FILA DEL SCROLL y no como
             // chrome fijo: arriba de todo se llega con la corona, y cuesta cero dp de pantalla
             // permanente. Un boton fijo costaria 48 dp, que es justo lo que D-084 rechazo.
             // Hace falta porque tocar palabras apila entradas: sin esto, volver al inicio desde
             // tres palabras de profundidad son tres gestos.
             item(key = "acciones") {
-                AccionesDeLaEntrada(
+                EntryActionsMenu(
                     onVolverABuscar = onVolverABuscar,
                     // Null mientras la entrada no cargo: un boton de menu que abre nada es peor
                     // que un boton que todavia no esta.
-                    onAbrirMenu = if (accionesDeEsta.isEmpty()) null else { { menuAbierto = true } },
+                    onAbrirMenu = if (actionsFor.isEmpty()) null else { { menuOpen = true } },
                 )
             }
             item(key = "encabezado") {
@@ -149,14 +149,14 @@ fun EntryScreen(
                     Text(
                         // El lema NO se trunca aca, al reves que en la lista: esta pantalla
                         // existe justamente para leer la palabra entera, refranes incluidos.
-                        text = actual?.headword ?: "…",
+                        text = current?.headword ?: "…",
                         style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    actual?.partOfSpeech?.let { pos ->
+                    current?.partOfSpeech?.let { pos ->
                         Text(
-                            text = posEnEspanol(pos),
+                            text = posInSpanish(pos),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -166,7 +166,7 @@ fun EntryScreen(
                 }
             }
 
-            if (fallo) {
+            if (failure) {
                 item(key = "fallo") {
                     Text(
                         text = "Esa entrada ya no está en el diccionario.",
@@ -177,34 +177,34 @@ fun EntryScreen(
                 }
             }
 
-            val todas = actual?.senses.orEmpty()
-            val visibles = if (desplegada) todas else todas.take(ACEPCIONES_VISIBLES)
-            val ocultas = todas.size - visibles.size
+            val allSenses = current?.senses.orEmpty()
+            val visibleOnes = if (expanded) allSenses else allSenses.take(VISIBLE_SENSES)
+            val hidden = allSenses.size - visibleOnes.size
 
             // Con `key` el item conserva identidad al desplegarse; sin el, el lazy layout los
             // identifica por posicion. Es la misma causa que en la busqueda se llevaba el foco
             // del campo de texto, y aca ademas deja `visibles` capturado por closure.
-            items(count = visibles.size, key = { indice -> "s:$indice" }) { indice ->
+            items(count = visibleOnes.size, key = { index -> "s:$index" }) { index ->
                 // getOrNull y no [indice]: el lambda del item y el conteo los consume el layout
                 // en frames distintos. Saltar una acepcion un frame es aceptable; tirar no.
-                visibles.getOrNull(indice)?.let { sense ->
-                    Acepcion(
-                        numero = indice + 1,
+                visibleOnes.getOrNull(index)?.let { sense ->
+                    SenseBlock(
+                        numero = index + 1,
                         sense = sense,
-                        enlaces = enlaces,
+                        links = links,
                         onOpenPalabra = onOpenPalabra,
                     )
                 }
             }
 
-            if (ocultas > 0) {
+            if (hidden > 0) {
                 item(key = "ver-mas") {
-                    Pildora(
-                        texto = "Ver más ($ocultas)",
-                        fondo = MaterialTheme.colorScheme.surfaceContainer,
-                        tinta = MaterialTheme.colorScheme.onSurfaceVariant,
-                        margen = 24.dp,
-                        onClick = { desplegada = true },
+                    Pill(
+                        text = "Ver más ($hidden)",
+                        background = MaterialTheme.colorScheme.surfaceContainer,
+                        ink = MaterialTheme.colorScheme.onSurfaceVariant,
+                        margin = 24.dp,
+                        onClick = { expanded = true },
                     )
                 }
             }
@@ -217,21 +217,21 @@ fun EntryScreen(
     // Wear Material3 NO trae menu desplegable ni overflow, verificado contra la referencia de
     // API: las dos formas soportadas son este dialogo o empujar una pantalla de lista.
     AlertDialog(
-        visible = menuAbierto && accionesDeEsta.isNotEmpty(),
-        onDismissRequest = { menuAbierto = false },
+        visible = menuOpen && actionsFor.isNotEmpty(),
+        onDismissRequest = { menuOpen = false },
         title = { Text("Opciones") },
     ) {
-        items(accionesDeEsta.size) { indice ->
-            val accion = accionesDeEsta[indice]
-            Pildora(
-                texto = accion.etiqueta,
-                fondo = MaterialTheme.colorScheme.surfaceContainer,
-                tinta = MaterialTheme.colorScheme.onSurfaceVariant,
+        items(actionsFor.size) { index ->
+            val action = actionsFor[index]
+            Pill(
+                text = action.label,
+                background = MaterialTheme.colorScheme.surfaceContainer,
+                ink = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = {
                     // Cerrar primero: la accion puede navegar, y un dialogo abierto encima de
                     // la pantalla nueva queda huerfano.
-                    menuAbierto = false
-                    accion.onClick()
+                    menuOpen = false
+                    action.onClick()
                 },
             )
         }
@@ -241,7 +241,7 @@ fun EntryScreen(
 
 
 /** Una accion del menu de una palabra. El estado --p.ej. si ya es favorita-- lo decide arriba. */
-data class AccionDeEntrada(val etiqueta: String, val onClick: () -> Unit)
+data class EntryAction(val label: String, val onClick: () -> Unit)
 
 /**
  * Los dos botones de arriba: volver a buscar, y el menu.
@@ -253,20 +253,20 @@ data class AccionDeEntrada(val etiqueta: String, val onClick: () -> Unit)
  * y aca no se gana nada que justifique ese riesgo.
  */
 @Composable
-private fun AccionesDeLaEntrada(onVolverABuscar: () -> Unit, onAbrirMenu: (() -> Unit)?) {
+private fun EntryActionsMenu(onVolverABuscar: () -> Unit, onAbrirMenu: (() -> Unit)?) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BotonDeIcono(
+        IconPill(
             icono = Icons.Filled.Search,
             descripcion = "Buscar",
             onClick = onVolverABuscar,
             modifier = Modifier.weight(1f),
         )
         if (onAbrirMenu != null) {
-            BotonDeIcono(
+            IconPill(
                 icono = Icons.Filled.MoreVert,
                 descripcion = "Opciones",
                 onClick = onAbrirMenu,
@@ -277,7 +277,7 @@ private fun AccionesDeLaEntrada(onVolverABuscar: () -> Unit, onAbrirMenu: (() ->
 }
 
 @Composable
-private fun BotonDeIcono(
+private fun IconPill(
     icono: ImageVector,
     descripcion: String,
     onClick: () -> Unit,
@@ -285,7 +285,7 @@ private fun BotonDeIcono(
 ) {
     Box(
         modifier = modifier
-            .clip(FORMA_PILDORA)
+            .clip(PILL_SHAPE)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick)
             .heightIn(min = TOUCH_TARGET),
@@ -310,15 +310,15 @@ private fun BotonDeIcono(
  * igual peso visual que la glosa, uno solo entierra la acepcion siguiente.
  */
 @Composable
-private fun Acepcion(
+private fun SenseBlock(
     numero: Int,
     sense: Sense,
-    enlaces: Map<String, Long>,
+    links: Map<String, Long>,
     onOpenPalabra: (Long) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(
-            text = glosaAnotada("$numero. ", sense.gloss, enlaces, onOpenPalabra),
+            text = annotatedGloss("$numero. ", sense.gloss, links, onOpenPalabra),
             style = MaterialTheme.typography.bodyMedium,
         )
         sense.examples.forEach { ejemplo ->
@@ -363,26 +363,26 @@ private fun Acepcion(
  * promesa de que tocarlo lleva a algun lado.
  */
 @Composable
-private fun glosaAnotada(
+private fun annotatedGloss(
     prefijo: String,
     glosa: String,
-    enlaces: Map<String, Long>,
+    links: Map<String, Long>,
     onOpenPalabra: (Long) -> Unit,
 ): AnnotatedString {
-    val estilo = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
-    return remember(prefijo, glosa, enlaces, estilo) {
+    val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
+    return remember(prefijo, glosa, links, style) {
         buildAnnotatedString {
             append(prefijo)
             var cursor = 0
-            for (palabra in GlossTokenizer.tokenize(glosa)) {
-                val destino = enlaces[palabra.norm] ?: continue
-                if (palabra.start > cursor) append(glosa.substring(cursor, palabra.start))
+            for (word in GlossTokenizer.tokenize(glosa)) {
+                val target = links[word.norm] ?: continue
+                if (word.start > cursor) append(glosa.substring(cursor, word.start))
                 withLink(
-                    LinkAnnotation.Clickable("palabra:$destino", estilo) { onOpenPalabra(destino) },
+                    LinkAnnotation.Clickable("palabra:$target", style) { onOpenPalabra(target) },
                 ) {
-                    append(glosa.substring(palabra.start, palabra.end))
+                    append(glosa.substring(word.start, word.end))
                 }
-                cursor = palabra.end
+                cursor = word.end
             }
             if (cursor < glosa.length) append(glosa.substring(cursor))
         }

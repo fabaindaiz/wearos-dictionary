@@ -22,28 +22,28 @@ import cl.fadiaz.dictionary.data.PackHandle
  * Asi que la accion se ofrece **solo si hay un pack bilingue abierto**, que es lo unico que
  * declara `lang_dst` y por lo tanto lo unico que puede traducir. Hoy: nunca.
  */
-internal fun accionesDeLaPalabra(
-    esFavorita: Boolean,
+internal fun wordActions(
+    isFavorite: Boolean,
     onAlternarFavorita: () -> Unit,
-    packDeTraduccion: PackHandle.Abierto?,
-    onVerTraduccion: (PackHandle.Abierto) -> Unit,
+    translationPack: PackHandle.Open?,
+    onVerTraduccion: (PackHandle.Open) -> Unit,
     onCopiar: () -> Unit,
-): List<AccionDeEntrada> = buildList {
+): List<EntryAction> = buildList {
     add(
-        AccionDeEntrada(
-            etiqueta = if (esFavorita) "Quitar de guardadas" else "Guardar",
+        EntryAction(
+            label = if (isFavorite) "Quitar de guardadas" else "Guardar",
             onClick = onAlternarFavorita,
         ),
     )
-    if (packDeTraduccion != null) {
+    if (translationPack != null) {
         add(
-            AccionDeEntrada(
-                etiqueta = "Ver traducción",
-                onClick = { onVerTraduccion(packDeTraduccion) },
+            EntryAction(
+                label = "Ver traducción",
+                onClick = { onVerTraduccion(translationPack) },
             ),
         )
     }
-    add(AccionDeEntrada(etiqueta = "Copiar", onClick = onCopiar))
+    add(EntryAction(label = "Copiar", onClick = onCopiar))
 }
 
 /**
@@ -52,9 +52,9 @@ internal fun accionesDeLaPalabra(
  * Bilingue y distinto del que estamos mirando. `PackKind.BILINGUAL` es la senal correcta y no el
  * nombre ni el idioma: es lo unico que obliga a declarar `lang_dst` (ver `PackMetadata.init`).
  */
-internal fun packDeTraduccion(
-    abiertos: List<PackHandle>,
+internal fun translationPack(
+    opened: List<PackHandle>,
     packDeLaEntrada: String,
-): PackHandle.Abierto? =
-    abiertos.filterIsInstance<PackHandle.Abierto>()
+): PackHandle.Open? =
+    opened.filterIsInstance<PackHandle.Open>()
         .firstOrNull { it.packId != packDeLaEntrada && it.metadata.kind == PackKind.BILINGUAL }

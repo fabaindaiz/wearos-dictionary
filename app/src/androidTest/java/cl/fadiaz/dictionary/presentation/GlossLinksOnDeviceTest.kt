@@ -26,12 +26,12 @@ import org.junit.runner.RunWith
  * Si algun dia Robolectric resuelve hit-testing de texto, este archivo se funde de vuelta.
  */
 @RunWith(AndroidJUnit4::class)
-class EnlacesEnDispositivoTest {
+class GlossLinksOnDeviceTest {
 
     @get:Rule
     val compose = createComposeRule()
 
-    private fun entrada(glosa: String) = Entry(
+    private fun entry(glosa: String) = Entry(
         packId = "test",
         entryId = 1,
         uid = 1,
@@ -47,8 +47,8 @@ class EnlacesEnDispositivoTest {
             EntryScreen(
                 entryId = 1,
                 onOpenPalabra = { abierta = it },
-                resolver = { mapOf("cera" to 77L) },
-            ) { entrada("cilindro de cera con mecha") }
+                resolveIn = { mapOf("cera" to 77L) },
+            ) { entry("cilindro de cera con mecha") }
         }
         compose.waitForIdle()
 

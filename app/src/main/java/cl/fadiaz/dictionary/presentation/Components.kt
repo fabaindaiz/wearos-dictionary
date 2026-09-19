@@ -55,7 +55,7 @@ internal val TOUCH_TARGET: Dp = 48.dp
  * La pildora. El clip y el borde tienen que ser la MISMA forma: si se separan, el borde se dibuja
  * recto sobre las esquinas redondeadas.
  */
-internal val FORMA_PILDORA = RoundedCornerShape(percent = 50)
+internal val PILL_SHAPE = RoundedCornerShape(percent = 50)
 
 /**
  * Para lo que tiene mas de una linea.
@@ -63,7 +63,7 @@ internal val FORMA_PILDORA = RoundedCornerShape(percent = 50)
  * La pildora al 50 % recorta las esquinas con un radio de media altura: con dos renglones eso se
  * come el principio y el final del texto. Un radio fijo no crece con el alto.
  */
-internal val FORMA_TARJETA = RoundedCornerShape(24.dp)
+internal val CARD_SHAPE = RoundedCornerShape(24.dp)
 
 /**
  * Cuanto se puede scrollear **despues** del ultimo item.
@@ -72,7 +72,7 @@ internal val FORMA_TARJETA = RoundedCornerShape(24.dp)
  * se curva hacia adentro: el texto se ve cortado y no hay forma de bajar mas. Pasaba en las seis
  * pantallas porque las seis pasaban el `contentPadding` del `ScreenScaffold` tal cual.
  */
-private val MARGEN_FINAL: Dp = 32.dp
+private val BOTTOM_MARGIN: Dp = 32.dp
 
 /**
  * El `contentPadding` del scaffold, con lugar para respirar al final.
@@ -81,13 +81,13 @@ private val MARGEN_FINAL: Dp = 32.dp
  * mida cuanto se come de verdad la curva-- hay un solo lugar donde tocarlo.
  */
 @Composable
-internal fun conMargenFinal(base: PaddingValues): PaddingValues {
-    val direccion = LocalLayoutDirection.current
+internal fun withBottomMargin(base: PaddingValues): PaddingValues {
+    val direction = LocalLayoutDirection.current
     return PaddingValues(
-        start = base.calculateStartPadding(direccion),
+        start = base.calculateStartPadding(direction),
         top = base.calculateTopPadding(),
-        end = base.calculateEndPadding(direccion),
-        bottom = base.calculateBottomPadding() + MARGEN_FINAL,
+        end = base.calculateEndPadding(direction),
+        bottom = base.calculateBottomPadding() + BOTTOM_MARGIN,
     )
 }
 
@@ -99,25 +99,25 @@ internal fun conMargenFinal(base: PaddingValues): PaddingValues {
  * salte, pero volver a tocarla no puede disparar una segunda consulta.
  */
 @Composable
-internal fun Pildora(
-    texto: String,
+internal fun Pill(
+    text: String,
     modifier: Modifier = Modifier,
-    fondo: Color = MaterialTheme.colorScheme.primaryContainer,
-    tinta: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-    estilo: TextStyle = MaterialTheme.typography.labelMedium,
-    margen: Dp = 16.dp,
+    background: Color = MaterialTheme.colorScheme.primaryContainer,
+    ink: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    style: TextStyle = MaterialTheme.typography.labelMedium,
+    margin: Dp = 16.dp,
     onClick: (() -> Unit)? = null,
 ) {
     Text(
-        text = texto,
-        style = estilo,
-        color = tinta,
+        text = text,
+        style = style,
+        color = ink,
         textAlign = TextAlign.Center,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = margen)
-            .clip(FORMA_PILDORA)
-            .background(fondo)
+            .padding(horizontal = margin)
+            .clip(PILL_SHAPE)
+            .background(background)
             .let { if (onClick == null) it else it.clickable(onClick = onClick) }
             .heightIn(min = TOUCH_TARGET)
             .padding(vertical = 14.dp),
@@ -132,11 +132,11 @@ internal fun Pildora(
  * bajar de ahi seria ganar densidad rompiendo algo peor.
  */
 @Composable
-internal fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
+internal fun ListRow(lema: String, detail: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(FORMA_PILDORA)
+            .clip(PILL_SHAPE)
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick)
             .heightIn(min = TOUCH_TARGET)
@@ -150,9 +150,9 @@ internal fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        if (detalle != null) {
+        if (detail != null) {
             Text(
-                text = detalle,
+                text = detail,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -164,7 +164,7 @@ internal fun Fila(lema: String, detalle: String?, onClick: () -> Unit) {
 
 /** Abriendo el pack, o extrayendolo la primera vez. */
 @Composable
-internal fun Cargando(mensaje: String) {
+internal fun LoadingMessage(mensaje: String) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

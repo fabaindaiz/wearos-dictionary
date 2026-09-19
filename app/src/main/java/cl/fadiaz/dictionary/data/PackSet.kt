@@ -15,7 +15,7 @@ import cl.fadiaz.dictionary.core.PackMetadata
 sealed interface PackHandle {
     val packId: String
 
-    data class Abierto(
+    data class Open(
         val source: DictionarySource,
         /**
          * Vino del APK, no lo instalo nadie.
@@ -25,7 +25,7 @@ sealed interface PackHandle {
          * marca lo decidia el orden alfabetico, y "demo-" gana a "es-": con los dos instalados,
          * la app abria las 28 entradas de juguete en vez de las 146.194 reales.
          */
-        val esDemo: Boolean = false,
+        val isDemo: Boolean = false,
         /**
          * El archivo en `filesDir/packs`, para poder borrarlo.
          *
@@ -34,7 +34,7 @@ sealed interface PackHandle {
          * coincidir, pero deducir uno del otro seria una suposicion que borra el archivo
          * equivocado el dia que dejen de coincidir.
          */
-        val archivo: String = "",
+        val fileName: String = "",
         /** Lo que ocupa en disco. Es la unica cifra que le importa a quien decide borrar algo. */
         val bytes: Long = 0,
     ) : PackHandle {
@@ -62,9 +62,9 @@ sealed interface PackSet {
      * le cuesta un solo dp a la busqueda.
      */
     data class Ready(
-        val activo: PackHandle.Abierto,
-        val todos: List<PackHandle>,
-        val problemas: List<String> = emptyList(),
+        val active: PackHandle.Open,
+        val all: List<PackHandle>,
+        val problems: List<String> = emptyList(),
     ) : PackSet
 
     /** No hay ningun `.db` en `filesDir/packs/`. El APK no trae ninguno: hay que instalarlo. */
@@ -84,7 +84,7 @@ sealed interface PackSet {
  *
  * Pura y sin Android: entra al gate (D-072).
  */
-internal fun etiquetaDeTipo(kind: PackKind): String = when (kind) {
+internal fun packTypeLabel(kind: PackKind): String = when (kind) {
     PackKind.MONOLINGUAL -> "definiciones"
     PackKind.BILINGUAL -> "traducción"
 }

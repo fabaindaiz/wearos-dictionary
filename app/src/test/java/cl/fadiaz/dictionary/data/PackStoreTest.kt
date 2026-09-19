@@ -35,15 +35,15 @@ class PackStoreTest {
         dir.deleteRecursively()
     }
 
-    private fun contenido(n: Int) = ByteArray(n) { (it % 251).toByte() }
+    private fun content(n: Int) = ByteArray(n) { (it % 251).toByte() }
 
     @Test
     fun unaCopiaCompletaDejaElPackYNoDejaBasura() {
-        val bytes = contenido(300_000)
-        val destino = PackStore.instalarAtomico(bytes.inputStream(), dir, "es.db")
+        val bytes = content(300_000)
+        val target = PackStore.installAtomically(bytes.inputStream(), dir, "es.db")
 
-        assertEquals("es.db", destino.name)
-        assertTrue(bytes.contentEquals(destino.readBytes()), "el contenido tiene que ser identico")
+        assertEquals("es.db", target.name)
+        assertTrue(bytes.contentEquals(target.readBytes()), "el contenido tiene que ser identico")
         assertEquals(listOf("es.db"), dir.list()!!.sorted(), "no tiene que quedar ningun .part")
     }
 
@@ -53,7 +53,7 @@ class PackStoreTest {
         // dejara un `.db` incompleto, el proximo arranque lo abriria SIN ERROR y buscaria en un
         // diccionario al que le faltan palabras.
         assertFailsWith<IOException> {
-            PackStore.instalarAtomico(StreamQueSeCorta(120_000), dir, "es.db")
+            PackStore.installAtomically(StreamQueSeCorta(120_000), dir, "es.db")
         }
 
         assertFalse(File(dir, "es.db").exists(), "no puede quedar un pack a medio escribir")
@@ -64,35 +64,35 @@ class PackStoreTest {
     fun unPartHuerfanoDeUnIntentoAnteriorNoBloqueaElSiguiente() {
         // Si la app murio durante una instalacion, el `.part` sobrevive. El intento siguiente
         // tiene que pisarlo, no fallar ni concatenarse encima.
-        File(dir, "es.db.part").writeBytes(contenido(50_000))
+        File(dir, "es.db.part").writeBytes(content(50_000))
 
-        val bytes = contenido(10_000)
-        val destino = PackStore.instalarAtomico(bytes.inputStream(), dir, "es.db")
+        val bytes = content(10_000)
+        val target = PackStore.installAtomically(bytes.inputStream(), dir, "es.db")
 
-        assertTrue(bytes.contentEquals(destino.readBytes()))
+        assertTrue(bytes.contentEquals(target.readBytes()))
         assertEquals(listOf("es.db"), dir.list()!!.sorted())
     }
 
     @Test
     fun instalarDosVecesDejaElPackNuevo() {
-        PackStore.instalarAtomico(contenido(1_000).inputStream(), dir, "es.db")
-        val nuevo = contenido(2_000)
-        PackStore.instalarAtomico(nuevo.inputStream(), dir, "es.db")
+        PackStore.installAtomically(content(1_000).inputStream(), dir, "es.db")
+        val nuevo = content(2_000)
+        PackStore.installAtomically(nuevo.inputStream(), dir, "es.db")
 
         assertTrue(nuevo.contentEquals(File(dir, "es.db").readBytes()))
     }
 
     @Test
     fun sinPacksInstaladosNoDevuelveNada() {
-        assertEquals(emptyList(), PackStore.packsInstalados(dir))
+        assertEquals(emptyList(), PackStore.installedPacks(dir))
     }
 
     @Test
     fun elPartAMedioInstalarNoSeConfundeConUnPack() {
         // `es.db.part` no termina en `.db`, y eso no es un accidente del nombre: si se eligiera
         // como pack, la app abriria justo el archivo incompleto que el rename existe para evitar.
-        File(dir, "es.db.part").writeBytes(contenido(1_000))
-        assertEquals(emptyList(), PackStore.packsInstalados(dir))
+        File(dir, "es.db.part").writeBytes(content(1_000))
+        assertEquals(emptyList(), PackStore.installedPacks(dir))
     }
 
     @Test
@@ -103,9 +103,9 @@ class PackStoreTest {
         //
         // El orden sigue importando --dos arranques tienen que ver la misma lista-- pero ya no
         // decide cual se abre: eso lo decide el usuario con el selector.
-        listOf("zz.db", "aa.db", "mm.db").forEach { File(dir, it).writeBytes(contenido(10)) }
+        listOf("zz.db", "aa.db", "mm.db").forEach { File(dir, it).writeBytes(content(10)) }
         repeat(3) {
-            assertEquals(listOf("aa.db", "mm.db", "zz.db"), PackStore.packsInstalados(dir).map { it.name })
+            assertEquals(listOf("aa.db", "mm.db", "zz.db"), PackStore.installedPacks(dir).map { it.name })
         }
     }
 
@@ -117,7 +117,7 @@ class PackStoreTest {
 
     @Test
     fun elPackDeDemoSeExtraeLaPrimeraVez() {
-        assertEquals(listOf("demo-es-en.db"), PackStore.queFaltaExtraer(listOf("demo-es-en.db"), emptyList()))
+        assertEquals(listOf("demo-es-en.db"), PackStore.missingFromDisk(listOf("demo-es-en.db"), emptyList()))
     }
 
     @Test
@@ -125,7 +125,7 @@ class PackStoreTest {
         // Sin esto se copia en cada arranque.
         assertEquals(
             emptyList(),
-            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("demo-es-en.db")),
+            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("demo-es-en.db")),
         )
     }
 
@@ -135,7 +135,7 @@ class PackStoreTest {
         // extraccion los pisara o los borrara, ese camino no existiria.
         assertEquals(
             emptyList(),
-            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("demo-es-en.db", "es-def-wikc.db")),
+            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("demo-es-en.db", "es-def-wikc.db")),
         )
     }
 
@@ -144,7 +144,7 @@ class PackStoreTest {
         // Actualizar el APK con otra demo no puede quedar invisible detras de los packs reales.
         assertEquals(
             listOf("demo-es-en.db"),
-            PackStore.queFaltaExtraer(listOf("demo-es-en.db"), listOf("es-def-wikc.db")),
+            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("es-def-wikc.db")),
         )
     }
 

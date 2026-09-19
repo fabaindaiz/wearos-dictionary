@@ -9,7 +9,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackStore
-import cl.fadiaz.dictionary.presentation.posEnEspanol
+import cl.fadiaz.dictionary.presentation.posInSpanish
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.time.LocalDate
@@ -33,27 +33,27 @@ import java.time.format.DateTimeParseException
  * La semana la deja escrita la app, porque este servicio **no puede abrir el pack**: elegir una
  * palabra son 32 lecturas y `onTileRequest` corre en el hilo principal.
  */
-class PalabraTileService : TileService() {
+class WordOfTheDayTileService : TileService() {
 
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
-        val (desde, palabras) = PackStore.palabrasDeLaSemana(this)
+        val (since, words) = PackStore.weekWords(this)
         val timeline = TimelineBuilders.Timeline.Builder()
 
-        val dias = ventanas(desde, palabras.size)
-        if (dias.isEmpty()) {
+        val days = windows(since, words.size)
+        if (days.isEmpty()) {
             timeline.addTimelineEntry(
                 TimelineBuilders.TimelineEntry.Builder()
-                    .setLayout(envolver(requestParams, null))
+                    .setLayout(wrap(requestParams, null))
                     .build(),
             )
         } else {
-            for ((indice, ventana) in dias) {
+            for ((index, ventana) in days) {
                 timeline.addTimelineEntry(
                     TimelineBuilders.TimelineEntry.Builder()
                         .setValidity(ventana)
-                        .setLayout(envolver(requestParams, palabras[indice]))
+                        .setLayout(wrap(requestParams, words[index]))
                         .build(),
                 )
             }
@@ -61,10 +61,10 @@ class PalabraTileService : TileService() {
 
         return Futures.immediateFuture(
             TileBuilders.Tile.Builder()
-                .setResourcesVersion(RECURSOS)
+                .setResourcesVersion(RESOURCES)
                 // Backstop y no el mecanismo: si el usuario no abre la app, al terminar la semana
                 // el tile vuelve a pedirse y muestra su estado vacio en vez de una palabra vieja.
-                .setFreshnessIntervalMillis(UNA_SEMANA_MS)
+                .setFreshnessIntervalMillis(ONE_WEEK_MS)
                 .setTileTimeline(timeline.build())
                 .build(),
         )
@@ -73,24 +73,24 @@ class PalabraTileService : TileService() {
     override fun onTileResourcesRequest(
         requestParams: RequestBuilders.ResourcesRequest,
     ): ListenableFuture<Resources> =
-        Futures.immediateFuture(Resources.Builder().setVersion(RECURSOS).build())
+        Futures.immediateFuture(Resources.Builder().setVersion(RESOURCES).build())
 
-    private fun envolver(
+    private fun wrap(
         requestParams: RequestBuilders.TileRequest,
-        visita: cl.fadiaz.dictionary.data.Visita?,
+        visit: cl.fadiaz.dictionary.data.Visit?,
     ): androidx.wear.protolayout.LayoutElementBuilders.Layout {
-        val elemento: LayoutElement = materialScope(this, requestParams.deviceConfiguration) {
-            if (visita == null) {
-                tileVacio(this@PalabraTileService, getString(R.string.tile_palabra_vacia))
+        val item: LayoutElement = materialScope(this, requestParams.deviceConfiguration) {
+            if (visit == null) {
+                tileVacio(this@WordOfTheDayTileService, getString(R.string.tile_palabra_vacia))
             } else {
                 tarjetaDePalabra(
-                    this@PalabraTileService,
-                    visita,
-                    visita.partOfSpeech?.let(::posEnEspanol),
+                    this@WordOfTheDayTileService,
+                    visit,
+                    visit.partOfSpeech?.let(::posInSpanish),
                 )
             }
         }
-        return androidx.wear.protolayout.LayoutElementBuilders.Layout.fromLayoutElement(elemento)
+        return androidx.wear.protolayout.LayoutElementBuilders.Layout.fromLayoutElement(item)
     }
 
     /**
@@ -99,26 +99,26 @@ class PalabraTileService : TileService() {
      * La zona horaria se consulta aca y no en [ContenidoDeTiles] a proposito: es estado del
      * sistema, igual que la fecha, y lo que se testea en la JVM tiene que recibirlo hecho.
      */
-    private fun ventanas(
-        desde: String?,
+    private fun windows(
+        since: String?,
         cuantas: Int,
     ): List<Pair<Int, TimelineBuilders.TimeInterval>> {
-        if (desde == null || cuantas <= 0) return emptyList()
-        val inicio = try {
-            LocalDate.parse(desde)
+        if (since == null || cuantas <= 0) return emptyList()
+        val start = try {
+            LocalDate.parse(since)
         } catch (e: DateTimeParseException) {
             return emptyList()
         }
-        val zona = ZoneId.systemDefault()
+        val zone = ZoneId.systemDefault()
         return (0 until cuantas).map { dia ->
-            val arranca = inicio.plusDays(dia.toLong()).atStartOfDay(zona).toInstant().toEpochMilli()
-            val termina = inicio.plusDays(dia + 1L).atStartOfDay(zona).toInstant().toEpochMilli()
+            val startsAt = start.plusDays(dia.toLong()).atStartOfDay(zone).toInstant().toEpochMilli()
+            val endsAt = start.plusDays(dia + 1L).atStartOfDay(zone).toInstant().toEpochMilli()
             dia to TimelineBuilders.TimeInterval.Builder()
-                .setStartMillis(arranca)
-                .setEndMillis(termina)
+                .setStartMillis(startsAt)
+                .setEndMillis(endsAt)
                 .build()
         }
     }
 }
 
-private const val UNA_SEMANA_MS = 7L * 24 * 60 * 60 * 1000
+private const val ONE_WEEK_MS = 7L * 24 * 60 * 60 * 1000

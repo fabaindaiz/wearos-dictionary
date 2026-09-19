@@ -4,7 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.wear.protolayout.DeviceParametersBuilders
 import androidx.wear.protolayout.material3.materialScope
-import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.data.Visit
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Assert.assertNotNull
@@ -37,13 +37,13 @@ class TilesTest {
         .setScreenShape(DeviceParametersBuilders.SCREEN_SHAPE_ROUND)
         .build()
 
-    private fun visita(lema: String, id: Long = 1) =
-        Visita(packId = "es-def-wikc", entryId = id, headword = lema, partOfSpeech = "noun")
+    private fun visit(lema: String, id: Long = 1) =
+        Visit(packId = "es-def-wikc", entryId = id, headword = lema, partOfSpeech = "noun")
 
     @Test
     fun elHistorialLlenoSeDibuja() {
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(visita("perro"), visita("gato", 2), visita("sol", 3)))
+            filasDeHistorial(context, listOf(visit("perro"), visit("gato", 2), visit("sol", 3)))
         }
         assertNotNull(layout)
     }
@@ -51,7 +51,7 @@ class TilesTest {
     @Test
     fun unHistorialDeUnaSolaFilaSeDibuja() {
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(visita("perro")))
+            filasDeHistorial(context, listOf(visit("perro")))
         }
         assertNotNull(layout)
     }
@@ -59,7 +59,7 @@ class TilesTest {
     @Test
     fun laPalabraDelDiaSeDibuja() {
         val layout = materialScope(context, dispositivo) {
-            tarjetaDePalabra(context, visita("corriente"), "sustantivo")
+            tarjetaDePalabra(context, visit("corriente"), "sustantivo")
         }
         assertNotNull(layout)
     }
@@ -68,7 +68,7 @@ class TilesTest {
     fun unaPalabraSinCategoriaSeDibuja() {
         // `partOfSpeech` es nullable en Visita y el pack real trae entradas sin pos.
         val layout = materialScope(context, dispositivo) {
-            tarjetaDePalabra(context, visita("corriente"), null)
+            tarjetaDePalabra(context, visit("corriente"), null)
         }
         assertNotNull(layout)
     }
@@ -84,7 +84,7 @@ class TilesTest {
     @Test
     fun unLemaLarguisimoNoRompeElLayout() {
         // Los lemas salen del Wikcionario y hay refranes enteros como lema.
-        val largo = visita("mas corre el galgo que el mastin pero no en cuesta arriba")
+        val largo = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
         val layout = materialScope(context, dispositivo) {
             filasDeHistorial(context, listOf(largo, largo, largo))
         }

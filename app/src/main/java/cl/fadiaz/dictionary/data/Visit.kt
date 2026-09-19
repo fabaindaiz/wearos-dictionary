@@ -13,7 +13,7 @@ package cl.fadiaz.dictionary.data
  * Sin una sola referencia a Android, igual que [PackLoad] y [PackSet]: es lo que deja que la
  * politica de recencia se testee en la JVM, dentro del gate (D-072).
  */
-data class Visita(
+data class Visit(
     val packId: String,
     val entryId: Long,
     val headword: String,
@@ -27,19 +27,19 @@ data class Visita(
  * comillas, y un tab perdido en una glosa **ya rompio algo en este proyecto** --por eso
  * `payload.sanitize()` existe--. Un caracter de control C0 no puede aparecer en un lema.
  */
-internal const val SEPARADOR: String = ""
+internal const val SEPARATOR: String = ""
 
 /** Marca un `pos` nulo. No puede confundirse con un pos real: ninguno esta vacio. */
-private const val SIN_POS = ""
+private const val NO_POS = ""
 
-internal fun serializarVisitas(visitas: List<Visita>): String =
-    visitas.joinToString("\n") { visita ->
+internal fun serializeVisits(visits: List<Visit>): String =
+    visits.joinToString("\n") { visit ->
         listOf(
-            visita.packId,
-            visita.entryId.toString(),
-            visita.headword,
-            visita.partOfSpeech ?: SIN_POS,
-        ).joinToString(SEPARADOR)
+            visit.packId,
+            visit.entryId.toString(),
+            visit.headword,
+            visit.partOfSpeech ?: NO_POS,
+        ).joinToString(SEPARATOR)
     }
 
 /**
@@ -48,18 +48,18 @@ internal fun serializarVisitas(visitas: List<Visita>): String =
  * Es deliberado: esto se lee al arrancar, y un formato viejo tras una actualizacion o un byte
  * corrupto no pueden impedir que la app abra. Perder el historial es aceptable; no arrancar, no.
  */
-internal fun parsearVisitas(texto: String): List<Visita> =
-    texto.lineSequence()
+internal fun parseVisits(text: String): List<Visit> =
+    text.lineSequence()
         .mapNotNull { linea ->
-            val campos = linea.split(SEPARADOR)
-            if (campos.size != 4) return@mapNotNull null
-            val entryId = campos[1].toLongOrNull() ?: return@mapNotNull null
-            if (campos[0].isEmpty() || campos[2].isEmpty()) return@mapNotNull null
-            Visita(
-                packId = campos[0],
+            val fields = linea.split(SEPARATOR)
+            if (fields.size != 4) return@mapNotNull null
+            val entryId = fields[1].toLongOrNull() ?: return@mapNotNull null
+            if (fields[0].isEmpty() || fields[2].isEmpty()) return@mapNotNull null
+            Visit(
+                packId = fields[0],
                 entryId = entryId,
-                headword = campos[2],
-                partOfSpeech = campos[3].ifEmpty { null },
+                headword = fields[2],
+                partOfSpeech = fields[3].ifEmpty { null },
             )
         }
         .toList()
@@ -72,15 +72,15 @@ internal fun parsearVisitas(texto: String): List<Visita> =
  * se respaldan con `entryId`, asi que tras un rebuild apuntan a OTRA palabra: sin error, sin log,
  * y con el lema correcto en la lista.
  */
-internal sealed interface DestinoDeVisita {
+internal sealed interface VisitTarget {
     /** El `entryId` sigue siendo el de esa palabra. El caso normal. */
-    data class Directo(val entryId: Long) : DestinoDeVisita
+    data class Direct(val entryId: Long) : VisitTarget
 
     /** El pack se reconstruyo y el id se corrio; se corrigio por el lema. */
-    data class Reresuelto(val entryId: Long) : DestinoDeVisita
+    data class Relocated(val entryId: Long) : VisitTarget
 
     /** La palabra ya no esta en este pack. */
-    data object Perdido : DestinoDeVisita
+    data object Missing : VisitTarget
 }
 
 /**
@@ -94,23 +94,23 @@ internal sealed interface DestinoDeVisita {
  * @param reresuelto el id que da buscar el lema por `idx_entry_norm`, o `null` si la palabra ya
  *   no esta en el pack.
  */
-internal fun destinoDeVisita(
-    guardada: Visita,
-    headwordEnElId: String?,
-    reresuelto: Long?,
-): DestinoDeVisita = when {
+internal fun visitTarget(
+    saved: Visit,
+    headwordAtId: String?,
+    relocated: Long?,
+): VisitTarget = when {
     // Sin lema no hay con que corregir: la unica pregunta que queda es si ese id existe. Pasa
     // con el deep link de un tile, que arma la visita desde los extras del intent.
-    guardada.headword.isEmpty() ->
-        if (headwordEnElId != null) DestinoDeVisita.Directo(guardada.entryId) else DestinoDeVisita.Perdido
+    saved.headword.isEmpty() ->
+        if (headwordAtId != null) VisitTarget.Direct(saved.entryId) else VisitTarget.Missing
     // El caso normal: el pack no se reconstruyo. Cuesta la lectura que igual hay que hacer para
     // mostrar la entrada, y NINGUNA consulta extra.
-    headwordEnElId == guardada.headword -> DestinoDeVisita.Directo(guardada.entryId)
+    headwordAtId == saved.headword -> VisitTarget.Direct(saved.entryId)
     // Se corrio el id --o el pack encogio--. El lema es lo unico que sobrevive, y entra por
     // indice. Se pierde precision entre homografos del MISMO pos (3.024 pares en español, los
     // que separa `sense_key` en `entry.uid`): se abre el mejor rankeado. Es estrictamente mejor
     // que abrir una palabra sin relacion, que es lo que pasaba antes.
-    reresuelto != null -> DestinoDeVisita.Reresuelto(reresuelto)
+    relocated != null -> VisitTarget.Relocated(relocated)
     // La palabra ya no esta. Se pierde la fila en vez de abrir cualquier otra.
-    else -> DestinoDeVisita.Perdido
+    else -> VisitTarget.Missing
 }

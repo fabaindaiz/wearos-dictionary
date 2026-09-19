@@ -9,14 +9,14 @@ import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.EntrySummary
-import cl.fadiaz.dictionary.data.Ajustes
-import cl.fadiaz.dictionary.data.EscalaDeTexto
+import cl.fadiaz.dictionary.data.Settings
+import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackSet
-import cl.fadiaz.dictionary.data.PalabraDelDia
-import cl.fadiaz.dictionary.tile.ContenidoDeTiles
-import cl.fadiaz.dictionary.data.DestinoDeVisita
-import cl.fadiaz.dictionary.data.Visita
-import cl.fadiaz.dictionary.data.destinoDeVisita
+import cl.fadiaz.dictionary.data.WordOfTheDay
+import cl.fadiaz.dictionary.tile.TileContents
+import cl.fadiaz.dictionary.data.VisitTarget
+import cl.fadiaz.dictionary.data.Visit
+import cl.fadiaz.dictionary.data.visitTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,14 +35,14 @@ data class SearchState(
     val results: List<Suggestion> = emptyList(),
     val status: Status = Status.Loading,
     /** El pack en el que se esta buscando. Su `attribution` y `license` son las que se muestran. */
-    val activo: PackMetadata? = null,
+    val active: PackMetadata? = null,
     /** Todos los packs que la app conoce, extraidos o no. Es lo que dibuja el selector. */
-    val disponibles: List<PackHandle> = emptyList(),
+    val available: List<PackHandle> = emptyList(),
     /** Packs que estaban y no abrieron. Se muestran en la atribucion, no en la busqueda. */
-    val problemas: List<String> = emptyList(),
-    val modo: Modo = Modo.NORMAL,
+    val problems: List<String> = emptyList(),
+    val mode: Mode = Mode.NORMAL,
     /** Las ultimas entradas abiertas, ya filtradas: solo las de packs que estan instalados. */
-    val historial: List<Visita> = emptyList(),
+    val history: List<Visit> = emptyList(),
     /**
      * La entrada de hoy, **una por diccionario cargado**, por `packId`.
      *
@@ -50,9 +50,9 @@ data class SearchState(
      * ademas cambiar de idioma no tiene que recalcular nada. Vacio mientras se calculan, si los
      * packs estan vacios, o si nadie cableo `fechaDeHoy` --que es una ausencia visible--.
      */
-    val palabrasDelDia: Map<String, EntrySummary> = emptyMap(),
-    val ajustes: Ajustes = Ajustes(),
-    val favoritos: List<Visita> = emptyList(),
+    val wordsOfTheDay: Map<String, EntrySummary> = emptyMap(),
+    val settings: Settings = Settings(),
+    val favorites: List<Visit> = emptyList(),
 ) {
     /**
      * Por que camino salieron los resultados que se estan mostrando.
@@ -61,7 +61,7 @@ data class SearchState(
      * fila se etiquete sola. Un modo y no un `Boolean` porque hay tres estados y el intermedio
      * --buscando-- tiene que verse: el indice de texto libre es mucho mas grande que el de lemas.
      */
-    enum class Modo { NORMAL, BUSCANDO_DEFINICIONES, DEFINICIONES }
+    enum class Mode { NORMAL, BUSCANDO_DEFINICIONES, DEFINICIONES }
 
     sealed interface Status {
         data object Loading : Status
@@ -83,13 +83,13 @@ data class SearchState(
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
-    private val abrirPacks: suspend (onExtracting: () -> Unit) -> PackSet,
+    private val openPacks: suspend (onExtracting: () -> Unit) -> PackSet,
     /** El pack de la ultima vez, o el idioma del reloj. Nunca el orden alfabetico. */
-    private val preferido: () -> String? = { null },
-    private val recordar: (packId: String) -> Unit = {},
+    private val preferred: () -> String? = { null },
+    private val saveActivePack: (packId: String) -> Unit = {},
     /** El historial persistido. Entra por parametro porque vive en Android (D-072). */
-    private val historialGuardado: () -> List<Visita> = { emptyList() },
-    private val guardarHistorial: (List<Visita>) -> Unit = {},
+    private val savedHistory: () -> List<Visit> = { emptyList() },
+    private val saveHistory: (List<Visit>) -> Unit = {},
     /**
      * Hoy, como "AAAA-MM-DD". Entra por parametro y no sale de un reloj de sistema acá adentro:
      * es lo que deja que la politica de [PalabraDelDia] corra entera en la JVM (D-072).
@@ -97,27 +97,27 @@ class SearchViewModel(
      * El default devuelve null --sin fecha no hay palabra del dia-- para que olvidarse de
      * cablearlo se vea en pantalla como una ausencia, y no como una palabra que nunca cambia.
      */
-    private val fechaDeHoy: () -> String? = { null },
-    private val ajustesGuardados: () -> Ajustes = { Ajustes() },
-    private val guardarAjustes: (Ajustes) -> Unit = {},
+    private val todayDate: () -> String? = { null },
+    private val savedSettings: () -> Settings = { Settings() },
+    private val saveSettings: (Settings) -> Unit = {},
     /**
      * Borra el archivo de un pack. Devuelve si habia algo que borrar.
      *
      * Entra por parametro como todo lo que toca Android (D-072), y recibe el **nombre de
      * archivo** y no el packId: son cosas distintas.
      */
-    private val borrarDelDisco: (archivo: String) -> Boolean = { false },
-    private val favoritosGuardados: () -> List<Visita> = { emptyList() },
-    private val guardarFavoritos: (List<Visita>) -> Unit = {},
+    private val deleteFromDisk: (fileName: String) -> Boolean = { false },
+    private val savedFavorites: () -> List<Visit> = { emptyList() },
+    private val saveFavorites: (List<Visit>) -> Unit = {},
     /**
      * La semana de palabras que ya estaba cacheada para el tile: desde que dia, y cuales.
      *
      * Se consulta para **no recalcularla en cada arranque**: son [ContenidoDeTiles.DIAS_CACHEADOS]
      * x [PalabraDelDia.CANDIDATOS] lecturas y solo cambian una vez por dia.
      */
-    private val palabrasDeLaSemanaGuardadas: () -> Pair<String?, List<Visita>> =
+    private val savedWeekWords: () -> Pair<String?, List<Visit>> =
         { null to emptyList() },
-    private val guardarPalabrasDeLaSemana: (desde: String, palabras: List<Visita>) -> Unit =
+    private val saveWeekWords: (since: String, words: List<Visit>) -> Unit =
         { _, _ -> },
     /**
      * Avisa a los tiles que lo que muestran cambio.
@@ -126,7 +126,7 @@ class SearchViewModel(
      * tile de historial se pide con `freshnessIntervalMillis = 0`, o sea que **el sistema no lo
      * vuelve a llamar solo**; sin este empujon se queda con lo que tenia al instalarse.
      */
-    private val avisarTiles: () -> Unit = {},
+    private val notifyTiles: () -> Unit = {},
 ) : ViewModel() {
 
     /**
@@ -140,7 +140,7 @@ class SearchViewModel(
     private val source = MutableStateFlow<DictionarySource?>(null)
 
     /** Todos los abiertos, para resolver entradas de cualquier pack y para cerrarlos. */
-    private var abiertos: List<DictionarySource> = emptyList()
+    private var opened: List<DictionarySource> = emptyList()
 
     /**
      * La busqueda por definicion en vuelo.
@@ -149,7 +149,7 @@ class SearchViewModel(
      * que puede seguir viva cuando el usuario ya escribio otra cosa. Sin esto, su resultado
      * aterriza encima del nuevo y muestra otra palabra, sin ninguna excepcion.
      */
-    private var definiciones: Job? = null
+    private var definitionMode: Job? = null
 
     /**
      * El historial completo, sin filtrar.
@@ -158,19 +158,19 @@ class SearchViewModel(
      * un flujo real de desarrollo, y asi el historial reaparece solo. Lo que no puede pasar es
      * mostrar una fila que al tocarla no abre nada.
      */
-    private var visitas: List<Visita> = emptyList()
-    private var favoritas: List<Visita> = emptyList()
+    private var visits: List<Visit> = emptyList()
+    private var favoriteVisits: List<Visit> = emptyList()
 
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
     init {
-        favoritas = favoritosGuardados()
-        _state.update { it.copy(ajustes = ajustesGuardados(), favoritos = favoritas) }
+        favoriteVisits = savedFavorites()
+        _state.update { it.copy(settings = savedSettings(), favorites = favoriteVisits) }
         viewModelScope.launch {
-            visitas = historialGuardado()
-            cargarPacks()
+            visits = savedHistory()
+            loadPacks()
         }
 
         viewModelScope.launch {
@@ -191,7 +191,7 @@ class SearchViewModel(
                     // Se compara contra la query vigente: si el usuario siguio escribiendo
                     // mientras esta consulta corria, su resultado ya no es el que se muestra.
                     // Y no se publica en modo definiciones: ahi manda la otra consulta.
-                    if (text == queries.value && _state.value.modo == SearchState.Modo.NORMAL) {
+                    if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
                         _state.update { it.copy(query = text, results = results) }
                     }
                 }
@@ -217,33 +217,33 @@ class SearchViewModel(
      * borrar exige cerrar las conexiones ANTES de tocar el disco, y eso no se puede hacer si
      * esta funcion se dispara sola.
      */
-    private suspend fun cargarPacks() {
-        when (val result = abrirPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
+    private suspend fun loadPacks() {
+        when (val result = openPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
             is PackSet.Ready -> {
-                abiertos = result.todos.filterIsInstance<PackHandle.Abierto>().map { it.source }
-                val elegido = elegirActivo(result, preferido())
-                source.value = elegido.source
+                opened = result.all.filterIsInstance<PackHandle.Open>().map { it.source }
+                val chosen = chooseActive(result, preferred())
+                source.value = chosen.source
                 _state.update {
                     it.copy(
                         status = SearchState.Status.Ready,
                         // D-031: la atribucion sale del pack, no de una constante. Un pack
                         // de otra fuente trae su propia licencia y tiene que mostrarse.
-                        activo = elegido.metadata,
+                        active = chosen.metadata,
                         // El de demostracion no se ofrece si hay un diccionario de verdad:
                         // es un placeholder, no una opcion. Ademas su etiqueta chocaria --
                         // con el toy y el español real el selector decia "ES" y "ES".
-                        disponibles = ofrecibles(result.todos),
-                        problemas = result.problemas,
-                        historial = visibles(visitas),
+                        available = offerable(result.all),
+                        problems = result.problems,
+                        history = visibleOnes(visits),
                     )
                 }
                 // Para TODOS los ofrecidos, no solo el activo: el de demostracion queda
                 // fuera porque `ofrecibles` ya lo saco cuando hay un diccionario de verdad.
-                refrescarPalabrasDelDia(
-                    ofrecibles(result.todos).filterIsInstance<PackHandle.Abierto>()
+                refreshWordsOfTheDay(
+                    offerable(result.all).filterIsInstance<PackHandle.Open>()
                         .map { it.source },
                 )
-                cachearLaSemanaDelTile(elegido.source)
+                cacheWeekForTile(chosen.source)
             }
 
             PackSet.NoPack -> _state.update {
@@ -257,25 +257,25 @@ class SearchViewModel(
     }
 
     fun onPackChange(packId: String) {
-        val pack = abiertos.firstOrNull { it.metadata.packId == packId } ?: return
+        val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
         // El combine va a repetir la query por prefijo en el pack nuevo y pisaria los resultados
         // de definicion igual: mejor salir del modo explicitamente que dejar la carrera abierta.
-        volverAModoNormal()
+        leaveDefinitionMode()
         source.value = pack
-        _state.update { it.copy(activo = pack.metadata) }
+        _state.update { it.copy(active = pack.metadata) }
         // No se recalcula nada para la PANTALLA: las palabras del dia de todos los packs ya
         // estan. El tile si, porque muestra una sola y es la del activo -- dejarlo en el idioma
         // anterior seria una palabra equivocada que nadie reporta, porque nadie abre un tile a
         // proposito.
-        cachearLaSemanaDelTile(pack)
-        recordar(packId)
+        cacheWeekForTile(pack)
+        saveActivePack(packId)
     }
 
     fun onQueryChange(text: String) {
         // Editar la query es la forma de volver de las definiciones a la busqueda normal. No hay
         // boton de "volver" a proposito: en 192 dp un control se paga en resultados, y el usuario
         // ya tiene el gesto.
-        volverAModoNormal()
+        leaveDefinitionMode()
         // La query se muestra YA y los resultados llegan despues: si el campo esperara al
         // debounce, escribir se sentiria trabado.
         _state.update { it.copy(query = text) }
@@ -290,17 +290,17 @@ class SearchViewModel(
      */
     fun onSearchDefinitions() {
         val pack = source.value ?: return
-        val texto = queries.value
-        if (texto.isBlank()) return
+        val text = queries.value
+        if (text.isBlank()) return
 
-        definiciones?.cancel()
-        _state.update { it.copy(modo = SearchState.Modo.BUSCANDO_DEFINICIONES) }
-        definiciones = viewModelScope.launch {
-            val encontrados = pack.searchDefinitions(texto)
+        definitionMode?.cancel()
+        _state.update { it.copy(mode = SearchState.Mode.BUSCANDO_DEFINICIONES) }
+        definitionMode = viewModelScope.launch {
+            val found = pack.searchDefinitions(text)
             // Si mientras tanto se escribio otra cosa, este resultado ya no es el que se muestra.
-            if (texto == queries.value) {
+            if (text == queries.value) {
                 _state.update {
-                    it.copy(results = encontrados, modo = SearchState.Modo.DEFINICIONES)
+                    it.copy(results = found, mode = SearchState.Mode.DEFINICIONES)
                 }
             }
         }
@@ -312,38 +312,38 @@ class SearchViewModel(
      * La `Suggestion` ya trae los cuatro campos, asi que registrar no cuesta abrir la entrada ni
      * descomprimir un payload.
      */
-    fun registrarVisita(sugerencia: Suggestion) {
-        val visita = Visita(
-            packId = sugerencia.packId,
-            entryId = sugerencia.entryId,
-            headword = sugerencia.headword,
-            partOfSpeech = sugerencia.partOfSpeech,
+    fun recordVisit(suggestion: Suggestion) {
+        val visit = Visit(
+            packId = suggestion.packId,
+            entryId = suggestion.entryId,
+            headword = suggestion.headword,
+            partOfSpeech = suggestion.partOfSpeech,
         )
         // Move-to-front: abrir dos veces la misma palabra la sube, no la duplica.
-        visitas = (listOf(visita) + visitas.filterNot {
-            it.packId == visita.packId && it.entryId == visita.entryId
-        }).take(HISTORIAL_MAX)
-        guardarHistorial(visitas)
-        _state.update { it.copy(historial = visibles(visitas)) }
-        avisarTiles()
+        visits = (listOf(visit) + visits.filterNot {
+            it.packId == visit.packId && it.entryId == visit.entryId
+        }).take(MAX_HISTORY)
+        saveHistory(visits)
+        _state.update { it.copy(history = visibleOnes(visits)) }
+        notifyTiles()
     }
 
-    private fun ofrecibles(todos: List<PackHandle>): List<PackHandle> {
-        val abiertos = todos.filterIsInstance<PackHandle.Abierto>()
-        return if (abiertos.any { !it.esDemo }) abiertos.filterNot { it.esDemo } else todos
+    private fun offerable(all: List<PackHandle>): List<PackHandle> {
+        val opened = all.filterIsInstance<PackHandle.Open>()
+        return if (opened.any { !it.isDemo }) opened.filterNot { it.isDemo } else all
     }
 
     /** Solo las de packs abiertos: una fila que no abre nada es peor que no tener la fila. */
-    private fun visibles(todas: List<Visita>): List<Visita> {
-        val instalados = abiertos.map { it.metadata.packId }.toSet()
-        return if (instalados.isEmpty()) todas else todas.filter { it.packId in instalados }
+    private fun visibleOnes(allSenses: List<Visit>): List<Visit> {
+        val installed = opened.map { it.metadata.packId }.toSet()
+        return if (installed.isEmpty()) allSenses else allSenses.filter { it.packId in installed }
     }
 
-    private fun volverAModoNormal() {
-        definiciones?.cancel()
-        definiciones = null
-        if (_state.value.modo != SearchState.Modo.NORMAL) {
-            _state.update { it.copy(modo = SearchState.Modo.NORMAL, results = emptyList()) }
+    private fun leaveDefinitionMode() {
+        definitionMode?.cancel()
+        definitionMode = null
+        if (_state.value.mode != SearchState.Mode.NORMAL) {
+            _state.update { it.copy(mode = SearchState.Mode.NORMAL, results = emptyList()) }
         }
     }
 
@@ -377,49 +377,49 @@ class SearchViewModel(
      * No se rehace si la cache ya es de hoy y del mismo pack: eso la convierte en trabajo de una
      * vez por dia en vez de una vez por arranque.
      */
-    private fun cachearLaSemanaDelTile(activo: DictionarySource) {
-        val hoy = fechaDeHoy() ?: return
-        val packId = activo.metadata.packId
-        val (desde, cacheadas) = palabrasDeLaSemanaGuardadas()
-        if (desde == hoy && cacheadas.isNotEmpty() && cacheadas.all { it.packId == packId }) return
+    private fun cacheWeekForTile(active: DictionarySource) {
+        val today = todayDate() ?: return
+        val packId = active.metadata.packId
+        val (since, cacheadas) = savedWeekWords()
+        if (since == today && cacheadas.isNotEmpty() && cacheadas.all { it.packId == packId }) return
 
         viewModelScope.launch {
-            val semana = mutableListOf<Visita>()
-            for (dia in 0 until ContenidoDeTiles.DIAS_CACHEADOS) {
-                val elegida = runCatching {
-                    PalabraDelDia.elegir(
-                        fecha = ContenidoDeTiles.sumarDias(hoy, dia) ?: return@launch,
+            val week = mutableListOf<Visit>()
+            for (dia in 0 until TileContents.CACHED_DAYS) {
+                val picked = runCatching {
+                    WordOfTheDay.pick(
+                        date = TileContents.plusDays(today, dia) ?: return@launch,
                         packId = packId,
-                        entradas = activo.metadata.entryCount,
-                        leer = { id -> activo.summary(id) },
+                        entryCount = active.metadata.entryCount,
+                        read = { id -> active.summary(id) },
                     )
                 }.getOrNull() ?: return@launch
-                semana += Visita(
+                week += Visit(
                     packId = packId,
-                    entryId = elegida.entryId,
-                    headword = elegida.headword,
-                    partOfSpeech = elegida.partOfSpeech,
+                    entryId = picked.entryId,
+                    headword = picked.headword,
+                    partOfSpeech = picked.partOfSpeech,
                 )
             }
-            guardarPalabrasDeLaSemana(hoy, semana)
-            avisarTiles()
+            saveWeekWords(today, week)
+            notifyTiles()
         }
     }
 
-    private fun refrescarPalabrasDelDia(packs: List<DictionarySource>) {
-        val fecha = fechaDeHoy() ?: return
+    private fun refreshWordsOfTheDay(packs: List<DictionarySource>) {
+        val date = todayDate() ?: return
         for (pack in packs) {
             viewModelScope.launch {
-                val elegida = runCatching {
-                    PalabraDelDia.elegir(
-                        fecha = fecha,
+                val picked = runCatching {
+                    WordOfTheDay.pick(
+                        date = date,
                         packId = pack.metadata.packId,
-                        entradas = pack.metadata.entryCount,
-                        leer = { id -> pack.summary(id) },
+                        entryCount = pack.metadata.entryCount,
+                        read = { id -> pack.summary(id) },
                     )
                 }.getOrNull() ?: return@launch
                 _state.update {
-                    it.copy(palabrasDelDia = it.palabrasDelDia + (pack.metadata.packId to elegida))
+                    it.copy(wordsOfTheDay = it.wordsOfTheDay + (pack.metadata.packId to picked))
                 }
             }
         }
@@ -440,11 +440,11 @@ class SearchViewModel(
      * El pack de demostracion **no se puede borrar**: viene dentro del APK y `PackStore.open` lo
      * re-extrae al reabrir, asi que la accion no haria nada y el pack volveria solo.
      */
-    fun borrarPack(packId: String) {
-        val handle = state.value.disponibles
-            .filterIsInstance<PackHandle.Abierto>()
+    fun deletePack(packId: String) {
+        val handle = state.value.available
+            .filterIsInstance<PackHandle.Open>()
             .firstOrNull { it.packId == packId } ?: return
-        if (handle.esDemo) return
+        if (handle.isDemo) return
 
         viewModelScope.launch {
             // Sin pack activo y en "cargando" mientras dura: una consulta que llegue en el medio
@@ -452,19 +452,19 @@ class SearchViewModel(
             _state.update {
                 it.copy(
                     status = SearchState.Status.Loading,
-                    palabrasDelDia = it.palabrasDelDia - packId,
+                    wordsOfTheDay = it.wordsOfTheDay - packId,
                 )
             }
             source.value = null
-            cerrar()
-            borrarDelDisco(handle.archivo)
-            cargarPacks()
+            close()
+            deleteFromDisk(handle.fileName)
+            loadPacks()
         }
     }
 
     /** Si esa entrada esta guardada. Por `packId` ademas del id: dos packs comparten ids. */
-    fun esFavorita(packId: String, entryId: Long): Boolean =
-        favoritas.any { it.packId == packId && it.entryId == entryId }
+    fun isFavorite(packId: String, entryId: Long): Boolean =
+        favoriteVisits.any { it.packId == packId && it.entryId == entryId }
 
     /**
      * Guarda o saca una palabra de favoritas.
@@ -474,23 +474,23 @@ class SearchViewModel(
      * viven en su propia lista. El tope existe igual porque esto termina en un String de
      * SharedPreferences.
      */
-    fun alternarFavorita(visita: Visita) {
-        val estaba = esFavorita(visita.packId, visita.entryId)
-        favoritas = if (estaba) {
-            favoritas.filterNot { it.packId == visita.packId && it.entryId == visita.entryId }
+    fun toggleFavorite(visit: Visit) {
+        val wasFavorite = isFavorite(visit.packId, visit.entryId)
+        favoriteVisits = if (wasFavorite) {
+            favoriteVisits.filterNot { it.packId == visit.packId && it.entryId == visit.entryId }
         } else {
-            (listOf(visita) + favoritas).take(FAVORITOS_MAX)
+            (listOf(visit) + favoriteVisits).take(MAX_FAVORITES)
         }
-        guardarFavoritos(favoritas)
-        _state.update { it.copy(favoritos = favoritas) }
-        avisarTiles()
+        saveFavorites(favoriteVisits)
+        _state.update { it.copy(favorites = favoriteVisits) }
+        notifyTiles()
     }
 
     /** Cambia la escala del texto y la deja guardada. */
-    fun onEscalaDeTextoChange(escala: EscalaDeTexto) {
-        val nuevos = state.value.ajustes.copy(escalaDeTexto = escala)
-        guardarAjustes(nuevos)
-        _state.update { it.copy(ajustes = nuevos) }
+    fun onTextScaleChange(scale: TextScale) {
+        val fresh = state.value.settings.copy(textScale = scale)
+        saveSettings(fresh)
+        _state.update { it.copy(settings = fresh) }
     }
 
     /**
@@ -499,10 +499,10 @@ class SearchViewModel(
      * Hacia falta: con tope de tres y move-to-front se recicla solo, pero una palabra que no
      * queres volver a ver se queda hasta que abras tres mas.
      */
-    fun limpiarHistorial() {
-        visitas = emptyList()
-        guardarHistorial(visitas)
-        _state.update { it.copy(historial = emptyList()) }
+    fun clearHistory() {
+        visits = emptyList()
+        saveHistory(visits)
+        _state.update { it.copy(history = emptyList()) }
     }
 
     /**
@@ -520,43 +520,43 @@ class SearchViewModel(
      * Cuando corrige, **reescribe el respaldo**: si no, cada apertura volveria a pagar la
      * re-resolucion y el tile seguiria publicando el id viejo.
      */
-    suspend fun destinoDe(visita: Visita): Long? {
-        val fuente = abiertos.firstOrNull { it.metadata.packId == visita.packId } ?: return null
-        val enElId = fuente.summary(visita.entryId)?.headword
-        val reresuelto = if (enElId == visita.headword) {
+    suspend fun targetOf(visit: Visit): Long? {
+        val source = opened.firstOrNull { it.metadata.packId == visit.packId } ?: return null
+        val atId = source.summary(visit.entryId)?.headword
+        val relocated = if (atId == visit.headword) {
             null
         } else {
-            val clave = TextNormalizer.norm(visita.headword)
-            fuente.resolveHeadwords(setOf(clave))[clave]
+            val key = TextNormalizer.norm(visit.headword)
+            source.resolveHeadwords(setOf(key))[key]
         }
-        return when (val destino = destinoDeVisita(visita, enElId, reresuelto)) {
-            is DestinoDeVisita.Directo -> destino.entryId
-            is DestinoDeVisita.Reresuelto -> {
-                corregirId(visita, destino.entryId)
-                destino.entryId
+        return when (val target = visitTarget(visit, atId, relocated)) {
+            is VisitTarget.Direct -> target.entryId
+            is VisitTarget.Relocated -> {
+                fixEntryId(visit, target.entryId)
+                target.entryId
             }
-            DestinoDeVisita.Perdido -> null
+            VisitTarget.Missing -> null
         }
     }
 
     /** Reescribe el `entryId` de esta visita en el historial y en las guardadas. */
-    private fun corregirId(visita: Visita, entryId: Long) {
-        fun corregir(lista: List<Visita>) = lista.map {
-            if (it.packId == visita.packId && it.entryId == visita.entryId) {
+    private fun fixEntryId(visit: Visit, entryId: Long) {
+        fun fix(lista: List<Visit>) = lista.map {
+            if (it.packId == visit.packId && it.entryId == visit.entryId) {
                 it.copy(entryId = entryId)
             } else {
                 it
             }
         }
-        visitas = corregir(visitas)
-        favoritas = corregir(favoritas)
-        guardarHistorial(visitas)
-        guardarFavoritos(favoritas)
-        _state.update { it.copy(historial = visibles(visitas), favoritos = favoritas) }
+        visits = fix(visits)
+        favoriteVisits = fix(favoriteVisits)
+        saveHistory(visits)
+        saveFavorites(favoriteVisits)
+        _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
     }
 
     suspend fun entry(packId: String, entryId: Long): Entry? =
-        abiertos.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
+        opened.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
 
     /**
      * Que palabras de una glosa son lema, **en el pack de esa entrada** y no en el activo.
@@ -565,19 +565,19 @@ class SearchViewModel(
      * activo. Caer seria pintar tocable una palabra que abre otra distinta, que es exactamente
      * el bug que arreglo D-080, pero mudo.
      */
-    suspend fun resolver(packId: String, norms: Set<String>): Map<String, Long> =
-        abiertos.firstOrNull { it.metadata.packId == packId }
+    suspend fun resolveIn(packId: String, norms: Set<String>): Map<String, Long> =
+        opened.firstOrNull { it.metadata.packId == packId }
             ?.resolveHeadwords(norms)
             .orEmpty()
 
     /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
-    fun cerrar() {
-        abiertos.forEach { it.close() }
-        abiertos = emptyList()
+    fun close() {
+        opened.forEach { it.close() }
+        opened = emptyList()
         source.value = null
     }
 
-    override fun onCleared() = cerrar()
+    override fun onCleared() = close()
 
     companion object {
         /** Lo que tarda un dedo en encadenar dos letras en una pantalla de reloj. */
@@ -590,13 +590,13 @@ class SearchViewModel(
          * Guardar diez es gratis en bytes y caro en lo unico escaso -- serian siete filas que
          * nadie ve sin scrollear el estado vacio.
          */
-        const val HISTORIAL_MAX: Int = 3
+        const val MAX_HISTORY: Int = 3
 
         /**
          * Tope de favoritas. Alto a proposito --no compiten por la pantalla como el historial--
          * pero acotado porque todo esto termina en un String de SharedPreferences.
          */
-        const val FAVORITOS_MAX: Int = 100
+        const val MAX_FAVORITES: Int = 100
 
         /**
          * Que pack se abre al arrancar. **Nunca el orden alfabetico**: con dos packs eso hacia
@@ -606,15 +606,15 @@ class SearchViewModel(
          * el caso de no tener preferencia guardada y usar el idioma del reloj-- y por ultimo el
          * que venga.
          */
-        internal fun elegirActivo(set: PackSet.Ready, preferido: String?): PackHandle.Abierto {
-            val abiertos = set.todos.filterIsInstance<PackHandle.Abierto>()
+        internal fun chooseActive(set: PackSet.Ready, preferred: String?): PackHandle.Open {
+            val opened = set.all.filterIsInstance<PackHandle.Open>()
             // El pack de demostracion solo gana si no hay ningun otro: existe para que la app
             // recien instalada tenga algo que mostrar, no para tapar un diccionario de verdad.
-            val candidatos = abiertos.filterNot { it.esDemo }.ifEmpty { abiertos }
-            return candidatos.firstOrNull { it.packId == preferido }
-                ?: candidatos.firstOrNull { it.metadata.langSource == preferido }
-                ?: candidatos.firstOrNull()
-                ?: set.activo
+            val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
+            return candidates.firstOrNull { it.packId == preferred }
+                ?: candidates.firstOrNull { it.metadata.langSource == preferred }
+                ?: candidates.firstOrNull()
+                ?: set.active
         }
     }
 }
