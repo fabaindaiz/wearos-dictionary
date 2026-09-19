@@ -434,6 +434,11 @@ def _fts_body(senses):
     Los sinonimos entran por D-118: si solo fueran al payload, se verian recien al ABRIR una
     entrada que ya encontraste, que es cuando ya no hacen falta. Buscar "bobo" tiene que
     encontrar "chulengo".
+
+    **Los antonimos NO entran, y es una decision, no un olvido** (D-126). Buscar "frio" para
+    encontrar "caliente" no es algo que nadie haga: meterlos al indice sumaria ruido a una
+    busqueda cuyo ORDEN ya es deuda abierta (D-067), y la entrada equivocada que devolveria
+    seria ademas la que significa lo contrario de lo buscado. Hay un test que lo fija.
     """
     parts = []
     for sense in senses:

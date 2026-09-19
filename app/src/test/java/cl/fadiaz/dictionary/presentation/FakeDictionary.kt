@@ -53,6 +53,8 @@ class FakeDictionary(
         normVersion = 1,
         kind = PackKind.MONOLINGUAL,
         name = "Diccionario $packId",
+        // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+        description = null,
         langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,

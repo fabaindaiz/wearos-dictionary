@@ -317,6 +317,34 @@ class SinonimosEnElIndiceTest(BuilderTestCase):
         self.assertEqual(entry_id, filas[0][0], "fts_def.rowid tiene que ser entry.id (D-011)")
 
 
+class AntonimosFueraDelIndiceTest(BuilderTestCase):
+    """Los antonimos van al payload y NO a `fts_def` (D-126).
+
+    Es lo contrario de lo que se decidio para los sinonimos (D-118), y el motivo es que la
+    pregunta que cada uno responde es distinta: un sinonimo es otra forma de nombrar lo que
+    buscas, un antonimo es lo que NO buscas. Indexarlo haria que escribir "frio" devuelva
+    "caliente", con el orden de resultados --que ya es deuda (D-067)-- decidiendo que tan
+    arriba aparece esa respuesta invertida.
+
+    Sin este test, alguien que agregue un campo al payload lo suma a `_fts_body` por simetria
+    y nada falla: el pack sale mas grande y la busqueda mas ruidosa, en silencio.
+    """
+
+    def test_un_antonimo_no_se_puede_buscar_por_texto_libre(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            entrada = record("caliente")
+            entrada.senses[0].update({"synonyms": ["ardiente"], "antonyms": ["gelido"]})
+            builder.add(entrada)
+        db = sqlite3.connect(self.path)
+        sinonimo = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'ardiente'").fetchone()[0]
+        antonimo = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'gelido'").fetchone()[0]
+        db.close()
+        self.assertEqual(1, sinonimo, "el sinonimo SI tiene que estar en el indice (D-118)")
+        self.assertEqual(0, antonimo, "el antonimo NO tiene que estar en el indice (D-126)")
+
+
 class PoliticaDeContenidoTest(BuilderTestCase):
     """El validador comprueba el ARTEFACTO, no el builder.
 

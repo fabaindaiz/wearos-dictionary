@@ -36,6 +36,12 @@ TAG_EXAMPLE = "E"
 TAG_TRANSLATION = "T"
 TAG_SYNONYM = "Y"
 
+# Antonimo de ESTA acepcion (D-126). **No sube CODEC_ID y eso es deliberado**: es un tag
+# puramente aditivo, y D-119 dejo escrito que forzar a redescargar por uno de esos seria tirar
+# a la basura la tolerancia que el formato tiene. Un lector viejo lo ignora y muestra la entrada
+# sin antonimos, que es degradacion correcta.
+TAG_ANTONYM = "A"
+
 # Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
 # esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
 _RAW_DEFLATE = -15
@@ -80,6 +86,10 @@ def render(part_of_speech, senses):
             value = sanitize(synonym)
             if value:
                 lines.append(TAG_SYNONYM + "\t" + value)
+        for antonym in sense.get("antonyms", ()):
+            value = sanitize(antonym)
+            if value:
+                lines.append(TAG_ANTONYM + "\t" + value)
     return "".join(line + "\n" for line in lines)
 
 
@@ -98,7 +108,13 @@ def parse(text):
                 part_of_speech = value
         elif tag == TAG_SENSE:
             senses.append(
-                {"gloss": value, "examples": [], "translations": [], "synonyms": []}
+                {
+                    "gloss": value,
+                    "examples": [],
+                    "translations": [],
+                    "synonyms": [],
+                    "antonyms": [],
+                }
             )
         elif tag == TAG_EXAMPLE:
             if senses:
@@ -112,6 +128,9 @@ def parse(text):
         elif tag == TAG_SYNONYM:  # noqa: SIM102
             if senses:
                 senses[-1]["synonyms"].append(value)
+        elif tag == TAG_ANTONYM:  # noqa: SIM102
+            if senses:
+                senses[-1]["antonyms"].append(value)
         # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar
         # campos sin romper un lector viejo.
     return part_of_speech, senses
