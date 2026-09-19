@@ -26,6 +26,40 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-18 — Los documentos dejan de mentir, y el check que pedían por escrito
+
+**Qué.** Barrida de documentación y un check nuevo en el audit (18 ahora).
+
+**Áreas.** `README.md`, `docs/architecture.md`, `docs/roadmap.md`, `docs/formato-pack.md`,
+`app/CLAUDE.md`, `dict-data/CLAUDE.md`, `tools/CLAUDE.md`,
+`.claude/skills/verify/SKILL.md`, `tools/audit_dictionary.py`.
+
+**Por qué.** Pedido de cerrar la sesión actualizando todos los documentos.
+
+**Arquitectura.** ✅ Cumple.
+
+**Medido.** Los conteos reales, que estaban mal en **ocho lugares**: `:dict-core` 47,
+`:app` 85 JVM y 47 de pantalla, `:dict-data` 31, Python 101, audit 18 checks, 105 decisiones.
+
+**Qué salió mal.**
+- **Cuatro documentos afirmaban que `:app` seguía siendo el template de Android Studio** —
+  `README.md` dos veces, `docs/architecture.md` dos veces— cuando hace sesiones que no lo es.
+  El changelog lo venía señalando desde hace tres y nadie lo arreglaba, incluido yo.
+- **`docs/formato-pack.md` anunciaba `schema_version = 2` en su título** mientras su propio
+  cuerpo hablaba de la 3. Cuarta sesión que se señala.
+- **`docs/architecture.md` describía un check que no existía**: decía que comprobar la dirección
+  de dependencias *"es lo primero que la auditoría tiene que agregar"*. Ahora existe
+  (`check_module_direction`) y se comprobó invirtiendo la dependencia a propósito: falla y dice
+  cuál. Mira el build file y no los imports, porque `:app` y `:dict-data` **comparten el nombre
+  de paquete** `cl.fadiaz.dictionary.data` y un import no dice de qué módulo viene.
+- **La entrada de este changelog no se escribió en el primer intento** y el commit salió sin
+  ella: el script falló buscando un ancla que no existía y sólo se vio en el traceback.
+
+**Qué quedó sin hacer.**
+- El presupuesto de **192 dp sigue escrito en cinco decisiones** y el reloj mide 234. Queda
+  marcado en rojo en `app/CLAUDE.md`, pero confirmarlo dentro de la app sigue pendiente.
+- El catálogo de descarga de packs sigue siendo un WIP en pantalla.
+
 ## 2026-09-18 — El inicio, la palabra del día, y el primer APK que se distingue del anterior
 
 **Qué.** El APK deja de declarar `versionCode 1` del template (D-095). El inicio gana palabra del
