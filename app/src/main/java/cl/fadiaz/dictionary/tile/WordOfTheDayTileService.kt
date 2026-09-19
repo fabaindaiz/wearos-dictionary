@@ -17,21 +17,21 @@ import java.time.ZoneId
 import java.time.format.DateTimeParseException
 
 /**
- * La palabra del dia, la misma que muestra el inicio de la app (D-097).
+ * The word of the day, the same one the app's home shows (D-097).
  *
- * POR QUE UN TIMELINE Y NO UN FRESHNESS INTERVAL
+ * WHY A TIMELINE AND NOT A FRESHNESS INTERVAL
  *
- * `setFreshnessIntervalMillis` es, verbatim del javadoc, *"how many milliseconds of **elapsed
- * time (not wall clock time)**"*, ademas de *"inexact"* y con throttling. Pedirle 24 h no
- * significa "a medianoche": la palabra iria corriendose unos minutos cada dia, y una "palabra del
- * dia" que cambia a las 15:47 dejo de ser del dia.
+ * `setFreshnessIntervalMillis` is, verbatim from the javadoc, *"how many milliseconds of
+ * **elapsed time (not wall clock time)**"*, as well as *"inexact"* and throttled. Asking it for
+ * 24 h does not mean "at midnight": the word would drift by a few minutes every day, and a "word
+ * of the day" that changes at 15:47 has stopped being of the day.
  *
- * `TimeInterval`, en cambio, es *"in milliseconds since the Unix epoch"* -- reloj de pared. Asi
- * que en **una sola** respuesta se emiten las ventanas de toda la semana, una por dia, y el
- * renderer cambia de palabra solo al cruzar la medianoche local. Cero despertares del proceso.
+ * `TimeInterval`, on the other hand, is *"in milliseconds since the Unix epoch"* -- wall clock.
+ * So **a single** response emits the windows for the whole week, one per day, and the renderer
+ * changes the word on its own as local midnight goes by. Zero process wakeups.
  *
- * La semana la deja escrita la app, porque este servicio **no puede abrir el pack**: elegir una
- * palabra son 32 lecturas y `onTileRequest` corre en el hilo principal.
+ * The week is left written by the app, because this service **cannot open the pack**: picking a
+ * word is 32 reads and `onTileRequest` runs on the main thread.
  */
 class WordOfTheDayTileService : TileService() {
 
@@ -62,8 +62,9 @@ class WordOfTheDayTileService : TileService() {
         return Futures.immediateFuture(
             TileBuilders.Tile.Builder()
                 .setResourcesVersion(RESOURCES)
-                // Backstop y no el mecanismo: si el usuario no abre la app, al terminar la semana
-                // el tile vuelve a pedirse y muestra su estado vacio en vez de una palabra vieja.
+                // A backstop and not the mechanism: if the user does not open the app, once the
+                // week ends the tile is requested again and shows its empty state instead of a
+                // stale word.
                 .setFreshnessIntervalMillis(ONE_WEEK_MS)
                 .setTileTimeline(timeline.build())
                 .build(),
@@ -94,10 +95,10 @@ class WordOfTheDayTileService : TileService() {
     }
 
     /**
-     * Una ventana de reloj de pared por dia cacheado, de medianoche local a medianoche local.
+     * One wall-clock window per cached day, from local midnight to local midnight.
      *
-     * La zona horaria se consulta aca y no en [ContenidoDeTiles] a proposito: es estado del
-     * sistema, igual que la fecha, y lo que se testea en la JVM tiene que recibirlo hecho.
+     * The time zone is read here and not in [TileContents] on purpose: it is system state, just
+     * like the date, and what gets tested on the JVM has to receive it already resolved.
      */
     private fun windows(
         since: String?,

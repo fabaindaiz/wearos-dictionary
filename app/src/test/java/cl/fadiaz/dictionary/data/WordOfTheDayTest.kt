@@ -117,7 +117,7 @@ class WordOfTheDayTest {
         // adj 7, adv 1.
         // Los verbos tienen el mejor rank, igual que en el pack español real. Sin rotacion,
         // los 28 dias dan verbo.
-        val categorias = (1..28).map { day ->
+        val partsOfSpeech = (1..28).map { day ->
             pick(
                 date = "2026-10-%02d".format(day),
                 read = pack(
@@ -126,7 +126,7 @@ class WordOfTheDayTest {
                 ),
             )?.partOfSpeech
         }.toSet()
-        assertTrue(categorias.size >= 3, "salieron casi siempre de la misma categoria: $categorias")
+        assertTrue(partsOfSpeech.size >= 3, "salieron casi siempre de la misma categoria: $partsOfSpeech")
     }
 
     @Test
