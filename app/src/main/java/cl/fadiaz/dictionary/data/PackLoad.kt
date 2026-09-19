@@ -3,29 +3,29 @@ package cl.fadiaz.dictionary.data
 import cl.fadiaz.dictionary.core.DictionarySource
 
 /**
- * El resultado de intentar abrir un pack.
+ * The result of trying to open a pack.
  *
- * Vive en su propio archivo y **sin una sola referencia a Android** a proposito: es la frontera
- * por la que `SearchViewModel` se deja testear en la JVM, en milisegundos y dentro del gate.
- * Si alguna vez aparece un `Context` aca, esos tests se van al dispositivo con el.
+ * It lives in its own file and **without a single reference to Android** on purpose: it is the
+ * boundary that lets `SearchViewModel` be tested on the JVM, in milliseconds and inside the gate.
+ * The day a `Context` shows up here, those tests move to a device along with it.
  *
- * Los tres casos no son defensivos de mas: cada uno se ve distinto en pantalla y el usuario
- * puede hacer algo distinto con cada uno.
+ * The three cases are not over-defensive: each one looks different on screen and the user can do
+ * something different about each one.
  */
 sealed interface PackLoad {
 
-    /** Hay diccionario. */
+    /** There is a dictionary. */
     data class Ready(val source: DictionarySource) : PackLoad
 
-    /** No hay pack instalado ni asset del que sacarlo: el APK se armo sin diccionario. */
+    /** No pack installed and no asset to extract one from: the APK was built without one. */
     data object NoPack : PackLoad
 
     /**
-     * Hay un archivo y no sirve. El mensaje va a la pantalla, en español.
+     * There is a file and it is no good. The message goes to the screen, in Spanish.
      *
-     * Es importante que sea un caso aparte de [NoPack]: un pack de otra `schema_version` o de
-     * otra `norm_version` devolveria MENOS resultados de los que tiene, sin ningun error
-     * (D-001, D-006). Abrirlo igual seria peor que no abrirlo.
+     * Keeping it separate from [NoPack] matters: a pack from another `schema_version` or another
+     * `norm_version` would return FEWER results than it holds, with no error at all (D-001,
+     * D-006). Opening it anyway would be worse than not opening it.
      */
     data class Unusable(val reason: String) : PackLoad
 }
