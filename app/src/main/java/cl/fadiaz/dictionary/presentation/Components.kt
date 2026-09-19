@@ -75,29 +75,31 @@ internal val CARD_SHAPE = RoundedCornerShape(24.dp)
 private val BOTTOM_MARGIN: Dp = 32.dp
 
 /**
- * How much the HOME leaves clear at the top, under the clock.
+ * How far the home pushes its first item down, to clear the clock.
  *
- * `ScreenScaffold` draws `TimeText` as an overlay and its `contentPadding` does not reserve the
- * whole of it, so the first item starts under the time. On the six screens that open on a title
- * that does not matter; on the home the first item is the **search bar** (D-111), and a text
- * field with the clock on top of it reads as broken.
+ * `ScreenScaffold` draws `TimeText` as an overlay and its `contentPadding` does not reserve all
+ * of it. On the five screens that open on a title that does not matter; on the home the first
+ * item is the **search bar** (D-111), and a text field with the clock on top reads as broken.
  *
- * Only the home passes it: everywhere else this is 0 and the list starts where it always did.
+ * ⚠️ **It is a spacer ITEM and not `contentPadding`, and the difference is visible.** As padding
+ * the bar still started inside the `TransformingLazyColumn`'s edge transform, which scales and
+ * clips whatever is closest to the rim: the field moved down but **its rounded shape came out
+ * cut**. An item of its own is laid out like any other and keeps its shape.
  */
-private val TOP_MARGIN: Dp = 12.dp
+internal val CLOCK_GAP: Dp = 20.dp
 
 /**
- * The scaffold's `contentPadding`, with room to breathe at the end and --on the home-- at the top.
+ * The scaffold's `contentPadding`, with room to breathe at the end.
  *
  * A function and not 32.dp repeated across six files: the day the number changes --or somebody
  * measures how much the curve really eats-- there is a single place to touch.
  */
 @Composable
-internal fun withScreenMargins(base: PaddingValues, clearTheClock: Boolean = false): PaddingValues {
+internal fun withScreenMargins(base: PaddingValues): PaddingValues {
     val direction = LocalLayoutDirection.current
     return PaddingValues(
         start = base.calculateStartPadding(direction),
-        top = base.calculateTopPadding() + if (clearTheClock) TOP_MARGIN else 0.dp,
+        top = base.calculateTopPadding(),
         end = base.calculateEndPadding(direction),
         bottom = base.calculateBottomPadding() + BOTTOM_MARGIN,
     )

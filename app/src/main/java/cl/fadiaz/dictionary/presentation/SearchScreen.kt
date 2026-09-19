@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -105,8 +107,7 @@ fun SearchScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            // El unico que lo pide: aca el primer item es la barra de busqueda.
-            contentPadding = withScreenMargins(contentPadding, clearTheClock = true),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
             // The crown is a watch's primary scroll: the finger covers exactly what is being
             // read. It is not wired up by default.
@@ -116,6 +117,10 @@ fun SearchScreen(
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            // Bajo el reloj. Un item y no padding: como padding, la barra quedaba dentro del
+            // transform del borde y salia con la forma cortada. Ver CLOCK_GAP.
+            item(key = "bajo-el-reloj") { Spacer(Modifier.height(CLOCK_GAP)) }
+
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
                     LoadingMessage(
