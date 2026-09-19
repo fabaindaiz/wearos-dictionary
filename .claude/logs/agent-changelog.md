@@ -26,6 +26,62 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-19 — El inglés sí tenía sinónimos: estaban en la otra forma
+
+**Qué.** Los packs vuelven a abrir (estaban en `deflate-v1` y el código exige `deflate-v2`), el
+inglés gana sinónimos, los dos ganan antónimos, el nombre del pack deja de cortarse y el historial
+sobrevive a reconstruir un pack.
+
+**Áreas.** `tools/packbuilder/{sources/kaikki,payload,build,build_pack,verify_pack,
+gen_payload_fixture}.py`, `dict-core/{Model,PayloadCodec}.kt`, `dict-data/PackFile.kt`,
+`app/{data/Visita,data/PackSet,presentation/{MainActivity,SearchScreen,PacksScreen,
+AttributionScreen,EntryScreen}}.kt`, `docs/decisions.md` (D-123 a D-126).
+
+**Por qué.** Pedido: *"revisa posibles mejoras… el nombre del pack sigue viéndose cortado como
+Español - definic…"*, más la deuda de que los `.db` en disco y en el reloj no abrían.
+
+**Arquitectura.** ✅ Cumple. El tag `A` **no** sube `CODEC_ID` porque es aditivo, que es
+exactamente lo que D-119 dejó escrito. La app sigue sin calcular `uid` (D-057) y sin importar
+`android.*` en su lógica (D-072).
+
+**Medido.** Construir: **63,6 s** el español, **2 min 45 s** el inglés — el número que D-119
+citaba, 3 min 38 s, era el de **copiar**, no el de construir. Sinónimos ingleses: de 0 a
+**122.454 entradas (15,4 %)** y 240.195 items, **+2,82 MB sobre 268,1 (+1,05 %)**; se había
+estimado 0,6 %. Antónimos: 3.317 entradas españolas (2,9 %) y 9.095 inglesas (1,1 %), **+0,06 % y
++0,04 %** — por eso van en el mismo pack y no en uno aparte. Formas de la fuente, sobre 120.000
+registros vivos: `synonyms` arriba 16,5 % ES / 5,6 % EN, **dentro de `senses[]` 0,0 % ES / 25,8 %
+EN**, y **ninguna entrada usa las dos**.
+
+**Qué salió mal.**
+- **D-117 estaba mal por medir de menos.** Decía que el inglés no podía dar sinónimos porque *"0
+  de 43.679 traen `sense_index`"*. El número es correcto y la conclusión no: sólo se había mirado
+  `raw["synonyms"]`. El inglés los sirve anidados en cada acepción, donde la atribución es
+  estructural. Lo agarró medir la **otra** forma antes de creerle a la fila.
+- **Una hipótesis mía murió medida.** El 74,5 % de los items ingleses vienen de páginas
+  `Thesaurus:*` y van primero, así que el tope de 4 parecía quedarse con lo oscuro. Reordenar
+  cambia **91 de 4.872** acepciones mezcladas (1,9 %) y en la muestra **empeora**: `craft` pasa de
+  `ability, aptitude` a `craftiness, foxiness`. Se respeta el orden del dump.
+- **Afirmé un defecto que no observé.** Comparé los 7 `entryId` cacheados en el emulador contra el
+  pack reconstruido esperando verlos apuntar mal: **los 7 seguían bien**. Lo que prueba la premisa
+  es `LogicalIdentityTest`, que ya existía. Queda escrito así en el commit.
+- **Leí un pack con el diccionario de payload mal decodificado** (está en hex, va
+  `bytes.fromhex`) y salió texto corrupto con dígitos intercalados — el síntoma exacto de D-008.
+  Era mi script, no el pack.
+- **Un `sed` global pisó una firma**: `_senses(raw, con_sinonimos)` quedó como
+  `def _senses(raw, True)`. Lo agarró el propio test al no importar el módulo.
+- **El shell de este entorno es zsh, no fish.** Una lista de archivos en una variable **no** hace
+  word-splitting: el primer `sed` recibió los 12 paths como un solo nombre y no tocó nada. Pasar
+  los archivos literalmente.
+
+**Qué quedó sin hacer.** La **Fase C** completa —el repo a inglés, que es la fase más grande— y la
+**Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
+dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
+(*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
+conectado**: todo lo de dispositivo se verificó en el emulador, así que el tamaño real en 234 dp
+sigue sin confirmarse. `docs/roadmap.md` y `tools/CLAUDE.md` quedan **modificados y sin commitear
+por otra sesión** — no son míos y no los arrastré; `tools/CLAUDE.md` dice 129 tests de Python y hoy
+son 147.
+
 ## 2026-09-19 — La fuente no era el problema: 26.265 entradas decían "Apellido."
 
 **Qué.** Se evaluaron las fuentes alternativas de diccionario para los dos idiomas y **ninguna
