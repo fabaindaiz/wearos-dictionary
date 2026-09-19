@@ -1,12 +1,20 @@
 package cl.fadiaz.dictionary.presentation
 
 import android.content.ClipData
+import android.content.Context
+import android.content.Intent
+import androidx.wear.tiles.TileService
+import cl.fadiaz.dictionary.tile.EXTRA_ENTRY_ID
+import cl.fadiaz.dictionary.tile.EXTRA_PACK_ID
+import cl.fadiaz.dictionary.tile.HistorialTileService
+import cl.fadiaz.dictionary.tile.PalabraTileService
 import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,7 +44,22 @@ import cl.fadiaz.dictionary.presentation.theme.DictionaryTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { DictionaryApp() }
+        setContent { DictionaryApp(entradaPedida(intent)) }
+    }
+
+    /**
+     * La entrada que pidio un tile, si es que vino de ahi y si el pedido tiene sentido.
+     *
+     * **Esto es entrada no confiable.** `MainActivity` esta exportada --tiene LAUNCHER-- asi que
+     * cualquier app del reloj puede lanzarla con los extras que quiera. Por eso se validan aca y
+     * la ruta se arma sola: un `packId` que no existe no llega a abrir otra palabra, se ignora y
+     * la app arranca en la busqueda, que es su estado normal.
+     */
+    private fun entradaPedida(intent: Intent?): Visita? {
+        val packId = intent?.getStringExtra(EXTRA_PACK_ID)?.takeIf { it.isNotBlank() } ?: return null
+        val entryId = intent.getLongExtra(EXTRA_ENTRY_ID, 0L)
+        if (entryId <= 0L) return null
+        return Visita(packId = packId, entryId = entryId, headword = "", partOfSpeech = null)
     }
 }
 
@@ -47,8 +70,21 @@ private const val RUTA_AJUSTES = "ajustes"
 private const val RUTA_FAVORITOS = "favoritos"
 private const val RUTA_PACKS = "packs"
 
+/**
+ * Le pide a los dos tiles que se vuelvan a dibujar.
+ *
+ * Es el unico mecanismo que tienen: el de historial se publica con
+ * `freshnessIntervalMillis = 0`, que segun el javadoc significa que el sistema **no** lo va a
+ * refrescar solo.
+ */
+private fun avisarALosTiles(context: Context) {
+    val updater = TileService.getUpdater(context)
+    updater.requestUpdate(HistorialTileService::class.java)
+    updater.requestUpdate(PalabraTileService::class.java)
+}
+
 @Composable
-fun DictionaryApp() {
+fun DictionaryApp(entradaInicial: Visita? = null) {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
@@ -78,6 +114,15 @@ fun DictionaryApp() {
                             favoritosGuardados = { PackStore.favoritos(context) },
                             guardarFavoritos = { PackStore.recordarFavoritos(context, it) },
                             borrarDelDisco = { archivo -> PackStore.borrarPack(context, archivo) },
+                            palabrasDeLaSemanaGuardadas = {
+                                PackStore.palabrasDeLaSemana(context)
+                            },
+                            guardarPalabrasDeLaSemana = { desde, palabras ->
+                                PackStore.recordarPalabrasDeLaSemana(context, desde, palabras)
+                            },
+                            // Los tiles no tienen refresco programado: si la app no los empuja,
+                            // se quedan con lo que tenian.
+                            avisarTiles = { avisarALosTiles(context) },
                         )
                     }
                 },
@@ -95,6 +140,21 @@ fun DictionaryApp() {
                     fontScale = base.fontScale * state.ajustes.escalaDeTexto.factor,
                 ),
             ) {
+            // Si la app se abrio desde un tile, se navega a esa entrada UNA vez.
+            //
+            // Se espera a que los packs esten abiertos: antes de eso `entry()` devolveria null y
+            // la pantalla mostraria una entrada vacia en vez de la palabra. Y se valida contra los
+            // diccionarios realmente abiertos --no contra el activo-- porque caer al activo es
+            // justo el bug que D-080 arreglo: mostrar OTRA palabra, sin error.
+            LaunchedEffect(entradaInicial, state.status) {
+                val pedida = entradaInicial ?: return@LaunchedEffect
+                if (state.status != SearchState.Status.Ready) return@LaunchedEffect
+                if (viewModel.entry(pedida.packId, pedida.entryId) == null) return@LaunchedEffect
+                navController.navigate(
+                    "$RUTA_ENTRADA/${Uri.encode(pedida.packId)}/${pedida.entryId}",
+                )
+            }
+
             SwipeDismissableNavHost(
                 navController = navController,
                 startDestination = RUTA_BUSQUEDA,

@@ -20,6 +20,7 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visita
+import cl.fadiaz.dictionary.tile.ContenidoDeTiles
 
 /**
  * La concurrencia de la busqueda, que es donde un bug NO da error.
@@ -250,6 +251,156 @@ class SearchViewModelTest {
             palabras.getValue("aaa").entryId != palabras.getValue("bbb").entryId,
             "los dos packs eligieron la misma entrada: la semilla no mira el packId",
         )
+    }
+
+    // --- La cache que alimenta a los tiles ------------------------------------------------
+
+    @Test
+    fun alAbrirLosPacksSeCacheaLaSemanaDePalabrasParaElTile() = runTest {
+        // El tile NO abre el pack --onTileRequest corre en el hilo principal con 10 s de tope--
+        // asi que si la app no deja la semana escrita, el tile no tiene nada que mostrar.
+        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var guardadas: Pair<String, List<Visita>>? = null
+        val vm = SearchViewModel(
+            { listos(fake) },
+            fechaDeHoy = { "2026-09-19" },
+            guardarPalabrasDeLaSemana = { desde, palabras -> guardadas = desde to palabras },
+        )
+        advanceUntilIdle()
+
+        val cache = guardadas
+        assertTrue(cache != null, "no se cacheo ninguna palabra para el tile")
+        assertEquals("2026-09-19", cache.first)
+        assertEquals(ContenidoDeTiles.DIAS_CACHEADOS, cache.second.size)
+        assertTrue(cache.second.all { it.packId == "es-def" }, "la cache mezclo packs")
+    }
+
+    @Test
+    fun laSemanaCacheadaTieneUnaPalabraDistintaPorDia() = runTest {
+        // Si el hash ignorara la fecha, el Timeline del tile tendria siete ventanas con la misma
+        // palabra y "palabra del dia" seria una palabra a secas.
+        val fake = FakeDictionary(packId = "es-def", entradas = 5000).apply {
+            resumenes = (1L..5000L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var guardadas: List<Visita> = emptyList()
+        val vm = SearchViewModel(
+            { listos(fake) },
+            fechaDeHoy = { "2026-09-19" },
+            guardarPalabrasDeLaSemana = { _, palabras -> guardadas = palabras },
+        )
+        advanceUntilIdle()
+
+        assertTrue(
+            guardadas.map { it.entryId }.toSet().size > 1,
+            "los siete dias eligieron la misma entrada",
+        )
+    }
+
+    @Test
+    fun unaCacheDeHoyYDelMismoPackNoSeRecalcula() = runTest {
+        // Son 32 lecturas por dia: rehacerlas en cada arranque es trabajo que no cambia nada.
+        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var vecesGuardadas = 0
+        val vm = SearchViewModel(
+            { listos(fake) },
+            fechaDeHoy = { "2026-09-19" },
+            palabrasDeLaSemanaGuardadas = {
+                "2026-09-19" to listOf(Visita("es-def", 1, "ya-estaba", "noun"))
+            },
+            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+        )
+        advanceUntilIdle()
+
+        assertEquals(0, vecesGuardadas, "recalculo una cache que ya era de hoy")
+    }
+
+    @Test
+    fun unaCacheDeAyerSeRehace() = runTest {
+        val fake = FakeDictionary(packId = "es-def", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var vecesGuardadas = 0
+        val vm = SearchViewModel(
+            { listos(fake) },
+            fechaDeHoy = { "2026-09-19" },
+            palabrasDeLaSemanaGuardadas = {
+                "2026-09-18" to listOf(Visita("es-def", 1, "de-ayer", "noun"))
+            },
+            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+        )
+        advanceUntilIdle()
+
+        assertEquals(1, vecesGuardadas, "no rehizo una cache vencida")
+    }
+
+    @Test
+    fun unaCacheDeOtroDiccionarioSeRehace() = runTest {
+        // Cambiar de idioma tiene que cambiar la palabra del tile: si no, el tile queda mostrando
+        // espanol con la app en ingles, y eso no se reporta porque nadie abre un tile a proposito.
+        val fake = FakeDictionary(packId = "en-def", entradas = 500).apply {
+            resumenes = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var guardadas: List<Visita> = emptyList()
+        val vm = SearchViewModel(
+            { listos(fake) },
+            fechaDeHoy = { "2026-09-19" },
+            palabrasDeLaSemanaGuardadas = {
+                "2026-09-19" to listOf(Visita("es-def", 1, "de-otro-pack", "noun"))
+            },
+            guardarPalabrasDeLaSemana = { _, palabras -> guardadas = palabras },
+        )
+        advanceUntilIdle()
+
+        assertTrue(guardadas.isNotEmpty(), "no rehizo la cache al cambiar de diccionario")
+        assertTrue(guardadas.all { it.packId == "en-def" })
+    }
+
+    @Test
+    fun sinFechaNoSeCacheaNada() = runTest {
+        val fake = FakeDictionary(entradas = 50).apply {
+            resumenes = (1L..50L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        var vecesGuardadas = 0
+        val vm = SearchViewModel(
+            { listos(fake) },
+            guardarPalabrasDeLaSemana = { _, _ -> vecesGuardadas++ },
+        )
+        advanceUntilIdle()
+        assertEquals(0, vecesGuardadas)
+    }
+
+    // --- El aviso a los tiles -----------------------------------------------------------------
+
+    @Test
+    fun abrirUnaEntradaAvisaAlTileDelHistorial() = runTest {
+        // El tile de historial no tiene refresco programado: `freshnessIntervalMillis = 0` y el
+        // sistema no vuelve a llamarlo. Si la app no lo empuja, se queda con lo de la instalacion.
+        val fake = FakeDictionary()
+        var avisos = 0
+        val vm = SearchViewModel({ listos(fake) }, avisarTiles = { avisos++ })
+        advanceUntilIdle()
+
+        vm.registrarVisita(Suggestion("es-def", 1, "perro", "noun", MatchKind.PREFIX, 0))
+        advanceUntilIdle()
+
+        assertEquals(1, avisos, "abrir una entrada no avisa al tile")
+    }
+
+    @Test
+    fun guardarUnaPalabraTambienAvisaAlTile() = runTest {
+        val fake = FakeDictionary()
+        var avisos = 0
+        val vm = SearchViewModel({ listos(fake) }, avisarTiles = { avisos++ })
+        advanceUntilIdle()
+
+        vm.alternarFavorita(Visita("es-def", 1, "perro", "noun"))
+        advanceUntilIdle()
+
+        assertTrue(avisos >= 1, "guardar una palabra no avisa al tile")
     }
 
     @Test
