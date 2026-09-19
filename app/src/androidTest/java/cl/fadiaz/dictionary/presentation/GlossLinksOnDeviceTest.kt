@@ -41,7 +41,7 @@ class GlossLinksOnDeviceTest {
     )
 
     @Test
-    fun tocarUnaPalabraConocidaDeLaGlosaAbreSuEntrada() {
+    fun tappingAKnownWordInTheGlossOpensItsEntry() {
         var abierta: Long? = null
         compose.setContent {
             EntryScreen(

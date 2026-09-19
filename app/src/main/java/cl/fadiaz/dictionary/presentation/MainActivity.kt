@@ -201,10 +201,10 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // del dia se adelanta una semana y se cachea (D-097), asi que un rebuild
                         // a mitad de semana deja esos `entryId` apuntando a otra palabra durante
                         // hasta siete dias. Es el caso mas probable del defecto de D-055.
-                        onOpenPalabraDelDia = { packDeLaPalabra, word ->
+                        onOpenPalabraDelDia = { packOfTheWord, word ->
                             scope.launch {
                                 val visit = Visit(
-                                    packId = packDeLaPalabra,
+                                    packId = packOfTheWord,
                                     entryId = word.entryId,
                                     headword = word.headword,
                                     partOfSpeech = word.partOfSpeech,
@@ -212,7 +212,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
                                     navController.navigate(
-                                        "$ROUTE_ENTRY/${Uri.encode(packDeLaPalabra)}/$target",
+                                        "$ROUTE_ENTRY/${Uri.encode(packOfTheWord)}/$target",
                                     )
                                 }
                             }

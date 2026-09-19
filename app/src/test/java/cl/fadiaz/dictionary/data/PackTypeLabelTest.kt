@@ -16,27 +16,27 @@ import kotlin.test.assertTrue
 class PackTypeLabelTest {
 
     @Test
-    fun cadaTipoTieneSuEtiqueta() {
+    fun everyKindHasItsLabel() {
         assertEquals("definiciones", packTypeLabel(PackKind.MONOLINGUAL))
         assertEquals("traducción", packTypeLabel(PackKind.BILINGUAL))
     }
 
     @Test
-    fun ningunTipoSeQuedaSinEtiqueta() {
+    fun noKindIsLeftWithoutALabel() {
         for (kind in PackKind.entries) {
             assertTrue(packTypeLabel(kind).isNotBlank(), "sin etiqueta: $kind")
         }
     }
 
     @Test
-    fun lasEtiquetasSonDistintasEntreSi() {
+    fun theLabelsDifferFromEachOther() {
         // Dos tipos con la misma etiqueta no distinguen nada, que es todo el punto de mostrarla.
         val labels = PackKind.entries.map { packTypeLabel(it) }
         assertEquals(labels.size, labels.toSet().size, "hay etiquetas repetidas: $labels")
     }
 
     @Test
-    fun entranEnUnaFilaDeReloj() {
+    fun theyFitInAWatchRow() {
         // El motivo por el que el nombre se acorto. Al detalle de la fila le quedan ~140 dp
         // despues del check y el boton de borrar; una etiqueta larga repite el problema.
         for (kind in PackKind.entries) {
