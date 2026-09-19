@@ -29,8 +29,9 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 ## 2026-09-19 — El inglés sí tenía sinónimos: estaban en la otra forma
 
 **Qué.** Los packs vuelven a abrir (estaban en `deflate-v1` y el código exige `deflate-v2`), el
-inglés gana sinónimos, los dos ganan antónimos, el nombre del pack deja de cortarse y el historial
-sobrevive a reconstruir un pack.
+inglés gana sinónimos, los dos ganan antónimos, el nombre del pack deja de cortarse, el historial
+sobrevive a reconstruir un pack, y **`:app` pasa a inglés en identificadores**: 18 archivos y
+~420 nombres, los 190 de test incluidos.
 
 **Áreas.** `tools/packbuilder/{sources/kaikki,payload,build,build_pack,verify_pack,
 gen_payload_fixture}.py`, `dict-core/{Model,PayloadCodec}.kt`, `dict-data/PackFile.kt`,
@@ -72,9 +73,18 @@ EN**, y **ninguna entrada usa las dos**.
 - **El shell de este entorno es zsh, no fish.** Una lista de archivos en una variable **no** hace
   word-splitting: el primer `sed` recibió los 12 paths como un solo nombre y no tocó nada. Pasar
   los archivos literalmente.
+- **El renombrado masivo tuvo dos trampas que ningún test veía.** La interpolación **sin llaves**
+  (`"$CLAVE_ESCALA=…"`) no es string, es código: el renombrador la dejó con el nombre viejo y lo
+  agarró el compilador. Y **`AndroidManifest.xml` seguía declarando `.tile.HistorialTileService` y
+  `.tile.PalabraTileService`** — los dos tiles habrían dejado de cargar en el reloj **sin error de
+  compilación y sin test**. Lo agarró mirar el manifest a mano; verificado después en dispositivo,
+  donde el sistema les pide el preview con el nombre nuevo. Los **valores** de las constantes de
+  `SharedPreferences` no se tocaron a propósito: `KEY_PACK` sigue valiendo `"pack_activo"`, y
+  renombrarlo habría borrado los ajustes y el historial de quien ya tiene la app.
 
-**Qué quedó sin hacer.** La **Fase C** completa —el repo a inglés, que es la fase más grande— y la
-**Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
+**Qué quedó sin hacer.** De la **Fase C** se hizo el paso 1 (identificadores y archivos de
+`:app`); quedan los **comentarios y KDoc de `:app`**, `docs/`, los `CLAUDE.md` y el changelog —o
+sea traducción de prosa, que no es mecánica—. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
 (*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
 conectado**: todo lo de dispositivo se verificó en el emulador, así que el tamaño real en 234 dp
