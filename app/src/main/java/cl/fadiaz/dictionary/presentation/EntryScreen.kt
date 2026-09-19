@@ -119,7 +119,7 @@ fun EntryScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = withBottomMargin(contentPadding),
+            contentPadding = withScreenMargins(contentPadding),
             state = listState,
             // The crown is a watch's primary scroll: the finger covers exactly what is being
             // read. It is not wired up by default.
