@@ -12,24 +12,24 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
- * Las ultimas entradas abiertas, a un toque desde la esfera.
+ * The most recently opened entries, one tap away from the watch face.
  *
- * POR QUE NO TIENE REFRESCO PROGRAMADO
+ * WHY IT HAS NO SCHEDULED REFRESH
  *
- * `freshnessIntervalMillis = 0`, y el javadoc de `TileBuilders` dice que ese valor significa
- * *"that auto-refreshes should not be used (i.e. you will manually request updates via
- * TileService#getRequester)"*. O sea: **el sistema no vuelve a llamar a este tile nunca**. Y esta
- * bien, porque su contenido no cambia con el reloj de pared sino cuando el usuario abre una
- * entrada -- y en ese momento la app lo empuja con `getUpdater().requestUpdate(...)`.
+ * `freshnessIntervalMillis = 0`, and the `TileBuilders` javadoc says that value means *"that
+ * auto-refreshes should not be used (i.e. you will manually request updates via
+ * TileService#getRequester)"*. That is: **the system never calls this tile again**. And that is
+ * right, because its content does not change with the wall clock but when the user opens an
+ * entry -- and at that moment the app pushes it with `getUpdater().requestUpdate(...)`.
  *
- * Es la unica superficie de este proyecto que cuesta **cero** despertares.
+ * It is the only surface in this project that costs **zero** wakeups.
  */
 class HistoryTileService : TileService() {
 
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
-        // Se lee de SharedPreferences y nada mas: no se abre ningun pack. Ver TileRender.kt.
+        // Read from SharedPreferences and nothing else: no pack is opened. See TileRender.kt.
         val content = TileContents.history(PackStore.history(this))
         val layout = materialScope(this, requestParams.deviceConfiguration) {
             when (content) {
@@ -56,10 +56,10 @@ class HistoryTileService : TileService() {
 }
 
 /**
- * La version del bundle de recursos.
+ * The version of the resource bundle.
  *
- * Los dos tiles son **solo texto** y por eso puede quedarse en "0": la libreria cachea los
- * recursos por este string, asi que el dia que alguno agregue una imagen sin cambiarlo, el
- * renderer sirve el bundle viejo.
+ * Both tiles are **text only** and that is why this can stay at "0": the library caches the
+ * resources by this string, so the day one of them adds an image without changing it, the
+ * renderer serves the stale bundle.
  */
 internal const val RESOURCES: String = "0"
