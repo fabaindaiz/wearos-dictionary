@@ -81,12 +81,12 @@ fun SearchScreen(
     onOpenEntry: (Suggestion) -> Unit,
     onOpenVisita: (Visit) -> Unit = {},
     onOpenAttribution: () -> Unit,
-    onOpenAjustes: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onOpenFavoritos: () -> Unit = {},
     // Lleva el packId ademas de la entrada: con dos idiomas cargados hay dos palabras del dia y
     // cada una vive en SU diccionario. Resolverla contra el activo seria D-080 otra vez.
     // Sin default: una palabra del dia que se ve y no abre nada es peor que no tenerla.
-    onOpenPalabraDelDia: (String, EntrySummary) -> Unit,
+    onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -196,7 +196,7 @@ fun SearchScreen(
                                 // asi que sin la etiqueta no se sabe que clase de diccionario es.
                                 subtitle = "${handle.metadata.name} · " +
                                     packTypeLabel(handle.metadata.kind),
-                            ) { onOpenPalabraDelDia(handle.packId, word) }
+                            ) { onOpenWordOfTheDay(handle.packId, word) }
                         }
                     }
 
@@ -314,7 +314,7 @@ fun SearchScreen(
                             )
                         }
                         item(key = "ajustes") {
-                            ListRow(lema = "Ajustes", detail = null, onClick = onOpenAjustes)
+                            ListRow(lema = "Ajustes", detail = null, onClick = onOpenSettings)
                         }
                     }
 
@@ -363,7 +363,7 @@ private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
  * teclado el que ejercita la busqueda incremental: la voz entrega la frase entera de una vez.
  */
 @Composable
-private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoz: () -> Unit) {
+private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: () -> Unit) {
     // "Aceptar" no hacia nada: habia un ImeAction declarado y ningun handler, y
     // KeyboardActions.Default no define comportamiento para Search --a diferencia de
     // Next/Previous, que mueven foco--. La unica salida era el gesto de volver del sistema.
@@ -424,7 +424,7 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoz: () 
                 modifier = Modifier
                     .clip(PILL_SHAPE)
                     .background(MaterialTheme.colorScheme.primaryContainer)
-                    .clickable(onClick = onVoz)
+                    .clickable(onClick = onVoice)
                     .heightIn(min = TOUCH_TARGET)
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {

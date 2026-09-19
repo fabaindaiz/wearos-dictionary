@@ -193,7 +193,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             }
                         },
                         onOpenAttribution = { navController.navigate(ROUTE_ATTRIBUTION) },
-                        onOpenAjustes = { navController.navigate(ROUTE_SETTINGS) },
+                        onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                         onOpenFavoritos = { navController.navigate(ROUTE_FAVORITES) },
                         // Cada palabra del dia se abre en SU diccionario, que con dos idiomas
                         // cargados no es necesariamente el activo.
@@ -201,7 +201,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // del dia se adelanta una semana y se cachea (D-097), asi que un rebuild
                         // a mitad de semana deja esos `entryId` apuntando a otra palabra durante
                         // hasta siete dias. Es el caso mas probable del defecto de D-055.
-                        onOpenPalabraDelDia = { packOfTheWord, word ->
+                        onOpenWordOfTheDay = { packOfTheWord, word ->
                             scope.launch {
                                 val visit = Visit(
                                     packId = packOfTheWord,
@@ -232,26 +232,26 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // La palabra se resuelve y se abre en EL MISMO pack que la entrada que
                         // la contiene. Mandarla al pack activo seria el bug de D-080 otra vez:
                         // abriria otra palabra y sin error.
-                        onOpenPalabra = { id ->
+                        onOpenWord = { id ->
                             navController.navigate("$ROUTE_ENTRY/${Uri.encode(packId)}/$id")
                         },
                         // Tocar palabras apila entradas sobre entradas. Volver de a una es el
                         // swipe de siempre; esto es el atajo al principio, y es el primer
                         // popBackStack del repo.
-                        onVolverABuscar = {
+                        onBackToSearch = {
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
                         resolveIn = { norms -> viewModel.resolveIn(packId, norms) },
                         actions = { entry ->
                             wordActions(
                                 isFavorite = viewModel.isFavorite(packId, entry.entryId),
-                                onAlternarFavorita = {
+                                onToggleFavorite = {
                                     viewModel.toggleFavorite(
                                         Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
                                     )
                                 },
                                 translationPack = translationPack(state.available, packId),
-                                onVerTraduccion = { other ->
+                                onViewTranslation = { other ->
                                     // La misma palabra en el otro diccionario: se resuelve por
                                     // `norm`, que es la clave con la que se indexo, y se abre EN
                                     // SU pack -- si se abriera en el activo seria D-080 otra vez.
@@ -266,7 +266,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                         }
                                     }
                                 },
-                                onCopiar = {
+                                onCopy = {
                                     // ClipboardManager es android.*, asi que entra por aca y no
                                     // por el ViewModel, que tiene que seguir corriendo en la JVM.
                                     val clipboard = context
@@ -307,18 +307,18 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     PacksScreen(
                         packs = state.available,
                         active = state.active?.packId,
-                        onActivar = viewModel::onPackChange,
-                        onBorrar = viewModel::deletePack,
+                        onActivate = viewModel::onPackChange,
+                        onDelete = viewModel::deletePack,
                     )
                 }
                 composable(ROUTE_SETTINGS) {
                     SettingsScreen(
                         packs = state.available,
                         scale = state.settings.textScale,
-                        onGestionarPacks = { navController.navigate(ROUTE_PACKS) },
-                        onEscalaChange = viewModel::onTextScaleChange,
-                        onLimpiarHistorial = viewModel::clearHistory,
-                        hayHistorial = state.history.isNotEmpty(),
+                        onManagePacks = { navController.navigate(ROUTE_PACKS) },
+                        onScaleChange = viewModel::onTextScaleChange,
+                        onClearHistory = viewModel::clearHistory,
+                        hasHistory = state.history.isNotEmpty(),
                     )
                 }
             }

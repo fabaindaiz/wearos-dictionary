@@ -45,10 +45,10 @@ class WordActionsTest {
 
     private fun actions(traduccion: PackHandle.Open?) = wordActions(
         isFavorite = false,
-        onAlternarFavorita = {},
+        onToggleFavorite = {},
         translationPack = traduccion,
-        onVerTraduccion = {},
-        onCopiar = {},
+        onViewTranslation = {},
+        onCopy = {},
     ).map { it.label }
 
     @Test
@@ -72,7 +72,7 @@ class WordActionsTest {
             pack("es-def", PackKind.MONOLINGUAL),
             pack("en-def", PackKind.MONOLINGUAL),
         )
-        assertNull(translationPack(opened, packDeLaEntrada = "es-def"))
+        assertNull(translationPack(opened, packOfTheEntry = "es-def"))
     }
 
     @Test
@@ -90,10 +90,10 @@ class WordActionsTest {
     fun saveChangesItsLabelDependingOnWhetherItIsSaved() {
         val saved = wordActions(
             isFavorite = true,
-            onAlternarFavorita = {},
+            onToggleFavorite = {},
             translationPack = null,
-            onVerTraduccion = {},
-            onCopiar = {},
+            onViewTranslation = {},
+            onCopy = {},
         )
         assertTrue(saved.first().label == "Quitar de guardadas")
     }

@@ -24,26 +24,26 @@ import cl.fadiaz.dictionary.data.PackHandle
  */
 internal fun wordActions(
     isFavorite: Boolean,
-    onAlternarFavorita: () -> Unit,
+    onToggleFavorite: () -> Unit,
     translationPack: PackHandle.Open?,
-    onVerTraduccion: (PackHandle.Open) -> Unit,
-    onCopiar: () -> Unit,
+    onViewTranslation: (PackHandle.Open) -> Unit,
+    onCopy: () -> Unit,
 ): List<EntryAction> = buildList {
     add(
         EntryAction(
             label = if (isFavorite) "Quitar de guardadas" else "Guardar",
-            onClick = onAlternarFavorita,
+            onClick = onToggleFavorite,
         ),
     )
     if (translationPack != null) {
         add(
             EntryAction(
                 label = "Ver traducción",
-                onClick = { onVerTraduccion(translationPack) },
+                onClick = { onViewTranslation(translationPack) },
             ),
         )
     }
-    add(EntryAction(label = "Copiar", onClick = onCopiar))
+    add(EntryAction(label = "Copiar", onClick = onCopy))
 }
 
 /**
@@ -54,7 +54,7 @@ internal fun wordActions(
  */
 internal fun translationPack(
     opened: List<PackHandle>,
-    packDeLaEntrada: String,
+    packOfTheEntry: String,
 ): PackHandle.Open? =
     opened.filterIsInstance<PackHandle.Open>()
-        .firstOrNull { it.packId != packDeLaEntrada && it.metadata.kind == PackKind.BILINGUAL }
+        .firstOrNull { it.packId != packOfTheEntry && it.metadata.kind == PackKind.BILINGUAL }
