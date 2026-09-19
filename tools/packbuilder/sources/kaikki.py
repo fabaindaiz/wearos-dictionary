@@ -31,7 +31,7 @@ medir el dump, no de suponer:
    duplica lo que `fts_def` ya indexa mejor.
 3. **Etimologia, pronunciacion, categorias, silabeo y las relaciones lexicas se descartan.** No
    se muestran en un reloj y son la mayor parte del peso del dump.
-4. **Los nombres propios no entran** (D-111). No es que pesen --en español son 0,63 MB de
+4. **Los nombres propios no entran** (D-116). No es que pesen --en español son 0,63 MB de
    payload-- es que **diluyen**: 26.265 entradas cuya definicion completa es "Apellido.", y en
    ingles 4.267 casos donde el toponimo le gana en rank a la palabra comun.
 
@@ -65,7 +65,7 @@ MAX_EXAMPLES_PER_SENSE = 1
 # linea; el quinto ya obliga a scrollear para leer algo que es una ayuda, no la definicion.
 MAX_SYNONYMS_PER_SENSE = 4
 
-# De que idiomas se extraen sinonimos, y **es una lista corta a proposito** (D-112).
+# De que idiomas se extraen sinonimos, y **es una lista corta a proposito** (D-117).
 #
 # Medido sobre los dumps: en español el 100 % de los `synonyms` traen `sense_index`, que es lo
 # que permite colgarlos de SU acepcion. En ingles **0 de 43.679** lo traen --traen `_dis1`, un
@@ -74,7 +74,7 @@ MAX_SYNONYMS_PER_SENSE = 4
 # el pack ingles se lleva 43.679 items que no se pueden atribuir a nada.
 IDIOMAS_CON_SINONIMOS = {"es"}
 
-# Umbral de la excepcion a la poda de nombres propios (D-111).
+# Umbral de la excepcion a la poda de nombres propios (D-116).
 #
 # `pos = "name"` mete en la misma bolsa a "January" y a "Ivanivka", y la primera es vocabulario
 # mientras la segunda es una aldea de Cherkasy. Lo que las separa **sin mirar el texto** es
@@ -334,7 +334,7 @@ def records(path, lang="es", con_nombres=False):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
     **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres
-    de pila). Es una decision de producto, D-111, y el default vive aca --en la libreria-- y no
+    de pila). Es una decision de producto, D-116, y el default vive aca --en la libreria-- y no
     en el flag de la CLI, para que cualquier llamador nuevo la herede sin tener que pedirla.
 
     Lo que se saca, medido: en español **32.305 entradas, el 22,1 %**, de las cuales **26.265

@@ -20,7 +20,7 @@ Ver la documentacion del espejo en Kotlin para el detalle.
 `PackFile.open` lo compara con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a
 sideloadear los packs, y nada mas. **Cuando exista el instalador, un tag ADITIVO no lo sube**:
 para eso esta la tolerancia a tags desconocidos, y forzar a redescargar 300 MB por un campo
-nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-113).
+nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-119).
 """
 
 import hashlib

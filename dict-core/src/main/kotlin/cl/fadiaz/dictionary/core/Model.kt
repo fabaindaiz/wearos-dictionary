@@ -99,7 +99,7 @@ data class Sense(
     val examples: List<String> = emptyList(),
     val translations: List<String> = emptyList(),
     /**
-     * Sinonimos de ESTA acepcion, no de la entrada (D-112).
+     * Sinonimos de ESTA acepcion, no de la entrada (D-117).
      *
      * La distincion importa: "domingo" tiene `mesada, paga` en una acepcion y `pollerudo,
      * calzonazos` en otra. Juntos no significan nada.
