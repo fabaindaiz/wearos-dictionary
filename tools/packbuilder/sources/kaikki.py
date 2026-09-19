@@ -61,6 +61,19 @@ from build import Record  # noqa: E402
 # desambiguar una acepcion en una pantalla de reloj; el segundo ya no se ve sin scrollear.
 MAX_EXAMPLES_PER_SENSE = 1
 
+# Cuantos sinonimos se guardan por acepcion. Cuatro entran en una pantalla de reloj en una sola
+# linea; el quinto ya obliga a scrollear para leer algo que es una ayuda, no la definicion.
+MAX_SYNONYMS_PER_SENSE = 4
+
+# De que idiomas se extraen sinonimos, y **es una lista corta a proposito** (D-112).
+#
+# Medido sobre los dumps: en español el 100 % de los `synonyms` traen `sense_index`, que es lo
+# que permite colgarlos de SU acepcion. En ingles **0 de 43.679** lo traen --traen `_dis1`, un
+# vector de pesos, y `source: "Thesaurus:*"`-- y ademas el ruido es estructural: "cat" figura
+# como sinonimo de "cat". Sin esta puerta, la implementacion natural es agnostica del idioma y
+# el pack ingles se lleva 43.679 items que no se pueden atribuir a nada.
+IDIOMAS_CON_SINONIMOS = {"es"}
+
 # Umbral de la excepcion a la poda de nombres propios (D-111).
 #
 # `pos = "name"` mete en la misma bolsa a "January" y a "Ivanivka", y la primera es vocabulario
@@ -157,8 +170,31 @@ def _is_form_of(sense):
     return "form-of" in (sense.get("tags") or []) or bool(sense.get("form_of"))
 
 
-def _senses(raw):
+def _synonyms_by_index(raw, headword):
+    """Mapa `sense_index` -> sinonimos, leido del registro crudo.
+
+    **La clave es el `sense_index` que declara la fuente, NUNCA la posicion.** `_senses()` poda
+    las acepciones form-of antes de emitir, asi que los ordinales se corren: un `enumerate()`
+    le colgaria a la acepcion que sobrevive los sinonimos de la que se fue. Eso no lanza, no
+    loguea y no lo agarra `verify_pack.py` -- sale del pack como contenido correcto.
+
+    Un sinonimo sin `sense_index` se descarta (medido: 5 en todo el dump). Colgarlo de la
+    primera acepcion seria inventar una atribucion que la fuente no da.
+    """
+    out = {}
+    for item in raw.get("synonyms") or []:
+        index = (item.get("sense_index") or "").strip()
+        word = (item.get("word") or "").strip()
+        # El sinonimo igual al lema no aporta nada, igual que en _forms().
+        if not index or not word or word == headword:
+            continue
+        out.setdefault(index, []).append(word)
+    return out
+
+
+def _senses(raw, con_sinonimos):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
+    synonyms = _synonyms_by_index(raw, raw.get("word", "")) if con_sinonimos else {}
     out = []
     for sense in raw.get("senses") or []:
         if _is_form_of(sense):
@@ -171,7 +207,12 @@ def _senses(raw):
             text = (example.get("text") or "").strip()
             if text:
                 examples.append(text)
-        out.append({"gloss": gloss, "examples": examples})
+        index = (sense.get("sense_index") or "").strip()
+        out.append({
+            "gloss": gloss,
+            "examples": examples,
+            "synonyms": synonyms.get(index, [])[:MAX_SYNONYMS_PER_SENSE],
+        })
     return out
 
 
@@ -221,7 +262,7 @@ def _sense_key(raw, index, needs_key):
     return "%s#%d" % (title, index) if index else title or "#0"
 
 
-def _emit(group, inbound, perfil, con_nombres):
+def _emit(group, inbound, perfil, con_nombres, con_sinonimos):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
@@ -231,7 +272,7 @@ def _emit(group, inbound, perfil, con_nombres):
             and _senal_lexica(raw) < SENAL_LEXICA_MINIMA
         ):
             continue
-        senses = _senses(raw)
+        senses = _senses(raw, con_sinonimos)
         if not senses:
             continue
         prepared.append((raw, senses))
@@ -305,6 +346,7 @@ def records(path, lang="es", con_nombres=False):
     numeros, y porque volver a medirlos contra un dump nuevo tiene que seguir siendo barato.
     """
     perfil = PERFILES[lang]
+    con_sinonimos = lang in IDIOMAS_CON_SINONIMOS
     inbound = _inbound_forms(path)
     group = []
     current = None
@@ -317,10 +359,10 @@ def records(path, lang="es", con_nombres=False):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, con_nombres):
+                for record in _emit(group, inbound, perfil, con_nombres, con_sinonimos):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound, perfil, con_nombres):
+    for record in _emit(group, inbound, perfil, con_nombres, con_sinonimos):
         yield record
