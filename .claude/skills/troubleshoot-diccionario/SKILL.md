@@ -17,6 +17,18 @@ produce excepción. Diagnosticá por síntoma.
 
 El más común y el más peligroso. En orden de probabilidad:
 
+0. **¿Es un nombre propio?** Desde D-116 los packs **no traen apellidos, topónimos ni nombres
+   de pila**, salvo los que tienen vida léxica. *Ivanivka*, *Troya*, *Etchechury* y *Hopewell*
+   **no están, y no es un bug**: son 22,1 % de las entradas en español y 17,1 % en inglés, y el
+   90,4 % de lo que se sacó no definía nada. Comprobalo en un segundo, antes de tocar nada:
+   ```bash
+   sqlite3 <pack.db> "SELECT value FROM meta WHERE key='proper_nouns'"   # lexical-only
+   ```
+   Si el lema es un nombre propio y el pack dice `lexical-only`, **la respuesta es "así se
+   diseñó"**. Los que sí quedaron son los que tienen `translations + descendants + derived >= 5`
+   en el dump: los meses, los países, los idiomas — *January*, *Paris*, *España*, *Chile*.
+   Para medir cuánto cambia eso, se reconstruye con `--con-nombres`.
+
 1. **Las dos implementaciones de `norm()` divergieron.** Comprobalo directo:
    ```bash
    cd tools/packbuilder && python3 -c "import normalize; print(repr(normalize.norm('LA PALABRA')))"
@@ -71,6 +83,10 @@ consulta dejó de encajar con él.
 
 ## Antes de dar por sentado que es un bug
 
-Este repo tiene **cuatro modos de falla conocidos y documentados**, y tres de ellos no producen
-error. Leé `docs/contratos-cruzados.md` entero antes de escribir código nuevo para arreglar algo:
+**Preguntá primero si falta por decisión o por bug.** Desde D-116 hay palabras ausentes a
+propósito, y desde D-121 hay una entrada menos porque su definición era una etiqueta de
+mantenimiento del wiki. Ninguna de las dos es un contrato roto.
+
+Después de descartarlo: este repo tiene **cuatro modos de falla conocidos y documentados**, y
+tres de ellos no producen error. Leé `docs/contratos-cruzados.md` entero antes de escribir código nuevo para arreglar algo:
 es probable que el mecanismo que falta ya esté descrito ahí.

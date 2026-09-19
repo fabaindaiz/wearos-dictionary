@@ -54,7 +54,7 @@ No es un detalle de implementación: es el trabajo. Conservar `word`, `pos`, glo
 traducciones. Descartar etimologías, pronunciaciones, categorías, plantillas y citas.
 
 **Registrá el tamaño en el changelog con la poda que lo produjo.** El de español ya está
-medido y vive en `docs/formato-pack.md` §Presupuestos: **146.194 entradas, 72,2 MB** — un 44 %
+medido y vive en `docs/formato-pack.md` §Presupuestos: **114.619 entradas, 68,1 MB** — un 36 %
 por encima del presupuesto blando de D-028, que era una suposición hasta el 2026-09-17.
 
 **El 46,3 % del pack es la tabla `form`**, casi toda conjugaciones de verbos. Si venís a achicar
