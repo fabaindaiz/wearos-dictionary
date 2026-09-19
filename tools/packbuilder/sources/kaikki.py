@@ -79,7 +79,7 @@ MAX_SYNONYMS_PER_SENSE = 4
 #     las dos a la vez                 0,0 %    0,0 %
 #
 # Cada dump usa **una sola forma, y no la misma**, asi que no hay precedencia que decidir. Y la
-# lista sobra: `_synonyms_by_index` ya descarta lo que no trae `sense_index`, asi que la forma
+# lista sobra: `_by_sense_index` ya descarta lo que no trae `sense_index`, asi que la forma
 # de arriba del ingles se cae sola. Un default que se sostiene por lo que la fuente trae es mas
 # dificil de dejar desactualizado que uno que se sostiene por una constante.
 
@@ -179,8 +179,11 @@ def _is_form_of(sense):
     return "form-of" in (sense.get("tags") or []) or bool(sense.get("form_of"))
 
 
-def _synonyms_by_index(raw, headword):
-    """Mapa `sense_index` -> sinonimos, leido del registro crudo.
+def _by_sense_index(raw, headword, clave):
+    """Mapa `sense_index` -> items, leido del registro crudo. La forma del dump español.
+
+    `clave` es "synonyms" o "antonyms": es literalmente la misma forma con otro nombre, y dos
+    copias de esto divergirian el dia que alguien arregle un borde en una sola.
 
     **La clave es el `sense_index` que declara la fuente, NUNCA la posicion.** `_senses()` poda
     las acepciones form-of antes de emitir, asi que los ordinales se corren: un `enumerate()`
@@ -191,7 +194,7 @@ def _synonyms_by_index(raw, headword):
     primera acepcion seria inventar una atribucion que la fuente no da.
     """
     out = {}
-    for item in raw.get("synonyms") or []:
+    for item in raw.get(clave) or []:
         index = (item.get("sense_index") or "").strip()
         word = (item.get("word") or "").strip()
         # El sinonimo igual al lema no aporta nada, igual que en _forms().
@@ -201,8 +204,10 @@ def _synonyms_by_index(raw, headword):
     return out
 
 
-def _nested_synonyms(sense, headword):
-    """Los sinonimos que vienen DENTRO de la acepcion. La forma del dump ingles.
+def _nested(sense, headword, clave):
+    """Los items que vienen DENTRO de la acepcion. La forma del dump ingles.
+
+    `clave` es "synonyms" o "antonyms", igual que en `_by_sense_index`.
 
     No se pide `sense_index` y no es un descuido: aca la atribucion es estructural --el item ya
     vive en su acepcion-- mientras que en la forma de arriba es declarada. Exigirlo tiraria los
@@ -214,7 +219,7 @@ def _nested_synonyms(sense, headword):
     `ability, aptitude` a `craftiness, foxiness`.
     """
     out, vistos = [], set()
-    for item in sense.get("synonyms") or []:
+    for item in sense.get(clave) or []:
         word = (item.get("word") or "").strip()
         # Igual que en _forms() y en la forma de arriba: el sinonimo igual al lema no aporta
         # nada. Medido: 1,9 % de los items ingleses.
@@ -227,7 +232,9 @@ def _nested_synonyms(sense, headword):
 
 def _senses(raw):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
-    synonyms = _synonyms_by_index(raw, raw.get("word", ""))
+    headword = raw.get("word", "")
+    synonyms = _by_sense_index(raw, headword, "synonyms")
+    antonyms = _by_sense_index(raw, headword, "antonyms")
     out = []
     for sense in raw.get("senses") or []:
         if _is_form_of(sense):
@@ -243,12 +250,17 @@ def _senses(raw):
         index = (sense.get("sense_index") or "").strip()
         # Las dos formas en que la fuente sirve sinonimos. Ningun dump usa las dos, asi que esto
         # no es una precedencia sino una union: la que este vacia no aporta nada.
-        del_indice = synonyms.get(index, [])
-        anidados = _nested_synonyms(sense, raw.get("word", ""))
         out.append({
             "gloss": gloss,
             "examples": examples,
-            "synonyms": (del_indice or anidados)[:MAX_SYNONYMS_PER_SENSE],
+            "synonyms": (
+                synonyms.get(index, []) or _nested(sense, headword, "synonyms")
+            )[:MAX_SYNONYMS_PER_SENSE],
+            # Mismo molde y mismo tope. Atribuir mal un antonimo es peor que atribuir mal un
+            # sinonimo: se lee como lo contrario de otra cosa, no como una eleccion rara.
+            "antonyms": (
+                antonyms.get(index, []) or _nested(sense, headword, "antonyms")
+            )[:MAX_SYNONYMS_PER_SENSE],
         })
     return out
 

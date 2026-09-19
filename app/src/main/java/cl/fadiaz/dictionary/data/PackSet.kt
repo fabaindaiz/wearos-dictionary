@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 
 /**
@@ -71,4 +72,19 @@ sealed interface PackSet {
 
     /** Habia archivos y **ninguno** sirve. */
     data class Unusable(val reason: String) : PackSet
+}
+
+/**
+ * Que clase de diccionario es, en una palabra, para poner al lado del nombre corto.
+ *
+ * Existe porque el nombre dejo de decirlo: era "Español - definiciones" --22 caracteres, cortados
+ * en los cuatro lugares donde se muestra-- y paso a ser "Español" (D-125). Lo que el nombre largo
+ * comunicaba sale ahora de `kind`, que es **un dato del pack** y no una cadena que alguien tiene
+ * que acordarse de escribir bien en cada pack nuevo.
+ *
+ * Pura y sin Android: entra al gate (D-072).
+ */
+internal fun etiquetaDeTipo(kind: PackKind): String = when (kind) {
+    PackKind.MONOLINGUAL -> "definiciones"
+    PackKind.BILINGUAL -> "traducción"
 }

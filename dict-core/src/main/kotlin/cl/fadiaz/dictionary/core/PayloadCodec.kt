@@ -49,6 +49,15 @@ object PayloadCodec {
     private const val TAG_TRANSLATION = 'T'
     private const val TAG_SYNONYM = 'Y'
 
+    /**
+     * Antonimo de esta acepcion (D-126).
+     *
+     * **No sube `CODEC_ID` y eso es deliberado.** D-119 dejo escrito que un tag aditivo no debe
+     * subirlo: para eso existe que los tags desconocidos se ignoren. Un pack con antonimos
+     * abierto por un lector viejo muestra la entrada sin ellos.
+     */
+    private const val TAG_ANTONYM = 'A'
+
     /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
     data class Body(val partOfSpeech: String?, val senses: List<Sense>)
 
@@ -97,6 +106,7 @@ object PayloadCodec {
                 TAG_EXAMPLE -> senses.lastOrNull()?.examples?.add(value)
                 TAG_TRANSLATION -> senses.lastOrNull()?.translations?.add(value)
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
+                TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
                 else -> Unit
             }
         }
@@ -109,6 +119,7 @@ object PayloadCodec {
                     it.examples.toList(),
                     it.translations.toList(),
                     it.synonyms.toList(),
+                    it.antonyms.toList(),
                 )
             },
         )
@@ -128,6 +139,9 @@ object PayloadCodec {
             for (synonym in sense.synonyms) {
                 out.append(TAG_SYNONYM).append('\t').append(synonym).append('\n')
             }
+            for (antonym in sense.antonyms) {
+                out.append(TAG_ANTONYM).append('\t').append(antonym).append('\n')
+            }
         }
         return out.toString()
     }
@@ -136,6 +150,7 @@ object PayloadCodec {
         val examples = mutableListOf<String>()
         val translations = mutableListOf<String>()
         val synonyms = mutableListOf<String>()
+        val antonyms = mutableListOf<String>()
     }
 
 }

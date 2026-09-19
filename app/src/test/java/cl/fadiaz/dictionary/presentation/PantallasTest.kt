@@ -78,6 +78,8 @@ class PantallasTest {
         normVersion = 1,
         kind = PackKind.MONOLINGUAL,
         name = name,
+        // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+        description = null,
         langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,
@@ -100,7 +102,7 @@ class PantallasTest {
     /** Dos packs: es el estado que ejercita el selector. */
     private fun estadoDosPacks(vararg lemas: String): SearchState {
         val es = meta()
-        val en = meta("en-def", "en", "English — definitions")
+        val en = meta("en-def", "en", "English")
         return estadoListo(*lemas).copy(
             activo = es,
             disponibles = listOf(handle(es), handle(en)),
@@ -226,6 +228,28 @@ class PantallasTest {
         }
         compose.onNodeWithText("bobo", substring = true).assertExists()
         compose.onNodeWithText("zonzo", substring = true).assertExists()
+    }
+
+    @Test
+    fun laAcepcionMuestraSusAntonimosYNoLosConfundeConSinonimos() {
+        // El riesgo no es que no se vean: es que se vean IGUAL. Las dos listas comparten estilo,
+        // posicion y separador, asi que lo unico que distingue "otra forma de decirlo" de "lo
+        // contrario" es el prefijo. Este test fija los dos prefijos, no la presencia.
+        compose.setContent {
+            EntryScreen(1, onOpenPalabra = {}) {
+                entrada().copy(
+                    senses = listOf(
+                        Sense(
+                            "de temperatura alta",
+                            synonyms = listOf("ardiente"),
+                            antonyms = listOf("gélido"),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("sin. ardiente", substring = true).assertExists()
+        compose.onNodeWithText("ant. gélido", substring = true).assertExists()
     }
 
     @Test
@@ -511,7 +535,9 @@ class PantallasTest {
         compose.onNodeWithText("permanecer").assertIsDisplayed()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("remain"))
         compose.onNodeWithText("remain").assertIsDisplayed()
-        compose.onNodeWithText("English — definitions").assertExists()
+        // Nombre corto Y tipo (D-125): el nombre dejo de decir que clase de diccionario es,
+        // asi que la fila tiene que decirlo aparte o se pierde el dato.
+        compose.onNodeWithText("English · definiciones").assertExists()
         assertEquals(
             "con dos diccionarios el subtitulo es el idioma, no la etiqueta generica",
             0,
@@ -811,7 +837,7 @@ class PantallasTest {
         // D-031 con dos fuentes: mostrar una sola licencia es incumplir la condicion de la otra.
         compose.setContent {
             AttributionScreen(
-                packs = listOf(handle(meta()), handle(meta("en-def", "en", "English — definitions"))),
+                packs = listOf(handle(meta()), handle(meta("en-def", "en", "English"))),
                 problemas = listOf("de-def: dañado"),
             )
         }

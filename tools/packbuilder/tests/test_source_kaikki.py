@@ -496,6 +496,90 @@ class SinonimosAnidadosTest(unittest.TestCase):
         got = next(iter(kaikki.records(path, lang="en")))
         self.assertEqual(["technique", "ability"], got.senses[0]["synonyms"])
 
+
+
+class AntonimosTest(unittest.TestCase):
+    """Los antonimos, en las MISMAS dos formas que los sinonimos (D-126).
+
+    Medido sobre 120.000 registros vivos de cada dump, y el espejo es exacto:
+
+        | forma                         | español | ingles |
+        |-------------------------------|---------|--------|
+        | `antonyms` arriba con index   |   2,1 % |  0,0 % |
+        | `antonyms` dentro de `senses` |   0,0 % |  3,2 % |
+
+    Cobertura mucho menor que los sinonimos --3,2 % contra 25,8 % en ingles-- y por eso el costo
+    tambien: 0,80 B por entrada viva.
+
+    **Atribuir mal un antonimo es peor que atribuir mal un sinonimo**: un sinonimo en la acepcion
+    equivocada se lee como una eleccion rara, un antonimo se lee como lo contrario de otra cosa.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_la_forma_de_arriba_va_a_su_acepcion(self):
+        path = _jsonl(_raw("caliente", "adj", [
+            _sense("de temperatura alta", sense_index="1"),
+            _sense("enojado", sense_index="2"),
+        ], antonyms=[
+            {"word": "frio", "sense_index": "1"},
+            {"word": "calmado", "sense_index": "2"},
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["frio"], got.senses[0]["antonyms"])
+        self.assertEqual(["calmado"], got.senses[1]["antonyms"])
+
+    def test_la_forma_anidada_va_a_su_acepcion(self):
+        path = _jsonl(_raw("hot", "adj", [
+            _sense("of high temperature", antonyms=[{"word": "cold"}]),
+            _sense("spicy", antonyms=[{"word": "mild"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["cold"], got.senses[0]["antonyms"])
+        self.assertEqual(["mild"], got.senses[1]["antonyms"])
+
+    def test_un_antonimo_de_arriba_sin_sense_index_se_descarta(self):
+        # Misma regla que los sinonimos: colgarlo de la primera acepcion seria inventar la
+        # atribucion, y aca inventarla significa afirmar un opuesto que la fuente no afirmo.
+        path = _jsonl(_raw("caliente", "adj", [_sense("de temperatura alta", sense_index="1")],
+                           antonyms=[{"word": "frio"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual([], got.senses[0]["antonyms"])
+
+    def test_un_antonimo_igual_al_lema_no_se_emite(self):
+        path = _jsonl(_raw("fast", "adj", [
+            _sense("quick", antonyms=[{"word": "fast"}, {"word": "slow"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["slow"], got.senses[0]["antonyms"])
+
+    def test_el_tope_de_cuatro_vale_igual(self):
+        path = _jsonl(_raw("big", "adj", [
+            _sense("large", antonyms=[{"word": "a%d" % i} for i in range(9)]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(4, len(got.senses[0]["antonyms"]))
+
+    def test_sinonimos_y_antonimos_conviven_sin_mezclarse(self):
+        path = _jsonl(_raw("hot", "adj", [
+            _sense("of high temperature",
+                   synonyms=[{"word": "warm"}], antonyms=[{"word": "cold"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["warm"], got.senses[0]["synonyms"])
+        self.assertEqual(["cold"], got.senses[0]["antonyms"])
+
 class RankTest(unittest.TestCase):
     """rank es un PROXY: el Wikcionario no trae frecuencia de uso. Menor es mas comun."""
 
