@@ -46,7 +46,7 @@ class GlossLinksOnDeviceTest {
         compose.setContent {
             EntryScreen(
                 entryId = 1,
-                onOpenPalabra = { abierta = it },
+                onOpenWord = { abierta = it },
                 resolveIn = { mapOf("cera" to 77L) },
             ) { entry("cilindro de cera con mecha") }
         }

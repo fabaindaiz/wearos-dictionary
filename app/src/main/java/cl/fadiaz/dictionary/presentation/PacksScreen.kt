@@ -56,8 +56,8 @@ import cl.fadiaz.dictionary.data.packTypeLabel
 fun PacksScreen(
     packs: List<PackHandle>,
     active: String?,
-    onActivar: (String) -> Unit,
-    onBorrar: (String) -> Unit,
+    onActivate: (String) -> Unit,
+    onDelete: (String) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -86,9 +86,9 @@ fun PacksScreen(
                     detail = "${packTypeLabel(pack.metadata.kind)} · " +
                         "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
                     active = pack.packId == active,
-                    onActivar = { onActivar(pack.packId) },
+                    onActivate = { onActivate(pack.packId) },
                     // El de demostracion no se puede borrar: volveria solo.
-                    onBorrar = if (pack.isDemo) null else { { pendingDelete = pack } },
+                    onDelete = if (pack.isDemo) null else { { pendingDelete = pack } },
                 )
             }
 
@@ -133,7 +133,7 @@ fun PacksScreen(
                 ink = MaterialTheme.colorScheme.onError,
                 margin = 8.dp,
                 onClick = {
-                    candidate?.let { onBorrar(it.packId) }
+                    candidate?.let { onDelete(it.packId) }
                     pendingDelete = null
                 },
             )
@@ -162,8 +162,8 @@ private fun PackRow(
     name: String,
     detail: String,
     active: Boolean,
-    onActivar: () -> Unit,
-    onBorrar: (() -> Unit)?,
+    onActivate: () -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -175,7 +175,7 @@ private fun PackRow(
                 .weight(1f)
                 .clip(CARD_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(onClick = onActivar)
+                .clickable(onClick = onActivate)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -214,12 +214,12 @@ private fun PackRow(
             }
         }
 
-        if (onBorrar != null) {
+        if (onDelete != null) {
             Box(
                 modifier = Modifier
                     .clip(PILL_SHAPE)
                     .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .clickable(onClick = onBorrar)
+                    .clickable(onClick = onDelete)
                     .heightIn(min = TOUCH_TARGET)
                     .width(TOUCH_TARGET),
                 contentAlignment = Alignment.Center,
