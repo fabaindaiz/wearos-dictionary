@@ -30,8 +30,9 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 **Qué.** Los packs vuelven a abrir (estaban en `deflate-v1` y el código exige `deflate-v2`), el
 inglés gana sinónimos, los dos ganan antónimos, el nombre del pack deja de cortarse, el historial
-sobrevive a reconstruir un pack, y **`:app` pasa a inglés en identificadores**: 18 archivos y
-~420 nombres, los 190 de test incluidos.
+sobrevive a reconstruir un pack, **`:app` pasa a inglés** —identificadores, archivos y
+comentarios— junto con los `CLAUDE.md`, los seis skills y cuatro documentos de `docs/`. Al final:
+**el inicio deja libre la hora** y los cuatro textos en voseo pasan a español neutro.
 
 **Áreas.** `tools/packbuilder/{sources/kaikki,payload,build,build_pack,verify_pack,
 gen_payload_fixture}.py`, `dict-core/{Model,PayloadCodec}.kt`, `dict-data/PackFile.kt`,
@@ -44,6 +45,19 @@ Español - definic…"*, más la deuda de que los `.db` en disco y en el reloj n
 **Arquitectura.** ✅ Cumple. El tag `A` **no** sube `CODEC_ID` porque es aditivo, que es
 exactamente lo que D-119 dejó escrito. La app sigue sin calcular `uid` (D-057) y sin importar
 `android.*` en su lógica (D-072).
+
+**Revisión del roadmap contra el código (pedida al cierre).** **Cinco entradas que el roadmap
+declara abiertas ya no lo están**, y ninguna se actualizó: *el historial apunta a otra palabra*
+(cerrada hoy por D-123, **con una tercera opción que la entrada no listaba** — validar contra el
+lema en vez de excluir del backup o migrar a `uid`), *los packs del reloj son incompatibles*
+(reconstruidos, aunque sólo vistos en emulador), *las acciones de una palabra* (existen), *el Tile
+sigue siendo el del template* (cerrado por D-106) y *`docs/agents/` pendiente de traducir* (ya
+estaba en inglés). Los conteos del §Dónde estamos están viejos en los tres módulos: son **54 /
+178 / 147**, no 50 / 166 / 129.
+
+⚠️ **No se actualizó el roadmap a propósito**: la otra sesión tiene cambios sin commitear en dos
+de las tres secciones que habría que tocar, y arrastrarlos rompe la regla del repo. Queda para
+quien los commitee.
 
 **Medido.** Construir: **63,6 s** el español, **2 min 45 s** el inglés — el número que D-119
 citaba, 3 min 38 s, era el de **copiar**, no el de construir. Sinónimos ingleses: de 0 a
@@ -81,6 +95,10 @@ EN**, y **ninguna entrada usa las dos**.
 - **`pack-workflow` ya advertía lo que me costó un rato.** Dice, con ejemplo, que
   `meta.payload_dict` está en hex y que pasarlo como string devuelve texto que *parece* corrupto.
   Lo leí después de cazar el bug. La advertencia ahora dice que ya le pasó a alguien.
+- **Casi reporto un bug de UI que no existía.** El detector de textos en español marcó
+  `"Show more"` como literal de interfaz en dos pantallas. Estaba **dentro de comentarios** —el
+  detector excluye regiones de código, y un comentario no lo es—. El texto real sigue siendo
+  `Ver más` y hay un test que lo fija. Mirar el contexto antes de creerle a un grep propio.
 - **La traducción de comentarios se hizo con un verificador, y se lo ganó.** Cada archivo se
   compara contra `HEAD` quitando **todos** los comentarios de las dos versiones: si el código
   restante no es idéntico, se rechaza. Sin eso, `Visit.kt` define el separador del historial como
@@ -104,7 +122,11 @@ EN**, y **ninguna entrada usa las dos**.
 prosa densa), **`docs/agents/`** (~200 KB, meta-documentos) y **el changelog** (120 KB, que el
 plan deja explícitamente para el final y en un commit aparte). ⚠️ **`docs/roadmap.md` y
 `tools/CLAUDE.md` están bloqueados**: siguen modificados sin commitear por otra sesión, así que
-traducirlos enredaría su trabajo con el mío. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
+traducirlos enredaría su trabajo con el mío. Y del producto, lo barato y sin hacer: **confirmar los 234 dp dentro de la app** (una línea,
+y es la moneda de cinco decisiones: a 48 dp daría una cuarta fila, +33 % de resultados),
+**subir `versionCode` a 3** antes de la próxima instalación (está en 2 y el instalador rechaza un
+downgrade, D-095) y **ajustar los umbrales fuzzy** contra el pack real, que D-052 fijó a priori
+sobre 22 entradas. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
 (*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
 conectado**: todo lo de dispositivo se verificó en el emulador, así que el tamaño real en 234 dp

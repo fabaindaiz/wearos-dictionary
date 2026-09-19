@@ -153,6 +153,24 @@ which delivers the whole phrase at once.
 The `RecognizerIntent` asks for `EXTRA_LANGUAGE = "es"` explicitly. Without it the recogniser uses
 the system language, and a watch in English dictating "perro" returns anything.
 
+## The UI text is Spanish, and which Spanish is decided
+
+Everything written into the repo is English (root `CLAUDE.md`), **except the strings the user
+reads**. Those are Spanish, and specifically **neutral Latin American Spanish**:
+
+- **No voseo.** `Busca`, not `Buscá`. `Abre`, not `Abrí`. `usa`, not `usá`.
+- **No River Plate regionalisms.** `Aquí`, not `Acá`.
+- **No peninsular forms either.** `computadora`, not `ordenador`; `celular`, not `móvil`;
+  `descargar`, not `bajar`; and never `vosotros`, `pulsar` or `fichero`.
+
+It is written down because the first pass was written in River Plate Spanish and nothing catches
+it: it compiles, it reads fine to whoever wrote it, and it is the user who notices. The whole
+surface is small —every string lives in `presentation/` or in `res/values/strings.xml`— so a
+sweep for those forms takes a minute.
+
+When the localization lands, this becomes `values-es` and the English base; the rule for the
+Spanish side does not change.
+
 ## Accepted MVP costs (D-087)
 
 They are no longer inherited from the template: they were decided, with the cost on the table.
