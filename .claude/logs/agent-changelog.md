@@ -26,6 +26,44 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-18 — Los 364 MiB entran, y el inglés llegó al reloj a la tercera
+
+**Qué.** Se subieron los tres packs y la app al reloj físico (SM-L715F, API 37).
+
+**Áreas.** Ninguna de código: es una sesión de despliegue y verificación.
+
+**Por qué.** Cerrar el desarrollo por ahora dejando el reloj con lo último.
+
+**Medido.**
+- **El pack de inglés está en el reloj por primera vez.** 309.452.800 B, sha256 verificado a los
+  dos lados, **3 min 38 s** por la ruta por defecto de `devpack`. Los tres intentos anteriores
+  --en dos sesiones-- habían muerto.
+- **364 MiB de diccionarios entran en hardware real**, que era una de las cuatro preguntas
+  abiertas desde que existe el reloj: 53 kB + 72,2 MB + 295,1 MB, y quedan **40 GB libres**.
+- **El versionado hizo lo suyo sin que nadie lo notara**: el APK con `versionCode 2` se instaló
+  sobre el `1` que había. Al revés lo habría rechazado el instalador (D-095).
+- **Dos palabras del día en el reloj, una por diccionario**: *earsplittingly* (English) y
+  *contento* (Español), cada una con su idioma debajo. EN quedó activo porque el reloj está en
+  `en-US` y el pack activo lo decide el idioma del sistema (D-079).
+- **Cero crashes de `cl.fadiaz.dictionary` en el buffer.** Los únicos que hay son de
+  `io.homeassistant.companion.android`.
+
+**Qué salió mal.**
+- **El primer intento del inglés murió al 84 %** (260.046.848 de 309.452.800 B) con *"device not
+  found"*: el reloj se cayó de ADB a mitad de la transferencia. La latencia estaba en 150 ms
+  contra los 40 ms de cuando el español entró en 20 s. Otra vez el diseño atómico dejó un
+  `.part` y no un pack corrupto (D-082), y el reintento funcionó.
+- **Volví a manejar el reloj a ciegas con `input tap` y volvió a fallar**: un swipe me sacó a los
+  ajustes del sistema y un tap cayó en el campo de texto en vez de en la palabra. Es la misma
+  fricción ya anotada en §Proceso y herramientas del roadmap, y la ignoré.
+
+**Qué quedó sin hacer.**
+- **El crash de *Ver más* sigue sin reproducirse y ahora hay un dato nuevo**: no dejó rastro en
+  el buffer de crashes. O se limpió, o **no era un crash de proceso** sino un ANR o un congelado
+  visual — que es una hipótesis distinta y cambia dónde buscar.
+- **La corona sigue sin moverse** y los **234 dp sin confirmar** dentro de la app. Las dos
+  necesitan a alguien tocando el reloj, no `adb`.
+
 ## 2026-09-18 — Los documentos dejan de mentir, y el check que pedían por escrito
 
 **Qué.** Barrida de documentación y un check nuevo en el audit (18 ahora).
