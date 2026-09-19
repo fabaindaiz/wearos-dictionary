@@ -212,7 +212,7 @@ class IdiomaTest(unittest.TestCase):
             list(kaikki.records(path, lang="klingon"))
 
     def test_por_defecto_no_salen_los_nombres_propios(self):
-        # D-111: apellidos y toponimos no entran a un diccionario de muñeca. El default vive
+        # D-116: apellidos y toponimos no entran a un diccionario de muñeca. El default vive
         # ACA, en la libreria, no en el flag de la CLI: cualquier llamador nuevo lo hereda.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
@@ -246,7 +246,7 @@ class IdiomaTest(unittest.TestCase):
         self.assertEqual([], [r.headword for r in kaikki.records(path, lang="en")])
 
     def test_con_nombres_los_trae_de_vuelta(self):
-        # La medicion sigue siendo posible: es lo que produjo el numero de D-111.
+        # La medicion sigue siendo posible: es lo que produjo el numero de D-116.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
@@ -302,7 +302,7 @@ class MarkupEditorialTest(unittest.TestCase):
 
 
 class SinonimosTest(unittest.TestCase):
-    """Los sinonimos van a SU acepcion, y solo en español (D-112).
+    """Los sinonimos van a SU acepcion, y solo en español (D-117).
 
     El modo de falla que estos tests existen para impedir: un sinonimo atribuido a la acepcion
     equivocada. No lanza, no loguea, no lo agarra `verify_pack.py` -- sale del pack como

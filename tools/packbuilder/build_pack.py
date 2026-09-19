@@ -17,7 +17,7 @@ deprecado). **Cual es cual es el error facil**, porque los tres existen y son da
     enwiktionary seccion Spanish da palabras españolas con glosa **en ingles**: eso es un pack
     BILINGUE y no lo construye este script.
 
-**Los nombres propios no entran** (D-111): apellidos, toponimos y nombres de pila se descartan
+**Los nombres propios no entran** (D-116): apellidos, toponimos y nombres de pila se descartan
 por defecto. `--con-nombres` los trae de vuelta y deja el pack marcado --`pack_id` sufijado y
 `meta.proper_nouns = "included"`-- porque sigue siendo la forma de MEDIR cuanto pesan contra un
 dump nuevo. Lo que se saca: 32.305 entradas en español (22,1 %, de las cuales 26.265 definen
@@ -35,7 +35,7 @@ from build import PackBuilder
 # D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
 # son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
 #
-# `proper_nouns` declara la politica de contenido del pack (D-111). Se escribe en `meta` el
+# `proper_nouns` declara la politica de contenido del pack (D-116). Se escribe en `meta` el
 # valor EFECTIVO, no el declarado: meta tiene que decir que paso, no que se pretendia.
 #
 # "lexical-only" y no "excluded" porque la poda tiene una excepcion medida: el nombre propio con

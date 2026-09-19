@@ -33,7 +33,7 @@ package cl.fadiaz.dictionary.core
  *
  * Aun asi [CODEC_ID] sube cuando cambia el formato del texto, porque `PackFile.open` lo compara
  * con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a sideloadear, y nada mas.
- * **Cuando exista el instalador, un tag ADITIVO no lo sube** (D-113): forzar a redescargar
+ * **Cuando exista el instalador, un tag ADITIVO no lo sube** (D-119): forzar a redescargar
  * 300 MB por un campo que el lector viejo ignora tiraria justamente esta propiedad.
  */
 object PayloadCodec {
