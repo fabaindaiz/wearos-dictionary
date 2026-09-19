@@ -1,112 +1,111 @@
-# Arquitectura
+# Architecture
 
-## Las restricciones que mandan
+## The constraints that rule
 
-| Restricción | Consecuencia de diseño |
+| Constraint | Design consequence |
 |---|---|
-| El disco del reloj es escaso | Packs por idioma, payloads comprimidos, presupuesto blando de 50 MB (D-028) |
-| Pantalla de ~1.2", búsqueda mientras se escribe | Covering index: la lista sale del índice sin tocar la tabla (D-012) |
-| Input por voz o teclado minúsculo | La búsqueda tolera errores en vez de exigir exactitud (D-027) |
-| RAM y batería limitadas | Nada se carga en memoria; SQLite read-only con mmap |
+| The watch's disk is scarce | One pack per language, compressed payloads, a soft budget of 50 MB (D-028) |
+| ~1.2" screen, search while typing | Covering index: the list comes out of the index without touching the table (D-012) |
+| Input by voice or a tiny keyboard | The search tolerates errors instead of demanding exactness (D-027) |
+| Limited RAM and battery | Nothing is loaded into memory; read-only SQLite with mmap |
 
-> **ASSUMPTION sobre el espacio en disco.** Los principios oficiales de Wear OS dicen que el
-> almacenamiento es escaso pero **no dan ningún número**. Cualquier cifra concreta sobre GB
-> libres en relojes está sin fuente. Lo que sí es medible es el tamaño del pack, y eso es lo
-> que se persigue.
+> **ASSUMPTION about disk space.** The official Wear OS principles say storage is scarce but
+> **give no number at all**. Any concrete figure about free GB on watches is unsourced. What
+> *is* measurable is the pack's size, and that is what gets chased.
 
-## Módulos
+## Modules
 
 ```
-:app            pantallas Wear Compose, ViewModel, origen de los packs   ✔
-:dict-data      abre packs, implementa las consultas                      ✔
-:dict-core      Kotlin puro: normalización, claves, payload               ✔
-tools/          builder Python + repertorio Unicode                       ✔  (fuera de Gradle)
+:app            Wear Compose screens, ViewModel, where packs come from   ✔
+:dict-data      opens packs, implements the queries                      ✔
+:dict-core      pure Kotlin: normalization, keys, payload                 ✔
+tools/          Python builder + Unicode repertoire                       ✔  (outside Gradle)
 
-El Tile y la Complication siguen siendo los del template y no hacen nada de
-diccionario: es un costo aceptado, no un olvido (D-087).
+The glanceable surface is two dictionary tiles -- last words and word of the
+day -- and the template's complication was turned off (D-106 to D-109).
 ```
 
-**Dirección permitida:** `:app` → `:dict-data` → `:dict-core`. Nunca al revés.
+**Allowed direction:** `:app` → `:dict-data` → `:dict-core`. Never the other way.
 
-`:app` depende de `:dict-data`, que depende de `:dict-core`, que no depende de nadie. **Lo
-comprueba `audit_dictionary.py` → `check_module_direction`**, que mira las declaraciones del
-build y no los imports: `:app` y `:dict-data` comparten el nombre de paquete
-`cl.fadiaz.dictionary.data`, así que un import no dice de qué módulo viene.
+`:app` depends on `:dict-data`, which depends on `:dict-core`, which depends on nobody. **It is
+checked by `audit_dictionary.py` → `check_module_direction`**, which looks at the build
+declarations and not at the imports: `:app` and `:dict-data` share the package name
+`cl.fadiaz.dictionary.data`, so an import does not say which module it came from.
 
-Lo que rompe si la dirección se invierte no es estético: `:dict-core` es el que se testea en
-milisegundos sin emulador y el que se espeja con el builder (D-005). Una dependencia hacia
-arriba lo ata a Android y esos tests dejan de poder correr.
+What breaks if the direction is inverted is not cosmetic: `:dict-core` is the one tested in
+milliseconds without an emulator and the one mirrored against the builder (D-005). A dependency
+pointing upward ties it to Android and those tests stop being able to run.
 
-`:dict-core` no depende de Android ni de SQLite, y eso no es organización: es lo que debe estar
-sincronizado con el builder y lo que más se testea. Los tests corren en milisegundos sin
-emulador.
+`:dict-core` depends on neither Android nor SQLite, and that is not tidiness: it is what has to
+stay in sync with the builder and what gets tested most. Its tests run in milliseconds without an
+emulator.
 
-## Dónde va un archivo nuevo
+## Where a new file goes
 
-| Si el archivo… | Va en | Y además |
+| If the file… | Goes in | And also |
 |---|---|---|
-| No sabe de Android, SQLite, red ni rutas | `dict-core/` | Si toca una API de JVM, va en `PlatformJvm.kt` o no va |
-| Abre packs o ejecuta SQL | `dict-data/` | Sus tests son **instrumentados**: son los únicos que cierran asunciones sobre Android |
-| Es una pantalla, un Tile o una Complication | `app/` | Leé `app/CLAUDE.md` antes: hay tres trampas conocidas |
-| Construye o valida packs | `tools/packbuilder/` | Solo stdlib de Python. Una fuente nueva va en `sources/` |
-| Genera datos que consumen los dos lenguajes | `tools/unicode/` | Tiene que emitir **ambas** copias y atarlas por sha256 |
-| Habla con el dispositivo por `adb` | `tools/` | Su lógica pura entra al gate; ejecutar `adb` no. Ver `devpack.py` |
+| Knows nothing of Android, SQLite, network or paths | `dict-core/` | If it touches a JVM API, it goes in `PlatformJvm.kt` or it does not go |
+| Opens packs or runs SQL | `dict-data/` | Its tests are **instrumented**: they are the only ones that close assumptions about Android |
+| Is a screen, a Tile or a Complication | `app/` | Read `app/CLAUDE.md` first: there are three known traps |
+| Builds or validates packs | `tools/packbuilder/` | Python stdlib only. A new source goes in `sources/` |
+| Generates data both languages consume | `tools/unicode/` | It has to emit **both** copies and tie them together by sha256 |
+| Talks to the device over `adb` | `tools/` | Its pure logic enters the gate; running `adb` does not. See `devpack.py` |
 
-## El flujo de un pack
+## The life of a pack
 
 ```
-fuente léxica (Wikcionario, JSONL)
-        │  tools/packbuilder/sources/*.py   ← poda: acá se decide el tamaño
+lexical source (Wiktionary, JSONL)
+        │  tools/packbuilder/sources/*.py   ← pruning: size is decided here
         ▼
-   Record en streaming
-        │  PackBuilder, dos pasadas sobre staging
+   Record, streamed
+        │  PackBuilder, two passes over staging
         ▼
-   pack.db  ──► verify_pack.py ──► catálogo + sha256 ──► descarga al reloj
-        │                                                  (cargando + Wi-Fi)
+   pack.db  ──► verify_pack.py ──► catalogue + sha256 ──► download to the watch
+        │                                                  (charging + Wi-Fi)
         ▼
-   filesDir/packs/<id>.db   ← read-only, una conexión por pack,
-                              confinada a un dispatcher de un solo hilo
+   filesDir/packs/<id>.db   ← read-only, one connection per pack,
+                              confined to a single-threaded dispatcher
 ```
 
-Ese último detalle no es opcional: el SQLite empacado reporta `THREADSAFE=2`, que es
-multi-thread y **no** serialized.
+That last detail is not optional: the bundled SQLite reports `THREADSAFE=2`, which is
+multi-thread and **not** serialized.
 
-## Las capas de la búsqueda
+## The layers of the search
 
-`DictionarySource` es la única superficie por la que la app llega a los datos. Ni la UI ni los
-ViewModels ven SQL. Esa interfaz vive en `:dict-core` y no menciona SQLite a propósito: permite
-cambiar el almacenamiento sin tocar nada arriba, y testear con implementaciones en memoria.
+`DictionarySource` is the only surface through which the app reaches the data. Neither the UI nor
+the ViewModels see SQL. That interface lives in `:dict-core` and deliberately never mentions
+SQLite: it allows changing the storage without touching anything above, and testing with
+in-memory implementations.
 
-La búsqueda no es una consulta sino cinco en cascada, cada una más cara y menos confiable que la
-anterior. El detalle está en `docs/formato-pack.md`.
+The search is not one query but five in a cascade, each more expensive and less reliable than the
+last. The detail is in `docs/formato-pack.md`.
 
-## Desviaciones deliberadas de lo que recomienda el framework
+## Deliberate deviations from what the framework recommends
 
-| Recomendación habitual | Qué hacemos | Por qué |
+| Usual recommendation | What we do | Why |
 |---|---|---|
-| Room para todo lo que sea SQLite | Room **solo** para datos de la app; los packs con `BundledSQLiteDriver` directo | `createFromFile()` copia el archivo y duplica decenas de MB (D-039) |
-| El SQLite del sistema alcanza | Se empaca SQLite propio, ~1–1,5 MB por ABI | FTS5 no está garantizado en Android (D-002) |
-| Hilt/Dagger para inyección | Contenedor manual | A esta escala Hilt agrega KSP y tiempo de build sin beneficio |
-| JSON o Protobuf para datos estructurados | Texto delimitado en el payload | Se parsea sin dependencias en los dos lenguajes; comprimido, la diferencia es ruido (D-009) |
-| Kotlin al día | Kotlin 2.2.10, no 2.4.20 | `allWarningsAsErrors` convierte un bump de compilador en build roto (D-033) |
+| Room for anything that is SQLite | Room **only** for app data; the packs through `BundledSQLiteDriver` directly | `createFromFile()` copies the file and duplicates tens of MB (D-039) |
+| The system's SQLite is enough | We bundle our own SQLite, ~1–1.5 MB per ABI | FTS5 is not guaranteed on Android (D-002) |
+| Hilt/Dagger for injection | A manual container | At this scale Hilt adds KSP and build time with no benefit |
+| JSON or Protobuf for structured data | Delimited text in the payload | It parses with no dependencies in both languages; compressed, the difference is noise (D-009) |
+| Kotlin up to date | Kotlin 2.2.10, not 2.4.20 | `allWarningsAsErrors` turns a compiler bump into a broken build (D-033) |
 
-## Qué cambiaste → qué se mueve, en el mismo cambio
+## What you changed → what moves, in the same change
 
-Un cambio no está hecho hasta que los documentos que falsificó vuelven a ser ciertos. El momento
-más barato para arreglar esa frase es mientras todavía sabés cuál es. La prueba de este paso no
-es *"¿escribí documentación?"*, es **"¿hay alguna frase en el repo que mi cambio acaba de volver
-falsa?"**.
+A change is not done until the documents it falsified are true again. The cheapest moment to fix
+that sentence is while you still know which one it is. The test for this step is not *"did I write
+documentation?"*, it is **"is there any sentence in the repo that my change just made false?"**.
 
-| Tocaste | Se mueve, en el mismo cambio |
+| You touched | What moves, in the same change |
 |---|---|
-| `norm()` o `fuzzy()` | las **dos** implementaciones, `NORM_VERSION` en ambas, `vectors/normalization-vectors.tsv`, D-005 y D-006 |
-| El repertorio Unicode | `gen_repertoire.py`, las dos copias generadas, su sha256, `NORM_VERSION`, y **todos los packs se reconstruyen** |
-| El esquema del pack | `schema_version`, `docs/formato-pack.md`, `verify_pack.py`, `PackFile.open()`, y el toy pack |
-| Una consulta o un índice | `docs/formato-pack.md` §consultas, el `EXPLAIN QUERY PLAN` de `verify_pack.py`, y D-012/D-013 si cambió la razón |
-| El codec del payload | `payload.py`, `PayloadCodec.kt`, `gen_payload_fixture.py`, `payload_codec` en `meta`, D-008/D-009 |
-| Una regla, o la respuesta a una pregunta cerrada | `docs/decisions.md`: fila nueva, **con la columna Enforced in llena** |
-| Un número que algún documento afirma | el documento que **posee** ese número, con la medición nueva al lado |
-| Un módulo, una capa, un nombre público | `docs/architecture.md` y todo mapa que lo nombre |
-| Un comando o una tarea de Gradle | `CLAUDE.md` §Comandos, el `<área>/CLAUDE.md` que lo cite, y los skills — es lo que más rápido se vuelve viejo |
-| Algo que el roadmap planeaba | el **estado** de esa entrada, y qué sigue faltando |
-| Cualquier cosa | el changelog, incluyendo qué salió mal en el camino |
+| `norm()` or `fuzzy()` | **both** implementations, `NORM_VERSION` in both, `vectors/normalization-vectors.tsv`, D-005 and D-006 |
+| The Unicode repertoire | `gen_repertoire.py`, both generated copies, their sha256, `NORM_VERSION`, and **every pack gets rebuilt** |
+| The pack schema | `schema_version`, `docs/formato-pack.md`, `verify_pack.py`, `PackFile.open()`, and the toy pack |
+| A query or an index | `docs/formato-pack.md` §queries, the `EXPLAIN QUERY PLAN` in `verify_pack.py`, and D-012/D-013 if the reason changed |
+| The payload codec | `payload.py`, `PayloadCodec.kt`, `gen_payload_fixture.py`, `payload_codec` in `meta`, D-008/D-009 |
+| A rule, or the answer to a closed question | `docs/decisions.md`: a new row, **with the Enforced in column filled** |
+| A number some document asserts | the document that **owns** that number, with the new measurement next to it |
+| A module, a layer, a public name | `docs/architecture.md` and every map that names it |
+| A command or a Gradle task | `CLAUDE.md` §Commands, the `<area>/CLAUDE.md` that cites it, and the skills — it is what goes stale fastest |
+| Something the roadmap planned | the **status** of that entry, and what is still missing |
+| Anything at all | the changelog, including what went wrong along the way |
