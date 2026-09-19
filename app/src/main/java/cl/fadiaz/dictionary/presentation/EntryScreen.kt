@@ -49,35 +49,35 @@ import cl.fadiaz.dictionary.core.GlossTokenizer
 import cl.fadiaz.dictionary.core.Sense
 
 /**
- * El cuerpo de una entrada. Es la unica pantalla que descomprime un payload: la lista se sirve
- * entera desde el covering index, sin tocar la tabla (D-012).
+ * The body of an entry. It is the only screen that decompresses a payload: the list is served
+ * entirely from the covering index, without touching the table (D-012).
  *
- * POR QUE SE CORTA EN TRES ACEPCIONES
+ * WHY IT CUTS OFF AT THREE SENSES
  *
- * Medido sobre las 3.000 entradas de mejor rank, que son las que mas se van a abrir: la mediana
- * es **3 acepciones**, el p90 es 7 y el maximo es **47**. Cortar en tres deja la mitad de las
- * entradas intactas --sin boton ni gesto de mas-- y evita que "justicia", con sus diez, se
- * convierta en un rollo donde la acepcion util queda debajo de nueve que nadie buscaba.
+ * Measured over the 3,000 best-ranked entries, which are the ones most likely to be opened: the
+ * median is **3 senses**, p90 is 7 and the maximum is **47**. Cutting at three leaves half the
+ * entries untouched --no extra button, no extra gesture-- and keeps "justicia", with its ten,
+ * from turning into a scroll where the useful sense sits below nine nobody was looking for.
  */
 private const val VISIBLE_SENSES = 3
 
 @Composable
 fun EntryScreen(
     entryId: Long,
-    // Sin default: una palabra pintada como tocable que no navega a ningun lado es peor que no
-    // pintarla, y no se distingue de una que funciona (mismo criterio que D-084).
+    // No default: a word painted as tappable that navigates nowhere is worse than not painting
+    // it, and it is indistinguishable from one that works (same rule as D-084).
     onOpenWord: (Long) -> Unit,
     onBackToSearch: () -> Unit = {},
     /**
-     * Las acciones del menu, construidas a partir de la entrada ya cargada.
+     * The menu actions, built from the already loaded entry.
      *
-     * Funcion y no lista: "guardar" o "quitar de favoritas" depende de la palabra concreta, y el
-     * lema hace falta para copiarlo. Devolver vacio = no se ofrece el menu, que es distinto de
-     * ofrecer un menu vacio.
+     * A function and not a list: "save" or "remove from saved" depends on the concrete word, and
+     * the headword is needed to copy it. Returning empty = the menu is not offered, which is not
+     * the same as offering an empty menu.
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
     resolveIn: suspend (Set<String>) -> Map<String, Long> = { emptyMap() },
-    // Va ultimo para que siga siendo el lambda final: es como lo llaman las pantallas y los tests.
+    // It goes last so it stays the trailing lambda: that is how the screens and tests call it.
     cargar: suspend (Long) -> Entry?,
 ) {
     var entry by remember(entryId) { mutableStateOf<Entry?>(null) }
@@ -88,16 +88,17 @@ fun EntryScreen(
     val actionsFor = entry?.let(actions).orEmpty()
 
     LaunchedEffect(entryId) {
-        // Sin el try, cualquier cosa que tire `cargar` --una SQLiteException, un inflate sobre un
-        // pack truncado-- sube por la corrutina de composicion y mata el proceso. Un pack ilegible
-        // tiene que degradar al mensaje que ya existe abajo, igual que una entrada que no esta.
+        // Without the try, anything `load` throws --a SQLiteException, an inflate over a
+        // truncated pack-- rises through the composition coroutine and kills the process. An
+        // unreadable pack has to degrade to the message that already exists below, just like an
+        // entry that is not there.
         entry = runCatching { cargar(entryId) }.getOrNull()
         failure = entry == null
     }
 
-    // Que palabras de las glosas son lema del pack, en UNA consulta para toda la pantalla y no
-    // una por palabra. Se pintan solo las que existen, asi el color dice de antemano que lleva a
-    // algun lado. Va en su propio efecto porque depende de la entrada ya cargada.
+    // Which words in the glosses are headwords of the pack, in ONE query for the whole screen
+    // and not one per word. Only the ones that exist get painted, so the colour promises upfront
+    // that it leads somewhere. It lives in its own effect because it depends on the loaded entry.
     LaunchedEffect(entry) {
         val loaded = entry ?: return@LaunchedEffect
         val keys = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
@@ -105,14 +106,14 @@ fun EntryScreen(
             .toSet()
         links = runCatching { resolveIn(keys) }
             .getOrDefault(emptyMap())
-            // Un enlace a la entrada que ya estamos mirando no lleva a ningun lado.
+            // A link to the entry we are already reading leads nowhere.
             .filterValues { it != entryId }
     }
 
-    // Ancla en 1 y no en 0: el item 0 es el atajo a la busqueda, y la pantalla tiene que abrir
-    // mostrando LA PALABRA. Asi el atajo esta un scroll hacia arriba y no gasta una fila de las
-    // que se ven -- que es la condicion con la que entro (D-084). Medido: sin esto, "Ver mas"
-    // con tres acepciones cortas ya no entraba en pantalla.
+    // Anchored at 1 and not 0: item 0 is the shortcut to the search, and the screen has to open
+    // showing THE WORD. This way the shortcut is one scroll up and costs none of the rows that
+    // are visible -- which is the condition it came in under (D-084). Measured: without this,
+    // "Show more" with three short senses no longer fit on screen.
     val listState = rememberTransformingLazyColumnState(initialAnchorItemIndex = 1)
     val focusRequester = remember { FocusRequester() }
 
@@ -120,8 +121,8 @@ fun EntryScreen(
         TransformingLazyColumn(
             contentPadding = withBottomMargin(contentPadding),
             state = listState,
-            // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
-            // esta leyendo. No viene cableada por defecto.
+            // The crown is a watch's primary scroll: the finger covers exactly what is being
+            // read. It is not wired up by default.
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
                 focusRequester,
@@ -129,16 +130,16 @@ fun EntryScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val current = entry
-            // La salida rapida a la busqueda, y vive como PRIMERA FILA DEL SCROLL y no como
-            // chrome fijo: arriba de todo se llega con la corona, y cuesta cero dp de pantalla
-            // permanente. Un boton fijo costaria 48 dp, que es justo lo que D-084 rechazo.
-            // Hace falta porque tocar palabras apila entradas: sin esto, volver al inicio desde
-            // tres palabras de profundidad son tres gestos.
+            // The quick way out to the search, living as the FIRST ROW OF THE SCROLL and not as
+            // fixed chrome: the very top is one crown turn away, and it costs zero dp of
+            // permanent screen. A fixed button would cost 48 dp, which is exactly what D-084
+            // rejected. It is needed because tapping words stacks entries: without it, getting
+            // back to the start from three words deep is three gestures.
             item(key = "acciones") {
                 EntryActionsMenu(
                     onBackToSearch = onBackToSearch,
-                    // Null mientras la entrada no cargo: un boton de menu que abre nada es peor
-                    // que un boton que todavia no esta.
+                    // Null while the entry has not loaded: a menu button that opens nothing is
+                    // worse than a button that is not there yet.
                     onOpenMenu = if (actionsFor.isEmpty()) null else { { menuOpen = true } },
                 )
             }
@@ -147,8 +148,8 @@ fun EntryScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 ) {
                     Text(
-                        // El lema NO se trunca aca, al reves que en la lista: esta pantalla
-                        // existe justamente para leer la palabra entera, refranes incluidos.
+                        // The headword is NOT truncated here, unlike in the list: this screen
+                        // exists precisely to read the whole word, sayings included.
                         text = current?.headword ?: "…",
                         style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
@@ -181,12 +182,14 @@ fun EntryScreen(
             val visibleOnes = if (expanded) allSenses else allSenses.take(VISIBLE_SENSES)
             val hidden = allSenses.size - visibleOnes.size
 
-            // Con `key` el item conserva identidad al desplegarse; sin el, el lazy layout los
-            // identifica por posicion. Es la misma causa que en la busqueda se llevaba el foco
-            // del campo de texto, y aca ademas deja `visibles` capturado por closure.
+            // With `key` the item keeps its identity when expanding; without it, the lazy
+            // layout identifies them by position. It is the same cause that stole the text
+            // field's focus on the search, and here it also leaves `visibleOnes` captured by
+            // closure.
             items(count = visibleOnes.size, key = { index -> "s:$index" }) { index ->
-                // getOrNull y no [indice]: el lambda del item y el conteo los consume el layout
-                // en frames distintos. Saltar una acepcion un frame es aceptable; tirar no.
+                // getOrNull and not [index]: the item lambda and the count are consumed by the
+                // layout on different frames. Skipping a sense for one frame is acceptable;
+                // throwing is not.
                 visibleOnes.getOrNull(index)?.let { sense ->
                     SenseBlock(
                         number = index + 1,
@@ -210,12 +213,12 @@ fun EntryScreen(
             }
         }
 
-    // El menu de opciones. `AlertDialog` de Wear y no uno hecho a mano: es el que conserva el
-    // swipe-para-volver del sistema, que la lista de calidad exige en casi toda pantalla (WO-V3),
-    // y ademas evita agregar un nivel de navegacion --la guia pide como mucho dos--.
+    // The options menu. Wear's `AlertDialog` and not a hand-rolled one: it is the one that keeps
+    // the system's swipe-to-dismiss, which the quality list requires on nearly every screen
+    // (WO-V3), and it also avoids adding a navigation level --the guidance asks for at most two--.
     //
-    // Wear Material3 NO trae menu desplegable ni overflow, verificado contra la referencia de
-    // API: las dos formas soportadas son este dialogo o empujar una pantalla de lista.
+    // Wear Material3 ships NO dropdown menu and no overflow, verified against the API reference:
+    // the two supported shapes are this dialog or pushing a list screen.
     AlertDialog(
         visible = menuOpen && actionsFor.isNotEmpty(),
         onDismissRequest = { menuOpen = false },
@@ -228,8 +231,8 @@ fun EntryScreen(
                 background = MaterialTheme.colorScheme.surfaceContainer,
                 ink = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = {
-                    // Cerrar primero: la accion puede navegar, y un dialogo abierto encima de
-                    // la pantalla nueva queda huerfano.
+                    // Close first: the action may navigate, and a dialog left open on top of the
+                    // new screen is orphaned.
                     menuOpen = false
                     action.onClick()
                 },
@@ -240,17 +243,17 @@ fun EntryScreen(
 }
 
 
-/** Una accion del menu de una palabra. El estado --p.ej. si ya es favorita-- lo decide arriba. */
+/** An action in a word's menu. The state --e.g. whether it is already saved-- is decided above. */
 data class EntryAction(val label: String, val onClick: () -> Unit)
 
 /**
- * Los dos botones de arriba: volver a buscar, y el menu.
+ * The two buttons up top: back to the search, and the menu.
  *
- * En UNA fila y no apilados, y la aritmetica es la razon: lado a lado cuestan 48 dp --el minimo
- * tocable-- y apilados costarian 96, que en 234 dp de pantalla es una acepcion menos. Se
- * construye con `Row` y no con `ButtonGroup` de Wear Material3 por lo mismo que el selector de
- * idioma: con `allWarningsAsErrors`, una API que se deprecie en el proximo bump rompe el build,
- * y aca no se gana nada que justifique ese riesgo.
+ * In ONE row and not stacked, and the arithmetic is the reason: side by side they cost 48 dp
+ * --the touch minimum-- and stacked they would cost 96, which on a 234 dp screen is one sense
+ * less. Built with `Row` and not Wear Material3's `ButtonGroup` for the same reason as the
+ * language selector: with `allWarningsAsErrors`, an API deprecated in the next bump breaks the
+ * build, and here there is nothing gained that justifies that risk.
  */
 @Composable
 private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit)?) {
@@ -293,8 +296,8 @@ private fun IconPill(
     ) {
         Icon(
             imageVector = icono,
-            // No es null como en un icono decorativo: aca el icono ES la etiqueta, asi que sin
-            // esto el boton no tiene nombre para quien usa lector de pantalla.
+            // Not null as in a decorative icon: here the icon IS the label, so without this the
+            // button has no name for anyone using a screen reader.
             contentDescription = description,
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -303,11 +306,11 @@ private fun IconPill(
 }
 
 /**
- * Una acepcion: el numero manda el orden, la glosa es el contenido y el ejemplo acompaña.
+ * One sense: the number carries the order, the gloss is the content and the example follows.
  *
- * El ejemplo va en secundario y mas chico por una razon medida: la mediana es de 64 caracteres
- * pero el maximo son **917** --cronicas del siglo XVI que el Wikcionario cita como uso-- y a
- * igual peso visual que la glosa, uno solo entierra la acepcion siguiente.
+ * The example is secondary and smaller for a measured reason: the median is 64 characters but the
+ * maximum is **917** --sixteenth-century chronicles the Wiktionary cites as usage-- and at the
+ * same visual weight as the gloss, a single one buries the next sense.
  */
 @Composable
 private fun SenseBlock(
@@ -329,9 +332,9 @@ private fun SenseBlock(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
-        // Los sinonimos van en una sola linea y despues del ejemplo: son una ayuda, no la
-        // definicion. El tope de cuatro ya viene del payload (MAX_SYNONYMS_PER_SENSE), asi
-        // que aca no hace falta cortar nada.
+        // The synonyms go on a single line and after the example: they are a help, not the
+        // definition. The cap of four already comes from the payload (MAX_SYNONYMS_PER_SENSE),
+        // so nothing needs to be trimmed here.
         if (sense.synonyms.isNotEmpty()) {
             Text(
                 text = "sin. " + sense.synonyms.joinToString(" · "),
@@ -340,9 +343,9 @@ private fun SenseBlock(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
-        // Los antonimos, debajo y con el mismo peso visual (D-126). El prefijo NO es opcional y
-        // no puede parecerse a "sin.": las dos listas se ven igual y la unica diferencia entre
-        // "otra forma de decirlo" y "lo contrario" son esas cuatro letras.
+        // The antonyms, below and at the same visual weight (D-126). The prefix is NOT optional
+        // and cannot look like "sin.": the two lists look identical and the only difference
+        // between "another way to say it" and "the opposite" is those four letters.
         if (sense.antonyms.isNotEmpty()) {
             Text(
                 text = "ant. " + sense.antonyms.joinToString(" · "),
@@ -355,12 +358,12 @@ private fun SenseBlock(
 }
 
 /**
- * La glosa con sus palabras conocidas convertidas en enlaces.
+ * The gloss with its known words turned into links.
  *
- * Los rangos salen de [GlossTokenizer], que decide que es una palabra delegando en `norm()` --la
- * misma funcion con la que se construyo el indice--, asi que el tramo que se pinta es exactamente
- * el que se consulto. Las palabras que no son lema quedan como texto plano: el color es la
- * promesa de que tocarlo lleva a algun lado.
+ * The ranges come from [GlossTokenizer], which decides what a word is by delegating to `norm()`
+ * --the same function the index was built with-- so the span that gets painted is exactly the one
+ * that was queried. Words that are not headwords stay plain text: the colour is the promise that
+ * tapping leads somewhere.
  */
 @Composable
 private fun annotatedGloss(
