@@ -81,9 +81,9 @@ class WordOfTheDayTileService : TileService() {
     ): androidx.wear.protolayout.LayoutElementBuilders.Layout {
         val item: LayoutElement = materialScope(this, requestParams.deviceConfiguration) {
             if (visit == null) {
-                tileVacio(this@WordOfTheDayTileService, getString(R.string.tile_palabra_vacia))
+                emptyTile(this@WordOfTheDayTileService, getString(R.string.tile_word_empty))
             } else {
-                tarjetaDePalabra(
+                wordCard(
                     this@WordOfTheDayTileService,
                     visit,
                     visit.partOfSpeech?.let(::posInSpanish),

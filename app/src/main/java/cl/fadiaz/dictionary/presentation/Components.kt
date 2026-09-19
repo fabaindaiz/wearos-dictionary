@@ -164,7 +164,7 @@ internal fun ListRow(lema: String, detail: String?, onClick: () -> Unit) {
 
 /** Abriendo el pack, o extrayendolo la primera vez. */
 @Composable
-internal fun LoadingMessage(mensaje: String) {
+internal fun LoadingMessage(message: String) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -172,7 +172,7 @@ internal fun LoadingMessage(mensaje: String) {
     ) {
         CircularProgressIndicator()
         Text(
-            text = mensaje,
+            text = message,
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
         )

@@ -6,29 +6,29 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 /**
- * Lo que un tile tiene para dibujar, ya decidido.
+ * What a tile has to draw, already decided.
  *
- * Existe para que la decision viva sin Android y entre al gate (D-072): cada `TileService` queda
- * siendo un adaptador que traduce esto a protolayout, y todo lo que puede salir mal --una cache
- * vencida, el reloj corrido, un texto corrupto-- se prueba en la JVM en milisegundos.
+ * It exists so the decision lives without Android and enters the gate (D-072): each `TileService`
+ * is left as an adapter that translates this into protolayout, and everything that can go wrong
+ * --an expired cache, a drifted clock, corrupt text-- is tested on the JVM in milliseconds.
  *
- * Reusa [Visita] para las dos superficies, igual que ya lo hacen las palabras guardadas (D-102):
- * son la misma forma de dato --`packId`, `entryId`, lema y categoria-- y un segundo tipo seria un
- * segundo formato que puede divergir del que ya esta en disco.
+ * It reuses [Visit] for both surfaces, just as the saved words already do (D-102): they are the
+ * same shape of data --`packId`, `entryId`, headword and part of speech-- and a second type
+ * would be a second format that can diverge from the one already on disk.
  */
 internal sealed interface TileContent {
 
-    /** Las ultimas entradas abiertas, en el orden en que las dejo el ViewModel. */
+    /** The most recently opened entries, in the order the ViewModel left them. */
     data class ListRows(val visits: List<Visit>) : TileContent
 
-    /** La palabra de hoy. */
+    /** Today's word. */
     data class Word(val visit: Visit) : TileContent
 
     /**
-     * No hay nada que mostrar, y el tile tiene que decirlo.
+     * There is nothing to show, and the tile has to say so.
      *
-     * **Nunca dibujar un tile en blanco**: en el carrusel se ve roto, no vacio. El adaptador pone
-     * una invitacion a abrir la app, que ademas es la unica forma de que deje de estar vacio.
+     * **Never draw a blank tile**: in the carousel it looks broken, not empty. The adapter puts
+     * an invitation to open the app, which is also the only way for it to stop being empty.
      */
     data object Empty : TileContent
 }
@@ -36,41 +36,42 @@ internal sealed interface TileContent {
 internal object TileContents {
 
     /**
-     * Cuantas filas entran.
+     * How many rows fit.
      *
-     * Coincide con el tope del historial (D-085) y con el presupuesto de pantalla (D-073), pero
-     * es un parametro y no una constante enterrada: el reloj del proyecto mide **234 dp y no
-     * 192**, y cuando eso se confirme dentro de la app puede entrar una cuarta fila.
+     * It matches the history cap (D-085) and the screen budget (D-073), but it is a parameter and
+     * not a buried constant: the project's watch measures **234 dp and not 192**, and once that
+     * is confirmed from inside the app a fourth row may fit.
      */
     const val MAX_ROWS: Int = 3
 
     /**
-     * Cuantos dias de palabra del dia se precalculan.
+     * How many days of word of the day are precomputed.
      *
-     * Siete y no uno porque la cache la escribe la app, y **el tile no puede rellenarla**: no
-     * abre el pack. Con un solo dia, el tile queda vacio apenas pasa la medianoche sin que nadie
-     * haya abierto la app. Con siete, se sostiene una semana, y ademas son las siete ventanas del
-     * `Timeline` que dejan que el renderer cambie de palabra solo, sin un solo despertar.
+     * Seven and not one because the cache is written by the app, and **the tile cannot refill
+     * it**: it does not open the pack. With a single day, the tile goes empty the moment midnight
+     * passes without anyone opening the app. With seven it holds for a week, and they are also
+     * the seven `Timeline` windows that let the renderer change the word on its own, without a
+     * single wakeup.
      */
     const val CACHED_DAYS: Int = 7
 
-    /** Las ultimas entradas abiertas. No reordena: el move-to-front ya lo aplico el ViewModel. */
+    /** The most recently opened entries. No reordering: the ViewModel already did move-to-front. */
     fun history(visits: List<Visit>, max: Int = MAX_ROWS): TileContent {
         val visibleOnes = visits.take(max)
         return if (visibleOnes.isEmpty()) TileContent.Empty else TileContent.ListRows(visibleOnes)
     }
 
     /**
-     * La palabra que le toca a [hoy], de las que la app dejo cacheadas desde [desde].
+     * The word that belongs to [today], out of the ones the app cached starting at [since].
      *
-     * **Fuera de rango devuelve [TileContenido.Vacio] y eso es el punto**, no una guarda
-     * defensiva: si la app no se abre en mas de [DIAS_CACHEADOS] dias la cache se queda corta, y
-     * seguir mostrando la ultima seria una "palabra del dia" equivocada todos los dias, en una
-     * superficie que nadie abre a proposito y por lo tanto **donde nadie lo reportaria**.
+     * **Out of range it returns [TileContent.Empty] and that is the point**, not a defensive
+     * guard: if the app is not opened for more than [CACHED_DAYS] days the cache runs out, and
+     * going on showing the last one would be a wrong "word of the day" every single day, on a
+     * surface nobody opens on purpose and therefore **where nobody would report it**.
      *
-     * Las fechas son las mismas cadenas ISO que usa la app (`LocalDate.toString()`), y si alguna
-     * no se puede leer se descarta en vez de tirar: esto se lee de SharedPreferences, que es un
-     * contrato con el disco, y corre en el hilo principal.
+     * The dates are the same ISO strings the app uses (`LocalDate.toString()`), and one that
+     * cannot be read is discarded instead of throwing: this is read from SharedPreferences, which
+     * is a contract with the disk, and it runs on the main thread.
      */
     fun wordOfTheDay(since: String?, words: List<Visit>, today: String?): TileContent {
         if (words.isEmpty()) return TileContent.Empty
@@ -83,11 +84,11 @@ internal object TileContents {
     }
 
     /**
-     * La fecha [dias] mas adelante, en el mismo formato ISO.
+     * The date [days] further on, in the same ISO format.
      *
-     * Es el inverso de [palabraDelDia]: la app adelanta fechas para llenar la cache, el tile
-     * calcula la diferencia para leerla. Vivir en el mismo archivo es lo que hace evidente que
-     * los dos tienen que usar la misma aritmetica de calendario.
+     * It is the inverse of [wordOfTheDay]: the app walks dates forward to fill the cache, the
+     * tile computes the difference to read it. Living in the same file is what makes it obvious
+     * that both have to use the same calendar arithmetic.
      */
     fun plusDays(since: String?, days: Int): String? =
         date(since)?.plusDays(days.toLong())?.toString()

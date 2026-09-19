@@ -118,7 +118,7 @@ fun SearchScreen(
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
                     LoadingMessage(
-                        mensaje = if (status == SearchState.Status.Installing) {
+                        message = if (status == SearchState.Status.Installing) {
                             "Instalando el diccionario.\nSolo pasa la primera vez."
                         } else {
                             "Abriendo el diccionario…"

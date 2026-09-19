@@ -33,10 +33,10 @@ class HistoryTileService : TileService() {
         val content = TileContents.history(PackStore.history(this))
         val layout = materialScope(this, requestParams.deviceConfiguration) {
             when (content) {
-                is TileContent.ListRows -> filasDeHistorial(this@HistoryTileService, content.visits)
-                else -> tileVacio(
+                is TileContent.ListRows -> historyRows(this@HistoryTileService, content.visits)
+                else -> emptyTile(
                     this@HistoryTileService,
-                    getString(R.string.tile_historial_vacio),
+                    getString(R.string.tile_history_empty),
                 )
             }
         }
