@@ -30,13 +30,14 @@ Todo lo que la app necesita saber antes de consultar. Se lee entera, una vez, al
 | `kind` | `bilingual` o `monolingual` |
 | `lang_src`, `lang_dst` | Idiomas; `lang_dst` es obligatorio si es bilingüe |
 | `fuzzy_profile` | Perfil de plegado fonético: `es`, `en`, `de`, `generic` |
-| `payload_codec` | `deflate-v1` |
+| `payload_codec` | `deflate-v2`. **Distinta → rechazar el pack** (`PackFile.open` compara con `!=`). Ver D-119 |
 | `payload_dict` | Diccionario de compresión compartido, en hex |
 | `payload_dict_sha256` | Integridad del anterior. **No es opcional** |
 | `uid_recipe` | Con qué receta se calculó `entry.uid`. Otra receta ⟹ los packs auxiliares apuntan mal |
 | `entry_count`, `data_version`, `built_at` | Metadatos del build |
 | `license`, `attribution`, `source_url` | Obligaciones legales de la fuente |
 | `trans_dropped` | Cuántas filas recortó el tope por clave de traducción |
+| `proper_nouns` | Política de contenido: `lexical-only` (los packs reales), `excluded` o `included`. **Obligatoria**: sin ella nadie sabe si a un pack le faltan los nombres propios porque se decidió o porque la fuente venía rota. D-116 |
 
 **`norm_version` distinta no es un detalle cosmético.** El pack está indexado con unas reglas de
 normalización concretas; si la app calcula otras, las consultas no matchean y el pack devuelve
@@ -268,19 +269,43 @@ Un verbo español trae hasta 222 formas; uno inglés, cuatro. **El inglés pesa 
 más entradas**, no por flexión. También comprime peor (37 % contra 50 %) porque casi todo su
 peso son payloads que ya están comprimidos.
 
+### La fuente alternativa, medida (spike D-120)
+
+| | enwiktionary podado | Open English WordNet 2025 |
+|---|---|---|
+| Entradas | 794.355 | **135.969** |
+| En disco | 255,7 MiB | **38,4 MiB** (6,7× menos) |
+| Build | ~180 s | **17,9 s** |
+| Sonda de vocabulario común (57) | 57/57 | 56/57 |
+| Sonda dura: moderno, slang, técnico (39) | **39/39** | **25/39 (64 %)** |
+| Entradas con sinónimos | 0 % | **70,8 %** |
+| Licencia | CC BY-SA 4.0 | CC BY 4.0 |
+
+Lo que a OEWN le falta, concreto: *selfie, blockchain, deepfake, ghosting, woke, burnout,
+workaround, mitochondria, petrichor*. Es vocabulario académico congelado. **No reemplaza**, y el
+razonamiento está en D-120.
+
 ### Qué se puede recortar, medido — y por qué no se recortó
 
 | Palanca | Ahorro | Qué se pierde |
 |---|---|---|
 | Dedup sin pérdida: la forma es prefijo de su lema | **0,2 MB (0,3 %)** | nada — y por eso no sirve |
-| Nombres propios (inglés: 163.470 entradas) | **40,7 MB (13,8 %)** | buscar *London*, *Querétaro* |
+| ~~Nombres propios~~ — **tirada, D-116** | **39,4 MiB en inglés (13,4 %)**, 4,1 MB en español | los topónimos y apellidos sin vida léxica. *January*, *Paris*, *España* y *Chile* **se conservan** |
 | Quitar `fts_def` | 10,3 MB en español (14 %) | buscar por definición |
 | Quitar `idx_entry_fuzzy` | 4,1 MB en español (5,7 %) | tolerancia a errores — el punto del dictado (D-027) |
 | Podar `form` por divergencia ≥4 | 13,6 MB en español (19 %) | **602.681 formas dejan de resolver** escritas enteras |
 | Conjugador algorítmico en vez de tabla | hasta 34 MB en español (47 %) | un segundo contrato entre dos lenguajes (la clase de bug de D-005) |
 
-**El pack ya es la base de datos interna**: 1,42 GB de dump → 72,2 MB. Lo que queda no es basura
+**El pack ya es la base de datos interna**: 1,42 GB de dump → 68,1 MB. Lo que queda no es basura
 de Wiktionary, es capacidad de búsqueda, y **toda palanca cuesta una función** (D-077).
+
+**La fila de los nombres propios es la única que se tiró, y enseñó algo que el resto de la tabla
+no dice**: en español no ahorró casi nada —el payload de los 32.305 era 0,63 MB— pero sacó el
+ruido del 22,1 % de los `norm`. **Una palanca puede valer la pena por lo que NO pesa.** En
+inglés sí ahorró: 295,1 → 255,7 MiB.
+
+Y hay una fila nueva que va en el sentido contrario: los **sinónimos** (D-117) **suman** 0,89 MB
+al español. Es contenido que la fuente ya traía y el builder tiraba.
 
 ### El pack real de español, pesado
 
