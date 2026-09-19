@@ -329,6 +329,17 @@ private fun Acepcion(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
+        // Los sinonimos van en una sola linea y despues del ejemplo: son una ayuda, no la
+        // definicion. El tope de cuatro ya viene del payload (MAX_SYNONYMS_PER_SENSE), asi
+        // que aca no hace falta cortar nada.
+        if (sense.synonyms.isNotEmpty()) {
+            Text(
+                text = "sin. " + sense.synonyms.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
+            )
+        }
     }
 }
 

@@ -301,6 +301,93 @@ class MarkupEditorialTest(unittest.TestCase):
         self.assertEqual("Equal to e^(iπ).", self._gloss("Equal to e^(iπ).", lang="en"))
 
 
+class SinonimosTest(unittest.TestCase):
+    """Los sinonimos van a SU acepcion, y solo en español (D-112).
+
+    El modo de falla que estos tests existen para impedir: un sinonimo atribuido a la acepcion
+    equivocada. No lanza, no loguea, no lo agarra `verify_pack.py` -- sale del pack como
+    contenido correcto y lo descubre un lector dentro de un año.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_los_sinonimos_van_a_su_acepcion(self):
+        path = _jsonl(_raw("domingo", "noun", [
+            _sense("hombre dominado por su pareja", sense_index="1"),
+            _sense("paga semanal de un menor", sense_index="2"),
+        ], synonyms=[
+            {"word": "pollerudo", "sense_index": "1"},
+            {"word": "mesada", "sense_index": "2"},
+            {"word": "paga", "sense_index": "2"},
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["pollerudo"], got.senses[0]["synonyms"])
+        self.assertEqual(["mesada", "paga"], got.senses[1]["synonyms"])
+
+    def test_un_sinonimo_de_una_acepcion_podada_no_se_cuelga_de_otra(self):
+        """El test mas importante del cambio.
+
+        `_senses()` descarta la acepcion form-of ANTES de emitir, asi que los ordinales se
+        corren. Una implementacion por posicion (`enumerate`) le cuelga "corrido" a la acepcion
+        que sobrevive, y el pack sale con un sinonimo que no lo es.
+        """
+        path = _jsonl(_raw("corrido", "noun", [
+            _sense("", sense_index="1", tags=["form-of"], form_of=[{"word": "correr"}]),
+            _sense("romance popular mexicano", sense_index="2"),
+        ], synonyms=[
+            {"word": "NO-DEBE-APARECER", "sense_index": "1"},
+            {"word": "balada", "sense_index": "2"},
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(1, len(got.senses))
+        self.assertEqual(["balada"], got.senses[0]["synonyms"])
+
+    def test_un_sinonimo_sin_sense_index_se_descarta(self):
+        # Medido: 5 casos en todo el dump. Colgarlo de la primera acepcion seria inventar.
+        path = _jsonl(_raw("casa", "noun", [_sense("edificio para habitar", sense_index="1")],
+                           synonyms=[{"word": "vivienda"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual([], got.senses[0]["synonyms"])
+
+    def test_el_tope_es_cuatro_por_acepcion(self):
+        path = _jsonl(_raw("tonto", "adj", [_sense("de poco entendimiento", sense_index="1")],
+                           synonyms=[{"word": "s%d" % i, "sense_index": "1"} for i in range(9)]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(4, len(got.senses[0]["synonyms"]))
+
+    def test_un_sinonimo_igual_al_lema_no_se_emite(self):
+        # Mismo criterio que _forms(). En ingles pasa de verdad: "cat" se lista como sinonimo
+        # de "cat".
+        path = _jsonl(_raw("casa", "noun", [_sense("edificio para habitar", sense_index="1")],
+                           synonyms=[{"word": "casa", "sense_index": "1"},
+                                     {"word": "vivienda", "sense_index": "1"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["vivienda"], got.senses[0]["synonyms"])
+
+    def test_el_ingles_no_trae_sinonimos_al_payload(self):
+        """Medido: 0 de 43.679 sinonimos del dump ingles traen `sense_index`.
+
+        Traen `_dis1` --un vector de pesos-- y `source: "Thesaurus:*"`, y el ruido es
+        estructural: "cat" figura como sinonimo de "cat". Sin esta puerta, la implementacion
+        natural es agnostica del idioma y el ingles se lleva 43.679 items de basura.
+        """
+        path = _jsonl(_raw("cat", "noun", [_sense("a small feline", sense_index="1")],
+                           synonyms=[{"word": "feline", "sense_index": "1"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual([], got.senses[0]["synonyms"])
+
+
 class RankTest(unittest.TestCase):
     """rank es un PROXY: el Wikcionario no trae frecuencia de uso. Menor es mas comun."""
 

@@ -214,6 +214,21 @@ class PantallasTest {
     }
 
     @Test
+    fun laAcepcionMuestraSusSinonimos() {
+        // 26.845 entradas del pack español traen sinonimos y el builder los tiraba. Importan
+        // sobre todo donde la glosa es de una palabra ("Tonto."), que es el 25,6 % del pack.
+        compose.setContent {
+            EntryScreen(1, onOpenPalabra = {}) {
+                entrada().copy(
+                    senses = listOf(Sense("de poco entendimiento", synonyms = listOf("bobo", "zonzo"))),
+                )
+            }
+        }
+        compose.onNodeWithText("bobo", substring = true).assertExists()
+        compose.onNodeWithText("zonzo", substring = true).assertExists()
+    }
+
+    @Test
     fun conMasDeTresAcepcionesSoloSeVenTresYUnVerMas() {
         // "justicia" tiene 10 acepciones y el maximo medido es 47. Sin tope, la pantalla se
         // vuelve un rollo y la acepcion util queda debajo de nueve que no se buscaban.

@@ -428,14 +428,19 @@ class PackBuilder:
 def _fts_body(senses):
     """Texto que se indexa para la busqueda de texto libre.
 
-    Van glosas, ejemplos y traducciones sin los tags del formato: los tags no son palabras que
-    alguien vaya a buscar y solo ensucian el indice.
+    Van glosas, ejemplos, traducciones y sinonimos sin los tags del formato: los tags no son
+    palabras que alguien vaya a buscar y solo ensucian el indice.
+
+    Los sinonimos entran por D-114: si solo fueran al payload, se verian recien al ABRIR una
+    entrada que ya encontraste, que es cuando ya no hacen falta. Buscar "bobo" tiene que
+    encontrar "chulengo".
     """
     parts = []
     for sense in senses:
         parts.append(sense.get("gloss", ""))
         parts.extend(sense.get("examples", ()))
         parts.extend(sense.get("translations", ()))
+        parts.extend(sense.get("synonyms", ()))
     return " ".join(part for part in parts if part)
 
 
