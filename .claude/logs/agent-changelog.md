@@ -128,6 +128,23 @@ lenguajes y la auditoría compara las constantes.
 - **El máximo de decisiones era D-115, no D-110.** Dos commits de otra sesión habían entrado
   mientras planificaba; el brief del arranque ya estaba vencido.
 
+**La barrida de cierre, y lo que destapó.**
+- **`docs/contratos-cruzados.md` —el documento que responde "falta una palabra"— no decía que
+  ahora hay palabras ausentes a propósito.** Es el hueco más peligroso que dejó este trabajo:
+  el síntoma de una decisión de producto y el de un contrato roto **son idénticos**, así que
+  alguien iba a debuggear `norm()` por un no-bug. Ahora abre con la pregunta y el
+  `SELECT value FROM meta WHERE key='proper_nouns'` que la responde en un segundo. Lo mismo en
+  el skill `troubleshoot-diccionario`, donde la causa nueva va **primera** porque es la más
+  probable y la más barata de descartar.
+- **Ocho lugares afirmaban los números viejos** (`146.194`, `72,2 MB`, `956.150`, `295,1 MiB`):
+  `docs/formato-pack.md`, `docs/roadmap.md`, `docs/decisions.md` (D-028), `app/CLAUDE.md` y el
+  skill `pack-workflow`. Se distinguió el **registro histórico** —"HECHO 2026-09-17", "En qué
+  quedó"— que se deja tal cual, de las **afirmaciones de estado actual**, que se corrigieron.
+  Es la cuarta sesión seguida en que la documentación se queda atrás del código.
+- **Se propuso, sin ejecutar, una sonda de contenido** en el roadmap §Proceso y herramientas.
+  Marcada explícitamente como **primer golpe de changelog**, con los dos golpes dentro de esta
+  misma sesión declarados como tales para que se pueda descontar.
+
 **Qué quedó sin hacer.**
 - **Los packs reales no se instalaron en el reloj.** Están construidos y verificados en el
   scratchpad, no en `wearos-dictionary-data/`. Los tres del reloj tienen `deflate-v1` y la app
