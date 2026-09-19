@@ -35,9 +35,9 @@ internal fun serializeSettings(settings: Settings): String =
  */
 internal fun parseSettings(text: String): Settings {
     val values = text.lineSequence()
-        .mapNotNull { linea ->
-            val cut = linea.indexOf('=')
-            if (cut <= 0) null else linea.substring(0, cut) to linea.substring(cut + 1)
+        .mapNotNull { line ->
+            val cut = line.indexOf('=')
+            if (cut <= 0) null else line.substring(0, cut) to line.substring(cut + 1)
         }
         .toMap()
     val scale = values[KEY_SCALE]

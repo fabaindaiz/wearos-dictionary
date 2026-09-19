@@ -189,7 +189,7 @@ fun EntryScreen(
                 // en frames distintos. Saltar una acepcion un frame es aceptable; tirar no.
                 visibleOnes.getOrNull(index)?.let { sense ->
                     SenseBlock(
-                        numero = index + 1,
+                        number = index + 1,
                         sense = sense,
                         links = links,
                         onOpenPalabra = onOpenPalabra,
@@ -311,14 +311,14 @@ private fun IconPill(
  */
 @Composable
 private fun SenseBlock(
-    numero: Int,
+    number: Int,
     sense: Sense,
     links: Map<String, Long>,
     onOpenPalabra: (Long) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(
-            text = annotatedGloss("$numero. ", sense.gloss, links, onOpenPalabra),
+            text = annotatedGloss("$number. ", sense.gloss, links, onOpenPalabra),
             style = MaterialTheme.typography.bodyMedium,
         )
         sense.examples.forEach { ejemplo ->

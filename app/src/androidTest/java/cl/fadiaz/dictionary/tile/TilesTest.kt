@@ -84,9 +84,9 @@ class TilesTest {
     @Test
     fun aVeryLongHeadwordDoesNotBreakTheLayout() {
         // Los lemas salen del Wikcionario y hay refranes enteros como lema.
-        val largo = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
+        val length = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(largo, largo, largo))
+            filasDeHistorial(context, listOf(length, length, length))
         }
         assertNotNull(layout)
     }

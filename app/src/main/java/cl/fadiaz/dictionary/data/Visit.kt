@@ -50,8 +50,8 @@ internal fun serializeVisits(visits: List<Visit>): String =
  */
 internal fun parseVisits(text: String): List<Visit> =
     text.lineSequence()
-        .mapNotNull { linea ->
-            val fields = linea.split(SEPARATOR)
+        .mapNotNull { line ->
+            val fields = line.split(SEPARATOR)
             if (fields.size != 4) return@mapNotNull null
             val entryId = fields[1].toLongOrNull() ?: return@mapNotNull null
             if (fields[0].isEmpty() || fields[2].isEmpty()) return@mapNotNull null
