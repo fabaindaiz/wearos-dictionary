@@ -302,7 +302,10 @@ class MarkupEditorialTest(unittest.TestCase):
 
 
 class SinonimosTest(unittest.TestCase):
-    """Los sinonimos van a SU acepcion, y solo en español (D-117).
+    """Los sinonimos van a SU acepcion. Esta clase cubre la forma de ARRIBA (D-117).
+
+    Es la que usa el dump español: `raw["synonyms"]` con un `sense_index` declarado. La forma
+    anidada, que es la que usa el ingles, vive en `SinonimosAnidadosTest`.
 
     El modo de falla que estos tests existen para impedir: un sinonimo atribuido a la acepcion
     equivocada. No lanza, no loguea, no lo agarra `verify_pack.py` -- sale del pack como
@@ -374,19 +377,124 @@ class SinonimosTest(unittest.TestCase):
         got = next(iter(kaikki.records(path, lang="es")))
         self.assertEqual(["vivienda"], got.senses[0]["synonyms"])
 
-    def test_el_ingles_no_trae_sinonimos_al_payload(self):
-        """Medido: 0 de 43.679 sinonimos del dump ingles traen `sense_index`.
+    def test_la_forma_de_arriba_sin_sense_index_no_se_cuelga_de_nada(self):
+        """Lo que protegia la lista de idiomas, ahora sin la lista.
 
-        Traen `_dis1` --un vector de pesos-- y `source: "Thesaurus:*"`, y el ruido es
-        estructural: "cat" figura como sinonimo de "cat". Sin esta puerta, la implementacion
-        natural es agnostica del idioma y el ingles se lleva 43.679 items de basura.
+        Antes habia una puerta por idioma --`IDIOMAS_CON_SINONIMOS = {"es"}`-- y este test
+        afirmaba que el ingles no traia ningun sinonimo. **Esa afirmacion era incorrecta**: se
+        habia medido solo la forma de arriba. El ingles sirve 338.200 items anidados dentro de
+        cada acepcion, que es donde la atribucion es estructural (ver `SinonimosAnidadosTest`).
+
+        Lo que si sigue valiendo es la regla, y no necesita saber de que idioma es el dump: en
+        la forma de ARRIBA, un item sin `sense_index` no se puede atribuir a ninguna acepcion y
+        se descarta. Medido: 0 de los 43.679 items de arriba del dump ingles lo traen --traen
+        `_dis1`, un vector de pesos-- asi que se caen solos, sin puerta.
         """
         path = _jsonl(_raw("cat", "noun", [_sense("a small feline", sense_index="1")],
-                           synonyms=[{"word": "feline", "sense_index": "1"}]))
+                           synonyms=[{"word": "feline", "_dis1": "50 50"}]))
         self.paths.append(path)
         got = next(iter(kaikki.records(path, lang="en")))
         self.assertEqual([], got.senses[0]["synonyms"])
 
+
+
+
+class SinonimosAnidadosTest(unittest.TestCase):
+    """La OTRA forma en que la fuente sirve sinonimos, que es la unica que usa el ingles.
+
+    Medido sobre 120.000 registros de cada dump, ya sin `pos = name`:
+
+        | forma                        | español | ingles |
+        |------------------------------|---------|--------|
+        | `synonyms` arriba            |  16,5 % |  5,6 % |
+        | `synonyms` dentro de `senses`|   0,0 % | 25,8 % |
+        | las dos a la vez             |   0,0 % |  0,0 % |
+
+    Los dos dumps usan **una sola forma cada uno y no la misma**, asi que no hay precedencia que
+    decidir. Y la anidada **no necesita `sense_index`**: viene dentro de la acepcion, que es
+    exactamente la atribucion que D-117 exige. Medido: 0 de 338.200 traen `sense_index`, y no
+    hace falta.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_el_ingles_saca_sus_sinonimos_de_la_forma_anidada(self):
+        path = _jsonl(_raw("dictionary", "noun", [
+            _sense("a reference work", sense_index="1",
+                   synonyms=[{"word": "lexicon"}, {"word": "wordbook"}]),
+            _sense("the vocabulary of a language", sense_index="2",
+                   synonyms=[{"word": "vocabulary"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["lexicon", "wordbook"], got.senses[0]["synonyms"])
+        self.assertEqual(["vocabulary"], got.senses[1]["synonyms"])
+
+    def test_la_forma_anidada_no_necesita_sense_index(self):
+        # La diferencia de fondo con la forma española: aca la atribucion es estructural, no
+        # declarada. Exigir `sense_index` tiraria los 338.200 items del dump ingles.
+        path = _jsonl(_raw("free", "adj", [
+            _sense("unconstrained", synonyms=[{"word": "unfettered"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["unfettered"], got.senses[0]["synonyms"])
+
+    def test_una_acepcion_form_of_se_lleva_sus_anidados(self):
+        # Gratis, y es la ventaja estructural sobre la forma española: la acepcion podada se va
+        # ENTERA, asi que sus sinonimos no pueden colgarse de otra. No hay ordinal que se corra.
+        path = _jsonl(_raw("dogs", "noun", [
+            _sense("", sense_index="1", tags=["form-of"], form_of=[{"word": "dog"}],
+                   synonyms=[{"word": "NO-DEBE-APARECER"}]),
+            _sense("plural of the animal", sense_index="2", synonyms=[{"word": "hounds"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(1, len(got.senses))
+        self.assertEqual(["hounds"], got.senses[0]["synonyms"])
+
+    def test_el_tope_de_cuatro_y_la_deduplicacion_valen_igual(self):
+        path = _jsonl(_raw("big", "adj", [
+            _sense("of great size", synonyms=(
+                [{"word": "large"}, {"word": "large"}] + [{"word": "s%d" % i} for i in range(9)]
+            )),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(4, len(got.senses[0]["synonyms"]))
+        self.assertEqual(["large", "s0", "s1", "s2"], got.senses[0]["synonyms"])
+
+    def test_un_sinonimo_anidado_igual_al_lema_no_se_emite(self):
+        # Medido: 1,9 % de los 338.200 items ingleses. "cat" se lista como sinonimo de "cat".
+        path = _jsonl(_raw("cat", "noun", [
+            _sense("a small feline", synonyms=[{"word": "cat"}, {"word": "feline"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["feline"], got.senses[0]["synonyms"])
+
+    def test_el_orden_del_dump_se_respeta(self):
+        """No se reordena por fuente, y eso se midio antes de decidirlo.
+
+        El 74,5 % de los items ingleses traen `source: "Thesaurus:*"` y aparecen primero, asi que
+        parecia que el tope de 4 se quedaria con lo oscuro. **Medido: cambia 91 acepciones de
+        4.872 mezcladas (1,9 %)**, y en la muestra el resultado reordenado es PEOR --`craft`
+        pasa de `ability, aptitude` a `craftiness, foxiness`--. La hipotesis no sobrevivio.
+        """
+        path = _jsonl(_raw("craft", "noun", [
+            _sense("skill", synonyms=[
+                {"word": "technique", "source": "Thesaurus:skill"},
+                {"word": "ability"},
+            ]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual(["technique", "ability"], got.senses[0]["synonyms"])
 
 class RankTest(unittest.TestCase):
     """rank es un PROXY: el Wikcionario no trae frecuencia de uso. Menor es mas comun."""
