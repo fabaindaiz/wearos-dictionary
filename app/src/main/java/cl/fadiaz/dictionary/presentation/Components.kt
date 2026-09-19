@@ -29,56 +29,56 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 
 /**
- * Las piezas que comparten las pantallas.
+ * The pieces the screens share.
  *
- * Existe porque el mismo molde --recortar en pildora, pintar el fondo, hacerlo tocable y no bajar
- * de 48 dp-- estaba copiado en seis lugares de dos archivos. Seis copias de una regla son seis
- * lugares donde alguien baja el alto tocable en uno solo y nadie se entera.
+ * It exists because the same mould --clip to a pill, paint the background, make it tappable and
+ * never go below 48 dp-- was copied into six places across two files. Six copies of a rule are
+ * six places where somebody lowers the touch height in one of them and nobody finds out.
  *
- * NO se unifican los seis. Tres son pildoras de texto a todo el ancho y salen de [Pildora]; los
- * otros tres son distintos de verdad --dos chips del tamano de su contenido y una fila con
- * icono-- y meterlos en el mismo composable pediria media docena de parametros opcionales, que
- * es peor que la duplicacion que vino a arreglar. Lo que sí comparten los seis es [FORMA_PILDORA]
- * y [TOUCH_TARGET], que es donde estaba el riesgo real.
+ * The six are NOT unified. Three are full-width text pills and come from [Pill]; the other three
+ * are genuinely different --two chips sized to their content and a row with an icon-- and forcing
+ * them into the same composable would ask for half a dozen optional parameters, which is worse
+ * than the duplication it came to fix. What the six do share is [PILL_SHAPE] and [TOUCH_TARGET],
+ * which is where the real risk was.
  */
 
 /**
- * El minimo tocable que pide la guia de Wear OS.
+ * The minimum touch target the Wear OS guidance asks for.
  *
- * Vive en una constante con nombre y no como `48.dp` suelto por una razon concreta: si alguien lo
- * baja para meter una fila mas, el test de densidad **sigue pasando** y lo que se rompe es el area
- * tocable, que ningun test ve (D-073).
+ * It lives in a named constant and not as a loose `48.dp` for a concrete reason: if somebody
+ * lowers it to squeeze in one more row, the density test **still passes** and what breaks is the
+ * touch area, which no test can see (D-073).
  */
 internal val TOUCH_TARGET: Dp = 48.dp
 
 /**
- * La pildora. El clip y el borde tienen que ser la MISMA forma: si se separan, el borde se dibuja
- * recto sobre las esquinas redondeadas.
+ * The pill. The clip and the border have to be the SAME shape: if they drift apart, the border is
+ * drawn straight over the rounded corners.
  */
 internal val PILL_SHAPE = RoundedCornerShape(percent = 50)
 
 /**
- * Para lo que tiene mas de una linea.
+ * For anything taller than one line.
  *
- * La pildora al 50 % recorta las esquinas con un radio de media altura: con dos renglones eso se
- * come el principio y el final del texto. Un radio fijo no crece con el alto.
+ * The 50 % pill clips the corners with a radius of half the height: with two lines that eats the
+ * beginning and the end of the text. A fixed radius does not grow with the height.
  */
 internal val CARD_SHAPE = RoundedCornerShape(24.dp)
 
 /**
- * Cuanto se puede scrollear **despues** del ultimo item.
+ * How far you can scroll **past** the last item.
  *
- * Sin esto el ultimo renglon queda pegado al borde, y en una pantalla REDONDA el borde de abajo
- * se curva hacia adentro: el texto se ve cortado y no hay forma de bajar mas. Pasaba en las seis
- * pantallas porque las seis pasaban el `contentPadding` del `ScreenScaffold` tal cual.
+ * Without it the last line sits flush against the edge, and on a ROUND screen the bottom edge
+ * curves inward: the text looks cut off and there is no way to scroll further. It happened on all
+ * six screens because all six passed the `ScreenScaffold`'s `contentPadding` straight through.
  */
 private val BOTTOM_MARGIN: Dp = 32.dp
 
 /**
- * El `contentPadding` del scaffold, con lugar para respirar al final.
+ * The scaffold's `contentPadding`, with room to breathe at the end.
  *
- * Una funcion y no 32.dp repetido en seis archivos: el dia que el numero cambie --o que alguien
- * mida cuanto se come de verdad la curva-- hay un solo lugar donde tocarlo.
+ * A function and not 32.dp repeated across six files: the day the number changes --or somebody
+ * measures how much the curve really eats-- there is a single place to touch.
  */
 @Composable
 internal fun withBottomMargin(base: PaddingValues): PaddingValues {
@@ -92,11 +92,11 @@ internal fun withBottomMargin(base: PaddingValues): PaddingValues {
 }
 
 /**
- * Una pildora de texto a todo el ancho, tocable o no.
+ * A full-width text pill, tappable or not.
  *
- * `onClick` nulo significa **presente pero no tocable**, que no es lo mismo que ausente: es el
- * estado "buscando en las definiciones…", donde la pildora sigue en pantalla para que la lista no
- * salte, pero volver a tocarla no puede disparar una segunda consulta.
+ * A null `onClick` means **present but not tappable**, which is not the same as absent: it is the
+ * "searching the definitions…" state, where the pill stays on screen so the list does not jump,
+ * but tapping it again cannot fire a second query.
  */
 @Composable
 internal fun Pill(
@@ -125,11 +125,11 @@ internal fun Pill(
 }
 
 /**
- * El molde de una fila tocable: 48 dp, una linea, el lema manda y el detalle acompaña.
+ * The mould of a tappable row: 48 dp, one line, the headword leads and the detail follows.
  *
- * No usa `Button` de Wear Compose a proposito: su alto minimo es 52 dp y con el encabezado no
- * entraban cuatro filas. 48 dp es el minimo que pide la guia de Wear OS para un area tocable, y
- * bajar de ahi seria ganar densidad rompiendo algo peor.
+ * It deliberately does not use Wear Compose's `Button`: its minimum height is 52 dp and with the
+ * header four rows did not fit. 48 dp is the minimum the Wear OS guidance asks for a touch area,
+ * and going below that would buy density by breaking something worse.
  */
 @Composable
 internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
@@ -162,7 +162,7 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
     }
 }
 
-/** Abriendo el pack, o extrayendolo la primera vez. */
+/** Opening the pack, or extracting it for the first time. */
 @Composable
 internal fun LoadingMessage(message: String) {
     Column(

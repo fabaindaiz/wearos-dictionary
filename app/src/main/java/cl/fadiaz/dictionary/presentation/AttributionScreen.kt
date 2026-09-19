@@ -62,10 +62,10 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                 // **Aca** van los detalles que se sacaron del nombre (D-125): esta es la
                 // pantalla que se abre para leer, no una fila de lista que hay que scrollear.
                 // Null en un pack anterior a D-125, y entonces no se dibuja nada.
-                meta.description?.let { descripcion ->
+                meta.description?.let { description ->
                     item {
                         Text(
-                            text = descripcion,
+                            text = description,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -92,10 +92,10 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                 }
             }
             // Un pack rechazado no puede desaparecer en silencio del selector.
-            problems.forEach { problema ->
+            problems.forEach { problem ->
                 item {
                     Text(
-                        text = problema,
+                        text = problem,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,
