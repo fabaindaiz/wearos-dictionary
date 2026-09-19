@@ -29,44 +29,45 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** Lo que la pantalla de busqueda necesita saber, y nada mas. */
+/** What the search screen needs to know, and nothing else. */
 data class SearchState(
     val query: String = "",
     val results: List<Suggestion> = emptyList(),
     val status: Status = Status.Loading,
-    /** El pack en el que se esta buscando. Su `attribution` y `license` son las que se muestran. */
+    /** The pack being searched. Its `attribution` and `license` are the ones shown. */
     val active: PackMetadata? = null,
-    /** Todos los packs que la app conoce, extraidos o no. Es lo que dibuja el selector. */
+    /** Every pack the app knows about, extracted or not. It is what the selector draws. */
     val available: List<PackHandle> = emptyList(),
-    /** Packs que estaban y no abrieron. Se muestran en la atribucion, no en la busqueda. */
+    /** Packs that were there and did not open. Shown on the attribution screen, not the search. */
     val problems: List<String> = emptyList(),
     val mode: Mode = Mode.NORMAL,
-    /** Las ultimas entradas abiertas, ya filtradas: solo las de packs que estan instalados. */
+    /** The most recently opened entries, already filtered: only those from installed packs. */
     val history: List<Visit> = emptyList(),
     /**
-     * La entrada de hoy, **una por diccionario cargado**, por `packId`.
+     * Today's entry, **one per loaded dictionary**, keyed by `packId`.
      *
-     * Un mapa y no una sola: con dos idiomas instalados las dos palabras del dia interesan, y
-     * ademas cambiar de idioma no tiene que recalcular nada. Vacio mientras se calculan, si los
-     * packs estan vacios, o si nadie cableo `fechaDeHoy` --que es una ausencia visible--.
+     * A map and not a single one: with two languages installed both words of the day are of
+     * interest, and switching language then has nothing to recompute. Empty while they are being
+     * computed, if the packs are empty, or if nobody wired `todayDate` --a visible absence--.
      */
     val wordsOfTheDay: Map<String, EntrySummary> = emptyMap(),
     val settings: Settings = Settings(),
     val favorites: List<Visit> = emptyList(),
 ) {
     /**
-     * Por que camino salieron los resultados que se estan mostrando.
+     * Which path produced the results currently on screen.
      *
-     * No hay una segunda lista: `results` es la misma, y `MatchKind.DEFINITION` ya hace que cada
-     * fila se etiquete sola. Un modo y no un `Boolean` porque hay tres estados y el intermedio
-     * --buscando-- tiene que verse: el indice de texto libre es mucho mas grande que el de lemas.
+     * There is no second list: `results` is the same one, and `MatchKind.DEFINITION` already makes
+     * each row label itself. A mode and not a `Boolean` because there are three states and the
+     * middle one --searching-- has to be visible: the free-text index is far larger than the
+     * headword one.
      */
     enum class Mode { NORMAL, BUSCANDO_DEFINICIONES, DEFINICIONES }
 
     sealed interface Status {
         data object Loading : Status
 
-        /** Extrayendo el pack del APK. Tarda, y la pantalla tiene que decir por que. */
+        /** Extracting the pack from the APK. It takes a while, and the screen has to say why. */
         data object Installing : Status
 
         data object Ready : Status
@@ -76,87 +77,89 @@ data class SearchState(
 }
 
 /**
- * La busqueda incremental.
+ * The incremental search.
  *
- * Recibe `abrirPack` en vez de construirlo: es lo unico que este ViewModel necesitaba de
- * Android, y sacarlo lo deja testeable en la JVM dentro del gate. Ver `SearchViewModelTest`.
+ * It receives `openPacks` instead of building it: that was the only thing this ViewModel needed
+ * from Android, and taking it out leaves it testable on the JVM inside the gate. See
+ * `SearchViewModelTest`.
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
     private val openPacks: suspend (onExtracting: () -> Unit) -> PackSet,
-    /** El pack de la ultima vez, o el idioma del reloj. Nunca el orden alfabetico. */
+    /** Last time's pack, or the watch locale. Never alphabetical order. */
     private val preferred: () -> String? = { null },
     private val saveActivePack: (packId: String) -> Unit = {},
-    /** El historial persistido. Entra por parametro porque vive en Android (D-072). */
+    /** The persisted history. It arrives as a parameter because it lives in Android (D-072). */
     private val savedHistory: () -> List<Visit> = { emptyList() },
     private val saveHistory: (List<Visit>) -> Unit = {},
     /**
-     * Hoy, como "AAAA-MM-DD". Entra por parametro y no sale de un reloj de sistema acá adentro:
-     * es lo que deja que la politica de [PalabraDelDia] corra entera en la JVM (D-072).
+     * Today, as "YYYY-MM-DD". It arrives as a parameter and does not come from a system clock in
+     * here: that is what lets the [WordOfTheDay] policy run entirely on the JVM (D-072).
      *
-     * El default devuelve null --sin fecha no hay palabra del dia-- para que olvidarse de
-     * cablearlo se vea en pantalla como una ausencia, y no como una palabra que nunca cambia.
+     * The default returns null --no date means no word of the day-- so that forgetting to wire it
+     * shows on screen as an absence, and not as a word that never changes.
      */
     private val todayDate: () -> String? = { null },
     private val savedSettings: () -> Settings = { Settings() },
     private val saveSettings: (Settings) -> Unit = {},
     /**
-     * Borra el archivo de un pack. Devuelve si habia algo que borrar.
+     * Deletes a pack's file. Returns whether there was anything to delete.
      *
-     * Entra por parametro como todo lo que toca Android (D-072), y recibe el **nombre de
-     * archivo** y no el packId: son cosas distintas.
+     * It arrives as a parameter like everything that touches Android (D-072), and it takes the
+     * **file name** and not the packId: they are different things.
      */
     private val deleteFromDisk: (fileName: String) -> Boolean = { false },
     private val savedFavorites: () -> List<Visit> = { emptyList() },
     private val saveFavorites: (List<Visit>) -> Unit = {},
     /**
-     * La semana de palabras que ya estaba cacheada para el tile: desde que dia, y cuales.
+     * The week of words already cached for the tile: from which day, and which ones.
      *
-     * Se consulta para **no recalcularla en cada arranque**: son [ContenidoDeTiles.DIAS_CACHEADOS]
-     * x [PalabraDelDia.CANDIDATOS] lecturas y solo cambian una vez por dia.
+     * It is consulted so it is **not recomputed on every launch**: it is [TileContents.CACHED_DAYS]
+     * x [WordOfTheDay.CANDIDATES] reads and they only change once a day.
      */
     private val savedWeekWords: () -> Pair<String?, List<Visit>> =
         { null to emptyList() },
     private val saveWeekWords: (since: String, words: List<Visit>) -> Unit =
         { _, _ -> },
     /**
-     * Avisa a los tiles que lo que muestran cambio.
+     * Tells the tiles that what they show has changed.
      *
-     * Entra por parametro porque `TileService.getUpdater` es Android (D-072). No es opcional: el
-     * tile de historial se pide con `freshnessIntervalMillis = 0`, o sea que **el sistema no lo
-     * vuelve a llamar solo**; sin este empujon se queda con lo que tenia al instalarse.
+     * It arrives as a parameter because `TileService.getUpdater` is Android (D-072). It is not
+     * optional: the history tile is published with `freshnessIntervalMillis = 0`, meaning **the
+     * system never calls it again on its own**; without this push it keeps whatever it had when it
+     * was installed.
      */
     private val notifyTiles: () -> Unit = {},
 ) : ViewModel() {
 
     /**
-     * El pack es un flow y no un `var`, y esa es la diferencia entre buscar y no buscar.
+     * The pack is a flow and not a `var`, and that is the difference between searching and not.
      *
-     * El pack de español pesa 69 MB y tarda en abrir, mientras la pantalla ya acepta texto. Con
-     * un `var`, lo escrito durante ese rato se consultaba contra `null`, devolvia vacio y
-     * **nada lo volvia a intentar**: la busqueda quedaba muerta hasta que el usuario borraba una
-     * letra. Siendo un flow, abrir el pack es un evento que vuelve a disparar la consulta.
+     * The Spanish pack weighs 69 MB and takes a while to open, while the screen already accepts
+     * text. With a `var`, whatever was typed during that window was queried against `null`, returned
+     * empty and **nothing ever retried it**: the search stayed dead until the user deleted a letter.
+     * As a flow, opening the pack is an event that fires the query again.
      */
     private val source = MutableStateFlow<DictionarySource?>(null)
 
-    /** Todos los abiertos, para resolver entradas de cualquier pack y para cerrarlos. */
+    /** All the open ones, to resolve entries from any pack and to close them. */
     private var opened: List<DictionarySource> = emptyList()
 
     /**
-     * La busqueda por definicion en vuelo.
+     * The definition search in flight.
      *
-     * Se guarda para poder cancelarla: recorre un indice mucho mas grande que el de lemas, asi
-     * que puede seguir viva cuando el usuario ya escribio otra cosa. Sin esto, su resultado
-     * aterriza encima del nuevo y muestra otra palabra, sin ninguna excepcion.
+     * It is kept so it can be cancelled: it walks a far larger index than the headword one, so it
+     * can still be alive when the user has already typed something else. Without this, its result
+     * lands on top of the new one and shows another word, with no exception at all.
      */
     private var definitionMode: Job? = null
 
     /**
-     * El historial completo, sin filtrar.
+     * The full history, unfiltered.
      *
-     * Se filtra al MOSTRAR y no se poda al guardar: desinstalar un pack y volver a instalarlo es
-     * un flujo real de desarrollo, y asi el historial reaparece solo. Lo que no puede pasar es
-     * mostrar una fila que al tocarla no abre nada.
+     * It is filtered when DISPLAYED and not pruned when saved: uninstalling a pack and installing it
+     * again is a real development flow, and this way the history comes back on its own. What cannot
+     * happen is showing a row that opens nothing when tapped.
      */
     private var visits: List<Visit> = emptyList()
     private var favoriteVisits: List<Visit> = emptyList()
@@ -175,22 +178,22 @@ class SearchViewModel(
 
         viewModelScope.launch {
             combine(
-                // El debounce es de bateria antes que de rendimiento: en un reloj, disparar una
-                // consulta por pulsacion mantiene la CPU despierta durante toda la frase.
+                // The debounce is about battery before performance: on a watch, firing one query
+                // per keystroke keeps the CPU awake for the whole phrase.
                 queries.debounce(DEBOUNCE_MS),
                 source,
             ) { text, pack -> text to pack }
-                // mapLatest cancela la busqueda anterior en cuanto llega una tecla nueva. La
-                // cascada chequea cancelacion fila por fila, asi que la vieja se corta de verdad
-                // en vez de terminar y descartarse.
+                // mapLatest cancels the previous search as soon as a new keystroke arrives. The
+                // cascade checks for cancellation row by row, so the old one really stops instead
+                // of finishing and being thrown away.
                 .mapLatest { (text, pack) ->
                     if (text.isBlank() || pack == null) text to emptyList()
                     else text to pack.suggest(text)
                 }
                 .onEach { (text, results) ->
-                    // Se compara contra la query vigente: si el usuario siguio escribiendo
-                    // mientras esta consulta corria, su resultado ya no es el que se muestra.
-                    // Y no se publica en modo definiciones: ahi manda la otra consulta.
+                    // Compared against the current query: if the user kept typing while this
+                    // one ran, its result is no longer the one on screen. And nothing is
+                    // published in definition mode: there the other query is in charge.
                     if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
                         _state.update { it.copy(query = text, results = results) }
                     }
@@ -200,22 +203,22 @@ class SearchViewModel(
     }
 
     /**
-     * Cambia el diccionario activo sin perder lo escrito.
+     * Switches the active dictionary without losing what was typed.
      *
-     * Le asigna otro valor al mismo flow, asi que el `combine` repite la query vigente y
-     * `mapLatest` cancela la consulta anterior. No hay maquina de estados nueva.
+     * It assigns another value to the same flow, so the `combine` repeats the current query and
+     * `mapLatest` cancels the previous one. There is no new state machine.
      *
-     * **Los resultados viejos no se limpian**: la consulta nueva tarda milisegundos y un
-     * parpadeo en blanco se ve peor que una lista vieja por un instante. Ningun test puede ver
-     * esa diferencia, por eso queda dicha aca.
+     * **The old results are not cleared**: the new query takes milliseconds and a blank flash looks
+     * worse than a stale list for an instant. No test can see that difference, which is why it is
+     * written down here.
      */
     /**
-     * Abre los packs y publica el estado. Se llama al arrancar y **cada vez que la lista de
-     * diccionarios cambia** --hoy, al borrar uno--.
+     * Opens the packs and publishes the state. Called at startup and **every time the list of
+     * dictionaries changes** --today, when one is deleted--.
      *
-     * Es `suspend` y no lanza su propia corrutina para que quien la llama controle el orden:
-     * borrar exige cerrar las conexiones ANTES de tocar el disco, y eso no se puede hacer si
-     * esta funcion se dispara sola.
+     * It is `suspend` and does not launch its own coroutine so the caller controls the ordering:
+     * deleting requires closing the connections BEFORE touching the disk, and that cannot be done if
+     * this function fires on its own.
      */
     private suspend fun loadPacks() {
         when (val result = openPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
@@ -226,19 +229,19 @@ class SearchViewModel(
                 _state.update {
                     it.copy(
                         status = SearchState.Status.Ready,
-                        // D-031: la atribucion sale del pack, no de una constante. Un pack
-                        // de otra fuente trae su propia licencia y tiene que mostrarse.
+                        // D-031: the attribution comes from the pack, not from a constant. A
+                        // pack from another source brings its own license and must show it.
                         active = chosen.metadata,
-                        // El de demostracion no se ofrece si hay un diccionario de verdad:
-                        // es un placeholder, no una opcion. Ademas su etiqueta chocaria --
-                        // con el toy y el español real el selector decia "ES" y "ES".
+                        // The demo one is not offered if a real dictionary exists: it is a
+                        // placeholder, not an option. Its label would also clash -- with the
+                        // toy and the real Spanish one the selector read "ES" and "ES".
                         available = offerable(result.all),
                         problems = result.problems,
                         history = visibleOnes(visits),
                     )
                 }
-                // Para TODOS los ofrecidos, no solo el activo: el de demostracion queda
-                // fuera porque `ofrecibles` ya lo saco cuando hay un diccionario de verdad.
+                // For ALL the offered ones, not just the active: the demo is left out
+                // because `offerable` already removed it when a real dictionary exists.
                 refreshWordsOfTheDay(
                     offerable(result.all).filterIsInstance<PackHandle.Open>()
                         .map { it.source },
@@ -258,35 +261,35 @@ class SearchViewModel(
 
     fun onPackChange(packId: String) {
         val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
-        // El combine va a repetir la query por prefijo en el pack nuevo y pisaria los resultados
-        // de definicion igual: mejor salir del modo explicitamente que dejar la carrera abierta.
+        // The combine is going to repeat the prefix query on the new pack and would overwrite the
+        // definition results anyway: better to leave the mode explicitly than leave the race open.
         leaveDefinitionMode()
         source.value = pack
         _state.update { it.copy(active = pack.metadata) }
-        // No se recalcula nada para la PANTALLA: las palabras del dia de todos los packs ya
-        // estan. El tile si, porque muestra una sola y es la del activo -- dejarlo en el idioma
-        // anterior seria una palabra equivocada que nadie reporta, porque nadie abre un tile a
-        // proposito.
+        // Nothing is recomputed for the SCREEN: the words of the day for every pack are already
+        // there. The tile is, because it shows only one and it is the active pack's -- leaving it
+        // in the previous language would be a wrong word that nobody reports, because nobody opens
+        // a tile on purpose.
         cacheWeekForTile(pack)
         saveActivePack(packId)
     }
 
     fun onQueryChange(text: String) {
-        // Editar la query es la forma de volver de las definiciones a la busqueda normal. No hay
-        // boton de "volver" a proposito: en 192 dp un control se paga en resultados, y el usuario
-        // ya tiene el gesto.
+        // Editing the query is how you get back from the definitions to the normal search. There is
+        // deliberately no "back" button: on 192 dp a control is paid for in results, and the user
+        // already has the gesture.
         leaveDefinitionMode()
-        // La query se muestra YA y los resultados llegan despues: si el campo esperara al
-        // debounce, escribir se sentiria trabado.
+        // The query shows IMMEDIATELY and the results arrive later: if the field waited for the
+        // debounce, typing would feel stuck.
         _state.update { it.copy(query = text) }
         queries.value = text
     }
 
     /**
-     * Busca la query vigente DENTRO de las definiciones, por FTS5.
+     * Searches the current query INSIDE the definitions, through FTS5.
      *
-     * Es una accion explicita y nunca se cuelga del pipeline incremental: recorre un indice mucho
-     * mas grande que el de lemas y no cumple el presupuesto de latencia de escribir.
+     * It is an explicit action and never hangs off the incremental pipeline: it walks a far larger
+     * index than the headword one and does not meet the latency budget of typing.
      */
     fun onSearchDefinitions() {
         val pack = source.value ?: return
@@ -297,7 +300,7 @@ class SearchViewModel(
         _state.update { it.copy(mode = SearchState.Mode.BUSCANDO_DEFINICIONES) }
         definitionMode = viewModelScope.launch {
             val found = pack.searchDefinitions(text)
-            // Si mientras tanto se escribio otra cosa, este resultado ya no es el que se muestra.
+            // If something else was typed meanwhile, this result is no longer the one on screen.
             if (text == queries.value) {
                 _state.update {
                     it.copy(results = found, mode = SearchState.Mode.DEFINICIONES)
@@ -307,10 +310,10 @@ class SearchViewModel(
     }
 
     /**
-     * Anota que se abrio una entrada. Se llama al navegar, no al volver.
+     * Records that an entry was opened. Called when navigating, not when going back.
      *
-     * La `Suggestion` ya trae los cuatro campos, asi que registrar no cuesta abrir la entrada ni
-     * descomprimir un payload.
+     * The `Suggestion` already carries the four fields, so recording costs neither opening the entry
+     * nor decompressing a payload.
      */
     fun recordVisit(suggestion: Suggestion) {
         val visit = Visit(
@@ -319,7 +322,7 @@ class SearchViewModel(
             headword = suggestion.headword,
             partOfSpeech = suggestion.partOfSpeech,
         )
-        // Move-to-front: abrir dos veces la misma palabra la sube, no la duplica.
+        // Move-to-front: opening the same word twice raises it, it does not duplicate it.
         visits = (listOf(visit) + visits.filterNot {
             it.packId == visit.packId && it.entryId == visit.entryId
         }).take(MAX_HISTORY)
@@ -333,7 +336,7 @@ class SearchViewModel(
         return if (opened.any { !it.isDemo }) opened.filterNot { it.isDemo } else all
     }
 
-    /** Solo las de packs abiertos: una fila que no abre nada es peor que no tener la fila. */
+    /** Only those from open packs: a row that opens nothing is worse than no row at all. */
     private fun visibleOnes(allSenses: List<Visit>): List<Visit> {
         val installed = opened.map { it.metadata.packId }.toSet()
         return if (installed.isEmpty()) allSenses else allSenses.filter { it.packId in installed }
@@ -348,34 +351,34 @@ class SearchViewModel(
     }
 
     /**
-     * Abre una entrada **en su propio pack**.
+     * Opens an entry **in its own pack**.
      *
-     * Devuelve null si ese pack no esta abierto, en vez de caer al activo: caer seria el bug que
-     * esto arregla --mostrar otra palabra-- pero silencioso.
+     * It returns null if that pack is not open, instead of falling back to the active one: falling
+     * back would be the very bug this fixes --showing another word-- but silent.
      */
     /**
-     * Calcula la palabra del dia de cada diccionario cargado.
+     * Computes the word of the day for each loaded dictionary.
      *
-     * En su propia corrutina y sin bloquear la pantalla, que ya esta lista para buscar: son
-     * [PalabraDelDia.CANDIDATOS] lecturas de una fila por pack. Cada una se publica en cuanto
-     * esta, asi que con dos idiomas la primera no espera a la segunda.
+     * In its own coroutine and without blocking the screen, which is already ready to search: it is
+     * [WordOfTheDay.CANDIDATES] single-row reads per pack. Each one is published as soon as it is
+     * ready, so with two languages the first does not wait for the second.
      *
-     * Si un pack falla se queda sin palabra del dia y los demas siguen: una pantalla de inicio
-     * incompleta es mejor que una que no carga.
+     * If a pack fails it is left without a word of the day and the others carry on: an incomplete
+     * home screen is better than one that does not load.
      */
     /**
-     * Deja escrita la semana de palabras del pack activo, para que el tile no tenga que abrirlo.
+     * Leaves the active pack's week of words written down, so the tile does not have to open it.
      *
-     * **El tile no puede calcular esto.** `onTileRequest` corre en el hilo principal con 10 s de
-     * tope, y abrir un pack de 69 o 295 MB ahi esta fuera de discusion por contrato de la API,
-     * no por sospecha de rendimiento. Pero la palabra es determinista por (fecha, pack), asi que
-     * la app --que ya tiene el pack abierto-- puede adelantar los proximos dias y guardarlos.
+     * **The tile cannot compute this.** `onTileRequest` runs on the main thread with a 10 s cap, and
+     * opening a 69 or 295 MB pack there is out of the question by API contract, not by suspicion
+     * about performance. But the word is deterministic by (date, pack), so the app --which already
+     * has the pack open-- can work the next days out ahead of time and store them.
      *
-     * Siete dias y no uno: son las siete ventanas del `Timeline` que dejan que el renderer cambie
-     * de palabra a medianoche **sin un solo despertar del proceso**.
+     * Seven days and not one: they are the seven `Timeline` windows that let the renderer change the
+     * word at midnight **without a single process wakeup**.
      *
-     * No se rehace si la cache ya es de hoy y del mismo pack: eso la convierte en trabajo de una
-     * vez por dia en vez de una vez por arranque.
+     * It is not redone if the cache is already from today and from the same pack: that turns it into
+     * once-a-day work instead of once-per-launch work.
      */
     private fun cacheWeekForTile(active: DictionarySource) {
         val today = todayDate() ?: return
@@ -426,19 +429,19 @@ class SearchViewModel(
     }
 
     /**
-     * Borra un diccionario del reloj. **Irreversible**: reponerlo cuesta ~90 s por adb.
+     * Deletes a dictionary from the watch. **Irreversible**: putting it back costs ~90 s over adb.
      *
-     * EL ORDEN ES EL CONTRATO, y no es teorico. En Unix un archivo borrado con un descriptor
-     * abierto sigue ocupando el disco hasta que se cierre, y la app lo seguiria leyendo como si
-     * nada: el usuario veria "borrado" y **cero espacio liberado**, que es peor que no poder
-     * borrar. Asi que primero se sueltan las conexiones, despues se toca el disco, y recien
-     * despues se reabre lo que quedo.
+     * THE ORDER IS THE CONTRACT, and it is not theoretical. On Unix a deleted file with an open
+     * descriptor keeps occupying the disk until it is closed, and the app would go on reading it as
+     * if nothing happened: the user would see "deleted" and **zero space freed**, which is worse
+     * than not being able to delete. So the connections are released first, then the disk is
+     * touched, and only then is what is left reopened.
      *
-     * Se cierran TODAS y no solo la del pack que se va: `cargarPacks` reabre el set entero, y
-     * dejar las viejas abiertas seria filtrar una conexion por borrado.
+     * ALL of them are closed and not just the one for the pack being removed: `loadPacks` reopens
+     * the whole set, and leaving the old ones open would leak a connection per deletion.
      *
-     * El pack de demostracion **no se puede borrar**: viene dentro del APK y `PackStore.open` lo
-     * re-extrae al reabrir, asi que la accion no haria nada y el pack volveria solo.
+     * The demo pack **cannot be deleted**: it comes inside the APK and `PackStore.open` re-extracts
+     * it on reopening, so the action would do nothing and the pack would come back on its own.
      */
     fun deletePack(packId: String) {
         val handle = state.value.available
@@ -447,8 +450,8 @@ class SearchViewModel(
         if (handle.isDemo) return
 
         viewModelScope.launch {
-            // Sin pack activo y en "cargando" mientras dura: una consulta que llegue en el medio
-            // no puede caer sobre una conexion ya cerrada.
+            // No active pack and in "loading" while it lasts: a query arriving in the middle
+            // cannot land on an already closed connection.
             _state.update {
                 it.copy(
                     status = SearchState.Status.Loading,
@@ -462,17 +465,17 @@ class SearchViewModel(
         }
     }
 
-    /** Si esa entrada esta guardada. Por `packId` ademas del id: dos packs comparten ids. */
+    /** Whether that entry is saved. By `packId` as well as the id: two packs share ids. */
     fun isFavorite(packId: String, entryId: Long): Boolean =
         favoriteVisits.any { it.packId == packId && it.entryId == entryId }
 
     /**
-     * Guarda o saca una palabra de favoritas.
+     * Saves a word or takes it out of the saved ones.
      *
-     * Al frente y sin duplicar, igual que el historial, pero **con un tope mucho mas alto**: el
-     * historial son tres porque compite por las filas de la pantalla (D-073), y los favoritos
-     * viven en su propia lista. El tope existe igual porque esto termina en un String de
-     * SharedPreferences.
+     * To the front and without duplicating, same as the history, but **with a far higher cap**: the
+     * history is three because it competes for the screen's rows (D-073), and the saved words live
+     * in their own list. The cap still exists because all of this ends up in a SharedPreferences
+     * String.
      */
     fun toggleFavorite(visit: Visit) {
         val wasFavorite = isFavorite(visit.packId, visit.entryId)
@@ -486,7 +489,7 @@ class SearchViewModel(
         notifyTiles()
     }
 
-    /** Cambia la escala del texto y la deja guardada. */
+    /** Changes the text scale and stores it. */
     fun onTextScaleChange(scale: TextScale) {
         val fresh = state.value.settings.copy(textScale = scale)
         saveSettings(fresh)
@@ -494,10 +497,10 @@ class SearchViewModel(
     }
 
     /**
-     * Vacia el historial, en memoria y en disco.
+     * Empties the history, in memory and on disk.
      *
-     * Hacia falta: con tope de tres y move-to-front se recicla solo, pero una palabra que no
-     * queres volver a ver se queda hasta que abras tres mas.
+     * It was needed: with a cap of three and move-to-front it recycles itself, but a word you do not
+     * want to see again stays until you open three more.
      */
     fun clearHistory() {
         visits = emptyList()
@@ -506,19 +509,19 @@ class SearchViewModel(
     }
 
     /**
-     * A que entrada lleva una visita guardada, **corrigiendola si el pack se reconstruyo**.
+     * Which entry a stored visit leads to, **fixing it if the pack was rebuilt**.
      *
-     * `entry.id` es el rowid y no sobrevive a un rebuild (D-055): el historial y las guardadas
-     * se respaldan con el, asi que tras reconstruir un pack apuntan a otra palabra --con el lema
-     * correcto escrito en la fila, o sea sin nada que lo delate--.
+     * `entry.id` is the rowid and does not survive a rebuild (D-055): the history and the saved
+     * words are backed up by it, so after rebuilding a pack they point at another word --with the
+     * right headword still written in the row, that is, with nothing to give it away--.
      *
-     * **No cuesta una consulta extra en el caso normal**: si el lema que hay en ese id es el
-     * guardado, [destinoDeVisita] devuelve `Directo` y `resolveHeadwords` no se llama. El
-     * `summary` que si se paga es una lectura de la fila por rowid, que es la misma que la
-     * pantalla de entrada hace igual un instante despues.
+     * **It costs no extra query in the normal case**: if the headword at that id is the stored one,
+     * [visitTarget] returns `Direct` and `resolveHeadwords` is never called. The `summary` that is
+     * paid for is a single-row read by rowid, the same one the entry screen does an instant later
+     * anyway.
      *
-     * Cuando corrige, **reescribe el respaldo**: si no, cada apertura volveria a pagar la
-     * re-resolucion y el tile seguiria publicando el id viejo.
+     * When it does fix something, it **rewrites the backup**: otherwise every opening would pay for
+     * the re-resolution again and the tile would go on publishing the old id.
      */
     suspend fun targetOf(visit: Visit): Long? {
         val source = opened.firstOrNull { it.metadata.packId == visit.packId } ?: return null
@@ -539,7 +542,7 @@ class SearchViewModel(
         }
     }
 
-    /** Reescribe el `entryId` de esta visita en el historial y en las guardadas. */
+    /** Rewrites this visit's `entryId` in the history and in the saved words. */
     private fun fixEntryId(visit: Visit, entryId: Long) {
         fun fix(list: List<Visit>) = list.map {
             if (it.packId == visit.packId && it.entryId == visit.entryId) {
@@ -559,18 +562,18 @@ class SearchViewModel(
         opened.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
 
     /**
-     * Que palabras de una glosa son lema, **en el pack de esa entrada** y no en el activo.
+     * Which words in a gloss are headwords, **in that entry's pack** and not in the active one.
      *
-     * Misma regla que [entry]: si el pack no esta abierto devuelve vacio en vez de caer al
-     * activo. Caer seria pintar tocable una palabra que abre otra distinta, que es exactamente
-     * el bug que arreglo D-080, pero mudo.
+     * Same rule as [entry]: if the pack is not open it returns empty instead of falling back to the
+     * active one. Falling back would paint as tappable a word that opens a different one, which is
+     * exactly the bug D-080 fixed, but mute.
      */
     suspend fun resolveIn(packId: String, norms: Set<String>): Map<String, Long> =
         opened.firstOrNull { it.metadata.packId == packId }
             ?.resolveHeadwords(norms)
             .orEmpty()
 
-    /** Cierra el pack. Publico para que un test pueda ejercitarlo sin simular el ciclo de vida. */
+    /** Closes the pack. Public so a test can exercise it without simulating the lifecycle. */
     fun close() {
         opened.forEach { it.close() }
         opened = emptyList()
@@ -580,36 +583,35 @@ class SearchViewModel(
     override fun onCleared() = close()
 
     companion object {
-        /** Lo que tarda un dedo en encadenar dos letras en una pantalla de reloj. */
+        /** How long a finger takes to chain two letters on a watch screen. */
         const val DEBOUNCE_MS: Long = 120
 
         /**
-         * Cuantas entradas recientes se recuerdan.
+         * How many recent entries are remembered.
          *
-         * Tres, y sale de la misma aritmetica que D-073: la pantalla da tres filas de 48 dp.
-         * Guardar diez es gratis en bytes y caro en lo unico escaso -- serian siete filas que
-         * nadie ve sin scrollear el estado vacio.
+         * Three, and it comes from the same arithmetic as D-073: the screen gives three rows of 48 dp.
+         * Storing ten is free in bytes and expensive in the only scarce thing -- it would be seven rows
+         * nobody sees without scrolling the empty state.
          */
         const val MAX_HISTORY: Int = 3
 
         /**
-         * Tope de favoritas. Alto a proposito --no compiten por la pantalla como el historial--
-         * pero acotado porque todo esto termina en un String de SharedPreferences.
+         * Cap on saved words. Deliberately high --they do not compete for the screen like the
+         * history-- but bounded because all of this ends up in a SharedPreferences String.
          */
         const val MAX_FAVORITES: Int = 100
 
         /**
-         * Que pack se abre al arrancar. **Nunca el orden alfabetico**: con dos packs eso hacia
-         * que un reloj en español arrancara en ingles, porque "en-" ordena antes que "es-".
+         * Which pack opens at startup. **Never alphabetical order**: with two packs that made a watch
+         * set to Spanish start in English, because "en-" sorts before "es-".
          *
-         * Tres escalones: el pack exacto de la ultima vez, cualquiera de ese idioma --que cubre
-         * el caso de no tener preferencia guardada y usar el idioma del reloj-- y por ultimo el
-         * que venga.
+         * Three rungs: the exact pack from last time, any pack of that language --which covers having no
+         * stored preference and using the watch locale-- and finally whichever comes first.
          */
         internal fun chooseActive(set: PackSet.Ready, preferred: String?): PackHandle.Open {
             val opened = set.all.filterIsInstance<PackHandle.Open>()
-            // El pack de demostracion solo gana si no hay ningun otro: existe para que la app
-            // recien instalada tenga algo que mostrar, no para tapar un diccionario de verdad.
+            // The demo pack only wins if there is no other: it exists so a freshly installed app
+            // has something to show, not to cover up a real dictionary.
             val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
             return candidates.firstOrNull { it.packId == preferred }
                 ?: candidates.firstOrNull { it.metadata.langSource == preferred }
