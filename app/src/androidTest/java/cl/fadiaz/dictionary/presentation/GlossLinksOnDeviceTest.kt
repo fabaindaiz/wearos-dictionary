@@ -14,16 +14,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Lo unico de `PantallasTest` que NO se puede correr en la JVM.
+ * The one thing in `ScreensTest` that CANNOT run on the JVM.
  *
- * Las otras 46 pantallas corren con Robolectric dentro del gate, en segundos. Esta no: tocar una
- * palabra dentro de una glosa exige que el toque caiga sobre el **rectangulo de una palabra
- * dentro de un parrafo**, y eso depende del layout de texto real. Bajo Robolectric el nodo del
- * enlace existe y se encuentra, el click se despacha, y el callback **no se dispara** --el test
- * falla con `expected:<77> but was:<null>`--. No es un bug del producto: es la medida exacta de
- * hasta donde llega el runtime simulado.
+ * The other 46 screen tests run under Robolectric inside the gate, in seconds. This one does not:
+ * tapping a word inside a gloss requires the tap to land on the **rectangle of a word inside a
+ * paragraph**, and that depends on the real text layout. Under Robolectric the link node exists
+ * and is found, the click is dispatched, and the callback **does not fire** --the test fails with
+ * `expected:<77> but was:<null>`--. It is not a product bug: it is the exact measure of how far
+ * the simulated runtime goes.
  *
- * Si algun dia Robolectric resuelve hit-testing de texto, este archivo se funde de vuelta.
+ * If Robolectric ever resolves text hit-testing, this file merges back.
  */
 @RunWith(AndroidJUnit4::class)
 class GlossLinksOnDeviceTest {
@@ -52,8 +52,8 @@ class GlossLinksOnDeviceTest {
         }
         compose.waitForIdle()
 
-        // El nodo del enlace NO tiene semantica de texto propia --Compose le pone solo OnClick
-        // sobre el rectangulo de la palabra-- asi que se identifica por el texto que lo contiene.
+        // The link node has NO text semantics of its own --Compose only puts OnClick on the
+        // word's rectangle-- so it is identified through the text that contains it.
         compose.onNode(
             hasClickAction() and hasAnyAncestor(hasText("cilindro de cera", substring = true)),
             useUnmergedTree = true,
