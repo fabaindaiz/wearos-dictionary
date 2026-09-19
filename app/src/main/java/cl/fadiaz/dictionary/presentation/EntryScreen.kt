@@ -118,7 +118,7 @@ fun EntryScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = contentPadding,
+            contentPadding = conMargenFinal(contentPadding),
             state = listState,
             // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
             // esta leyendo. No viene cableada por defecto.
