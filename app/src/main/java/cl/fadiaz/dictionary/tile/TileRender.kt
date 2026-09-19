@@ -125,7 +125,7 @@ internal fun MaterialScope.historyRows(
 internal fun MaterialScope.wordCard(
     context: Context,
     visit: Visit,
-    categoria: String?,
+    partOfSpeech: String?,
 ): LayoutElement =
     primaryLayout(
         titleSlot = {
@@ -138,7 +138,7 @@ internal fun MaterialScope.wordCard(
             titleCard(
                 onClick = openTheEntry(context, visit),
                 title = { text(visit.headword.layoutString, maxLines = 1) },
-                content = categoria?.let { { text(it.layoutString, maxLines = 1) } },
+                content = partOfSpeech?.let { { text(it.layoutString, maxLines = 1) } },
             )
         },
     )
