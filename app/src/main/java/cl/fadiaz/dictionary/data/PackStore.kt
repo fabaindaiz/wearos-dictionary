@@ -225,8 +225,8 @@ object PackStore {
         val target = File(dir, name)
         partial.delete()
         try {
-            input.use { origen ->
-                partial.outputStream().use { target -> origen.copyTo(target, BUFFER) }
+            input.use { from ->
+                partial.outputStream().use { target -> from.copyTo(target, BUFFER) }
             }
         } catch (e: IOException) {
             // Si no se borra, el proximo intento arranca con basura y encima ocupa disco.
