@@ -4,10 +4,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * El tamano que se muestra al lado de cada diccionario.
+ * The size shown next to each dictionary.
  *
- * Los casos son los packs reales del proyecto, no numeros redondos inventados: es la unica forma
- * de que el test diga algo sobre lo que el usuario va a ver.
+ * The cases are the project's real packs, not made-up round numbers: it is the only way for the
+ * test to say anything about what the user is going to see.
  */
 class ByteSizeTest {
 
@@ -28,15 +28,15 @@ class ByteSizeTest {
 
     @Test
     fun theDecimalSeparatorDoesNotDependOnTheWatchLocale() {
-        // Con String.format seria "." o "," segun el Locale, y el mismo pack se veria distinto en
-        // dos relojes. Aca es siempre coma.
+        // With String.format it would be "." or "," depending on the Locale, and the same pack
+        // would look different on two watches. Here it is always a comma.
         assertEquals("1,5 MB", asHumanSize(1_500_000))
     }
 
     @Test
     fun roundsInsteadOfTruncating() {
-        // Truncar mostraria "1,9 MB" para algo que esta a un pelo de 2: al lado de un boton de
-        // borrar, esa cifra es la que decide.
+        // Truncating would show "1,9 MB" for something a hair away from 2: next to a delete
+        // button, that figure is the one that decides.
         assertEquals("2,0 MB", asHumanSize(1_960_000))
     }
 
