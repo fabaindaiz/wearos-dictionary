@@ -15,17 +15,17 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 
 /**
- * Un diccionario de mentira que cuenta lo que le preguntaron.
+ * A fake dictionary that counts what it was asked.
  *
- * No devuelve resultados verosimiles a proposito: lo que estos tests miran es **cuando** se
- * consulta y **con que**, no que la busqueda funcione. Eso ya lo cubren los 25 instrumentados
- * de :dict-data contra un pack de verdad.
+ * It deliberately does not return plausible results: what these tests watch is **when** it is
+ * queried and **with what**, not that the search works. That is already covered by the 25
+ * instrumented tests in :dict-data against a real pack.
  */
 class FakeDictionary(
-    /** Distingue dos packs en los tests de selector. */
+    /** Tells two packs apart in the selector tests. */
     private val packId: String = "fake",
     private val lang: String = "es",
-    /** Cuanto tarda cada `suggest`. Sirve para que una consulta siga viva cuando llega otra. */
+    /** How long each `suggest` takes. Useful to keep one query alive when another arrives. */
     private val demora: Long = 0,
     /**
      * How many entries it claims to have.
