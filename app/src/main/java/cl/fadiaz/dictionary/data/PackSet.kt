@@ -5,12 +5,12 @@ import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 
 /**
- * Un pack abierto y consultable.
+ * An open, queryable pack.
  *
- * Es una interfaz sellada de un solo caso **a proposito**: hubo un segundo, `Disponible`, para
- * los packs que venian en el APK sin extraer. Se fue con ellos. Cuando exista el instalador va a
- * volver a hacer falta algo asi --un pack del catalogo que todavia no se bajo-- y se agrega
- * entonces, con el caso de uso delante y no antes.
+ * It is a sealed interface with a single case **on purpose**: there was a second one,
+ * `Available`, for the packs that shipped inside the APK without being extracted. It left with
+ * them. Once the installer exists something like it will be needed again --a catalogue pack that
+ * has not been downloaded yet-- and it gets added then, with the use case in hand and not before.
  */
 sealed interface PackHandle {
     val packId: String
@@ -18,24 +18,24 @@ sealed interface PackHandle {
     data class Open(
         val source: DictionarySource,
         /**
-         * Vino del APK, no lo instalo nadie.
+         * It came from the APK; nobody installed it.
          *
-         * El pack de demostracion existe para que la app recien instalada tenga algo que
-         * mostrar (D-081), asi que **nunca puede ganarle a un diccionario de verdad**. Sin esta
-         * marca lo decidia el orden alfabetico, y "demo-" gana a "es-": con los dos instalados,
-         * la app abria las 28 entradas de juguete en vez de las 146.194 reales.
+         * The demo pack exists so a freshly installed app has something to show (D-081), so it
+         * **can never beat a real dictionary**. Without this flag alphabetical order decided it,
+         * and "demo-" beats "es-": with both installed, the app opened the 28 toy entries
+         * instead of the 146,194 real ones.
          */
         val isDemo: Boolean = false,
         /**
-         * El archivo en `filesDir/packs`, para poder borrarlo.
+         * The file in `filesDir/packs`, so it can be deleted.
          *
-         * Hace falta aparte del `packId` porque **no son lo mismo**: el id sale de la metadata
-         * de adentro del pack y el nombre lo pone quien lo instalo. Hoy `devpack.py` los hace
-         * coincidir, pero deducir uno del otro seria una suposicion que borra el archivo
-         * equivocado el dia que dejen de coincidir.
+         * It is needed separately from `packId` because **they are not the same thing**: the id
+         * comes from the metadata inside the pack and the name is chosen by whoever installed
+         * it. Today `devpack.py` makes them match, but deriving one from the other would be an
+         * assumption that deletes the wrong file the day they stop matching.
          */
         val fileName: String = "",
-        /** Lo que ocupa en disco. Es la unica cifra que le importa a quien decide borrar algo. */
+        /** What it takes on disk. The only figure that matters to someone deciding to delete. */
         val bytes: Long = 0,
     ) : PackHandle {
         override val packId: String get() = source.metadata.packId
@@ -44,22 +44,22 @@ sealed interface PackHandle {
 }
 
 /**
- * El resultado de mirar que diccionarios hay.
+ * The result of looking at which dictionaries are there.
  *
- * Los tres casos no son defensivos de mas: cada uno se ve distinto en pantalla y el usuario
- * puede hacer algo distinto con cada uno.
+ * The three cases are not over-defensive: each one looks different on screen and the user can do
+ * something different about each one.
  *
- * Vive sin una sola referencia a Android, igual que [PackLoad]: es la frontera por la que
- * `SearchViewModel` se deja testear en la JVM dentro del gate (D-072).
+ * It lives without a single reference to Android, same as [PackLoad]: it is the boundary that
+ * lets `SearchViewModel` be tested on the JVM inside the gate (D-072).
  */
 sealed interface PackSet {
 
     /**
-     * Hay al menos un pack usable. [activo] es en el que se busca.
+     * There is at least one usable pack. [active] is the one being searched.
      *
-     * [problemas] son los packs que estaban y **no** abrieron. Existe para que un pack rechazado
-     * no desaparezca en silencio de la lista: se muestran en la pantalla de atribucion, que no
-     * le cuesta un solo dp a la busqueda.
+     * [problems] are the packs that were there and did **not** open. It exists so a rejected pack
+     * does not vanish from the list in silence: they are shown on the attribution screen, which
+     * costs the search not a single dp.
      */
     data class Ready(
         val active: PackHandle.Open,
@@ -67,22 +67,22 @@ sealed interface PackSet {
         val problems: List<String> = emptyList(),
     ) : PackSet
 
-    /** No hay ningun `.db` en `filesDir/packs/`. El APK no trae ninguno: hay que instalarlo. */
+    /** No `.db` in `filesDir/packs/`. The APK ships none: one has to be installed. */
     data object NoPack : PackSet
 
-    /** Habia archivos y **ninguno** sirve. */
+    /** There were files and **none** of them is usable. */
     data class Unusable(val reason: String) : PackSet
 }
 
 /**
- * Que clase de diccionario es, en una palabra, para poner al lado del nombre corto.
+ * What kind of dictionary this is, in one word, to sit next to the short name.
  *
- * Existe porque el nombre dejo de decirlo: era "Español - definiciones" --22 caracteres, cortados
- * en los cuatro lugares donde se muestra-- y paso a ser "Español" (D-125). Lo que el nombre largo
- * comunicaba sale ahora de `kind`, que es **un dato del pack** y no una cadena que alguien tiene
- * que acordarse de escribir bien en cada pack nuevo.
+ * It exists because the name stopped saying it: it used to be "Español - definiciones" --22
+ * characters, cut off in all four places it is shown-- and became "Español" (D-125). What the
+ * long name communicated now comes from `kind`, which is **a fact about the pack** and not a
+ * string somebody has to remember to spell right in every new pack.
  *
- * Pura y sin Android: entra al gate (D-072).
+ * Pure and free of Android: it enters the gate (D-072).
  */
 internal fun packTypeLabel(kind: PackKind): String = when (kind) {
     PackKind.MONOLINGUAL -> "definiciones"

@@ -41,8 +41,8 @@ class TileContentTest {
     fun theHistoryOrderIsKept() {
         // El move-to-front ya lo aplico el ViewModel al guardar: el tile no reordena nada, y si
         // lo hiciera la fila de arriba dejaria de ser la ultima palabra abierta.
-        val orden = listOf(visit("tres", 3), visit("dos", 2), visit("uno", 1))
-        assertEquals(TileContent.ListRows(orden), TileContents.history(orden))
+        val order = listOf(visit("tres", 3), visit("dos", 2), visit("uno", 1))
+        assertEquals(TileContent.ListRows(order), TileContents.history(order))
     }
 
     // ----------------------------------------------------------- palabra del dia

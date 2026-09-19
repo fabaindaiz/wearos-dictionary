@@ -153,9 +153,9 @@ internal object WordOfTheDay {
      */
     private fun seed(date: String, packId: String, pass: Int): Long {
         var h = -0x340d631b7bdddcdbL // offset basis de FNV-1a, 64 bits
-        for (caracter in date) h = (h xor caracter.code.toLong()) * PRIME
+        for (character in date) h = (h xor character.code.toLong()) * PRIME
         h = (h xor SEPARATOR) * PRIME
-        for (caracter in packId) h = (h xor caracter.code.toLong()) * PRIME
+        for (character in packId) h = (h xor character.code.toLong()) * PRIME
         h = (h xor pass.toLong()) * PRIME
 
         // Sin este mezclado, intentos consecutivos dan ids vecinos y el rechazo recorreria una
@@ -166,9 +166,9 @@ internal object WordOfTheDay {
         return z xor (z ushr 31)
     }
 
-    private fun positiveModulo(valor: Long, modulo: Long): Long {
-        val remainder = valor % modulo
-        return if (remainder < 0) remainder + modulo else remainder
+    private fun positiveModulo(value: Long, modulus: Long): Long {
+        val remainder = value % modulus
+        return if (remainder < 0) remainder + modulus else remainder
     }
 
     private const val PRIME = 0x100000001b3L
