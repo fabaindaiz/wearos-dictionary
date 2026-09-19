@@ -354,10 +354,10 @@ class ScreensTest {
         // ejemplos, y por eso nunca reprodujo el crash que aparecio al tocar "Ver mas".
         val longExample =
             "cronica del siglo XVI que el Wikcionario cita como uso. ".repeat(17).take(917)
-        val muchas = (1..47).map { numero ->
+        val muchas = (1..47).map { number ->
             Sense(
-                gloss = "acepcion numero $numero",
-                examples = if (numero == 1) listOf(longExample) else emptyList(),
+                gloss = "acepcion numero $number",
+                examples = if (number == 1) listOf(longExample) else emptyList(),
             )
         }
         compose.setContent { EntryScreen(1, onOpenPalabra = {}) { entry().copy(senses = muchas) } }
@@ -643,41 +643,41 @@ class ScreensTest {
     fun deleteAsksForConfirmationAndDoesNotDeleteOnTheFirstTap() {
         // Es la unica accion de la app que no se puede deshacer desde la app: reponer un pack
         // son ~90 s por cable.
-        var borrado: String? = null
+        var deleted: String? = null
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
                 active = "en-def",
                 onActivar = {},
-                onBorrar = { borrado = it },
+                onBorrar = { deleted = it },
             )
         }
 
         compose.onNodeWithContentDescription("Borrar English").performClick()
         compose.waitForIdle()
-        assertEquals("no puede borrar al primer toque", null, borrado)
+        assertEquals("no puede borrar al primer toque", null, deleted)
 
         compose.onNodeWithText("Borrar", substring = false).performClick()
         compose.waitForIdle()
-        assertEquals("en-def", borrado)
+        assertEquals("en-def", deleted)
     }
 
     @Test
     fun cancellingTheConfirmationDeletesNothing() {
-        var borrado: String? = null
+        var deleted: String? = null
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
                 active = "en-def",
                 onActivar = {},
-                onBorrar = { borrado = it },
+                onBorrar = { deleted = it },
             )
         }
         compose.onNodeWithContentDescription("Borrar English").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Cancelar").performClick()
         compose.waitForIdle()
-        assertEquals(null, borrado)
+        assertEquals(null, deleted)
     }
 
     @Test
@@ -711,25 +711,25 @@ class ScreensTest {
     fun clearingTheHistoryAsksForConfirmationOnTheSameButton() {
         // Sin dialogo: el historial se rehace solo usando la app, asi que un segundo toque
         // alcanza. Lo que no puede pasar es que un toque suelto lo borre.
-        var borrado = 0
+        var deleted = 0
         compose.setContent {
             SettingsScreen(
                 packs = emptyList(),
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 onGestionarPacks = {},
                 onEscalaChange = {},
-                onLimpiarHistorial = { borrado++ },
+                onLimpiarHistorial = { deleted++ },
                 hayHistorial = true,
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Borrar el historial"))
         compose.onNodeWithText("Borrar el historial").performClick()
         compose.waitForIdle()
-        assertEquals("el primer toque no puede borrar", 0, borrado)
+        assertEquals("el primer toque no puede borrar", 0, deleted)
 
         compose.onNodeWithText("Confirmar").performClick()
         compose.waitForIdle()
-        assertEquals(1, borrado)
+        assertEquals(1, deleted)
     }
 
     @Test
