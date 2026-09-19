@@ -115,6 +115,13 @@ EN**, y **ninguna entrada usa las dos**.
   `SharedPreferences` no se tocaron a propósito: `KEY_PACK` sigue valiendo `"pack_activo"`, y
   renombrarlo habría borrado los ajustes y el historial de quien ya tiene la app.
 
+**Listo para el reloj, y sin subir.** `versionCode` pasó a **3** y `versionName` a **0.3.0**
+—estaba en 2, y el instalador de Android **rechaza un versionCode menor al instalado** (D-095)—.
+El APK de debug está construido (**52.202.566 B**) y los dos packs pasan `verify_pack.py`.
+⚠️ **El reloj no estuvo conectado en toda la sesión**: lo que hay en el emulador no es lo que hay
+en el reloj, y ahí siguen **los packs anteriores a D-116, que la app rechaza**. Subirlo es
+`:app:installDebug` más `devpack.py install` de los dos packs.
+
 **Qué quedó sin hacer.** De la **Fase C** se hicieron los pasos 1, 2 y 4, y la mitad del 3:
 **`app/src` no tiene un solo identificador ni un solo comentario en español**, y tampoco lo tienen
 `CLAUDE.md`, los tres `CLAUDE.md` de área, los seis skills ni `architecture`, `contratos-cruzados`,
@@ -123,9 +130,8 @@ prosa densa), **`docs/agents/`** (~200 KB, meta-documentos) y **el changelog** (
 plan deja explícitamente para el final y en un commit aparte). ⚠️ **`docs/roadmap.md` y
 `tools/CLAUDE.md` están bloqueados**: siguen modificados sin commitear por otra sesión, así que
 traducirlos enredaría su trabajo con el mío. Y del producto, lo barato y sin hacer: **confirmar los 234 dp dentro de la app** (una línea,
-y es la moneda de cinco decisiones: a 48 dp daría una cuarta fila, +33 % de resultados),
-**subir `versionCode` a 3** antes de la próxima instalación (está en 2 y el instalador rechaza un
-downgrade, D-095) y **ajustar los umbrales fuzzy** contra el pack real, que D-052 fijó a priori
+y es la moneda de cinco decisiones: a 48 dp daría una cuarta fila, +33 % de resultados) y
+**ajustar los umbrales fuzzy** contra el pack real, que D-052 fijó a priori
 sobre 22 entradas. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
 (*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
