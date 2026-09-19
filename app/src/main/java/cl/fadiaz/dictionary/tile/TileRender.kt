@@ -41,6 +41,15 @@ const val EXTRA_PACK_ID: String = "cl.fadiaz.dictionary.PACK_ID"
 const val EXTRA_ENTRY_ID: String = "cl.fadiaz.dictionary.ENTRY_ID"
 
 /**
+ * Clave del extra con el lema.
+ *
+ * Viaja **para poder corregir el `entryId`**, no para mostrarlo: el tile publica un id que salio
+ * de `SharedPreferences` y que un rebuild del pack deja apuntando a otra palabra (D-055). El
+ * lema es lo unico que sobrevive, y ya esta ahi al lado --el tile lo dibuja--.
+ */
+const val EXTRA_HEADWORD: String = "cl.fadiaz.dictionary.HEADWORD"
+
+/**
  * Abrir la app en la busqueda.
  *
  * Componente explicito y no un deep link con `<data>`: un scheme convertiria la ruta de una
@@ -67,6 +76,7 @@ private fun abrirLaEntrada(context: Context, visita: Visita): Clickable =
                 mapOf(
                     EXTRA_PACK_ID to ActionBuilders.stringExtra(visita.packId),
                     EXTRA_ENTRY_ID to ActionBuilders.longExtra(visita.entryId),
+                    EXTRA_HEADWORD to ActionBuilders.stringExtra(visita.headword),
                 ),
             ),
         )
