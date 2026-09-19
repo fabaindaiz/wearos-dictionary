@@ -277,7 +277,7 @@ class IngestTest(BuilderTestCase):
 
 
 class PacksDeclaradosTest(unittest.TestCase):
-    """Todo pack declara su politica de contenido, y el validador la comprueba (D-111).
+    """Todo pack declara su politica de contenido, y el validador la comprueba (D-116).
 
     La regla se enforcea desde Python y no desde `audit_dictionary.py` porque aca se puede
     **importar** `PACKS`; alla habria que leerlo con una regex sobre un dict, que se rompe sola
@@ -298,7 +298,7 @@ class PacksDeclaradosTest(unittest.TestCase):
 
 
 class SinonimosEnElIndiceTest(BuilderTestCase):
-    """Buscar un sinonimo tiene que encontrar la entrada (D-114).
+    """Buscar un sinonimo tiene que encontrar la entrada (D-118).
 
     Es media razon del cambio: sin esto los sinonimos solo se VEN al abrir una entrada que ya
     encontraste, que es justo cuando ya no los necesitas.
@@ -378,6 +378,27 @@ class PoliticaDeContenidoTest(BuilderTestCase):
         with contextlib.redirect_stdout(salida):
             codigo = verify_pack.verify(self.path)
         self.assertNotEqual(0, codigo, "50 % de nombres propios no es 'lexical-only'")
+        self.assertIn("proper_nouns", salida.getvalue())
+
+    def test_una_politica_desconocida_se_rechaza(self):
+        """Un typo en el valor no puede SALTEAR el check estructural en silencio.
+
+        El check se dispara con `politica in ("excluded", "lexical-only")`, asi que
+        `"lexical_only"` --guion bajo en vez de guion-- cae al mismo lado que `"included"`:
+        el pack pasa entero sin que nadie cuente un solo nombre propio. Es el peor modo de
+        falla del validador, porque el pack se declara podado y nadie lo comprueba.
+        """
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "lexical_only"
+        with build.PackBuilder(self.path, metadata) as builder:
+            for i in range(10):
+                builder.add(record("comun%03d" % i))
+            for i in range(10):
+                builder.add(record("Apellido%03d" % i, part_of_speech="name"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "un proper_nouns desconocido tiene que fallar")
         self.assertIn("proper_nouns", salida.getvalue())
 
     def test_un_pack_que_los_declara_no_se_rechaza(self):

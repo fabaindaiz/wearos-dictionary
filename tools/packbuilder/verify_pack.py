@@ -37,7 +37,7 @@ REQUIRED_META = (
     "payload_codec",
     "payload_dict",
     "payload_dict_sha256",
-    # Que politica de contenido se aplico (D-111). Va en REQUIRED_META y no solo en el codigo
+    # Que politica de contenido se aplico (D-116). Va en REQUIRED_META y no solo en el codigo
     # porque el pack tiene que poder explicarse solo: sin esta clave nadie sabe si a un pack le
     # faltan los nombres propios porque se decidio, o porque la fuente venia rota.
     "proper_nouns",
@@ -47,6 +47,12 @@ REQUIRED_META = (
     "source_url",
     "uid_recipe",
 )
+
+# Los tres valores que `meta.proper_nouns` puede tomar. Se listan aca --y no se infieren del
+# `if`-- porque el check estructural es OPCIONAL por diseño: "included" no comprueba nada, y sin
+# esta lista un typo como "lexical_only" es indistinguible de "included". O sea que el pack se
+# declara podado, el validador no cuenta un solo nombre propio, y sale verde.
+POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "included")
 
 REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 
@@ -131,6 +137,10 @@ def verify(path):
     # Los DOS vocabularios de `pos`: kaikki emite "name", sources/toy.py emite "proper noun".
     # Excluir uno solo deja pasar el otro, y ya paso una vez.
     politica = meta.get("proper_nouns")
+    report.check(
+        politica in POLITICAS_DE_NOMBRES_PROPIOS,
+        "meta.proper_nouns declara una politica conocida (%r)" % politica,
+    )
     if politica in ("excluded", "lexical-only"):
         propios = db.execute(
             "SELECT COUNT(*) FROM entry WHERE pos IN ('name', 'proper noun')"
