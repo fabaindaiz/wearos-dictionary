@@ -28,7 +28,7 @@ import hashlib
 import os
 import sys
 
-from sources import kaikki
+from sources import kaikki, oewn
 
 from build import PackBuilder
 
@@ -76,8 +76,33 @@ PACKS = {
         "source_url": "https://kaikki.org/dictionary/English/",
         "proper_nouns": "lexical-only",
     },
+    # SPIKE (D-120). Existe para medir, no es un pack de produccion: no esta en el catalogo y
+    # no se sube al reloj. Ver sources/oewn.py.
+    "en-core": {
+        "pack_id": "en-core-oewn",
+        "kind": "monolingual",
+        "name": "English — core (spike)",
+        # `lang_src` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
+        # igual al pack de kaikki es lo unico que deja comparable la identidad logica de las
+        # dos fuentes si algun dia se quieren cruzar.
+        "lang_src": "en",
+        "fuzzy_profile": "en",
+        "data_version": "20251231",
+        "license": "CC-BY-4.0",
+        "attribution": (
+            "Open English WordNet 2025 (en-word.net), CC BY 4.0. "
+            "Derived from Princeton WordNet 3.0."
+        ),
+        "source_url": "https://en-word.net/",
+        # La edicion estandar de OEWN 2025 no trae nombres propios: estan en Open English
+        # Namenet / la edicion 2025+. La fuente de referencia del dominio llego a D-116 sola.
+        "proper_nouns": "excluded",
+    },
 }
 
+# De que modulo sale cada pack. Dos lineas en vez de un build_spike_oewn.py aparte, que
+# duplicaria el manejo de --sample, de la metadata y de PackBuilder.
+READERS = {"es": kaikki, "en": kaikki, "en-core": oewn}
 
 
 def _keep(headword, sample):
@@ -112,7 +137,9 @@ def main(argv):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata) as builder:
-        for record in kaikki.records(source, lang, con_nombres):
+        reader = READERS[lang]
+        argumentos = (source, lang) if reader is oewn else (source, lang, con_nombres)
+        for record in reader.records(*argumentos):
             if _keep(record.headword, sample):
                 builder.add(record)
 
