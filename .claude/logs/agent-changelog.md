@@ -98,6 +98,101 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
   marcado en rojo en `app/CLAUDE.md`, pero confirmarlo dentro de la app sigue pendiente.
 - El catálogo de descarga de packs sigue siendo un WIP en pantalla.
 
+## 2026-09-19 — La superficie glanceable deja de ser el template, y ningún tile abre un pack
+
+**Qué.** Dos tiles de diccionario —últimas palabras y palabra del día— reemplazan al *"Hello,
+Tile!"* del template, y la complication del día de la semana **en inglés** se apaga. Cierra la
+mitad glanceable de D-087 y la fila abierta del período de refresco, que llevaba abierta desde
+que nació. D-106 a D-109.
+
+**Áreas.** `app/src/main/java/cl/fadiaz/dictionary/tile/` (cuatro archivos: `TileContenido.kt`
+puro, `TileRender.kt`, y los dos servicios; borrado `MainTileService.kt`),
+el paquete `complication` entero (borrado), `data/PackStore.kt`,
+`presentation/SearchViewModel.kt` y `MainActivity.kt`, `AndroidManifest.xml`, `strings.xml`,
+`tools/audit_dictionary.py`, `app/src/test/java/cl/fadiaz/dictionary/tile/TileContenidoTest.kt` y
+`app/src/androidTest/java/cl/fadiaz/dictionary/tile/TilesTest.kt` (nuevos), más `docs/` y el `verify` skill.
+
+**Por qué.** Pedido: planificar e implementar los dos tiles. La deuda estaba escrita **idéntica
+en cinco entradas de este changelog** sin avanzar nunca, lo que decía que faltaba la decisión de
+producto y no el trabajo.
+
+**Arquitectura.** ✅ Cumple. `TileContenido.kt` no toca Android y entra a la lista que vigila
+`check_app_logic_is_jvm_testable`, que ahora son **siete** archivos (D-072). Reusa `Visita` y su
+codec para las tres superficies, como ya hacían las guardadas (D-102).
+
+**Medido.**
+
+- **Ningún tile abre un pack, y no es una opinión de rendimiento.** Verificado en el
+  `tiles-1.6.2-sources.jar`: `onTileRequest` está anotado `@MainThread` y *"must complete after
+  at most 10 seconds"*. Afirmar que abrir 69 MB ahí es lento habría estado prohibido sin medir
+  (D-042); decir que está fuera del contrato, no.
+- **`setFreshnessIntervalMillis` es tiempo TRANSCURRIDO, no reloj de pared** — *"elapsed time
+  (not wall clock time)"*, además *"inexact"* y con throttling. Pedirle 24 h habría hecho que la
+  palabra del día se corriera unos minutos cada día. `TimeInterval` sí es epoch, así que la
+  palabra va en un `Timeline` de siete ventanas y el renderer cambia solo: **cero despertares**
+  contra los 24 diarios de la complication (D-107).
+- **La app y el tile eligen la misma palabra.** Con el pack real de 146.194 entradas, la caché
+  quedó escrita con siete lemas distintos y el día 0 es `sonarse`, que es exactamente lo que
+  muestra el inicio de la app en la misma captura. Es la comprobación que importaba.
+- **`tiles-testing:1.6.2` existe y arrastra Robolectric 4.16.1.** Se resolvió de verdad antes de
+  decidir. Se descartó: meter un runner nuevo en un gate de segundos cuesta más de lo que compra.
+  La cobertura quedó en `TileContenidoTest` (15, en el gate) y `TilesTest` (6, en dispositivo,
+  con un Context real y sin dependencia nueva).
+- **El gate pasa de 18 a 19 checks** y `:app` de **85 a 108 tests JVM**. Los dos enforcers nuevos
+  se probaron **fallando** —un tile mencionando `PackFile.`, y la política importando
+  `android.content.Context`— y después restaurados.
+- **Los 6 tests de layout corren en API 37**, el nivel del reloj del proyecto, que es donde
+  aplica `METADATA_GROUP_KEY`.
+
+**Qué salió mal.**
+
+- **Planifiqué media sesión contra una foto vieja del repo.** Mientras planeaba entraron 13
+  commits, y dos tiraban abajo la premisa: la palabra del día **ya existía** (D-097) y había
+  aparecido un reloj físico. Iba a construir un pool por `rank` guardado en `meta`, con un método
+  nuevo en `DictionarySource` — todo innecesario.
+- **Medí un sesgo que el repo ya había medido y corregido.** Encontré que el top-366 por `rank`
+  es 86,6 % verbos y lo presenté como hallazgo; D-097 ya lo tenía como *"28 días seguidos daban
+  28 verbos"*, resuelto rotando la categoría. Correcto y redundante.
+- **Dije que `ORDER BY rank LIMIT N` era un full scan de tabla; es del índice**, con temp
+  B-tree. Un subagente me corrigió a medias —dijo que era barato— y al medirlo resultó que la
+  parte mía que estaba bien era el costo: 8–16 ms en español y 40–148 ms en inglés, en
+  escritorio. Terminó sin importar, porque el algoritmo que ya existe no usa esa consulta.
+- **Escribí `sumarDias` sin test y lo cubrí después.** Es exactamente lo que este repo prohíbe.
+  El resto del archivo sí fue test primero, visto fallar.
+- **Un `report.ok()` que no existe** rompió el audit en la primera corrida del check nuevo.
+- **Cuarto golpe de la fricción de verificar a ojo en el emulador.** Gasté cinco intentos
+  buscando el carrusel de tiles —tap que no abre el picker, scroll que se pasa, long-press que
+  entra, y terminé en los ajustes rápidos— y **no llegué a ver un tile dibujado**. Paré ahí en
+  vez de seguir, que es lo que la fricción ya registrada recomienda.
+
+**Qué quedó sin hacer.**
+
+- **Ningún tile se vio nunca dibujado.** Está verificado que los dos quedan registrados
+  (`dumpsys`), que sus layouts se construyen sin tirar (6 tests en API 37) y que los datos llegan
+  —la caché escrita coincide con la app—, pero **nadie vio un tile en pantalla**. Es lo primero a
+  mirar cuando el reloj vuelva a la red. Queda escrito en `docs/roadmap.md` §Ver los dos tiles
+  funcionando en un reloj, junto con las otras tres cosas que cuelgan de eso.
+- **El `Timeline` de siete entradas es ASSUMPTION**: el javadoc no documenta un límite de
+  entradas, y que el renderer las honre sin truncar no se comprobó.
+- **Que el click abra la entrada correcta tampoco se comprobó en pantalla.** El extra se valida
+  contra los packs abiertos —caer al activo sería D-080 otra vez— pero eso está probado por
+  lectura, no por uso. Ojo además con `launchMode`: si la app está en background, el sistema
+  puede reusar la tarea y `onCreate` no volver a correr, y el extra se perdería. No se probó.
+- **Cuánto ahorra en batería no se midió**, y no se puede sin profiler en el reloj (O-4).
+- **Los 234 dp siguen sin confirmar dentro de la app**, cuarta sesión. El tile usa el tamaño que
+  le pasa `deviceConfiguration`, así que no depende del literal, pero `TilesTest` lo fija en 234
+  a mano.
+- **Un defecto que encontré y no toqué**, porque el arreglo es una decisión y no un parche: las
+  preferencias **se respaldan y se transfieren** —`data_extraction_rules.xml` sólo excluye
+  `packs/`— y guardan `entryId`, que según `schema.sql` *"NO sobrevive a reconstruir el pack"*.
+  Restaurar un backup, o simplemente reconstruir un pack, deja el historial y las hasta 100
+  guardadas apuntando a **otras palabras**, en silencio. Y `pack_activo` viaja a un reloj donde
+  ese `.db` no existe. **Los tiles no lo crean: lo ponen en la carátula del reloj.** Documentado
+  en `docs/roadmap.md` §El historial y las guardadas sobreviven a un backup, y abierto en
+  §Decisiones abiertas con las dos salidas y lo que cuesta cada una.
+
+---
+
 ## 2026-09-18 — El inicio, la palabra del día, y el primer APK que se distingue del anterior
 
 **Qué.** El APK deja de declarar `versionCode 1` del template (D-095). El inicio gana palabra del

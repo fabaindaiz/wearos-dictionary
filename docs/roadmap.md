@@ -69,8 +69,7 @@ falta espresso 3.7.0 y un dispositivo, porque la 3.5.0 que venía por transitivi
 input en API 37 (D-093).
 
 **Sin empezar.** **`SearchRepository` no existe**, así que la app abre **un** pack y la capa que
-fusiona varios está entera por escribir. El Tile y la Complication siguen siendo los del
-template. Los umbrales del nivel tolerante (D-052) **ya se pueden** ajustar contra el pack real;
+fusiona varios está entera por escribir. Los dos tiles ya son de diccionario y la complication se apagó (D-106 a D-109). Los umbrales del nivel tolerante (D-052) **ya se pueden** ajustar contra el pack real;
 siguen sin ajustarse.
 
 **El invariante central** —que el builder y la app calculen la misma clave— está sostenido por
@@ -223,7 +222,7 @@ de licencia. Capturas en la sesión del changelog.
 - **El APK debug pesa 50 MB** sin diccionarios adentro (D-071). El release son 35 MB, sin firmar
   y con R8 desactivado (O-2).
 - `SearchRepository` sigue sin existir: la app abre **un** pack, no fusiona varios.
-- El Tile y la Complication siguen siendo los del template.
+- ~~El Tile y la Complication del template.~~ **Hecho** (2026-09-19, D-106 a D-109).
 
 ### Tests de UI para las tres pantallas
 
@@ -276,8 +275,9 @@ Voz, lista de resultados, corona rotatoria, Tile, Complication.
 **Con qué choca.** Con D-026: la búsqueda vive dentro de la app porque los tiles no aceptan text
 input, así que la superficie glanceable necesita un propósito propio, no ser un atajo a lo mismo.
 
-**Qué hay que decidir antes.** Qué muestra el Tile: word of the day, últimas búsquedas, o
-shortcut. Son productos distintos.
+**Decidido el 2026-09-19.** Los dos: un tile de últimas palabras y uno de palabra del día
+(D-106). Ninguno abre un pack —`onTileRequest` es main thread con 10 s de tope— así que los dos
+leen lo que la app deja escrito en `SharedPreferences`.
 
 ### Pack de inglés
 
@@ -369,6 +369,64 @@ además cerró D-091: el botón de volver de una entrada tiene un solo destino p
 **Qué hay que decidir antes.** Qué contiene el menú de opciones más allá de esas tres; y si la
 palabra del día también va al Tile, que hoy sigue siendo el del template (D-087). Si va, la forma
 correcta según la guía es un `Timeline` con ventanas de validez y refresco ≥ 2 h, sin WorkManager.
+
+### El historial y las guardadas sobreviven a un backup, pero apuntan a otra palabra
+
+**Estado.** **Defecto abierto, encontrado el 2026-09-19** construyendo los tiles. No lo crean los
+tiles: lo ponen en la carátula del reloj, que es donde se vería.
+
+**Qué pasa.** `res/xml/data_extraction_rules.xml` excluye **sólo** `packs/`. Las preferencias
+viven en `domain="sharedpref"`, que no está excluido, así que `historial`, `favoritos` y
+`pack_activo` **sí se respaldan y sí se transfieren** a un reloj nuevo. Y `Visita` guarda
+`entryId`, que es la identidad **física**: `schema.sql` lo dice textual, *"`id` … **NO sobrevive
+a reconstruir el pack**: una palabra nueva en el medio corre todos los ids siguientes"*.
+
+**El síntoma.** Restaurar un backup —o simplemente reconstruir el pack, que es un flujo normal
+con `devpack.py`— deja las tres últimas palabras abiertas y las **hasta 100 guardadas** apuntando
+a **otras entradas**, sin un error. Es exactamente la clase de fallo que D-055 y `entry.uid`
+existen para prevenir, entrando por la puerta de atrás: `uid` **sí** sobrevive al rebuild.
+
+**Con qué choca.** Con D-102, que decidió reusar `Visita` y su codec para las guardadas: cambiar
+el campo toca las tres superficies y su formato en disco, que ya tiene datos de usuarios.
+
+**Qué hay que decidir antes.** Cuál de los dos arreglos, y no son equivalentes:
+
+- **Excluir las preferencias del backup** es **una línea de XML**, y el costo es que un reloj
+  nuevo empieza sin historial ni guardadas — que para 3 entradas es ruido y para 100 no.
+- **Guardar `uid` junto a `entryId` y resolver por `uid`** conserva los datos entre relojes y
+  entre rebuilds, pero cuesta un campo nuevo en el codec, una migración del formato en disco, y
+  `uid` **no tiene índice** en el pack a propósito (D-056), así que resolver por él tiene un costo
+  de consulta que no está medido.
+
+**Aparte, y más chico:** `pack_activo` también viaja, a un reloj donde ese `.db` no existe.
+`elegirActivo` ya cae al idioma del reloj si el preferido no está abierto, así que degrada bien,
+pero está sin comprobar.
+
+### Ver los dos tiles funcionando en un reloj
+
+**Estado.** **Construido y sin ver** (2026-09-19). Es lo primero a mirar cuando el reloj vuelva a
+la red.
+
+**Qué está verificado.** Que los dos quedan registrados (`dumpsys`), que sus layouts se
+construyen sin tirar —6 tests instrumentados en API 37— y que los datos llegan: con el pack real,
+la caché quedó escrita y su día 0 coincide con la palabra que muestra el inicio de la app.
+
+**Qué NO.** **Nadie vio un tile dibujado.** Se perdieron cinco intentos buscando el carrusel en el
+emulador y se paró ahí, que es lo que recomienda la fricción ya registrada más abajo. Quedan tres
+cosas colgando de eso:
+
+- **El `Timeline` de siete ventanas es ASSUMPTION.** El javadoc no documenta un límite de
+  entradas; que el renderer las honre sin truncar no se comprobó. Si truncara, la palabra dejaría
+  de cambiar a los pocos días — en silencio.
+- **Que tocar una fila abra la entrada correcta.** El extra se valida contra los packs abiertos
+  —caer al activo sería D-080 otra vez— pero está probado por lectura, no por uso.
+- **`launchMode`.** Con el default y `taskAffinity=""`, si la app ya está en background el sistema
+  puede reusar la tarea y **no** volver a llamar `onCreate`, perdiendo el extra. El arreglo
+  canónico es `singleTask` + `onNewIntent`, pero eso toca el back stack de
+  `SwipeDismissableNavHost`. Hay que probarlo antes de cambiarlo.
+
+**Y lo que no se puede cerrar sin profiler:** cuánto ahorra en batería pasar de 24 despertares
+diarios a cero. Sigue siendo O-4.
 
 ### Instalador de packs: descargar e instalar un idioma
 
@@ -557,15 +615,18 @@ Historian: la documentación oficial dice que ya no se mantiene.
 Los tres consumidores reales, en orden:
 
 1. **La descarga del pack.** Mitigado por D-029 (cargando + Wi-Fi), pero sin medir.
-2. **La superficie glanceable.** La guía oficial pide *"disable automatic refresh, or increase the
-   refresh rate to 2 hours or longer"*. El manifest tiene hoy `UPDATE_PERIOD_SECONDS = 3600`
-   (una hora), **heredado del template y por debajo de lo recomendado**.
+2. ~~**La superficie glanceable.**~~ **Cerrado el 2026-09-19.** La complication se apagó —que es
+   la primera opción que nombra la guía, *"disable automatic refresh"*— y con ella los 24
+   despertares diarios. Los dos tiles nuevos no programan refrescos: el de historial va con
+   `freshnessIntervalMillis = 0` (el sistema no lo llama) y se empuja desde la app; el de palabra
+   del día emite un `Timeline` de siete ventanas de reloj de pared y el renderer cambia solo
+   (D-107). **Lo que sigue sin medirse es cuánto ahorra eso en batería**, porque O-4 sigue sin
+   una sola medición en el reloj.
 3. **La pantalla durante la búsqueda.** El `debounce` de 120 ms y la cancelación con `mapLatest`
    ya están diseñados para no trabajar de más, pero nunca se midieron en un reloj.
 
-**Qué hay que decidir antes.** Qué hace el Tile. Un tile que muestra "palabra del día" puede
-actualizarse una vez al día; uno de "últimas búsquedas" no necesita refresco programado en
-absoluto, porque cambia cuando el usuario usa la app.
+**Qué hay que decidir antes.** Nada de la superficie glanceable: ya está decidida. Lo que falta
+es el reloj y un profiler.
 
 ### O-5. Animaciones y trabajo en el hilo de UI
 

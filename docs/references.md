@@ -46,6 +46,44 @@ Si una de esas entradas va a sostener una decisión, leé la fuente antes.
 
   Produjo: D-029.
 
+- **API de Tiles: [overview](https://developer.android.com/training/wearables/tiles),
+  [periodic updates](https://developer.android.com/training/wearables/tiles/update) y el
+  `tiles-1.6.2-sources.jar` / `protolayout-1.4.2-sources.jar`** — *(fuente primaria, leída —
+  la página y el javadoc del artefacto)*
+
+  **Qué confirma:** que un tile no debe abrir un pack. No es una intuición de rendimiento
+  —afirmarla sin medir estaría prohibida (D-042)— sino el contrato: `onTileRequest` está
+  anotado `@MainThread` y *"must complete after at most 10 seconds"*. La prosa lo repite:
+  *"Don't fetch content frequently or start long-running asynchronous work in your tile
+  service"*, y recomienda *"cache or store the results in local storage"*.
+
+  **Qué corrige de la intuición, y cambió el diseño:** `setFreshnessIntervalMillis` **no es
+  reloj de pared**. Verbatim: *"how many milliseconds of **elapsed time (not wall clock
+  time)**"*, además *"inexact"* y con throttling. Pedirle 24 h para una "palabra del día" la
+  haría derivar unos minutos por día. Lo que sí es reloj de pared es `TimelineBuilders.
+  TimeInterval`: *"in milliseconds since the Unix epoch"*. De ahí D-107.
+
+  **Lo que hay que saber antes de tocar el manifest:** `METADATA_GROUP_KEY`
+  (`androidx.wear.tiles.GROUP`) — *"tile providers in the same group represent the same tile on
+  the device"*, y el default es el nombre completo de la clase. Declararlo fundiría dos tiles en
+  uno. Sólo aplica en **API 37+**, que es el nivel del reloj del proyecto.
+
+  **También verificado en el artefacto:** `freshnessIntervalMillis = 0` significa *"that
+  auto-refreshes should not be used"*, y `ActionBuilders.launchAction(ComponentName, Map<String,
+  AndroidExtra>)` existe con `AndroidLongExtra`, así que un `entryId` viaja tipado.
+
+  **Lo que NO se pudo verificar:** si el renderer real honra un `Timeline` de siete entradas sin
+  truncarlo. El javadoc no documenta un límite. **ASSUMPTION** hasta verlo en el reloj.
+
+  Produjo: D-106, D-107, D-108, D-109.
+
+- **`androidx.wear.tiles:tiles-testing:1.6.2`** — *(resuelto y medido, no adoptado)*
+
+  Existe, y **arrastra Robolectric 4.16.1**. Meter un runner nuevo en un gate de segundos es un
+  cambio mucho más grande que lo que compra, así que se descartó: la decisión de los tiles se
+  prueba en la JVM (`TileContenidoTest`) y que el layout se construya, en dispositivo
+  (`TilesTest`), con un Context de verdad y sin dependencia nueva.
+
 - **`android:allowBackup` deprecado desde Android 12** — **ASSUMPTION**, de resumen citando la
   documentación oficial de cambios de comportamiento.
 
