@@ -65,14 +65,23 @@ MAX_EXAMPLES_PER_SENSE = 1
 # linea; el quinto ya obliga a scrollear para leer algo que es una ayuda, no la definicion.
 MAX_SYNONYMS_PER_SENSE = 4
 
-# De que idiomas se extraen sinonimos, y **es una lista corta a proposito** (D-117).
+# LA FUENTE DECIDE DE DONDE SALEN LOS SINONIMOS, NO UNA LISTA DE IDIOMAS.
 #
-# Medido sobre los dumps: en español el 100 % de los `synonyms` traen `sense_index`, que es lo
-# que permite colgarlos de SU acepcion. En ingles **0 de 43.679** lo traen --traen `_dis1`, un
-# vector de pesos, y `source: "Thesaurus:*"`-- y ademas el ruido es estructural: "cat" figura
-# como sinonimo de "cat". Sin esta puerta, la implementacion natural es agnostica del idioma y
-# el pack ingles se lleva 43.679 items que no se pueden atribuir a nada.
-IDIOMAS_CON_SINONIMOS = {"es"}
+# Habia una lista --`IDIOMAS_CON_SINONIMOS = {"es"}`-- y estaba justificada por una medicion
+# incompleta: se miro solo la forma de ARRIBA, `raw["synonyms"]`, donde el ingles trae 0 items
+# con `sense_index` y por lo tanto nada atribuible. Pero el ingles sirve los suyos en otra
+# forma, **anidados dentro de cada acepcion**, donde la atribucion es estructural y no hace
+# falta declararla. Medido sobre 120.000 registros vivos de cada dump:
+#
+#     forma                          español   ingles
+#     `synonyms` arriba               16,5 %    5,6 %
+#     `synonyms` dentro de `senses`    0,0 %   25,8 %
+#     las dos a la vez                 0,0 %    0,0 %
+#
+# Cada dump usa **una sola forma, y no la misma**, asi que no hay precedencia que decidir. Y la
+# lista sobra: `_synonyms_by_index` ya descarta lo que no trae `sense_index`, asi que la forma
+# de arriba del ingles se cae sola. Un default que se sostiene por lo que la fuente trae es mas
+# dificil de dejar desactualizado que uno que se sostiene por una constante.
 
 # Umbral de la excepcion a la poda de nombres propios (D-116).
 #
@@ -192,9 +201,33 @@ def _synonyms_by_index(raw, headword):
     return out
 
 
-def _senses(raw, con_sinonimos):
+def _nested_synonyms(sense, headword):
+    """Los sinonimos que vienen DENTRO de la acepcion. La forma del dump ingles.
+
+    No se pide `sense_index` y no es un descuido: aca la atribucion es estructural --el item ya
+    vive en su acepcion-- mientras que en la forma de arriba es declarada. Exigirlo tiraria los
+    338.200 items del dump ingles por no traer un dato que no necesitan.
+
+    **El orden del dump se respeta.** El 74,5 % traen `source: "Thesaurus:*"` y van primero, asi
+    que parecia que el tope de 4 se quedaria con lo oscuro; medido, reordenar cambia 91 de 4.872
+    acepciones mezcladas (1,9 %) y en la muestra el resultado es PEOR: `craft` pasa de
+    `ability, aptitude` a `craftiness, foxiness`.
+    """
+    out, vistos = [], set()
+    for item in sense.get("synonyms") or []:
+        word = (item.get("word") or "").strip()
+        # Igual que en _forms() y en la forma de arriba: el sinonimo igual al lema no aporta
+        # nada. Medido: 1,9 % de los items ingleses.
+        if not word or word == headword or word in vistos:
+            continue
+        vistos.add(word)
+        out.append(word)
+    return out
+
+
+def _senses(raw):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
-    synonyms = _synonyms_by_index(raw, raw.get("word", "")) if con_sinonimos else {}
+    synonyms = _synonyms_by_index(raw, raw.get("word", ""))
     out = []
     for sense in raw.get("senses") or []:
         if _is_form_of(sense):
@@ -208,10 +241,14 @@ def _senses(raw, con_sinonimos):
             if text:
                 examples.append(text)
         index = (sense.get("sense_index") or "").strip()
+        # Las dos formas en que la fuente sirve sinonimos. Ningun dump usa las dos, asi que esto
+        # no es una precedencia sino una union: la que este vacia no aporta nada.
+        del_indice = synonyms.get(index, [])
+        anidados = _nested_synonyms(sense, raw.get("word", ""))
         out.append({
             "gloss": gloss,
             "examples": examples,
-            "synonyms": synonyms.get(index, [])[:MAX_SYNONYMS_PER_SENSE],
+            "synonyms": (del_indice or anidados)[:MAX_SYNONYMS_PER_SENSE],
         })
     return out
 
@@ -262,7 +299,7 @@ def _sense_key(raw, index, needs_key):
     return "%s#%d" % (title, index) if index else title or "#0"
 
 
-def _emit(group, inbound, perfil, con_nombres, con_sinonimos):
+def _emit(group, inbound, perfil, con_nombres):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
@@ -272,7 +309,7 @@ def _emit(group, inbound, perfil, con_nombres, con_sinonimos):
             and _senal_lexica(raw) < SENAL_LEXICA_MINIMA
         ):
             continue
-        senses = _senses(raw, con_sinonimos)
+        senses = _senses(raw)
         if not senses:
             continue
         prepared.append((raw, senses))
@@ -346,7 +383,6 @@ def records(path, lang="es", con_nombres=False):
     numeros, y porque volver a medirlos contra un dump nuevo tiene que seguir siendo barato.
     """
     perfil = PERFILES[lang]
-    con_sinonimos = lang in IDIOMAS_CON_SINONIMOS
     inbound = _inbound_forms(path)
     group = []
     current = None
@@ -359,10 +395,10 @@ def records(path, lang="es", con_nombres=False):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, con_nombres, con_sinonimos):
+                for record in _emit(group, inbound, perfil, con_nombres):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound, perfil, con_nombres, con_sinonimos):
+    for record in _emit(group, inbound, perfil, con_nombres):
         yield record
