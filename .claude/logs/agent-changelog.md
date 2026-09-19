@@ -115,6 +115,25 @@ EN**, y **ninguna entrada usa las dos**.
   `SharedPreferences` no se tocaron a propósito: `KEY_PACK` sigue valiendo `"pack_activo"`, y
   renombrarlo habría borrado los ajustes y el historial de quien ya tiene la app.
 
+**Subido al reloj, y ahí aparecieron dos cosas.** APK 0.3.0 instalado (28 s), pack español
+(23 s) e inglés (**91,6 s para 258,5 MiB ≈ 2,8 MB/s**, contra los 3 min 38 s medidos antes sobre
+309 MB). Los dos con sha256 verificado de los dos lados. Sin un solo rechazo ni crash, y los
+**sinónimos se ven en el reloj**: *cooptar* muestra `sin. elegir · seleccionar · nominar · votar`.
+
+✅ **Los 234 dp quedan CONFIRMADOS, y sin escribir una línea de código.** Faltaba verificarlo
+*dentro* de la app porque `wm density` es la densidad física; se resolvió preguntándole al
+sistema qué configuración entrega: **`sw234dp w234dp h234dp 340dpi`**, con los bounds de la
+Activity en los 498×498 completos. Eso es lo que devuelve `LocalConfiguration.screenWidthDp`.
+Cierra el 🔴 que pesaba sobre **cinco decisiones** (D-073, D-075, D-078, D-084, D-085): hay
+**22 % más pantalla**, y a 48 dp eso es una **cuarta fila, +33 % de resultados**. La medición está;
+el rediseño no.
+
+⚠️ **Y una lectura mía que estuvo mal.** En la primera captura del reloj el subtítulo de la
+palabra del día se veía `pañol · definicion` y lo di por un recorte que mi propio cambio (D-125)
+habría reintroducido. **No lo era**: es el efecto de transformación del `TransformingLazyColumn`
+en el borde de la pantalla. Quieto entra completo. Mirar una captura en movimiento y concluir es
+el mismo error que este repo persigue en otros lados.
+
 **Listo para el reloj, y sin subir.** `versionCode` pasó a **3** y `versionName` a **0.3.0**
 —estaba en 2, y el instalador de Android **rechaza un versionCode menor al instalado** (D-095)—.
 El APK de debug está construido (**52.202.566 B**) y los dos packs pasan `verify_pack.py`.
@@ -129,8 +148,8 @@ en el reloj, y ahí siguen **los packs anteriores a D-116, que la app rechaza**.
 prosa densa), **`docs/agents/`** (~200 KB, meta-documentos) y **el changelog** (120 KB, que el
 plan deja explícitamente para el final y en un commit aparte). ⚠️ **`docs/roadmap.md` y
 `tools/CLAUDE.md` están bloqueados**: siguen modificados sin commitear por otra sesión, así que
-traducirlos enredaría su trabajo con el mío. Y del producto, lo barato y sin hacer: **confirmar los 234 dp dentro de la app** (una línea,
-y es la moneda de cinco decisiones: a 48 dp daría una cuarta fila, +33 % de resultados) y
+traducirlos enredaría su trabajo con el mío. Y del producto, lo barato y sin hacer: **revisar las cinco decisiones que se cotizaron contra
+192 dp**, ahora que los 234 están confirmados —empezando por si entra una cuarta fila— y
 **ajustar los umbrales fuzzy** contra el pack real, que D-052 fijó a priori
 sobre 22 entradas. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
