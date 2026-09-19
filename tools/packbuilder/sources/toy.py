@@ -142,6 +142,10 @@ METADATA = {
     "license": "CC0-1.0",
     "attribution": "Datos de prueba escritos a mano para los tests; no es un diccionario real.",
     "source_url": "https://example.invalid/toy",
+    # El toy CONSERVA nombres propios a proposito, al reves que los packs reales (D-111): es el
+    # unico fixture vivo de esa rama, y lo que sostiene el test de que los dos vocabularios de
+    # `pos` --el "name" de kaikki y el "proper noun" de aca-- se filtran los dos.
+    "proper_nouns": "included",
 }
 
 

@@ -211,17 +211,94 @@ class IdiomaTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             list(kaikki.records(path, lang="klingon"))
 
-    def test_sin_nombres_descarta_los_nombres_propios(self):
-        # No es una opcion de producto: existe para poder medir cuanto pesan.
+    def test_por_defecto_no_salen_los_nombres_propios(self):
+        # D-111: apellidos y toponimos no entran a un diccionario de muñeca. El default vive
+        # ACA, en la libreria, no en el flag de la CLI: cualquier llamador nuevo lo hereda.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
         )
         self.paths.append(path)
-        con = [r.headword for r in kaikki.records(path, lang="en")]
-        sin = [r.headword for r in kaikki.records(path, lang="en", sin_nombres=True)]
-        self.assertEqual(["London", "run"], sorted(con))
-        self.assertEqual(["run"], sin)
+        got = [r.headword for r in kaikki.records(path, lang="en")]
+        self.assertEqual(["run"], got)
+
+    def test_un_nombre_propio_con_senal_lexica_se_conserva(self):
+        """"January" no es "Ivanivka", y la fuente lo puede distinguir sin mirar el texto.
+
+        Medido: January tiene 69 entre traducciones, descendientes y derivados; February 50;
+        Paris 172; Moscow 330. Un apellido (Hopewell) y una aldea (Ivanivka) tienen 0. La
+        señal es estructural --son campos de wiktextract-- asi que la poda sigue sin depender
+        del idioma (D-076).
+        """
+        path = _jsonl(_raw("January", "name", [_sense("The first month of the year.")],
+                           descendants=[{"word": "w%d" % i} for i in range(6)]))
+        self.paths.append(path)
+        got = [r.headword for r in kaikki.records(path, lang="en")]
+        self.assertEqual(["January"], got)
+
+    def test_un_nombre_propio_sin_senal_lexica_se_va_igual(self):
+        # 163.470 de estos en ingles, 32.305 en español. Son el 99 % de los nombres propios.
+        path = _jsonl(
+            _raw("Ivanivka", "name", [_sense("A village in Cherkasy Oblast, Ukraine.")]),
+            _raw("Hopewell", "name", [_sense("A surname.")], derived=[{"word": "uno"}]),
+        )
+        self.paths.append(path)
+        self.assertEqual([], [r.headword for r in kaikki.records(path, lang="en")])
+
+    def test_con_nombres_los_trae_de_vuelta(self):
+        # La medicion sigue siendo posible: es lo que produjo el numero de D-111.
+        path = _jsonl(
+            _raw("London", "name", [_sense("The capital of England.")]),
+            _raw("run", "verb", [_sense("To move at a fast pace.")]),
+        )
+        self.paths.append(path)
+        got = [r.headword for r in kaikki.records(path, lang="en", con_nombres=True)]
+        self.assertEqual(["London", "run"], sorted(got))
+
+
+class MarkupEditorialTest(unittest.TestCase):
+    """Las etiquetas de mantenimiento del wiki no son parte de la definicion (D-121).
+
+    wiktextract las deja incrustadas en `glosses` y no hay version limpia: `raw_glosses` es
+    None en todos los casos medidos. En un reloj, "Pene.^([cita requerida])" gasta media
+    pantalla en decirle al lector que un editor del Wikcionario queria una fuente.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _gloss(self, texto, lang="es"):
+        path = _jsonl(_raw("x", "noun", [_sense(texto)]))
+        self.paths.append(path)
+        return next(iter(kaikki.records(path, lang=lang))).senses[0]["gloss"]
+
+    def test_se_saca_la_etiqueta_de_cita_requerida(self):
+        # 671 casos en el dump español.
+        self.assertEqual("Pene.", self._gloss("Pene.^([cita requerida])"))
+
+    def test_se_saca_la_de_definicion_imprecisa(self):
+        # 103 casos.
+        self.assertEqual(
+            "Cierta tela usada antiguamente.",
+            self._gloss("Cierta tela usada antiguamente.^([definición imprecisa])"),
+        )
+
+    def test_el_punto_que_queda_colgando_no_duplica(self):
+        # "...los labios.^([cita requerida])." termina en DOS puntos si solo se borra el tag.
+        self.assertEqual("Lamer con la boca.", self._gloss("Lamer con la boca.^([cita requerida])."))
+
+    def test_la_notacion_matematica_NO_se_toca(self):
+        """El filtro es la forma con CORCHETES, y esto es por que.
+
+        En ingles `^(...)` es superindice matematico: 10^(100), 2^(2/r), e^(iπ). Un filtro
+        sobre `^(...)` a secas destruiria contenido real en vez de limpiarlo.
+        """
+        self.assertEqual("A number, 10^(100).", self._gloss("A number, 10^(100).", lang="en"))
+        self.assertEqual("Equal to e^(iπ).", self._gloss("Equal to e^(iπ).", lang="en"))
 
 
 class RankTest(unittest.TestCase):
