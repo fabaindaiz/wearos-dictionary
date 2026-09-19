@@ -37,19 +37,23 @@ Those tests do not build a `DictionarySource`: the screens are functions of the 
 state is built by hand. If a screen ever needs a fake, that is a sign logic crept into it that
 belongs in the ViewModel.
 
-## The budget is 192 dp — and it may be wrong
+## The budget was 192 dp — and the watch is 234
 
-The screen is 384×384 px at 320 dpi, that is **192×192 dp**, and the Wear OS guidance asks for a
-48 dp minimum touch area. That gives **three rows and nothing more**, measured. Every dp the
-chrome spends is a result the user does not see, and that is where D-073 (one-line list, 48 dp)
-and D-075 (the text input collapses when there are results) come from.
+The 192 dp figure comes from a 384×384 px screen at 320 dpi, and the Wear OS guidance asks for a
+48 dp minimum touch area. That gave **three rows and nothing more**, measured, and it is where
+D-073 (one-line list, 48 dp) and D-075 (the text input collapses when there are results) come
+from.
 
-🔴 **But the project's watch measures 234 dp**, not 192: `wm size` gives 498×498 px and
-`wm density` gives 340. That is **22 % more screen** and 192 dp is the currency five decisions were
-justified in. It still has to be confirmed **inside the app** with
-`LocalConfiguration.screenWidthDp`, because `wm density` is the physical density and Compose may
-see another. Until then, any architecture that spends dp is priced against 192 and the doubt gets
-written down.
+✅ **The project's watch is 234 dp, confirmed on device (2026-09-19).** `wm size` gives 498×498 px
+and `wm density` gives 340, and —this is the part that was missing— **the system reports the
+configuration the app actually receives as `sw234dp w234dp h234dp 340dpi`**, with the Activity's
+bounds at the full 498×498, so no reduced window is in play. That is the number
+`LocalConfiguration.screenWidthDp` returns.
+
+**It is 22 % more screen than the currency five decisions were priced in** (D-073, D-075, D-078,
+D-084, D-085). At 48 dp of touch area that is room for a **fourth row**, which is 33 % more
+results. None of those five has been revisited yet: the measurement is in, the redesign is not.
+`ScreensTest.threeResultsFitWithoutScrolling` still measures against whatever device runs it.
 
 If somebody drops below 48 dp to squeeze in a fourth row, the density test **still passes** and
 what breaks is the touch area. That is why the minimum lives in a named constant.
