@@ -43,7 +43,7 @@ class TilesTest {
     @Test
     fun aFullHistoryRenders() {
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(visit("perro"), visit("gato", 2), visit("sol", 3)))
+            historyRows(context, listOf(visit("perro"), visit("gato", 2), visit("sol", 3)))
         }
         assertNotNull(layout)
     }
@@ -51,7 +51,7 @@ class TilesTest {
     @Test
     fun aSingleRowHistoryRenders() {
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(visit("perro")))
+            historyRows(context, listOf(visit("perro")))
         }
         assertNotNull(layout)
     }
@@ -59,7 +59,7 @@ class TilesTest {
     @Test
     fun theWordOfTheDayRenders() {
         val layout = materialScope(context, dispositivo) {
-            tarjetaDePalabra(context, visit("corriente"), "sustantivo")
+            wordCard(context, visit("corriente"), "sustantivo")
         }
         assertNotNull(layout)
     }
@@ -68,7 +68,7 @@ class TilesTest {
     fun aWordWithoutAPartOfSpeechRenders() {
         // `partOfSpeech` es nullable en Visita y el pack real trae entradas sin pos.
         val layout = materialScope(context, dispositivo) {
-            tarjetaDePalabra(context, visit("corriente"), null)
+            wordCard(context, visit("corriente"), null)
         }
         assertNotNull(layout)
     }
@@ -77,7 +77,7 @@ class TilesTest {
     fun theEmptyStateRenders() {
         // El caso mas probable de todos: app recien instalada. Un tile en blanco en el carrusel
         // no se lee como "vacio" sino como "roto".
-        val layout = materialScope(context, dispositivo) { tileVacio(context, "Buscá una palabra") }
+        val layout = materialScope(context, dispositivo) { emptyTile(context, "Buscá una palabra") }
         assertNotNull(layout)
     }
 
@@ -86,7 +86,7 @@ class TilesTest {
         // Los lemas salen del Wikcionario y hay refranes enteros como lema.
         val length = visit("mas corre el galgo que el mastin pero no en cuesta arriba")
         val layout = materialScope(context, dispositivo) {
-            filasDeHistorial(context, listOf(length, length, length))
+            historyRows(context, listOf(length, length, length))
         }
         assertNotNull(layout)
     }

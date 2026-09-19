@@ -88,21 +88,21 @@ private fun openTheEntry(context: Context, visit: Visit): Clickable =
  * **Nunca un tile en blanco**: en el carrusel no se lee como "vacio" sino como "roto". Y ademas
  * tiene que ser tocable, porque abrir la app es la unica forma de que deje de estar vacio.
  */
-internal fun MaterialScope.tileVacio(context: Context, mensaje: String): LayoutElement =
+internal fun MaterialScope.emptyTile(context: Context, message: String): LayoutElement =
     primaryLayout(
         onClick = openTheApp(context),
-        mainSlot = { text(mensaje.layoutString, typography = Typography.BODY_LARGE) },
+        mainSlot = { text(message.layoutString, typography = Typography.BODY_LARGE) },
     )
 
 /** Las ultimas entradas abiertas, una por fila, cada una abriendo su propia entrada. */
-internal fun MaterialScope.filasDeHistorial(
+internal fun MaterialScope.historyRows(
     context: Context,
     visits: List<Visit>,
 ): LayoutElement =
     primaryLayout(
         titleSlot = {
             text(
-                context.getString(R.string.tile_historial_titulo).layoutString,
+                context.getString(R.string.tile_history_title).layoutString,
                 typography = Typography.LABEL_SMALL,
             )
         },
@@ -122,7 +122,7 @@ internal fun MaterialScope.filasDeHistorial(
     )
 
 /** La palabra de hoy: el lema grande y su categoria debajo. */
-internal fun MaterialScope.tarjetaDePalabra(
+internal fun MaterialScope.wordCard(
     context: Context,
     visit: Visit,
     categoria: String?,
@@ -130,7 +130,7 @@ internal fun MaterialScope.tarjetaDePalabra(
     primaryLayout(
         titleSlot = {
             text(
-                context.getString(R.string.tile_palabra_titulo).layoutString,
+                context.getString(R.string.tile_word_title).layoutString,
                 typography = Typography.LABEL_SMALL,
             )
         },
