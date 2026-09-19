@@ -73,6 +73,13 @@ EN**, y **ninguna entrada usa las dos**.
 - **El shell de este entorno es zsh, no fish.** Una lista de archivos en una variable **no** hace
   word-splitting: el primer `sed` recibió los 12 paths como un solo nombre y no tocó nada. Pasar
   los archivos literalmente.
+- **La traducción de comentarios se hizo con un verificador, y se lo ganó.** Cada archivo se
+  compara contra `HEAD` quitando **todos** los comentarios de las dos versiones: si el código
+  restante no es idéntico, se rechaza. Sin eso, `Visit.kt` define el separador del historial como
+  el literal **U+001F, que es invisible**, y reescribir el archivo a mano lo habría convertido en
+  cadena vacía —rompiendo el formato del historial en silencio—. El verificador además cazó un
+  bloque que aparecía **dos veces idéntico**, donde un reemplazo a ciegas habría dejado uno en
+  español.
 - **El renombrado masivo tuvo dos trampas que ningún test veía.** La interpolación **sin llaves**
   (`"$CLAVE_ESCALA=…"`) no es string, es código: el renombrador la dejó con el nombre viejo y lo
   agarró el compilador. Y **`AndroidManifest.xml` seguía declarando `.tile.HistorialTileService` y
@@ -82,9 +89,11 @@ EN**, y **ninguna entrada usa las dos**.
   `SharedPreferences` no se tocaron a propósito: `KEY_PACK` sigue valiendo `"pack_activo"`, y
   renombrarlo habría borrado los ajustes y el historial de quien ya tiene la app.
 
-**Qué quedó sin hacer.** De la **Fase C** se hizo el paso 1 (identificadores y archivos de
-`:app`); quedan los **comentarios y KDoc de `:app`**, `docs/`, los `CLAUDE.md` y el changelog —o
-sea traducción de prosa, que no es mecánica—. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
+**Qué quedó sin hacer.** De la **Fase C** se hicieron los pasos 1 y 2: **`app/src` no tiene un
+solo identificador ni un solo comentario en español**. Quedan `docs/` (5.793 líneas), los
+`CLAUDE.md` y los skills (1.113) y el changelog. ⚠️ **`docs/roadmap.md` está bloqueado**: sigue
+modificado sin commitear por otra sesión, así que traducirlo enredaría su trabajo con el mío.
+Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
 (*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
 conectado**: todo lo de dispositivo se verificó en el emulador, así que el tamaño real en 234 dp
