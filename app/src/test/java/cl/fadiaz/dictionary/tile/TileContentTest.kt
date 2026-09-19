@@ -20,25 +20,25 @@ class TileContentTest {
     // ----------------------------------------------------------------- historial
 
     @Test
-    fun sinHistorialNoHayNadaQueMostrar() {
+    fun withNoHistoryThereIsNothingToShow() {
         assertEquals(TileContent.Empty, TileContents.history(emptyList()))
     }
 
     @Test
-    fun conUnaSolaVisitaSeMuestraEsa() {
+    fun withASingleVisitThatOneIsShown() {
         val una = listOf(visit("perro"))
         assertEquals(TileContent.ListRows(una), TileContents.history(una))
     }
 
     @Test
-    fun noSeMuestranMasFilasDeLasQueEntran() {
+    fun noMoreRowsAreShownThanFit() {
         val muchas = (1L..6L).map { visit("lema$it", it) }
         val content = TileContents.history(muchas, max = 3)
         assertEquals(TileContent.ListRows(muchas.take(3)), content)
     }
 
     @Test
-    fun elOrdenDelHistorialSeRespeta() {
+    fun theHistoryOrderIsKept() {
         // El move-to-front ya lo aplico el ViewModel al guardar: el tile no reordena nada, y si
         // lo hiciera la fila de arriba dejaria de ser la ultima palabra abierta.
         val orden = listOf(visit("tres", 3), visit("dos", 2), visit("uno", 1))
@@ -53,26 +53,26 @@ class TileContentTest {
     )
 
     @Test
-    fun elPrimerDiaDeLaCacheEsLaPrimeraPalabra() {
+    fun theFirstCachedDayIsTheFirstWord() {
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-19")
         assertEquals(TileContent.Word(week[0]), content)
     }
 
     @Test
-    fun cadaDiaCorreUnaPosicion() {
+    fun eachDayShiftsByOnePosition() {
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-21")
         assertEquals(TileContent.Word(week[2]), content)
     }
 
     @Test
-    fun cruzarUnFinDeMesNoDesalinea() {
+    fun crossingAMonthBoundaryDoesNotMisalign() {
         // El indice es una diferencia de fechas, no una resta de dias del mes.
         val content = TileContents.wordOfTheDay("2026-09-29", week, "2026-10-02")
         assertEquals(TileContent.Word(week[3]), content)
     }
 
     @Test
-    fun unaCacheVencidaNoMuestraUnaPalabraVieja() {
+    fun anExpiredCacheShowsNoStaleWord() {
         // ESTE ES EL TEST QUE PAGA EL ARCHIVO. Si la app no se abrio en mas de una semana, la
         // cache se queda corta; mostrar la ultima palabra que tenia seria una "palabra del dia"
         // equivocada, todos los dias, sin que nada avise.
@@ -81,26 +81,26 @@ class TileContentTest {
     }
 
     @Test
-    fun siElRelojVaHaciaAtrasNoHayPalabra() {
+    fun ifTheWatchClockGoesBackThereIsNoWord() {
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-18")
         assertEquals(TileContent.Empty, content)
     }
 
     @Test
-    fun sinCacheNoHayPalabra() {
+    fun withNoCacheThereIsNoWord() {
         assertEquals(TileContent.Empty, TileContents.wordOfTheDay(null, emptyList(), "2026-09-19"))
         assertEquals(TileContent.Empty, TileContents.wordOfTheDay("2026-09-19", emptyList(), "2026-09-19"))
     }
 
     @Test
-    fun sinFechaDeHoyNoHayPalabra() {
+    fun withNoTodaysDateThereIsNoWord() {
         // Mismo criterio que el ViewModel: sin fecha cableada no hay palabra del dia, y la
         // ausencia se ve en vez de congelar una.
         assertEquals(TileContent.Empty, TileContents.wordOfTheDay("2026-09-19", week, null))
     }
 
     @Test
-    fun loQueLaAppAdelantaEsExactamenteLoQueElTileLee() {
+    fun whatTheAppPrecomputesIsExactlyWhatTheTileReads() {
         // La propiedad que importa, y la razon de que las dos mitades vivan en el mismo archivo:
         // la app llena la cache sumando dias y el tile la lee restandolos. Si las dos aritmeticas
         // se separaran, el tile mostraria la palabra del dia equivocado --corrida un dia-- que es
@@ -117,20 +117,20 @@ class TileContentTest {
     }
 
     @Test
-    fun sumarDiasCruzaMesesYAnios() {
+    fun plusDaysCrossesMonthsAndYears() {
         assertEquals("2026-10-01", TileContents.plusDays("2026-09-29", 2))
         assertEquals("2027-01-01", TileContents.plusDays("2026-12-31", 1))
         assertEquals("2026-03-01", TileContents.plusDays("2026-02-28", 1))
     }
 
     @Test
-    fun sumarDiasSobreBasuraDaNull() {
+    fun plusDaysOverGarbageGivesNull() {
         assertEquals(null, TileContents.plusDays(null, 1))
         assertEquals(null, TileContents.plusDays("ayer", 1))
     }
 
     @Test
-    fun unaFechaCorruptaNoTumbaElTile() {
+    fun aCorruptDateDoesNotBringDownTheTile() {
         // Se lee de SharedPreferences, que es un contrato con el disco: una version vieja o un
         // byte cambiado no pueden hacer que el tile tire una excepcion en el hilo principal.
         for (basura in listOf("", "   ", "ayer", "2026-13-45", "2026-09")) {

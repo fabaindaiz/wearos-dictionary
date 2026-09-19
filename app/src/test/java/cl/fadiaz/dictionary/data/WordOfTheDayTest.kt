@@ -36,7 +36,7 @@ class WordOfTheDayTest {
     ) = WordOfTheDay.pick(date, packId, entryCount, read, candidates)
 
     @Test
-    fun laMismaFechaDaSiempreLaMismaPalabra() = runTest {
+    fun theSameDateAlwaysGivesTheSameWord() = runTest {
         // Es la propiedad que la hace "del dia": si cambiara al recomponer, no se la podrias
         // mostrar a nadie ni volver a ella.
         val primera = pick()
@@ -45,7 +45,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun dosFechasDistintasDanPalabrasDistintas() = runTest {
+    fun twoDifferentDatesGiveDifferentWords() = runTest {
         val days = (1..20).map { pick(date = "2026-09-%02d".format(it))?.entryId }
         // No se exige que las 20 sean distintas --una colision en 1000 entradas es esperable--
         // pero si que no sea siempre la misma, que es como se ve un hash mal usado.
@@ -53,7 +53,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun dosPacksDistintosDanPalabrasDistintasElMismoDia() = runTest {
+    fun twoDifferentPacksGiveDifferentWordsOnTheSameDay() = runTest {
         // Si la semilla ignorara el pack, cambiar de idioma mostraria la entrada del mismo id,
         // que en otro diccionario es una palabra sin relacion.
         val es = pick(packId = "es-def")?.entryId
@@ -62,7 +62,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun nuncaEligeUnNombrePropio() = runTest {
+    fun itNeverPicksAProperNoun() = runTest {
         // "Ynda", "Voorschoten", "Ivanivka": son los que devolvia la version ingenua.
         val picked = pick(read = pack(pos = { id -> if (id % 5L == 0L) "noun" else "name" }))
         assertNotNull(picked)
@@ -70,7 +70,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun eligeLaDeMenorRankEntreLosCandidatos() = runTest {
+    fun itPicksTheLowestRankAmongTheCandidates() = runTest {
         // rank menor = pagina mas rica = palabra que la gente conoce (D-067). No hay umbral que
         // ajustar por idioma: se muestrea y gana la mejor del muestreo.
         val picked = pick(read = pack(rank = { id -> if (id % 7L == 0L) 880 else 995 }))
@@ -79,7 +79,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun nuncaEligeUnNombrePropio_enNingunoDeLosDosVocabularios() = runTest {
+    fun itNeverPicksAProperNoun_inEitherVocabulary() = runTest {
         // Los packs reales de kaikki dicen "name"; el de juguete dice "proper noun". Excluir solo
         // uno deja pasar nombres propios en el otro, y eso no se ve con un fixture de un vocabulario.
         for (comoSeLlame in listOf("name", "proper noun")) {
@@ -97,7 +97,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun nuncaEligeUnAfijoNiUnaAbreviatura() = runTest {
+    fun itNeverPicksAnAffixOrAnAbbreviation() = runTest {
         // "-ito" o "EE. UU." no son palabras que alguien quiera aprender hoy.
         val picked = pick(
             read = pack(
@@ -110,7 +110,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun elDiaDecideLaCategoriaYPorEsoNoSonTodasIguales() = runTest {
+    fun theDayDecidesTheCategorySoTheyAreNotAllAlike() = runTest {
         // El bug que esto arregla estaba MEDIDO sobre el pack real: 28 dias seguidos daban 28
         // verbos, porque en espanol las paginas de verbos son las mas ricas y `rank` mide riqueza
         // (D-067). Rotando la categoria objetivo por dia, la misma muestra da noun 12, verb 8,
@@ -130,7 +130,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun siNoHayNadieDeLaCategoriaDelDiaCaeAlMejor() = runTest {
+    fun withNobodyFromTheDaysCategoryItFallsBackToTheBest() = runTest {
         // Un pack sin adverbios no puede quedarse sin palabra del dia el dia que toca adverbio.
         val picked = pick(read = pack(pos = { "noun" }, rank = { id -> 900 + (id % 5L).toInt() }))
         assertNotNull(picked)
@@ -139,7 +139,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun siTodosSonNombresPropiosDevuelveElMejorIgual() = runTest {
+    fun ifAllAreProperNounsItStillReturnsTheBest() = runTest {
         // Un hueco en la pantalla es peor que un nombre propio. Y tiene que seguir siendo
         // determinista tambien por este camino.
         val read = pack(pos = { "name" }, rank = { id -> 990 + (id % 7L).toInt() })
@@ -151,12 +151,12 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun unPackVacioNoTienePalabraDelDia() = runTest {
+    fun anEmptyPackHasNoWordOfTheDay() = runTest {
         assertNull(pick(entryCount = 0))
     }
 
     @Test
-    fun elIdPedidoSiempreCaeDentroDelPack() = runTest {
+    fun theRequestedIdAlwaysLandsInsideThePack() = runTest {
         // Los id de `entry` son densos, 1..entry_count. Un id fuera de rango seria una pantalla
         // vacia silenciosa, que es la clase de bug que este repo persigue.
         val pedidos = mutableListOf<Long>()
@@ -173,7 +173,7 @@ class WordOfTheDayTest {
     }
 
     @Test
-    fun noLeeMasDeLoQueSeLePermite() = runTest {
+    fun itReadsNoMoreThanItIsAllowedTo() = runTest {
         // El coste es exactamente `candidatos` lecturas de una fila: acotado y predecible, que
         // es lo que deja ponerlo en la pantalla de inicio sin pensarlo dos veces.
         var reads = 0

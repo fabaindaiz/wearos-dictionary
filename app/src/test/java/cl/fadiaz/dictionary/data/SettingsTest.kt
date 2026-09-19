@@ -12,7 +12,7 @@ import kotlin.test.assertEquals
 class SettingsTest {
 
     @Test
-    fun loQueSeGuardaSeRecupera() {
+    fun whatIsStoredComesBack() {
         for (scale in TextScale.entries) {
             val original = Settings(textScale = scale)
             assertEquals(original, parseSettings(serializeSettings(original)))
@@ -20,23 +20,23 @@ class SettingsTest {
     }
 
     @Test
-    fun unTextoVacioDaLosAjustesDeFabrica() {
+    fun emptyTextGivesTheFactorySettings() {
         assertEquals(Settings(), parseSettings(""))
     }
 
     @Test
-    fun unValorQueYaNoExisteCaeAlDeFabrica() {
+    fun aValueThatNoLongerExistsFallsBackToFactory() {
         // El caso de una escala que se quito en una version nueva. No puede tumbar el arranque.
         assertEquals(Settings(), parseSettings("escala=ENORME"))
     }
 
     @Test
-    fun basuraSinFormatoNoTumbaNada() {
+    fun formatlessGarbageBringsNothingDown() {
         assertEquals(Settings(), parseSettings("=\nsin igual\n\n===="))
     }
 
     @Test
-    fun laEscalaNormalNoCambiaNada() {
+    fun theNormalScaleChangesNothing() {
         // Si NORMAL no fuera exactamente 1, respetar la escala del sistema (WO-V1) dejaria de
         // ser cierto para quien no toco nada.
         assertEquals(1.0f, TextScale.NORMAL.factor)
