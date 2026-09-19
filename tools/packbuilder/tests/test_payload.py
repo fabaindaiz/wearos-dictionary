@@ -22,8 +22,10 @@ FIXTURE = os.path.join(
 class RenderParseTest(unittest.TestCase):
     def test_round_trip(self):
         senses = [
-            {"gloss": "primera", "examples": ["ej uno"], "translations": ["first"]},
-            {"gloss": "segunda", "examples": [], "translations": ["second", "other"]},
+            {"gloss": "primera", "examples": ["ej uno"], "translations": ["first"],
+             "synonyms": ["bobo", "zonzo"]},
+            {"gloss": "segunda", "examples": [], "translations": ["second", "other"],
+             "synonyms": []},
         ]
         text = payload.render("verb", senses)
         pos, parsed = payload.parse(text)
@@ -47,6 +49,20 @@ class RenderParseTest(unittest.TestCase):
         _pos, senses = payload.parse("E\tsin acepcion\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["examples"])
+
+    def test_los_sinonimos_antes_de_la_primera_acepcion_se_ignoran(self):
+        # Mismo caso que el ejemplo huerfano: un sinonimo sin acepcion abierta no tiene de que
+        # colgarse, y colgarlo de la primera que venga seria atribuirlo mal.
+        _pos, senses = payload.parse("Y\tsin acepcion\nS\tla acepcion\n")
+        self.assertEqual(1, len(senses))
+        self.assertEqual([], senses[0]["synonyms"])
+
+    def test_los_sinonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
+        # Lo que este test protege: que el orden de los tags no mezcle acepciones. Un sinonimo
+        # atribuido a la acepcion equivocada no falla ni loguea, sale como contenido correcto.
+        _pos, senses = payload.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
+        self.assertEqual(["bobo"], senses[0]["synonyms"])
+        self.assertEqual(["listo"], senses[1]["synonyms"])
 
     def test_unknown_tags_are_ignored(self):
         # Compatibilidad hacia adelante con un builder mas nuevo.

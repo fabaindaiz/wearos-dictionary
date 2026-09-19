@@ -21,6 +21,7 @@ package cl.fadiaz.dictionary.core
  *     S<TAB>moverse rapidamente      (abre una acepcion)
  *     E<TAB>corrio hasta la esquina  (ejemplo de la acepcion abierta)
  *     T<TAB>to run                   (traduccion de la acepcion abierta)
+ *     Y<TAB>bobo                     (sinonimo de la acepcion abierta)
  *     S<TAB>dicho del tiempo...      (abre la siguiente acepcion)
  *
  * Se usa texto delimitado en vez de JSON o CBOR a proposito: se parsea sin ninguna
@@ -29,18 +30,24 @@ package cl.fadiaz.dictionary.core
  *
  * Los tags desconocidos se ignoran, asi un builder mas nuevo puede agregar campos sin romper
  * una app vieja.
+ *
+ * Aun asi [CODEC_ID] sube cuando cambia el formato del texto, porque `PackFile.open` lo compara
+ * con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a sideloadear, y nada mas.
+ * **Cuando exista el instalador, un tag ADITIVO no lo sube** (D-113): forzar a redescargar
+ * 300 MB por un campo que el lector viejo ignora tiraria justamente esta propiedad.
  */
 object PayloadCodec {
 
     /** Sube cuando cambia el formato. Se escribe en `meta.payload_codec` como "deflate-v<n>". */
-    const val PAYLOAD_VERSION: Int = 1
+    const val PAYLOAD_VERSION: Int = 2
 
-    const val CODEC_ID: String = "deflate-v1"
+    const val CODEC_ID: String = "deflate-v2"
 
     private const val TAG_PART_OF_SPEECH = 'P'
     private const val TAG_SENSE = 'S'
     private const val TAG_EXAMPLE = 'E'
     private const val TAG_TRANSLATION = 'T'
+    private const val TAG_SYNONYM = 'Y'
 
     /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
     data class Body(val partOfSpeech: String?, val senses: List<Sense>)
@@ -89,13 +96,21 @@ object PayloadCodec {
                 // Un ejemplo o traduccion antes de la primera acepcion no tiene donde colgar.
                 TAG_EXAMPLE -> senses.lastOrNull()?.examples?.add(value)
                 TAG_TRANSLATION -> senses.lastOrNull()?.translations?.add(value)
+                TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 else -> Unit
             }
         }
 
         return Body(
             partOfSpeech = partOfSpeech,
-            senses = senses.map { Sense(it.gloss, it.examples.toList(), it.translations.toList()) },
+            senses = senses.map {
+                Sense(
+                    it.gloss,
+                    it.examples.toList(),
+                    it.translations.toList(),
+                    it.synonyms.toList(),
+                )
+            },
         )
     }
 
@@ -110,6 +125,9 @@ object PayloadCodec {
             for (translation in sense.translations) {
                 out.append(TAG_TRANSLATION).append('\t').append(translation).append('\n')
             }
+            for (synonym in sense.synonyms) {
+                out.append(TAG_SYNONYM).append('\t').append(synonym).append('\n')
+            }
         }
         return out.toString()
     }
@@ -117,6 +135,7 @@ object PayloadCodec {
     private class MutableSense(val gloss: String) {
         val examples = mutableListOf<String>()
         val translations = mutableListOf<String>()
+        val synonyms = mutableListOf<String>()
     }
 
 }
