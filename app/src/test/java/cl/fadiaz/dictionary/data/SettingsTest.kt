@@ -4,10 +4,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * El codec de los ajustes, que es donde esto puede corromperse en silencio.
+ * The settings codec, which is where this can corrupt itself in silence.
  *
- * Mismo contrato que `VisitaTest`: se guarda como texto en SharedPreferences, asi que el formato
- * es un acuerdo con el disco. Una version vieja tras una actualizacion no puede tumbar la app.
+ * Same contract as `VisitTest`: it is stored as text in SharedPreferences, so the format is an
+ * agreement with the disk. An old version after an update cannot bring the app down.
  */
 class SettingsTest {
 
@@ -26,7 +26,7 @@ class SettingsTest {
 
     @Test
     fun aValueThatNoLongerExistsFallsBackToFactory() {
-        // El caso de una escala que se quito en una version nueva. No puede tumbar el arranque.
+        // The case of a scale removed in a newer version. It cannot bring down startup.
         assertEquals(Settings(), parseSettings("escala=ENORME"))
     }
 
@@ -37,8 +37,8 @@ class SettingsTest {
 
     @Test
     fun theNormalScaleChangesNothing() {
-        // Si NORMAL no fuera exactamente 1, respetar la escala del sistema (WO-V1) dejaria de
-        // ser cierto para quien no toco nada.
+        // If NORMAL were not exactly 1, respecting the system scale (WO-V1) would stop being
+        // true for anyone who changed nothing.
         assertEquals(1.0f, TextScale.NORMAL.factor)
     }
 }

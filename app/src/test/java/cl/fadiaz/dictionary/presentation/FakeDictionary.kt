@@ -28,23 +28,23 @@ class FakeDictionary(
     /** Cuanto tarda cada `suggest`. Sirve para que una consulta siga viva cuando llega otra. */
     private val demora: Long = 0,
     /**
-     * Cuantas entradas dice tener.
+     * How many entries it claims to have.
      *
-     * Era 1 fijo, y eso hacia que la palabra del dia eligiera SIEMPRE el id 1 --el modulo no
-     * tiene de donde elegir-- asi que dos packs distintos parecian elegir lo mismo y el test que
-     * lo miraba fallaba por el fake, no por el codigo.
+     * It was a fixed 1, and that made the word of the day ALWAYS pick id 1 --the modulus has
+     * nothing to choose from-- so two different packs appeared to pick the same thing and the
+     * test watching for it failed because of the fake, not the code.
      */
     private val entryCount: Int = 1,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
 
-    /** Las consultas que entraron por el camino de texto libre, aparte de las incrementales. */
+    /** The queries that came in through the free-text path, separate from the incremental ones. */
     val definitionMode = mutableListOf<String>()
     var cerrado = false
         private set
 
-    /** Las consultas que empezaron y **no** terminaron: las que `mapLatest` cancelo. */
+    /** The queries that started and did **not** finish: the ones `mapLatest` cancelled. */
     val canceladas = mutableListOf<String>()
 
     override val metadata: PackMetadata = PackMetadata(
@@ -53,7 +53,7 @@ class FakeDictionary(
         normVersion = 1,
         kind = PackKind.MONOLINGUAL,
         name = "Diccionario $packId",
-        // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+        // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
         langSource = lang,
         langTarget = null,
@@ -94,12 +94,12 @@ class FakeDictionary(
         senses = listOf(Sense("una glosa")),
     )
 
-    /** Las cabeceras que este fake conoce, por entryId. Vacio = ninguna entrada existe. */
+    /** The headwords this fake knows, by entryId. Empty = no entry exists. */
     var summaries: Map<Long, EntrySummary> = emptyMap()
 
     override suspend fun summary(entryId: Long): EntrySummary? = summaries[entryId]
 
-    /** Lo que este fake sabe resolver: las palabras que nombra `lemasConocidos`. */
+    /** What this fake can resolve: the words named by `knownHeadwords`. */
     var knownHeadwords: Map<String, Long> = emptyMap()
 
     override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
@@ -107,7 +107,7 @@ class FakeDictionary(
         return knownHeadwords.filterKeys { it in norms }
     }
 
-    /** Con que conjuntos se pidio resolver. Sirve para contar consultas, no solo resultados. */
+    /** Which sets it was asked to resolve. Useful for counting queries, not just results. */
     val resueltas = mutableListOf<Set<String>>()
 
     override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
@@ -130,7 +130,7 @@ class FakeDictionary(
     }
 }
 
-/** Un `abrirPacks` que el test decide cuando completar. */
+/** An `openPacks` the test decides when to complete. */
 class DeferredPack {
     private val listo = CompletableDeferred<PackSet>()
 
@@ -144,7 +144,7 @@ class DeferredPack {
     }
 }
 
-/** Azucar: un PackSet listo con estos packs, el primero activo. */
+/** Sugar: a ready PackSet with these packs, the first one active. */
 fun listos(vararg packs: FakeDictionary, demos: Set<String> = emptySet()): PackSet {
     val handles = packs.map {
         PackHandle.Open(

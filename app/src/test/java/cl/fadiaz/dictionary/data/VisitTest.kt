@@ -5,12 +5,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * El codec del historial, que es donde esto puede corromperse en silencio.
+ * The history codec, which is where this can corrupt itself in silence.
  *
- * Se guarda como texto en SharedPreferences, asi que el formato es un contrato con el disco: una
- * version vieja tras una actualizacion, o un lema con un caracter inesperado, no pueden tumbar
- * la app ni mostrar una palabra equivocada. Por eso `parsearVisitas` **descarta** lo que no
- * entiende en vez de tirar.
+ * It is stored as text in SharedPreferences, so the format is a contract with the disk: an old
+ * version after an update, or a headword with an unexpected character, cannot bring the app down
+ * or show the wrong word. That is why `parseVisits` **discards** what it does not understand
+ * instead of throwing.
  */
 class VisitTest {
 
@@ -25,23 +25,23 @@ class VisitTest {
 
     @Test
     fun aHeadwordWithAccentsQuotesAndTabsSurvives() {
-        // Los lemas salen del Wikcionario: hay refranes con comillas, y un tab perdido en una
-        // glosa ya paso una vez en este proyecto.
+        // Headwords come from Wiktionary: there are sayings with quotes in them, and a stray
+        // tab inside a gloss has already happened once in this project.
         val raro = visit("mas corre el galgo\tque el \"mastin\"")
         assertEquals(listOf(raro), parseVisits(serializeVisits(listOf(raro))))
     }
 
     @Test
     fun aNullPartOfSpeechSurvives() {
-        // El pack de juguete tiene una entrada sin pos, y el Wikcionario tambien.
+        // The toy pack has an entry with no pos, and so does Wiktionary.
         val withoutPos = visit("arbol", pos = null)
         assertEquals(listOf(withoutPos), parseVisits(serializeVisits(listOf(withoutPos))))
     }
 
     @Test
     fun anUnreadableLineIsDroppedWithoutLosingTheRest() {
-        // Es el caso de un formato viejo tras actualizar la app. Perder el historial es
-        // aceptable; que la app no arranque, no.
+        // This is the case of an old format after updating the app. Losing the history is
+        // acceptable; the app failing to start is not.
         val bueno = serializeVisits(listOf(visit("perro")))
         assertEquals(listOf(visit("perro")), parseVisits("basura sin separadores\n" + bueno))
     }
@@ -59,15 +59,16 @@ class VisitTest {
 }
 
 /**
- * Que el historial sobreviva a reconstruir un pack.
+ * That the history survives rebuilding a pack.
  *
- * `entry.id` es el rowid y se corre cuando la fuente agrega una palabra en el medio (D-055). El
- * modo de falla NO es un crash: es abrir *otra palabra* con el lema correcto escrito en la lista,
- * que es la clase de bug que este repo no puede ver desde el codigo.
+ * `entry.id` is the rowid and shifts when the source adds a word in the middle (D-055). The
+ * failure mode is NOT a crash: it is opening *another word* with the right headword written in
+ * the list, which is the class of bug this repo cannot see from the code.
  *
- * Por que no se respalda `entry.uid`, que si es estable: no tiene indice (D-056), asi que
- * resolverlo cuesta un scan de 114.619 filas en español y 794.355 en ingles **por toque**, y la
- * app tiene prohibido calcularlo (D-057). El lema, en cambio, entra por `idx_entry_norm`.
+ * Why `entry.uid` is not backed up, even though it IS stable: it has no index (D-056), so
+ * resolving it costs a scan of 114,619 rows in Spanish and 794,355 in English **per tap**, and
+ * the app is forbidden from computing it (D-057). The headword, by contrast, goes through
+ * `idx_entry_norm`.
  */
 class VisitTargetTest {
 
@@ -75,7 +76,7 @@ class VisitTargetTest {
 
     @Test
     fun ifTheIdStillHoldsThatHeadwordItOpensDirectly() {
-        // El caso normal, y el que tiene que costar CERO consultas extra.
+        // The normal case, and the one that has to cost ZERO extra queries.
         assertEquals(
             VisitTarget.Direct(42),
             visitTarget(visit, headwordAtId = "perro", relocated = 999),
@@ -84,7 +85,7 @@ class VisitTargetTest {
 
     @Test
     fun ifTheIdNowPointsElsewhereItIsFixedByHeadword() {
-        // Exactamente lo que hace un rebuild: el 42 ahora es otra entrada.
+        // Exactly what a rebuild does: 42 is now a different entry.
         assertEquals(
             VisitTarget.Relocated(777),
             visitTarget(visit, headwordAtId = "perpetuo", relocated = 777),
@@ -93,7 +94,7 @@ class VisitTargetTest {
 
     @Test
     fun ifTheIdIsGoneItIsFixedByHeadword() {
-        // El pack encogio --D-116 saco 31.575 entradas del español-- y el id quedo fuera de rango.
+        // The pack shrank --D-116 removed 31,575 Spanish entries-- and the id fell out of range.
         assertEquals(
             VisitTarget.Relocated(777),
             visitTarget(visit, headwordAtId = null, relocated = 777),
@@ -102,8 +103,8 @@ class VisitTargetTest {
 
     @Test
     fun ifTheWordLeftThePackItIsGivenUpAsMissing() {
-        // Tambien es D-116: la palabra podada existe en el historial y ya no en el pack. Se
-        // pierde la fila, no se abre cualquier otra.
+        // Also D-116: the pruned word exists in the history and no longer in the pack. The row
+        // is lost, no other word is opened.
         assertEquals(
             VisitTarget.Missing,
             visitTarget(visit, headwordAtId = null, relocated = null),
@@ -112,9 +113,9 @@ class VisitTargetTest {
 
     @Test
     fun withNoHeadwordToFixByTheIdIsTrustedIfItExists() {
-        // El deep link de un tile puede llegar sin lema --la `Visita` se arma desde los extras
-        // del intent, que es entrada no confiable--. Sin lema no hay con que re-resolver, asi
-        // que la unica pregunta que queda es si ese id existe.
+        // A tile deep link can arrive without a headword --the `Visit` is built from the intent
+        // extras, which is untrusted input--. With no headword there is nothing to re-resolve
+        // by, so the only question left is whether that id exists.
         val withoutHeadword = visit.copy(headword = "")
         assertEquals(
             VisitTarget.Direct(42),
@@ -133,7 +134,7 @@ class VisitTargetTest {
 
     @Test
     fun aHeadwordPresentUnderAnotherIdIsNotMistakenForDirect() {
-        // Si re-resolver devuelve el MISMO id, sigue siendo directo: no hay nada que corregir.
+        // If re-resolving returns the SAME id, it is still direct: there is nothing to fix.
         assertEquals(
             VisitTarget.Direct(42),
             visitTarget(visit, headwordAtId = "perro", relocated = 42),

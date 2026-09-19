@@ -6,12 +6,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * La etiqueta que reemplaza a la mitad larga del nombre del pack (D-125).
+ * The label that replaces the long half of the pack's name (D-125).
  *
- * El test que importa no es la traduccion de cada caso sino que **haya uno por cada `PackKind`**:
- * el dia que aparezca un tercer tipo --un pack de sinonimos aparte, por ejemplo-- el `when`
- * exhaustivo no compila, pero si alguien lo "arregla" con un `else` el pack nuevo se anuncia con
- * la etiqueta equivocada y nada falla.
+ * The test that matters is not the wording of each case but that **there is one per `PackKind`**:
+ * the day a third kind shows up --a separate synonyms pack, say-- the exhaustive `when` will not
+ * compile, but if somebody "fixes" it with an `else` the new pack announces itself with the wrong
+ * label and nothing fails.
  */
 class PackTypeLabelTest {
 
@@ -30,15 +30,15 @@ class PackTypeLabelTest {
 
     @Test
     fun theLabelsDifferFromEachOther() {
-        // Dos tipos con la misma etiqueta no distinguen nada, que es todo el punto de mostrarla.
+        // Two kinds sharing a label distinguish nothing, which is the whole point of showing it.
         val labels = PackKind.entries.map { packTypeLabel(it) }
         assertEquals(labels.size, labels.toSet().size, "hay etiquetas repetidas: $labels")
     }
 
     @Test
     fun theyFitInAWatchRow() {
-        // El motivo por el que el nombre se acorto. Al detalle de la fila le quedan ~140 dp
-        // despues del check y el boton de borrar; una etiqueta larga repite el problema.
+        // The reason the name was shortened. The row's detail has ~140 dp left after the check
+        // and the delete button; a long label repeats the problem.
         for (kind in PackKind.entries) {
             assertTrue(packTypeLabel(kind).length <= 14, "etiqueta muy larga: ${packTypeLabel(kind)}")
         }

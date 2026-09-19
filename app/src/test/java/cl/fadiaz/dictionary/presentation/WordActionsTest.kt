@@ -14,11 +14,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Que ofrece el menu de una palabra.
+ * What a word's menu offers.
  *
- * Lo que defiende es que **no se ofrezca lo que no funciona**: "ver traduccion" buscaba el mismo
- * lema en el otro diccionario, y con dos packs monolingues eso casi nunca encuentra nada. Un
- * boton que no hace nada ensena a desconfiar de los que si.
+ * What it defends is that **nothing that does not work gets offered**: "view translation" looked
+ * up the same headword in the other dictionary, and with two monolingual packs that almost never
+ * finds anything. A button that does nothing teaches you to distrust the ones that do.
  */
 class WordActionsTest {
 
@@ -30,7 +30,7 @@ class WordActionsTest {
                 normVersion = 2,
                 kind = kind,
                 name = "Diccionario $id",
-                // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+                // null: exercises the path of a pack older than D-125, which does not carry the key.
                 description = null,
                 langSource = "es",
                 langTarget = if (kind == PackKind.BILINGUAL) "en" else null,
@@ -66,8 +66,8 @@ class WordActionsTest {
 
     @Test
     fun anotherMONOLINGUALDictionaryIsNotATranslationPack() {
-        // Es el caso real de hoy: espanol e ingles, los dos monolingues. Buscar "house" en el
-        // diccionario espanol no devuelve una traduccion, devuelve nada.
+        // This is today's real case: Spanish and English, both monolingual. Looking "house" up
+        // in the Spanish dictionary returns no translation, it returns nothing.
         val opened = listOf(
             pack("es-def", PackKind.MONOLINGUAL),
             pack("en-def", PackKind.MONOLINGUAL),
@@ -82,7 +82,7 @@ class WordActionsTest {
             pack("es-en", PackKind.BILINGUAL),
         )
         assertEquals("es-en", translationPack(opened, "es-def")?.packId)
-        // Mirando el bilingue, no se ofrece traducirse a si mismo.
+        // While reading the bilingual one, translating to itself is not offered.
         assertNull(translationPack(opened, "es-en"))
     }
 
@@ -99,7 +99,7 @@ class WordActionsTest {
     }
 }
 
-/** Lo minimo para envolver una metadata. Ninguna accion consulta el pack. */
+/** The minimum needed to wrap a metadata. No action queries the pack. */
 private class EmptySource(override val metadata: PackMetadata) : DictionarySource {
     override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
