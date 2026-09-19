@@ -15,19 +15,26 @@ unos puntos de compresion.
 
 Formato una vez descomprimido: texto UTF-8, una linea por campo, tag de un caracter + TAB.
 Ver la documentacion del espejo en Kotlin para el detalle.
+
+`CODEC_ID` sube cuando cambia el formato del TEXTO, no solo cuando cambia la compresion, porque
+`PackFile.open` lo compara con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a
+sideloadear los packs, y nada mas. **Cuando exista el instalador, un tag ADITIVO no lo sube**:
+para eso esta la tolerancia a tags desconocidos, y forzar a redescargar 300 MB por un campo
+nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-113).
 """
 
 import hashlib
 import zlib
 
 # Sube cuando cambia el formato. Se escribe en meta.payload_codec.
-PAYLOAD_VERSION = 1
-CODEC_ID = "deflate-v1"
+PAYLOAD_VERSION = 2
+CODEC_ID = "deflate-v2"
 
 TAG_PART_OF_SPEECH = "P"
 TAG_SENSE = "S"
 TAG_EXAMPLE = "E"
 TAG_TRANSLATION = "T"
+TAG_SYNONYM = "Y"
 
 # Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
 # esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
@@ -69,6 +76,10 @@ def render(part_of_speech, senses):
             value = sanitize(translation)
             if value:
                 lines.append(TAG_TRANSLATION + "\t" + value)
+        for synonym in sense.get("synonyms", ()):
+            value = sanitize(synonym)
+            if value:
+                lines.append(TAG_SYNONYM + "\t" + value)
     return "".join(line + "\n" for line in lines)
 
 
@@ -86,7 +97,9 @@ def parse(text):
             if part_of_speech is None:
                 part_of_speech = value
         elif tag == TAG_SENSE:
-            senses.append({"gloss": value, "examples": [], "translations": []})
+            senses.append(
+                {"gloss": value, "examples": [], "translations": [], "synonyms": []}
+            )
         elif tag == TAG_EXAMPLE:
             if senses:
                 senses[-1]["examples"].append(value)
@@ -96,6 +109,9 @@ def parse(text):
         elif tag == TAG_TRANSLATION:  # noqa: SIM102
             if senses:
                 senses[-1]["translations"].append(value)
+        elif tag == TAG_SYNONYM:  # noqa: SIM102
+            if senses:
+                senses[-1]["synonyms"].append(value)
         # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar
         # campos sin romper un lector viejo.
     return part_of_speech, senses
