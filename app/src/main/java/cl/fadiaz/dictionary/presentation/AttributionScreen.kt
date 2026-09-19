@@ -25,11 +25,11 @@ import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
- * La atribucion, y **no es opcional** (D-031).
+ * The attribution, and it is **not optional** (D-031).
  *
- * El contenido es CC BY-SA: mostrar de donde sale y bajo que licencia es la condicion de uso de
- * los datos, no una cortesia. El texto no se escribe aca: sale de `meta.license` y
- * `meta.attribution` del pack abierto, para que un pack de otra fuente traiga la suya.
+ * The content is CC BY-SA: showing where it comes from and under which license is the condition
+ * for using the data, not a courtesy. The text is not written here: it comes from `meta.license`
+ * and `meta.attribution` of the open pack, so a pack from another source brings its own.
  */
 @Composable
 fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyList()) {
@@ -48,8 +48,8 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                     transformation = SurfaceTransformation(spec),
                 ) { Text("Sobre estos datos") }
             }
-            // Cada pack trae SU licencia: con dos fuentes, mostrar una sola seria incumplir la
-            // condicion de uso de la otra.
+            // Each pack brings ITS own license: with two sources, showing only one would breach
+            // the other one's terms of use.
             packs.filterIsInstance<PackHandle.Open>().forEach { handle ->
                 val meta = handle.metadata
                 item {
@@ -59,9 +59,9 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     )
                 }
-                // **Aca** van los detalles que se sacaron del nombre (D-125): esta es la
-                // pantalla que se abre para leer, no una fila de lista que hay que scrollear.
-                // Null en un pack anterior a D-125, y entonces no se dibuja nada.
+                // **Here** go the details taken out of the name (D-125): this is the screen you
+                // open in order to read, not a list row you have to scroll. Null on a pack older
+                // than D-125, and then nothing is drawn.
                 meta.description?.let { description ->
                     item {
                         Text(
@@ -91,7 +91,7 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                     )
                 }
             }
-            // Un pack rechazado no puede desaparecer en silencio del selector.
+            // A rejected pack cannot vanish from the selector in silence.
             problems.forEach { problem ->
                 item {
                     Text(

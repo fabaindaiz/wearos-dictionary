@@ -43,14 +43,16 @@ import cl.fadiaz.dictionary.data.asHumanSize
 import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
- * Gestion de diccionarios: cuales estan, cual se usa, cuanto ocupan y como sacarlos.
+ * Dictionary management: which ones are there, which one is in use, how much they take and how to
+ * get rid of them.
  *
- * Existe porque el selector del inicio responde "en cual busco" y nada mas. No dice **cuanto
- * ocupa** cada uno --que es la unica cifra que importa cuando hay que hacer lugar-- ni deja
- * sacar ninguno.
+ * It exists because the home selector answers "which one am I searching in" and nothing else. It
+ * does not say **how much each one takes** --the only figure that matters when room has to be
+ * made-- and it does not let you remove any.
  *
- * El pack de demostracion aparece pero **sin boton de borrar**: viene dentro del APK y se
- * re-extrae al reabrir la app, asi que el boton no haria nada y el pack volveria solo.
+ * The demo pack shows up but **with no delete button**: it comes inside the APK and is
+ * re-extracted when the app reopens, so the button would do nothing and the pack would come back
+ * on its own.
  */
 @Composable
 fun PacksScreen(
@@ -81,13 +83,13 @@ fun PacksScreen(
                 val pack = installed[index]
                 PackRow(
                     name = pack.metadata.name,
-                    // Tipo, tamaño e idioma. El tipo entro con D-125: el nombre paso a ser
-                    // corto --"Español"-- y lo que decia la otra mitad sale ahora de `kind`.
+                    // Kind, size and language. The kind arrived with D-125: the name became
+                    // short --"Español"-- and what the other half said now comes from `kind`.
                     detail = "${packTypeLabel(pack.metadata.kind)} · " +
                         "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
                     active = pack.packId == active,
                     onActivate = { onActivate(pack.packId) },
-                    // El de demostracion no se puede borrar: volveria solo.
+                    // The demo one cannot be deleted: it would come back on its own.
                     onDelete = if (pack.isDemo) null else { { pendingDelete = pack } },
                 )
             }
@@ -95,8 +97,8 @@ fun PacksScreen(
             item(key = "cabecera-descargar") { ListHeader { Text("Para descargar") } }
             item(key = "wip") {
                 Text(
-                    // Dice que falta y que va a hacer. Un "proximamente" a secas no le sirve a
-                    // nadie; esto ademas explica por que hoy los diccionarios entran por cable.
+                    // It says what is missing and what it will do. A bare "coming soon" helps
+                    // nobody; this also explains why dictionaries arrive over a cable today.
                     text = "Todavía no. Hoy los diccionarios se instalan por cable, desde la " +
                         "computadora. Acá va a aparecer el catálogo para bajarlos desde el reloj.",
                     style = MaterialTheme.typography.bodySmall,
@@ -116,8 +118,8 @@ fun PacksScreen(
     ) {
         item {
             Text(
-                // El costo de deshacerlo, antes de hacerlo. Es la unica accion de la app que no
-                // se puede revertir desde la app.
+                // The cost of undoing it, before doing it. It is the only action in the app that
+                // cannot be reversed from inside the app.
                 text = "Ocupa ${asHumanSize(candidate?.bytes ?: 0)}. Para recuperarlo hay " +
                     "que volver a instalarlo desde la computadora.",
                 style = MaterialTheme.typography.bodySmall,
@@ -151,11 +153,12 @@ fun PacksScreen(
 }
 
 /**
- * Un diccionario: si es el que se usa, como se llama, cuanto ocupa y --si se puede-- como sacarlo.
+ * One dictionary: whether it is the one in use, what it is called, how much it takes and --if
+ * possible-- how to remove it.
  *
- * El check y el boton de borrar son **dos areas tocables distintas en la misma fila**, como el
- * `ButtonGroup` de la entrada: apiladas costarian el doble de alto, y aca hay una fila por
- * diccionario.
+ * The check and the delete button are **two separate touch areas on the same row**, like the
+ * entry's `ButtonGroup`: stacked they would cost twice the height, and here there is one row per
+ * dictionary.
  */
 @Composable
 private fun PackRow(
@@ -180,8 +183,8 @@ private fun PackRow(
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // El espacio del check se reserva siempre: si apareciera y desapareciera, el nombre
-            // se correria al cambiar de diccionario.
+            // The check's space is always reserved: if it appeared and disappeared, the name
+            // would shift when switching dictionaries.
             Box(modifier = Modifier.width(20.dp), contentAlignment = Alignment.Center) {
                 if (active) {
                     Icon(
@@ -198,10 +201,10 @@ private fun PackRow(
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodyMedium,
-                    // DOS lineas y no una. Medido a ojo sobre el reloj: despues del check
-                    // reservado, los paddings y el boton de borrar de 48 dp, al nombre le quedan
-                    // ~140 dp, y "Español — definiciones" son 22 caracteres. En una linea se
-                    // cortaba siempre.
+                    // TWO lines and not one. Eyeballed on the watch: after the reserved check,
+                    // the paddings and the 48 dp delete button, the name has ~140 dp left, and
+                    // "Español — definiciones" is 22 characters. On one line it was always cut
+                    // off.
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
