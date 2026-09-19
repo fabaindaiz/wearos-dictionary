@@ -6,8 +6,8 @@ Las pantallas viven en `presentation/`: búsqueda (que además **es el inicio**)
 atribución, ajustes, gestión de diccionarios y guardadas. `data/PackStore.kt` es lo único que
 sabe de dónde sale un pack.
 
-El Tile y la Complication **siguen siendo los del template** y no hacen nada de diccionario: qué
-muestra la superficie glanceable es una decisión de producto abierta (D-026, `docs/roadmap.md`).
+La superficie glanceable son **dos tiles** —últimas palabras y palabra del día— y **ninguno abre
+un pack**: los dos leen `SharedPreferences` (D-106). La complication del template se apagó.
 
 Las reglas de acá son preventivas: son caras de descubrir tarde.
 
@@ -83,6 +83,26 @@ libre 9.802.568 kB → con el pack de 72,2 MB, 9.732.048 kB → tras borrar, 9.8
 El pack de demostración **no se puede borrar**: viene en el APK y `PackStore.open` lo re-extrae
 al reabrir, así que el botón no haría nada.
 
+## Un tile no abre un pack, y no es una opinión de rendimiento
+
+`onTileRequest` está anotado **`@MainThread`** y *"must complete after at most 10 seconds"*. Está
+en el javadoc de `tiles 1.6.2`, así que abrir ahí un `.db` de 69 o 295 MB está descartado **por
+escrito**, sin necesidad de medir nada. Lo enforcea `check_tiles_dont_open_packs`.
+
+Lo que un tile necesita **lo deja escrito la app** en `SharedPreferences`: el historial ya guarda
+`headword` y `pos` desnormalizados, y la palabra del día se adelanta una semana porque es
+determinista por (fecha, pack) (D-097). Los dos tiles son adaptadores sobre `TileContenido.kt`,
+que es puro y se prueba en el gate.
+
+**El freshness interval no es reloj de pared.** Verbatim: *"elapsed time (not wall clock time)"*,
+e *"inexact"*. Para que la palabra cambie a medianoche se usa un `Timeline` con ventanas de
+`TimeInterval`, que sí son epoch (D-107). Y `freshnessIntervalMillis = 0` significa que el sistema
+**no** vuelve a llamar al tile: el de historial depende de que la app lo empuje con
+`requestUpdate`.
+
+**No declares `androidx.wear.tiles.GROUP`** en ninguno de los dos: *"tile providers in the same
+group represent the same tile on the device"*, y los fundirías en uno.
+
 ## Tiles y widgets no aceptan text input
 
 La búsqueda vive **obligatoriamente dentro de la app**. La superficie glanceable sirve para word
@@ -126,10 +146,8 @@ Ya no son herencia del template: se decidieron, con el costo sobre la mesa.
 - **R8 está desactivado.** La guía oficial de Wear OS lo nombra como una de las dos palancas
   principales, pero activarlo reintroduce la clase de bug que sólo aparece en release y va atado
   a una comprobación en dispositivo que todavía no se hizo. Roadmap O-2.
-- **El Tile y la Complication siguen siendo los del template, y están exportados.** Instalado el
-  APK, el reloj ofrece *"Example tile"* que dice **"Hello, Tile!"** y *"Example complication"*
-  con el día de la semana en inglés. `UPDATE_PERIOD_SECONDS = 3600` despierta la app cada hora
-  para recalcular ese día, y eso se paga en batería.
+- ~~El Tile y la Complication del template~~ **Cerrado el 2026-09-19** (D-106 a D-109): hay dos
+  tiles de diccionario y la complication se apagó, con ella los 24 despertares diarios.
 - Restos menores sin tocar: `app_name` = "Dictionary" en inglés con la UI en español; el permiso
   `WAKE_LOCK` declarado y nunca usado; `ic_launcher_round` presente pero sin `android:roundIcon`,
   en un reloj redondo.
