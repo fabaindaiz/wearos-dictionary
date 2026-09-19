@@ -1,128 +1,126 @@
 # CLAUDE.md
 
-Diccionario **100% offline** para Wear OS. Los idiomas se instalan como *packs*: archivos
-SQLite de solo lectura, descargados por separado y consultados en el reloj sin red. Lo inusual:
-**las claves de búsqueda se calculan dos veces, en dos lenguajes distintos, y tienen que dar el
-mismo string** — el builder en Python las escribe en el pack, el reloj las recalcula en Kotlin
-sobre lo que escribe el usuario.
+A **100% offline** dictionary for Wear OS. Languages install as *packs*: read-only SQLite files,
+downloaded separately and queried on the watch with no network. The unusual part: **the search
+keys are computed twice, in two languages, and have to produce the same string** — the Python
+builder writes them into the pack, the watch recomputes them in Kotlin over what the user types.
 
-## El invariante central
+## The central invariant
 
-> `norm(x)` calculado por el builder == `norm(x)` calculado por la app, para todo `x`, en toda
-> plataforma y para siempre.
+> `norm(x)` computed by the builder == `norm(x)` computed by the app, for every `x`, on every
+> platform and forever.
 
-Si se rompe, no hay excepción ni log: **falta una palabra en los resultados**, y el reporte
-llega meses después sin nada en el stack trace. Todo lo demás —la collation BINARY, el covering
-index, el repertorio Unicode fijado, `NORM_VERSION`— existe para sostenerlo.
+If it breaks there is no exception and no log: **a word is missing from the results**, and the
+report arrives months later with nothing in the stack trace. Everything else —the BINARY
+collation, the covering index, the pinned repertoire, `NORM_VERSION`— exists to hold it up.
 
-Enforcer: `vectors/normalization-vectors.tsv`, ejecutado por los tests de **ambos** lenguajes.
+Enforcer: `vectors/normalization-vectors.tsv`, run by the tests of **both** languages.
 
-## Restricciones no negociables
+## Non-negotiable constraints
 
-Decisiones tomadas, no preferencias. No propongas alternativas salvo que se pidan revisar.
-Cada una tiene su fila en `docs/decisions.md`.
+Decisions taken, not preferences. Do not propose alternatives unless asked to review them. Each
+one has its row in `docs/decisions.md`.
 
-**Normalización y claves**
-- La clasificación de code points sale de `UnicodeRepertoire` / `repertoire.py`, **nunca** de
-  `Character.getType` ni `unicodedata.category` — cada plataforma trae su propia versión de
-  Unicode y 14.773 code points se clasificaban distinto. Enforcer: `ArchitectureTest` compara
-  el sha256 de las dos copias. (D-003)
-- NFD y `lowercase()` **sí** se delegan en la plataforma: 0 diferencias medidas sobre los
-  133.730 code points del repertorio fijado. (D-004)
-- Un cambio en `norm()` o `fuzzy()` toca los dos lenguajes en el mismo commit y sube
-  `NORM_VERSION`. Enforcer: `tools/audit_dictionary.py` compara las constantes. (D-005, D-006)
+**Normalization and keys**
+- Code point classification comes from `UnicodeRepertoire` / `repertoire.py`, **never** from
+  `Character.getType` or `unicodedata.category` — every platform ships its own Unicode version and
+  14,773 code points differed. Enforcer: `ArchitectureTest` compares both sha256. (D-003)
+- NFD and `lowercase()` **are** delegated to the platform: 0 differences over the 133,730 code
+  points of the pinned repertoire. (D-004)
+- A change to `norm()` or `fuzzy()` touches both languages in the same commit and bumps
+  `NORM_VERSION`. Enforcer: `tools/audit_dictionary.py` compares the constants. (D-005, D-006)
 
-**Formato de pack**
-- El pack es inmutable y se abre read-only. No hay migraciones: `schema_version` distinta se
-  rechaza y se descarga de nuevo. (D-001)
-- `fts_def` es contentless y su `rowid` **es** `entry.id`. Si se desalinean, la búsqueda de
-  texto libre apunta a entradas equivocadas. Enforcer: `verify_pack.py`. (D-011)
-- `meta.payload_dict_sha256` se verifica al abrir. deflate **no** detecta un diccionario
-  precargado equivocado: descomprime sin error y devuelve texto corrupto. (D-008)
-- Los packs se construyen con `tools/packbuilder`. La app nunca parsea fuentes crudas. (D-015)
+**Pack format**
+- The pack is immutable and opened read-only. There are no migrations: a different
+  `schema_version` is rejected and downloaded again. (D-001)
+- `fts_def` is contentless and its `rowid` **is** `entry.id`. If they drift apart, free-text
+  search points at the wrong entries. Enforcer: `verify_pack.py`. (D-011)
+- `meta.payload_dict_sha256` is verified on open. deflate does **not** detect a wrong preloaded
+  dictionary: it decompresses without error and returns corrupt text. (D-008)
+- Packs are built with `tools/packbuilder`. The app never parses raw sources. (D-015)
 
-**Portabilidad de `:dict-core`**
-- Toda API de JVM vive en `PlatformJvm.kt`. Ningún otro archivo del módulo importa `java.*` ni
-  usa `Character.`, `.codePoints()` o `.format()`. Enforcer: `ArchitectureTest`. (D-017)
-- KMP se evaluó y **no se adopta**: Wear Compose es solo Android. (D-018)
+**`:dict-core` portability**
+- Every JVM API lives in `PlatformJvm.kt`. No other file in the module imports `java.*` or uses
+  `Character.`, `.codePoints()` or `.format()`. Enforcer: `ArchitectureTest`. (D-017)
+- KMP was evaluated and **is not adopted**: Wear Compose is Android only. (D-018)
 
-**Superficie Wear OS**
-- Tiles y widgets no aceptan text input: la búsqueda vive dentro de la app. La superficie
-  glanceable sirve para word of the day, últimas búsquedas o shortcut. (D-026)
-- **Nunca** `androidx.glance:glance-wear-tiles` — está deprecado y será removido. El naming
-  confunde: no es la librería de Wear Widgets. (D-025)
-- Wear Widgets (Glance + RemoteCompose) está pospuesto, no descartado: los paquetes están en
-  alpha y solo existen en Wear OS 7. (D-024)
-- Las descargas se difieren a **cargando y con Wi-Fi**, según la guía oficial de Wear OS. (D-029)
+**Wear OS surface**
+- Tiles and widgets accept no text input: the search lives inside the app. The glanceable
+  surface is for word of the day, recent searches or a shortcut. (D-026)
+- **Never** `androidx.glance:glance-wear-tiles` — it is deprecated and will be removed. The naming
+  confuses: it is not the Wear Widgets library. (D-025)
+- Wear Widgets (Glance + RemoteCompose) is postponed, not discarded: the packages are in alpha and
+  only exist on Wear OS 7. (D-024)
+- Downloads are deferred to **charging and on Wi-Fi**, per the official Wear OS guidance. (D-029)
 
-## Guardrails que no se relajan
+## Guardrails that do not get relaxed
 
-- **Los vectores compartidos.** Parecen un test más; son el único mecanismo que detecta que las
-  dos implementaciones de `norm()` se separaron.
-- **El hash del payload dict.** Parece redundante porque "deflate ya falla si algo está mal".
-  No falla: está medido que devuelve texto corrupto en silencio.
-- **`verify_pack.py` antes de publicar un pack.** Un pack a medio construir se abre sin error y
-  devuelve menos resultados de los que tiene.
-- **La comprobación en device.** Todavía no existe y es la clase de bug que este repo no puede
-  ver: ver `docs/contratos-cruzados.md`.
+- **The shared vectors.** They look like one more test; they are the only mechanism that detects
+  that the two implementations of `norm()` drifted apart.
+- **The payload dict hash.** It looks redundant because "deflate already fails if something is
+  wrong". It does not fail: it is measured to return corrupt text in silence.
+- **`verify_pack.py` before publishing a pack.** A half-built pack opens without error and returns
+  fewer results than it holds.
+- **The on-device check.** It does not exist yet and it is the class of bug this repo cannot see:
+  see `docs/contratos-cruzados.md`.
 
-## Archivos que no se editan a mano
+## Files that are never edited by hand
 
-Generados. Editarlos crea dos fuentes de verdad que divergen en silencio.
+Generated. Editing them creates two sources of truth that diverge in silence.
 
 - `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt`
 - `tools/unicode/repertoire.txt`
 - `tools/packbuilder/vectors/payload-fixture.tsv`
 - `local.properties`
 
-Respaldado en `.claude/settings.json` → `permissions.deny`.
+Backed by `.claude/settings.json` → `permissions.deny`.
 
-## Comandos
+## Commands
 
 ```sh
-./gradlew check                                                 # EL GATE. Compila, lint y :dict-core:test
-./gradlew :dict-core:test                                       # solo el núcleo (rápido, sin emulador)
-cd tools/packbuilder && python3 -m unittest discover -s tests    # el builder
-python3 tools/packbuilder/build_toy.py                          # regenera el pack de juguete
-python3 tools/packbuilder/verify_pack.py <pack.db>              # invariantes de un pack real
-python3 tools/unicode/gen_repertoire.py                         # regenera el repertorio (acto deliberado)
-python3 tools/packbuilder/gen_payload_fixture.py                # regenera el fixture del codec
-./gradlew :dict-data:devicePrecheck                             # hay emulador o reloj? dice que falta
-./gradlew :dict-data:connectedDebugAndroidTest                  # LOS TESTS EN DISPOSITIVO (ver abajo)
+./gradlew check                                                 # THE GATE. Compile, lint and :dict-core:test
+./gradlew :dict-core:test                                       # the core only (fast, no emulator)
+cd tools/packbuilder && python3 -m unittest discover -s tests    # the builder
+python3 tools/packbuilder/build_toy.py                          # regenerate the toy pack
+python3 tools/packbuilder/verify_pack.py <pack.db>              # invariants of a real pack
+python3 tools/unicode/gen_repertoire.py                         # regenerate the repertoire (a deliberate act)
+python3 tools/packbuilder/gen_payload_fixture.py                # regenerate the codec fixture
+./gradlew :dict-data:devicePrecheck                             # is there an emulator or a watch? says what is missing
+./gradlew :dict-data:connectedDebugAndroidTest                  # THE ON-DEVICE TESTS (see below)
 ```
 
-El entorno Hatch para el pipeline Python es opcional y **el gate no lo necesita** (D-046):
-vive en `tools/CLAUDE.md`, que es el documento que lo posee.
+The Hatch environment for the Python pipeline is optional and **the gate does not need it**
+(D-046): it lives in `tools/CLAUDE.md`, which is the document that owns it.
 
-## Verificación
+## Verification
 
-`./gradlew check` corre el gate completo, incluidos los tests del núcleo y la auditoría
-estructural. **Los tests de Python corren dentro del gate** vía `:tools:pythonTest`.
+`./gradlew check` runs the full gate: the core's tests, the structural audit, and **the Python
+tests** via `:tools:pythonTest`.
 
-Después de tocar `norm()`, `fuzzy()` o el formato del pack, además:
+After touching `norm()`, `fuzzy()` or the pack format, additionally:
 `python3 tools/packbuilder/build_toy.py && python3 tools/packbuilder/verify_pack.py dict-data/src/androidTest/assets/toy-es-en.db`
 
-**Una claim necesita una medición.** No escribas un número en un documento sin decir cómo se
-obtuvo, y si la medición mata una creencia, esa es la entrada más valiosa del changelog.
+**A claim needs a measurement.** Do not write a number into a document without saying how it was
+obtained, and if the measurement kills a belief, that is the most valuable entry in the changelog.
 
-**El test va primero.** Un agente que escribe el código y después el test escribe **el test que
-el código pasa**, y el bug queda ratificado como comportamiento esperado. Escribí antes la
-expectativa —una fila en `normalization-vectors.tsv`, un caso en `test_build.py`— y **miralo
-fallar por la razón que esperabas**. Las excepciones (un spike, un test de caracterización) se
-nombran como tales.
+**The test comes first.** An agent that writes the code and then the test writes **the test the
+code passes**, and the bug gets ratified as expected behaviour. Write the expectation first —a row
+in `normalization-vectors.tsv`, a case in `test_build.py`— and **watch it fail for the reason you
+expected**. The exceptions (a spike, a characterization test) are named as such.
 
-**Emulador y reloj no miden lo mismo** (D-043): el emulador cierra correctitud —normalización,
-FTS5, planes de consulta—, porque trae el ICU y el SQLite de su nivel de API. Rendimiento y
-batería solo valen medidos en **reloj físico**. Ver el `benchmark` skill.
+**The emulator and the watch do not measure the same thing** (D-043): the emulator closes
+correctness —normalization, FTS5, query plans— because it ships the ICU and SQLite of its API
+level. Performance and battery only count measured on a **physical watch**. See `benchmark`.
 
-**Los tests de `:dict-data` son instrumentados y el gate NO los corre** (necesitan dispositivo).
-Son los únicos que cierran las asunciones sobre Android. Corrélos en cada nivel de API
-soportado, no en uno solo: el punto es que las versiones de ICU difieren.
+**`:dict-data`'s tests are instrumented and the gate does NOT run them** (they need a device).
+They are the only ones that close the assumptions about Android. Run them on every supported API
+level: the whole point is that ICU versions differ.
 
-## Cómo corre una sesión
+## How a session runs
 
-**Abrí con el brief**, antes de contestar o planear. Una línea sin nada dice `nada`: omitirla no
-distingue *miré y está limpio* de *no miré*.
+**Open with the brief**, before answering or planning. A line with nothing says `nada`: omitting
+it does not distinguish *I looked and it is clean* from *I did not look*. It stays in Spanish
+because it is **spoken to the user**, not written into the repo.
 
 ```
 En movimiento   qué quedó a medias, según el roadmap y el changelog
@@ -133,67 +131,69 @@ Lo cambia       cómo lo de arriba altera el pedido — una frase
 Fricción        items de proceso abiertos que este trabajo va a tocar
 ```
 
-**El trabajo sin commitear no es tuyo.** Nombralo en el reporte y no lo arrastres al tuyo.
+**Uncommitted work is not yours.** Name it in the report and do not drag it into your own.
 
-**Las preguntas van juntas y antes de escribir**, con tope de tres y una recomendación adelante.
-Cada opción se cotiza **en las unidades de este repo** —MB por millón de entradas, ms a p99,
-bytes por fila— nunca en "más complejo", y dice **qué cierra**: eso es lo que nadie reconstruye
-del código un año después. Lo reversible en diez minutos se decide solo y se avisa en una línea.
+**Questions go together and before writing**, capped at three, with a recommendation up front.
+Every option is priced **in this repo's units** —MB per million entries, ms at p99, bytes per
+row— never in "more complex", and says **what it closes**: that is what nobody reconstructs from
+the code a year later. Anything reversible in ten minutes is decided alone, in one line.
 
-**Mirá el output, no solo los números.** Un gate verde dice que el código hizo lo que se le
-mandó, no que lo que se le mandó estuviera bien. Acá eso es abrir el pack y **leer entradas de
-verdad**, no contar filas. Ver el `pack-workflow` skill.
+**Look at the output, not just the numbers.** A green gate says the code did what it was told, not
+that what it was told was right. Here that means opening the pack and **reading real entries**,
+not counting rows. See the `pack-workflow` skill.
 
-**Cerrá devolviendo lo que la sesión aprendió.** Capturar es incondicional; proponer tiene
-umbral: una fricción va al changelog la primera vez y **sube al roadmap §Proceso y herramientas
-la segunda**, con la aritmética. Las mejoras de proceso **se proponen, no se ejecutan**, salvo la
-de una línea y reversible. La pregunta de cierre: *si la próxima sesión es otro agente sin
-memoria de esta, ¿qué tendría que re-derivar?*
+**Close by giving back what the session learned.** Capturing is unconditional; proposing has a
+threshold: a friction goes into the changelog the first time and **up to the roadmap §Proceso y
+herramientas the second**, with the arithmetic. Process improvements **are proposed, not
+executed**, except the one-line reversible kind. The closing question: *if the next session is
+another agent with no memory of this one, what would it have to re-derive?*
 
 ## Commits
 
-Se ofrecen cuando el trabajo está terminado, nunca por iniciativa propia a mitad de tarea.
-Se parten **por dependencia, no por tamaño**: cada commit tiene que quedar verde por sí solo,
-así el historial es bisecable. Verificalo con `git worktree` antes de dar por hecho que lo está.
+They are offered when the work is finished, never on your own initiative mid-task. They are split
+**by dependency, not by size**: every commit has to be green on its own, so the history is
+bisectable. Verify it with `git worktree` before assuming it is.
 
-El mensaje dice **por qué**, no qué archivos cambiaron — eso ya lo dice el diff.
+The message says **why**, not which files changed — the diff already says that.
 
-## Obligación de logging
+## Logging obligation
 
-Cada sesión escribe su entrada en `.claude/logs/agent-changelog.md`, arriba de todo.
-Existe porque **dos sesiones en paralelo no se ven entre sí** y el conflicto aparece al
-compilar, o peor, al revisar.
+Every session writes its entry in `.claude/logs/agent-changelog.md`, at the very top. It exists
+because **two parallel sessions cannot see each other** and the conflict shows up at compile time,
+or worse, at review time.
 
-La entrada dice además **qué salió mal en el camino** y **qué quedó sin hacer**. Un log de
-éxitos es contabilidad: lo único que avisa a la sesión siguiente son los errores y la deuda.
+The entry also says **what went wrong along the way** and **what was left undone**. A log of
+successes is bookkeeping: what warns the next session are the mistakes and the debt.
 
-## Estilo de trabajo
+## Working style
 
-- **Español** en la conversación. Los technical terms van **en inglés sin traducir**: gate,
-  covering index, prefix, payload, rung.
-- **Trade-offs y conceptos antes que code dumps.** Explicá qué se gana y qué se pierde.
-- **Preguntas clarificadoras antes de soluciones detalladas.** Una suposición equivocada cuesta
-  más que una pregunta.
-- **Fuentes primarias.** Documentación oficial o el repositorio de artefactos, no un resumen.
-  Marcá **ASSUMPTION** lo que venga de memoria o de un resumen.
-- **Extender antes de crear.** Un segundo archivo haciendo el trabajo de uno que ya existe es
-  cómo un codebase olvida lo que decidió.
-- **La integridad arquitectónica gana sobre el pedido.** Si algo rompe una restricción de acá,
-  decí el costo y proponé el camino correcto; desviate solo con confirmación explícita, y
-  registralo como ⚠️ Desviación.
+- **Spanish in the conversation, English in the repo.** Identifiers, comments, documents and
+  commit messages are English; technical terms stay untranslated either way (gate, covering index,
+  payload, rung). The UI strings the user reads are the exception: they belong to the
+  localization, not to a translation pass.
+- **Trade-offs and concepts before code dumps.** Explain what is gained and what is lost.
+- **Clarifying questions before detailed solutions.** A wrong assumption costs more than a
+  question.
+- **Primary sources.** Official documentation or the artifact repository, not a summary. Mark
+  **ASSUMPTION** anything that comes from memory or from a summary.
+- **Extend before creating.** A second file doing the job of one that already exists is how a
+  codebase forgets what it decided.
+- **Architectural integrity wins over the request.** If something breaks a constraint from here,
+  say the cost and propose the right path; deviate only with explicit confirmation, and record
+  it as ⚠️ Desviación.
 
-## Los documentos, y cuál responde qué
+## The documents, and which one answers what
 
-| Pregunta | Documento |
+| Question | Document |
 |---|---|
-| ¿Por qué esto está decidido así? ¿Puedo cambiarlo? | `docs/decisions.md` |
-| Falta una palabra / salen repetidos / el pack no abre | `docs/contratos-cruzados.md` |
-| ¿Cómo es el `.db` por dentro? ¿Qué consulta uso? | `docs/formato-pack.md` |
-| ¿Dónde va un archivo nuevo? ¿Cuáles son las capas? | `docs/architecture.md` |
-| ¿Qué sigue? ¿Con qué choca lo que quiero hacer? | `docs/roadmap.md` |
-| ¿Cómo mido esto? ¿Está lento? ¿Cuánto gasta? | `benchmark` skill, y `docs/roadmap.md` §Optimización |
-| ¿Esto ya lo investigamos? ¿Qué dice la fuente oficial? | `docs/references.md` |
-| ¿Qué cambió y por qué, en las últimas sesiones? | `.claude/logs/agent-changelog.md` |
-| ¿Qué es este proyecto? (para alguien de afuera) | `README.md` |
-| ¿Cómo se trabaja este repo con un agente? ¿De dónde salen estas reglas? | `docs/agents/prompt-context.md` |
-| ¿Está sano el sistema de instrucciones? ¿Hay que actualizar el método? | `docs/agents/prompt-evaluate.md`, `prompt-update.md` |
+| Why is this decided this way? Can I change it? | `docs/decisions.md` |
+| A word is missing / duplicates show up / the pack will not open | `docs/contratos-cruzados.md` |
+| What does the `.db` look like inside? Which query do I use? | `docs/formato-pack.md` |
+| Where does a new file go? What are the layers? | `docs/architecture.md` |
+| What is next? What does what I want to do collide with? | `docs/roadmap.md` |
+| How do I measure this? Is it slow? How much does it cost? | the `benchmark` skill, and `docs/roadmap.md` §Optimización |
+| Did we already research this? What does the official source say? | `docs/references.md` |
+| What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
+| What is this project? (for an outsider) | `README.md` |
+| How is this repo worked with an agent? Where do these rules come from? | `docs/agents/prompt-context.md` |
+| Is the instruction system healthy? Does the method need updating? | `docs/agents/prompt-evaluate.md`, `prompt-update.md` |
