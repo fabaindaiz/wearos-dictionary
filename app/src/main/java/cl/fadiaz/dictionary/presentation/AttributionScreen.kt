@@ -37,7 +37,10 @@ fun AttributionScreen(packs: List<PackHandle>, problemas: List<String> = emptyLi
     val spec = rememberTransformationSpec()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
-        TransformingLazyColumn(contentPadding = contentPadding, state = listState) {
+        TransformingLazyColumn(
+            contentPadding = conMargenFinal(contentPadding),
+            state = listState,
+        ) {
             item {
                 ListHeader(
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),

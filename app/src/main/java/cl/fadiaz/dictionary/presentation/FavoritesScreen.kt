@@ -37,7 +37,7 @@ fun FavoritesScreen(favoritos: List<Visita>, onOpen: (Visita) -> Unit) {
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = contentPadding,
+            contentPadding = conMargenFinal(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
