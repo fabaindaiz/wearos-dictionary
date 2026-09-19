@@ -73,6 +73,14 @@ EN**, y **ninguna entrada usa las dos**.
 - **El shell de este entorno es zsh, no fish.** Una lista de archivos en una variable **no** hace
   word-splitting: el primer `sed` recibió los 12 paths como un solo nombre y no tocó nada. Pasar
   los archivos literalmente.
+- **El `description` de los skills NO se traduce, y casi lo traduzco.** Es el campo contra el
+  que se matchea el skill, y esas frases son las que el **usuario dice**: *"verificá"*, *"corré el
+  gate"*, *"medí"*, *"falta una palabra"*. En inglés el skill deja de dispararse. Misma lógica que
+  el brief: lo que se le **habla** al usuario sigue en español; lo que se **escribe** en el repo,
+  no.
+- **`pack-workflow` ya advertía lo que me costó un rato.** Dice, con ejemplo, que
+  `meta.payload_dict` está en hex y que pasarlo como string devuelve texto que *parece* corrupto.
+  Lo leí después de cazar el bug. La advertencia ahora dice que ya le pasó a alguien.
 - **La traducción de comentarios se hizo con un verificador, y se lo ganó.** Cada archivo se
   compara contra `HEAD` quitando **todos** los comentarios de las dos versiones: si el código
   restante no es idéntico, se rechaza. Sin eso, `Visit.kt` define el separador del historial como
@@ -89,11 +97,14 @@ EN**, y **ninguna entrada usa las dos**.
   `SharedPreferences` no se tocaron a propósito: `KEY_PACK` sigue valiendo `"pack_activo"`, y
   renombrarlo habría borrado los ajustes y el historial de quien ya tiene la app.
 
-**Qué quedó sin hacer.** De la **Fase C** se hicieron los pasos 1 y 2: **`app/src` no tiene un
-solo identificador ni un solo comentario en español**. Quedan `docs/` (5.793 líneas), los
-`CLAUDE.md` y los skills (1.113) y el changelog. ⚠️ **`docs/roadmap.md` está bloqueado**: sigue
-modificado sin commitear por otra sesión, así que traducirlo enredaría su trabajo con el mío.
-Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
+**Qué quedó sin hacer.** De la **Fase C** se hicieron los pasos 1, 2 y 4, y la mitad del 3:
+**`app/src` no tiene un solo identificador ni un solo comentario en español**, y tampoco lo tienen
+`CLAUDE.md`, los tres `CLAUDE.md` de área, los seis skills ni `architecture`, `contratos-cruzados`,
+`formato-pack` y `references`. Quedan **`docs/decisions.md`** (81 KB, la fila por decisión es
+prosa densa), **`docs/agents/`** (~200 KB, meta-documentos) y **el changelog** (120 KB, que el
+plan deja explícitamente para el final y en un commit aparte). ⚠️ **`docs/roadmap.md` y
+`tools/CLAUDE.md` están bloqueados**: siguen modificados sin commitear por otra sesión, así que
+traducirlos enredaría su trabajo con el mío. Y la **Fase D** (varios diccionarios activos, descubrir palabras, ajustes ampliados, ver los tiles
 dibujados). La etiqueta de tipo se muestra **en español al lado de un pack inglés**
 (*"English · definiciones"*): lo cierra la localización de la Fase C. El reloj físico **no estuvo
 conectado**: todo lo de dispositivo se verificó en el emulador, así que el tamaño real en 234 dp
