@@ -106,12 +106,12 @@ class TileContentTest {
         // se separaran, el tile mostraria la palabra del dia equivocado --corrida un dia-- que es
         // justo el error que nadie nota.
         val today = "2026-09-19"
-        for (dia in week.indices) {
-            val eseDia = TileContents.plusDays(today, dia)
+        for (day in week.indices) {
+            val eseDia = TileContents.plusDays(today, day)
             assertEquals(
-                TileContent.Word(week[dia]),
+                TileContent.Word(week[day]),
                 TileContents.wordOfTheDay(today, week, eseDia),
-                "el dia $dia no coincide",
+                "el dia $day no coincide",
             )
         }
     }
