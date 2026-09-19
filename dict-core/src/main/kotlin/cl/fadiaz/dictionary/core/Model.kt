@@ -98,6 +98,19 @@ data class Sense(
     val gloss: String,
     val examples: List<String> = emptyList(),
     val translations: List<String> = emptyList(),
+    /**
+     * Sinonimos de ESTA acepcion, no de la entrada (D-112).
+     *
+     * La distincion importa: "domingo" tiene `mesada, paga` en una acepcion y `pollerudo,
+     * calzonazos` en otra. Juntos no significan nada.
+     *
+     * Solo los packs en español los traen: el dump ingles no marca a que acepcion pertenece
+     * cada sinonimo, asi que no hay forma honesta de atribuirlos.
+     *
+     * Va ultimo a proposito: los diez call sites existentes son posicionales de tres argumentos
+     * o menos, y asi compilan sin tocarse.
+     */
+    val synonyms: List<String> = emptyList(),
 )
 
 /** El cuerpo completo de una entrada, tal como sale del payload descomprimido. */

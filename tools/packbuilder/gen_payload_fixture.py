@@ -46,6 +46,15 @@ CASES = [
     ("tabs y saltos en la fuente se sanean a espacios", "verb", [
         {"gloss": "con\tun tab\ny un salto", "examples": ["dos\t\tseguidos"]},
     ]),
+    # Los sinonimos van POR ACEPCION (D-112). El caso trae dos acepciones con sinonimos
+    # distintos a proposito: es lo unico que detecta un parser que los atribuye mal.
+    ("sinonimos por acepcion", "noun", [
+        {"gloss": "paga semanal que recibe un menor",
+         "synonyms": ["mesada", "paga"]},
+        {"gloss": "hombre dominado por su pareja",
+         "examples": ["es un pollerudo"],
+         "synonyms": ["pollerudo", "calzonazos"]},
+    ]),
 ]
 
 

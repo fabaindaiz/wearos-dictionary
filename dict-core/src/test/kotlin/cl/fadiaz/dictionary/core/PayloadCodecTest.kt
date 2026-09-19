@@ -96,6 +96,34 @@ class PayloadCodecTest {
     }
 
     @Test
+    fun `una acepcion se queda con sus sinonimos y no con los de la siguiente`() {
+        // Un sinonimo atribuido a la acepcion equivocada no falla ni loguea: sale como
+        // contenido correcto. Es el modo de falla que este tag introduce.
+        val body = PayloadCodec.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
+        assertEquals(listOf("bobo"), body.senses[0].synonyms)
+        assertEquals(listOf("listo"), body.senses[1].synonyms)
+    }
+
+    @Test
+    fun `un sinonimo antes de la primera acepcion no tiene donde colgar`() {
+        val body = PayloadCodec.parse("Y\thuerfano\nS\tla acepcion\n")
+        assertEquals(1, body.senses.size)
+        assertEquals(emptyList<String>(), body.senses[0].synonyms)
+    }
+
+    @Test
+    fun `el fixture trae un caso con sinonimos`() {
+        // Sin esto, el espejo Python-Kotlin del tag Y no estaria verificado contra bytes
+        // reales: los dos tests de arriba solo prueban el parser de este lado.
+        val fixture = loadFixture()
+        val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
+        assertTrue(
+            bodies.any { body -> body.senses.any { it.synonyms.isNotEmpty() } },
+            "el fixture no ejercita el tag de sinonimos; regenerar con gen_payload_fixture.py",
+        )
+    }
+
+    @Test
     fun `el fixture incluye acentos y no ASCII`() {
         // Si el fixture perdiera los casos no ASCII, un error de charset pasaria desapercibido.
         val fixture = loadFixture()
