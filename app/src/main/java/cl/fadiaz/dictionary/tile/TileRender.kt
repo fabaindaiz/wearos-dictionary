@@ -18,42 +18,42 @@ import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
 
 /**
- * De [TileContenido] a pixeles. Lo unico que estos archivos deciden es como se ve.
+ * From [TileContent] to pixels. The only thing these files decide is how it looks.
  *
- * QUE NO PASA ACA, Y ES EL PUNTO
+ * WHAT DOES NOT HAPPEN HERE, AND THAT IS THE POINT
  *
- * Ningun tile abre un pack. No es una precaucion de rendimiento --que sin medir estaria
- * prohibida (D-042)-- sino el contrato de la API: `onTileRequest` esta anotado `@MainThread` y
- * "must complete after at most 10 seconds". La guia oficial lo dice ademas en prosa: *"Don't
- * fetch content frequently or start long-running asynchronous work in your tile service"*, y
- * recomienda *"cache or store the results in local storage"*, que es exactamente lo que la app
- * deja escrito en `SharedPreferences`.
+ * No tile opens a pack. It is not a performance precaution --which without a measurement would
+ * be forbidden (D-042)-- but the API contract: `onTileRequest` is annotated `@MainThread` and
+ * "must complete after at most 10 seconds". The official guide also says it in prose: *"Don't
+ * fetch content frequently or start long-running asynchronous work in your tile service"*, and
+ * recommends *"cache or store the results in local storage"*, which is exactly what the app
+ * leaves written in `SharedPreferences`.
  */
 
-/** La activity que abren los dos tiles. */
+/** The activity both tiles open. */
 private fun mainActivity(context: Context) =
     ComponentName(context.packageName, "cl.fadiaz.dictionary.presentation.MainActivity")
 
-/** Clave del extra con el pack de la entrada que el tile quiere abrir. */
+/** Key of the extra carrying the pack of the entry the tile wants to open. */
 const val EXTRA_PACK_ID: String = "cl.fadiaz.dictionary.PACK_ID"
 
-/** Clave del extra con la entrada. Viaja como `long`, no como texto a re-parsear. */
+/** Key of the extra carrying the entry. It travels as a `long`, not as text to re-parse. */
 const val EXTRA_ENTRY_ID: String = "cl.fadiaz.dictionary.ENTRY_ID"
 
 /**
- * Clave del extra con el lema.
+ * Key of the extra carrying the headword.
  *
- * Viaja **para poder corregir el `entryId`**, no para mostrarlo: el tile publica un id que salio
- * de `SharedPreferences` y que un rebuild del pack deja apuntando a otra palabra (D-055). El
- * lema es lo unico que sobrevive, y ya esta ahi al lado --el tile lo dibuja--.
+ * It travels **so the `entryId` can be fixed**, not to be displayed: the tile publishes an id
+ * that came out of `SharedPreferences` and that a pack rebuild leaves pointing at another word
+ * (D-055). The headword is all that survives, and it is right there already --the tile draws it--.
  */
 const val EXTRA_HEADWORD: String = "cl.fadiaz.dictionary.HEADWORD"
 
 /**
- * Abrir la app en la busqueda.
+ * Open the app on the search.
  *
- * Componente explicito y no un deep link con `<data>`: un scheme convertiria la ruta de una
- * entrada en API publica del reloj a cambio de nada, porque los dos extremos viven en este APK.
+ * An explicit component and not a deep link with `<data>`: a scheme would turn an entry's route
+ * into public API of the watch in exchange for nothing, because both ends live in this APK.
  */
 private fun openTheApp(context: Context): Clickable =
     Clickable.Builder()
@@ -62,10 +62,11 @@ private fun openTheApp(context: Context): Clickable =
         .build()
 
 /**
- * Abrir una entrada concreta, en **su** pack.
+ * Open one specific entry, in **its** pack.
  *
- * El `packId` viaja junto al `entryId` porque sin el, con dos diccionarios abiertos, la entrada
- * se resolveria contra el activo y mostraria **otra palabra** sin error (D-080).
+ * The `packId` travels alongside the `entryId` because without it, with two dictionaries open,
+ * the entry would be resolved against the active one and would show **another word**, with no
+ * error (D-080).
  */
 private fun openTheEntry(context: Context, visit: Visit): Clickable =
     Clickable.Builder()
@@ -83,10 +84,10 @@ private fun openTheEntry(context: Context, visit: Visit): Clickable =
         .build()
 
 /**
- * Lo que se dibuja cuando no hay nada.
+ * What gets drawn when there is nothing.
  *
- * **Nunca un tile en blanco**: en el carrusel no se lee como "vacio" sino como "roto". Y ademas
- * tiene que ser tocable, porque abrir la app es la unica forma de que deje de estar vacio.
+ * **Never a blank tile**: in the carousel it does not read as "empty" but as "broken". And it
+ * also has to be tappable, because opening the app is the only way for it to stop being empty.
  */
 internal fun MaterialScope.emptyTile(context: Context, message: String): LayoutElement =
     primaryLayout(
@@ -94,7 +95,7 @@ internal fun MaterialScope.emptyTile(context: Context, message: String): LayoutE
         mainSlot = { text(message.layoutString, typography = Typography.BODY_LARGE) },
     )
 
-/** Las ultimas entradas abiertas, una por fila, cada una abriendo su propia entrada. */
+/** The most recently opened entries, one per row, each opening its own entry. */
 internal fun MaterialScope.historyRows(
     context: Context,
     visits: List<Visit>,
@@ -121,7 +122,7 @@ internal fun MaterialScope.historyRows(
         },
     )
 
-/** La palabra de hoy: el lema grande y su categoria debajo. */
+/** Today's word: the headword large and its part of speech underneath. */
 internal fun MaterialScope.wordCard(
     context: Context,
     visit: Visit,
