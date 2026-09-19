@@ -261,14 +261,14 @@ private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit
     ) {
         IconPill(
             icono = Icons.Filled.Search,
-            descripcion = "Buscar",
+            description = "Buscar",
             onClick = onBackToSearch,
             modifier = Modifier.weight(1f),
         )
         if (onOpenMenu != null) {
             IconPill(
                 icono = Icons.Filled.MoreVert,
-                descripcion = "Opciones",
+                description = "Opciones",
                 onClick = onOpenMenu,
                 modifier = Modifier.weight(1f),
             )
@@ -279,7 +279,7 @@ private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit
 @Composable
 private fun IconPill(
     icono: ImageVector,
-    descripcion: String,
+    description: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -295,7 +295,7 @@ private fun IconPill(
             imageVector = icono,
             // No es null como en un icono decorativo: aca el icono ES la etiqueta, asi que sin
             // esto el boton no tiene nombre para quien usa lector de pantalla.
-            contentDescription = descripcion,
+            contentDescription = description,
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )

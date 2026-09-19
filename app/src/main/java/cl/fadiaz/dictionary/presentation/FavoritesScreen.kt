@@ -22,13 +22,14 @@ import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.data.Visit
 
 /**
- * Las palabras guardadas.
+ * The saved words.
  *
- * Es la misma lista que el historial y la de resultados --[Fila], 48 dp, una linea con elipsis--
- * porque son la misma cosa: un lema que se toca para abrirlo. Lo unico distinto es de donde sale.
+ * It is the same list as the history and the results one --[ListRow], 48 dp, a single line with
+ * ellipsis-- because they are the same thing: a headword you tap to open. The only difference is
+ * where it comes from.
  *
- * A diferencia del historial no tiene tope de tres: el historial son tres porque compite por la
- * pantalla con los resultados, y esto no compite con nada.
+ * Unlike the history it has no cap of three: the history is three because it competes for the
+ * screen with the results, and this competes with nothing.
  */
 @Composable
 fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
@@ -50,8 +51,8 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
             if (favorites.isEmpty()) {
                 item(key = "vacio") {
                     Text(
-                        // Dice COMO se guarda, no solo que no hay: un estado vacio que no explica
-                        // como salir de el es un callejon.
+                        // It says HOW to save, not just that there is nothing: an empty state
+                        // that does not explain the way out of it is a dead end.
                         text = "Abrí una palabra y usá Opciones para guardarla.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
