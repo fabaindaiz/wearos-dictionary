@@ -1,50 +1,49 @@
 # dict-core
 
-Kotlin/JVM puro: normalización, claves de búsqueda, distancia de edición y el codec del
-payload. **Sin Android y sin SQLite.** Los tests corren en milisegundos, sin emulador.
+Pure Kotlin/JVM: normalization, search keys, edit distance and the payload codec. **No Android
+and no SQLite.** The tests run in milliseconds, with no emulator.
 
-## La regla local
+## The local rule
 
-Toda API de plataforma vive en `PlatformJvm.kt`. Ningún otro archivo importa `java.*`/`javax.*`
-ni usa `Character.`, `.codePoints()` o `.format()`.
+Every platform API lives in `PlatformJvm.kt`. No other file imports `java.*`/`javax.*` or uses
+`Character.`, `.codePoints()` or `.format()`.
 
-`ArchitectureTest` rompe el build si eso deja de ser cierto, y está comprobado que detecta
-violaciones reales. La conversión a KMP —si algún día hay una app companion— sería mover ese
-archivo a `jvmMain/` y declarar sus cuatro funciones como `expect`.
+`ArchitectureTest` breaks the build if that stops being true, and it is proven to catch real
+violations. The KMP conversion —if a companion app ever exists— would be moving that file into
+`jvmMain/` and declaring its four functions as `expect`.
 
-## El archivo a copiar
+## The file to copy
 
-`PrefixRange.kt`. Módulo pequeño, `object`, KDoc que explica **por qué** y no qué, iteración por
-code point escrita a mano, cero dependencias.
+`PrefixRange.kt`. A small module, an `object`, KDoc that explains **why** and not what,
+hand-written code point iteration, zero dependencies.
 
-Para un test: `PrefixRangeTest.kt` — verifica la propiedad ("el rango contiene exactamente las
-palabras con ese prefijo"), no solo casos sueltos.
+For a test: `PrefixRangeTest.kt` — it verifies the property ("the range contains exactly the words
+with that prefix"), not just isolated cases.
 
-## La trampa que ya nos mordió
+## The trap that already bit us
 
-**Una extensión de Kotlin nunca gana sobre un miembro nativo de la JVM.** `appendUtf16` se llama
-así y no `appendCodePoint` porque con ese nombre habría ganado
-`StringBuilder.appendCodePoint` de la JVM y el código portable nunca se habría ejecutado:
-funcionando bien hoy, fallando recién al compilar para otro target.
+**A Kotlin extension never wins over a native JVM member.** `appendUtf16` is named that and not
+`appendCodePoint` because with that name the JVM's `StringBuilder.appendCodePoint` would have won
+and the portable code would never have run: working fine today, failing only when compiled for
+another target.
 
-Si escribís un reemplazo portable de algo de la JVM, **dale un nombre distinto**.
+If you write a portable replacement for something in the JVM, **give it a different name**.
 
-## Agregar un `FuzzyProfile`
+## Adding a `FuzzyProfile`
 
-Es un cambio de dos lenguajes, siempre:
+It is always a two-language change:
 
-1. `FuzzyProfile.kt` — la entrada del enum, con las reglas **en orden**. El orden es parte del
-   contrato: `"ce" → "se"` antes que `"c" → "k"`, si no "cerrar" deja de colisionar con "serrar".
-2. `tools/packbuilder/normalize.py` — las mismas reglas en `FUZZY_PROFILES`.
-3. `vectors/normalization-vectors.tsv` — casos para el perfil nuevo. `NormalizationVectorsTest`
-   falla si un perfil declarado no tiene vectores.
-4. Subir `NORM_VERSION` en los dos lados.
+1. `FuzzyProfile.kt` — the enum entry, with the rules **in order**. The order is part of the
+   contract: `"ce" → "se"` before `"c" → "k"`, or "cerrar" stops colliding with "serrar".
+2. `tools/packbuilder/normalize.py` — the same rules in `FUZZY_PROFILES`.
+3. `vectors/normalization-vectors.tsv` — cases for the new profile. `NormalizationVectorsTest`
+   fails if a declared profile has no vectors.
+4. Bump `NORM_VERSION` on both sides.
 
-**Nada de expresiones regulares.** Solo reemplazo literal de strings, que tiene semántica
-idéntica en Kotlin y en Python. Dos regex "equivalentes" divergen en un caso borde que nadie
-nota.
+**No regular expressions.** Literal string replacement only, which has identical semantics in
+Kotlin and in Python. Two "equivalent" regexes diverge on an edge case nobody notices.
 
-## Qué NO va acá
+## What does NOT go here
 
-Nada que sepa de SQLite, de Android, de rutas de archivo o de red. `DictionarySource` es una
-interfaz a propósito: la implementación vive en el módulo que sí puede tocar SQLite.
+Anything that knows about SQLite, Android, file paths or the network. `DictionarySource` is an
+interface on purpose: the implementation lives in the module that is allowed to touch SQLite.
