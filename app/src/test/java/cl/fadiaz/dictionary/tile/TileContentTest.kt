@@ -14,8 +14,8 @@ import kotlin.test.assertEquals
  */
 class TileContentTest {
 
-    private fun visit(lema: String, id: Long = 1, pack: String = "es-def-wikc") =
-        Visit(packId = pack, entryId = id, headword = lema, partOfSpeech = "noun")
+    private fun visit(headword: String, id: Long = 1, pack: String = "es-def-wikc") =
+        Visit(packId = pack, entryId = id, headword = headword, partOfSpeech = "noun")
 
     // ----------------------------------------------------------------- historial
 

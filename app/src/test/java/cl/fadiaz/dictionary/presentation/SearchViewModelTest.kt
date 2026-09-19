@@ -135,20 +135,20 @@ class SearchViewModelTest {
 
     // --- Las palabras guardadas ---------------------------------------------------------------
 
-    private fun visit(lema: String, id: Long = 1, pack: String = "es-def") =
-        Visit(packId = pack, entryId = id, headword = lema, partOfSpeech = "noun")
+    private fun visit(headword: String, id: Long = 1, pack: String = "es-def") =
+        Visit(packId = pack, entryId = id, headword = headword, partOfSpeech = "noun")
 
     @Test
     fun savingAWordLeavesItInTheList() = runTest {
-        val guardadas = mutableListOf<List<Visit>>()
-        val vm = SearchViewModel({ listos(FakeDictionary()) }, saveFavorites = { guardadas += it })
+        val savedWords = mutableListOf<List<Visit>>()
+        val vm = SearchViewModel({ listos(FakeDictionary()) }, saveFavorites = { savedWords += it })
         advanceUntilIdle()
 
         vm.toggleFavorite(visit("perro"))
 
         assertEquals(listOf("perro"), vm.state.value.favorites.map { it.headword })
         assertTrue(vm.isFavorite("es-def", 1))
-        assertEquals(1, guardadas.size, "tiene que persistirse, no solo quedar en memoria")
+        assertEquals(1, savedWords.size, "tiene que persistirse, no solo quedar en memoria")
     }
 
     @Test
@@ -262,15 +262,15 @@ class SearchViewModelTest {
         val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: Pair<String, List<Visit>>? = null
+        var savedWords: Pair<String, List<Visit>>? = null
         val vm = SearchViewModel(
             { listos(fake) },
             todayDate = { "2026-09-19" },
-            saveWeekWords = { since, words -> guardadas = since to words },
+            saveWeekWords = { since, words -> savedWords = since to words },
         )
         advanceUntilIdle()
 
-        val cached = guardadas
+        val cached = savedWords
         assertTrue(cached != null, "no se cacheo ninguna palabra para el tile")
         assertEquals("2026-09-19", cached.first)
         assertEquals(TileContents.CACHED_DAYS, cached.second.size)
@@ -284,16 +284,16 @@ class SearchViewModelTest {
         val fake = FakeDictionary(packId = "es-def", entryCount = 5000).apply {
             summaries = (1L..5000L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: List<Visit> = emptyList()
+        var savedWords: List<Visit> = emptyList()
         val vm = SearchViewModel(
             { listos(fake) },
             todayDate = { "2026-09-19" },
-            saveWeekWords = { _, words -> guardadas = words },
+            saveWeekWords = { _, words -> savedWords = words },
         )
         advanceUntilIdle()
 
         assertTrue(
-            guardadas.map { it.entryId }.toSet().size > 1,
+            savedWords.map { it.entryId }.toSet().size > 1,
             "los siete dias eligieron la misma entrada",
         )
     }
@@ -344,19 +344,19 @@ class SearchViewModelTest {
         val fake = FakeDictionary(packId = "en-def", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
-        var guardadas: List<Visit> = emptyList()
+        var savedWords: List<Visit> = emptyList()
         val vm = SearchViewModel(
             { listos(fake) },
             todayDate = { "2026-09-19" },
             savedWeekWords = {
                 "2026-09-19" to listOf(Visit("es-def", 1, "de-otro-pack", "noun"))
             },
-            saveWeekWords = { _, words -> guardadas = words },
+            saveWeekWords = { _, words -> savedWords = words },
         )
         advanceUntilIdle()
 
-        assertTrue(guardadas.isNotEmpty(), "no rehizo la cache al cambiar de diccionario")
-        assertTrue(guardadas.all { it.packId == "en-def" })
+        assertTrue(savedWords.isNotEmpty(), "no rehizo la cache al cambiar de diccionario")
+        assertTrue(savedWords.all { it.packId == "en-def" })
     }
 
     @Test
@@ -692,8 +692,8 @@ class SearchViewModelTest {
 
     // --- El historial de entradas abiertas -------------------------------------------------------
 
-    private fun suggestion(pack: String, id: Long, lema: String) = Suggestion(
-        packId = pack, entryId = id, headword = lema, partOfSpeech = "noun",
+    private fun suggestion(pack: String, id: Long, headword: String) = Suggestion(
+        packId = pack, entryId = id, headword = headword, partOfSpeech = "noun",
         matchKind = MatchKind.PREFIX, score = 0,
     )
 

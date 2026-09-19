@@ -224,7 +224,7 @@ fun SearchScreen(
                         ) { index ->
                             val visit = state.history[index]
                             ListRow(
-                                lema = visit.headword,
+                                headword = visit.headword,
                                 detail = visit.partOfSpeech?.let(::posInSpanish),
                             ) { onOpenVisita(visit) }
                         }
@@ -308,13 +308,13 @@ fun SearchScreen(
                         // explica el gesto, asi que llegar ahi con cero no es un callejon.
                         item(key = "favoritos") {
                             ListRow(
-                                lema = "Guardadas",
+                                headword = "Guardadas",
                                 detail = state.favorites.size.takeIf { it > 0 }?.toString(),
                                 onClick = onOpenFavoritos,
                             )
                         }
                         item(key = "ajustes") {
-                            ListRow(lema = "Ajustes", detail = null, onClick = onOpenSettings)
+                            ListRow(headword = "Ajustes", detail = null, onClick = onOpenSettings)
                         }
                     }
 
@@ -347,7 +347,7 @@ fun SearchScreen(
 @Composable
 private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
     ListRow(
-        lema = suggestion.headword,
+        headword = suggestion.headword,
         detail = matchLabel(suggestion.matchKind)
             ?: suggestion.partOfSpeech?.let(::posInSpanish),
         onClick = onClick,

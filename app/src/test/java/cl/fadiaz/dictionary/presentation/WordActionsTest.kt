@@ -43,10 +43,10 @@ class WordActionsTest {
         ),
     )
 
-    private fun actions(traduccion: PackHandle.Open?) = wordActions(
+    private fun actions(translation: PackHandle.Open?) = wordActions(
         isFavorite = false,
         onToggleFavorite = {},
-        translationPack = traduccion,
+        translationPack = translation,
         onViewTranslation = {},
         onCopy = {},
     ).map { it.label }

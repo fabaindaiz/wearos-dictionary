@@ -4,23 +4,24 @@ import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
- * Que ofrece el menu de una palabra.
+ * What a word's menu offers.
  *
- * Vive aparte de `MainActivity` y sin una sola referencia a Android para que se pueda testear en
- * la JVM, dentro del gate: **cual accion se ofrece** es una decision, y la decision es lo que se
- * equivoco (D-072).
+ * It lives apart from `MainActivity` and without a single reference to Android so it can be
+ * tested on the JVM, inside the gate: **which action is offered** is a decision, and the decision
+ * is what went wrong (D-072).
  *
- * POR QUE "VER TRADUCCION" CASI NUNCA APARECE
+ * WHY "VIEW TRANSLATION" ALMOST NEVER SHOWS UP
  *
- * La version anterior la ofrecia siempre que hubiera otro pack abierto, y lo que hacia era buscar
- * **el mismo lema** en el otro diccionario. Con dos packs monolingues eso casi nunca encuentra
- * nada: "house" no es una palabra espanola. Encontraba prestamos y nombres propios --"chocolate",
- * "Madrid"-- y en todo lo demas era un boton que no hacia nada, que es peor que no tenerlo.
+ * The earlier version offered it whenever another pack was open, and what it did was look up
+ * **the same headword** in the other dictionary. With two monolingual packs that almost never
+ * finds anything: "house" is not a Spanish word. It found loanwords and proper nouns
+ * --"chocolate", "Madrid"-- and in everything else it was a button that did nothing, which is
+ * worse than not having it.
  *
- * Traducir de verdad necesita que el pack **traiga** las traducciones, y hoy los dos reales son
- * monolingues (D-034): `trans` esta vacia y `MatchKind.TRANSLATION` no devuelve una sola fila.
- * Asi que la accion se ofrece **solo si hay un pack bilingue abierto**, que es lo unico que
- * declara `lang_dst` y por lo tanto lo unico que puede traducir. Hoy: nunca.
+ * Translating for real needs the pack to **carry** the translations, and today both real ones are
+ * monolingual (D-034): `trans` is empty and `MatchKind.TRANSLATION` returns not a single row. So
+ * the action is offered **only if a bilingual pack is open**, which is the only thing that
+ * declares `lang_dst` and therefore the only thing that can translate. Today: never.
  */
 internal fun wordActions(
     isFavorite: Boolean,
@@ -47,10 +48,11 @@ internal fun wordActions(
 }
 
 /**
- * El pack que puede traducir esta entrada, o null.
+ * The pack that can translate this entry, or null.
  *
- * Bilingue y distinto del que estamos mirando. `PackKind.BILINGUAL` es la senal correcta y no el
- * nombre ni el idioma: es lo unico que obliga a declarar `lang_dst` (ver `PackMetadata.init`).
+ * Bilingual and different from the one being read. `PackKind.BILINGUAL` is the right signal and
+ * not the name or the language: it is the only thing that forces `lang_dst` to be declared (see
+ * `PackMetadata.init`).
  */
 internal fun translationPack(
     opened: List<PackHandle>,

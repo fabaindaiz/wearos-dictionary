@@ -31,13 +31,13 @@ class GlossLinksOnDeviceTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private fun entry(glosa: String) = Entry(
+    private fun entry(gloss: String) = Entry(
         packId = "test",
         entryId = 1,
         uid = 1,
         headword = "perro",
         partOfSpeech = "noun",
-        senses = listOf(Sense(glosa)),
+        senses = listOf(Sense(gloss)),
     )
 
     @Test

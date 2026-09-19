@@ -132,7 +132,7 @@ internal fun Pill(
  * bajar de ahi seria ganar densidad rompiendo algo peor.
  */
 @Composable
-internal fun ListRow(lema: String, detail: String?, onClick: () -> Unit) {
+internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -144,7 +144,7 @@ internal fun ListRow(lema: String, detail: String?, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = lema,
+            text = headword,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
