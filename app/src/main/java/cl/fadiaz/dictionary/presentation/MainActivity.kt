@@ -211,17 +211,14 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                         resolver = { norms -> viewModel.resolver(packId, norms) },
                         acciones = { entrada ->
                             accionesDeLaPalabra(
-                                entrada = entrada,
                                 esFavorita = viewModel.esFavorita(packId, entrada.entryId),
                                 onAlternarFavorita = {
                                     viewModel.alternarFavorita(
                                         Visita(packId, entrada.entryId, entrada.headword, entrada.partOfSpeech),
                                     )
                                 },
-                                otroPack = state.disponibles
-                                    .filterIsInstance<PackHandle.Abierto>()
-                                    .firstOrNull { it.packId != packId },
-                                onVerEnOtroIdioma = { otro ->
+                                packDeTraduccion = packDeTraduccion(state.disponibles, packId),
+                                onVerTraduccion = { otro ->
                                     // La misma palabra en el otro diccionario: se resuelve por
                                     // `norm`, que es la clave con la que se indexo, y se abre EN
                                     // SU pack -- si se abriera en el activo seria D-080 otra vez.
@@ -277,7 +274,6 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
                 composable(RUTA_AJUSTES) {
                     SettingsScreen(
                         packs = state.disponibles,
-                        activo = state.activo?.packId,
                         escala = state.ajustes.escalaDeTexto,
                         onGestionarPacks = { navController.navigate(RUTA_PACKS) },
                         onEscalaChange = viewModel::onEscalaDeTextoChange,
@@ -289,38 +285,4 @@ fun DictionaryApp(entradaInicial: Visita? = null) {
             }
         }
     }
-}
-
-/**
- * Las tres acciones de una palabra.
- *
- * Vive aca y no en la pantalla porque dos de las tres necesitan Android --el portapapeles y el
- * navController-- y la pantalla tiene que poder probarse pasandole una lista armada a mano.
- *
- * "Ver en el otro idioma" **solo aparece si hay otro pack instalado**: ofrecer una accion que no
- * puede hacer nada ensena a desconfiar del resto del menu.
- */
-private fun accionesDeLaPalabra(
-    entrada: Entry,
-    esFavorita: Boolean,
-    onAlternarFavorita: () -> Unit,
-    otroPack: PackHandle.Abierto?,
-    onVerEnOtroIdioma: (PackHandle.Abierto) -> Unit,
-    onCopiar: () -> Unit,
-): List<AccionDeEntrada> = buildList {
-    add(
-        AccionDeEntrada(
-            etiqueta = if (esFavorita) "Quitar de guardadas" else "Guardar",
-            onClick = onAlternarFavorita,
-        ),
-    )
-    if (otroPack != null) {
-        add(
-            AccionDeEntrada(
-                etiqueta = "Ver en ${otroPack.metadata.name}",
-                onClick = { onVerEnOtroIdioma(otroPack) },
-            ),
-        )
-    }
-    add(AccionDeEntrada(etiqueta = "Copiar", onClick = onCopiar))
 }

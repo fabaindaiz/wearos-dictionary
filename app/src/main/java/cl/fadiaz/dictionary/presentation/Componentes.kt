@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +56,40 @@ internal val TOUCH_TARGET: Dp = 48.dp
  * recto sobre las esquinas redondeadas.
  */
 internal val FORMA_PILDORA = RoundedCornerShape(percent = 50)
+
+/**
+ * Para lo que tiene mas de una linea.
+ *
+ * La pildora al 50 % recorta las esquinas con un radio de media altura: con dos renglones eso se
+ * come el principio y el final del texto. Un radio fijo no crece con el alto.
+ */
+internal val FORMA_TARJETA = RoundedCornerShape(24.dp)
+
+/**
+ * Cuanto se puede scrollear **despues** del ultimo item.
+ *
+ * Sin esto el ultimo renglon queda pegado al borde, y en una pantalla REDONDA el borde de abajo
+ * se curva hacia adentro: el texto se ve cortado y no hay forma de bajar mas. Pasaba en las seis
+ * pantallas porque las seis pasaban el `contentPadding` del `ScreenScaffold` tal cual.
+ */
+private val MARGEN_FINAL: Dp = 32.dp
+
+/**
+ * El `contentPadding` del scaffold, con lugar para respirar al final.
+ *
+ * Una funcion y no 32.dp repetido en seis archivos: el dia que el numero cambie --o que alguien
+ * mida cuanto se come de verdad la curva-- hay un solo lugar donde tocarlo.
+ */
+@Composable
+internal fun conMargenFinal(base: PaddingValues): PaddingValues {
+    val direccion = LocalLayoutDirection.current
+    return PaddingValues(
+        start = base.calculateStartPadding(direccion),
+        top = base.calculateTopPadding(),
+        end = base.calculateEndPadding(direccion),
+        bottom = base.calculateBottomPadding() + MARGEN_FINAL,
+    )
+}
 
 /**
  * Una pildora de texto a todo el ancho, tocable o no.

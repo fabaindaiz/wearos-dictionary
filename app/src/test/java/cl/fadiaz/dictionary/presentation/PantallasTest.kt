@@ -36,6 +36,7 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -114,12 +115,14 @@ class PantallasTest {
         onSearchDefinitions: () -> Unit = {},
         onOpenVisita: (Visita) -> Unit = {},
         onOpenAjustes: () -> Unit = {},
+        onOpenFavoritos: () -> Unit = {},
         onOpenPalabraDelDia: (String, EntrySummary) -> Unit = { _, _ -> },
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
-            onOpenAjustes = onOpenAjustes, onOpenPalabraDelDia = onOpenPalabraDelDia)
+            onOpenAjustes = onOpenAjustes, onOpenFavoritos = onOpenFavoritos,
+            onOpenPalabraDelDia = onOpenPalabraDelDia)
     }
 
     // --- La lista de resultados --------------------------------------------------------------
@@ -459,18 +462,19 @@ class PantallasTest {
         EntrySummary(entryId = 42, headword = "permanecer", partOfSpeech = "verb", rank = 883)
 
     @Test
-    fun laPalabraDelDiaSeVeSinScrollearYSeAbre() {
-        // `assertIsDisplayed` y no `assertExists`: el punto es que se VEA. La primera version la
-        // ponia en el indice 0 y quedaba fuera de pantalla, porque llega asincrona cuando la
-        // lista ya se asento y los items tienen `key`. Eso lo destapo mirar el reloj, no un test.
+    fun laPalabraDelDiaSeVeBajoSuTituloYSeAbre() {
+        // Ya NO se ve sin scrollear, y es el costo aceptado de poner la barra primero: arriba
+        // quedan la busqueda y la voz, que es lo que mas se repite. Lo que si tiene que pasar es
+        // que se llegue, que lleve su titulo de seccion y que abra en SU diccionario.
         var abierta: EntrySummary? = null
         var packDeLaPalabra: String? = null
         mostrarBusqueda(
             estadoListo().copy(query = "", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
             onOpenPalabraDelDia = { pack, palabra -> packDeLaPalabra = pack; abierta = palabra },
         )
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("permanecer"))
+        compose.onNodeWithText("Palabra del día").assertExists()
         compose.onNodeWithText("permanecer").assertIsDisplayed()
-        compose.onNodeWithText("palabra del día").assertIsDisplayed()
         compose.onNodeWithText("permanecer").performClick()
         assertEquals(42L, abierta?.entryId)
         assertEquals("tiene que abrir en SU diccionario", "es-def", packDeLaPalabra)
@@ -533,9 +537,15 @@ class PantallasTest {
 
     // --- Gestion de diccionarios ----------------------------------------------------------------
 
-    private fun packAbierto(id: String, nombre: String, bytes: Long, demo: Boolean = false) =
+    private fun packAbierto(
+        id: String,
+        nombre: String,
+        bytes: Long,
+        demo: Boolean = false,
+        lang: String = "es",
+    ) =
         PackHandle.Abierto(
-            source = FakeSource(meta(packId = id, name = nombre)),
+            source = FakeSource(meta(packId = id, lang = lang, name = nombre)),
             esDemo = demo,
             archivo = "$id.db",
             bytes = bytes,
@@ -549,15 +559,19 @@ class PantallasTest {
             PacksScreen(
                 packs = listOf(
                     packAbierto("es-def", "Español", 72_212_480),
-                    packAbierto("en-def", "English", 309_452_800),
+                    packAbierto("en-def", "English", 309_452_800, lang = "en"),
                 ),
                 activo = "es-def",
                 onActivar = {},
                 onBorrar = {},
             )
         }
-        compose.onNodeWithText("72,2 MB").assertIsDisplayed()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB"))
+        // Tamaño e idioma juntos: el nombre del pack sale de adentro del .db y no siempre dice
+        // de que idioma es.
+        compose.onNodeWithText("72,2 MB", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("· ES", substring = true).assertExists()
+        compose.onNodeWithText("· EN", substring = true).assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB", substring = true))
         compose.onNodeWithContentDescription("En uso").assertExists()
         assertEquals(
             "solo el activo lleva check",
@@ -638,6 +652,91 @@ class PantallasTest {
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Para descargar"))
         compose.onNodeWithText("cable", substring = true).assertExists()
+    }
+
+    @Test
+    fun elInicioOfreceGuardadasAunqueNoHayaNinguna() {
+        // Antes la fila solo aparecia con favoritas: quien nunca guardo una no tenia como
+        // descubrir que se puede. La pantalla ya trae un estado vacio que lo explica.
+        var abrio = false
+        mostrarBusqueda(estadoListo().copy(query = "", favoritos = emptyList()),
+            onOpenFavoritos = { abrio = true })
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Guardadas"))
+        compose.onNodeWithText("Guardadas").performClick()
+        assertEquals(true, abrio)
+    }
+
+    @Test
+    fun borrarElHistorialPideConfirmacionEnElMismoBoton() {
+        // Sin dialogo: el historial se rehace solo usando la app, asi que un segundo toque
+        // alcanza. Lo que no puede pasar es que un toque suelto lo borre.
+        var borrado = 0
+        compose.setContent {
+            SettingsScreen(
+                packs = emptyList(),
+                escala = cl.fadiaz.dictionary.data.EscalaDeTexto.NORMAL,
+                onGestionarPacks = {},
+                onEscalaChange = {},
+                onLimpiarHistorial = { borrado++ },
+                hayHistorial = true,
+            )
+        }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Borrar el historial"))
+        compose.onNodeWithText("Borrar el historial").performClick()
+        compose.waitForIdle()
+        assertEquals("el primer toque no puede borrar", 0, borrado)
+
+        compose.onNodeWithText("Confirmar").performClick()
+        compose.waitForIdle()
+        assertEquals(1, borrado)
+    }
+
+    @Test
+    fun laBarraDeBusquedaEstaArribaDeTodo() {
+        // Es la accion primaria: la guia de Wear pide elevarla, y antes quedaba debajo del
+        // encabezado, la palabra del dia y el boton de voz.
+        mostrarBusqueda(
+            estadoListo().copy(query = "", palabrasDelDia = mapOf("es-def" to palabraDeHoy)),
+        )
+        val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
+        val palabra = compose.onNodeWithText("permanecer").getBoundsInRoot()
+        assertTrue("la palabra del dia quedo arriba de la barra", barra.top < palabra.top)
+    }
+
+    @Test
+    fun cadaSeccionDelInicioTieneSuTitulo() {
+        // Sin titulos, la palabra del dia se confundia con una entrada del historial y el
+        // selector de idioma con un resultado.
+        mostrarBusqueda(
+            estadoDosPacks().copy(
+                query = "",
+                palabrasDelDia = mapOf("es-def" to palabraDeHoy),
+                historial = recientes,
+            ),
+        )
+        for (titulo in listOf("Palabra del día", "Recientes", "Opciones")) {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(titulo))
+            compose.onNodeWithText(titulo).assertExists()
+        }
+    }
+
+    @Test
+    fun elSelectorDeIdiomaViveEnOpciones() {
+        mostrarBusqueda(estadoDosPacks().copy(query = ""))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Opciones"))
+        val opciones = compose.onNodeWithText("Opciones").getBoundsInRoot()
+        val selector = compose.onNodeWithText("ES").getBoundsInRoot()
+        assertTrue("el selector quedo fuera de Opciones", selector.top >= opciones.top)
+    }
+
+    @Test
+    fun conUnSoloDiccionarioNoHaySeccionDePalabraDelDiaVacia() {
+        // Un titulo sin nada debajo es peor que no tener titulo.
+        mostrarBusqueda(estadoListo().copy(query = "", palabrasDelDia = emptyMap()))
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Palabra del día").fetchSemanticsNodes().size,
+        )
     }
 
     // --- La atribucion, que es D-031 ---------------------------------------------------------

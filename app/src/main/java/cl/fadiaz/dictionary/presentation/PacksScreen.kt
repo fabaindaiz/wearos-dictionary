@@ -66,7 +66,7 @@ fun PacksScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = contentPadding,
+            contentPadding = conMargenFinal(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -80,7 +80,9 @@ fun PacksScreen(
                 val pack = instalados[indice]
                 FilaDePack(
                     nombre = pack.metadata.name,
-                    tamano = enTamanoLegible(pack.bytes),
+                    // Tamaño Y idioma: el nombre viene de adentro del pack y no siempre dice de
+                    // que idioma es, y el idioma es lo que distingue dos diccionarios parecidos.
+                    detalle = "${enTamanoLegible(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
                     activo = pack.packId == activo,
                     onActivar = { onActivar(pack.packId) },
                     // El de demostracion no se puede borrar: volveria solo.
@@ -156,7 +158,7 @@ fun PacksScreen(
 @Composable
 private fun FilaDePack(
     nombre: String,
-    tamano: String,
+    detalle: String,
     activo: Boolean,
     onActivar: () -> Unit,
     onBorrar: (() -> Unit)?,
@@ -169,7 +171,7 @@ private fun FilaDePack(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clip(FORMA_PILDORA)
+                .clip(FORMA_TARJETA)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
                 .clickable(onClick = onActivar)
                 .heightIn(min = TOUCH_TARGET)
@@ -188,17 +190,24 @@ private fun FilaDePack(
                     )
                 }
             }
-            Column(modifier = Modifier.weight(1f).padding(start = 6.dp)) {
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
+            ) {
                 Text(
                     text = nombre,
                     style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
+                    // DOS lineas y no una. Medido a ojo sobre el reloj: despues del check
+                    // reservado, los paddings y el boton de borrar de 48 dp, al nombre le quedan
+                    // ~140 dp, y "Español — definiciones" son 22 caracteres. En una linea se
+                    // cortaba siempre.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = tamano,
+                    text = detalle,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
                 )
             }
         }

@@ -98,6 +98,58 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
   marcado en rojo en `app/CLAUDE.md`, pero confirmarlo dentro de la app sigue pendiente.
 - El catálogo de descarga de packs sigue siendo un WIP en pantalla.
 
+## 2026-09-19 — Las pantallas entran al gate, y el inicio se reordena
+
+**Qué.** Robolectric mete las pantallas al gate (D-110) y con eso los siete arreglos de
+usabilidad se verifican en segundos: ícono propio, margen final, Guardadas siempre visible,
+borrar historial con doble toque, diccionarios legibles, el inicio en secciones y *Ver
+traducción* escondida. D-110 a D-115.
+
+**Áreas.** `app/build.gradle.kts`, `gradle/libs.versions.toml`,
+`app/src/test/resources/robolectric.properties`, las seis pantallas de
+`app/src/main/java/cl/fadiaz/dictionary/presentation/`, el `AccionesDeLaPalabra.kt` nuevo, los
+tres drawables del ícono y `AndroidManifest.xml`.
+
+**Por qué.** Catorce observaciones de usar la app en el reloj.
+
+**Arquitectura.** ✅ Cumple. La decisión de qué acciones ofrece una palabra sale de
+`MainActivity` a un archivo sin Android, para que el gate la vea (D-072).
+
+**Medido.**
+- **Los minutos de los tests no estaban en los tests.** Los 31 de `:dict-data` ejecutan en
+  **3,3 s** y los 6 de tiles en **0,05 s**: el tiempo se iba en compilar e **instalar dos APK de
+  50 MB**. Con Robolectric, **46 de los 47** de pantalla corren en **21 s** y el gate en frío
+  queda en **1m07s** — contra 1m26s cuando *no* incluía las pantallas. `:app` pasa de 108 a
+  **154 tests JVM**.
+- **Robolectric 4.16.1 llega hasta SDK 36** y el proyecto targetea 37: sin
+  `robolectric.properties` todo falla con *"Package targetSdkVersion=37 > maxSdkVersion=36"*. O
+  sea que **la suite rápida no corre en el nivel del reloj**.
+- **El único test que no sobrevive** es tocar una palabra dentro de una glosa: el nodo del enlace
+  se encuentra y el click se despacha, pero el callback no se dispara. Es hit-testing sobre el
+  rectángulo de una palabra dentro de un párrafo, y eso necesita layout de texto real.
+- **El nombre de un diccionario no entra en una línea**: después del check reservado, los
+  paddings y el botón de borrar de 48 dp le quedan ~140 dp, y *"Español — definiciones"* son 22
+  caracteres.
+
+**Qué salió mal.**
+- **`allWarningsAsErrors` me corrigió el primer test de Robolectric**: usé `createComposeRule` en
+  vez del `v2`, que es el que ya usaba el resto del proyecto.
+- **Puse un comentario XML entre los atributos de `<application>`** y rompí el manifest. El error
+  era *"Error parsing AndroidManifest.xml"*, sin línea.
+- **El fixture de los tests declaraba los dos packs como español**, así que al agregar el idioma
+  al subtítulo *"ES"* aparecía dos veces y el test falló por el fixture, no por el código.
+- **`SettingsScreen` recibía un parámetro `activo` que nunca usaba**, y lo descubrí al tener que
+  pasarle un valor de mentira desde un test.
+
+**Qué quedó sin hacer.**
+- **Las fases 2 a 4 enteras**: idiomas es/en, varios diccionarios activos, descubrir palabras,
+  ajustes ampliados, y ver los tiles dibujados.
+- **La palabra del día ya no se ve sin scrollear**, que es el costo directo de poner la barra
+  primero. Está aceptado y escrito, pero nadie lo miró con las dos palabras y el historial llenos.
+- **El subtítulo del diccionario se corta** en la palabra del día (*"Español — definicio…"*).
+- Sigue abierto el defecto heredado de que las preferencias se respaldan con `entryId`, que no
+  sobrevive a reconstruir un pack.
+
 ## 2026-09-19 — La superficie glanceable deja de ser el template, y ningún tile abre un pack
 
 **Qué.** Dos tiles de diccionario —últimas palabras y palabra del día— reemplazan al *"Hello,

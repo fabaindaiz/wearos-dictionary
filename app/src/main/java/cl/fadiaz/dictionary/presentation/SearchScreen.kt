@@ -104,7 +104,7 @@ fun SearchScreen(
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = contentPadding,
+            contentPadding = conMargenFinal(contentPadding),
             state = listState,
             // La corona es el scroll principal de un reloj: el dedo tapa justamente lo que se
             // esta leyendo. No viene cableada por defecto.
@@ -145,51 +145,18 @@ fun SearchScreen(
                 }
 
                 SearchState.Status.Ready -> {
-                    // Con la busqueda vacia el encabezado puede permitirse existir; en cuanto
-                    // hay resultados, cada fila de chrome es un resultado menos.
+                    // LA BARRA VA PRIMERA. Antes quedaba debajo del encabezado, de la palabra
+                    // del dia y del boton de voz, y buscar es la accion primaria: la guia de
+                    // Wear OS pide elevarla para que se actue sin navegar.
+                    item(key = "barra") {
+                        BarraDeBusqueda(state.query, onQueryChange) {
+                            voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
+                        }
+                    }
+
                     if (state.query.isEmpty()) {
-                        item(key = "encabezado") {
-                            // Con un solo pack esto es el titulo de siempre; con dos es el
-                            // selector. Reusar el header es lo que hace que el selector cueste
-                            // CERO filas de resultado -- y con 192 dp sólo entran tres.
-                            if (state.disponibles.size > 1) {
-                                SelectorDeIdioma(state, onPackChange)
-                            } else {
-                                ListHeader(
-                                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                                    transformation = SurfaceTransformation(spec),
-                                ) { Text(state.activo?.name ?: "Diccionario") }
-                            }
-                        }
-                        // DESPUES del encabezado y no antes, y eso se aprendio mirandolo en
-                        // pantalla: las palabras llegan asincronas --son 32 lecturas por pack--
-                        // cuando la lista ya se asento, y como los items tienen `key` la lista
-                        // conserva su posicion. Insertadas en el indice 0 aparecian FUERA de
-                        // pantalla; insertadas aca empujan hacia abajo y se ven sin scrollear.
-                        //
-                        // Una por diccionario cargado, la del activo primero.
-                        val delDia = state.disponibles
-                            .filterIsInstance<PackHandle.Abierto>()
-                            .mapNotNull { handle ->
-                                state.palabrasDelDia[handle.packId]?.let { handle to it }
-                            }
-                            .sortedByDescending { it.first.packId == state.activo?.packId }
-                        items(
-                            count = delDia.size,
-                            key = { indice -> "pdd:${delDia[indice].first.packId}" },
-                        ) { indice ->
-                            val (handle, palabra) = delDia[indice]
-                            PalabraDelDiaDeHoy(
-                                palabra = palabra,
-                                // Con un solo diccionario el nombre no aporta --ya esta en el
-                                // encabezado--; con dos es lo unico que las distingue.
-                                subtitulo = if (delDia.size > 1) {
-                                    handle.metadata.name
-                                } else {
-                                    "palabra del día"
-                                },
-                            ) { onOpenPalabraDelDia(handle.packId, palabra) }
-                        }
+                        // La voz va pegada a la barra: las dos son la misma pregunta --como
+                        // escribo lo que busco-- y separarlas obligaba a scrollear entre ellas.
                         item(key = "voz") {
                             Button(
                                 onClick = { voz.launch(intentDeVoz(state.activo?.langSource ?: "es")) },
@@ -197,19 +164,53 @@ fun SearchScreen(
                                 transformation = SurfaceTransformation(spec),
                             ) { Text("Decir una palabra") }
                         }
-                    }
 
-                    item(key = "barra") {
-                        BarraDeBusqueda(state.query, onQueryChange) {
-                            voz.launch(intentDeVoz(state.activo?.langSource ?: "es"))
+                        // Una por diccionario cargado, la del activo primero. El encabezado
+                        // aparece SOLO si hay alguna: un titulo sin nada debajo es peor que no
+                        // tener titulo.
+                        val delDia = state.disponibles
+                            .filterIsInstance<PackHandle.Abierto>()
+                            .mapNotNull { handle ->
+                                state.palabrasDelDia[handle.packId]?.let { handle to it }
+                            }
+                            .sortedByDescending { it.first.packId == state.activo?.packId }
+                        if (delDia.isNotEmpty()) {
+                            item(key = "titulo-del-dia") {
+                                ListHeader(
+                                    modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                    transformation = SurfaceTransformation(spec),
+                                ) { Text("Palabra del día") }
+                            }
+                        }
+                        items(
+                            count = delDia.size,
+                            key = { indice -> "pdd:${delDia[indice].first.packId}" },
+                        ) { indice ->
+                            val (handle, palabra) = delDia[indice]
+                            // Siempre el nombre del diccionario: el encabezado ya dice que es
+                            // la palabra del dia, asi que repetirlo aca gastaba un renglon.
+                            PalabraDelDiaDeHoy(
+                                palabra = palabra,
+                                subtitulo = handle.metadata.name,
+                            ) { onOpenPalabraDelDia(handle.packId, palabra) }
                         }
                     }
 
                     // Las ultimas palabras abiertas, solo con la busqueda vacia: desaparecen al
                     // escribir por construccion, sin un `if` extra, asi que no compiten nunca con
-                    // los resultados. Sin encabezado "Recientes": un ListHeader cuesta dos
-                    // tercios de una fila y aca no hay nada con que confundirlas.
-                    if (state.query.isEmpty()) {
+                    // los resultados.
+                    //
+                    // AHORA SI llevan encabezado. Antes no lo tenian porque "un ListHeader cuesta
+                    // dos tercios de una fila y aca no hay nada con que confundirlas" -- pero con
+                    // la palabra del dia arriba y las opciones abajo, la unica lista sin titulo
+                    // pasaba a ser la rara.
+                    if (state.query.isEmpty() && state.historial.isNotEmpty()) {
+                        item(key = "titulo-recientes") {
+                            ListHeader(
+                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                transformation = SurfaceTransformation(spec),
+                            ) { Text("Recientes") }
+                        }
                         items(
                             count = state.historial.size,
                             key = { indice ->
@@ -285,16 +286,28 @@ fun SearchScreen(
                     // Ajustes solo con la busqueda vacia: con resultados en pantalla una fila
                     // de chrome es un resultado menos (D-073).
                     if (state.query.isEmpty()) {
-                        // Solo si hay alguna: una lista vacia a la que llegar no le sirve a
-                        // nadie, y en 234 dp cada fila del inicio compite con las demas.
-                        if (state.favoritos.isNotEmpty()) {
-                            item(key = "favoritos") {
-                                Fila(
-                                    lema = "Guardadas",
-                                    detalle = state.favoritos.size.toString(),
-                                    onClick = onOpenFavoritos,
-                                )
-                            }
+                        item(key = "titulo-opciones") {
+                            ListHeader(
+                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
+                                transformation = SurfaceTransformation(spec),
+                            ) { Text("Opciones") }
+                        }
+                        // El selector de idioma vive aca y ya no reemplaza al titulo del inicio.
+                        // Eso cambia lo que decia D-078 --que costaba CERO filas-- y el costo
+                        // nuevo es una fila propia; a cambio deja de competir con la barra por
+                        // el lugar de arriba, que es donde tiene que estar la busqueda.
+                        if (state.disponibles.size > 1) {
+                            item(key = "selector") { SelectorDeIdioma(state, onPackChange) }
+                        }
+                        // Siempre, aunque este vacia: quien nunca guardo una palabra no tenia
+                        // como descubrir que se puede. La pantalla ya trae un estado vacio que
+                        // explica el gesto, asi que llegar ahi con cero no es un callejon.
+                        item(key = "favoritos") {
+                            Fila(
+                                lema = "Guardadas",
+                                detalle = state.favoritos.size.takeIf { it > 0 }?.toString(),
+                                onClick = onOpenFavoritos,
+                            )
                         }
                         item(key = "ajustes") {
                             Fila(lema = "Ajustes", detalle = null, onClick = onOpenAjustes)

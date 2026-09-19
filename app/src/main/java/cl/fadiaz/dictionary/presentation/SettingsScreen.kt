@@ -40,7 +40,6 @@ import cl.fadiaz.dictionary.data.PackHandle
 @Composable
 fun SettingsScreen(
     packs: List<PackHandle>,
-    activo: String?,
     escala: EscalaDeTexto,
     onGestionarPacks: () -> Unit,
     onEscalaChange: (EscalaDeTexto) -> Unit,
@@ -50,10 +49,11 @@ fun SettingsScreen(
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
     var historialLimpio by remember { mutableStateOf(false) }
+    var confirmando by remember { mutableStateOf(false) }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
-            contentPadding = contentPadding,
+            contentPadding = conMargenFinal(contentPadding),
             state = listState,
             modifier = Modifier.rotaryScrollable(
                 RotaryScrollableDefaults.behavior(listState),
@@ -98,23 +98,38 @@ fun SettingsScreen(
 
             item(key = "cabecera-historial") { ListHeader { Text("Historial") } }
             item(key = "limpiar-historial") {
+                // Dos toques en el MISMO boton, sin dialogo: el historial se rehace solo
+                // usando la app, asi que no justifica una pantalla encima. Lo que si hace falta
+                // es que un toque suelto --y en una muñeca los hay-- no lo borre.
                 Pildora(
                     texto = when {
                         historialLimpio -> "Historial borrado"
-                        hayHistorial -> "Borrar el historial"
-                        else -> "No hay historial"
+                        !hayHistorial -> "No hay historial"
+                        confirmando -> "Confirmar"
+                        else -> "Borrar el historial"
                     },
-                    fondo = MaterialTheme.colorScheme.surfaceContainer,
-                    tinta = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fondo = if (confirmando) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    },
+                    tinta = if (confirmando) {
+                        MaterialTheme.colorScheme.onError
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     // Sin onClick cuando no hay nada que borrar o ya se borro: una accion que no
                     // hace nada y no lo dice enseña a desconfiar del resto de los botones.
-                    onClick = if (hayHistorial && !historialLimpio) {
+                    onClick = if (!hayHistorial || historialLimpio) {
+                        null
+                    } else if (confirmando) {
                         {
                             onLimpiarHistorial()
                             historialLimpio = true
+                            confirmando = false
                         }
                     } else {
-                        null
+                        { confirmando = true }
                     },
                 )
             }
