@@ -23,15 +23,15 @@ import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.tile.TileContents
 
 /**
- * La concurrencia de la busqueda, que es donde un bug NO da error.
+ * The search's concurrency, which is where a bug gives NO error.
  *
- * Los tres modos de falla que cubren estos tests se ven todos iguales desde afuera --una lista
- * de resultados-- y ninguno lanza nada: resultados de una query anterior pisando a la actual,
- * una consulta por pulsacion drenando la bateria, y la busqueda muerta hasta que el usuario
- * borra y vuelve a escribir.
+ * The three failure modes these tests cover all look the same from outside --a list of results--
+ * and none of them throws anything: results from an earlier query overwriting the current one, a
+ * query per keystroke draining the battery, and the search left dead until the user deletes and
+ * types again.
  *
- * TDD: el de la carrera al abrir el pack se escribio **antes** del arreglo y fallo. Los demas
- * son de CARACTERIZACION -- el comportamiento ya existia y esto lo fija.
+ * TDD: the one about the race when opening the pack was written **before** the fix and failed.
+ * The rest are CHARACTERIZATION tests -- the behaviour already existed and this pins it down.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchViewModelTest {
@@ -49,13 +49,14 @@ class SearchViewModelTest {
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
 
-    // --- Borrar un diccionario -----------------------------------------------------------------
+    // --- Deleting a dictionary ----------------------------------------------------------------
 
     @Test
     fun theConnectionClosesBEFORETheFileIsDeleted() = runTest {
-        // Es LA regla de esta funcion, y no es teorica: en Unix un archivo borrado con un
-        // descriptor abierto sigue ocupando el disco hasta que se cierre, y la app lo seguiria
-        // leyendo como si nada. El usuario veria "borrado" y cero espacio liberado.
+        // This is THE rule of this function, and it is not theoretical: on Unix a deleted file
+        // with an open descriptor keeps occupying the disk until it is closed, and the app would
+        // go on reading it as if nothing happened. The user would see "deleted" and zero space
+        // freed.
         val es = FakeDictionary(packId = "es-def")
         val en = FakeDictionary(packId = "en-def")
         var closedOnDelete: Boolean? = null
@@ -94,7 +95,7 @@ class SearchViewModelTest {
 
     @Test
     fun deletingTheACTIVEDictionaryLeavesAnotherActive() = runTest {
-        // Si no, la app queda buscando en un pack que ya no existe.
+        // Otherwise the app is left searching a pack that no longer exists.
         val es = FakeDictionary(packId = "es-def")
         val en = FakeDictionary(packId = "en-def")
         var quedan = listOf(es, en)
@@ -117,8 +118,9 @@ class SearchViewModelTest {
 
     @Test
     fun theDemoPackCannotBeDeleted() = runTest {
-        // Viene dentro del APK y `PackStore.open` lo re-extrae al reabrir, asi que borrarlo seria
-        // una accion que no hace nada: el pack vuelve solo. Ofrecerla seria mentir.
+        // It comes inside the APK and `PackStore.open` re-extracts it on reopening, so deleting
+        // it would be an action that does nothing: the pack comes back on its own. Offering it
+        // would be a lie.
         val demo = FakeDictionary(packId = "demo")
         var deleteWasAttempted = false
         val vm = SearchViewModel(
@@ -133,7 +135,7 @@ class SearchViewModelTest {
         assertTrue(!deleteWasAttempted, "intento borrar el pack de demostracion")
     }
 
-    // --- Las palabras guardadas ---------------------------------------------------------------
+    // --- The saved words ----------------------------------------------------------------------
 
     private fun visit(headword: String, id: Long = 1, pack: String = "es-def") =
         Visit(packId = pack, entryId = id, headword = headword, partOfSpeech = "noun")
@@ -165,8 +167,8 @@ class SearchViewModelTest {
 
     @Test
     fun favoritesFromTwoPacksAreNotConfused() = runTest {
-        // Los entryId son rowids: el 1 existe en TODOS los packs. Sin mirar el packId, guardar
-        // "perro" marcaria tambien como guardada la entrada 1 del diccionario de ingles.
+        // entryIds are rowids: 1 exists in EVERY pack. Without looking at the packId, saving
+        // "perro" would also mark entry 1 of the English dictionary as saved.
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
 
@@ -186,22 +188,22 @@ class SearchViewModelTest {
 
     @Test
     fun theSavedWordsCapIsRespected() = runTest {
-        // Termina en un String de SharedPreferences: sin tope crece sin limite.
+        // It ends up in a SharedPreferences String: with no cap it grows without bound.
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
         repeat(SearchViewModel.MAX_FAVORITES + 10) { i -> vm.toggleFavorite(visit("p$i", i.toLong())) }
         assertEquals(SearchViewModel.MAX_FAVORITES, vm.state.value.favorites.size)
-        // La ultima guardada va primero: es la que mas probablemente quieras volver a ver.
+        // The most recently saved goes first: it is the one you are most likely to revisit.
         assertEquals("p${SearchViewModel.MAX_FAVORITES + 9}", vm.state.value.favorites.first().headword)
     }
 
-    // --- La palabra del dia ------------------------------------------------------------------
+    // --- The word of the day ------------------------------------------------------------------
 
     @Test
     fun openingThePackPublishesTheWordOfTheDay() = runTest {
-        // Que la politica sea correcta no alcanza: tiene que llegar al estado. Esto se escribio
-        // porque la primera version compilaba, pasaba sus tests y **no mostraba nada** en el
-        // reloj, y una captura de pantalla no dice por que.
+        // A correct policy is not enough: it has to reach the state. This was written because
+        // the first version compiled, passed its tests and **showed nothing** on the watch, and
+        // a screenshot does not say why.
         val fake = FakeDictionary(entryCount = 50)
         fake.summaries = (1L..50L).associateWith {
             EntrySummary(it, "palabra$it", "noun", (1000 - it).toInt())
@@ -216,8 +218,8 @@ class SearchViewModelTest {
 
     @Test
     fun thereIsOneWordOfTheDayPerLoadedDictionary() = runTest {
-        // Con dos idiomas instalados las dos palabras interesan, y cambiar de idioma no puede
-        // tener que recalcular nada.
+        // With two languages installed both words are of interest, and switching language
+        // cannot require recomputing anything.
         val es = FakeDictionary(packId = "es-def", entryCount = 50).apply {
             summaries = (1L..50L).associateWith { EntrySummary(it, "es$it", "noun", 900) }
         }
@@ -235,8 +237,8 @@ class SearchViewModelTest {
 
     @Test
     fun eachDictionaryHasItsOwnWord() = runTest {
-        // Misma fecha, mismos datos, distinto packId: si la semilla ignorara el pack, los dos
-        // diccionarios mostrarian la entrada del mismo id, que en cada uno es otra palabra.
+        // Same date, same data, different packId: if the seed ignored the pack, both
+        // dictionaries would show the entry with the same id, which in each is another word.
         val a = FakeDictionary(packId = "aaa", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
@@ -253,12 +255,12 @@ class SearchViewModelTest {
         )
     }
 
-    // --- La cache que alimenta a los tiles ------------------------------------------------
+    // --- The cache that feeds the tiles --------------------------------------------------
 
     @Test
     fun openingThePacksCachesTheWeekOfWordsForTheTile() = runTest {
-        // El tile NO abre el pack --onTileRequest corre en el hilo principal con 10 s de tope--
-        // asi que si la app no deja la semana escrita, el tile no tiene nada que mostrar.
+        // The tile does NOT open the pack --onTileRequest runs on the main thread with a 10 s
+        // cap-- so if the app does not leave the week written, the tile has nothing to show.
         val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
@@ -279,8 +281,8 @@ class SearchViewModelTest {
 
     @Test
     fun theCachedWeekHasADifferentWordPerDay() = runTest {
-        // Si el hash ignorara la fecha, el Timeline del tile tendria siete ventanas con la misma
-        // palabra y "palabra del dia" seria una palabra a secas.
+        // If the hash ignored the date, the tile's Timeline would have seven windows with the
+        // same word and "word of the day" would just be a word.
         val fake = FakeDictionary(packId = "es-def", entryCount = 5000).apply {
             summaries = (1L..5000L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
@@ -300,7 +302,7 @@ class SearchViewModelTest {
 
     @Test
     fun aCacheFromTodayAndTheSamePackIsNotRecomputed() = runTest {
-        // Son 32 lecturas por dia: rehacerlas en cada arranque es trabajo que no cambia nada.
+        // It is 32 reads per day: redoing them on every launch is work that changes nothing.
         val fake = FakeDictionary(packId = "es-def", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
@@ -339,8 +341,9 @@ class SearchViewModelTest {
 
     @Test
     fun aCacheFromAnotherDictionaryIsRebuilt() = runTest {
-        // Cambiar de idioma tiene que cambiar la palabra del tile: si no, el tile queda mostrando
-        // espanol con la app en ingles, y eso no se reporta porque nadie abre un tile a proposito.
+        // Switching language has to switch the tile's word: otherwise the tile is left showing
+        // Spanish with the app in English, and that goes unreported because nobody opens a tile
+        // on purpose.
         val fake = FakeDictionary(packId = "en-def", entryCount = 500).apply {
             summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
         }
@@ -373,12 +376,13 @@ class SearchViewModelTest {
         assertEquals(0, vecesGuardadas)
     }
 
-    // --- El aviso a los tiles -----------------------------------------------------------------
+    // --- Notifying the tiles ------------------------------------------------------------------
 
     @Test
     fun openingAnEntryNotifiesTheHistoryTile() = runTest {
-        // El tile de historial no tiene refresco programado: `freshnessIntervalMillis = 0` y el
-        // sistema no vuelve a llamarlo. Si la app no lo empuja, se queda con lo de la instalacion.
+        // The history tile has no scheduled refresh: `freshnessIntervalMillis = 0` and the
+        // system never calls it again. If the app does not push it, it keeps what it had at
+        // install time.
         val fake = FakeDictionary()
         var avisos = 0
         val vm = SearchViewModel({ listos(fake) }, notifyTiles = { avisos++ })
@@ -405,8 +409,8 @@ class SearchViewModelTest {
 
     @Test
     fun withNoDateThereIsNoWordOfTheDay() = runTest {
-        // El default: si nadie cablea el reloj, la ausencia se ve en pantalla en vez de mostrar
-        // una palabra que nunca cambia.
+        // The default: if nobody wires the clock, the absence shows on screen instead of a word
+        // that never changes.
         val fake = FakeDictionary()
         fake.summaries = mapOf(1L to EntrySummary(1, "unica", "noun", 900))
         val vm = SearchViewModel({ listos(fake) })
@@ -414,13 +418,13 @@ class SearchViewModelTest {
         assertTrue(vm.state.value.wordsOfTheDay.isEmpty())
     }
 
-    // --- La carrera al abrir el pack (TDD: este fallaba) -------------------------------------
+    // --- The race when opening the pack (TDD: this one failed) -------------------------------
 
     @Test
     fun whatIsTypedWhileThePackLoadsIsSearchedWhenItFinishes() = runTest {
-        // El pack de español pesa 69 MB y tarda en abrir; la pantalla ya acepta texto. Si lo
-        // escrito durante ese rato no se vuelve a consultar, la busqueda queda MUERTA: el
-        // usuario ve "Sin resultados" para siempre, hasta que borra una letra y la reescribe.
+        // The Spanish pack weighs 69 MB and takes a while to open; the screen already accepts
+        // text. If what is typed during that window is never queried again, the search is left
+        // DEAD: the user sees "No results" forever, until they delete a letter and retype it.
         val diferido = DeferredPack()
         val fake = FakeDictionary()
         val vm = SearchViewModel(diferido::openFile)
@@ -456,12 +460,12 @@ class SearchViewModelTest {
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
     }
 
-    // --- Caracterizacion: el debounce y la cancelacion ---------------------------------------
+    // --- Characterization: the debounce and the cancellation ---------------------------------
 
     @Test
     fun characterization_typingOneWordFiresASingleQuery() = runTest {
-        // CARACTERIZACION. Cuatro pulsaciones seguidas mas rapido que el debounce tienen que
-        // costar UNA consulta, no cuatro. En un reloj esto es bateria, no milisegundos.
+        // CHARACTERIZATION. Four keystrokes in a row faster than the debounce have to cost ONE
+        // query, not four. On a watch this is battery, not milliseconds.
         val fake = FakeDictionary()
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -491,8 +495,9 @@ class SearchViewModelTest {
 
     @Test
     fun characterization_anOldQuery_isCancelled_andDoesNotOverwriteTheNewOne() = runTest {
-        // El modo de falla: "per" tarda, el usuario escribe "casa", y "per" termina despues y
-        // deja SUS resultados en pantalla. La lista mostraria otra palabra que la escrita.
+        // The failure mode: "per" takes a while, the user types "casa", and "per" finishes
+        // afterwards and leaves ITS results on screen. The list would show a word other than the
+        // one typed.
         val fake = FakeDictionary(demora = 1_000)
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -526,8 +531,8 @@ class SearchViewModelTest {
 
     @Test
     fun characterization_theTypedTextShowsBeforeTheDebounce() = runTest {
-        // La query es del usuario y se muestra ya; los resultados son del pack y llegan despues.
-        // Si el campo esperara al debounce, escribir se sentiria trabado.
+        // The query belongs to the user and shows immediately; the results belong to the pack
+        // and arrive later. If the field waited for the debounce, typing would feel stuck.
         val fake = FakeDictionary()
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -539,7 +544,7 @@ class SearchViewModelTest {
 
     @Test
     fun characterization_closingTheViewModelClosesThePack() = runTest {
-        // Un pack sin cerrar deja la conexion de SQLite viva y el archivo mapeado en memoria.
+        // An unclosed pack leaves the SQLite connection alive and the file mapped in memory.
         val fake = FakeDictionary()
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -548,12 +553,12 @@ class SearchViewModelTest {
         assertTrue(fake.cerrado)
     }
 
-    // --- El selector de idioma ---------------------------------------------------------------
+    // --- The language selector ----------------------------------------------------------------
 
     @Test
     fun withTwoPacksItStartsOnTheSavedOne() = runTest {
-        // Sin esto, el pack activo lo decidiria el orden alfabetico -- y "en-..." ordena antes
-        // que "es-...", asi que el reloj de alguien que solo usa español arrancaria en ingles.
+        // Without this, alphabetical order would decide the active pack -- and "en-..." sorts
+        // before "es-...", so the watch of someone who only uses Spanish would start in English.
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(en), listOf(handle(en), handle(es))) },
@@ -574,13 +579,13 @@ class SearchViewModelTest {
 
     @Test
     fun theDemoPackNeverWinsIfThereIsARealDictionary() = runTest {
-        // Encontrado usandolo: con el pack de demo (28 entradas) y el español real (146.194)
-        // instalados, la app abria el de DEMO. Ni la preferencia ni el idioma del reloj
-        // desempataban --los dos packs son "es"-- asi que caia al ultimo escalon, que era el
-        // orden alfabetico: "demo-" gana a "es-".
+        // Found by using it: with the demo pack (28 entries) and the real Spanish one (146,194)
+        // installed, the app opened the DEMO. Neither the preference nor the watch locale broke
+        // the tie --both packs are "es"-- so it fell to the last rung, which was alphabetical
+        // order: "demo-" beats "es-".
         //
-        // Es la misma clase que mato D-079, sobrevivida en el ultimo recurso. Y con un pack de
-        // demostracion dentro del APK ese recurso se dispara siempre, no casi nunca.
+        // It is the same class D-079 killed, surviving in the last resort. And with a demo pack
+        // inside the APK that resort fires always, not almost never.
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
@@ -592,9 +597,10 @@ class SearchViewModelTest {
 
     @Test
     fun theDemoPackIsNotEvenOfferedIfThereIsARealOne() = runTest {
-        // Visto en pantalla: el selector mostraba "ES" y "ES" --el demo y el español real-- y no
-        // habia forma de saber cual era cual. Un placeholder no es una opcion: si hay un
-        // diccionario, el de juguete no se ofrece, y con un solo pack el selector desaparece.
+        // Seen on screen: the selector showed "ES" and "ES" --the demo and the real Spanish
+        // one-- and there was no way to tell which was which. A placeholder is not an option: if
+        // a dictionary exists, the toy one is not offered, and with a single pack the selector
+        // disappears.
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
@@ -606,7 +612,7 @@ class SearchViewModelTest {
 
     @Test
     fun withOnlyTheDemoPackThatOneIsUsed() = runTest {
-        // Para eso existe: que la app recien instalada tenga algo que mostrar.
+        // That is what it exists for: so a freshly installed app has something to show.
         val demo = FakeDictionary("toy-es-en", "es")
         val vm = SearchViewModel({
             PackSet.Ready(handle(demo, isDemo = true), listOf(handle(demo, isDemo = true)))
@@ -617,8 +623,8 @@ class SearchViewModelTest {
 
     @Test
     fun switchingLanguageRepeatsTheCurrentSearchInTheNewPack() = runTest {
-        // Es el punto del selector: si al cambiar hubiera que reescribir la palabra, en una
-        // muñeca nadie lo usaria.
+        // That is the point of the selector: if switching meant retyping the word, nobody would
+        // use it on a wrist.
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) })
@@ -650,9 +656,9 @@ class SearchViewModelTest {
 
     @Test
     fun openingAnEntryLooksItUpInItsOwnPack() = runTest {
-        // El bug que esto arregla: la navegacion pasaba solo entryId, asi que con dos packs
-        // abiertos una entrada de ingles se resolvia contra el pack activo -- y mostraba OTRA
-        // palabra, sin error.
+        // The bug this fixes: navigation passed only the entryId, so with two packs open an
+        // English entry was resolved against the active pack -- and showed ANOTHER word, with no
+        // error.
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) })
@@ -662,8 +668,8 @@ class SearchViewModelTest {
 
     @Test
     fun openingAnEntryFromAnUnknownPackReturnsNull() = runTest {
-        // Caer al pack activo seria el mismo bug, pero silencioso. Null hace que la pantalla
-        // diga que la entrada no esta, que es honesto.
+        // Falling back to the active pack would be the same bug, but silent. Null makes the
+        // screen say the entry is not there, which is honest.
         val vm = conPack(FakeDictionary("es-def", "es"))
         advanceUntilIdle()
         assertEquals(null, vm.entry("no-existe", 7))
@@ -690,7 +696,7 @@ class SearchViewModelTest {
         assertTrue(es.cerrado && en.cerrado, "un pack sin cerrar deja viva su conexion de SQLite")
     }
 
-    // --- El historial de entradas abiertas -------------------------------------------------------
+    // --- The history of opened entries -----------------------------------------------------------
 
     private fun suggestion(pack: String, id: Long, headword: String) = Suggestion(
         packId = pack, entryId = id, headword = headword, partOfSpeech = "noun",
@@ -716,8 +722,8 @@ class SearchViewModelTest {
 
     @Test
     fun theHistoryIsTrimmedToItsCap() {
-        // El tope no es arbitrario: la pantalla da tres filas de 48 dp (D-073). Guardar mas seria
-        // guardar lo que no se ve.
+        // The cap is not arbitrary: the screen gives three rows of 48 dp (D-073). Storing more
+        // would be storing what nobody sees.
         val vm = conPack(FakeDictionary("es-def", "es"))
         (1..6).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
         assertEquals(SearchViewModel.MAX_HISTORY, vm.state.value.history.size)
@@ -726,9 +732,9 @@ class SearchViewModelTest {
 
     @Test
     fun anEntryFromAPackThatIsGoneIsNotShown() = runTest {
-        // Se filtra al mostrar, no se poda al guardar: desinstalar y reinstalar un pack es un
-        // flujo real, y asi el historial vuelve solo. Una fila que al tocarla no abre nada es
-        // peor que no tener la fila.
+        // Filtered when displayed, not pruned when saved: uninstalling and reinstalling a pack
+        // is a real flow, and this way the history comes back on its own. A row that opens
+        // nothing when tapped is worse than no row at all.
         val es = FakeDictionary("es-def", "es")
         val vm = SearchViewModel(
             { PackSet.Ready(handle(es), listOf(handle(es))) },
@@ -752,7 +758,7 @@ class SearchViewModelTest {
         assertEquals(listOf("perro"), guardado.map { it.headword })
     }
 
-    // --- Buscar en las definiciones -----------------------------------------------------------
+    // --- Searching the definitions ------------------------------------------------------------
 
     @Test
     fun searchingDefinitionsQueriesTheActivePackWithTheCurrentQuery() = runTest {
@@ -772,8 +778,8 @@ class SearchViewModelTest {
 
     @Test
     fun theDefinitionSearchDoesNotFireWhileTyping() = runTest {
-        // Es el contrato de la interfaz vuelto test: recorre un indice mucho mayor que el de
-        // lemas y no cumple el presupuesto de latencia de la busqueda incremental.
+        // It is the interface contract turned into a test: it walks a far larger index than the
+        // headword one and does not meet the incremental search's latency budget.
         val fake = FakeDictionary("es-def", "es")
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -786,7 +792,7 @@ class SearchViewModelTest {
 
     @Test
     fun typingAfterADefinitionSearchReturnsToTheNormalSearch() = runTest {
-        // Volver no puede costar un boton: en 192 dp cada control se paga en resultados.
+        // Going back cannot cost a button: on 192 dp every control is paid for in results.
         val fake = FakeDictionary("es-def", "es")
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -805,8 +811,8 @@ class SearchViewModelTest {
 
     @Test
     fun anOldDefinitionSearchDoesNotOverwriteWhatWasTypedAfterIt() = runTest {
-        // El modo de falla: la de definiciones tarda, el usuario sigue escribiendo, y el
-        // resultado viejo aterriza encima. No tira ninguna excepcion.
+        // The failure mode: the definition search takes a while, the user keeps typing, and the
+        // old result lands on top. It throws no exception at all.
         val fake = FakeDictionary("es-def", "es", demora = 1_000)
         val vm = conPack(fake)
         advanceUntilIdle()
@@ -856,8 +862,8 @@ class SearchViewModelTest {
 
     @Test
     fun attributionAndLicenseComeFromThePackAndNotFromTheCode() = runTest {
-        // D-031: mostrarlas es la condicion de uso de los datos. Si vinieran de una constante,
-        // un pack de otra fuente mostraria la licencia equivocada.
+        // D-031: showing them is the condition for using the data. If they came from a
+        // constant, a pack from another source would show the wrong license.
         val fake = FakeDictionary()
         val vm = conPack(fake)
         advanceUntilIdle()
