@@ -27,15 +27,15 @@ import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
- * Ajustes.
+ * Settings.
  *
- * Es el **segundo nivel** de la app y el unico que hay: la guia de Wear OS pide jerarquias de
- * como mucho dos niveles y que la accion primaria --buscar-- este arriba de todo, por eso el
- * inicio siguio siendo la busqueda y esto cuelga de ahi.
+ * It is the app's **second level** and the only one there is: the Wear OS guidance asks for
+ * hierarchies of at most two levels and for the primary action --searching-- to sit at the very
+ * top, which is why the home stayed the search and this hangs off it.
  *
- * Sin componente de preferencias: `androidx.preference` no existe para Wear. Es la lista de
- * siempre --`ScreenScaffold` + `TransformingLazyColumn`-- con `RadioButton` para lo que es una
- * eleccion entre pocas opciones.
+ * No preferences component: `androidx.preference` does not exist for Wear. It is the usual list
+ * --`ScreenScaffold` + `TransformingLazyColumn`-- with `RadioButton` for what is a choice among
+ * a few options.
  */
 @Composable
 fun SettingsScreen(
@@ -64,8 +64,9 @@ fun SettingsScreen(
             val opened = packs.filterIsInstance<PackHandle.Open>()
             item(key = "cabecera-idioma") { ListHeader { Text("Diccionarios") } }
             item(key = "gestionar-packs") {
-                // Ya no es el selector: elegir idioma se hace en el inicio, que es donde se
-                // necesita rapido. Aca se entra a ver cuanto ocupan y a sacar los que sobran.
+                // This is no longer the selector: picking a language happens on the home, which
+                // is where it is needed quickly. You come here to see how much they take and to
+                // get rid of the ones you do not need.
                 ListRow(
                     headword = "Gestionar",
                     detail = opened.size.toString(),
@@ -85,9 +86,9 @@ fun SettingsScreen(
             }
             item(key = "nota-texto") {
                 Text(
-                    // WO-V1: la app tiene que respetar el tamano del sistema. Esto multiplica
-                    // sobre esa escala, no la reemplaza, y decirlo evita que alguien lo lea como
-                    // "la app ignora lo que configure en el reloj".
+                    // WO-V1: the app has to respect the system size. This multiplies on top of
+                    // that scale, it does not replace it, and saying so keeps somebody from
+                    // reading it as "the app ignores what I set on the watch".
                     text = "Se suma al tamaño que tengas puesto en el reloj.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -98,9 +99,9 @@ fun SettingsScreen(
 
             item(key = "cabecera-historial") { ListHeader { Text("Historial") } }
             item(key = "limpiar-historial") {
-                // Dos toques en el MISMO boton, sin dialogo: el historial se rehace solo
-                // usando la app, asi que no justifica una pantalla encima. Lo que si hace falta
-                // es que un toque suelto --y en una muñeca los hay-- no lo borre.
+                // Two taps on the SAME button, no dialog: the history rebuilds itself just by
+                // using the app, so it does not justify a screen on top. What is needed is that
+                // a stray tap --and on a wrist there are some-- does not wipe it.
                 Pill(
                     text = when {
                         emptyHistory -> "Historial borrado"
@@ -118,8 +119,9 @@ fun SettingsScreen(
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    // Sin onClick cuando no hay nada que borrar o ya se borro: una accion que no
-                    // hace nada y no lo dice enseña a desconfiar del resto de los botones.
+                    // No onClick when there is nothing to clear or it was already cleared: an
+                    // action that does nothing and does not say so teaches you to distrust every
+                    // other button.
                     onClick = if (!hasHistory || emptyHistory) {
                         null
                     } else if (confirming) {
