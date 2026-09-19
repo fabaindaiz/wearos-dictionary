@@ -42,15 +42,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Las tres pantallas, contra Android de verdad.
+ * The screens, against real Android.
  *
- * Son INSTRUMENTADOS y el gate NO los corre: necesitan dispositivo, como los 25 de
- * `:dict-data`. Lo que cubren es lo que ningun test de la JVM puede ver -- que lo que el estado
- * dice llegue a los pixeles-- y sobre todo **que la atribucion se muestre**, que es la condicion
- * de uso de los datos (D-031) y hasta hoy no tenia mas enforcer que la buena voluntad.
+ * They run under Robolectric and **are inside the gate** (D-110). What they cover is what no
+ * plain JVM test can see -- that what the state says reaches the pixels -- and above all **that
+ * the attribution is shown**, which is the condition for using the data (D-031) and until
+ * recently had no enforcer beyond good intentions.
  *
- * No usan un DictionarySource: las pantallas son funciones del estado, asi que el estado se
- * construye a mano. Por eso tampoco hace falta duplicar aca el fake de `src/test`.
+ * They use no DictionarySource: the screens are functions of the state, so the state is built by
+ * hand. That is also why the fake from `src/test` does not need duplicating here.
  */
 @RunWith(AndroidJUnit4::class)
 class ScreensTest {
@@ -67,7 +67,7 @@ class ScreensTest {
         score = 0,
     )
 
-    /** Un pack de mentira: sólo importa su metadata, porque las pantallas son del estado. */
+    /** A fake pack: only its metadata matters, because the screens are functions of state. */
     private fun meta(
         packId: String = "es-def",
         lang: String = "es",
@@ -78,7 +78,7 @@ class ScreensTest {
         normVersion = 1,
         kind = PackKind.MONOLINGUAL,
         name = name,
-        // null: ejercita el camino de un pack anterior a D-125, que no trae la clave.
+        // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
         langSource = lang,
         langTarget = null,
@@ -99,7 +99,7 @@ class ScreensTest {
         available = listOf(handle(meta())),
     )
 
-    /** Dos packs: es el estado que ejercita el selector. */
+    /** Two packs: this is the state that exercises the selector. */
     private fun twoPackState(vararg headwords: String): SearchState {
         val es = meta()
         val en = meta("en-def", "en", "English")
@@ -127,7 +127,7 @@ class ScreensTest {
             onOpenWordOfTheDay = onOpenWordOfTheDay)
     }
 
-    // --- La lista de resultados --------------------------------------------------------------
+    // --- The results list ---------------------------------------------------------------------
 
     @Test
     fun theListShowsTheHeadwordAndItsPartOfSpeech() {
@@ -138,24 +138,24 @@ class ScreensTest {
 
     @Test
     fun threeResultsFitWithoutScrolling() {
-        // Es la decision de densidad, y este test es la unica forma de fijarla.
+        // This is the density decision, and this test is the only way to pin it down.
         //
-        // **La meta eran cinco y no entran, ni cuatro tampoco.** Medido en pantalla: son
-        // 192x192 dp (384 px a 320 dpi), la guia de Wear OS pide 48 dp minimos de area tocable,
-        // y el ScreenScaffold reserva margen arriba y abajo por la pantalla redonda. Con paso de
-        // 52 dp por fila entran tres. El diseño anterior, de dos lineas, usaba ~74 dp: la
-        // ganancia real es de ~40 % mas filas por pantalla, no del doble.
+        // **The goal was five and they do not fit, nor do four.** Measured on screen: it is
+        // 192x192 dp (384 px at 320 dpi), the Wear OS guidance asks for a 48 dp minimum touch
+        // area, and the ScreenScaffold reserves margin top and bottom for the round screen. With
+        // a 52 dp step per row, three fit. The previous two-line design used ~74 dp: the real
+        // gain is ~40 % more rows per screen, not double.
         //
-        // Si alguien baja de 48 dp para meter una cuarta, este test sigue pasando y el area
-        // tocable se rompe en silencio. Por eso el minimo esta en una constante con nombre.
+        // If somebody drops below 48 dp to squeeze in a fourth, this test still passes and the
+        // touch area breaks in silence. That is why the minimum lives in a named constant.
         showSearch(readyState("perder", "perro", "permitir", "persona"))
         compose.onNodeWithText("permitir").assertIsDisplayed()
     }
 
     @Test
     fun aLongHeadwordDoesNotEatTheScreen() {
-        // Los refranes son entradas del Wikcionario y llegan a 96 caracteres. Si una fila
-        // creciera para mostrarlo entero, un solo resultado ocuparia la pantalla.
+        // Sayings are Wiktionary entries and reach 96 characters. If a row grew to show one
+        // whole, a single result would take the entire screen.
         val refran = "más corre el galgo que el mastín; pero si el camino es largo, " +
             "más corre el mastín que el galgo"
         showSearch(readyState(refran, "perder", "perro", "permitir"))
@@ -170,7 +170,7 @@ class ScreensTest {
         assertEquals("perder", abierto?.headword)
     }
 
-    // --- Los estados que no son "hay resultados" ---------------------------------------------
+    // --- The states that are not "there are results" -----------------------------------------
 
     @Test
     fun whileThePackInstallsItSaysSo() {
@@ -191,7 +191,7 @@ class ScreensTest {
         compose.onNodeWithText("Sin resultados", substring = true).assertIsDisplayed()
     }
 
-    // --- La entrada -------------------------------------------------------------------------
+    // --- The entry ---------------------------------------------------------------------------
 
     private fun entry(vararg glosses: String) = Entry(
         packId = "test",
@@ -202,8 +202,8 @@ class ScreensTest {
         senses = glosses.map { Sense(it) },
     )
 
-    /** Un enlace dentro de una glosa: lo unico que lo identifica es que es clickeable y de quien
-     *  cuelga. Compose no le da texto propio al rectangulo del link. */
+    /** A link inside a gloss: all that identifies it is that it is clickable and what it hangs
+     *  off. Compose gives the link's rectangle no text of its own. */
     private fun linkAt(textoDeLaGlosa: String) =
         hasClickAction() and hasAnyAncestor(hasText(textoDeLaGlosa, substring = true))
 
@@ -217,8 +217,8 @@ class ScreensTest {
 
     @Test
     fun theSenseShowsItsSynonyms() {
-        // 26.845 entradas del pack español traen sinonimos y el builder los tiraba. Importan
-        // sobre todo donde la glosa es de una palabra ("Tonto."), que es el 25,6 % del pack.
+        // 26,845 entries of the Spanish pack carry synonyms and the builder threw them away.
+        // They matter most where the gloss is one word ("Tonto."), which is 25.6 % of the pack.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -232,9 +232,9 @@ class ScreensTest {
 
     @Test
     fun theSenseShowsItsAntonymsAndDoesNotMixThemWithSynonyms() {
-        // El riesgo no es que no se vean: es que se vean IGUAL. Las dos listas comparten estilo,
-        // posicion y separador, asi que lo unico que distingue "otra forma de decirlo" de "lo
-        // contrario" es el prefijo. Este test fija los dos prefijos, no la presencia.
+        // The risk is not that they go unseen: it is that they look THE SAME. The two lists
+        // share style, position and separator, so the only thing separating "another way to say
+        // it" from "the opposite" is the prefix. This test pins both prefixes, not presence.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -254,16 +254,16 @@ class ScreensTest {
 
     @Test
     fun withMoreThanThreeSensesOnlyThreeShowPlusAShowMore() {
-        // "justicia" tiene 10 acepciones y el maximo medido es 47. Sin tope, la pantalla se
-        // vuelve un rollo y la acepcion util queda debajo de nueve que no se buscaban.
+        // "justicia" has 10 senses and the measured maximum is 47. With no cap, the screen
+        // becomes a scroll and the useful sense sits below nine nobody was looking for.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("cuatro", substring = true).fetchSemanticsNodes().size)
-        // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
-        // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
-        // de esa fila: el boton sigue ahi y a un scroll, pero deja de estar a la vista.
+        // The shortcut to the search takes the first row, so "Show more" moved down a line
+        // and with three senses no longer fits in the first screenful. That is the measured
+        // cost of that row: the button is still there, one scroll away, but out of sight.
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
         compose.onNodeWithText("Ver más", substring = true).assertExists()
     }
@@ -273,9 +273,9 @@ class ScreensTest {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres", "cuatro", "cinco") }
         }
-        // El atajo a la busqueda ocupa la primera fila, asi que "Ver mas" bajo un renglon
-        // y con tres acepciones ya no entra en el primer pantallazo. Es el costo medido
-        // de esa fila: el boton sigue ahi y a un scroll, pero deja de estar a la vista.
+        // The shortcut to the search takes the first row, so "Show more" moved down a line
+        // and with three senses no longer fits in the first screenful. That is the measured
+        // cost of that row: the button is still there, one scroll away, but out of sight.
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
         compose.onNodeWithText("Ver más", substring = true).performClick()
         compose.onNodeWithText("cuatro", substring = true).assertExists()
@@ -284,21 +284,21 @@ class ScreensTest {
 
     @Test
     fun withThreeSensesOrFewerThereIsNoShowMore() {
-        // La mediana es 3: en la mitad de las entradas el boton no tiene que aparecer siquiera.
+        // The median is 3: in half the entries the button should not even appear.
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("uno", "dos", "tres") } }
         compose.onNodeWithText("tres", substring = true).assertExists()
         assertEquals(0, compose.onAllNodesWithText("Ver más", substring = true).fetchSemanticsNodes().size)
     }
 
-    // --- El campo de texto: por donde entra la busqueda con teclado ---------------------------
+    // --- The text field: where keyboard search comes in ---------------------------------------
 
     /**
-     * Un harness CON estado, y esa es exactamente la razon por la que el bug sobrevivio a 22 tests.
+     * A harness WITH state, and that is exactly why the bug survived 22 tests.
      *
-     * Todos los demas pasan `onQueryChange = {}`: el estado nunca cambia, la lista nunca se
-     * reordena y el campo nunca se destruye. Aca escribir cambia el estado de verdad, que es lo
-     * que hace desaparecer el encabezado, el boton de voz y el historial -- y con ellos, la
-     * posicion del campo dentro de la lista.
+     * Every other one passes `onQueryChange = {}`: the state never changes, the list never
+     * reorders and the field is never destroyed. Here typing really changes the state, which is
+     * what makes the header, the voice button and the history disappear -- and with them, the
+     * field's position inside the list.
      */
     private fun showTypableSearch(inicial: SearchState) = compose.setContent {
         var query by remember { mutableStateOf(inicial.query) }
@@ -317,9 +317,10 @@ class ScreensTest {
 
     @Test
     fun typingTheFirstLetterDoesNotCloseTheField() {
-        // El bug que aparecio en el reloj: a la primera letra desaparecen encabezado, boton de
-        // voz e historial, el campo salta del indice 2 al 0 y --sin `key`-- el lazy layout lo da
-        // por otro nodo, lo destruye y lo recompone. El foco se va con el, y el teclado detras.
+        // The bug that showed up on the watch: on the first letter the header, voice button and
+        // history disappear, the field jumps from index 2 to 0 and --without `key`-- the lazy
+        // layout takes it for a different node, destroys it and recomposes it. Focus goes with
+        // it, and the keyboard follows.
         showTypableSearch(readyState("perder").copy(query = "", history = recent))
 
         compose.onNode(hasSetTextAction()).performClick()
@@ -333,10 +334,10 @@ class ScreensTest {
 
     @Test
     fun acceptingOnTheKeyboardReleasesTheField() {
-        // "Aceptar" no hacia nada: hay `ImeAction.Search` declarado y cero `keyboardActions`, y
-        // `KeyboardActions.Default` no define comportamiento para Search. La unica salida era el
-        // gesto de volver del sistema. Soltar el foco es lo que cierra el teclado y deja la
-        // corona operativa sobre los resultados.
+        // "Accept" did nothing: there is an `ImeAction.Search` declared and zero
+        // `keyboardActions`, and `KeyboardActions.Default` defines no behaviour for Search. The
+        // only way out was the system's back gesture. Releasing focus is what closes the keyboard
+        // and leaves the crown working over the results.
         showTypableSearch(readyState("perder").copy(query = ""))
 
         compose.onNode(hasSetTextAction()).performClick()
@@ -349,9 +350,9 @@ class ScreensTest {
 
     @Test
     fun theMaximumSensesWithTheLongestExampleExpandWithoutFalling() {
-        // Los numeros son los medidos sobre el pack real: 47 acepciones es el maximo y 917
-        // caracteres el ejemplo mas largo. `verMasDespliegaElResto` usa CINCO acepciones sin
-        // ejemplos, y por eso nunca reprodujo el crash que aparecio al tocar "Ver mas".
+        // The numbers are the ones measured on the real pack: 47 senses is the maximum and 917
+        // characters the longest example. `showMoreExpandsTheRest` uses FIVE senses with no
+        // examples, which is why it never reproduced the crash seen when tapping "Show more".
         val longExample =
             "cronica del siglo XVI que el Wikcionario cita como uso. ".repeat(17).take(917)
         val muchas = (1..47).map { number ->
@@ -362,25 +363,26 @@ class ScreensTest {
         }
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry().copy(senses = muchas) } }
 
-        // Hay que scrollear para llegar al boton: el ejemplo de 917 caracteres lo empuja
-        // fuera de pantalla. Ese es, literalmente, el muro que D-074 documenta.
+        // You have to scroll to reach the button: the 917-character example pushes it off
+        // screen. That is, literally, the wall D-074 documents.
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más", substring = true))
         compose.onNodeWithText("Ver más", substring = true).performClick()
         compose.waitForIdle()
 
-        // Por indice y no por texto: el ultimo item de un TransformingLazyColumn no queda
-        // compuesto scrolleando al maximo, asi que buscarlo por texto da un falso rojo.
+        // By index and not by text: the last item of a TransformingLazyColumn is not left
+        // composed after scrolling to the end, so looking it up by text gives a false red.
         compose.onNode(hasScrollAction()).performScrollToIndex(47)
         compose.onNodeWithText("acepcion numero 47", substring = true).assertExists()
     }
 
 
-    // --- Las dos acciones de arriba y el menu ---------------------------------------------------
+    // --- The two actions up top and the menu ----------------------------------------------------
 
     @Test
     fun theTwoTopButtonsShareASingleRow() {
-        // La razon es aritmetica, no estetica: lado a lado cuestan 48 dp --el minimo tocable--
-        // y apilados costarian 96, que en esta pantalla es una acepcion menos a la vista.
+        // The reason is arithmetic, not aesthetic: side by side they cost 48 dp --the touch
+        // minimum-- and stacked they would cost 96, which on this screen is one sense less in
+        // view.
         compose.setContent {
             EntryScreen(
                 entryId = 1,
@@ -402,7 +404,7 @@ class ScreensTest {
 
     @Test
     fun withNoActionsTheMenuIsNotOffered() {
-        // Un boton que abre un menu vacio es peor que no tener boton.
+        // A button that opens an empty menu is worse than no button.
         compose.setContent {
             EntryScreen(entryId = 1, onOpenWord = {}) { entry("una glosa") }
         }
@@ -439,16 +441,16 @@ class ScreensTest {
         assertEquals("Copiar", ejecutada)
     }
 
-    // --- Palabras tocables dentro de una glosa ------------------------------------------------
+    // --- Tappable words inside a gloss --------------------------------------------------------
 
-    // `tocarUnaPalabraConocidaDeLaGlosaAbreSuEntrada` vive en `androidTest`, en
-    // `EnlacesEnDispositivoTest`: tocar una palabra dentro de un parrafo depende del layout de
-    // texto real y bajo Robolectric el callback no se dispara. Es el unico de los 47.
+    // `tappingAKnownWordInTheGlossOpensItsEntry` lives in `androidTest`, in
+    // `GlossLinksOnDeviceTest`: tapping a word inside a paragraph depends on the real text layout
+    // and under Robolectric the callback does not fire. It is the only one of the 47.
 
     @Test
     fun aWordThatIsNotAHeadwordCannotBeTapped() {
-        // El color es una promesa: si se pinta tocable algo que no lleva a ningun lado, el
-        // usuario aprende a no confiar en el color y la funcion deja de servir.
+        // The colour is a promise: if something that leads nowhere is painted as tappable, the
+        // user learns not to trust the colour and the feature stops being useful.
         compose.setContent {
             EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { emptyMap() }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
@@ -465,7 +467,7 @@ class ScreensTest {
 
     @Test
     fun theWordPointingAtThisSameEntryIsNotPainted() {
-        // Resolver devuelve la entrada abierta: un enlace a donde ya estamos no lleva a nada.
+        // Resolving returns the open entry: a link to where we already are leads nowhere.
         compose.setContent {
             EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { mapOf("cera" to 1L) }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
@@ -482,9 +484,9 @@ class ScreensTest {
 
     @Test
     fun theTopButtonGoesBackToTheSearch() {
-        // Tocar palabras apila entradas: sin este atajo, volver desde tres de profundidad son
-        // tres gestos. Se busca por contentDescription y no por texto porque es un icono, y esa
-        // descripcion es ademas lo unico que lo nombra para un lector de pantalla.
+        // Tapping words stacks entries: without this shortcut, coming back from three deep is
+        // three gestures. It is looked up by contentDescription and not by text because it is an
+        // icon, and that description is also the only thing naming it for a screen reader.
         var volvio = false
         compose.setContent {
             EntryScreen(entryId = 1, onOpenWord = {}, onBackToSearch = { volvio = true }) {
@@ -495,16 +497,17 @@ class ScreensTest {
         assertEquals(true, volvio)
     }
 
-    // --- El inicio: lo que se ve con la busqueda vacia ----------------------------------------
+    // --- The home: what shows with an empty search --------------------------------------------
 
     private val todaysWord =
         EntrySummary(entryId = 42, headword = "permanecer", partOfSpeech = "verb", rank = 883)
 
     @Test
     fun theWordOfTheDayShowsUnderItsHeadingAndOpens() {
-        // Ya NO se ve sin scrollear, y es el costo aceptado de poner la barra primero: arriba
-        // quedan la busqueda y la voz, que es lo que mas se repite. Lo que si tiene que pasar es
-        // que se llegue, que lleve su titulo de seccion y que abra en SU diccionario.
+        // It is NO longer visible without scrolling, and that is the accepted cost of putting
+        // the bar first: the search and voice stay on top, which is what repeats most. What does
+        // have to hold is that you reach it, that it carries its section heading and that it
+        // opens in ITS dictionary.
         var abierta: EntrySummary? = null
         var packOfTheWord: String? = null
         showSearch(
@@ -521,8 +524,8 @@ class ScreensTest {
 
     @Test
     fun withTwoDictionariesBothWordsAndTheirLanguageShow() {
-        // Con un solo pack el subtitulo dice "palabra del día"; con dos, el nombre del
-        // diccionario, que es lo unico que las distingue.
+        // With a single pack the subtitle says "palabra del día"; with two, the dictionary's
+        // name, which is the only thing telling them apart.
         showSearch(
             twoPackState().copy(
                 query = "",
@@ -535,8 +538,8 @@ class ScreensTest {
         compose.onNodeWithText("permanecer").assertIsDisplayed()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("remain"))
         compose.onNodeWithText("remain").assertIsDisplayed()
-        // Nombre corto Y tipo (D-125): el nombre dejo de decir que clase de diccionario es,
-        // asi que la fila tiene que decirlo aparte o se pierde el dato.
+        // Short name AND kind (D-125): the name stopped saying what kind of dictionary it is,
+        // so the row has to say it separately or the fact is lost.
         compose.onNodeWithText("English · definiciones").assertExists()
         assertEquals(
             "con dos diccionarios el subtitulo es el idioma, no la etiqueta generica",
@@ -547,8 +550,8 @@ class ScreensTest {
 
     @Test
     fun withNoWordOfTheDayTheGapDoesNotShow() {
-        // Un pack vacio, o el primer arranque antes de que termine de elegirse: la fila no
-        // aparece en vez de aparecer vacia.
+        // An empty pack, or the first launch before the choice finishes: the row does not
+        // appear instead of appearing empty.
         showSearch(readyState().copy(query = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
@@ -558,8 +561,8 @@ class ScreensTest {
 
     @Test
     fun whenTypingTheWordOfTheDayAndSettingsDisappear() {
-        // Misma regla que el historial: con resultados en pantalla, cada fila de chrome es un
-        // resultado menos, y con 48 dp de area tocable eso se nota (D-073).
+        // Same rule as the history: with results on screen, every row of chrome is one result
+        // less, and with a 48 dp touch area that shows (D-073).
         showSearch(
             readyState("perder").copy(query = "per", wordsOfTheDay = mapOf("es-def" to todaysWord)),
         )
@@ -576,7 +579,7 @@ class ScreensTest {
         assertEquals(true, abrio)
     }
 
-    // --- Gestion de diccionarios ----------------------------------------------------------------
+    // --- Dictionary management ------------------------------------------------------------------
 
     private fun openPack(
         id: String,
@@ -594,8 +597,8 @@ class ScreensTest {
 
     @Test
     fun eachDictionaryShowsItsSizeAndWhichOneIsInUse() {
-        // El tamaño es la unica cifra que importa cuando hay que hacer lugar, y el selector del
-        // inicio no la dice.
+        // The size is the only figure that matters when room has to be made, and the home
+        // selector does not say it.
         compose.setContent {
             PacksScreen(
                 packs = listOf(
@@ -607,8 +610,8 @@ class ScreensTest {
                 onDelete = {},
             )
         }
-        // Tamaño e idioma juntos: el nombre del pack sale de adentro del .db y no siempre dice
-        // de que idioma es.
+        // Size and language together: the pack's name comes from inside the .db and does not
+        // always say which language it is.
         compose.onNodeWithText("72,2 MB", substring = true).assertIsDisplayed()
         compose.onNodeWithText("· ES", substring = true).assertExists()
         compose.onNodeWithText("· EN", substring = true).assertExists()
@@ -623,8 +626,8 @@ class ScreensTest {
 
     @Test
     fun theDemoPackOffersNoDeleteButton() {
-        // Viene dentro del APK y se re-extrae al reabrir: el boton no haria nada y el pack
-        // volveria solo. Ofrecerlo seria mentir.
+        // It comes inside the APK and is re-extracted on reopening: the button would do nothing
+        // and the pack would come back on its own. Offering it would be a lie.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("demo", "Juguete", 53_248, demo = true)),
@@ -641,8 +644,8 @@ class ScreensTest {
 
     @Test
     fun deleteAsksForConfirmationAndDoesNotDeleteOnTheFirstTap() {
-        // Es la unica accion de la app que no se puede deshacer desde la app: reponer un pack
-        // son ~90 s por cable.
+        // It is the only action in the app that cannot be undone from the app: putting a pack
+        // back is ~90 s over a cable.
         var deleted: String? = null
         compose.setContent {
             PacksScreen(
@@ -682,7 +685,7 @@ class ScreensTest {
 
     @Test
     fun theDownloadSectionSaysNotYetAndHowToInstallToday() {
-        // Un "proximamente" a secas deja al usuario sin saber como poner un diccionario.
+        // A bare "coming soon" leaves the user with no idea how to install a dictionary.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
@@ -697,8 +700,8 @@ class ScreensTest {
 
     @Test
     fun theHomeOffersSavedWordsEvenWithNoneSaved() {
-        // Antes la fila solo aparecia con favoritas: quien nunca guardo una no tenia como
-        // descubrir que se puede. La pantalla ya trae un estado vacio que lo explica.
+        // The row used to appear only with saved words: someone who never saved one had no way
+        // to discover they could. The screen already carries an empty state explaining it.
         var abrio = false
         showSearch(readyState().copy(query = "", favorites = emptyList()),
             onOpenFavoritos = { abrio = true })
@@ -709,8 +712,8 @@ class ScreensTest {
 
     @Test
     fun clearingTheHistoryAsksForConfirmationOnTheSameButton() {
-        // Sin dialogo: el historial se rehace solo usando la app, asi que un segundo toque
-        // alcanza. Lo que no puede pasar es que un toque suelto lo borre.
+        // No dialog: the history rebuilds itself just by using the app, so a second tap is
+        // enough. What cannot happen is a stray tap wiping it.
         var deleted = 0
         compose.setContent {
             SettingsScreen(
@@ -734,8 +737,8 @@ class ScreensTest {
 
     @Test
     fun theSearchBarSitsAtTheVeryTop() {
-        // Es la accion primaria: la guia de Wear pide elevarla, y antes quedaba debajo del
-        // encabezado, la palabra del dia y el boton de voz.
+        // It is the primary action: the Wear guidance asks to elevate it, and it used to sit
+        // below the header, the word of the day and the voice button.
         showSearch(
             readyState().copy(query = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
         )
@@ -746,8 +749,8 @@ class ScreensTest {
 
     @Test
     fun everyHomeSectionHasItsHeading() {
-        // Sin titulos, la palabra del dia se confundia con una entrada del historial y el
-        // selector de idioma con un resultado.
+        // Without headings, the word of the day was confused with a history entry and the
+        // language selector with a result.
         showSearch(
             twoPackState().copy(
                 query = "",
@@ -772,7 +775,7 @@ class ScreensTest {
 
     @Test
     fun withASingleDictionaryThereIsNoEmptyWordOfTheDaySection() {
-        // Un titulo sin nada debajo es peor que no tener titulo.
+        // A heading with nothing under it is worse than no heading.
         showSearch(readyState().copy(query = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
@@ -780,12 +783,12 @@ class ScreensTest {
         )
     }
 
-    // --- La atribucion, que es D-031 ---------------------------------------------------------
+    // --- The attribution, which is D-031 ------------------------------------------------------
 
     @Test
     fun theAttributionShowsTheLicenseAndTheSource() {
-        // No es decorativa: es la condicion de uso de los datos. Si alguien borra esta pantalla,
-        // este test es lo unico que lo dice.
+        // It is not decorative: it is the condition for using the data. If somebody deletes this
+        // screen, this test is the only thing that says so.
         compose.setContent {
             AttributionScreen(packs = listOf(handle(meta())))
         }
@@ -793,7 +796,7 @@ class ScreensTest {
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
     }
 
-    // --- El selector de idioma ----------------------------------------------------------------
+    // --- The language selector ----------------------------------------------------------------
 
     @Test
     fun withTwoPacksTheSelectorShowsBothLanguages() {
@@ -804,7 +807,7 @@ class ScreensTest {
 
     @Test
     fun withASinglePackThereIsNoSelector() {
-        // Un selector de una opcion es chrome puro, y en 192 dp el chrome cuesta resultados.
+        // A one-option selector is pure chrome, and on 192 dp chrome costs results.
         showSearch(readyState().copy(query = ""))
         assertEquals(0, compose.onAllNodesWithText("ES").fetchSemanticsNodes().size)
     }
@@ -819,14 +822,14 @@ class ScreensTest {
 
     @Test
     fun withTwoPacksThreeResultsStillFit() {
-        // Re-verifica D-073 con el selector presente: el selector no puede costar una fila.
+        // Re-checks D-073 with the selector present: the selector cannot cost a row.
         showSearch(twoPackState("perder", "perro", "permitir", "persona"))
         compose.onNodeWithText("permitir").assertIsDisplayed()
     }
 
     @Test
     fun withNoResultsItOffersSearchingTheOtherLanguage() {
-        // Es la escotilla de escape: escribiste algo que este idioma no tiene.
+        // It is the escape hatch: you typed something this language does not have.
         showSearch(twoPackState().copy(query = "dog"))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
         compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
@@ -834,7 +837,7 @@ class ScreensTest {
 
     @Test
     fun theAttributionShowsBothPacks() {
-        // D-031 con dos fuentes: mostrar una sola licencia es incumplir la condicion de la otra.
+        // D-031 with two sources: showing one license alone breaches the other one's terms.
         compose.setContent {
             AttributionScreen(
                 packs = listOf(handle(meta()), handle(meta("en-def", "en", "English"))),
@@ -848,7 +851,7 @@ class ScreensTest {
         compose.onNodeWithText("dañado", substring = true).assertExists()
     }
 
-    // --- El historial -----------------------------------------------------------------------
+    // --- The history -------------------------------------------------------------------------
 
     private val recent = listOf(
         Visit("es-def", 1, "perro", "noun"),
@@ -864,7 +867,7 @@ class ScreensTest {
 
     @Test
     fun whenTypingTheHistoryDisappears() {
-        // No puede competir con los resultados: con 192 dp entran tres filas.
+        // It cannot compete with the results: on 192 dp three rows fit.
         showSearch(readyState("perder").copy(query = "per", history = recent))
         assertEquals(0, compose.onAllNodesWithText("house").fetchSemanticsNodes().size)
     }
@@ -882,7 +885,7 @@ class ScreensTest {
         assertEquals("tiene que abrir en SU pack, no en el activo", "es-def", abierta?.packId)
     }
 
-    // --- Buscar en las definiciones -------------------------------------------------------------
+    // --- Searching the definitions ---------------------------------------------------------------
 
     @Test
     fun withNoResultsItOffersSearchingTheDefinitions() {
@@ -892,7 +895,7 @@ class ScreensTest {
 
     @Test
     fun withResultsItDoesNotOfferSearchingTheDefinitions() {
-        // Protege D-073: con 192 dp una fila de chrome es un tercio de la lista.
+        // Protects D-073: on 192 dp a row of chrome is a third of the list.
         showSearch(readyState("perder", "perro"))
         assertEquals(
             0,
@@ -910,7 +913,7 @@ class ScreensTest {
 
     @Test
     fun inDefinitionModeWithNoResultsTheSameOptionIsNotOfferedAgain() {
-        // Ofrecerlo otra vez seria un bucle: ya se busco y no hay nada.
+        // Offering it again would be a loop: the search already ran and there is nothing.
         showSearch(
             readyState().copy(query = "xyzzy", mode = SearchState.Mode.DEFINICIONES),
         )
@@ -940,7 +943,7 @@ class ScreensTest {
 }
 
 
-/** Lo minimo para envolver una `PackMetadata` en un `PackHandle`. Las pantallas no consultan. */
+/** The minimum to wrap a `PackMetadata` in a `PackHandle`. The screens never query. */
 private class FakeSource(override val metadata: PackMetadata) : DictionarySource {
     override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
