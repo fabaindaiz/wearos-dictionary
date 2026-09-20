@@ -989,6 +989,32 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
 
+### Pendiente de subir al reloj
+
+El reloj se desconectó después de la primera subida, así que **lo que se le instaló es de antes de
+D-147 a D-150**. Los packs están al día; **la app no**.
+
+```sh
+# 1. Con el reloj conectado (adb pair / adb connect, o por cable):
+./gradlew :app:installDebug
+
+# 2. Los packs YA están al día. Si hiciera falta reinstalarlos:
+python3 tools/devpack.py list                      # qué hay
+python3 tools/devpack.py install ../wearos-dictionary-data/es-def-wikc.db
+python3 tools/devpack.py install ../wearos-dictionary-data/en-def-wikt.db
+python3 tools/devpack.py rm <pack viejo>.db        # los anteriores NO se reemplazan solos
+```
+
+Lo que hay que mirar ahí, y que no se pudo verificar de otra forma:
+
+- **Las previews de los tiles al agregarlos** (D-149). Agregar un tile es un gesto del usuario y
+  no se hace por `adb`; es lo único de esa decisión que queda sin ver.
+- El inicio con **tres recientes y el botón** (D-148) sobre un historial real.
+
+⚠️ **Y una advertencia operativa**: la subida de 315 MB por adb inalámbrico se cortó una vez a los
+75 MB. Reintentar alcanza —`devpack.py` limpia el `.part` antes de escribir— pero por cable no
+debería pasar.
+
 ### 3. El orden que recomiendo
 
 1. Generar la keystore y comprobar que `assembleRelease` produce `app-release.apk`.
