@@ -116,6 +116,19 @@ SENAL_LEXICA_MINIMA = 5
 # El valor se escribe en `meta.proper_nouns` y `verify_pack.py` lo verifica contra el contenido.
 POLITICAS_DE_NOMBRES = ("lexical-only", "definitions-only", "included")
 
+# ⚠️ **El default es `included`: ninguna fuente pierde palabras** (D-141).
+#
+# Pedido asi, y el argumento es bueno: *"quiero que vayan completas antes que tener que decidir
+# que eliminar y que no y hacerlo erroneamente"*. Podar es tomar una decision de contenido sobre
+# datos ajenos, y equivocarse en esa decision **no deja rastro**: la palabra simplemente no esta.
+#
+# **Lo que vuelve seguro este default no es la esperanza de que no molesten, es
+# `CASTIGO_NOMBRE_PROPIO`.** D-116 midio el problema real --4.267 casos en ingles donde el
+# toponimo le gana en rank a la palabra comun-- y ese problema es de ORDEN, no de presencia. Con
+# el castigo entran sin desplazar nada. Las dos politicas podadoras siguen existiendo y se piden
+# por nombre; son las que produjeron los numeros de D-116 y D-134.
+POLITICA_POR_DEFECTO = "included"
+
 # Lo que se le suma al rank de un nombre propio que entro por una politica permisiva.
 #
 # **No borrar, bajar de prioridad** -- pedido asi. Sin esto la politica empeora la busqueda en
@@ -530,7 +543,7 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path, lang="es", politica="lexical-only"):
+def records(path, lang="es", politica=POLITICA_POR_DEFECTO):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
     **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres

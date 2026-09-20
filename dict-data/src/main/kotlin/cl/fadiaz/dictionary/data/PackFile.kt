@@ -52,6 +52,9 @@ class PackFile private constructor(
          *   devolveria MENOS resultados de los que tiene, sin ningun error (D-006).
          * - `payload_dict_sha256`: deflate NO detecta un diccionario precargado equivocado.
          *   Descomprime sin lanzar nada y devuelve texto corrupto (D-008).
+         * - **Y una MUESTRA de las claves recalculada** (D-142): las tres de arriba son
+         *   declaraciones, y un pack de la comunidad puede declararlas bien y tener las claves
+         *   mal. Ver [checkKeysAgainstASample].
          */
         fun open(path: String, driver: BundledSQLiteDriver = BundledSQLiteDriver()): PackFile {
             val connection = driver.open(path, SQLITE_OPEN_READONLY)
@@ -87,6 +90,8 @@ class PackFile private constructor(
                     )
                 }
 
+                checkKeysAgainstASample(connection, metadata)
+
                 val dictionary = hexToBytes(meta.getValue("payload_dict"))
                 val declared = meta.getValue("payload_dict_sha256")
                 if (PayloadCodec.dictionaryDigest(dictionary) != declared) {
@@ -100,6 +105,73 @@ class PackFile private constructor(
             } catch (error: Throwable) {
                 connection.close()
                 throw error
+            }
+        }
+
+        /**
+         * Cuantas entradas se recalculan al abrir. 64 lecturas por rowid, no un scan.
+         *
+         * Con 64 muestras repartidas, un pack cuyo `norm()` difiera en algo sistematico --otra
+         * version de Unicode, minusculas de otra manera, NFC en vez de NFD-- se cae con
+         * probabilidad practicamente 1. Uno que difiera en un solo caracter raro puede pasar, y
+         * eso es aceptable: esto acota el daño, no lo elimina. El que lo elimina es
+         * `verify_pack.py`, que recalcula **todas** las filas, y corre al construir.
+         */
+        private const val KEY_SAMPLE_SIZE = 64
+
+        /**
+         * Recalcula `norm()` y `fuzzy()` sobre una muestra y las compara con lo que el pack trae.
+         *
+         * ⚠️ **Convierte una declaracion en una prueba, y por eso existe.** `norm_version` es un
+         * numero que el pack se pone a si mismo: un pack generado por la comunidad puede
+         * declarar la version correcta y haber construido las claves con otras reglas --otra
+         * version de ICU, minusculas locale-dependientes, NFC donde va NFD-- y entonces **faltan
+         * palabras**, sin excepcion, sin log y sin nada en el stack trace. Es el modo de falla
+         * central de este repo (ver `CLAUDE.md`), y hasta ahora solo lo cubria el builder.
+         *
+         * Cuesta 64 lecturas por rowid al abrir, una sola vez por pack. Los rowids van repartidos
+         * a lo largo de la tabla a proposito: un pack correcto solo en las primeras filas --lo
+         * que pasa si alguien construyo la mitad con una version y la mitad con otra-- se agarra
+         * igual.
+         */
+        private fun checkKeysAgainstASample(connection: SQLiteConnection, metadata: PackMetadata) {
+            val total = metadata.entryCount
+            if (total <= 0) return
+            val step = maxOf(1, total / KEY_SAMPLE_SIZE)
+            val profile = metadata.fuzzyProfile
+            connection.prepare(
+                "SELECT headword, norm, fuzzy FROM entry WHERE id = ?",
+            ).use { statement ->
+                var id = 1L
+                while (id <= total) {
+                    statement.reset()
+                    statement.bindLong(1, id)
+                    if (statement.step()) {
+                        val headword = statement.getText(0)
+                        val storedNorm = statement.getText(1)
+                        val expectedNorm = TextNormalizer.norm(headword)
+                        if (storedNorm != expectedNorm) {
+                            throw IncompatibleException(
+                                "entry.norm no coincide con norm() en '$headword': el pack dice " +
+                                    "'$storedNorm' y esta app calcula '$expectedNorm'. " +
+                                    "Faltarian palabras en los resultados sin ningun error",
+                            )
+                        }
+                        // `fuzzy` puede ser NULL: son las entradas que quedan fuera del nivel
+                        // tolerante a proposito, y `verify_pack.py` las cuenta sin alarmarse.
+                        if (!statement.isNull(2)) {
+                            val storedFuzzy = statement.getText(2)
+                            val expectedFuzzy = TextNormalizer.fuzzy(headword, profile)
+                            if (storedFuzzy != expectedFuzzy) {
+                                throw IncompatibleException(
+                                    "entry.fuzzy no coincide con fuzzy() en '$headword': el pack " +
+                                        "dice '$storedFuzzy' y esta app calcula '$expectedFuzzy'",
+                                )
+                            }
+                        }
+                    }
+                    id += step
+                }
             }
         }
 

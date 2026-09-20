@@ -125,6 +125,66 @@ class SearchRepositoryTest {
         assertEquals(unOrden.map { it.packId }, elOtro.map { it.packId })
     }
 
+    // --- El orden que NO depende de la calibracion de ningun pack (D-142) -------------------
+
+    @Test
+    fun `lo que se escribio COMPLETO va antes que una palabra larga mejor rankeada`() = runTest {
+        // ⚠️ La señal resiliente. `score` es la posicion dentro de su pack, asi que un pack con
+        // el orden interno mal calibrado --o malicioso-- pone su basura en la posicion 0 y la
+        // mezcla la trata como el mejor resultado del otro pack.
+        //
+        // La banda de cobertura se calcula de **lo que el usuario escribio y del lema**, sin
+        // mirar un solo dato del pack, asi que no hay calibracion que la envenene.
+        //
+        // Medido sobre los dos packs reales: escribir "cas" devolvia `castigar, castreño,
+        // cascar` y **no devolvia `casa`**; con esto devuelve `casa, casar, cascar`. "per" pasa
+        // de `percibir, perder` a `perro, persa`. "arb" de `árbitro` a `árbol`.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "castigar", score = 0),
+                row("uno", "casa", score = 40),
+            )),
+        ))
+        assertEquals(listOf("casa", "castigar"), repo.suggest("cas").map { it.headword })
+    }
+
+    @Test
+    fun `dentro de una banda manda el orden del pack`() = runTest {
+        // No reemplaza al rank: lo acota. Dos palabras de largo parecido siguen ordenandose por
+        // lo que el pack sabe, que con un pack bien calibrado es mejor que cualquier heuristica.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "casar", score = 5),
+                row("uno", "casta", score = 1),
+            )),
+        ))
+        assertEquals(listOf("casta", "casar"), repo.suggest("cas").map { it.headword })
+    }
+
+    @Test
+    fun `un pack con el orden interno ROTO no se lleva la primera fila`() = runTest {
+        // El escenario que preocupa: un pack de la comunidad con el rank mal calibrado. Su
+        // "mejor" resultado es una palabra larga y rara; el pack bueno tiene la corta.
+        val repo = SearchRepository(listOf(
+            FakePack("roto", listOf(row("roto", "casuisticamente", score = 0))),
+            FakePack("bueno", listOf(row("bueno", "casa", score = 3))),
+        ))
+        assertEquals("casa", repo.suggest("cas").first().headword)
+    }
+
+    @Test
+    fun `en FUZZY la banda no se aplica`() = runTest {
+        // Ahi `score` es distancia de edicion, que la calculamos nosotros y ya es resiliente. La
+        // cobertura no significa nada cuando lo escrito NO es prefijo del lema.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "haber", MatchKind.FUZZY, score = 1),
+                row("uno", "aser", MatchKind.FUZZY, score = 3),
+            )),
+        ))
+        assertEquals(listOf("haber", "aser"), repo.suggest("acer").map { it.headword })
+    }
+
     @Test
     fun `un pack roto no se lleva puesta la busqueda de los otros`() = runTest {
         // Un pack corrupto o truncado se abre y falla al consultarlo. Con dos instalados, que

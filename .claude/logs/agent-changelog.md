@@ -26,6 +26,65 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Ningún pack decide el orden, y ninguno pierde palabras
+
+**Qué.** Dos cambios de política y una defensa nueva, a partir de una pregunta: *«si hay un pack
+de la comunidad que no hace una buena normalización podría matar la lógica de ordenado»*.
+
+1. **D-141** — ninguna fuente pierde palabras por defecto. La poda se pide por nombre.
+2. **D-142** — el orden deja de confiar en la calibración de ningún pack, y las claves se
+   recalculan sobre una muestra al abrir.
+
+**Áreas.** `sources/kaikki.py`, `sources/wikidata.py`, `build_pack.py` y sus tests ·
+`SearchRepository.kt` y su test · `PackFile.kt` y el `PackKeySampleTest` nuevo (instrumentado) ·
+`PlatformAssumptionsTest.kt` · `compare_calibration.py` nuevo, con tests · `docs/decisions.md`,
+`docs/fuentes.md`, `docs/roadmap.md`.
+
+**Por qué.** La preocupación son **dos fallas distintas** y las estaba mezclando: normalización
+mala hace **desaparecer palabras**; calibración mala **envenena el orden**. La primera es mucho
+peor y no estaba cubierta del lado de la app.
+
+**Medido.**
+
+- **`score` no era el `rank`**, es la posición dentro de la lista de su propio pack. O sea que la
+  mezcla ya era **ordinal** e inmune a que un pack calibre en otra escala. D-136 lo decía peor de
+  lo que era; corregido.
+- **La banda de cobertura, sobre los dos packs reales**: *cas* devolvía `castigar, castreño,
+  cascar` — **sin `casa`** — y ahora devuelve `casa, casar, cascar`. *per*: de `percibir, perder`
+  a `perro, persa`. *arb*: de `árbitro` a `árbol`.
+- **Acuerdo entre packs: medido y rechazado.** Mejoraba *cas*, empeoraba *tomat*, y hacía que el
+  orden dependiera de qué otros packs estuvieran instalados.
+- **Compatibilidad de calibraciones**: entre `es-def-wikc` y `es-def-wd`, **ρ de Spearman =
+  +0,388** sobre 8.595 entradas comunes, **control barajado +0,001**, y comparten **110 de las
+  200 más comunes**.
+- **No filtrar cuesta +7,6 %**: 114.619 → 146.193 entradas, 68,3 → 73,5 MB.
+- Instrumentados en emulador: **0 fallas**, incluidos los 3 nuevos.
+
+**Arquitectura.** ✅ Cumple. La banda de cobertura vive en `:dict-core` y se calcula del texto
+escrito y del lema; la muestra de claves vive en `:dict-data`, que es el módulo al que le
+corresponde tocar SQLite.
+
+**Qué salió mal.**
+
+- **Medí sobre un pack que se estaba reconstruyendo en background** y saqué conclusiones de
+  resultados a medio escribir: «llov» y «guan» devolvían vacío. Lo noté porque el vacío era
+  absurdo, no porque el número se viera mal. Repetí la medición con el build terminado.
+- **Un test instrumentado viejo afirmaba el `pack_id` anterior** al cambio de gramática de D-138.
+  El gate no lo ve: los instrumentados no corren ahí. Sólo apareció al correrlos a mano.
+- Al escribir la banda pensé primero en el ratio crudo y la muestra lo desmintió: *iqui* ponía
+  `iquide` —corta y oscura— delante de `iquiteño`. Bandas gruesas lo arreglan porque dentro de
+  una banda vuelve a mandar el pack.
+
+**Qué quedó sin hacer.**
+
+- **La muestra de 64 claves acota el daño, no lo elimina.** Un pack que difiera en un solo
+  carácter raro pasa. El que lo elimina es `verify_pack.py`, que recalcula todas las filas y
+  corre al construir — un pack ajeno nunca pasó por ahí.
+- **Falta una señal de frecuencia real.** La banda de cobertura tapa el síntoma más visible de
+  D-067, pero `rank` sigue siendo riqueza de página y no frecuencia de uso.
+- **El umbral de ρ no existe**: la herramienta informa, no decide. Con una sola pareja medida,
+  inventar un corte sería un número sin medición detrás.
+
 ## 2026-09-20 — Tres fuentes nuevas, un manifiesto, y dos bugs que sólo aparecieron mirando
 
 **Qué.** El pack español pasó de una fuente a tres, apareció un segundo diccionario de español

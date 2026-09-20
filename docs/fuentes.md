@@ -109,6 +109,37 @@ antes que el código**.
 
 ---
 
+## Un pack que no construimos nosotros
+
+Desde D-136 conviven varios packs del mismo idioma, así que uno puede venir de la comunidad. Las
+dos formas en que un pack ajeno puede hacer daño, y qué lo frena:
+
+| Riesgo | Síntoma | Qué lo frena |
+|---|---|---|
+| **Claves mal normalizadas** | **Faltan palabras**, sin error ni log | `PackFile.open` recalcula `norm()` y `fuzzy()` sobre **64 entradas repartidas** y rechaza el pack (D-142). Convierte `norm_version` de declaración en prueba |
+| **`rank` mal calibrado** | Su basura sale primera | El orden usa una **banda de cobertura** calculada del texto escrito y del lema, **sin mirar ningún dato del pack** (D-142). El `rank` sólo decide *dentro* de una banda |
+| **Manifiesto incompleto** | No se sabe si se puede redistribuir | `verify_pack.py` exige `sources` con **una licencia por fuente** (D-138) |
+| **`pack_id` genérico** | Pisa a otro al instalarse | Gramática verificada `<idioma>-<tipo>-<fuente>` (D-138) |
+
+**Para saber cuánto se parecen dos calibraciones**, hay una herramienta y no una intuición:
+
+```sh
+python3 tools/packbuilder/compare_calibration.py pack_a.db pack_b.db
+```
+
+Calcula **Spearman sobre las entradas que comparten `uid`** — correlación de *órdenes*, así que
+no le importa que un pack use 0..1000 y otro 0..100. Medido entre los dos packs de español:
+
+```
+entradas en comun (por uid): 8.595
+rho de Spearman   : +0.388
+control (barajado): +0.001   <- 'sin relacion' para este n
+top 200 compartido: 110 de 200
+```
+
+Dos fuentes honestas que comparten señal sin ser intercambiables. **Un ρ bajo no condena al
+pack**: dice cuánto se está apoyando la mezcla en una calibración ajena.
+
 ## Cómo se agrega una fuente
 
 1. **Medirla contra el pack que ya existe**, no en abstracto: lo que importa es *cuántas entradas

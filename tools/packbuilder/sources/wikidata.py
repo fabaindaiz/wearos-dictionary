@@ -32,6 +32,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from build import Record  # noqa: E402
+from sources import kaikki  # noqa: E402
 
 # El item de Wikidata que representa al idioma español.
 IDIOMA_ES = "Q1321"
@@ -125,13 +126,18 @@ def _contar_homografos(path, politica):
     return cuenta
 
 
-def records(path, lang="es", politica="lexical-only"):
+def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
     """Entrega Records desde el dump de lexemas. Ver el docstring del modulo.
 
     `politica` existe para que la firma sea la misma que la de `sources/kaikki` --`build_pack`
     llama a las dos igual-- y aca solo decide si entran los `Q147276`. No hay señal lexica que
     medir, asi que "lexical-only" y "definitions-only" se comportan como excluirlos: la unica
-    diferencia real es `included`.
+    diferencia real es `included`, **que es el default** (D-141).
+
+    ⚠️ **Lo que si se descarta y no es una poda: los lexemas SIN glosa en español** (76,4 % del
+    dump). No es una decision de contenido -- es que la fuente **no tiene definicion que dar**.
+    Un lexema asi trae categoria y formas y nada mas; emitirlo seria un lema que al abrirlo esta
+    vacio, y `build.add()` lo rechaza igual. Si algun dia Wikidata los completa, entran solos.
     """
     repetidos = _contar_homografos(path, politica)
     for lexema in _lexemas(path):

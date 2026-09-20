@@ -63,7 +63,10 @@ class PlatformAssumptionsTest {
     fun elPackAbreYValida() {
         val abierto = PackFile.open(packPath)
         pack = abierto
-        assertEquals("toy-es-en", abierto.metadata.packId)
+        // El `pack_id` es un CODIGO con gramatica desde D-138: <idioma>-<tipo>-<fuente>.
+        // El nombre del ARCHIVO sigue siendo toy-es-en.db, y que no coincidan es a proposito
+        // (`PackHandle.fileName` lo documenta).
+        assertEquals("es-tr-toy", abierto.metadata.packId)
         assertEquals(28, abierto.metadata.entryCount)
         assertTrue("el diccionario de payload llego vacio", abierto.payloadDictionary.isNotEmpty())
     }
