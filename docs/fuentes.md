@@ -20,8 +20,10 @@ más útiles, porque evitan volver a intentarlo.
 | 2 | **Wiktionary inglés** vía kaikki.org | CC BY-SA 4.0 | Lo mismo, en inglés | **794.355 entradas, 272,4 MB.** 1,29 acepciones y 1,14 formas por entrada | ✅ **En uso** — `en-def-wikt` |
 | 3 | **Tatoeba** (corpus de oraciones) | CC BY 2.0 FR | Frases de uso reales. No define nada | **6.499 entradas ganan ejemplo, +368 KB.** 442.135 oraciones miradas | ⚙️ **Construible hoy** — `--frases` (D-137) |
 | 4 | **Wikidata Lexemes** | **CC0** (sin atribución obligatoria) | Definiciones cortas, gentilicios regionales, locuciones | **15.269 entradas, 4,4 MB; 5.092 (33,3 %) NO están en el pack 1** | ✅ **Construido** — `es-def-wd` (D-139) |
-| 5 | **Wiktionary inglés, sección Spanish** | CC BY-SA 4.0 | Ejemplos de uso en español | **307 entradas, +8 KB** | ⚙️ Construible (`--ejemplos`), **rinde 21× menos que Tatoeba** (D-135) |
-| 6 | **Open English WordNet 2025** | CC BY 4.0 | Definiciones en inglés, estructura de synsets | Spike medido, no es pack de producción (D-120) | 🟡 Spike, congelado |
+| 5 | **Open English WordNet 2024** | CC BY 4.0 | Sinónimos y antónimos agrupados por significado | **+30.423 entradas con sinónimos, +2.376 con antónimos** | ✅ **En uso** — `--tesauro` (D-144) |
+| 6 | **Multilingual Central Repository** (vía OMW) | CC BY 3.0 | Sinónimos en español | **+3.801 entradas**; trae ruido que hay que filtrar | ✅ **En uso** — `--tesauro` (D-144) |
+| 7 | **Wiktionary inglés, sección Spanish** | CC BY-SA 4.0 | Ejemplos de uso en español | **307 entradas, +8 KB** | ⚙️ Construible (`--ejemplos`), **rinde 21× menos que Tatoeba** (D-135) |
+| 8 | **Open English WordNet como pack completo** | CC BY 4.0 | Definiciones en inglés | Spike medido, no es pack de producción (D-120). Su **tesauro** sí se usa, ver fila 5 | 🟡 Spike, congelado |
 
 ---
 

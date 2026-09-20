@@ -2,6 +2,7 @@
 
     python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
                           [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
+                          [--tesauro <wordnet>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -44,13 +45,19 @@ dos son CC BY-SA 4.0.
 fuentes coincidan en como numeran las acepciones: solo necesita contener la palabra **sin
 ambiguedad**, y eso lo comprueba el builder contra su propio indice. ⚠️ Tatoeba es **CC BY 2.0
 FR** y tambien cambia la atribucion. Las dos opciones se pueden combinar.
+
+`--tesauro` suma **sinonimos y antonimos de WordNet** (D-144), que estan agrupados por
+SIGNIFICADO y por lo tanto no dependen de que alguien los escribiera a mano. El formato lo elige
+el idioma del pack: **WN-LMF** (`english-wordnet-*.xml.gz`, CC BY 4.0) para el ingles y el
+**`.tab` de OMW** (`wn-data-spa.tab`, CC BY 3.0) para el español. Rinde **21.143 entradas** en
+ingles --mas 2.486 con antonimos-- y **5.504** en español. ⚠️ Tambien cambia la atribucion.
 """
 
 import hashlib
 import os
 import sys
 
-from sources import enwikt_examples, kaikki, oewn, tatoeba, wikidata
+from sources import enwikt_examples, kaikki, oewn, tatoeba, wikidata, wordnet
 
 from build import PackBuilder
 
@@ -118,6 +125,25 @@ FUENTES = {
         # aunque no sea obligatorio decirlo.
         "prosa": ("Definiciones de Wikidata Lexemes (wikidata.org), dedicadas al dominio "
                   "público bajo CC0 1.0."),
+    },
+    "mcr": {
+        "codigo": "wn",
+        "rol": "relations",
+        "nombre": "Multilingual Central Repository, vía Open Multilingual Wordnet",
+        "url": "https://adimen.si.ehu.es/web/MCR/",
+        "licencia": "CC BY 3.0",
+        "licencia_url": "https://creativecommons.org/licenses/by/3.0/",
+        "prosa": ("Sinónimos del Multilingual Central Repository (adimen.si.ehu.es/web/MCR/), "
+                  "distribuido por Open Multilingual Wordnet, licencia CC BY 3.0."),
+    },
+    "oewn-tesauro": {
+        "codigo": "wn",
+        "rol": "relations",
+        "nombre": "Open English WordNet",
+        "url": "https://en-word.net/",
+        "licencia": "CC BY 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by/4.0/",
+        "prosa": ("Synonyms and antonyms from Open English WordNet (en-word.net), CC BY 4.0."),
     },
     "oewn": {
         "codigo": "oewn",
@@ -288,6 +314,9 @@ def main(argv):
     dump_frases = None
     if "--frases" in argv:
         dump_frases = argv[argv.index("--frases") + 1]
+    dump_tesauro = None
+    if "--tesauro" in argv:
+        dump_tesauro = argv[argv.index("--tesauro") + 1]
 
     metadata = dict(PACKS[lang])
     # El manifiesto se arma antes que nada: la fuente base primero, para que quede arriba en la
@@ -320,11 +349,24 @@ def main(argv):
         frases = tatoeba.shortest_by_norm(dump_frases)
         metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
         metadata["description"] += " Con frases de uso del corpus Tatoeba."
+    tesauro = None
+    if dump_tesauro:
+        # El formato lo decide el IDIOMA del pack, no una opcion mas: el ingles tiene su propio
+        # WordNet en WN-LMF y el español llega por el .tab de OMW. Son la misma idea servida
+        # distinto, igual que las dos formas de los sinonimos del wiki (D-124).
+        ingles = metadata["lang_src"] == "en"
+        tesauro = wordnet.english(dump_tesauro) if ingles else wordnet.spanish(dump_tesauro)
+        metadata["pack_id"] += "-" + _declarar(
+            metadata, "oewn-tesauro" if ingles else "mcr")["codigo"]
+        metadata["description"] += (
+            " With WordNet synonyms and antonyms." if ingles
+            else " Con sinónimos de WordNet."
+        )
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
-    with PackBuilder(output, metadata, sentences=frases) as builder:
+    with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
         reader = READERS[lang]
         argumentos = (source, lang) if reader is oewn else (source, lang, politica)
         for record in reader.records(*argumentos):

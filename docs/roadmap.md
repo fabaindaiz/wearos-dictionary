@@ -181,8 +181,19 @@ cuánto presupuesto de latencia hay para gastar.
 
 ### La calidad del contenido del pack español
 
-**Estado.** **Planificado**, con la mitad barata ya hecha y la cara medida y sin hacer. Es lo que
-queda del pedido *"mejorar el pack de español"* (2026-09-19) después de D-116, D-117 y D-121.
+**Estado.** **En gran parte hecho** (2026-09-20). De una sola fuente se pasó a **cuatro**, y lo
+que queda ya no es contenido sino tamaño.
+
+| Fuente | Qué aportó | Estado |
+|---|---|---|
+| Wikcionario (base) | definiciones, formas, sinónimos, antónimos, relacionadas | ✅ y **agotada**, medido |
+| Tatoeba | **6.499** entradas ganan frase de uso | ✅ `--frases` (D-137) |
+| WordNet / MCR | **+3.801** entradas ganan sinónimos | ✅ `--tesauro` (D-144) |
+| enwiktionary §Spanish | 307 entradas ganan ejemplo | ✅ `--ejemplos` (D-135), rinde 21× menos |
+
+El pack quedó en **146.193 entradas y 73,6 MB**, con **21,0 %** de entradas con sinónimos. ⚠️ **Y
+ahí está la tensión nueva**: el presupuesto blando de D-028 son 50 MB. No filtrar (D-141) y sumar
+fuentes empujan en la dirección contraria. Ver §O-3.
 
 **Lo que ya se hizo, para no repetirlo.** Salieron los nombres propios (22,1 % de las entradas,
 26.265 de ellas definiendo sólo *"Apellido."*), entraron 71.609 sinónimos por acepción en
@@ -814,8 +825,21 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
-**Estado.** Planificado. **68,3 MB** contra un presupuesto blando de 50 (D-028), después de la
-poda de D-116 y de las relacionadas de D-132 (+112 KB). Sigue esperando el número de latencia de O-1 para saber qué
+**Estado.** Planificado, y **es el ítem que más se movió hoy, en la dirección mala**.
+
+| | antes | hoy |
+|---|---|---|
+| español | 68,3 MB | **73,6 MB** |
+| inglés | 272,4 MB | **315,5 MB** |
+
+Contra un presupuesto blando de **50 MB** (D-028). Lo que lo movió: **D-141** (ninguna fuente
+pierde palabras: el inglés pasó de 794.355 a 956.150 entradas al dejar entrar los nombres
+propios) y las tres fuentes nuevas, que son baratas por separado —Tatoeba +368 KB, WordNet
++~100 KB— pero se suman.
+
+⚠️ **La tensión es real y no se resuelve midiendo**: *«que vayan completas»* y *«50 MB»* apuntan
+en direcciones opuestas. Las palancas existen y están medidas —`--nombres lexical-only` devuelve
+31.549 entradas y 5 MB en español— así que es una decisión de producto, no de mecanismo. Sigue esperando el número de latencia de O-1 para saber qué
 se puede sacrificar sin romper la búsqueda.
 
 **Dónde está el peso, medido** (desglose completo en `docs/formato-pack.md` §Presupuestos):
