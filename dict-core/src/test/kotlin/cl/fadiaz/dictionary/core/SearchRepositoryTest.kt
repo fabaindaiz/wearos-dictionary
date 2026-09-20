@@ -172,6 +172,62 @@ class SearchRepositoryTest {
         assertEquals("casa", repo.suggest("cas").first().headword)
     }
 
+    // --- Un nombre propio baja, salvo que sea lo que escribiste (D-154) --------------------
+
+    @Test
+    fun UN_NOMBRE_PROPIO_NO_LE_GANA_A_UNA_PALABRA_COMUN() = runTest {
+        // Medido sobre el pack real: escribir "ital" devolvia `Italia` primero y `italiano`
+        // segundo, porque la banda de cobertura premia lo corto. Un toponimo casi nunca es lo
+        // que alguien busca en un diccionario.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "Italia", pos = "name", score = 0),
+                row("uno", "italiano", pos = "noun", score = 4),
+            )),
+        ))
+        assertEquals(listOf("italiano", "Italia"), repo.suggest("ital").map { it.headword })
+    }
+
+    @Test
+    fun PERO_SI_ES_EXACTO_MANTIENE_SU_LUGAR() = runTest {
+        // ⚠️ La mitad que hace util la regla. "Fez" y "Car" normalizan EXACTAMENTE a lo escrito,
+        // y eso es evidencia legitima: quien escribe "fez" entero puede estar buscando la ciudad.
+        // Castigarlos ahi convertiria una mejora en una perdida.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "Fez", pos = "name", score = 2),
+                row("uno", "fezandero", pos = "noun", score = 0),
+            )),
+        ))
+        assertEquals(listOf("Fez", "fezandero"), repo.suggest("fez").map { it.headword })
+    }
+
+    @Test
+    fun y_si_es_CASI_exacto_tambien() = runTest {
+        // Cobertura maxima: escribiste casi toda la palabra. "a menos que hagan match exactos o
+        // muy parecidos" -- el "muy parecidos" es esta banda.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "Perú", pos = "name", score = 3),
+                row("uno", "peruanizar", pos = "noun", score = 0),
+            )),
+        ))
+        assertEquals("Perú", repo.suggest("peru").first().headword)
+    }
+
+    @Test
+    fun el_castigo_NO_cambia_el_orden_entre_dos_nombres_propios() = runTest {
+        // Entre iguales sigue mandando lo de siempre: si los dos bajan, el orden relativo es el
+        // que el pack y la cobertura ya decidian.
+        val repo = SearchRepository(listOf(
+            FakePack("uno", listOf(
+                row("uno", "Medellín", pos = "name", score = 0),
+                row("uno", "Medelona", pos = "name", score = 1),
+            )),
+        ))
+        assertEquals(listOf("Medellín", "Medelona"), repo.suggest("medel").map { it.headword })
+    }
+
     @Test
     fun `en FUZZY la banda no se aplica`() = runTest {
         // Ahi `score` es distancia de edicion, que la calculamos nosotros y ya es resiliente. La
