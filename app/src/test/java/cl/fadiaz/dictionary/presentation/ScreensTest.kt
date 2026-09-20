@@ -285,6 +285,26 @@ class ScreensTest {
     }
 
     @Test
+    fun `el separador de listas lleva espacios a los dos lados`() {
+        // ⚠️ Encontrado MIRANDO la pantalla: salia "marine·freshwater·limnic", pegado, porque
+        // **Android recorta los espacios de un `<string>`** salvo que el valor este entre
+        // comillas dobles. Con tres o cuatro terminos la linea se vuelve un bloque ilegible y
+        // ademas parte mal al ajustar el texto.
+        //
+        // Este test existe porque el bug es invisible en el recurso --el XML se ve bien-- y
+        // ningun test anterior lo veia: todos afirmaban un solo termino.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(Sense("relativo al agua",
+                                          related = listOf("marino", "limnico"))),
+                )
+            }
+        }
+        compose.onNodeWithText("rel. marino · limnico").assertExists()
+    }
+
+    @Test
     fun `las relacionadas se distinguen de los sinonimos por el prefijo`() {
         // Tercera lista con la misma forma (D-132), y el mismo riesgo elevado: "galo" mostrado
         // como sinonimo de "frances" afirma una equivalencia que la fuente no da. Las tres se ven
