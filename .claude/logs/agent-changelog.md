@@ -26,6 +26,58 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — El teclado no se cerraba por el campo, se cerraba por la lista
+
+**Qué.** Cuatro bugs reportados desde el reloj y la app bilingüe. El teclado ya no se cierra al
+escribir ni al borrar (D-128), el historial anota por los cuatro caminos y la etiqueta de guardada
+recompone (D-129), la voz entra por el input **nativo del reloj**, y la interfaz es
+**inglés/español por recursos** (D-127). Más el espacio bajo el reloj, rehecho.
+
+**Áreas.** `app/src/main/res/values{,-es}/strings.xml` (nuevos), `presentation/*` entero,
+`data/{PackSet,PackStore}.kt`, `tile/WordOfTheDayTileService.kt`,
+`tools/audit_dictionary.py`, `docs/decisions.md` (D-127 a D-130).
+
+**Por qué.** Reporte directo: *"escribir en el teclado hace que se cierre… también se sale cada
+vez que uno borra una letra"*, *"el historial a veces no se actualiza"*, *"integrémonos más a la
+búsqueda por voz nativa"*, *"quiero que la app sea multiidiomas"*.
+
+**Arquitectura.** ✅ Cumple. D-072 se respetó empujando trabajo hacia afuera: `packTypeLabel` sale
+de `PackSet.kt` y `SearchViewModel` deja de fabricar texto para emitir un estado.
+
+**Medido.**
+- **192 dp compone 2 filas de resultado; 234 dp compone 3.** La relación —22 % más pantalla, una
+  fila más— es lo único comparable; los absolutos difieren del emulador porque `h192dp` es alto
+  *disponible*.
+- Sinónimos/antónimos: **1,05 %** y **0,06 %** del pack. Es el número que contesta si ensucian.
+- El espaciador de 20 dp bajo el reloj **no** cuesta una fila: con `CLOCK_GAP = 0` el resultado es
+  idéntico.
+
+**Qué salió mal.**
+- **Diagnostiqué el teclado en el lugar equivocado al principio.** La causa no es el campo de
+  texto: es que **la lista se reestructura**. Con la query vacía el inicio muestra encabezado, voz,
+  palabra del día e historial; con una letra todo eso desaparece. Eso destruye el campo y se lleva
+  el foco. **D-089 no alcanzaba**: puso `key` para cuando un ítem cambia de *posición*, no para
+  cuando cambia *qué ítems existen*.
+- **El test de densidad pasaba por el motivo equivocado, y nadie lo había notado.**
+  `entranTresResultadosSinScrollear` corría con el dispositivo **por defecto** de Robolectric, que
+  no es un reloj: componía las cuatro sugerencias. La afirmación central de densidad del repo no
+  estaba verificada.
+- **El primer arreglo del espacio cortaba la forma del campo**, y el usuario lo dijo antes que yo
+  lo viera: como `contentPadding` la barra bajaba pero seguía empezando dentro del transform de
+  borde del `TransformingLazyColumn`. Un ítem espaciador se dibuja como cualquier otro.
+- **No pude verificar el teclado por `adb`.** `input keyevent` no llega al campo, `input text` deja
+  texto a medias y `mInputShown` va y viene entre comandos. Es la fricción que §Proceso ya nombra.
+  Lo que **sí** se verificó en pantalla es lo que importa: con "pe" escrito, *"Decir una palabra"*
+  y *"Palabra del día"* siguen ahí — **la lista no se reestructuró**.
+- **Casi invento una fórmula de filas para el tile** sin poder medirla en el reloj. Se frenó: una
+  claim necesita una medición, y el reloj estaba desconectado.
+
+**Qué quedó sin hacer.** El **cableado** del bilingüe está completo, pero tres decisiones quedaron
+escritas en el roadmap en vez de tomadas: si la voz nativa dictando en el idioma **del reloj** (y
+no del pack) es aceptable, cómo revisar las cinco decisiones cotizadas contra 192 dp, y la
+granularidad de un pack auxiliar de sinónimos (`uid` es por entrada, un sinónimo es por acepción).
+Sigue sin verse **ningún tile en un reloj**, y `MAX_HISTORY = 3` sigue atado a la aritmética vieja.
+
 ## 2026-09-19 — El inglés sí tenía sinónimos: estaban en la otra forma
 
 **Qué.** Los packs vuelven a abrir (estaban en `deflate-v1` y el código exige `deflate-v2`), el
