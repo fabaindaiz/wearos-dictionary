@@ -26,6 +26,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
@@ -390,7 +391,7 @@ class ScreensTest {
             EntryScreen(
                 entryId = 1,
                 onOpenWord = {},
-                actions = { listOf(EntryAction("Guardar") {}) },
+                actions = { listOf(EntryAction(R.string.action_save) {}) },
             ) { entry("una glosa") }
         }
         compose.waitForIdle()
@@ -428,8 +429,8 @@ class ScreensTest {
                 onOpenWord = {},
                 actions = {
                     listOf(
-                        EntryAction("Guardar") { ejecutada = "Guardar" },
-                        EntryAction("Copiar") { ejecutada = "Copiar" },
+                        EntryAction(R.string.action_save) { ejecutada = "Guardar" },
+                        EntryAction(R.string.action_copy) { ejecutada = "Copiar" },
                     )
                 },
             ) { entry("una glosa") }

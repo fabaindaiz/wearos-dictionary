@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.R
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -192,3 +196,28 @@ internal fun LoadingMessage(message: String) {
         )
     }
 }
+
+/**
+ * Que clase de diccionario es, como **id de recurso**.
+ *
+ * Partido en dos a proposito. El mapeo es puro, asi que un test de la JVM puede exigir que
+ * **haya uno por cada `PackKind` y que sean distintos** sin levantar Android; resolver el texto
+ * necesita un `Context` y vive en [packTypeLabel].
+ *
+ * Existe porque el nombre del pack dejo de decirlo: era "Español - definiciones" --22 caracteres,
+ * cortados en los cuatro lugares donde se muestra-- y paso a ser "Español" (D-125). Lo que el
+ * nombre largo comunicaba sale ahora de `kind`, que es **un dato del pack** y no una cadena que
+ * alguien tiene que acordarse de escribir bien en cada pack nuevo.
+ *
+ * ⚠️ Estaba en `data/PackSet.kt`, que el audit vigila para que no importe `android.*` (D-072).
+ * Traducirlo lo habria roto: por eso se mudo a la capa que si puede (D-127).
+ */
+@StringRes
+internal fun packTypeLabelRes(kind: PackKind): Int = when (kind) {
+    PackKind.MONOLINGUAL -> R.string.pack_kind_monolingual
+    PackKind.BILINGUAL -> R.string.pack_kind_bilingual
+}
+
+/** El texto de [packTypeLabelRes], en el idioma del reloj. */
+@Composable
+internal fun packTypeLabel(kind: PackKind): String = stringResource(packTypeLabelRes(kind))

@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import cl.fadiaz.dictionary.R
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -157,7 +160,7 @@ fun EntryScreen(
                     )
                     current?.partOfSpeech?.let { pos ->
                         Text(
-                            text = posInSpanish(pos),
+                            text = posLabel(pos),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -170,7 +173,7 @@ fun EntryScreen(
             if (failure) {
                 item(key = "fallo") {
                     Text(
-                        text = "Esa entrada ya no está en el diccionario.",
+                        text = stringResource(R.string.entry_gone),
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -203,7 +206,7 @@ fun EntryScreen(
             if (hidden > 0) {
                 item(key = "ver-mas") {
                     Pill(
-                        text = "Ver más ($hidden)",
+                        text = stringResource(R.string.entry_show_more, hidden),
                         background = MaterialTheme.colorScheme.surfaceContainer,
                         ink = MaterialTheme.colorScheme.onSurfaceVariant,
                         margin = 24.dp,
@@ -227,7 +230,7 @@ fun EntryScreen(
         items(actionsFor.size) { index ->
             val action = actionsFor[index]
             Pill(
-                text = action.label,
+                text = stringResource(action.label),
                 background = MaterialTheme.colorScheme.surfaceContainer,
                 ink = MaterialTheme.colorScheme.onSurfaceVariant,
                 onClick = {
@@ -244,7 +247,7 @@ fun EntryScreen(
 
 
 /** An action in a word's menu. The state --e.g. whether it is already saved-- is decided above. */
-data class EntryAction(val label: String, val onClick: () -> Unit)
+data class EntryAction(@get:StringRes val label: Int, val onClick: () -> Unit)
 
 /**
  * The two buttons up top: back to the search, and the menu.
@@ -337,7 +340,8 @@ private fun SenseBlock(
         // so nothing needs to be trimmed here.
         if (sense.synonyms.isNotEmpty()) {
             Text(
-                text = "sin. " + sense.synonyms.joinToString(" · "),
+                text = stringResource(R.string.entry_synonyms_prefix) + " " +
+                    sense.synonyms.joinToString(stringResource(R.string.entry_list_separator)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
@@ -348,7 +352,8 @@ private fun SenseBlock(
         // between "another way to say it" and "the opposite" is those four letters.
         if (sense.antonyms.isNotEmpty()) {
             Text(
-                text = "ant. " + sense.antonyms.joinToString(" · "),
+                text = stringResource(R.string.entry_antonyms_prefix) + " " +
+                    sense.antonyms.joinToString(stringResource(R.string.entry_list_separator)),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),

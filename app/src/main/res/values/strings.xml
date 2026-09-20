@@ -1,9 +1,112 @@
 <resources>
+    <!-- Base locale: ENGLISH. The Spanish copy lives in values-es/ (D-127).
+         Anything the user reads goes here; nothing else does. -->
     <string name="app_name">Dictionary</string>
-    <string name="tile_history_label">Últimas palabras</string>
-    <string name="tile_history_title">Últimas</string>
-    <string name="tile_history_empty">Busca una palabra</string>
-    <string name="tile_word_label">Palabra del día</string>
-    <string name="tile_word_title">Hoy</string>
-    <string name="tile_word_empty">Abre el diccionario</string>
+
+    <!-- Tiles -->
+    <string name="tile_history_label">Recent words</string>
+    <string name="tile_history_title">Recent</string>
+    <string name="tile_history_empty">Search for a word</string>
+    <string name="tile_word_label">Word of the day</string>
+    <string name="tile_word_title">Today</string>
+    <string name="tile_word_empty">Open the dictionary</string>
+
+    <!-- Kinds of pack. The label comes from meta.kind, never from the name (D-125). -->
+    <string name="pack_kind_monolingual">definitions</string>
+    <string name="pack_kind_bilingual">translation</string>
+
+    <!-- Opening a pack -->
+    <string name="pack_none_opened">No dictionary could be opened.</string>
+    <string name="pack_incompatible">This dictionary is not compatible with this version. %1$s</string>
+    <string name="pack_damaged">The dictionary is damaged or incomplete. %1$s</string>
+    <string name="pack_none_installed">No dictionary installed.</string>
+    <string name="pack_installing">Installing the dictionary.\nIt only happens the first time.</string>
+    <string name="pack_opening">Opening the dictionary…</string>
+
+    <!-- Home -->
+    <string name="home_type_hint">type…</string>
+    <string name="home_say_a_word">Say a word</string>
+    <string name="home_word_of_the_day">Word of the day</string>
+    <string name="home_recent">Recent</string>
+    <string name="home_options">Options</string>
+    <string name="home_saved">Saved</string>
+    <string name="home_settings">Settings</string>
+    <string name="home_about">About this data</string>
+    <string name="home_dictionary">Dictionary</string>
+    <string name="home_no_results_definitions">No results in the definitions</string>
+    <string name="home_no_results_for">No results for “%1$s”</string>
+    <string name="home_searching_definitions">Searching the definitions…</string>
+    <string name="home_search_definitions">Search the definitions</string>
+    <string name="home_search_in">Search in %1$s</string>
+
+    <!-- Entry -->
+    <string name="entry_gone">That entry is no longer in the dictionary.</string>
+    <string name="entry_show_more">Show more (%1$d)</string>
+    <string name="entry_options">Options</string>
+    <string name="entry_back_to_search">Search</string>
+    <string name="entry_synonyms_prefix">syn.</string>
+    <string name="entry_antonyms_prefix">ant.</string>
+    <string name="entry_list_separator"> · </string>
+
+    <!-- A word's menu -->
+    <string name="action_save">Save</string>
+    <string name="action_unsave">Remove from saved</string>
+    <string name="action_translate">View translation</string>
+    <string name="action_copy">Copy</string>
+
+    <!-- Saved words -->
+    <string name="saved_title">Saved</string>
+    <string name="saved_empty">Open a word and use Options to save it.</string>
+
+    <!-- Settings -->
+    <string name="settings_dictionaries">Dictionaries</string>
+    <string name="settings_manage">Manage</string>
+    <string name="settings_text_size">Text size</string>
+    <string name="settings_text_size_note">Added on top of the size set on your watch.</string>
+    <string name="settings_scale_normal">Normal</string>
+    <string name="settings_scale_large">Large</string>
+    <string name="settings_history">History</string>
+    <string name="settings_history_cleared">History cleared</string>
+    <string name="settings_history_empty">No history</string>
+    <string name="settings_history_clear">Clear the history</string>
+    <string name="settings_confirm">Confirm</string>
+
+    <!-- Dictionary management -->
+    <string name="packs_on_watch">On the watch</string>
+    <string name="packs_to_download">To download</string>
+    <string name="packs_wip">Not yet. Today dictionaries are installed over a cable, from the computer. The catalogue to download them from the watch will appear here.</string>
+    <string name="packs_in_use">In use</string>
+    <string name="packs_delete_question">Delete %1$s?</string>
+    <string name="packs_delete_cost">It takes %1$s. To get it back you have to install it again from the computer.</string>
+    <string name="packs_delete">Delete</string>
+    <string name="packs_delete_named">Delete %1$s</string>
+    <string name="packs_cancel">Cancel</string>
+
+    <!-- Attribution -->
+    <string name="attribution_title">About this data</string>
+    <string name="attribution_license">License: %1$s</string>
+
+    <!-- Parts of speech. The pack stores kaikki's code; translating it is the UI's job.
+         These 15 are the codes the real packs emit; anything else falls through raw. -->
+    <string name="pos_noun">noun</string>
+    <string name="pos_verb">verb</string>
+    <string name="pos_adj">adj.</string>
+    <string name="pos_adv">adv.</string>
+    <string name="pos_name">prop. noun</string>
+    <string name="pos_phrase">phrase</string>
+    <string name="pos_intj">interj.</string>
+    <string name="pos_pron">pron.</string>
+    <string name="pos_prep">prep.</string>
+    <string name="pos_conj">conj.</string>
+    <string name="pos_num">num.</string>
+    <string name="pos_suffix">suffix</string>
+    <string name="pos_prefix">prefix</string>
+    <string name="pos_proverb">proverb</string>
+    <string name="pos_abbrev">abbrev.</string>
+
+    <!-- Why a result showed up. Only the surprising levels get a label. -->
+    <string name="match_inflected">form</string>
+    <string name="match_translation">translation</string>
+    <string name="match_fuzzy">maybe</string>
+    <string name="match_definition">definition</string>
 </resources>

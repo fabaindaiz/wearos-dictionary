@@ -595,6 +595,56 @@ def check_app_version(report):
         )
 
 
+def check_locale_parity(report):
+    """Regla: values/ y values-es/ declaran las MISMAS claves, y las cortas siguen cortas. (D-127)
+
+    Una clave que existe en `values/` y falta en `values-es/` no rompe nada: Android cae al
+    default y el usuario ve **una linea en ingles dentro de una pantalla en español**. No hay
+    excepcion, no hay log, y quien la agrego no la ve porque su reloj esta en el otro idioma.
+
+    Lo segundo que comprueba es por que el nombre del pack se acorto (D-125): la etiqueta de tipo
+    se dibuja al lado del nombre en una fila de reloj, y una traduccion larga reintroduce el
+    recorte que D-125 vino a arreglar. Se mide en LOS DOS idiomas, que es algo que ningun test de
+    pantalla puede hacer -- cada uno corre en un locale.
+    """
+    import re as _re
+
+    def claves(ruta):
+        texto = read(ruta)
+        return {m.group(1): m.group(2) for m in
+                _re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', texto, _re.S)}
+
+    base = claves(os.path.join("app", "src", "main", "res", "values", "strings.xml"))
+    es = claves(os.path.join("app", "src", "main", "res", "values-es", "strings.xml"))
+    if not base or not es:
+        report.failure("faltan los strings.xml de un locale", "values/ o values-es/ no se leyeron")
+        return
+
+    faltan = sorted(set(base) - set(es))
+    sobran = sorted(set(es) - set(base))
+    if faltan:
+        report.failure(
+            "hay claves sin traducir en values-es",
+            "%s. El usuario las ve EN INGLES dentro de la pantalla en español" % ", ".join(faltan),
+        )
+    if sobran:
+        report.failure(
+            "hay claves en values-es que no existen en la base",
+            "%s. Son texto muerto: nadie las lee" % ", ".join(sobran),
+        )
+
+    # Lo que se dibuja al lado del nombre del pack, en una fila de reloj.
+    for clave in ("pack_kind_monolingual", "pack_kind_bilingual"):
+        for idioma, tabla in (("values", base), ("values-es", es)):
+            valor = tabla.get(clave, "")
+            if len(valor) > 14:
+                report.failure(
+                    "la etiqueta de tipo de pack no entra en una fila",
+                    "%s/%s = %r son %d caracteres; el limite es 14 (D-125)"
+                    % (idioma, clave, valor, len(valor)),
+                )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -696,6 +746,7 @@ CHECKS = [
     check_attribution_screen,
     check_release_signing,
     check_app_version,
+    check_locale_parity,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,

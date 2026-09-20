@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
@@ -21,8 +22,8 @@ import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
  * The attribution, and it is **not optional** (D-031).
@@ -46,7 +47,7 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                 ListHeader(
                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                     transformation = SurfaceTransformation(spec),
-                ) { Text("Sobre estos datos") }
+                ) { Text(stringResource(R.string.attribution_title)) }
             }
             // Each pack brings ITS own license: with two sources, showing only one would breach
             // the other one's terms of use.
@@ -83,7 +84,7 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                 }
                 item {
                     Text(
-                        text = "Licencia: ${meta.license}",
+                        text = stringResource(R.string.attribution_license, meta.license),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,

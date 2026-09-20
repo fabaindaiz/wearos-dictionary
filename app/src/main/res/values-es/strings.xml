@@ -1,0 +1,111 @@
+<resources>
+    <!-- Español NEUTRO latinoamericano (app/CLAUDE.md): sin voseo, sin "acá", y tampoco
+         ordenador/móvil/vosotros. La base en inglés vive en values/ (D-127). -->
+    <string name="app_name">Diccionario</string>
+
+    <!-- Tiles -->
+    <string name="tile_history_label">Últimas palabras</string>
+    <string name="tile_history_title">Últimas</string>
+    <string name="tile_history_empty">Busca una palabra</string>
+    <string name="tile_word_label">Palabra del día</string>
+    <string name="tile_word_title">Hoy</string>
+    <string name="tile_word_empty">Abre el diccionario</string>
+
+    <!-- Tipos de pack -->
+    <string name="pack_kind_monolingual">definiciones</string>
+    <string name="pack_kind_bilingual">traducción</string>
+
+    <!-- Abrir un pack -->
+    <string name="pack_none_opened">Ningún diccionario se pudo abrir.</string>
+    <string name="pack_incompatible">El diccionario no es compatible con esta versión. %1$s</string>
+    <string name="pack_damaged">El diccionario está dañado o incompleto. %1$s</string>
+    <string name="pack_none_installed">No hay ningún diccionario instalado.</string>
+    <string name="pack_installing">Instalando el diccionario.\nSolo pasa la primera vez.</string>
+    <string name="pack_opening">Abriendo el diccionario…</string>
+
+    <!-- Inicio -->
+    <string name="home_type_hint">escribir…</string>
+    <string name="home_say_a_word">Decir una palabra</string>
+    <string name="home_word_of_the_day">Palabra del día</string>
+    <string name="home_recent">Recientes</string>
+    <string name="home_options">Opciones</string>
+    <string name="home_saved">Guardadas</string>
+    <string name="home_settings">Ajustes</string>
+    <string name="home_about">Sobre estos datos</string>
+    <string name="home_dictionary">Diccionario</string>
+    <string name="home_no_results_definitions">Sin resultados en las definiciones</string>
+    <string name="home_no_results_for">Sin resultados para “%1$s”</string>
+    <string name="home_searching_definitions">Buscando en las definiciones…</string>
+    <string name="home_search_definitions">Buscar en las definiciones</string>
+    <string name="home_search_in">Buscar en %1$s</string>
+
+    <!-- Entrada -->
+    <string name="entry_gone">Esa entrada ya no está en el diccionario.</string>
+    <string name="entry_show_more">Ver más (%1$d)</string>
+    <string name="entry_options">Opciones</string>
+    <string name="entry_back_to_search">Buscar</string>
+    <string name="entry_synonyms_prefix">sin.</string>
+    <string name="entry_antonyms_prefix">ant.</string>
+    <string name="entry_list_separator"> · </string>
+
+    <!-- El menú de una palabra -->
+    <string name="action_save">Guardar</string>
+    <string name="action_unsave">Quitar de guardadas</string>
+    <string name="action_translate">Ver traducción</string>
+    <string name="action_copy">Copiar</string>
+
+    <!-- Guardadas -->
+    <string name="saved_title">Guardadas</string>
+    <string name="saved_empty">Abre una palabra y usa Opciones para guardarla.</string>
+
+    <!-- Ajustes -->
+    <string name="settings_dictionaries">Diccionarios</string>
+    <string name="settings_manage">Gestionar</string>
+    <string name="settings_text_size">Tamaño del texto</string>
+    <string name="settings_text_size_note">Se suma al tamaño que tengas configurado en el reloj.</string>
+    <string name="settings_scale_normal">Normal</string>
+    <string name="settings_scale_large">Grande</string>
+    <string name="settings_history">Historial</string>
+    <string name="settings_history_cleared">Historial borrado</string>
+    <string name="settings_history_empty">No hay historial</string>
+    <string name="settings_history_clear">Borrar el historial</string>
+    <string name="settings_confirm">Confirmar</string>
+
+    <!-- Gestión de diccionarios -->
+    <string name="packs_on_watch">En el reloj</string>
+    <string name="packs_to_download">Para descargar</string>
+    <string name="packs_wip">Todavía no. Hoy los diccionarios se instalan por cable, desde la computadora. Aquí va a aparecer el catálogo para descargarlos desde el reloj.</string>
+    <string name="packs_in_use">En uso</string>
+    <string name="packs_delete_question">¿Borrar %1$s?</string>
+    <string name="packs_delete_cost">Ocupa %1$s. Para recuperarlo hay que volver a instalarlo desde la computadora.</string>
+    <string name="packs_delete">Borrar</string>
+    <string name="packs_delete_named">Borrar %1$s</string>
+    <string name="packs_cancel">Cancelar</string>
+
+    <!-- Atribución -->
+    <string name="attribution_title">Sobre estos datos</string>
+    <string name="attribution_license">Licencia: %1$s</string>
+
+    <!-- Categorías gramaticales -->
+    <string name="pos_noun">sust.</string>
+    <string name="pos_verb">verbo</string>
+    <string name="pos_adj">adj.</string>
+    <string name="pos_adv">adv.</string>
+    <string name="pos_name">n. propio</string>
+    <string name="pos_phrase">locución</string>
+    <string name="pos_intj">interj.</string>
+    <string name="pos_pron">pron.</string>
+    <string name="pos_prep">prep.</string>
+    <string name="pos_conj">conj.</string>
+    <string name="pos_num">num.</string>
+    <string name="pos_suffix">sufijo</string>
+    <string name="pos_prefix">prefijo</string>
+    <string name="pos_proverb">refrán</string>
+    <string name="pos_abbrev">abrev.</string>
+
+    <!-- Por qué salió un resultado -->
+    <string name="match_inflected">forma</string>
+    <string name="match_translation">traducción</string>
+    <string name="match_fuzzy">quizás</string>
+    <string name="match_definition">definición</string>
+</resources>

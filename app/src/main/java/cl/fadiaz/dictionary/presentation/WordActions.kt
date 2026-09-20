@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackHandle
 
@@ -32,19 +33,19 @@ internal fun wordActions(
 ): List<EntryAction> = buildList {
     add(
         EntryAction(
-            label = if (isFavorite) "Quitar de guardadas" else "Guardar",
+            label = if (isFavorite) R.string.action_unsave else R.string.action_save,
             onClick = onToggleFavorite,
         ),
     )
     if (translationPack != null) {
         add(
             EntryAction(
-                label = "Ver traducción",
+                label = R.string.action_translate,
                 onClick = { onViewTranslation(translationPack) },
             ),
         )
     }
-    add(EntryAction(label = "Copiar", onClick = onCopy))
+    add(EntryAction(label = R.string.action_copy, onClick = onCopy))
 }
 
 /**

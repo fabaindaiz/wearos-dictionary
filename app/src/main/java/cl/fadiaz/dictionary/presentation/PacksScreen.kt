@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -38,9 +39,9 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.asHumanSize
-import cl.fadiaz.dictionary.data.packTypeLabel
 
 /**
  * Dictionary management: which ones are there, which one is in use, how much they take and how to
@@ -77,7 +78,7 @@ fun PacksScreen(
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item(key = "cabecera-instalados") { ListHeader { Text("En el reloj") } }
+            item(key = "cabecera-instalados") { ListHeader { Text(stringResource(R.string.packs_on_watch)) } }
 
             items(count = installed.size, key = { "pack:${installed[it].packId}" }) { index ->
                 val pack = installed[index]
@@ -94,13 +95,12 @@ fun PacksScreen(
                 )
             }
 
-            item(key = "cabecera-descargar") { ListHeader { Text("Para descargar") } }
+            item(key = "cabecera-descargar") { ListHeader { Text(stringResource(R.string.packs_to_download)) } }
             item(key = "wip") {
                 Text(
                     // It says what is missing and what it will do. A bare "coming soon" helps
                     // nobody; this also explains why dictionaries arrive over a cable today.
-                    text = "Todavía no. Hoy los diccionarios se instalan por cable, desde la " +
-                        "computadora. Aquí va a aparecer el catálogo para descargarlos desde el reloj.",
+                    text = stringResource(R.string.packs_wip),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -114,14 +114,13 @@ fun PacksScreen(
     AlertDialog(
         visible = candidate != null,
         onDismissRequest = { pendingDelete = null },
-        title = { Text("¿Borrar ${candidate?.metadata?.name.orEmpty()}?") },
+        title = { Text(stringResource(R.string.packs_delete_question, candidate?.metadata?.name.orEmpty())) },
     ) {
         item {
             Text(
                 // The cost of undoing it, before doing it. It is the only action in the app that
                 // cannot be reversed from inside the app.
-                text = "Ocupa ${asHumanSize(candidate?.bytes ?: 0)}. Para recuperarlo hay " +
-                    "que volver a instalarlo desde la computadora.",
+                text = stringResource(R.string.packs_delete_cost, asHumanSize(candidate?.bytes ?: 0)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -130,7 +129,7 @@ fun PacksScreen(
         }
         item {
             Pill(
-                text = "Borrar",
+                text = stringResource(R.string.packs_delete),
                 background = MaterialTheme.colorScheme.error,
                 ink = MaterialTheme.colorScheme.onError,
                 margin = 8.dp,
@@ -142,7 +141,7 @@ fun PacksScreen(
         }
         item {
             Pill(
-                text = "Cancelar",
+                text = stringResource(R.string.packs_cancel),
                 background = MaterialTheme.colorScheme.surfaceContainer,
                 ink = MaterialTheme.colorScheme.onSurfaceVariant,
                 margin = 8.dp,
@@ -189,7 +188,7 @@ private fun PackRow(
                 if (active) {
                     Icon(
                         imageVector = Icons.Filled.Check,
-                        contentDescription = "En uso",
+                        contentDescription = stringResource(R.string.packs_in_use),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.primary,
                     )
@@ -229,7 +228,7 @@ private fun PackRow(
             ) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
-                    contentDescription = "Borrar $name",
+                    contentDescription = stringResource(R.string.packs_delete_named, name),
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

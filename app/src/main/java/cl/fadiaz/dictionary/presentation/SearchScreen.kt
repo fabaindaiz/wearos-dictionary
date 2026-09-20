@@ -2,6 +2,8 @@ package cl.fadiaz.dictionary.presentation
 
 import android.app.Activity
 import android.content.Intent
+import android.content.Context
+import androidx.annotation.StringRes
 import android.app.RemoteInput
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -24,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,11 +53,11 @@ import androidx.wear.input.RemoteInputIntentHelper
 import androidx.wear.input.wearableExtender
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
-import cl.fadiaz.dictionary.data.packTypeLabel
 import cl.fadiaz.dictionary.data.Visit
 
 /**
@@ -112,6 +115,15 @@ fun SearchScreen(
         }
     }
 
+    // La etiqueta del input nativo nombra el diccionario, porque el input del sistema dicta en
+    // el idioma DEL RELOJ y no en el del pack: es lo unico que le dice al usuario en que esta
+    // buscando (D-127). Se arma aca y no dentro de la lista: `stringResource` es @Composable y
+    // el scope de un lazy item no lo es.
+    val voiceLabel = stringResource(
+        R.string.home_search_in,
+        state.active?.name ?: stringResource(R.string.home_dictionary),
+    )
+
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
             contentPadding = withScreenMargins(contentPadding),
@@ -131,11 +143,20 @@ fun SearchScreen(
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
                     LoadingMessage(
-                        message = if (status == SearchState.Status.Installing) {
-                            "Instalando el diccionario.\nSolo pasa la primera vez."
-                        } else {
-                            "Abriendo el diccionario…"
-                        },
+                        message = stringResource(
+                            if (status == SearchState.Status.Installing) R.string.pack_installing
+                            else R.string.pack_opening,
+                        ),
+                    )
+                }
+
+                // Sin diccionario: el ViewModel emite el estado y el texto lo pone aca (D-127).
+                SearchState.Status.NoDictionary -> item {
+                    Text(
+                        text = stringResource(R.string.pack_none_installed),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     )
                 }
 
@@ -145,7 +166,7 @@ fun SearchScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            text = state.active?.name ?: "Diccionario",
+                            text = state.active?.name ?: stringResource(R.string.home_dictionary),
                             style = MaterialTheme.typography.titleSmall,
                         )
                         Text(
@@ -164,7 +185,7 @@ fun SearchScreen(
                     // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
                         SearchBar(state.query, onQueryChange, onTypingChanged) {
-                            voice.launch(nativeInputIntent("Buscar en ${state.active?.name ?: "el diccionario"}"))
+                            voice.launch(nativeInputIntent(voiceLabel))
                         }
                     }
 
@@ -173,10 +194,10 @@ fun SearchScreen(
                         // enter what I am looking for-- and separating them forced a scroll.
                         item(key = "voz") {
                             Button(
-                                onClick = { voice.launch(nativeInputIntent("Buscar en ${state.active?.name ?: "el diccionario"}")) },
+                                onClick = { voice.launch(nativeInputIntent(voiceLabel)) },
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
-                            ) { Text("Decir una palabra") }
+                            ) { Text(stringResource(R.string.home_say_a_word)) }
                         }
 
                         // One per loaded dictionary, the active one's first. The header shows
@@ -193,7 +214,7 @@ fun SearchScreen(
                                 ListHeader(
                                     modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                     transformation = SurfaceTransformation(spec),
-                                ) { Text("Palabra del día") }
+                                ) { Text(stringResource(R.string.home_word_of_the_day)) }
                             }
                         }
                         items(
@@ -238,7 +259,7 @@ fun SearchScreen(
                             val visit = state.history[index]
                             ListRow(
                                 headword = visit.headword,
-                                detail = visit.partOfSpeech?.let(::posInSpanish),
+                                detail = visit.partOfSpeech?.let { posLabel(it) },
                             ) { onOpenVisita(visit) }
                         }
                     }
@@ -247,9 +268,9 @@ fun SearchScreen(
                         item(key = "sin-resultados") {
                             Text(
                                 text = if (state.mode == SearchState.Mode.DEFINICIONES) {
-                                    "Sin resultados en las definiciones"
+                                    stringResource(R.string.home_no_results_definitions)
                                 } else {
-                                    "Sin resultados para “${state.submitted}”"
+                                    stringResource(R.string.home_no_results_for, state.submitted)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -264,9 +285,9 @@ fun SearchScreen(
                                 val searching = state.mode == SearchState.Mode.BUSCANDO_DEFINICIONES
                                 Pill(
                                     text = if (searching) {
-                                        "Buscando en las definiciones…"
+                                        stringResource(R.string.home_searching_definitions)
                                     } else {
-                                        "Buscar en las definiciones"
+                                        stringResource(R.string.home_search_definitions)
                                     },
                                     // No onClick while searching: it stays on screen so the
                                     // list does not jump, but it fires no second query.
@@ -283,7 +304,7 @@ fun SearchScreen(
                         if (other != null) {
                             item(key = "escotilla-idioma") {
                                 Pill(
-                                    text = "Buscar en ${other.metadata.name}",
+                                    text = stringResource(R.string.home_search_in, other.metadata.name),
                                     onClick = { onPackChange(other.packId) },
                                 )
                             }
@@ -333,7 +354,7 @@ fun SearchScreen(
 
                     item(key = "atribucion") {
                         Text(
-                            text = "Sobre estos datos",
+                            text = stringResource(R.string.home_about),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -362,7 +383,7 @@ private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
     ListRow(
         headword = suggestion.headword,
         detail = matchLabel(suggestion.matchKind)
-            ?: suggestion.partOfSpeech?.let(::posInSpanish),
+            ?: suggestion.partOfSpeech?.let { posLabel(it) },
         onClick = onClick,
     )
 }
@@ -408,7 +429,7 @@ private fun SearchBar(
         ) {
             if (query.isEmpty()) {
                 Text(
-                    text = "escribir…",
+                    text = stringResource(R.string.home_type_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -580,39 +601,55 @@ private fun nativeInputIntent(label: String): Intent {
 }
 
 /**
- * The pack stores `pos` with kaikki's code (`noun`, `verb`). Translating it is the UI's job:
- * putting it in the pack would tie it to one interface language and cost bytes per entry.
+ * El `pos` que guarda el pack es el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
+ * UI: meterlo en el pack lo ataria a un idioma de interfaz y costaria bytes por entrada.
+ *
+ * Devuelve el **id de recurso** y no el texto porque esto lo usan dos superficies distintas: las
+ * pantallas, que resuelven con `stringResource`, y los tiles, que tienen `Context` y resuelven
+ * con `getString`. Un codigo que no conocemos devuelve null y se muestra crudo, que es mejor que
+ * esconderlo.
  */
-internal fun posInSpanish(pos: String): String = when (pos) {
-    "noun" -> "sust."
-    "verb" -> "verbo"
-    "adj" -> "adj."
-    "adv" -> "adv."
-    "name" -> "n. propio"
-    "phrase" -> "locución"
-    "intj" -> "interj."
-    "pron" -> "pron."
-    "prep" -> "prep."
-    "conj" -> "conj."
-    "num" -> "num."
-    "suffix" -> "sufijo"
-    "prefix" -> "prefijo"
-    "proverb" -> "refrán"
-    "abbrev" -> "abrev."
-    else -> pos
+@StringRes
+internal fun posLabelRes(pos: String): Int? = when (pos) {
+    "noun" -> R.string.pos_noun
+    "verb" -> R.string.pos_verb
+    "adj" -> R.string.pos_adj
+    "adv" -> R.string.pos_adv
+    "name" -> R.string.pos_name
+    "phrase" -> R.string.pos_phrase
+    "intj" -> R.string.pos_intj
+    "pron" -> R.string.pos_pron
+    "prep" -> R.string.pos_prep
+    "conj" -> R.string.pos_conj
+    "num" -> R.string.pos_num
+    "suffix" -> R.string.pos_suffix
+    "prefix" -> R.string.pos_prefix
+    "proverb" -> R.string.pos_proverb
+    "abbrev" -> R.string.pos_abbrev
+    else -> null
 }
 
+/** [posLabelRes] resuelto en el idioma del reloj; el codigo crudo si no se conoce. */
+@Composable
+internal fun posLabel(pos: String): String = posLabelRes(pos)?.let { stringResource(it) } ?: pos
+
+/** [posLabelRes] para quien tiene `Context` y no composicion: los tiles. */
+internal fun posLabel(context: Context, pos: String): String =
+    posLabelRes(pos)?.let(context::getString) ?: pos
+
 /**
- * Only the surprising match levels get a label.
+ * Solo se etiquetan los niveles que sorprenden.
  *
- * A result coming from a prefix is what you expect and does not deserve a word on a 192 dp
- * screen. One coming from an inflected form or from fuzzy matching does: it explains why
- * something the user did not type is showing up.
+ * Que un resultado salga por prefijo es lo esperado y no merece una palabra en una pantalla de
+ * reloj. Que salga por una forma flexionada o por parecido si: explica por que aparece algo que
+ * el usuario no escribio.
  */
+@Composable
 private fun matchLabel(kind: MatchKind): String? = when (kind) {
     MatchKind.PREFIX -> null
-    MatchKind.INFLECTED_FORM -> "forma"
-    MatchKind.TRANSLATION -> "traducción"
-    MatchKind.FUZZY -> "quizás"
-    MatchKind.DEFINITION -> "definición"
+    MatchKind.INFLECTED_FORM -> stringResource(R.string.match_inflected)
+    MatchKind.TRANSLATION -> stringResource(R.string.match_translation)
+    MatchKind.FUZZY -> stringResource(R.string.match_fuzzy)
+    MatchKind.DEFINITION -> stringResource(R.string.match_definition)
 }
+

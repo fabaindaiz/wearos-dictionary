@@ -9,7 +9,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackStore
-import cl.fadiaz.dictionary.presentation.posInSpanish
+import cl.fadiaz.dictionary.presentation.posLabel
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import java.time.LocalDate
@@ -87,7 +87,7 @@ class WordOfTheDayTileService : TileService() {
                 wordCard(
                     this@WordOfTheDayTileService,
                     visit,
-                    visit.partOfSpeech?.let(::posInSpanish),
+                    visit.partOfSpeech?.let { posLabel(this@WordOfTheDayTileService, it) },
                 )
             }
         }
