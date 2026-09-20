@@ -591,35 +591,123 @@ seguir mostrando tres filas, así que el número no se reemplaza — se vuelve *
 (`LocalConfiguration.screenWidthDp`), y `ScreensTest.threeResultsFitWithoutScrolling` pasa a medir
 contra el tamaño que tenga el dispositivo que lo corre.
 
-### El margen lateral: el tercer eje adaptable, y el que necesita ojos
+### ~~El margen lateral~~ — cerrado sin hacer (2026-09-20)
 
-**Estado.** **Medido y no hecho, a propósito** (2026-09-20). Decisión que **no se tomó sola**.
+**Decisión del usuario**: *«el margen lateral no es problema, sólo el espacio abajo y arriba, que
+ya añadiste, así que esto está bien»*. Los 16 dp se quedan como están.
 
-Dos ejes ya se adaptan: cuántas filas entran (`rowsThatFit`, D-131) y el espacio bajo el reloj
-(`clockGap`, D-133). El tercero candidato es el **margen lateral**, hoy `16.dp` repetido en unas
-12 llamadas entre `EntryScreen`, `FavoritesScreen`, `Components` y `AttributionScreen` (esta
-última con 12).
+La medición que lo acompañaba sigue valiendo por si alguna vez se reabre: Wear Compose Material3
+declara el padding horizontal como **5,2 %** del ancho (`PaddingDefaults`, leído del `.aar`), que
+a 192 dp da 10 y a 234 da 13 — o sea que pasar a la fracción **achicaría** el margen. Ver D-133,
+que documenta por qué el espacio vertical sí era una fracción disfrazada de constante y éste no.
 
-**Lo que dice la fuente primaria.** Leído del artefacto, no de memoria:
-`compose-material3-1.6.2.aar` → `PaddingDefaults.horizontalContentPaddingPercentage = 5.2f`
-(y `verticalContentPaddingPercentage = 10.0f`, `edgePadding = 2.dp`).
+### Dividir los packs grandes en vez de achicarlos
 
-**Por qué no se aplicó, que es el punto.** A diferencia de `clockGap` —donde los 20 dp resultaron
-ser **exactamente** el 10 % de 192 dp, así que expresarlos como fracción no cambiaba la intención
-sino que la revelaba— los 16 dp **no son el 5,2 % de nada**: a 192 dp la fracción da 10 y a 234 da
-13. Pasar a la fracción **achica el margen en los dos relojes que existen**, o sea ensancha cada
-pill unos 7 dp. Eso probablemente se ve mejor en un reloj —más ancho para el texto, que es el
-recurso escaso— pero es **un cambio visible en 12 lugares, en una dirección que nadie pidió, y sin
-poder mirarlo**. El repo ya se equivocó dos veces seguidas con el espacio de la pantalla de inicio
-por decidir sin ver.
+**Estado.** **Diseñado y medido, sin construir** (2026-09-20). Decisión del usuario: *«que los
+packs muy grandes, en lugar de reducirse, se pueda evaluar dividirlos funcionalmente para poder
+instalar las partes que uno quiere»*. Lo que sigue es el diseño con precio; **nada de esto está
+implementado**.
 
-**Qué lo desbloquea.** Un reloj conectado y una mirada: construir con `sideMargin()` = 5,2 % y
-comparar contra los 16 dp actuales. Si se adopta, `AttributionScreen` converge sola — sus 12 dp
-son casi el 5,2 % de 234.
+#### Dónde está el peso, medido sobre los packs de hoy
 
-**La alternativa que NO sirve.** `max(16.dp, 5,2 %)` no cambia nada hoy: sólo actuaría por encima
-de 308 dp de ancho, una pantalla que Wear OS no tiene. Sería código muerto con un test que lo
-ratifica.
+| | español (73,6 MB) | inglés (315,5 MB) |
+|---|---|---|
+| `form` (flexiones) | **33,4 MB — 45 %** | 19,5 MB — 6 % |
+| `entry` (payloads) | 18,7 MB — 25 % | **143,5 MB — 46 %** |
+| FTS + índices | 19,7 MB — **27 %** | 145,0 MB — **46 %** |
+
+Y dentro del payload descomprimido:
+
+| | glosas | ejemplos | tesauro | relacionadas | pos |
+|---|---|---|---|---|---|
+| español | **70,6 %** | 17,0 % | 5,9 % | 0,8 % | 5,7 % |
+| inglés | 49,5 % | **41,2 %** | 3,0 % | 1,8 % | 4,5 % |
+
+**Tres conclusiones que ordenan el diseño:**
+
+1. **Un «módulo de tesauro» ahorraría ~1 MB en español.** No vale un mecanismo. El peso está en
+   las glosas, los ejemplos y las flexiones.
+2. **Casi la mitad del pack inglés es derivable** (FTS + índices). Eso no es dividir: es qué viaja
+   por la red, y ya tiene su propio ítem abierto.
+3. ⚠️ **La distinción que hay que no perder: dividir por FILAS ya funciona hoy; dividir por CAMPOS
+   necesita composición.** Un pack de nombres propios aparte, o uno de vocabulario núcleo, son
+   diccionarios completos y autosuficientes que conviven vía `SearchRepository` (D-136) sin un
+   solo mecanismo nuevo. Sacar los ejemplos a un módulo, en cambio, parte una entrada en dos y
+   necesita el join por `uid` — que sigue bloqueado por la granularidad.
+
+#### Lo elegido: dividir por NIVEL DE VOCABULARIO
+
+**El bloqueo era no tener una señal de frecuencia** —`rank` es riqueza de página, no uso, y por
+eso ponía `castigar` arriba de `casa` (D-142)—. **Resuelto midiendo: el corpus Tatoeba ya
+descargado sirve**, contando palabras sobre 442.135 oraciones. Se probaron dos candidatas:
+
+| señal | vocabulario | veredicto |
+|---|---|---|
+| **Tatoeba** (442.135 oraciones) | 77.340 palabras | ✅ frecuencia de **uso** real |
+| glosas del propio diccionario | 80.970 palabras | ⚠️ sesgada: su top trae *apellido*, *gerundio*, *participio* — vocabulario de diccionario, no de habla |
+
+Las dos meten `casa, perro, hacer, agua, comer, libro, verde, correr` en el top 8.000 y dejan
+fuera `guanaco, lixiviar, tómbolo`. **Gana Tatoeba** porque la otra mide cómo se escriben las
+definiciones, no cómo se habla.
+
+**La curva de tamaño, estimada sobre el pack español real** (payload comprimido + sus formas + la
+parte proporcional de FTS e índices):
+
+| top N palabras | entradas | MB | % del pack completo |
+|---|---|---|---|
+| 3.000 | 3.535 | 1,9 | 3 % |
+| 10.000 | 8.703 | 4,6 | 6 % |
+| **20.000** | **14.388** | **7,5** | **10 %** |
+| 40.000 | 22.831 | 12,1 | 16 % |
+| 80.000 | 33.113 | 17,4 | 24 % |
+
+**Un pack núcleo de 20.000 palabras pesa 7,5 MB en vez de 73,6.** Diez veces menos, con el
+vocabulario que la gente usa.
+
+**Lo que costaría construirlo**, y es poco: `tatoeba.frequencies()` en el módulo que ya lee ese
+archivo —mismo tokenizador, para no tener dos ideas de qué es una palabra—, un filtro por lema en
+`build_pack`, y el sufijo `-core` en el `pack_id`. ⚠️ **El corpus que ELIGE las palabras se
+declara igual en `meta.sources`**: no se distribuye texto de Tatoeba, pero se usó para decidir el
+contenido, y `sources` existe para contestar cómo se armó el pack (D-138).
+
+⚠️ **Núcleo y completo son alternativas, no compañeros.** Instalar los dos no aporta nada: el
+completo contiene al núcleo. Eso los distingue de los packs de fuentes distintas, que sí se suman.
+
+**Lo que queda sin decidir**: el `N`. 20.000 es el punto donde la curva se aplana, no una medición
+de qué necesita un usuario. Y para el inglés hace falta el corpus inglés de Tatoeba, que no está
+descargado.
+
+#### Las otras divisiones, cotizadas y no elegidas
+
+| Qué | Ahorro | Por qué no ahora |
+|---|---|---|
+| **FTS e índices se reconstruyen en el reloj** | **145 MB inglés (46 %)**, 19,7 MB español | El mayor ahorro con diferencia, pero **el artefacto deja de ser el que `verify_pack` validó**. Tiene su propio ítem |
+| **Ejemplos como módulo** | 41,2 % del payload inglés (~59 MB) | División por campos: necesita composición, bloqueada por granularidad. Y con la decisión de abajo, los ejemplos dejarían de ser buscables |
+| **Nombres propios aparte** | ~5 MB español, ~43 MB inglés | División por filas: **funciona hoy sin mecanismo nuevo**. Es la más barata si se quiere algo inmediato |
+
+#### Cómo interactúan varios packs del mismo idioma en la interfaz
+
+**Decidido** (2026-09-20): **el origen se muestra sólo cuando desambigua**. Con un diccionario del
+idioma activo la fila dice `sust. · ES`; con dos del mismo idioma pasa a decir `sust. · wikc`.
+Cuesta cero —`packId` ya viaja en cada `Suggestion`— y no gasta ancho cuando no hace falta.
+
+⚠️ **El costo que hay que vigilar**: la etiqueta **cambia sola** al instalar un segundo
+diccionario, y eso puede leerse como inconsistencia. Sin construir.
+
+#### Qué puede hacer un módulo en una consulta
+
+**Decidido** (2026-09-20): **un módulo sólo enriquece una entrada ya encontrada; nunca produce
+filas**. Es lo más simple y no toca la capa de consulta.
+
+⚠️ **Y tiene una consecuencia que conviene tener presente antes de mover nada a un módulo: lo que
+tiene que ser BUSCABLE no puede salir del pack base.** Hoy los sinónimos entran a `fts_def`
+(D-118), así que escribir *bobo* encuentra *chulengo*; los ejemplos también, así que la búsqueda
+por definición los alcanza. Con esta decisión, mover el tesauro o los ejemplos a un módulo
+**rompería las dos cosas**.
+
+En la práctica eso convierte la regla en un criterio de qué puede modularizarse: **contenido que
+sólo se lee al abrir una palabra, sí; contenido que participa de la búsqueda, no**. Las
+relacionadas (`R`) cumplen —nunca entraron a `fts_def` (D-132)—; los sinónimos y los ejemplos, no.
 
 ### Un pack reconstruido no se distingue del viejo: `data_version` es la fecha del DUMP
 
