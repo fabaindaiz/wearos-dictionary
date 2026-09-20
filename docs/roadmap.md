@@ -22,12 +22,23 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **57 tests**) y el
-pipeline de packs (`tools/`, **161 tests**) están completos y en el gate, junto con los **196 JVM
-de `:app`** y **20 checks** de auditoría estructural. Los **31 de `:dict-data` son
-instrumentados y el gate no los corre**: necesitan dispositivo, y son los únicos que cierran las
-asunciones sobre Android. El pack de juguete pasa
-todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **77 tests**) y el
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **206 JVM
+de `:app`** y **21 checks** de auditoría estructural — **533 tests en total**. Los **34 de
+`:dict-data` son instrumentados y el gate no los corre**: necesitan dispositivo, y son los únicos
+que cierran las asunciones sobre Android. El pack de juguete pasa todas las invariantes de
+`verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
+
+**Los packs, al cerrar el 2026-09-20.** De una fuente por idioma se pasó a cuatro en español:
+
+| | entradas | tamaño | fuentes |
+|---|---|---|---|
+| `es-def-wikc-tat-wn-wd` | **152.281** | 75,2 MB | Wikcionario · Tatoeba · MCR/WordNet · Wikidata |
+| `en-def-wikt-wn` | **956.150** | 315,5 MB | Wiktionary · Open English WordNet |
+
+Cada uno declara **una licencia por fuente** en `meta.sources` (D-138) y la app las muestra todas.
+⚠️ Los dos están **muy por encima** del presupuesto blando de 50 MB (D-028): ver §O-3 y
+§Dividir los packs grandes.
 
 **Hecho y verificado en emulador.** `:dict-data` existe con `PackFile` —abre read-only y valida
 `schema_version`, `norm_version`, `payload_codec` y el sha256 del diccionario— y tres suites

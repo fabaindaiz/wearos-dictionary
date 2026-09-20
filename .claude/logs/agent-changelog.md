@@ -26,6 +26,25 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Cierre de sesión: los números de los documentos, puestos al día
+
+**Qué.** Barrido de staleness antes de cerrar. Tres documentos afirmaban conteos de hace
+veinte commits.
+
+**Áreas.** `.claude/skills/verify/SKILL.md`, `README.md`, `docs/roadmap.md` §Dónde estamos.
+
+**Por qué.** Un documento que cita un número viejo es peor que uno que no cita ninguno: se lee
+como verificado. `README.md` decía **75 tests** cuando el gate corre **533**, y §Dónde estamos
+seguía describiendo el estado previo a las cuatro fuentes nuevas.
+
+**Medido.** Gate: **77 `:dict-core` · 206 JVM `:app` · 250 Python · 21 checks**, verde.
+Instrumentados **34**, corridos en API 37. Decisiones registradas: **146**.
+
+**Arquitectura.** ✅ Cumple. Sólo documentación.
+
+**Qué quedó sin hacer.** Lo mismo que abre §Publicar: la keystore, los instrumentados en API 33,
+R8, y las 31 decisiones que nunca se vieron en un reloj físico.
+
 ## 2026-09-20 — Un solo diccionario por idioma, y el release cotizado
 
 **Qué.** D-145: Wikidata se funde en el pack español en vez de ser un pack aparte. D-146: el APK
