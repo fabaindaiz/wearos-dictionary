@@ -64,6 +64,17 @@ tabla `form` completa, igual que las frases de D-137.
   (`KeyError: 'build'`); el segundo, con `dict(build.__dict__)`, funcionó y el test falló con
   `['coreana', 'coreanos', 'surcoreano']`, que es exactamente el ruido.
 
+**Dos cosas más que sólo aparecieron mirando la pantalla.**
+
+- **El separador de listas salía pegado**: `marine·freshwater·limnic`. Android **recorta los
+  espacios de un `<string>`** salvo que el valor esté entre comillas dobles. Invisible en el XML
+  —se ve bien— y ningún test lo veía porque todos afirmaban un solo término. Arreglado, con un
+  test que lo fija y que se comprobó que falla sin las comillas.
+- **El pack viejo no se reemplaza: se queda al lado.** Buscar *aquatic* devolvía la entrada del
+  pack anterior, **sin los antónimos de WordNet**, porque `--tesauro` sufija el `pack_id` (D-138)
+  y los dos conviven. Es la convivencia funcionando como se diseñó y un problema de producto al
+  mismo tiempo; escrito en el roadmap junto a `data_version`.
+
 **Qué quedó sin hacer.**
 
 - **El ruido que queda no tiene filtro estructural**: algún synset mal mapeado del MCR (`uno` con

@@ -47,7 +47,7 @@
     <string name="entry_synonyms_prefix">sin.</string>
     <string name="entry_antonyms_prefix">ant.</string>
     <string name="entry_related_prefix">rel.</string>
-    <string name="entry_list_separator"> · </string>
+    <string name="entry_list_separator">" · "</string>
 
     <!-- El menú de una palabra -->
     <string name="action_save">Guardar</string>

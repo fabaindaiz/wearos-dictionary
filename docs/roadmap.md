@@ -625,6 +625,18 @@ ratifica.
 
 **Estado.** **Encontrado construyendo, sin decidir** (2026-09-20).
 
+⚠️ **Y ahora hay un segundo síntoma, visto en el emulador** (2026-09-20). D-138 hace que cada
+variante sufije el `pack_id` —`es-def-wikc-tat-wn`— justamente para que dos variantes puedan
+**convivir y compararse**. El costo apareció al instalar el pack mejorado: el viejo **no se
+reemplaza, se queda al lado**, y como los dos declaran el mismo idioma, D-136 los consulta a los
+dos. Buscar *aquatic* devolvió la entrada **del pack viejo, sin los antónimos de WordNet**, y no
+había forma de notarlo desde la app: las dos filas se ven iguales.
+
+Se resolvió a mano borrando el archivo viejo. **La pregunta de producto es qué cuenta como "el
+mismo diccionario"**: si `es-def-wikc` y `es-def-wikc-tat-wn` son dos diccionarios que conviven o
+dos versiones donde la nueva reemplaza a la vieja. Hoy el formato dice lo primero y el usuario
+espera lo segundo. Toca D-138, D-070 y el §Instalador.
+
 D-132 agregó contenido a los dos packs **sin cambiar el dump**: mismo `es.jsonl` del 20260915,
 mismo `en.jsonl` del 20260909. Como `data_version` es la fecha del dump —y es lo que la app
 compara con `.toInt()` para saber cuál de dos packs es más nuevo (D-070)— **los packs nuevos
