@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Preview de sistema del tile de palabra del dia (D-149).
+
+  Se ve al AGREGAR el tile desde el reloj. Antes los dos tiles compartian el placeholder del
+  template —un circulo negro con "Hello, Tile!"— asi que en el carrusel de "agregar tile"
+  aparecian dos veces lo mismo y ninguno mostraba que hacia.
+
+  ⚠️ **Sin texto, y es deliberado.** Una preview con el texto horneado queda en UN idioma, y la
+  app es bilingue (D-127): en un reloj en español se veria la cabecera en ingles. Lo que se dibuja
+  es la ESTRUCTURA — una cabecera chica y una tarjeta grande centrada — que es lo que distingue un tile del otro de un vistazo.
+
+  Vectorial y no PNG para que escale del reloj de 192 dp al de 234 sin remuestreo, y para que el
+  diff sea legible. La geometria esta en un viewport de 384x384, el mismo del placeholder anterior.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="384dp"
+    android:height="384dp"
+    android:viewportWidth="384"
+    android:viewportHeight="384">
+
+    <!-- El fondo redondo del reloj. -->
+    <path
+        android:pathData="M192,0 A192,192 0 1 1 191.9,0 Z"
+        android:fillColor="#000000" />
+
+    <!-- La cabecera ("Palabra del dia"), en LABEL_SMALL. -->
+    <path android:pathData="M153,74 H231 A7,7 0 0 1 238,81 V81 A7,7 0 0 1 231,88 H153 A7,7 0 0 1 146,81 V81 A7,7 0 0 1 153,74 Z" android:fillColor="#7A7486" />
+
+    <!-- La tarjeta con la palabra: el elemento dominante del tile. -->
+    <path android:pathData="M96,118 H288 A40,40 0 0 1 328,158 V226 A40,40 0 0 1 288,266 H96 A40,40 0 0 1 56,226 V158 A40,40 0 0 1 96,118 Z" android:fillColor="#2E2A36" />
+    <!-- El lema, grande. -->
+    <path android:pathData="M117,166 H267 A13,13 0 0 1 280,179 V179 A13,13 0 0 1 267,192 H117 A13,13 0 0 1 104,179 V179 A13,13 0 0 1 117,166 Z" android:fillColor="#D9CDFF" />
+    <!-- La categoria gramatical, debajo y mas chica. -->
+    <path android:pathData="M163,206 H221 A7,7 0 0 1 228,213 V213 A7,7 0 0 1 221,220 H163 A7,7 0 0 1 156,213 V213 A7,7 0 0 1 163,206 Z" android:fillColor="#7A7486" />
+</vector>

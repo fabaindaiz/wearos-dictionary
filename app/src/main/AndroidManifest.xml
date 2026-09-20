@@ -33,7 +33,7 @@
 
             <meta-data
                 android:name="androidx.wear.tiles.PREVIEW"
-                android:resource="@drawable/tile_preview" />
+                android:resource="@drawable/tile_preview_history" />
         </service>
         <service
             android:name=".tile.WordOfTheDayTileService"
@@ -46,7 +46,7 @@
 
             <meta-data
                 android:name="androidx.wear.tiles.PREVIEW"
-                android:resource="@drawable/tile_preview" />
+                android:resource="@drawable/tile_preview_word" />
         </service>
 
         <uses-library

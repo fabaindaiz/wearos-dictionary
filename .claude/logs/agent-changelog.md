@@ -26,6 +26,54 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Un emulador que no miente, y cinco cosas que se veían mal
+
+**Qué.** Cinco frentes en autónomo: el emulador fiel al reloj, el selector por idioma, los
+recientes con «ver más», la preview de los tiles, y qué era el *«maybe»* de las definiciones.
+
+**Áreas.** `tools/avd_como_el_reloj.py` (nuevo) · `SearchScreen.kt`, `MainActivity.kt`,
+`WordListScreen.kt` (renombrado desde `FavoritesScreen.kt`), `SearchViewModel.kt` ·
+`LanguageChipsTest.kt` (nuevo), `ScreensTest`, `SearchViewModelTest` · dos drawables vectoriales
+nuevos y el `AndroidManifest.xml` · las dos tablas de strings · `docs/decisions.md` (D-147 a
+D-150) y `docs/roadmap.md` (dos secciones nuevas).
+
+**Medido.**
+
+- **El emulador por defecto miente en las dos cosas que este repo más pelea**: `wearos_small_round`
+  es 384×384 a 320 dpi (`sw192dp`) y **`hw.lcd.circular=false`**; el reloj es 498×498 a 340 dpi
+  (`sw234dp`) y redondo. El AVD nuevo reporta `sw234dp-w234dp-h234dp … round … 340dpi`, **igual que
+  el reloj**, y su captura del inicio es indistinguible.
+- **El *«maybe»* no estaba en las definiciones**: sólo 26 acepciones de 956.150 contienen la
+  palabra y todas son legítimas (`mayhap → Maybe; perhaps`). Era la etiqueta `match_fuzzy` de una
+  fila. Las otras tres nombran **qué fue la coincidencia** —`form`, `translation`, `definition`—
+  y ésa nombraba una **confianza**, que es otra categoría de cosa. Ahora dice `similar`/`parecida`.
+- **La preview de los tiles existía**: era el placeholder del template —*«Hello, Tile!»*— **y los
+  dos tiles apuntaban al mismo archivo**.
+
+**Arquitectura.** ✅ Cumple. La lógica de agrupar idiomas vive fuera del composable porque es una
+decisión y no un dibujo, así la cubre el gate en la JVM. La pantalla de guardadas se parametrizó
+en vez de duplicarse.
+
+**Qué salió mal.**
+
+- **Rompí dos cosas al editar por texto**: borré `KEY_SPOKEN` al mover un comentario, y olvidé el
+  import de `R` en `MainActivity`. Las dos las agarró el compilador al toque.
+- **Un test tenía el tope escrito a mano**: `theHistoryIsTrimmedToItsCap` alimentaba 12 visitas y
+  esperaba `MAX_HISTORY`; al subir el tope de 8 a 25 se rompió. Ahora calcula cuántas alimentar a
+  partir de la constante.
+- **Un test mío afirmaba un item fuera del viewport**: pedía ver `palabra8` en una lista perezosa.
+  Cambiado a `palabra4`, que es lo que de verdad distingue esta pantalla del inicio, y no depende
+  del alto de la pantalla de Robolectric.
+- **XML no permite `--` dentro de un comentario** y mis previews usaban guiones dobles como
+  paréntesis. Falló la compilación de recursos.
+
+**Qué quedó sin hacer.**
+
+- **La preview dibujándose en el carrusel no se pudo verificar**: agregar un tile es un gesto del
+  usuario y no se hace por `adb`. Se verificó que compila y que cada tile apunta a la suya.
+- **Cinco piezas de multipack por idioma quedan planificadas y sin construir**, con la decisión de
+  producto que las bloquea nombrada: qué cuenta como «el mismo diccionario».
+
 ## 2026-09-20 — Todo subido al reloj, y la primera verificación en hardware
 
 **Qué.** App y packs instalados en el SM-L715F, y siete comprobaciones de esta sesión vistas por

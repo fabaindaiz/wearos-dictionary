@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Preview de sistema del tile de historial (D-149).
+
+  Se ve al AGREGAR el tile desde el reloj. Antes los dos tiles compartian el placeholder del
+  template —un circulo negro con "Hello, Tile!"— asi que en el carrusel de "agregar tile"
+  aparecian dos veces lo mismo y ninguno mostraba que hacia.
+
+  ⚠️ **Sin texto, y es deliberado.** Una preview con el texto horneado queda en UN idioma, y la
+  app es bilingue (D-127): en un reloj en español se veria la cabecera en ingles. Lo que se dibuja
+  es la ESTRUCTURA — una cabecera y una columna de filas tocables — que es lo que distingue un tile del otro de un vistazo.
+
+  Vectorial y no PNG para que escale del reloj de 192 dp al de 234 sin remuestreo, y para que el
+  diff sea legible. La geometria esta en un viewport de 384x384, el mismo del placeholder anterior.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="384dp"
+    android:height="384dp"
+    android:viewportWidth="384"
+    android:viewportHeight="384">
+
+    <!-- El fondo redondo del reloj. -->
+    <path
+        android:pathData="M192,0 A192,192 0 1 1 191.9,0 Z"
+        android:fillColor="#000000" />
+
+    <!-- La cabecera ("Recientes"). -->
+    <path android:pathData="M161,68 H223 A7,7 0 0 1 230,75 V75 A7,7 0 0 1 223,82 H161 A7,7 0 0 1 154,75 V75 A7,7 0 0 1 161,68 Z" android:fillColor="#7A7486" />
+
+    <!-- Fila 1: un textButton de ancho completo, uno por entrada reciente. -->
+    <path android:pathData="M82,104 H302 A26,26 0 0 1 328,130 V130 A26,26 0 0 1 302,156 H82 A26,26 0 0 1 56,130 V130 A26,26 0 0 1 82,104 Z" android:fillColor="#2E2A36" />
+    <path android:pathData="M91,123 H205 A7,7 0 0 1 212,130 V130 A7,7 0 0 1 205,137 H91 A7,7 0 0 1 84,130 V130 A7,7 0 0 1 91,123 Z" android:fillColor="#D9CDFF" />
+    <!-- Fila 2: un textButton de ancho completo, uno por entrada reciente. -->
+    <path android:pathData="M82,168 H302 A26,26 0 0 1 328,194 V194 A26,26 0 0 1 302,220 H82 A26,26 0 0 1 56,194 V194 A26,26 0 0 1 82,168 Z" android:fillColor="#2E2A36" />
+    <path android:pathData="M91,187 H187 A7,7 0 0 1 194,194 V194 A7,7 0 0 1 187,201 H91 A7,7 0 0 1 84,194 V194 A7,7 0 0 1 91,187 Z" android:fillColor="#D9CDFF" />
+    <!-- Fila 3: un textButton de ancho completo, uno por entrada reciente. -->
+    <path android:pathData="M82,232 H302 A26,26 0 0 1 328,258 V258 A26,26 0 0 1 302,284 H82 A26,26 0 0 1 56,258 V258 A26,26 0 0 1 82,232 Z" android:fillColor="#2E2A36" />
+    <path android:pathData="M91,251 H169 A7,7 0 0 1 176,258 V258 A7,7 0 0 1 169,265 H91 A7,7 0 0 1 84,258 V258 A7,7 0 0 1 91,251 Z" android:fillColor="#D9CDFF" />
+</vector>

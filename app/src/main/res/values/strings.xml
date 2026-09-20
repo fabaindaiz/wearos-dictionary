@@ -28,6 +28,8 @@
     <string name="home_say_a_word">Say a word</string>
     <string name="home_word_of_the_day">Word of the day</string>
     <string name="home_recent">Recent</string>
+    <string name="home_recent_more">See more</string>
+    <string name="history_empty">Words you open show up here.</string>
     <string name="home_options">Options</string>
     <string name="home_saved">Saved</string>
     <string name="home_settings">Settings</string>
@@ -115,6 +117,6 @@
     <!-- Why a result showed up. Only the surprising levels get a label. -->
     <string name="match_inflected">form</string>
     <string name="match_translation">translation</string>
-    <string name="match_fuzzy">maybe</string>
+    <string name="match_fuzzy">similar</string>
     <string name="match_definition">definition</string>
 </resources>

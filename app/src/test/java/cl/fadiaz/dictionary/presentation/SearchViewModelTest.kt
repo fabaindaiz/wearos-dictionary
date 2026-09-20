@@ -964,10 +964,13 @@ class SearchViewModelTest {
         // El tope guardado es el TECHO de lo que cualquier pantalla podria mostrar, no lo que
         // muestra un reloj concreto: recortar a lo que entra es cosa del inicio (D-131). Antes
         // eran tres, y eso ataba el almacenamiento a una pantalla de 192 dp.
+        // Se alimentan MAS de las que caben, calculado del propio tope: escribir un numero a
+        // mano ataba el test al valor del momento y se rompio cuando subio de 8 a 25 (D-148).
+        val cuantas = SearchViewModel.MAX_HISTORY + 4
         val vm = conPack(FakeDictionary("es-def", "es"))
-        (1..12).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
+        (1..cuantas).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
         assertEquals(SearchViewModel.MAX_HISTORY, vm.state.value.history.size)
-        assertEquals("lema12", vm.state.value.history.first().headword)
+        assertEquals("lema$cuantas", vm.state.value.history.first().headword)
     }
 
     @Test

@@ -28,6 +28,8 @@
     <string name="home_say_a_word">Decir una palabra</string>
     <string name="home_word_of_the_day">Palabra del día</string>
     <string name="home_recent">Recientes</string>
+    <string name="home_recent_more">Ver más</string>
+    <string name="history_empty">Las palabras que abras aparecen acá.</string>
     <string name="home_options">Opciones</string>
     <string name="home_saved">Guardadas</string>
     <string name="home_settings">Ajustes</string>
@@ -114,6 +116,6 @@
     <!-- Por qué salió un resultado -->
     <string name="match_inflected">forma</string>
     <string name="match_translation">traducción</string>
-    <string name="match_fuzzy">quizás</string>
+    <string name="match_fuzzy">parecida</string>
     <string name="match_definition">definición</string>
 </resources>

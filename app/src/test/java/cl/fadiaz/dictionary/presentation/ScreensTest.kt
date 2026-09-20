@@ -119,6 +119,9 @@ class ScreensTest {
         )
     }
 
+    private fun visita(headword: String) =
+        Visit("es-def", headword.hashCode().toLong(), headword, "noun")
+
     private fun showSearch(
         state: SearchState,
         onOpenEntry: (Suggestion) -> Unit = {},
@@ -129,12 +132,13 @@ class ScreensTest {
         onOpenSettings: () -> Unit = {},
         onOpenFavoritos: () -> Unit = {},
         onOpenWordOfTheDay: (String, EntrySummary) -> Unit = { _, _ -> },
+        onOpenHistory: () -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
             onOpenSettings = onOpenSettings, onOpenFavoritos = onOpenFavoritos,
-            onOpenWordOfTheDay = onOpenWordOfTheDay)
+            onOpenWordOfTheDay = onOpenWordOfTheDay, onOpenHistory = onOpenHistory)
     }
 
     // --- The results list ---------------------------------------------------------------------
@@ -898,6 +902,67 @@ class ScreensTest {
         }
         compose.onNodeWithText("Wikcionario", substring = true).assertExists()
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
+    }
+
+    // --- Recientes: tres en el inicio, el resto detrás de un botón (D-148) ------------------
+
+    @Test
+    fun elInicioMuestraTRES_RECIENTES_Y_UN_BOTON() {
+        // En un reloj el inicio es la pantalla más disputada: ocho recientes empujaban los
+        // ajustes y la atribución fuera de alcance. Tres es lo que se ve sin scrollear después
+        // del campo y la voz.
+        showSearch(
+            readyState().copy(
+                query = "", submitted = "",
+                history = (1..8).map { visita("palabra$it") },
+            ),
+        )
+        compose.onNodeWithText("palabra1").assertExists()
+        compose.onNodeWithText("palabra3").assertExists()
+        // La cuarta ya no va en el inicio.
+        assertEquals(0, compose.onAllNodesWithText("palabra4").fetchSemanticsNodes().size)
+        compose.onNodeWithText("Ver más").assertExists()
+    }
+
+    @Test
+    fun conTRES_O_MENOS_no_hay_boton() {
+        // Un botón que lleva a la misma lista que ya estás viendo es cromo, y el cromo en un
+        // reloj se paga en filas.
+        showSearch(
+            readyState().copy(query = "", submitted = "", history = (1..3).map { visita("p$it") }),
+        )
+        compose.onNodeWithText("p3").assertExists()
+        assertEquals(0, compose.onAllNodesWithText("Ver más").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun elBotonLlevaAlHistorialCompleto() {
+        var abierto = false
+        showSearch(
+            readyState().copy(query = "", submitted = "",
+                              history = (1..8).map { visita("palabra$it") }),
+            onOpenHistory = { abierto = true },
+        )
+        compose.onNodeWithText("Ver más").performClick()
+        // Si no navega, el botón es una salida muerta: se ve, se toca y no pasa nada.
+        assertTrue(abierto)
+    }
+
+    @Test
+    fun laPantallaDeHistorialMuestraTodas() {
+        compose.setContent {
+            WordListScreen(
+                words = (1..8).map { visita("palabra$it") },
+                title = cl.fadiaz.dictionary.R.string.home_recent,
+                empty = cl.fadiaz.dictionary.R.string.history_empty,
+                onOpen = {},
+            )
+        }
+        // La cuarta es la prueba: el inicio muestra tres, asi que verla aca demuestra que esta
+        // pantalla no esta recortando. La octava puede quedar fuera del viewport, y afirmarla
+        // haria que el test dependiera del alto de la pantalla de Robolectric y no de la logica.
+        compose.onNodeWithText("palabra1").assertExists()
+        compose.onNodeWithText("palabra4").assertExists()
     }
 
     // --- El idioma de cada resultado (D-143) -----------------------------------------------

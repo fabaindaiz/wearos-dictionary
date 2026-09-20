@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackStore
 import cl.fadiaz.dictionary.data.Visit
@@ -75,6 +76,7 @@ private const val ROUTE_ENTRY = "entrada"
 private const val ROUTE_ATTRIBUTION = "atribucion"
 private const val ROUTE_SETTINGS = "ajustes"
 private const val ROUTE_FAVORITES = "favoritos"
+private const val ROUTE_HISTORY = "historial"
 private const val ROUTE_PACKS = "packs"
 
 /**
@@ -214,6 +216,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onOpenAttribution = { navController.navigate(ROUTE_ATTRIBUTION) },
                         onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                         onOpenFavoritos = { navController.navigate(ROUTE_FAVORITES) },
+                        onOpenHistory = { navController.navigate(ROUTE_HISTORY) },
                         // Each word of the day opens in ITS dictionary, which with two languages
                         // loaded is not necessarily the active one.
                         // Through `targetOf` like the history, and here it matters MORE: the word
@@ -320,8 +323,10 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     )
                 }
                 composable(ROUTE_FAVORITES) {
-                    FavoritesScreen(
-                        favorites = state.favorites,
+                    WordListScreen(
+                        words = state.favorites,
+                        title = R.string.saved_title,
+                        empty = R.string.saved_empty,
                         // Same reason as the history: the stored id may belong to an earlier
                         // pack. See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
@@ -329,6 +334,30 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
                                     // Abrir una guardada tambien es abrirla: va al historial.
+                                    viewModel.recordVisit(visit.copy(entryId = target))
+                                    navController.navigate(
+                                        "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
+                // El historial completo (D-148). El inicio muestra tres; el resto vive acá.
+                // Es la MISMA pantalla que las guardadas, con otro título y otra lista: dos
+                // composables idénticos con distinto nombre divergen en cuanto alguien arregle
+                // uno solo.
+                composable(ROUTE_HISTORY) {
+                    WordListScreen(
+                        words = state.history,
+                        title = R.string.home_recent,
+                        empty = R.string.history_empty,
+                        // Mismo motivo que en el inicio: el id guardado puede ser de un pack
+                        // anterior. Ver `SearchViewModel.targetOf`.
+                        onOpen = { visit ->
+                            scope.launch {
+                                val target = viewModel.targetOf(visit)
+                                if (target != null) {
                                     viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",

@@ -707,7 +707,7 @@ class SearchViewModel(
          * en 8) y el inicio recorta a lo que entra de verdad. Guardar ocho sigue siendo gratis en
          * bytes; lo que se cuidaba era no mostrar lo que nadie ve, y de eso se ocupa la pantalla.
          */
-        const val MAX_HISTORY: Int = 8
+        const val MAX_HISTORY: Int = 25
 
         /**
          * Cap on saved words. Deliberately high --they do not compete for the screen like the

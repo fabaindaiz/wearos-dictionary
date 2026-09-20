@@ -3,6 +3,7 @@ package cl.fadiaz.dictionary.presentation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -24,7 +25,7 @@ import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
 
 /**
- * The saved words.
+ * Una lista de palabras visitadas: las guardadas, o el historial completo (D-148).
  *
  * It is the same list as the history and the results one --[ListRow], 48 dp, a single line with
  * ellipsis-- because they are the same thing: a headword you tap to open. The only difference is
@@ -34,7 +35,14 @@ import cl.fadiaz.dictionary.data.Visit
  * screen with the results, and this competes with nothing.
  */
 @Composable
-fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
+fun WordListScreen(
+    words: List<Visit>,
+    /** El encabezado. Un parametro y no una constante: esta pantalla sirve a dos listas. */
+    @StringRes title: Int,
+    /** Que decir cuando no hay nada. Una lista vacia sin explicacion parece rota. */
+    @StringRes empty: Int,
+    onOpen: (Visit) -> Unit,
+) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
 
@@ -48,14 +56,14 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item(key = "cabecera") { ListHeader { Text(stringResource(R.string.saved_title)) } }
+            item(key = "cabecera") { ListHeader { Text(stringResource(title)) } }
 
-            if (favorites.isEmpty()) {
+            if (words.isEmpty()) {
                 item(key = "vacio") {
                     Text(
                         // It says HOW to save, not just that there is nothing: an empty state
                         // that does not explain the way out of it is a dead end.
-                        text = stringResource(R.string.saved_empty),
+                        text = stringResource(empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -65,13 +73,13 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
             }
 
             items(
-                count = favorites.size,
+                count = words.size,
                 key = { index ->
-                    val visit = favorites[index]
+                    val visit = words[index]
                     "f:${visit.packId}:${visit.entryId}"
                 },
             ) { index ->
-                val visit = favorites[index]
+                val visit = words[index]
                 ListRow(
                     headword = visit.headword,
                     detail = visit.partOfSpeech?.let { posLabel(it) },

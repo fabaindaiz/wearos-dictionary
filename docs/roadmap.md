@@ -612,6 +612,70 @@ declara el padding horizontal como **5,2 %** del ancho (`PaddingDefaults`, leíd
 a 192 dp da 10 y a 234 da 13 — o sea que pasar a la fracción **achicaría** el margen. Ver D-133,
 que documenta por qué el espacio vertical sí era una fracción disfrazada de constante y éste no.
 
+### Varios packs por idioma: qué está hecho y qué falta
+
+**Estado.** **La mitad construida, la otra mitad planificada** (2026-09-20).
+
+El modelo mental que ordena todo, y que costó tres decisiones descubrir:
+
+> **Un pack no es un diccionario que el usuario elige. Es una FUENTE de un idioma.** Lo que el
+> usuario elige es el **idioma**; los packs de ese idioma se consultan todos y sus resultados se
+> mezclan.
+
+**Lo que ya funciona:**
+
+| Pieza | Decisión | Qué hace |
+|---|---|---|
+| Consultar varios packs a la vez | D-136 | `SearchRepository` consulta todos los del idioma activo y mezcla |
+| Que el orden no dependa de un pack | D-142 | La banda de cobertura va delante del `rank`, que cada fuente calibra distinto |
+| Saber de dónde vino un resultado | D-143 | Cada fila lleva su idioma abreviado |
+| **Un chip por idioma, no por archivo** | **D-147** | Cierra la incoherencia que D-136 dejó abierta |
+| Fundir vocabulario en vez de sumar packs | D-145 | Wikidata entró al pack español: 6.092 lemas, cero UI duplicada |
+| Que dos packs no colisionen | D-138 | `pack_id` con gramática verificada |
+| Que un pack ajeno no rompa nada | D-142 | Las claves se recalculan sobre una muestra al abrir |
+
+**Lo que falta, en orden de bloqueo:**
+
+1. ⚠️ **Decidir qué es «el mismo diccionario».** Hoy `es-def-wikc` y `es-def-wikc-tat-wn-wd` son
+   dos packs que **conviven**; el usuario espera que el segundo **reemplace** al primero. Ya se
+   vio en el reloj: buscar *aquatic* devolvía la entrada del pack viejo, sin los antónimos nuevos.
+   Toca D-138, D-070 y el instalador. **Es una decisión de producto, no de mecanismo.**
+2. **Desambiguar el origen cuando hay dos packs de un idioma.** Decidido en el diseño —mostrar el
+   código de fuente sólo cuando hace falta— y **sin construir**. Con la fusión de D-145 no hay
+   caso real todavía.
+3. **La atribución del idioma activo, no del pack activo.** `state.active` es un pack, y su
+   `attribution` es la que se muestra. Con dos packs del mismo idioma habría que mostrar las dos.
+4. **La palabra del día y el caché del tile** siguen siendo por pack. Con dos packs de un idioma
+   habría dos palabras del día del mismo idioma — el bug que D-145 tapó fundiendo, no arreglando.
+5. **Composición** (sumar campos a una entrada ajena, no filas): la capa existe y el join está
+   medido —**8.595 `uid` coinciden**— y sigue bloqueada por la granularidad: `uid` es por entrada
+   y un sinónimo es por acepción.
+
+**Mejores prácticas que se siguieron, y de dónde salen:**
+
+- **La identidad la declara el artefacto, no el nombre del archivo** (`meta.pack_id` con gramática),
+  que es lo que hace que dos fuentes del mismo idioma puedan convivir sin pisarse.
+- **El orden no confía en datos ajenos.** La señal primaria —cuánto del lema escribió el usuario—
+  se calcula de la consulta, no del pack. Es el equivalente local de no confiar en la entrada.
+- **La validación al abrir es una prueba, no una declaración**: `norm_version` es un número que el
+  pack se pone a sí mismo, así que se recalculan las claves sobre una muestra.
+- **Degradación parcial**: un pack roto no tumba la búsqueda de los otros.
+
+### El emulador que sí sirve para probar
+
+**Estado.** **Hecho** (2026-09-20, D-150). `python3 tools/avd_como_el_reloj.py`.
+
+El AVD que trae Android Studio para Wear (`wearos_small_round`) es **384×384 a 320 dpi → sw192dp**
+y **`hw.lcd.circular=false`**. El reloj es **498×498 a 340 dpi → sw234dp** y redondo. El emulador
+por defecto **miente en las dos cosas que este repo más pelea**.
+
+Verificado comparando `am get-config` en los dos: ambos dicen
+`sw234dp-w234dp-h234dp … round … 340dpi`. Difieren en `highdr`/`lowdr`, que no participa de
+ninguna medida. La captura del inicio es indistinguible de la del reloj, incluida la curva.
+
+⚠️ **Lo que sigue necesitando el reloj** (D-043): rendimiento y batería. El AVD iguala la
+geometría, no el hardware.
+
 ### Dividir los packs grandes en vez de achicarlos
 
 **Estado.** **Diseñado y medido, sin construir** (2026-09-20). Decisión del usuario: *«que los
