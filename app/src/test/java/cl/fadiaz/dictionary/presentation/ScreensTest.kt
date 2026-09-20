@@ -41,6 +41,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
 /**
  * The screens, against real Android.
@@ -141,19 +142,41 @@ class ScreensTest {
     }
 
     @Test
-    fun threeResultsFitWithoutScrolling() {
-        // This is the density decision, and this test is the only way to pin it down.
+    @Config(qualifiers = "+w192dp-h192dp")
+    fun onAGenericWatchTwoResultsFit() {
+        // EL RELOJ GENERICO. 192 dp es la aritmetica con la que se justificaron D-073, D-075,
+        // D-078, D-084 y D-085, y tiene que seguir funcionando: la app no se optimiza para un
+        // reloj rompiendo el otro.
         //
-        // **The goal was five and they do not fit, nor do four.** Measured on screen: it is
-        // 192x192 dp (384 px at 320 dpi), the Wear OS guidance asks for a 48 dp minimum touch
-        // area, and the ScreenScaffold reserves margin top and bottom for the round screen. With
-        // a 52 dp step per row, three fit. The previous two-line design used ~74 dp: the real
-        // gain is ~40 % more rows per screen, not double.
+        // ⚠️ Son DOS, no tres. El test que esto reemplaza --`entranTresResultadosSinScrollear`--
+        // afirmaba tres y pasaba, pero corria con el dispositivo POR DEFECTO de Robolectric, que
+        // no es un reloj: con las cuatro sugerencias componia las cuatro. Pasaba por el motivo
+        // equivocado.
         //
-        // If somebody drops below 48 dp to squeeze in a fourth, this test still passes and the
-        // touch area breaks in silence. That is why the minimum lives in a named constant.
+        // El numero simulado no es el mismo que el medido en el emulador de 384x384 (que da
+        // tres): el qualifier `h192dp` es alto DISPONIBLE y descuenta decoracion. Lo que este
+        // test fija no es el absoluto sino que el generico sigue mostrando resultados utiles.
         showSearch(readyState("perder", "perro", "permitir", "persona"))
-        compose.onNodeWithText("permitir").assertIsDisplayed()
+        assertEquals(2, visibles(listOf("perder", "perro", "permitir", "persona")).size)
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h234dp")
+    fun theProjectsWatchFitsOneMoreResultThanTheGenericOne() {
+        // EL RELOJ DEL PROYECTO. El SM-L715F entrega `sw234dp w234dp h234dp 340dpi`, confirmado
+        // preguntandole al sistema qué configuracion recibe la app.
+        //
+        // **Esta es la propiedad que importa y la unica que se puede sostener**: 22 % mas
+        // pantalla entra UNA FILA MAS. El absoluto depende de cuanto descuente la decoracion; la
+        // relacion, no. Y es lo que deja revisar las cinco decisiones cotizadas contra 192 dp sin
+        // tener el reloj delante.
+        showSearch(readyState("perder", "perro", "permitir", "persona"))
+        assertEquals(3, visibles(listOf("perder", "perro", "permitir", "persona")).size)
+    }
+
+    /** Cuales de estos lemas llegaron a componerse. */
+    private fun visibles(headwords: List<String>) = headwords.filter {
+        compose.onAllNodesWithText(it).fetchSemanticsNodes().isNotEmpty()
     }
 
     @Test
