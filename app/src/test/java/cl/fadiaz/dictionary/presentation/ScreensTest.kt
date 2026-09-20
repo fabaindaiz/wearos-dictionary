@@ -92,7 +92,10 @@ class ScreensTest {
     private fun handle(m: PackMetadata) = PackHandle.Open(FakeSource(m))
 
     private fun readyState(vararg headwords: String) = SearchState(
+        // Los dos: este estado representa una busqueda YA HECHA. `submitted` es lo que la lista
+        // refleja y `query` lo que el campo muestra; con el teclado abierto se separan (D-128).
         query = "per",
+        submitted = "per",
         results = headwords.map { suggestion(it) },
         status = SearchState.Status.Ready,
         active = meta(),
@@ -187,7 +190,7 @@ class ScreensTest {
 
     @Test
     fun withNoResultsItSaysSoWithTheSearchedWord() {
-        showSearch(readyState().copy(query = "xyzzy"))
+        showSearch(readyState().copy(query = "xyzzy", submitted = "xyzzy"))
         compose.onNodeWithText("Sin resultados", substring = true).assertIsDisplayed()
     }
 
@@ -321,7 +324,7 @@ class ScreensTest {
         // history disappear, the field jumps from index 2 to 0 and --without `key`-- the lazy
         // layout takes it for a different node, destroys it and recomposes it. Focus goes with
         // it, and the keyboard follows.
-        showTypableSearch(readyState("perder").copy(query = "", history = recent))
+        showTypableSearch(readyState("perder").copy(query = "", submitted = "", history = recent))
 
         compose.onNode(hasSetTextAction()).performClick()
         compose.onNode(hasSetTextAction()).assertIsFocused()
@@ -338,7 +341,7 @@ class ScreensTest {
         // `keyboardActions`, and `KeyboardActions.Default` defines no behaviour for Search. The
         // only way out was the system's back gesture. Releasing focus is what closes the keyboard
         // and leaves the crown working over the results.
-        showTypableSearch(readyState("perder").copy(query = ""))
+        showTypableSearch(readyState("perder").copy(query = "", submitted = ""))
 
         compose.onNode(hasSetTextAction()).performClick()
         compose.onNode(hasSetTextAction()).performTextInput("per")
@@ -511,7 +514,7 @@ class ScreensTest {
         var abierta: EntrySummary? = null
         var packOfTheWord: String? = null
         showSearch(
-            readyState().copy(query = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
+            readyState().copy(query = "", submitted = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
             onOpenWordOfTheDay = { pack, word -> packOfTheWord = pack; abierta = word },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("permanecer"))
@@ -527,8 +530,7 @@ class ScreensTest {
         // With a single pack the subtitle says "palabra del día"; with two, the dictionary's
         // name, which is the only thing telling them apart.
         showSearch(
-            twoPackState().copy(
-                query = "",
+            twoPackState().copy(query = "", submitted = "",
                 wordsOfTheDay = mapOf(
                     "es-def" to todaysWord,
                     "en-def" to EntrySummary(7, "remain", "verb", 880),
@@ -552,7 +554,7 @@ class ScreensTest {
     fun withNoWordOfTheDayTheGapDoesNotShow() {
         // An empty pack, or the first launch before the choice finishes: the row does not
         // appear instead of appearing empty.
-        showSearch(readyState().copy(query = "", wordsOfTheDay = emptyMap()))
+        showSearch(readyState().copy(query = "", submitted = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
             compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
@@ -564,7 +566,7 @@ class ScreensTest {
         // Same rule as the history: with results on screen, every row of chrome is one result
         // less, and with a 48 dp touch area that shows (D-073).
         showSearch(
-            readyState("perder").copy(query = "per", wordsOfTheDay = mapOf("es-def" to todaysWord)),
+            readyState("perder").copy(query = "per", submitted = "per", wordsOfTheDay = mapOf("es-def" to todaysWord)),
         )
         assertEquals(0, compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("Ajustes").fetchSemanticsNodes().size)
@@ -573,7 +575,7 @@ class ScreensTest {
     @Test
     fun theHomeLeadsToSettings() {
         var abrio = false
-        showSearch(readyState().copy(query = ""), onOpenSettings = { abrio = true })
+        showSearch(readyState().copy(query = "", submitted = ""), onOpenSettings = { abrio = true })
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ajustes"))
         compose.onNodeWithText("Ajustes").performClick()
         assertEquals(true, abrio)
@@ -703,7 +705,7 @@ class ScreensTest {
         // The row used to appear only with saved words: someone who never saved one had no way
         // to discover they could. The screen already carries an empty state explaining it.
         var abrio = false
-        showSearch(readyState().copy(query = "", favorites = emptyList()),
+        showSearch(readyState().copy(query = "", submitted = "", favorites = emptyList()),
             onOpenFavoritos = { abrio = true })
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Guardadas"))
         compose.onNodeWithText("Guardadas").performClick()
@@ -740,7 +742,7 @@ class ScreensTest {
         // It is the primary action: the Wear guidance asks to elevate it, and it used to sit
         // below the header, the word of the day and the voice button.
         showSearch(
-            readyState().copy(query = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
+            readyState().copy(query = "", submitted = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
         )
         val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
         val word = compose.onNodeWithText("permanecer").getBoundsInRoot()
@@ -752,8 +754,7 @@ class ScreensTest {
         // Without headings, the word of the day was confused with a history entry and the
         // language selector with a result.
         showSearch(
-            twoPackState().copy(
-                query = "",
+            twoPackState().copy(query = "", submitted = "",
                 wordsOfTheDay = mapOf("es-def" to todaysWord),
                 history = recent,
             ),
@@ -766,7 +767,7 @@ class ScreensTest {
 
     @Test
     fun theLanguageSelectorLivesUnderOptions() {
-        showSearch(twoPackState().copy(query = ""))
+        showSearch(twoPackState().copy(query = "", submitted = ""))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Opciones"))
         val options = compose.onNodeWithText("Opciones").getBoundsInRoot()
         val selector = compose.onNodeWithText("ES").getBoundsInRoot()
@@ -776,7 +777,7 @@ class ScreensTest {
     @Test
     fun withASingleDictionaryThereIsNoEmptyWordOfTheDaySection() {
         // A heading with nothing under it is worse than no heading.
-        showSearch(readyState().copy(query = "", wordsOfTheDay = emptyMap()))
+        showSearch(readyState().copy(query = "", submitted = "", wordsOfTheDay = emptyMap()))
         assertEquals(
             0,
             compose.onAllNodesWithText("Palabra del día").fetchSemanticsNodes().size,
@@ -800,7 +801,7 @@ class ScreensTest {
 
     @Test
     fun withTwoPacksTheSelectorShowsBothLanguages() {
-        showSearch(twoPackState().copy(query = ""))
+        showSearch(twoPackState().copy(query = "", submitted = ""))
         compose.onNodeWithText("ES").assertIsDisplayed()
         compose.onNodeWithText("EN").assertIsDisplayed()
     }
@@ -808,14 +809,14 @@ class ScreensTest {
     @Test
     fun withASinglePackThereIsNoSelector() {
         // A one-option selector is pure chrome, and on 192 dp chrome costs results.
-        showSearch(readyState().copy(query = ""))
+        showSearch(readyState().copy(query = "", submitted = ""))
         assertEquals(0, compose.onAllNodesWithText("ES").fetchSemanticsNodes().size)
     }
 
     @Test
     fun tappingTheOtherLanguageReportsIt() {
         var chosen: String? = null
-        showSearch(twoPackState().copy(query = ""), onPackChange = { chosen = it })
+        showSearch(twoPackState().copy(query = "", submitted = ""), onPackChange = { chosen = it })
         compose.onNodeWithText("EN").performClick()
         assertEquals("en-def", chosen)
     }
@@ -830,7 +831,7 @@ class ScreensTest {
     @Test
     fun withNoResultsItOffersSearchingTheOtherLanguage() {
         // It is the escape hatch: you typed something this language does not have.
-        showSearch(twoPackState().copy(query = "dog"))
+        showSearch(twoPackState().copy(query = "dog", submitted = "dog"))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
         compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
     }
@@ -860,23 +861,34 @@ class ScreensTest {
 
     @Test
     fun withAnEmptySearchTheRecentEntriesShow() {
-        showSearch(readyState().copy(query = "", history = recent))
+        showSearch(readyState().copy(query = "", submitted = "", history = recent))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
         compose.onNodeWithText("perro").assertIsDisplayed()
     }
 
     @Test
-    fun whenTypingTheHistoryDisappears() {
+    fun withASearchAlreadyRunTheHistoryDisappears() {
         // It cannot compete with the results: on 192 dp three rows fit.
-        showSearch(readyState("perder").copy(query = "per", history = recent))
+        showSearch(readyState("perder").copy(query = "per", submitted = "per", history = recent))
         assertEquals(0, compose.onAllNodesWithText("house").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun whileTypingTheHistoryStays() {
+        // El reverso del anterior, y es el arreglo de D-128. Antes la primera letra hacia
+        // desaparecer encabezado, voz, palabra del dia e historial de un golpe; esa
+        // reestructuracion destruia el campo de texto y se llevaba el foco y el teclado. Con el
+        // teclado abierto `submitted` no se mueve, asi que la lista se queda como estaba.
+        showSearch(readyState().copy(query = "per", submitted = "", history = recent))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
+        compose.onNodeWithText("perro").assertExists()
     }
 
     @Test
     fun tappingARecentEntryOpensIt() {
         var abierta: Visit? = null
         showSearch(
-            readyState().copy(query = "", history = recent),
+            readyState().copy(query = "", submitted = "", history = recent),
             onOpenVisita = { abierta = it },
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
@@ -889,7 +901,7 @@ class ScreensTest {
 
     @Test
     fun withNoResultsItOffersSearchingTheDefinitions() {
-        showSearch(readyState().copy(query = "animal que ladra"))
+        showSearch(readyState().copy(query = "animal que ladra", submitted = "animal que ladra"))
         compose.onNodeWithText("Buscar en las definiciones").assertIsDisplayed()
     }
 
@@ -906,7 +918,7 @@ class ScreensTest {
     @Test
     fun tappingSearchDefinitionsReportsIt() {
         var pedido = false
-        showSearch(readyState().copy(query = "ladra"), onSearchDefinitions = { pedido = true })
+        showSearch(readyState().copy(query = "ladra", submitted = "ladra"), onSearchDefinitions = { pedido = true })
         compose.onNodeWithText("Buscar en las definiciones").performClick()
         assertEquals(true, pedido)
     }
@@ -915,7 +927,7 @@ class ScreensTest {
     fun inDefinitionModeWithNoResultsTheSameOptionIsNotOfferedAgain() {
         // Offering it again would be a loop: the search already ran and there is nothing.
         showSearch(
-            readyState().copy(query = "xyzzy", mode = SearchState.Mode.DEFINICIONES),
+            readyState().copy(query = "xyzzy", submitted = "xyzzy", mode = SearchState.Mode.DEFINICIONES),
         )
         compose.onNodeWithText("Sin resultados en las definiciones").assertIsDisplayed()
         assertEquals(
@@ -927,7 +939,7 @@ class ScreensTest {
     @Test
     fun whileSearchingTheDefinitionsItSaysSo() {
         showSearch(
-            readyState().copy(query = "ladra", mode = SearchState.Mode.BUSCANDO_DEFINICIONES),
+            readyState().copy(query = "ladra", submitted = "ladra", mode = SearchState.Mode.BUSCANDO_DEFINICIONES),
         )
         compose.onNodeWithText("Buscando", substring = true).assertIsDisplayed()
     }

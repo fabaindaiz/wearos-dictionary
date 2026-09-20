@@ -32,6 +32,16 @@ import kotlinx.coroutines.launch
 /** What the search screen needs to know, and nothing else. */
 data class SearchState(
     val query: String = "",
+    /**
+     * Lo que la LISTA refleja, que no siempre es lo que el campo muestra.
+     *
+     * Con el teclado abierto se escribe sin buscar (D-128): `query` avanza con cada tecla y
+     * `submitted` se queda quieto. Sin esa separacion, la primera letra hace desaparecer
+     * encabezado, voz, palabra del dia e historial de un golpe, la lista se reestructura entera,
+     * y el campo de texto se destruye y se recompone **llevandose el foco y el teclado**. Borrar
+     * la ultima letra hace lo mismo al reves.
+     */
+    val submitted: String = "",
     val results: List<Suggestion> = emptyList(),
     val status: Status = Status.Loading,
     /** The pack being searched. Its `attribution` and `license` are the ones shown. */
@@ -164,6 +174,9 @@ class SearchViewModel(
     private var visits: List<Visit> = emptyList()
     private var favoriteVisits: List<Visit> = emptyList()
 
+    /** El teclado esta abierto. Ver [onTypingChanged]. */
+    private var typing = false
+
     private val queries = MutableStateFlow("")
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
@@ -195,7 +208,9 @@ class SearchViewModel(
                     // one ran, its result is no longer the one on screen. And nothing is
                     // published in definition mode: there the other query is in charge.
                     if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
-                        _state.update { it.copy(query = text, results = results) }
+                        // `submitted` y no `query`: publicar `query` pisaria lo que el usuario
+                        // esta escribiendo en ese instante.
+                        _state.update { it.copy(submitted = text, results = results) }
                     }
                 }
                 .collect {}
@@ -282,7 +297,24 @@ class SearchViewModel(
         // The query shows IMMEDIATELY and the results arrive later: if the field waited for the
         // debounce, typing would feel stuck.
         _state.update { it.copy(query = text) }
-        queries.value = text
+        // Con el teclado abierto NO se busca (D-128): la lista esta tapada por el teclado, asi
+        // que buscar ahi es trabajo que nadie ve y que cuesta lo unico que importa -- la
+        // reestructuracion de la lista se lleva el foco del campo, y el teclado detras.
+        if (!typing) queries.value = text
+    }
+
+    /**
+     * El teclado se abrio o se cerro.
+     *
+     * Mientras esta abierto se escribe sin buscar; al cerrarse --o al tocar Buscar, que cierra el
+     * teclado-- se busca **una vez** lo que quedo escrito.
+     *
+     * Es un metodo y no un booleano del estado porque el cierre tiene un efecto: dispara la
+     * busqueda. Un flag que alguien pone y saca no lo tendria.
+     */
+    fun onTypingChanged(isTyping: Boolean) {
+        typing = isTyping
+        if (!isTyping) queries.value = _state.value.query
     }
 
     /**
@@ -293,8 +325,9 @@ class SearchViewModel(
      */
     fun onSearchDefinitions() {
         val pack = source.value ?: return
-        val text = queries.value
+        val text = _state.value.query
         if (text.isBlank()) return
+        queries.value = text
 
         definitionMode?.cancel()
         _state.update { it.copy(mode = SearchState.Mode.BUSCANDO_DEFINICIONES) }

@@ -460,6 +460,102 @@ class SearchViewModelTest {
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
     }
 
+    // --- The keyboard: while it is open, nothing is searched ---------------------------------
+
+    @Test
+    fun withTheKeyboardOpenTypingSearchesNothing() = runTest {
+        // Reported from the watch: typing closed the keyboard. The cause is not the field, it is
+        // the LIST: with an empty query the home shows heading, voice, word of the day and
+        // history; with one letter all of that disappears and results take over. That
+        // restructuring destroys and recomposes the field, and the focus --and the keyboard--
+        // go with it. Deleting the last letter does the same in reverse.
+        //
+        // While the keyboard covers the screen the list is not visible anyway, so searching
+        // there is work nobody sees that costs the only thing that matters.
+        val fake = FakeDictionary()
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onTypingChanged(true)
+        listOf("p", "pe", "per", "perro").forEach { text ->
+            vm.onQueryChange(text)
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS * 2)
+        }
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), fake.queries, "no se busco nada con el teclado abierto")
+        assertEquals("perro", vm.state.value.query, "pero el campo SI muestra lo escrito")
+    }
+
+    @Test
+    fun theListDoesNotRestructureWhileTyping() = runTest {
+        // `submitted` is what the list reflects. If it moved with every keystroke, the home
+        // would collapse on the first letter -- which is the bug.
+        val fake = FakeDictionary()
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onTypingChanged(true)
+        vm.onQueryChange("perro")
+        advanceTimeBy(SearchViewModel.DEBOUNCE_MS * 2)
+        advanceUntilIdle()
+
+        assertEquals("", vm.state.value.submitted, "la lista sigue mostrando el inicio")
+    }
+
+    @Test
+    fun closingTheKeyboardSearchesWhatWasLeft() = runTest {
+        val fake = FakeDictionary()
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onTypingChanged(true)
+        listOf("p", "pe", "per", "perro").forEach { vm.onQueryChange(it) }
+        vm.onTypingChanged(false)
+        advanceUntilIdle()
+
+        assertEquals(listOf("perro"), fake.queries, "una sola consulta, con el texto final")
+        assertEquals("perro", vm.state.value.submitted)
+    }
+
+    @Test
+    fun deletingTheLastLetterWithTheKeyboardOpenDoesNotBringTheHomeBack() = runTest {
+        // The other half of the report: "se sale cada vez que uno borra una letra". Going from
+        // one character to zero restructures the list back to the home, with the same effect.
+        val fake = FakeDictionary()
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onTypingChanged(true)
+        vm.onQueryChange("p")
+        vm.onTypingChanged(false)
+        advanceUntilIdle()
+        assertEquals("p", vm.state.value.submitted)
+
+        vm.onTypingChanged(true)
+        vm.onQueryChange("")
+        advanceTimeBy(SearchViewModel.DEBOUNCE_MS * 2)
+        advanceUntilIdle()
+
+        assertEquals("p", vm.state.value.submitted, "la lista no volvio al inicio mientras se escribe")
+        assertEquals("", vm.state.value.query)
+    }
+
+    @Test
+    fun withoutTheKeyboardTheSearchIsStillIncremental() = runTest {
+        // Voice delivers the whole phrase at once and never opens the keyboard: that path has to
+        // keep firing on its own, with no commit step.
+        val fake = FakeDictionary()
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.onQueryChange("perro")
+        advanceUntilIdle()
+
+        assertEquals(listOf("perro"), fake.queries)
+        assertEquals("perro", vm.state.value.submitted)
+    }
+
     // --- Characterization: the debounce and the cancellation ---------------------------------
 
     @Test
