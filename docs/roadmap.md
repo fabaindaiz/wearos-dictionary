@@ -869,6 +869,58 @@ en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de
 
 ---
 
+## Publicar: qué falta para una build de producción
+
+**Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
+`app-release-unsigned.apk` de **33 MB**. Lo que falta, en orden de bloqueo:
+
+### 1. La keystore — y es del humano, no del agente
+
+No hay ninguna configurada, así que el build produce un APK **sin firmar** en vez de romper: un
+clone limpio tiene que seguir compilando (`signingConfigs.findByName`, no `getByName`).
+
+⚠️ **La restricción no es negociable y está en `.claude/settings.json`**: la keystore la genera el
+humano, **vive fuera del repositorio**, y `local.properties` guarda **sólo su ruta**. Ni la clave
+ni las contraseñas entran al repo, y `local.properties` está en `permissions.deny` — el agente no
+puede editarlo. `audit_dictionary.py::check_release_signing` busca los dos errores silenciosos:
+una keystore o contraseña trackeada, y firmar el release con la clave de debug.
+
+```sh
+# 1. Generar la keystore FUERA del repo (una sola vez, y guardarla: si se pierde,
+#    ninguna app instalada se puede volver a actualizar).
+keytool -genkeypair -v -keystore ~/claves/wearos-dictionary.jks \
+        -keyalg RSA -keysize 4096 -validity 10000 -alias dictionary
+
+# 2. Apuntar local.properties a ella (este archivo NO se commitea):
+#      dictionary.keystore=/Users/<vos>/claves/wearos-dictionary.jks
+#      dictionary.storePassword=...
+#      dictionary.keyAlias=dictionary
+#      dictionary.keyPassword=...
+
+# 3. Construir y comprobar que quedó firmado:
+./gradlew :app:assembleRelease
+ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO -unsigned
+```
+
+### 2. Lo que queda por verificar antes de publicar
+
+| Qué | Estado | Por qué importa |
+|---|---|---|
+| **Gate completo** | ✅ 21 checks, verde | |
+| **Tests instrumentados en API 37** | ✅ 34 tests, 0 fallas | |
+| **Tests instrumentados en API 33** (el `minSdk`) | ❌ **sin correr** | El AVD `wear_api33` existe. **El propósito de esos tests es que el ICU difiere entre versiones**, así que correr uno solo no prueba lo que intentan probar |
+| **Cualquier cosa vista en el reloj real** | ❌ **nada de D-116 a D-146** | 31 decisiones de contenido y formato, todas verificadas en emulador |
+| **R8** | ❌ apagado | **32,9 de los 33 MB son dex.** Es la palanca más grande que queda. Encenderlo reintroduce la clase de bug que sólo aparece en release, así que va atado a la verificación en dispositivo. Ver O-2 |
+| **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
+| **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
+
+### 3. El orden que recomiendo
+
+1. Generar la keystore y comprobar que `assembleRelease` produce `app-release.apk`.
+2. Correr los instrumentados en **API 33**, que es gratis y cierra una brecha real.
+3. Instalar en el reloj y mirar las 31 decisiones que nunca se vieron ahí.
+4. Recién entonces R8, con los instrumentados corriendo **contra el release**.
+
 ## Optimización
 
 La app se usa en ráfagas cortas en una muñeca. Eso fija las prioridades: **lo que más gasta

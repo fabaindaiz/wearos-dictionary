@@ -26,6 +26,48 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Un solo diccionario por idioma, y el release cotizado
+
+**Qué.** D-145: Wikidata se funde en el pack español en vez de ser un pack aparte. D-146: el APK
+de release lleva sólo las ABIs de reloj. Y el checklist completo de lo que falta para publicar.
+
+**Áreas.** `build_pack.py` (`--sumar` y el recálculo de `sense_key`) · `tests/test_segunda_fuente`
+· `app/build.gradle.kts` · `docs/roadmap.md` (§Publicar, nuevo) · `docs/decisions.md`.
+
+**Por qué.** Reportado desde el reloj: con dos diccionarios de español el inicio mostraba **dos
+chips «ES» y dos palabras del día**.
+
+**Medido.**
+
+- **6.092 lemas exclusivos** de Wikidata deduplicando por lema exacto (23 más que por `norm`, y
+  son legítimos: `Dr.`, `km²`, `c/`). Pack final: **152.281 entradas, 75,2 MB**.
+- Inicio verificado en el emulador: **un «ES», un «EN», dos palabras del día** —una por idioma—.
+- APK de release: **35 → 33 MB** al sacar `x86` y `x86_64`. ⚠️ De los 33, **32,9 son dex**: R8
+  apagado sigue siendo la palanca grande.
+
+**Arquitectura.** ✅ Cumple. La fusión es una **unión de filas**, así que no necesita composición:
+los lemas compartidos se quedan con la definición de la fuente base y no hay arbitraje.
+
+**Qué salió mal.**
+
+- **La mitad del bug reportado es mía.** D-136 dejó escrito que *el selector pasa a elegir un
+  idioma, no un archivo* y **no lo llevé a la pantalla**. Fundir Wikidata lo tapa; la incoherencia
+  sigue ahí para el día que convivan dos diccionarios de un idioma de verdad.
+- **`verify_pack.py` agarró un fallo que sólo existe al fusionar.** Cada fuente decide si una
+  entrada necesita `sense_key` mirando **sus** homógrafos; al fusionar, un lexema que tenía gemelo
+  en Wikidata puede perderlo y quedarse con una clave que ya no corresponde. Eso rompe `uid`, que
+  es la llave del join entre packs. Es el mismo error que D-139, entrando por otra puerta — la
+  segunda vez que la convención de `sense_key` muerde.
+- Dejé un emulador de API 33 encendido y el siguiente `adb` falló con *more than one device*.
+
+**Qué quedó sin hacer.**
+
+- **La keystore es del humano** y sin ella el APK sale sin firmar. Está el procedimiento escrito.
+- **Los instrumentados en API 33 no se corrieron** (el AVD existe). El propósito de esos tests es
+  que el ICU difiere entre versiones, así que correr uno solo no prueba lo que intentan probar.
+- **R8 sigue apagado** y es el 99 % del APK.
+- **La incoherencia del selector** (lista packs, decide idiomas) queda para cuando haga falta.
+
 ## 2026-09-20 — Se midió cómo dividir los packs, y no se construyó nada
 
 **Qué.** Diseño y mediciones para dividir los packs grandes en vez de achicarlos, tres decisiones
