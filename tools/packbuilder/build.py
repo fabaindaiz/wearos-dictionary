@@ -129,7 +129,8 @@ class Record:
 
 
 class PackBuilder:
-    def __init__(self, path, metadata, fuzzy_profile=None, sentences=None):
+    def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
+                 thesaurus=None):
         """`metadata` son las claves de la tabla meta que aporta la fuente.
 
         El builder agrega por su cuenta las que son suyas (versiones, conteo, fecha) y falla si
@@ -139,6 +140,10 @@ class PackBuilder:
         `sentences` es el mapa `norm -> frase` de un corpus (D-137). Se resuelve en `finish()` y
         no aca **porque la condicion que lo vuelve seguro solo se puede evaluar al final**: que
         la palabra lleve a una sola entrada del pack. Ver `_frases_por_entrada`.
+
+        `thesaurus` es el mapa `(lema, pos) -> {"synonyms": [...], "antonyms": [...]}` de WordNet
+        (D-144). Tambien se resuelve en `finish()`, y por un motivo parecido: el filtro que saca
+        las flexiones disfrazadas de sinonimo necesita la tabla `form` completa.
         """
         reserved = {
             "schema_version",
@@ -198,6 +203,7 @@ class PackBuilder:
         )
         self.count = 0
         self._sentences = sentences or {}
+        self._thesaurus = thesaurus or {}
         self._sample = []
         self._sampled = 0
         # Determinista: dos builds del mismo input dan el mismo pack.
@@ -325,6 +331,58 @@ class PackBuilder:
         cur.execute("DROP TABLE frase")
         return dict(filas)
 
+    def _sumar_tesauro(self, entry_id, headword, pos, body, fts_body):
+        """Le agrega al body los sinonimos y antonimos de WordNet. Ver `sources/wordnet` (D-144).
+
+        ⚠️ **Solo para entradas de UNA acepcion.** Un synset es *una* acepcion; con varias no se
+        sabe de cual son y colgarlos de la primera es el error de D-117.
+
+        ⚠️ **Y una flexion del propio lema NO es un sinonimo.** El MCR español se construyo
+        automaticamente y mete "coreana, coreanos, coreanas" en el synset de "coreano"; emitirlas
+        llenaria la linea del reloj con la misma palabra declinada. Se detecta contra `form`, que
+        es un dato que ya tenemos -- por eso esto corre en `finish()` y no en `add()`.
+
+        Los sinonimos van tambien a `fts_def` y los antonimos **no**, que es D-118 y D-126: un
+        sinonimo es otra forma de nombrar lo que buscas y un antonimo es lo que NO buscas.
+        """
+        aporte = self._thesaurus.get((headword, pos))
+        if not aporte or not _tiene_una_acepcion(body):
+            return body, fts_body
+        ya = _terminos_ya_presentes(body)
+        nuevos_sinonimos = self._filtrar(aporte.get("synonyms", ()), entry_id, headword, ya)
+        nuevos_antonimos = self._filtrar(aporte.get("antonyms", ()), entry_id, headword, ya)
+        if not nuevos_sinonimos and not nuevos_antonimos:
+            return body, fts_body
+        lineas = []
+        for termino in nuevos_sinonimos:
+            lineas.append(payload_codec.TAG_SYNONYM + "\t" + payload_codec.sanitize(termino))
+        for termino in nuevos_antonimos:
+            lineas.append(payload_codec.TAG_ANTONYM + "\t" + payload_codec.sanitize(termino))
+        body = body + "".join(l + "\n" for l in lineas)
+        if nuevos_sinonimos:
+            fts_body = (fts_body + " " + " ".join(nuevos_sinonimos)).strip()
+        return body, fts_body
+
+    def _filtrar(self, terminos, entry_id, headword, ya):
+        """Saca lo repetido, el propio lema, y las flexiones de esta misma entrada."""
+        out = []
+        cupo = MAX_TESAURO_POR_ACEPCION - len(ya)
+        for termino in terminos:
+            if cupo <= 0:
+                break
+            clave = normalize.norm(termino)
+            if not clave or clave in ya or clave == normalize.norm(headword):
+                continue
+            fila = self.connection.execute(
+                "SELECT 1 FROM form WHERE norm = ? AND entry_id = ?", (clave, entry_id)
+            ).fetchone()
+            if fila is not None:
+                continue
+            ya.add(clave)
+            out.append(termino)
+            cupo -= 1
+        return out
+
     def finish(self):
         if self.count == 0:
             raise ValueError("el pack quedo sin entradas")
@@ -348,6 +406,7 @@ class PackBuilder:
         )
         for row in read:
             entry_id, uid, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
+            body, fts_body = self._sumar_tesauro(entry_id, headword, pos, body, fts_body)
             frase = frases.get(entry_id)
             if frase and _admite_frase_de_corpus(body):
                 # El tag E se cuelga de la ULTIMA acepcion abierta, y `_admite_frase_de_corpus`
@@ -485,6 +544,33 @@ class PackBuilder:
         self.connection.close()
         if os.path.exists(self.path):
             os.remove(self.path)
+
+
+# Tope combinado de sinonimos mas antonimos por acepcion. Es el mismo renglon de reloj que
+# `MAX_SYNONYMS_PER_SENSE` en la fuente; aca se repite porque este merge no pasa por ahi.
+MAX_TESAURO_POR_ACEPCION = 4
+
+
+def _tiene_una_acepcion(body):
+    return [l[0] for l in body.split("\n") if len(l) > 1 and l[1] == "\t"].count(
+        payload_codec.TAG_SENSE) == 1
+
+
+def _terminos_ya_presentes(body):
+    """Las claves normalizadas de los sinonimos y antonimos que el body ya trae.
+
+    Normalizadas y no literales: el wiki puede traer "gelido" y WordNet "gélido", y repetirlos
+    gastaria dos renglones para decir lo mismo.
+    """
+    out = set()
+    for linea in body.split("\n"):
+        if len(linea) > 2 and linea[1] == "\t" and linea[0] in (
+            payload_codec.TAG_SYNONYM, payload_codec.TAG_ANTONYM
+        ):
+            clave = normalize.norm(linea[2:])
+            if clave:
+                out.add(clave)
+    return out
 
 
 def _admite_frase_de_corpus(body):

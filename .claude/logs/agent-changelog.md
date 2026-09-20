@@ -26,6 +26,53 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — El tesauro deja de depender de que alguien se acordara
+
+**Qué.** D-144: sinónimos y antónimos desde WordNet, en los dos idiomas.
+
+**Áreas.** `sources/wordnet.py` nuevo con sus tests · `build.py` (el merge y los dos filtros) ·
+`build_pack.py` (`--tesauro` y dos fuentes más en el catálogo) · `tests/test_tesauro.py` nuevo ·
+`docs/decisions.md`, `docs/fuentes.md`, `docs/roadmap.md`.
+
+**Por qué.** Los sinónimos del wiki se escriben a mano, así que la cobertura depende de quién
+editó qué: 18,4 % en español, 15,4 % en inglés. WordNet está construido al revés — un *synset*
+**es** un conjunto de sinónimos.
+
+**Medido.**
+
+- **Español: +3.801** entradas con sinónimos (26.829 → 30.630). **Inglés: +30.423** con sinónimos
+  y **+2.376** con antónimos.
+- Fuentes: **Open English WordNet 2024**, CC BY 4.0, 120.630 synsets y 7.996 relaciones de
+  antonimia · **MCR vía OMW**, CC BY 3.0, 78.417 synsets con lemas españoles.
+- El filtro de variantes morfológicas saca **6.318 de 99.292** candidatos (6,4 %).
+- Tamaños: español **73,6 MB**, inglés **315,5 MB**. Los dos pasan `verify_pack.py`.
+
+**Arquitectura.** ✅ Cumple. El merge vive en `finish()` porque el filtro de flexiones necesita la
+tabla `form` completa, igual que las frases de D-137.
+
+**Qué salió mal.**
+
+- **Los dos filtros aparecieron leyendo el pack, no testeando.** Primero `coreano → coreana ·
+  coreanos · coreanas` (flexiones dentro del synset); después `decolorarse → decolorar`,
+  `organismos → organismo`, `básicamente → basicamente`. El MCR se construyó automáticamente y eso
+  se nota; el inglés no tiene ese problema.
+- **Sospeché un bug que no existía.** `domingo → pollerudo · mandarina · calzonazos` me pareció
+  ruido de WordNet; al verificar, `domingo` **sí** estaba correctamente excluido (está en dos
+  synsets) y esos sinónimos venían del wiki. La comprobación costó cinco minutos y evitó
+  "arreglar" algo que funcionaba.
+- El primer intento de falsificar el filtro de flexiones falló por cómo parcheé el módulo
+  (`KeyError: 'build'`); el segundo, con `dict(build.__dict__)`, funcionó y el test falló con
+  `['coreana', 'coreanos', 'surcoreano']`, que es exactamente el ruido.
+
+**Qué quedó sin hacer.**
+
+- **El ruido que queda no tiene filtro estructural**: algún synset mal mapeado del MCR (`uno` con
+  `dos`) y alguna palabra inglesa colada (`meadero → jakes`).
+- **La antonimia en español sigue viniendo sólo del wiki** (2,3 %). No se puede transferir del
+  inglés por el synset: es una relación entre acepciones, no entre synsets.
+- **O-3 empeoró**: 73,6 y 315,5 MB contra un presupuesto de 50. La tensión entre *«completas»* y
+  el tamaño es una decisión de producto y está escrita en el roadmap.
+
 ## 2026-09-20 — Tres arreglos de interfaz, verificados en el emulador
 
 **Qué.** D-143: la lupa vuelve a una barra **vacía**; atrás con texto vuelve al inicio en vez de
