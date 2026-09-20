@@ -22,6 +22,12 @@ import build
 # Techo de la parte de nombres propios en un pack 'lexical-only'. Ver el check de estructura.
 PROPER_NOUN_SHARE_MAX = 0.05
 
+# El rank mas bajo (= mas comun) que un nombre propio puede tener en un pack 'definitions-only'.
+#
+# Espeja `CASTIGO_NOMBRE_PROPIO` de sources/kaikki.py, y espejarlo es el punto: el builder aplica
+# el castigo y esto comprueba el ARTEFACTO, que es lo unico que se publica. Ver el check.
+RANK_MINIMO_NOMBRE_PROPIO = 1000
+
 REQUIRED_META = (
     "attribution",
     "built_at",
@@ -52,7 +58,8 @@ REQUIRED_META = (
 # `if`-- porque el check estructural es OPCIONAL por diseño: "included" no comprueba nada, y sin
 # esta lista un typo como "lexical_only" es indistinguible de "included". O sea que el pack se
 # declara podado, el validador no cuenta un solo nombre propio, y sale verde.
-POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "included")
+POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "definitions-only",
+                                "included")
 
 REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 
@@ -141,6 +148,21 @@ def verify(path):
         politica in POLITICAS_DE_NOMBRES_PROPIOS,
         "meta.proper_nouns declara una politica conocida (%r)" % politica,
     )
+    if politica == "definitions-only":
+        # Esta politica deja entrar nombres propios a proposito, asi que el techo de proporcion
+        # no aplica. Lo que la vuelve segura es otra cosa, y es lo que se comprueba: **que
+        # ninguno pueda ganarle en rank a una palabra comun**. Si el castigo se cablea mal el
+        # pack sale entero, abre sin error y devuelve el toponimo arriba -- el modo de falla que
+        # D-116 midio 4.267 veces en ingles. No hay otra cosa que lo vea.
+        sin_castigar = db.execute(
+            "SELECT COUNT(*) FROM entry WHERE pos IN ('name', 'proper noun') AND rank < ?",
+            (RANK_MINIMO_NOMBRE_PROPIO,),
+        ).fetchone()[0]
+        report.check(
+            sin_castigar == 0,
+            "meta.proper_nouns dice 'definitions-only' y todos los nombres propios tienen el "
+            "rank castigado (%d sin castigar)" % sin_castigar,
+        )
     if politica in ("excluded", "lexical-only"):
         propios = db.execute(
             "SELECT COUNT(*) FROM entry WHERE pos IN ('name', 'proper noun')"

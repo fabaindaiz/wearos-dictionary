@@ -1,6 +1,6 @@
 """Construye un pack real monolingue desde un dump de kaikki.org.
 
-    python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--con-nombres]
+    python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -18,10 +18,19 @@ deprecado). **Cual es cual es el error facil**, porque los tres existen y son da
     BILINGUE y no lo construye este script.
 
 **Los nombres propios no entran** (D-116): apellidos, toponimos y nombres de pila se descartan
-por defecto. `--con-nombres` los trae de vuelta y deja el pack marcado --`pack_id` sufijado y
-`meta.proper_nouns = "included"`-- porque sigue siendo la forma de MEDIR cuanto pesan contra un
-dump nuevo. Lo que se saca: 32.305 entradas en español (22,1 %, de las cuales 26.265 definen
+por defecto. Lo que se saca: 32.305 entradas en español (22,1 %, de las cuales 26.265 definen
 solamente "Apellido.") y 163.470 en ingles (17,1 %, 40,7 MB).
+
+`--nombres POLITICA` cambia eso. Son tres y estan medidas en español (D-134):
+
+    lexical-only       el default. 114.619 entradas, 68,3 MB
+    definitions-only   entra el que DEFINE y no el que solo se registra, con el rank
+                       castigado. Rescata ciudades, generos taxonomicos, grafias anticuadas
+    included           entran todos. 146.193 entradas, 73,3 MB. Existe para MEDIR
+
+Las dos que no son el default **sufijan el `pack_id`**, asi que se pueden instalar al lado del
+pack normal y compararse en el reloj. `--con-nombres` sigue funcionando como alias de
+`--nombres included`.
 """
 
 import hashlib
@@ -136,24 +145,29 @@ def main(argv):
     sample = 1
     if "--sample" in argv:
         sample = int(argv[argv.index("--sample") + 1])
-    con_nombres = "--con-nombres" in argv
+    politica = "lexical-only"
+    if "--con-nombres" in argv:
+        politica = "included"
+    if "--nombres" in argv:
+        politica = argv[argv.index("--nombres") + 1]
 
     metadata = dict(PACKS[lang])
     if sample > 1:
         metadata["pack_id"] += "-sample%d" % sample
         metadata["name"] += " (piloto 1/%d)" % sample
-    if con_nombres:
+    if politica != "lexical-only":
         # El pack por defecto conserva el pack_id pelado: si cambiara, el `pack_activo`, el
         # historial y los favoritos del reloj quedarian apuntando a un pack que ya no existe.
-        metadata["pack_id"] += "-connombres"
-        metadata["proper_nouns"] = "included"
+        # Los otros lo sufijan para que dos politicas puedan convivir instaladas y compararse.
+        metadata["pack_id"] += "-" + politica.replace("-", "")
+        metadata["proper_nouns"] = politica
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata) as builder:
         reader = READERS[lang]
-        argumentos = (source, lang) if reader is oewn else (source, lang, con_nombres)
+        argumentos = (source, lang) if reader is oewn else (source, lang, politica)
         for record in reader.records(*argumentos):
             if _keep(record.headword, sample):
                 builder.add(record)

@@ -245,15 +245,96 @@ class IdiomaTest(unittest.TestCase):
         self.paths.append(path)
         self.assertEqual([], [r.headword for r in kaikki.records(path, lang="en")])
 
-    def test_con_nombres_los_trae_de_vuelta(self):
+    def test_la_politica_included_los_trae_de_vuelta_a_todos(self):
         # La medicion sigue siendo posible: es lo que produjo el numero de D-116.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
         )
         self.paths.append(path)
-        got = [r.headword for r in kaikki.records(path, lang="en", con_nombres=True)]
+        got = [r.headword for r in kaikki.records(path, lang="en", politica="included")]
         self.assertEqual(["London", "run"], sorted(got))
+
+
+class PoliticaDefinitionsOnlyTest(unittest.TestCase):
+    """La tercera politica: entra el nombre propio que DEFINE, no el que solo se registra.
+
+    `lexical-only` poda por señal lexica, y eso se lleva puesto a "Fez" y a "Puruándiro" junto con
+    los 26.708 apellidos. Medido sobre el pack español con `--con-nombres`: de las 31.549 entradas
+    que hoy se descartan, **28.314 solo dicen su categoria** ("Apellido.", "Nombre de pila de
+    mujer.") y **3.235 traen una definicion de verdad** -- ciudades, generos taxonomicos, grafias
+    anticuadas, el caballo del Cid.
+
+    ⚠️ **El marcador es `categories`, y eso NO es una heuristica sobre el texto.** Un filtro por
+    la prosa de la glosa seria un patron en español que no sirve en ingles, justo lo que el punto
+    4 del docstring del modulo dice que no se hace. `categories` lo emite wiktextract desde la
+    categorizacion del propio wiki: 26.708 acepciones en `ES:Apellidos` y 2.398 en los tres
+    `ES:Antropónimos`. La lista vive en el `Perfil`, que ya es la pieza que se calibra por idioma.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _cats(self, *nombres):
+        return [{"name": n} for n in nombres]
+
+    def test_un_apellido_no_entra_aunque_la_politica_sea_permisiva(self):
+        path = _jsonl(_raw("Hopewell", "name",
+                           [_sense("Apellido.", categories=self._cats("ES:Apellidos"))]))
+        self.paths.append(path)
+        got = [r.headword for r in kaikki.records(path, lang="es",
+                                                  politica="definitions-only")]
+        self.assertEqual([], got)
+
+    def test_una_ciudad_QUE_DEFINE_si_entra(self):
+        """El caso que la politica existe para rescatar, y que `lexical-only` tira."""
+        path = _jsonl(_raw("Puruándiro", "name",
+                           [_sense("Ciudad del estado de Michoacán en México.")]))
+        self.paths.append(path)
+        self.assertEqual([], [r.headword for r in kaikki.records(path, lang="es")])
+        self.assertEqual(["Puruándiro"],
+                         [r.headword for r in kaikki.records(path, lang="es",
+                                                             politica="definitions-only")])
+
+    def test_con_una_acepcion_que_define_alcanza(self):
+        # "Estrella" es nombre de pila Y estrella. Podarla por la primera acepcion perderia la
+        # segunda, que es vocabulario.
+        path = _jsonl(_raw("Estrella", "name", [
+            _sense("Nombre de pila de mujer.", categories=self._cats("ES:Antropónimos femeninos")),
+            _sense("Cuerpo celeste que brilla con luz propia."),
+        ]))
+        self.paths.append(path)
+        got = [r.headword for r in kaikki.records(path, lang="es", politica="definitions-only")]
+        self.assertEqual(["Estrella"], got)
+
+    def test_el_nombre_propio_que_entra_PIERDE_prioridad(self):
+        """Pedido asi: no borrar, bajar de prioridad.
+
+        Sin esto la politica empeora la busqueda en vez de mejorarla: es exactamente el efecto
+        que D-116 midio en ingles --4.267 casos donde el toponimo le gana en rank a la palabra
+        comun-- y volveria por la puerta de atras.
+        """
+        path = _jsonl(
+            _raw("Fez", "name", [_sense("Una de las principales ciudades de Marruecos.")]),
+            _raw("fez", "noun", [_sense("Gorro de fieltro rojo, tronco-conico.")]),
+        )
+        self.paths.append(path)
+        por_lema = {r.headword: r.rank
+                    for r in kaikki.records(path, lang="es", politica="definitions-only")}
+        self.assertGreater(por_lema["Fez"], por_lema["fez"],
+                           "el nombre propio tiene que quedar DEBAJO (rank mayor = menos comun)")
+
+    def test_una_politica_desconocida_no_se_traga_en_silencio(self):
+        # Un typo en la CLI no puede construir un pack con la politica por defecto y no decirlo:
+        # el pack saldria bien y con otro contenido del pedido.
+        path = _jsonl(_raw("x", "noun", [_sense("una glosa")]))
+        self.paths.append(path)
+        with self.assertRaises(ValueError):
+            list(kaikki.records(path, lang="es", politica="lo-que-sea"))
 
 
 class MarkupEditorialTest(unittest.TestCase):
