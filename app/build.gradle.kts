@@ -76,6 +76,17 @@ android {
             // silenciosa de este error, y el audit la busca.
             signingConfig = signingConfigs.findByName("release")
 
+            // Solo las dos ABIs que existen en un reloj. Medido sobre el APK de release: las
+            // cuatro que trae SQLite nativo suman 4,9 MB y **x86 y x86_64 son solo de
+            // emulador**, asi que son 2,3 MB que ningun dispositivo real usa.
+            //
+            // ⚠️ **El costo es que el APK de RELEASE ya no se instala en un emulador x86.** Es
+            // deliberado y hay que saberlo antes de perder una tarde: el de debug sigue
+            // trayendo las cuatro, que es donde se verifica a diario.
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
+
             // R8 sigue APAGADO, y eso ya no es herencia del template: es una decision con fecha.
             // La guia oficial de Wear OS lo nombra como una de las dos palancas mas efectivas,
             // pero activarlo reintroduce la clase de bug que solo aparece en release --codigo o

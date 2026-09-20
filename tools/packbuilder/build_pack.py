@@ -2,7 +2,7 @@
 
     python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
                           [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
-                          [--tesauro <wordnet>]
+                          [--tesauro <wordnet>] [--sumar <pack> <dump>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -45,6 +45,11 @@ dos son CC BY-SA 4.0.
 fuentes coincidan en como numeran las acepciones: solo necesita contener la palabra **sin
 ambiguedad**, y eso lo comprueba el builder contra su propio indice. ⚠️ Tatoeba es **CC BY 2.0
 FR** y tambien cambia la atribucion. Las dos opciones se pueden combinar.
+
+`--sumar <pack> <dump>` funde el **vocabulario** de otro pack del catalogo dentro de este: entran
+los lemas que la fuente base no tiene y se descartan los repetidos (D-146). `--sumar es-wd
+<lexemas>` aporta **6.092 lemas** al pack español --gentilicios regionales, locuciones-- por
+~1,5 MB. ⚠️ Es una union de FILAS: no parte ninguna entrada, asi que no necesita composicion.
 
 `--tesauro` suma **sinonimos y antonimos de WordNet** (D-144), que estan agrupados por
 SIGNIFICADO y por lo tanto no dependen de que alguien los escribiera a mano. El formato lo elige
@@ -279,6 +284,31 @@ def _keep(headword, sample):
     return int.from_bytes(digest[:4], "big") % sample == 0
 
 
+def _con_sense_key_del_pack_final(nuevos):
+    """Recalcula `sense_key` mirando los homografos del pack FUSIONADO, no los de la fuente.
+
+    ⚠️ **Lo agarro `verify_pack.py` y es un fallo silencioso de los caros.** Cada fuente decide
+    si una entrada necesita `sense_key` mirando SUS propios homografos. Al fusionar, un lexema que
+    tenia gemelo en Wikidata puede perderlo --porque el gemelo ya estaba en la fuente base y se
+    descarto-- y se queda con una clave que ya no corresponde a nada.
+
+    Eso rompe `uid`, que es la identidad logica y **la llave del join entre packs** (D-055): el
+    mismo lema calculado con clave en un pack y sin clave en otro **deja de unir**. Es el mismo
+    error que D-139 documenta, entrando por otra puerta.
+
+    La regla que vale es la del pack final: lleva clave el que tiene homografo **ahi**. Por eso
+    los registros se bufferean --son miles, no millones-- en vez de emitirse en streaming.
+    """
+    cuenta = {}
+    for record in nuevos:
+        clave = (record.headword, record.part_of_speech)
+        cuenta[clave] = cuenta.get(clave, 0) + 1
+    for record in nuevos:
+        if cuenta[(record.headword, record.part_of_speech)] == 1:
+            record.sense_key = None
+        yield record
+
+
 def _pegar_ejemplo(record, ejemplos):
     """Le pega a una entrada FLACA el ejemplo de la segunda fuente. Ver `sources/enwikt_examples`.
 
@@ -317,6 +347,10 @@ def main(argv):
     dump_tesauro = None
     if "--tesauro" in argv:
         dump_tesauro = argv[argv.index("--tesauro") + 1]
+    sumar = None
+    if "--sumar" in argv:
+        i = argv.index("--sumar")
+        sumar = (argv[i + 1], argv[i + 2])
 
     metadata = dict(PACKS[lang])
     # El manifiesto se arma antes que nada: la fuente base primero, para que quede arriba en la
@@ -363,17 +397,45 @@ def main(argv):
             else " Con sinónimos de WordNet."
         )
 
+    if sumar:
+        # ⚠️ **Una union de FILAS, no de campos.** La fuente sumada aporta LEMAS que la base no
+        # tiene; los que comparten se quedan con la definicion de la base y no hay nada que
+        # arbitrar. Eso es lo que la vuelve barata -- y lo que distingue esto de la composicion,
+        # que parte una entrada en dos y sigue bloqueada por la granularidad de `uid` (D-146).
+        metadata["pack_id"] += "-" + _declarar(
+            metadata, PACKS[sumar[0]]["fuente_base"])["codigo"]
+        metadata["description"] += " Con vocabulario de una fuente adicional."
+
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
         reader = READERS[lang]
         argumentos = (source, lang) if reader is oewn else (source, lang, politica)
+        vistos = set()
         for record in reader.records(*argumentos):
             if not _keep(record.headword, sample):
                 continue
             _pegar_ejemplo(record, ejemplos)
+            vistos.add((record.headword, record.part_of_speech))
             builder.add(record)
+        if sumar:
+            # Despues de la base y no mezclado: el orden **es** la regla de arbitraje. El primero
+            # que llega se queda con el lema, asi que la definicion de la fuente base gana sin
+            # que nadie tenga que compararlas.
+            #
+            # La clave es el lema EXACTO y no `norm()`: "papa" y "papá" comparten norm y son dos
+            # palabras, y "Dr." o "km²" se perderian contra la entrada que normaliza igual.
+            extra = READERS[sumar[0]]
+            nuevos = []
+            for record in extra.records(sumar[1], PACKS[sumar[0]]["lang_src"], politica):
+                clave = (record.headword, record.part_of_speech)
+                if clave in vistos or not _keep(record.headword, sample):
+                    continue
+                vistos.add(clave)
+                nuevos.append(record)
+            for record in _con_sense_key_del_pack_final(nuevos):
+                builder.add(record)
 
     print("%s: %d entradas, %d bytes" % (output, builder.count, os.path.getsize(output)))
     return 0
