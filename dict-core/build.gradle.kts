@@ -25,6 +25,12 @@ tasks.withType<JavaCompile>().configureEach {
 
 dependencies {
     testImplementation(libs.kotlin.test)
+    // Solo para los tests. La superficie de produccion del modulo sigue sin dependencias: el
+    // fan-out de `SearchRepository` es SECUENCIAL a proposito --los packs instalados son uno o
+    // dos, y `:dict-data` ya serializa las consultas de cada pack en su propio dispatcher
+    // (D-050)-- asi que no hace falta kotlinx-coroutines-core para construir. `DictionarySource`
+    // ya declara `suspend`, que es lenguaje y no libreria; esto es el runner que lo ejecuta.
+    testImplementation(libs.coroutines.test)
 }
 
 tasks.test {

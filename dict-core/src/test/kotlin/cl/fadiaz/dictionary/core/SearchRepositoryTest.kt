@@ -1,0 +1,172 @@
+package cl.fadiaz.dictionary.core
+
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Searching across several packs at once (D-136).
+ *
+ * The piece the roadmap kept calling `SearchRepository` and that did not exist. It is what two
+ * different things were both waiting on:
+ *
+ *  - **coexistence**, asked for as *"varios packs para un mismo idioma de distintas fuentes que
+ *    puedan convivir"*: two base packs, and the union of their headwords is the coverage gain;
+ *  - **composition** (the roadmap item): an auxiliary pack adding fields to another's entry,
+ *    joined by `uid`. That one needs this layer first, and is not built here.
+ *
+ * It is deliberately **not** a `DictionarySource`. Half of that interface is addressed by
+ * `entryId`, which is a **rowid local to one pack** (`schema.sql`): answering `entry(7)` over a
+ * set of packs means picking a pack, and picking one silently is D-080 -- showing a different
+ * word, with no error. The narrow surface is what makes that unrepresentable.
+ */
+class SearchRepositoryTest {
+
+    /** A pack that answers from a fixed list. Enough: what is under test is the merge. */
+    private class FakePack(
+        private val id: String,
+        private val rows: List<Suggestion> = emptyList(),
+        private val definitions: List<Suggestion> = emptyList(),
+        private val fails: Boolean = false,
+    ) : DictionarySource {
+        override val metadata = PackMetadata(
+            packId = id, schemaVersion = 3, normVersion = 2, kind = PackKind.MONOLINGUAL,
+            name = id, description = null, langSource = "es", langTarget = null,
+            fuzzyProfile = FuzzyProfile.SPANISH, entryCount = rows.size, dataVersion = 1,
+            license = "CC-BY-SA-4.0", attribution = id,
+        )
+        override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
+            if (fails) throw IllegalStateException("este pack esta roto")
+            return rows.take(limit)
+        }
+        override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
+            if (fails) throw IllegalStateException("este pack esta roto")
+            return definitions.take(limit)
+        }
+        override suspend fun entry(entryId: Long): Entry? = null
+        override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> = emptyMap()
+        override suspend fun summary(entryId: Long): EntrySummary? = null
+        override fun close() = Unit
+        override fun toString() = id
+    }
+
+    private fun row(
+        pack: String,
+        headword: String,
+        kind: MatchKind = MatchKind.PREFIX,
+        score: Int = 100,
+        pos: String? = "noun",
+        id: Long = 1,
+    ) = Suggestion(pack, id, headword, pos, kind, score)
+
+    @Test
+    fun `la union de dos packs es la ganancia de cobertura`() = runTest {
+        // El punto entero de la convivencia: una fuente tiene una palabra que la otra no.
+        val repo = SearchRepository(listOf(
+            FakePack("wikc", listOf(row("wikc", "casa"), row("wikc", "cascada"))),
+            FakePack("otra", listOf(row("otra", "casa"), row("otra", "casete"))),
+        ))
+        val got = repo.suggest("cas").map { it.headword }
+        assertEquals(listOf("casa", "cascada", "casete"), got.sorted())
+    }
+
+    @Test
+    fun `el mismo lema de dos packs sale UNA vez`() = runTest {
+        // En una pantalla de reloj "casa · casa" no comunica que hay dos fuentes: comunica que
+        // la lista esta rota. Ver las dos definiciones a la vez es composicion, no esto.
+        val repo = SearchRepository(listOf(
+            FakePack("wikc", listOf(row("wikc", "casa", score = 300))),
+            FakePack("otra", listOf(row("otra", "casa", score = 100))),
+        ))
+        val got = repo.suggest("casa")
+        assertEquals(1, got.size)
+        assertEquals("otra", got[0].packId, "gana el mejor score, no el primer pack de la lista")
+    }
+
+    @Test
+    fun `mismo lema con pos distinto son entradas distintas`() = runTest {
+        // "fantasma" es sustantivo y adjetivo, y son dos entradas de verdad en el pack real.
+        val repo = SearchRepository(listOf(
+            FakePack("wikc", listOf(row("wikc", "fantasma", pos = "noun"),
+                                    row("wikc", "fantasma", pos = "adj"))),
+        ))
+        assertEquals(2, repo.suggest("fant").size)
+    }
+
+    @Test
+    fun `un prefijo de OTRO pack le gana a un fuzzy del propio`() = runTest {
+        // El orden cruza los packs en vez de concatenarlos. Si no, escribir bien una palabra
+        // que solo esta en el segundo pack la deja debajo de los errores de tipeo del primero.
+        val repo = SearchRepository(listOf(
+            FakePack("wikc", listOf(row("wikc", "aser", MatchKind.FUZZY, score = 1))),
+            FakePack("otra", listOf(row("otra", "hacer", MatchKind.PREFIX, score = 900))),
+        ))
+        assertEquals(listOf("hacer", "aser"), repo.suggest("hacer").map { it.headword })
+    }
+
+    @Test
+    fun `empatados, el orden NO depende de en que orden vengan los packs`() = runTest {
+        // ⚠️ No es cosmetico, y la primera version de este test pasaba por la razon equivocada.
+        //
+        // Repetir la misma consulta ya da el mismo orden sin hacer nada: `sortedWith` de Kotlin
+        // es estable y conserva el orden de entrada. Lo que NO es estable es **el orden de
+        // entrada**: los packs salen de listar `filesDir/packs`, y un listado de directorio no
+        // promete orden. Si eso cambia entre arranques --o al instalar un pack-- la lista de
+        // resultados se reordena sola.
+        //
+        // Y eso importa por lo que D-128 dejo medido: si la LISTA se reestructura mientras se
+        // escribe, el campo de texto se recompone y **el teclado se cierra**. Intermitente y sin
+        // causa visible. El desempate total del comparador es lo que lo impide.
+        val zeta = FakePack("zeta", listOf(row("zeta", "casa", score = 100, id = 9)))
+        val alfa = FakePack("alfa", listOf(row("alfa", "casa", score = 100, id = 4)))
+        val unOrden = SearchRepository(listOf(zeta, alfa)).suggest("ca")
+        val elOtro = SearchRepository(listOf(alfa, zeta)).suggest("ca")
+        assertEquals(unOrden.map { it.packId }, elOtro.map { it.packId })
+    }
+
+    @Test
+    fun `un pack roto no se lleva puesta la busqueda de los otros`() = runTest {
+        // Un pack corrupto o truncado se abre y falla al consultarlo. Con dos instalados, que
+        // uno se caiga no puede dejar al usuario sin buscador: es el mismo criterio que la
+        // palabra del dia, que ya sigue si un pack falla.
+        val repo = SearchRepository(listOf(
+            FakePack("roto", fails = true),
+            FakePack("sano", listOf(row("sano", "casa"))),
+        ))
+        assertEquals(listOf("casa"), repo.suggest("cas").map { it.headword })
+    }
+
+    @Test
+    fun `si fallan TODOS la lista queda vacia y no lanza`() = runTest {
+        val repo = SearchRepository(listOf(FakePack("a", fails = true),
+                                           FakePack("b", fails = true)))
+        assertTrue(repo.suggest("cas").isEmpty())
+    }
+
+    @Test
+    fun `el limite se respeta DESPUES de mezclar, no por pack`() = runTest {
+        // Pedir 3 y recibir 3 por pack llenaria la pantalla con el primero. El limite es de la
+        // lista que se muestra.
+        val repo = SearchRepository(listOf(
+            FakePack("a", (1..10).map { row("a", "a$it", score = it) }),
+            FakePack("b", (1..10).map { row("b", "b$it", score = it) }),
+        ))
+        assertEquals(3, repo.suggest("x", limit = 3).size)
+    }
+
+    @Test
+    fun `la busqueda por definicion se mezcla igual`() = runTest {
+        val repo = SearchRepository(listOf(
+            FakePack("a", definitions = listOf(row("a", "guanaco", MatchKind.DEFINITION))),
+            FakePack("b", definitions = listOf(row("b", "vicuña", MatchKind.DEFINITION))),
+        ))
+        assertEquals(setOf("guanaco", "vicuña"),
+                     repo.searchDefinitions("camélido").map { it.headword }.toSet())
+    }
+
+    @Test
+    fun `sin packs no lanza y devuelve vacio`() = runTest {
+        assertTrue(SearchRepository(emptyList()).suggest("casa").isEmpty())
+    }
+}

@@ -6,6 +6,7 @@ import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.EntrySummary
@@ -155,6 +156,21 @@ class SearchViewModel(
      */
     private val source = MutableStateFlow<DictionarySource?>(null)
 
+    /**
+     * What the search actually queries: **every open pack of the active language** (D-136).
+     *
+     * A flow for the same reason [source] is one -- opening a pack is an event that has to fire
+     * the pending query again.
+     *
+     * ⚠️ **The selector now picks a language, not a file.** Two Spanish packs from different
+     * sources installed together are both searched, and the gain is the union of their headwords;
+     * that is what "packs that coexist" means here. It stays *within* a language on purpose: with
+     * Spanish and English installed, typing "casa" must not return English entries. [source] is
+     * still the active pack and still what the word of the day, the tile and the attribution use,
+     * because those are about **one** dictionary.
+     */
+    private val searcher = MutableStateFlow<SearchRepository?>(null)
+
     /** All the open ones, to resolve entries from any pack and to close them. */
     private var opened: List<DictionarySource> = emptyList()
 
@@ -197,14 +213,14 @@ class SearchViewModel(
                 // The debounce is about battery before performance: on a watch, firing one query
                 // per keystroke keeps the CPU awake for the whole phrase.
                 queries.debounce(DEBOUNCE_MS),
-                source,
-            ) { text, pack -> text to pack }
+                searcher,
+            ) { text, repo -> text to repo }
                 // mapLatest cancels the previous search as soon as a new keystroke arrives. The
                 // cascade checks for cancellation row by row, so the old one really stops instead
                 // of finishing and being thrown away.
-                .mapLatest { (text, pack) ->
-                    if (text.isBlank() || pack == null) text to emptyList()
-                    else text to pack.suggest(text)
+                .mapLatest { (text, repo) ->
+                    if (text.isBlank() || repo == null) text to emptyList()
+                    else text to repo.suggest(text)
                 }
                 .onEach { (text, results) ->
                     // Compared against the current query: if the user kept typing while this
@@ -244,6 +260,7 @@ class SearchViewModel(
                 opened = result.all.filterIsInstance<PackHandle.Open>().map { it.source }
                 val chosen = chooseActive(result, preferred())
                 source.value = chosen.source
+                searcher.value = repositoryFor(chosen.source)
                 _state.update {
                     it.copy(
                         status = SearchState.Status.Ready,
@@ -277,12 +294,30 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * The packs that get searched together with [active]: the ones that **speak its language**.
+     *
+     * The active one goes first so that, on an exact tie, it wins -- the rest of the ordering is
+     * `SearchRepository`'s business, and it does not promise that `score` is comparable across
+     * packs built from different dumps.
+     *
+     * A pack whose `langSource` differs is left out, not ranked lower: it is not a worse answer,
+     * it is an answer to another question.
+     */
+    private fun repositoryFor(active: DictionarySource): SearchRepository {
+        val mismoIdioma = opened.filter {
+            it !== active && it.metadata.langSource == active.metadata.langSource
+        }
+        return SearchRepository(listOf(active) + mismoIdioma)
+    }
+
     fun onPackChange(packId: String) {
         val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
         // The combine is going to repeat the prefix query on the new pack and would overwrite the
         // definition results anyway: better to leave the mode explicitly than leave the race open.
         leaveDefinitionMode()
         source.value = pack
+        searcher.value = repositoryFor(pack)
         _state.update { it.copy(active = pack.metadata) }
         // Nothing is recomputed for the SCREEN: the words of the day for every pack are already
         // there. The tile is, because it shows only one and it is the active pack's -- leaving it
