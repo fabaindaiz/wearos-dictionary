@@ -2,7 +2,7 @@ package cl.fadiaz.dictionary.presentation
 
 import android.app.Activity
 import android.content.Intent
-import android.speech.RecognizerIntent
+import android.app.RemoteInput
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -46,6 +46,8 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.input.RemoteInputIntentHelper
+import androidx.wear.input.wearableExtender
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.core.EntrySummary
@@ -102,9 +104,10 @@ fun SearchScreen(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
+            RemoteInput.getResultsFromIntent(result.data)
+                ?.getCharSequence(KEY_SPOKEN)
+                ?.toString()
+                ?.takeIf { it.isNotBlank() }
                 ?.let(onQueryChange)
         }
     }
@@ -161,7 +164,7 @@ fun SearchScreen(
                     // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
                         SearchBar(state.query, onQueryChange, onTypingChanged) {
-                            voice.launch(voiceIntent(state.active?.langSource ?: "es"))
+                            voice.launch(nativeInputIntent("Buscar en ${state.active?.name ?: "el diccionario"}"))
                         }
                     }
 
@@ -170,7 +173,7 @@ fun SearchScreen(
                         // enter what I am looking for-- and separating them forced a scroll.
                         item(key = "voz") {
                             Button(
-                                onClick = { voice.launch(voiceIntent(state.active?.langSource ?: "es")) },
+                                onClick = { voice.launch(nativeInputIntent("Buscar en ${state.active?.name ?: "el diccionario"}")) },
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
                             ) { Text("Decir una palabra") }
@@ -541,16 +544,40 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
     }
 }
 
-private fun voiceIntent(lang: String): Intent =
-    Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-        )
-        // The recogniser has to listen in the ACTIVE pack's language, not the system's: a
-        // watch in English dictating "perro" would return anything, and vice versa.
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
-    }
+/** La clave con la que el input del sistema devuelve lo dictado o escrito. */
+private const val KEY_SPOKEN = "spoken"
+
+/**
+ * La entrada **nativa del reloj**, no el reconocedor de Google.
+ *
+ * `ACTION_REMOTE_INPUT` abre el selector de entrada del sistema, que en un Wear OS ofrece voz,
+ * teclado y escritura a mano en una sola superficie — la misma que usa cualquier respuesta rapida
+ * del reloj. `RecognizerIntent` abria **solo** el reconocedor de Google, que es una app aparte y
+ * no siempre esta.
+ *
+ * ⚠️ **Lo que se pierde, y no es cosmetico**: `RecognizerIntent` aceptaba
+ * `EXTRA_LANGUAGE = langSource`, asi que se dictaba en el idioma DEL PACK. El input del sistema
+ * usa el idioma **del reloj**. Con el reloj en español y el pack ingles abierto, dictar va a
+ * transcribir en español. Por eso la etiqueta nombra el diccionario: es lo unico que queda para
+ * decirle al usuario en que esta buscando.
+ */
+private fun nativeInputIntent(label: String): Intent {
+    val input = RemoteInput.Builder(KEY_SPOKEN)
+        .setLabel(label)
+        // Un diccionario no busca emojis, y quitarlos saca una pestaña del selector.
+        //
+        // ⚠️ El tipo de accion (Buscar en vez de Enviar) **no se puede fijar desde Kotlin**:
+        // `setInputActionType` es publica pero las constantes `INPUT_ACTION_TYPE_*` de
+        // `WearableRemoteInputExtender` son `internal` en wear-input 1.2.0 --verificado
+        // desarmando el .aar, aparecen como `$wear_input_release`--. Desde Java se ven
+        // publicas; desde Kotlin no. Queda con el default.
+        .wearableExtender { setEmojisAllowed(false) }
+        .build()
+    return RemoteInputIntentHelper.putRemoteInputsExtra(
+        RemoteInputIntentHelper.createActionRemoteInputIntent(),
+        listOf(input),
+    )
+}
 
 /**
  * The pack stores `pos` with kaikki's code (`noun`, `verb`). Translating it is the UI's job:
