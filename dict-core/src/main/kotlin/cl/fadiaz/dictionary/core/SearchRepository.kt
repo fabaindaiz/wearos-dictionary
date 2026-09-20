@@ -34,14 +34,17 @@ class SearchRepository(private val packs: List<DictionarySource>) {
      * three per pack would fill a watch screen with whichever pack answered first.
      */
     suspend fun suggest(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> =
-        merge(limit) { it.suggest(query, limit) }
+        merge(limit, query) { it.suggest(query, limit) }
 
     /** The free-text search over definitions (D-084). Same merge, same order. */
     suspend fun searchDefinitions(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> =
-        merge(limit) { it.searchDefinitions(query, limit) }
+        // Sin `query` para la banda: acá lo escrito no es un prefijo del lema sino una palabra
+        // de la definición, así que la cobertura no significa nada. Ver [coverageBand].
+        merge(limit, query = null) { it.searchDefinitions(query, limit) }
 
     private suspend fun merge(
         limit: Int,
+        query: String?,
         consultar: suspend (DictionarySource) -> List<Suggestion>,
     ): List<Suggestion> {
         val todas = mutableListOf<Suggestion>()
@@ -59,11 +62,65 @@ class SearchRepository(private val packs: List<DictionarySource>) {
             }
             todas.addAll(suyas)
         }
-        return todas.sortedWith(ORDEN).distinctBy { it.headword to it.partOfSpeech }.take(limit)
+        return todas
+            .sortedWith(orderFor(query))
+            .distinctBy { it.headword to it.partOfSpeech }
+            .take(limit)
     }
 
     private companion object {
         const val DEFAULT_LIMIT = 30
+
+        /**
+         * How much of the headword the user actually typed, in **coarse bands**.
+         *
+         * ⚠️ **The one signal in the whole ordering that trusts no pack at all** (D-142). It is a
+         * function of the typed text and of the headword string: no `rank`, no `score`, nothing a
+         * pack computed. That is exactly what makes it survive a badly calibrated —or hostile—
+         * community pack, because `score` is *the position inside that pack's own list*, so a
+         * pack with a broken internal order hands its garbage over at position 0 and the merge
+         * treats it as the equal of the good pack's best row.
+         *
+         * **Bands and not the raw ratio, deliberately.** Coarse buckets put `casa` above
+         * `castigar` without overriding a *good* pack inside a bucket: two words of similar
+         * length keep the order the pack chose, which beats any heuristic when the pack is sane.
+         *
+         * Measured over the two real Spanish packs: typing "cas" returned `castigar, castreño,
+         * cascar` and **did not return `casa` at all**; with this it returns `casa, casar,
+         * cascar`. "per" goes from `percibir, perder` to `perro, persa`. "arb" from `árbitro` to
+         * `árbol`. It fixes a visible ordering bug that was there with **one** pack too (D-067).
+         *
+         * ⚠️ Cross-pack agreement —ranking a headword higher because several packs returned it—
+         * was measured next to this and **rejected**: it improved "cas" and made "tomat" worse,
+         * and it makes the order depend on which *other* dictionaries happen to be installed.
+         */
+        internal fun coverageBand(query: String, headword: String): Int {
+            if (headword.isEmpty()) return LAST_BAND
+            val coverage = query.length.toDouble() / headword.length
+            return when {
+                coverage >= 0.85 -> 0   // practically typed the whole word
+                coverage >= 0.60 -> 1
+                coverage >= 0.40 -> 2
+                else -> LAST_BAND
+            }
+        }
+
+        private const val LAST_BAND = 3
+
+        /**
+         * [ORDEN], with the calibration-free band in front when there is a query to measure
+         * against.
+         *
+         * The band applies **only to prefix matches**. For `FUZZY`, `score` is the edit distance
+         * —which we compute, so it is already pack-independent— and the coverage of a word that
+         * is *not* a prefix of the headword means nothing.
+         */
+        private fun orderFor(query: String?): Comparator<Suggestion> {
+            if (query.isNullOrEmpty()) return ORDEN
+            return compareBy<Suggestion> { it.matchKind.ordinal }
+                .thenBy { if (it.matchKind == MatchKind.PREFIX) coverageBand(query, it.headword) else 0 }
+                .thenComparator { a, b -> ORDEN.compare(a, b) }
+        }
 
         /**
          * The order across packs, and the reason it is one comparator and not a concatenation.

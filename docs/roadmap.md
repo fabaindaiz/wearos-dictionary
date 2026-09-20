@@ -126,6 +126,8 @@ y eso no es grasa: es el precio de que "corriendo" encuentre "correr". La poda y
 
 **Estado.** **Hecho** (2026-09-17). Era lo que destapó el pack real y lo que hacía inusable el MVP.
 
+⚠️ **Actualización 2026-09-20 (D-142).** Seguía mal y se vio midiendo: escribir *cas* devolvía `castigar, castreño, cascar` y **no devolvía `casa`**. La causa es que `rank` es un proxy de **riqueza de página**, no de frecuencia, y una página larga gana. Se puso delante una **banda de cobertura** —cuánto del lema se escribió— que no mira ningún dato del pack: *cas* → `casa, casar, cascar`; *per* → `perro, persa`; *arb* → `árbol`. **No reemplaza al rank, lo acota**: dentro de una banda sigue mandando el pack. Lo que falta sigue siendo una señal de frecuencia real, que esta fuente no tiene.
+
 **En qué quedó.** El prefijo ordena `(coincidencia exacta, rank, norm)` y la cascada deduplica
 por `(headword, pos)` al final, con over-fetch ×3 (D-068, D-069).
 

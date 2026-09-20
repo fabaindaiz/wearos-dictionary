@@ -182,7 +182,7 @@ PACKS = {
         # que sumar contenido y sumar credito sean el mismo acto.
         "fuente_base": "wikc",
         "source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
-        "proper_nouns": "lexical-only",
+        "proper_nouns": "included",
     },
     # El SEGUNDO pack base de español (D-139). No reemplaza al del Wikcionario: se instala al
     # lado y se consulta junto con el (D-136), y la ganancia es la union de lemas -- 5.283 que el
@@ -201,7 +201,7 @@ PACKS = {
         "license": "CC0-1.0",
         "fuente_base": "wd",
         "source_url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
-        "proper_nouns": "lexical-only",
+        "proper_nouns": "included",
     },
     "en": {
         "pack_id": "en-def-wikt",
@@ -217,7 +217,7 @@ PACKS = {
         "license": "CC-BY-SA-4.0",
         "fuente_base": "wikt",
         "source_url": "https://kaikki.org/dictionary/English/",
-        "proper_nouns": "lexical-only",
+        "proper_nouns": "included",
     },
     # SPIKE (D-120). Existe para medir, no es un pack de produccion: no esta en el catalogo y
     # no se sube al reloj. Ver sources/oewn.py.
@@ -277,7 +277,7 @@ def main(argv):
     sample = 1
     if "--sample" in argv:
         sample = int(argv[argv.index("--sample") + 1])
-    politica = "lexical-only"
+    politica = kaikki.POLITICA_POR_DEFECTO
     if "--con-nombres" in argv:
         politica = "included"
     if "--nombres" in argv:
@@ -296,7 +296,7 @@ def main(argv):
     if sample > 1:
         metadata["pack_id"] += "-sample%d" % sample
         metadata["name"] += " (piloto 1/%d)" % sample
-    if politica != "lexical-only":
+    if politica != kaikki.POLITICA_POR_DEFECTO:
         # El pack por defecto conserva el pack_id pelado: si cambiara, el `pack_activo`, el
         # historial y los favoritos del reloj quedarian apuntando a un pack que ya no existe.
         # Los otros lo sufijan para que dos politicas puedan convivir instaladas y compararse.

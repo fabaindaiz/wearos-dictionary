@@ -84,13 +84,12 @@ class WikidataTest(unittest.TestCase):
                            _lex("L6", "entre tanto", categoria="Q5978303"))
         self.assertEqual(["noun", "verb", "adv"], [r.part_of_speech for r in got])
 
-    def test_un_nombre_propio_se_poda_como_en_la_otra_fuente(self):
-        # Q147276 se mapea a "name" justamente para que la politica de D-116/D-134 lo agarre sin
-        # que este modulo tenga que saber nada de ella.
+    def test_un_nombre_propio_entra_por_defecto_y_se_poda_si_se_pide(self):
+        # Q147276 se mapea a "name" justamente para que las politicas de D-116/D-134 lo agarren
+        # sin que este modulo tenga que saber nada de ellas. Por defecto **entra** (D-141).
         propio = _lex("L7", "Portugal", categoria="Q147276")
-        self.assertEqual([], [r.headword for r in self.records(propio)])
-        self.assertEqual(["Portugal"],
-                         [r.headword for r in self.records(propio, politica="included")])
+        self.assertEqual(["Portugal"], [r.headword for r in self.records(propio)])
+        self.assertEqual([], [r.headword for r in self.records(propio, politica="lexical-only")])
 
     def test_los_DOS_homografos_llevan_clave_no_solo_el_segundo(self):
         """Si solo la llevara el segundo, el uid del primero dependeria del orden del dump.

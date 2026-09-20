@@ -211,15 +211,15 @@ class IdiomaTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             list(kaikki.records(path, lang="klingon"))
 
-    def test_por_defecto_no_salen_los_nombres_propios(self):
-        # D-116: apellidos y toponimos no entran a un diccionario de muñeca. El default vive
-        # ACA, en la libreria, no en el flag de la CLI: cualquier llamador nuevo lo hereda.
+    def test_la_politica_lexical_only_poda_los_nombres_propios(self):
+        # D-116 sigue disponible y sigue haciendo lo que hacia; lo que cambio es que **ya no es
+        # el default** (D-141). Se pide por nombre, y es la que produjo los numeros de D-116.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
         )
         self.paths.append(path)
-        got = [r.headword for r in kaikki.records(path, lang="en")]
+        got = [r.headword for r in kaikki.records(path, lang="en", politica="lexical-only")]
         self.assertEqual(["run"], got)
 
     def test_un_nombre_propio_con_senal_lexica_se_conserva(self):
@@ -243,7 +243,29 @@ class IdiomaTest(unittest.TestCase):
             _raw("Hopewell", "name", [_sense("A surname.")], derived=[{"word": "uno"}]),
         )
         self.paths.append(path)
-        self.assertEqual([], [r.headword for r in kaikki.records(path, lang="en")])
+        # ⚠️ **Ya no es el default** (D-141). Se pidio explicitamente que ninguna fuente pierda
+        # palabras: "quiero que vayan completas antes que tener que decidir que eliminar y que no
+        # y hacerlo erroneamente". La poda sigue existiendo y se pide por nombre.
+        self.assertEqual(
+            [], [r.headword for r in kaikki.records(path, lang="en", politica="lexical-only")])
+
+    def test_por_DEFECTO_no_se_pierde_ninguna_palabra(self):
+        """El default es `included`: ninguna fuente pierde entradas (D-141).
+
+        ⚠️ **Lo que vuelve seguro este default es el castigo de rank**, no la esperanza de que no
+        molesten. D-116 midio 4.267 casos en ingles donde el toponimo le gana en rank a la palabra
+        comun; con `CASTIGO_NOMBRE_PROPIO` el mejor nombre propio queda debajo de la peor palabra
+        comun, asi que entran **sin desplazar nada**.
+        """
+        path = _jsonl(
+            _raw("Ivanivka", "name", [_sense("A village in Cherkasy Oblast, Ukraine.")]),
+            _raw("run", "verb", [_sense("To move at a fast pace.")]),
+        )
+        self.paths.append(path)
+        got = {r.headword: r.rank for r in kaikki.records(path, lang="en")}
+        self.assertEqual({"Ivanivka", "run"}, set(got))
+        self.assertGreater(got["Ivanivka"], got["run"],
+                           "el nombre propio tiene que entrar DEBAJO de la palabra comun")
 
     def test_la_politica_included_los_trae_de_vuelta_a_todos(self):
         # La medicion sigue siendo posible: es lo que produjo el numero de D-116.
@@ -295,7 +317,9 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
         path = _jsonl(_raw("Puruándiro", "name",
                            [_sense("Ciudad del estado de Michoacán en México.")]))
         self.paths.append(path)
-        self.assertEqual([], [r.headword for r in kaikki.records(path, lang="es")])
+        self.assertEqual(
+            [], [r.headword for r in kaikki.records(path, lang="es", politica="lexical-only")],
+            "la politica podadora si la tira: no tiene señal lexica")
         self.assertEqual(["Puruándiro"],
                          [r.headword for r in kaikki.records(path, lang="es",
                                                              politica="definitions-only")])
