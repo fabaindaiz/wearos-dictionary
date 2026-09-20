@@ -8,6 +8,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackStore
+import cl.fadiaz.dictionary.presentation.rowsThatFit
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -30,7 +31,19 @@ class HistoryTileService : TileService() {
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
         // Read from SharedPreferences and nothing else: no pack is opened. See TileRender.kt.
-        val content = TileContents.history(PackStore.history(this))
+        //
+        // Cuantas filas, contra la pantalla REAL. Un tile no scrollea, asi que aca el tamaño si
+        // manda -- al reves que el inicio, donde recortar solo esconderia (D-131).
+        //
+        // ⚠️ Se topea en `MAX_ROWS`, que es el numero medido, y no se deja crecer: el chrome de
+        // un tile --el titulo, los margenes del renderer-- **no esta medido**, y `rowsThatFit`
+        // esta anclado en la PANTALLA. Dejarlo crecer seria afirmar un numero que nadie midio.
+        // Lo que si hace es BAJAR en un reloj chico, que es lo que protege al generico.
+        val rows = minOf(
+            rowsThatFit(requestParams.deviceConfiguration.screenWidthDp),
+            TileContents.MAX_ROWS,
+        )
+        val content = TileContents.history(PackStore.history(this), rows)
         val layout = materialScope(this, requestParams.deviceConfiguration) {
             when (content) {
                 is TileContent.ListRows -> historyRows(this@HistoryTileService, content.visits)
