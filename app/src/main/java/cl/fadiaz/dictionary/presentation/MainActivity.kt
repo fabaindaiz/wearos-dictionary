@@ -190,6 +190,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
+                                    // Anota tambien desde el historial: abrirla otra vez la sube
+                                    // al tope, que es lo que un historial tiene que hacer.
+                                    viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
                                     )
@@ -215,6 +218,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                 )
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
+                                    viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(packOfTheWord)}/$target",
                                     )
@@ -237,6 +241,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // contains it. Sending it to the active pack would be the D-080 bug all
                         // over again: it would open another word, with no error.
                         onOpenWord = { id ->
+                            // Saltar de una palabra a otra tambien es abrirla. Solo se tiene el
+                            // id, asi que el ViewModel lee la cabecera para anotarla.
+                            viewModel.recordVisit(packId, id)
                             navController.navigate("$ROUTE_ENTRY/${Uri.encode(packId)}/$id")
                         },
                         // Tapping words stacks entries on top of entries. Going back one at a
@@ -248,7 +255,12 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         resolveIn = { norms -> viewModel.resolveIn(packId, norms) },
                         actions = { entry ->
                             wordActions(
-                                isFavorite = viewModel.isFavorite(packId, entry.entryId),
+                                // Del STATE recolectado y no de `viewModel.isFavorite`: ese
+                                // lee un `var` comun, que Compose no puede observar, asi que la
+                                // etiqueta no cambiaba al guardar (D-129).
+                                isFavorite = state.favorites.any {
+                                    it.packId == packId && it.entryId == entry.entryId
+                                },
                                 onToggleFavorite = {
                                     viewModel.toggleFavorite(
                                         Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
@@ -301,6 +313,8 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
+                                    // Abrir una guardada tambien es abrirla: va al historial.
+                                    viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
                                     )
