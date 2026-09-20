@@ -26,6 +26,43 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Los instrumentados corren por fin en la geometría del reloj
+
+**Qué.** Verificación sobre el emulador fiel de D-150 y barrido final de números. Sin código
+nuevo salvo los conteos de los documentos.
+
+**Áreas.** `.claude/skills/verify/SKILL.md`, `README.md`, `docs/roadmap.md` §Dónde estamos.
+
+**Por qué.** El emulador de D-150 existe desde hoy, y lo primero que habilita es correr los
+instrumentados **a 234 dp y en pantalla redonda**. Hasta ahora corrían a 192 dp y cuadrado, que
+es justo la geometría contra la que este repo lleva veinte decisiones peleando.
+
+**Medido.**
+
+- **41 tests instrumentados, 0 fallas** (34 de `:dict-data`, 7 de `:app`) en la geometría del
+  reloj. Es la primera vez.
+- Gate: **77 `:dict-core` · 227 JVM `:app` · 250 Python · 21 checks** — **554 en total**.
+  Decisiones registradas: **151**.
+- Verificado en pantalla, en el emulador fiel: la etiqueta `similar` reemplazando a `maybe`
+  (`Guanaco · similar · ES`), y **atrás con texto volviendo al inicio con la barra limpia**
+  (D-143) — las dos por segunda vez, ahora a 234 dp.
+
+**Arquitectura.** ✅ Cumple. Sólo verificación y documentación.
+
+**Qué salió mal.** **Perdí bastante tiempo manejando la app por `adb`** para construir un
+historial de más de tres entradas. Los taps sobre las filas de resultados no navegaban con las
+coordenadas que sacaba de `uiautomator`, y varios `keyevent 4` de más terminaban sacándome de la
+app. Lo que sí quedó verificado en pantalla es el caso de **una sola visita, sin botón «Ver
+más»**, que es la mitad de D-148; la otra mitad la cubren los tests de pantalla, comprobados
+fallando sin el arreglo.
+
+**Lo que hay que sacar de ahí**: el ítem de proceso de §Verificar a ojo en el emulador sigue
+vivo aunque se haya destrabado la escritura. Llevar la pantalla a un estado concreto por gestos
+sigue siendo caro e inestable; lo barato es componerla en un test y guardar el PNG.
+
+**Qué quedó sin hacer.** Lo mismo que abre §Varios packs por idioma: qué cuenta como «el mismo
+diccionario» (decisión de producto), el caché del tile por pack, y la composición.
+
 ## 2026-09-20 — Las piezas de multipack que sí se podían construir
 
 **Qué.** D-151: una palabra del día por **idioma** y no por pack, y la fila de resultados dice la

@@ -23,11 +23,15 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **77 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **206 JVM
-de `:app`** y **21 checks** de auditoría estructural — **533 tests en total**. Los **34 de
-`:dict-data` son instrumentados y el gate no los corre**: necesitan dispositivo, y son los únicos
-que cierran las asunciones sobre Android. El pack de juguete pasa todas las invariantes de
-`verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **227 JVM
+de `:app`** y **21 checks** de auditoría estructural — **554 tests en total**. Los **41
+instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
+son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
+invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
+
+⚠️ **Los 41 instrumentados corrieron el 2026-09-20 a 234 dp y en pantalla redonda**, sobre el
+emulador de D-150: **0 fallas**. Es la primera vez que corren en la geometría del reloj — hasta
+entonces el AVD por defecto los corría a 192 dp y en una pantalla cuadrada.
 
 **Los packs, al cerrar el 2026-09-20.** De una fuente por idioma se pasó a cuatro en español:
 
