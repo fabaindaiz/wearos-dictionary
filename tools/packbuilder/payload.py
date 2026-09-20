@@ -42,6 +42,14 @@ TAG_SYNONYM = "Y"
 # sin antonimos, que es degradacion correcta.
 TAG_ANTONYM = "A"
 
+# Palabra RELACIONADA de esta acepcion: hiperonimo, hiponimo o pariente morfologico (D-132).
+# Tag aditivo como el anterior, asi que tampoco sube CODEC_ID.
+#
+# **No es un sinonimo y el tag separado es toda la diferencia.** "frances" trae `galo` como
+# related; emitido como sinonimo afirmaria una equivalencia que la fuente no da. Se emite solo
+# para entradas de una sola acepcion -- ver `sources/kaikki._relacionadas`.
+TAG_RELATED = "R"
+
 # Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
 # esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
 _RAW_DEFLATE = -15
@@ -90,6 +98,10 @@ def render(part_of_speech, senses):
             value = sanitize(antonym)
             if value:
                 lines.append(TAG_ANTONYM + "\t" + value)
+        for related in sense.get("related", ()):
+            value = sanitize(related)
+            if value:
+                lines.append(TAG_RELATED + "\t" + value)
     return "".join(line + "\n" for line in lines)
 
 
@@ -114,6 +126,7 @@ def parse(text):
                     "translations": [],
                     "synonyms": [],
                     "antonyms": [],
+                    "related": [],
                 }
             )
         elif tag == TAG_EXAMPLE:
@@ -131,6 +144,9 @@ def parse(text):
         elif tag == TAG_ANTONYM:  # noqa: SIM102
             if senses:
                 senses[-1]["antonyms"].append(value)
+        elif tag == TAG_RELATED:  # noqa: SIM102
+            if senses:
+                senses[-1]["related"].append(value)
         # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar
         # campos sin romper un lector viejo.
     return part_of_speech, senses

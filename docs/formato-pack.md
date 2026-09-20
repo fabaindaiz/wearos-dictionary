@@ -197,6 +197,7 @@ E<TAB>corrio hasta la esquina  ejemplo de la acepción abierta
 T<TAB>to run                   traducción de la acepción abierta
 Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
 A<TAB>detenerse                antónimo de la acepción abierta (D-126)
+R<TAB>camélido                 palabra relacionada de la acepción abierta (D-132)
 ```
 
 Delimited text instead of JSON or CBOR on purpose: it parses with no dependency at all in both
@@ -204,7 +205,8 @@ languages, it can be read by eye while debugging a pack, and after compression t
 difference against a binary format is noise.
 
 **Unknown tags are ignored**, so a newer builder can add fields without breaking an older app.
-That tolerance is exactly why the antonym tag `A` **did not** bump `payload_codec` (D-126).
+That tolerance is exactly why the antonym tag `A` **did not** bump `payload_codec`
+(D-126), and neither did the related-words tag `R` (D-132).
 
 **Why deflate and not zstd**, even though zstd compresses better: deflate is in `java.util.zip`
 (an Android platform API, no extra `.so`) and in Python's stdlib `zlib`. zstd would force a native

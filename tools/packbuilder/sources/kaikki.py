@@ -65,6 +65,12 @@ MAX_EXAMPLES_PER_SENSE = 1
 # linea; el quinto ya obliga a scrollear para leer algo que es una ayuda, no la definicion.
 MAX_SYNONYMS_PER_SENSE = 4
 
+# Los tres campos de los que salen las palabras relacionadas, **en este orden**, que es el de
+# cuanto dicen: un hiperonimo ubica la palabra ("guanaco -> camelido"), un hiponimo da un caso, y
+# `related` es una bolsa de parientes morfologicos ("frances -> galo, francofilo"). Con tope 4 el
+# orden decide que se ve.
+CAMPOS_RELACIONADAS = ("hypernyms", "hyponyms", "related")
+
 # LA FUENTE DECIDE DE DONDE SALEN LOS SINONIMOS, NO UNA LISTA DE IDIOMAS.
 #
 # Habia una lista --`IDIOMAS_CON_SINONIMOS = {"es"}`-- y estaba justificada por una medicion
@@ -230,6 +236,60 @@ def _nested(sense, headword, clave):
     return out
 
 
+def _es_markup(word):
+    """Una referencia interna del wiki, no una palabra. Medido: 0,40 % de los items.
+
+    Estas listas son las unicas del payload que la fuente **no limpia**: los sinonimos vienen
+    como lemas y estas vienen como enlaces crudos, asi que traen namespaces (`Appendix:Months`,
+    `mul:12`), referencias a secciones (`abbot § Related terms`) y alguna frase suelta
+    (`more at ...`).
+
+    Importa mas de lo que el 0,40 % sugiere: donde se ven es en las entradas **flacas**, que son
+    para las que existen, y ahi esa linea es lo unico debajo de la glosa. Ademas ninguna se puede
+    abrir --`norm()` no las encuentra-- asi que serian un enlace muerto.
+    """
+    return ":" in word or "§" in word or word.lower().startswith("more at ")
+
+
+def _relacionadas(fuente, headword, ya_mostrados):
+    """Hiperonimos, hiponimos y `related`, leidos de `fuente`: una acepcion o el registro entero.
+
+    Son el ultimo campo aprovechable que la fuente traia y el builder tiraba. Importan por las
+    **entradas flacas**: el 70,4 % del pack español es una acepcion sola sin ejemplo, y esas son
+    las que se sienten vacias en el reloj. Medido sobre 174.395 registros vivos: de las 29.817
+    flacas, 2.142 ganan algo por aca (7,2 %). Los sinonimos alcanzan a mas --20,3 %-- pero esos
+    ya entran por `_by_sense_index`, asi que no son ganancia nueva.
+
+    **Las dos formas del dump, y no son intercambiables.** Igual que con los sinonimos (D-124),
+    cada idioma sirve estas listas en un lugar distinto -- medido sobre ~185.000 registros vivos
+    de cada dump:
+
+        relacionadas ANIDADAS en la acepcion     es 0,0 %   en 13,8 %
+        relacionadas a nivel de ENTRADA          es 5,0 %   en  9,6 %
+
+    Anidadas la atribucion es **estructural**: el item ya vive en su acepcion, asi que entran
+    siempre. A nivel de entrada es **inexistente** --no hay `sense_index`, a diferencia de los
+    sinonimos-- y entonces `_senses` solo las pide **si la entrada tiene una sola acepcion**. Con
+    varias, colgarlas de la primera seria inventar la atribucion: el mismo error que
+    `_by_sense_index` documenta y descarta, que no lanza, no loguea y sale del pack como
+    contenido correcto. Con una sola no hay nada que inventar, porque no hay otra donde irian.
+
+    `ya_mostrados` son los sinonimos y antonimos que esa acepcion ya emite. Repetir una palabra
+    dos renglones mas abajo gasta una pantalla de reloj, que es el recurso escaso de este pack.
+    """
+    out, vistos = [], set(ya_mostrados)
+    for clave in CAMPOS_RELACIONADAS:
+        for item in fuente.get(clave) or []:
+            word = (item.get("word") or "").strip()
+            # Igual que en _forms(), _by_sense_index() y _nested(): la palabra igual al lema no
+            # aporta nada. Aca pasa de verdad -- "be" se lista como related de "be".
+            if not word or word == headword or word in vistos or _es_markup(word):
+                continue
+            vistos.add(word)
+            out.append(word)
+    return out
+
+
 def _senses(raw):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
     headword = raw.get("word", "")
@@ -261,7 +321,20 @@ def _senses(raw):
             "antonyms": (
                 antonyms.get(index, []) or _nested(sense, headword, "antonyms")
             )[:MAX_SYNONYMS_PER_SENSE],
+            # Solo la forma ANIDADA aca: es la unica cuya atribucion es estructural. La de
+            # nivel de entrada se agrega abajo, y solo si hay una sola acepcion.
+            "related": _relacionadas(
+                sense, headword, ya_mostrados=synonyms.get(index, []) + antonyms.get(index, [])
+            )[:MAX_SYNONYMS_PER_SENSE],
         })
+    if len(out) == 1:
+        # Union con lo anidado, no precedencia -- igual que las dos formas de los sinonimos: la
+        # que este vacia no aporta nada, y ningun dump usa las dos a la vez.
+        sola = out[0]
+        ya = sola["synonyms"] + sola["antonyms"] + sola["related"]
+        sola["related"] = (
+            sola["related"] + _relacionadas(raw, headword, ya)
+        )[:MAX_SYNONYMS_PER_SENSE]
     return out
 
 

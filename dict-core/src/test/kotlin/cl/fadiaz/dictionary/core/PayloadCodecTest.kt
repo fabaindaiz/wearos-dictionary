@@ -136,6 +136,35 @@ class PayloadCodecTest {
     }
 
     @Test
+    fun `una acepcion se queda con sus relacionadas y no con las de la siguiente`() {
+        val body = PayloadCodec.parse("S\tuna\nR\tprimera\nS\totra\nR\tsegunda\n")
+        assertEquals(listOf("primera"), body.senses[0].related)
+        assertEquals(listOf("segunda"), body.senses[1].related)
+    }
+
+    @Test
+    fun `relacionadas, sinonimos y antonimos no se mezclan`() {
+        // Los tres son listas de palabras y el tag es lo unico que las separa. Una relacionada
+        // leida como sinonimo afirma una equivalencia que la fuente no da.
+        val body = PayloadCodec.parse("S\tcaliente\nY\tardiente\nA\tfrio\nR\tcalor\n")
+        assertEquals(listOf("ardiente"), body.senses[0].synonyms)
+        assertEquals(listOf("frio"), body.senses[0].antonyms)
+        assertEquals(listOf("calor"), body.senses[0].related)
+    }
+
+    @Test
+    fun `el fixture trae un caso con relacionadas`() {
+        // Sin esto el espejo Python-Kotlin del tag R no queda verificado contra bytes reales:
+        // los dos tests de arriba solo prueban el parser de este lado.
+        val fixture = loadFixture()
+        val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
+        assertTrue(
+            bodies.flatMap { it.senses }.any { it.related.isNotEmpty() },
+            "el fixture no trae ninguna acepcion con relacionadas",
+        )
+    }
+
+    @Test
     fun `el fixture trae un caso con antonimos, y no los confunde con sinonimos`() {
         // El fixture es lo unico que comprueba que java.util.zip descomprima exactamente lo que
         // zlib comprimio. Un caso con los dos tags CRUZADOS es lo que detecta un parser que

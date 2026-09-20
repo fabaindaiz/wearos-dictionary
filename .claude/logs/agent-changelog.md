@@ -26,6 +26,95 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — El último campo que la fuente traía y el builder tiraba
+
+**Qué.** Tres cosas, de un mismo pedido: *«que el código sea genérico pero se adapte de otras
+formas a la resolución. Además, implementa lo que quedó pendiente… incluyendo mejorar o completar
+el pack de español… recordá dar los créditos y considerar licencias»*.
+
+1. **D-132, palabras relacionadas.** Hiperónimos, hipónimos y `related` entran al payload con el
+   tag `R`, aditivo (no sube `CODEC_ID`) y fuera de `fts_def`. Dos reglas de atribución según
+   cómo las sirva el dump. Se reconstruyeron los packs real de español y de inglés.
+2. **D-133, el espacio bajo el reloj es una fracción de la pantalla**, no 20 dp. Segundo eje
+   adaptable después de `rowsThatFit`.
+3. Se filtró el **markup del wiki** que venía colado en esas listas.
+
+**Áreas.** En el builder, `tools/packbuilder/sources/kaikki.py` con `payload.py`, `build.py`,
+`build_pack.py` y `gen_payload_fixture.py`, más sus tests. En el núcleo, `Model.kt` y
+`PayloadCodec.kt` con `PayloadCodecTest`. En la app, `Components.kt`, `EntryScreen.kt`,
+`SearchScreen.kt`, `ScreensTest`, el `ClockGapTest` nuevo y las dos tablas de strings. En
+documentos, `docs/decisions.md`, `docs/roadmap.md` y `docs/formato-pack.md`, más
+`.claude/skills/verify/SKILL.md`, cuyos conteos estaban viejos.
+
+⚠️ *(Las llaves de shell no son un path y el audit las rechaza — es la segunda vez que caigo en lo
+mismo, después de `values{,-es}/strings.xml`.)*
+
+**Por qué.** *«Mejorar o completar el pack de español»*, y con la instrucción de **no olvidar los
+créditos ni las licencias**. Eso terminó decidiendo el alcance: la fuente elegida es **la misma
+que ya estaba** (Wikcionario vía kaikki.org, CC BY-SA 4.0), así que `license`, `attribution` y
+`source_url` **no cambian** y la atribución sigue siendo exacta. Traer una segunda fuente habría
+obligado a nombrar a las dos, y eso es el ítem de los ejemplos, que sigue abierto.
+
+**Medido.** Lo primero fue barrer qué quedaba sin usar, antes de escribir nada:
+
+- 174.395 registros vivos del dump español. Las entradas **flacas** —una acepción, sin ejemplo—
+  son 29.817. El **25,4 %** traía algo aprovechable, pero **el 20,3 % eran sinónimos que ya
+  entraban** por D-117/D-124. Lo genuinamente nuevo: `related` 4,8 %, `hypernyms` 1,7 %,
+  `hyponyms` 0,8 %.
+- Las dos formas del dump, ~185.000 registros vivos de cada uno: **anidadas** en la acepción
+  es 0,0 % / en 13,8 %; **a nivel de entrada** es 5,0 % / en 9,6 %. El mismo espejo que los
+  sinónimos, y la razón de que hagan falta dos reglas.
+- En los packs terminados: **5.395 entradas en español (4,7 %)** y **90.310 en inglés (11,4 %)**,
+  por **+112 KB (0,17 %)** y **+1,4 MB (0,51 %)**. Más que los antónimos de D-126, que se
+  aceptaron con 2,9 %.
+- Markup colado: **1.072 de 267.721 items (0,40 %)** no son palabras. Tras el filtro, **0** en los
+  dos packs.
+- `PaddingDefaults` leído del `.aar`, no de memoria: vertical **10 %**, horizontal **5,2 %**,
+  `edgePadding = 2.dp`.
+- Gate: **57 `:dict-core` · 196 JVM `:app` · 161 Python · 20 checks**, verde.
+
+**Arquitectura.** ✅ Cumple. Tag aditivo, `CODEC_ID` quieto, tags desconocidos ignorados: un pack
+de usuario sin `R` sigue siendo válido y la pantalla no dibuja esa línea — que es exactamente lo
+que D-130 prometió sobre la modularidad, ahora ejercitado por tercera vez.
+
+**Qué salió mal.**
+
+- **Leí el pack y encontré basura que los tests no podían ver.** En una muestra de seis entradas
+  flacas del pack inglés salió `abbacy → abbé, more at abbot § Related terms`. Estas listas son
+  las únicas del payload que la fuente **no limpia**: vienen como enlaces crudos. Lo agarró leer
+  entradas de verdad, no contar filas — el gate estaba verde con la basura adentro.
+- **Escribí el test del filtro junto con el filtro**, así que no lo vi fallar. Lo forcé después
+  parchando `_es_markup` a `False`: falla con los tres items de más. Corregido el método, no sólo
+  el resultado.
+- **Una expectativa mía estaba mal, no el código**: el separador de listas es ` · `, no `, `.
+- **Casi prometo en la descripción del pack algo que el inglés no tenía.** Antes de tocar
+  `description` medí el dump inglés y ahí apareció que sirve las relacionadas **anidadas**, que
+  era la forma que mi primera implementación ignoraba. Medir para no mentir en un metadato
+  terminó **duplicando la ganancia**.
+- **No pude mirar la línea `rel.` en pantalla.** Cuarto golpe del ítem de proceso: el IME de Wear
+  abre en modo extract y el texto no llega al campo. Probados y fallidos `input text` + la lupa,
+  `input text` + `keyevent 66`, ESC, y `input keyboard text`. **Se acabaron los workarounds desde
+  afuera**, y eso está escrito en el roadmap: ahora el test instrumentado con captura es la única
+  opción, no la cómoda.
+
+**Qué quedó sin hacer.**
+
+- **La línea `rel.` no se vio en un reloj ni en el emulador.** Está verificada leyendo los
+  payloads descomprimidos y por `ScreensTest` bajo Robolectric. No es lo mismo y no se presenta
+  como si lo fuera.
+- **El margen lateral no se tocó, a propósito.** A diferencia del espacio bajo el reloj —donde los
+  20 dp resultaron ser **exactamente** el 10 % de 192 dp, así que la fracción revelaba la
+  intención en vez de cambiarla— los 16 dp no son el 5,2 % de nada. Pasarlos a la fracción achica
+  el margen en los dos relojes que existen, en 12 lugares, sin poder mirarlo. Queda en el roadmap
+  con la medición que necesita. *(La alternativa `max(16.dp, 5,2 %)` es código muerto: sólo
+  actuaría arriba de 308 dp.)*
+- **Decisión que no me corresponde, escrita en el roadmap**: los packs se reconstruyeron **sin
+  cambiar el dump**, así que `data_version` —que es la fecha del dump— declara lo mismo que los
+  viejos y un reloj no puede saber que hay uno mejor. Hoy no rompe nada porque los packs se
+  copian a mano; es requisito del instalador. Tres caminos, ninguno obvio.
+- **Los duplicados por mayúscula siguen** (`abecedary → Abecedarian · abecedarian`). Ruido, no
+  error, y filtrarlos sin mirar rompería pares legítimos tipo *Polish* / *polish*. Sin medir.
+
 ## 2026-09-20 — El teclado no se cerraba por el campo, se cerraba por la lista
 
 **Qué.** Cuatro bugs reportados desde el reloj y la app bilingüe. El teclado ya no se cierra al

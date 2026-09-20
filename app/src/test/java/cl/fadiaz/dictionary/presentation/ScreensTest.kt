@@ -280,6 +280,29 @@ class ScreensTest {
     }
 
     @Test
+    fun `las relacionadas se distinguen de los sinonimos por el prefijo`() {
+        // Tercera lista con la misma forma (D-132), y el mismo riesgo elevado: "galo" mostrado
+        // como sinonimo de "frances" afirma una equivalencia que la fuente no da. Las tres se ven
+        // iguales, asi que lo unico que las separa son los prefijos -- y eso es lo que se fija.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(
+                        Sense(
+                            "mamífero camélido sudamericano",
+                            synonyms = listOf("huanaco"),
+                            related = listOf("camélido", "vicuña"),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("sin. huanaco", substring = true).assertExists()
+        compose.onNodeWithText("rel. camélido", substring = true).assertExists()
+        compose.onNodeWithText("vicuña", substring = true).assertExists()
+    }
+
+    @Test
     fun withMoreThanThreeSensesOnlyThreeShowPlusAShowMore() {
         // "justicia" has 10 senses and the measured maximum is 47. With no cap, the screen
         // becomes a scroll and the useful sense sits below nine nobody was looking for.

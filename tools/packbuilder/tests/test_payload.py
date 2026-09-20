@@ -23,9 +23,9 @@ class RenderParseTest(unittest.TestCase):
     def test_round_trip(self):
         senses = [
             {"gloss": "primera", "examples": ["ej uno"], "translations": ["first"],
-             "synonyms": ["bobo", "zonzo"], "antonyms": ["listo"]},
+             "synonyms": ["bobo", "zonzo"], "antonyms": ["listo"], "related": ["tonto"]},
             {"gloss": "segunda", "examples": [], "translations": ["second", "other"],
-             "synonyms": [], "antonyms": []},
+             "synonyms": [], "antonyms": [], "related": []},
         ]
         text = payload.render("verb", senses)
         pos, parsed = payload.parse(text)
@@ -88,6 +88,32 @@ class RenderParseTest(unittest.TestCase):
         ])
         _pos, senses = payload.parse(texto)
         self.assertEqual(["frio", "helado"], senses[0]["antonyms"])
+
+    def test_las_relacionadas_van_a_su_acepcion(self):
+        _pos, senses = payload.parse("S\tuna\nR\tprimera\nS\totra\nR\tsegunda\n")
+        self.assertEqual(["primera"], senses[0]["related"])
+        self.assertEqual(["segunda"], senses[1]["related"])
+
+    def test_las_relacionadas_no_se_confunden_con_sinonimos_ni_antonimos(self):
+        # Los tres son listas de palabras y el tag es lo unico que las separa. Una relacionada
+        # leida como sinonimo afirma una equivalencia que la fuente no da: "frances" trae `galo`
+        # como related, y como sinonimo seria falso.
+        _pos, senses = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\nR\tcalor\n")
+        self.assertEqual(["ardiente"], senses[0]["synonyms"])
+        self.assertEqual(["frio"], senses[0]["antonyms"])
+        self.assertEqual(["calor"], senses[0]["related"])
+
+    def test_render_y_parse_conservan_las_relacionadas(self):
+        texto = payload.render("noun", [
+            {"gloss": "silabario", "related": ["hiragana", "kanji"]},
+        ])
+        _pos, senses = payload.parse(texto)
+        self.assertEqual(["hiragana", "kanji"], senses[0]["related"])
+
+    def test_una_relacionada_antes_de_la_primera_acepcion_se_ignora(self):
+        _pos, senses = payload.parse("R\thuerfana\nS\tla acepcion\n")
+        self.assertEqual(1, len(senses))
+        self.assertEqual([], senses[0]["related"])
 
     def test_unknown_tags_are_ignored(self):
         # Compatibilidad hacia adelante con un builder mas nuevo.

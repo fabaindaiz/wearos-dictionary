@@ -58,6 +58,14 @@ object PayloadCodec {
      */
     private const val TAG_ANTONYM = 'A'
 
+    /**
+     * Palabra relacionada de esta acepcion (D-132): hiperonimo, hiponimo o pariente morfologico.
+     * Aditivo igual que [TAG_ANTONYM], asi que **tampoco sube [CODEC_ID]**.
+     *
+     * Tag propio y no reusar [TAG_SYNONYM]: `galo` es related de "frances", no equivalente.
+     */
+    private const val TAG_RELATED = 'R'
+
     /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
     data class Body(val partOfSpeech: String?, val senses: List<Sense>)
 
@@ -107,6 +115,7 @@ object PayloadCodec {
                 TAG_TRANSLATION -> senses.lastOrNull()?.translations?.add(value)
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
+                TAG_RELATED -> senses.lastOrNull()?.related?.add(value)
                 else -> Unit
             }
         }
@@ -120,6 +129,7 @@ object PayloadCodec {
                     it.translations.toList(),
                     it.synonyms.toList(),
                     it.antonyms.toList(),
+                    it.related.toList(),
                 )
             },
         )
@@ -142,6 +152,9 @@ object PayloadCodec {
             for (antonym in sense.antonyms) {
                 out.append(TAG_ANTONYM).append('\t').append(antonym).append('\n')
             }
+            for (related in sense.related) {
+                out.append(TAG_RELATED).append('\t').append(related).append('\n')
+            }
         }
         return out.toString()
     }
@@ -151,6 +164,7 @@ object PayloadCodec {
         val translations = mutableListOf<String>()
         val synonyms = mutableListOf<String>()
         val antonyms = mutableListOf<String>()
+        val related = mutableListOf<String>()
     }
 
 }

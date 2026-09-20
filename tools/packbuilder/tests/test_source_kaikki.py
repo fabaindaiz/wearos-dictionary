@@ -580,6 +580,135 @@ class AntonimosTest(unittest.TestCase):
         self.assertEqual(["warm"], got.senses[0]["synonyms"])
         self.assertEqual(["cold"], got.senses[0]["antonyms"])
 
+
+
+class RelacionadasTest(unittest.TestCase):
+    """Palabras relacionadas para las entradas FLACAS, y solo donde no hay nada que inventar.
+
+    El 70,4 % del pack español son entradas de **una sola acepcion y sin ejemplo**: 80.744. Son
+    las que se sienten vacias, y la fuente tiene algo para ellas que el builder tiraba --
+    `hypernyms`, `hyponyms` y `related`.
+
+    ⚠️ **Solo entran si la entrada tiene UNA acepcion, y esa es toda la regla.** La fuente los
+    trae a nivel de ENTRADA, no de acepcion; colgarlos de la primera acepcion de una entrada con
+    varias seria inventar la atribucion, que es exactamente el error que D-117 existe para
+    impedir. Con una sola acepcion no hay a que otra cosa pertenecer.
+
+    Medido sobre 174.395 registros vivos: de las 29.817 flacas, 2.142 ganan algo por esta via
+    (7,2 %). Los sinonimos alcanzan a mas --20,3 %-- pero esos ya entraban por D-117.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_una_entrada_flaca_gana_sus_relacionadas(self):
+        path = _jsonl(_raw("katakana", "noun", [_sense("silabario japones", sense_index="1")],
+                           related=[{"word": "hiragana"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["hiragana"], got.senses[0]["related"])
+
+    def test_hiperonimos_e_hiponimos_entran_por_el_mismo_lado(self):
+        path = _jsonl(_raw("catalan", "noun", [_sense("lengua romance", sense_index="1")],
+                           hypernyms=[{"word": "lengua"}], hyponyms=[{"word": "valenciano"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["lengua", "valenciano"], got.senses[0]["related"])
+
+    def test_con_VARIAS_acepciones_no_entra_ninguna(self):
+        """EL TEST QUE PAGA LA REGLA.
+
+        La fuente los trae a nivel de entrada. Con dos acepciones no se sabe de cual son, y
+        colgarlos de la primera seria contenido incorrecto que parece correcto.
+        """
+        path = _jsonl(_raw("frances", "noun", [
+            _sense("originario de Francia", sense_index="1"),
+            _sense("idioma romance", sense_index="2"),
+        ], related=[{"word": "galo"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual([[], []], [s["related"] for s in got.senses])
+
+    def test_una_relacionada_igual_al_lema_no_se_emite(self):
+        path = _jsonl(_raw("be", "noun", [_sense("nombre de la letra b", sense_index="1")],
+                           related=[{"word": "be"}, {"word": "be alta"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["be alta"], got.senses[0]["related"])
+
+    def test_el_tope_de_cuatro_vale_igual(self):
+        path = _jsonl(_raw("x", "noun", [_sense("una glosa", sense_index="1")],
+                           related=[{"word": "r%d" % i} for i in range(9)]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(4, len(got.senses[0]["related"]))
+
+    def test_no_duplica_lo_que_ya_es_sinonimo(self):
+        """Un sinonimo ya se muestra en su linea; repetirlo abajo gasta una pantalla de reloj."""
+        path = _jsonl(_raw("domingo", "noun", [_sense("marido dominado", sense_index="1")],
+                           synonyms=[{"word": "pollerudo", "sense_index": "1"}],
+                           related=[{"word": "pollerudo"}, {"word": "calzonazos"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["pollerudo"], got.senses[0]["synonyms"])
+        self.assertEqual(["calzonazos"], got.senses[0]["related"])
+
+    def test_las_ANIDADAS_entran_aunque_haya_varias_acepciones(self):
+        """La forma del dump INGLES, y la razon por la que la regla de arriba no las alcanza.
+
+        Medido sobre 185.972 registros vivos del dump ingles: 13,8 % traen relacionadas ANIDADAS
+        dentro de la acepcion contra 9,6 % a nivel de entrada. Misma asimetria que los sinonimos
+        (D-124). Anidadas la atribucion es **estructural** --el item ya vive en su acepcion-- asi
+        que exigir una sola acepcion tiraria justamente la forma mas frecuente.
+        """
+        path = _jsonl(_raw("bank", "noun", [
+            dict(_sense("financial institution", sense_index="1"),
+                 hypernyms=[{"word": "institution"}]),
+            dict(_sense("edge of a river", sense_index="2"),
+                 related=[{"word": "riverbank"}]),
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["institution"], got.senses[0]["related"])
+        self.assertEqual(["riverbank"], got.senses[1]["related"])
+
+    def test_con_una_acepcion_se_suman_las_anidadas_y_las_de_la_entrada(self):
+        """Union, no precedencia: el mismo criterio que `_senses` ya aplica a los sinonimos."""
+        path = _jsonl(_raw("guanaco", "noun", [
+            dict(_sense("mamifero sudamericano", sense_index="1"),
+                 related=[{"word": "chulengo"}]),
+        ], hypernyms=[{"word": "camelido"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["chulengo", "camelido"], got.senses[0]["related"])
+
+
+    def test_el_markup_del_wikcionario_no_es_una_palabra(self):
+        """Medido: 1.072 de 267.721 items (0,40 %) no son palabras sino referencias internas.
+
+        Poco en el total y **mucho donde importa**: en una muestra de seis entradas flacas del
+        pack ingles salio `abbacy -> abbe, more at abbot § Related terms`, y en una entrada flaca
+        esa linea es lo unico que hay debajo de la glosa. Las tres formas medidas:
+
+            "abbot § Related terms"        145 items   una referencia a una seccion
+            "Appendix:Months", "mul:12"    927 items   un namespace del wiki, o un codigo
+            "more at ..."                    4 items   una frase, no un lema
+
+        Ninguna se puede mostrar ni se puede abrir como entrada: `norm()` no las encuentra.
+        """
+        path = _jsonl(_raw("abbacy", "noun", [_sense("dignidad de un abad", sense_index="1")],
+                           related=[{"word": "abbé"},
+                                    {"word": "more at abbot § Related terms"},
+                                    {"word": "Appendix:Months"},
+                                    {"word": "mul:12"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual(["abbé"], got.senses[0]["related"])
+
 class RankTest(unittest.TestCase):
     """rank es un PROXY: el Wikcionario no trae frecuencia de uso. Menor es mas comun."""
 

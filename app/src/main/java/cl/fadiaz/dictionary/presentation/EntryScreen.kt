@@ -359,6 +359,19 @@ private fun SenseBlock(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
+        // The related words, last, because they are the weakest claim of the three: not another
+        // way to say it and not the opposite, just a neighbour. They only exist for the THIN
+        // entries --one sense, no example-- which are 70,4 % of the Spanish pack, so in practice
+        // this line is the only thing under the gloss (D-132).
+        if (sense.related.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.entry_related_prefix) + " " +
+                    sense.related.joinToString(stringResource(R.string.entry_list_separator)),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
+            )
+        }
     }
 }
 

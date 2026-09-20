@@ -439,6 +439,10 @@ def _fts_body(senses):
     encontrar "caliente" no es algo que nadie haga: meterlos al indice sumaria ruido a una
     busqueda cuyo ORDEN ya es deuda abierta (D-067), y la entrada equivocada que devolveria
     seria ademas la que significa lo contrario de lo buscado. Hay un test que lo fija.
+
+    **Las relacionadas tampoco entran** (D-132), por el mismo criterio: nadie escribe "camelido"
+    esperando "guanaco". Van solo al payload, donde se leen al abrir la entrada, que es cuando
+    sirven. Hay un test que lo fija.
     """
     parts = []
     for sense in senses:

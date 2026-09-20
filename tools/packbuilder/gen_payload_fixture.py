@@ -60,6 +60,15 @@ CASES = [
          "synonyms": ["furioso"],
          "antonyms": ["calmado"]},
     ]),
+    # Una entrada FLACA con relacionadas (D-132), que es el caso para el que existen: una sola
+    # acepcion, sin ejemplo. Trae los TRES tags de listas a la vez -- Y, A y R -- porque lo unico
+    # que detecta un parser que confunde relacionada con sinonimo es verlos juntos y distintos.
+    ("una entrada flaca con relacionadas", "noun", [
+        {"gloss": "mamífero camélido sudamericano",
+         "synonyms": ["huanaco"],
+         "antonyms": [],
+         "related": ["camélido", "vicuña", "llama"]},
+    ]),
     ("sinonimos por acepcion", "noun", [
         {"gloss": "paga semanal que recibe un menor",
          "synonyms": ["mesada", "paga"]},
