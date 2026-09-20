@@ -61,8 +61,12 @@ class ScreensTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private fun suggestion(headword: String, pos: String? = "noun") = Suggestion(
-        packId = "test",
+    private fun suggestion(
+        headword: String,
+        pos: String? = "noun",
+        packId: String = "es-def",
+    ) = Suggestion(
+        packId = packId,
         entryId = headword.hashCode().toLong(),
         headword = headword,
         partOfSpeech = pos,
@@ -874,6 +878,41 @@ class ScreensTest {
         }
         compose.onNodeWithText("Wikcionario", substring = true).assertExists()
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
+    }
+
+    // --- El idioma de cada resultado (D-143) -----------------------------------------------
+
+    @Test
+    fun cadaResultadoDiceDeQueIDIOMAViene() {
+        // Pedido: junto a la palabra y su tipo, el idioma abreviado. Con dos diccionarios del
+        // mismo idioma o de idiomas distintos conviviendo (D-136), una fila sin origen obliga a
+        // abrir la entrada para saber de donde salio.
+        val es = meta("es-def", "es", "Español")
+        val en = meta("en-def", "en", "English")
+        showSearch(
+            readyState().copy(
+                results = listOf(
+                    suggestion("perro", packId = "es-def"),
+                    suggestion("person", packId = "en-def"),
+                ),
+                active = es,
+                available = listOf(handle(es), handle(en)),
+            ),
+        )
+        compose.onNodeWithText("sust. · ES", substring = true).assertExists()
+        compose.onNodeWithText("sust. · EN", substring = true).assertExists()
+    }
+
+    @Test
+    fun unResultadoDeUnPackDESCONOCIDONoInventaIdioma() {
+        // Un `packId` que no esta entre los abiertos no puede resolverse a un idioma. Poner el
+        // del pack activo seria afirmar algo falso -- la misma falla que D-080.
+        showSearch(readyState().copy(results = listOf(suggestion("perro", packId = "fantasma"))))
+        compose.onNodeWithText("sust.", substring = true).assertExists()
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size,
+        )
     }
 
     // --- The language selector ----------------------------------------------------------------

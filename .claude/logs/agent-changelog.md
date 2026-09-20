@@ -26,6 +26,32 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Tres arreglos de interfaz, verificados en el emulador
+
+**Qué.** D-143: la lupa vuelve a una barra **vacía**; atrás con texto vuelve al inicio en vez de
+salir de la app; y cada resultado dice **de qué idioma viene** (`perron · noun · EN`).
+
+**Áreas.** `SearchViewModel.kt` (`clearQuery`), `MainActivity.kt` (el `BackHandler` y la lupa),
+`SearchScreen.kt` (`ResultRow` con el mapa de idiomas), `SearchViewModelTest`, `ScreensTest`.
+
+**Por qué.** Tres pedidos, y los tres cierran huecos que la convivencia de packs (D-136) abrió o
+agrandó. El del idioma se pagó solo: al probarlo, la etiqueta **delató que el pack activo era el
+inglés**, que era exactamente la ambigüedad que venía a resolver.
+
+**Medido.** Verificado a mano en el emulador, los tres: la lupa deja `type…`; el primer atrás
+limpia y **el segundo sí sale** (la app no queda atrapada); los resultados muestran `noun · EN`.
+Gate: **21 checks**, 77 `:dict-core`, 205 JVM de `:app`, 221 Python. Instrumentados: 34, 0 fallas.
+
+**Qué salió mal.** Nada que rehacer, pero **por fin se pudo escribir en el emulador**: el truco
+que faltaba era **tocar el candidato del IME antes que la lupa**, que es lo que confirma el texto
+al campo. Los cuatro intentos anteriores (`input text` + lupa, + `keyevent 66`, ESC, `input
+keyboard text`) fallaban porque el IME de Wear abre en modo extract y el texto vive en SU campo.
+Eso desbloquea el ítem de proceso que llevaba cinco golpes.
+
+**Qué quedó sin hacer.** **La condición del `BackHandler` no está en el gate**: `clearQuery` sí,
+pero `createComposeRule()` no trae Activity y sin Activity no hay despachador de atrás. Es
+cableado de dos líneas y se verificó a mano; si crece, hay que pasar a `createAndroidComposeRule`.
+
 ## 2026-09-20 — Ningún pack decide el orden, y ninguno pierde palabras
 
 **Qué.** Dos cambios de política y una defensa nueva, a partir de una pregunta: *«si hay un pack

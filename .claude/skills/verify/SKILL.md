@@ -18,9 +18,9 @@ months later. The gate is the only thing that catches them before that happens.
 ./gradlew check
 ```
 
-It runs compilation, Android Lint, the **57 of `:dict-core`**, the **196 JVM of `:app`** (screens
-included, under Robolectric), the **161 of the Python builder** and the structural audit
-(**20 checks**). **Measured: ~1m07s cold.**
+It runs compilation, Android Lint, the **77 of `:dict-core`**, the **205 JVM of `:app`** (screens
+included, under Robolectric), the **221 of the Python builder** and the structural audit
+(**21 checks**). **Measured: ~1m07s cold.**
 
 ## If you touched `norm()`, `fuzzy()` or the Unicode repertoire
 
@@ -50,7 +50,7 @@ not run.** If something was already failing, name it so it does not get presente
 
 ```bash
 ./gradlew :dict-data:devicePrecheck             # is there anything to run them on? says what is missing
-./gradlew :dict-data:connectedDebugAndroidTest  # the 31 tests
+./gradlew :dict-data:connectedDebugAndroidTest  # the 34 tests
 ./gradlew :app:connectedDebugAndroidTest        # the 7 that really do need a device
 ```
 

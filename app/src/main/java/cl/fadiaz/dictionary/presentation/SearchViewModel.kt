@@ -361,6 +361,22 @@ class SearchViewModel(
      * It is an explicit action and never hangs off the incremental pipeline: it walks a far larger
      * index than the headword one and does not meet the latency budget of typing.
      */
+    /**
+     * Leaves the search **empty**, as if the app had just opened (D-143).
+     *
+     * Two entry points want exactly this and neither had it:
+     *
+     *  - the magnifier on an entry, which used to come back to the search **with the word still
+     *    typed**: you had to delete it by hand to look for something else;
+     *  - the back gesture with text in the field, which used to **leave the app**. On a watch
+     *    that is a harsh exit for what the user meant as "undo what I typed".
+     *
+     * It is [onQueryChange] with an empty string and not a new state machine: that one already
+     * leaves definition mode and already makes the pipeline republish, so this is the same path
+     * with the same guarantees rather than a second way of arriving at the home screen.
+     */
+    fun clearQuery() = onQueryChange("")
+
     fun onSearchDefinitions() {
         val pack = source.value ?: return
         val text = _state.value.query
