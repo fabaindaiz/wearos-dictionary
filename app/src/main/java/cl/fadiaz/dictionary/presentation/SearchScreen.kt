@@ -103,9 +103,11 @@ fun SearchScreen(
 ) {
     // De que idioma es cada pack abierto. Se arma una vez y no por fila: la lista se recompone
     // en cada tecla y `available` casi nunca cambia.
-    val idiomas = remember(state.available) {
-        state.available.filterIsInstance<PackHandle.Open>()
-            .associate { it.packId to it.metadata.langSource }
+    // Que etiqueta lleva cada fila: el idioma, o la FUENTE cuando hay dos diccionarios del
+    // idioma activo y el idioma ya no desambigua (D-151). Se arma una vez y no por fila: la
+    // lista se recompone en cada tecla.
+    val etiquetas = remember(state.available, state.active?.langSource) {
+        resultTags(state.available, state.active?.langSource)
     }
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -211,8 +213,10 @@ fun SearchScreen(
                         // One per loaded dictionary, the active one's first. The header shows
                         // ONLY if there is at least one: a heading with nothing under it is
                         // worse than no heading.
-                        val ofTheDay = state.available
-                            .filterIsInstance<PackHandle.Open>()
+                        // ⚠️ **Una por IDIOMA, no una por pack** (D-151). El mapa se calcula
+                        // por pack, asi que con dos diccionarios de un idioma salian dos
+                        // palabras del dia del mismo idioma. `representativePacks` elige una.
+                        val ofTheDay = representativePacks(state.available, state.active?.packId)
                             .mapNotNull { handle ->
                                 state.wordsOfTheDay[handle.packId]?.let { handle to it }
                             }
@@ -346,7 +350,7 @@ fun SearchScreen(
                             "r:${s.packId}:${s.entryId}"
                         },
                     ) { index ->
-                        ResultRow(state.results[index], idiomas) {
+                        ResultRow(state.results[index], etiquetas) {
                             onOpenEntry(state.results[index])
                         }
                     }
@@ -416,13 +420,14 @@ fun SearchScreen(
 private fun ResultRow(
     suggestion: Suggestion,
     /**
-     * `packId` -> `langSource` de los packs abiertos.
+     * `packId` -> la etiqueta que lleva la fila: el idioma, o la fuente si el idioma no alcanza.
+     * La arma [resultTags].
      *
-     * ⚠️ **Un `packId` que no este en el mapa NO recibe idioma**, en vez de heredar el del pack
+     * ⚠️ **Un `packId` que no este en el mapa NO recibe etiqueta**, en vez de heredar la del pack
      * activo. Con varios diccionarios conviviendo (D-136) esa herencia seria afirmar que la
-     * palabra viene de un idioma que nadie comprobo -- la misma familia de falla que D-080.
+     * palabra viene de un lugar que nadie comprobo -- la misma familia de falla que D-080.
      */
-    idiomas: Map<String, String>,
+    etiquetas: Map<String, String>,
     onClick: () -> Unit,
 ) {
     // Una sola ranura a la derecha y no dos: en una fila de 234 dp el lema ya compite por el
@@ -430,7 +435,7 @@ private fun ResultRow(
     // primero; el idioma despues, que solo desambigua cuando hay mas de un diccionario.
     val etiquetas = listOfNotNull(
         matchLabel(suggestion.matchKind) ?: suggestion.partOfSpeech?.let { posLabel(it) },
-        idiomas[suggestion.packId]?.uppercase(),
+        etiquetas[suggestion.packId],
     )
     ListRow(
         headword = suggestion.headword,
@@ -649,22 +654,70 @@ internal data class LanguageChip(
  * un control que se mueve solo se toca por error. Mismo criterio que el desempate de D-136.
  */
 internal fun languageChips(packs: List<PackHandle>, activo: String?): List<LanguageChip> {
-    val abiertos = packs.filterIsInstance<PackHandle.Open>()
-    val activoLang = abiertos.firstOrNull { it.packId == activo }?.metadata?.langSource
-    return abiertos
+    val activoLang = packs.filterIsInstance<PackHandle.Open>()
+        .firstOrNull { it.packId == activo }?.metadata?.langSource
+    return representativePacks(packs, activo).map { representante ->
+        LanguageChip(
+            label = representante.metadata.langSource.uppercase(),
+            packId = representante.packId,
+            active = representante.metadata.langSource == activoLang,
+        )
+    }
+}
+
+/**
+ * **Un pack por idioma**: el que lo representa. Ordenados por codigo de idioma.
+ *
+ * Tres pantallas necesitan lo mismo y por eso vive suelto (D-151): el selector dibuja uno por
+ * idioma, la **palabra del dia** se calcula una por idioma, y el tile cachea la del activo. Antes
+ * la palabra del dia se calculaba **por pack**, asi que con dos diccionarios de español el inicio
+ * mostraba dos palabras del dia del mismo idioma — el bug que D-145 tapo fundiendo los packs en
+ * lugar de arreglarlo, y que vuelve en cuanto alguien instale un pack propio.
+ *
+ * **El representante** es el pack activo si ya lo es —elegir otro idioma y volver no puede
+ * cambiarte el diccionario por debajo— y si no, **el que mas entradas tiene**: es el que mas veces
+ * va a tener la palabra.
+ *
+ * ⚠️ **El orden es por codigo de idioma y no el de `packs`**, que sale de listar un directorio y
+ * no promete orden. Mismo criterio que el desempate de D-136.
+ */
+internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> =
+    packs.filterIsInstance<PackHandle.Open>()
         .groupBy { it.metadata.langSource }
         .toSortedMap()
-        .map { (lang, delIdioma) ->
-            val representante = delIdioma.firstOrNull { it.packId == activo }
+        .map { (_lang, delIdioma) ->
+            delIdioma.firstOrNull { it.packId == activo }
                 ?: delIdioma.maxByOrNull { it.metadata.entryCount }
                 ?: delIdioma.first()
-            LanguageChip(
-                label = lang.uppercase(),
-                packId = representante.packId,
-                active = lang == activoLang,
-            )
         }
+
+/**
+ * Que etiqueta lleva cada resultado: el **idioma**, o la **fuente** cuando el idioma no alcanza.
+ *
+ * Con un diccionario del idioma activo, `sust. · ES` dice todo lo que hay que decir. Con dos,
+ * `ES · ES` no desambigua nada: lo que separa dos diccionarios del mismo idioma es **de donde
+ * salieron**, y el `pack_id` lo lleva en su tercer segmento por la gramatica que `verify_pack.py`
+ * verifica (D-138): `<idioma>-<tipo>-<fuente>[-variante]`.
+ *
+ * ⚠️ **Solo cuentan los packs del idioma activo.** Desde D-136 se busca unicamente ahi, asi que un
+ * pack ingles no puede hacer que una fila española muestre su fuente.
+ *
+ * ⚠️ **Y un `pack_id` que no cumpla la gramatica cae al idioma** en vez de inventarle una fuente:
+ * un pack anterior a D-138 no la lleva, y partir su nombre daria una etiqueta falsa.
+ */
+internal fun resultTags(packs: List<PackHandle>, idiomaActivo: String?): Map<String, String> {
+    val delIdioma = packs.filterIsInstance<PackHandle.Open>()
+        .filter { it.metadata.langSource == idiomaActivo }
+    val ambiguo = delIdioma.size > 1
+    return packs.filterIsInstance<PackHandle.Open>().associate { handle ->
+        val idioma = handle.metadata.langSource.uppercase()
+        val fuente = handle.packId.split('-').getOrNull(SEGMENTO_DE_FUENTE)
+        handle.packId to if (ambiguo && !fuente.isNullOrBlank()) fuente.uppercase() else idioma
+    }
 }
+
+/** El tercer segmento del `pack_id`: `<idioma>-<tipo>-<FUENTE>[-variante]` (D-138). */
+private const val SEGMENTO_DE_FUENTE = 2
 
 /** La clave con la que el input del sistema devuelve lo dictado o escrito. */
 /**

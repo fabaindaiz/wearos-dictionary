@@ -26,6 +26,43 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Las piezas de multipack que sí se podían construir
+
+**Qué.** D-151: una palabra del día por **idioma** y no por pack, y la fila de resultados dice la
+**fuente** cuando el idioma ya no desambigua. Dos de las cinco piezas que el plan dejaba abiertas.
+
+**Áreas.** `SearchScreen.kt` (`representativePacks`, `resultTags`, y los dos sitios que los usan)
+· `LanguageChipsTest`, `ScreensTest` · `docs/decisions.md`, `docs/roadmap.md`.
+
+**Por qué.** Se pidió empezar a implementar el plan y dejar en el roadmap lo que no se pudiera
+decidir. De las cinco: **dos eran construibles**, **una ya estaba hecha** y **dos son decisiones
+de producto**.
+
+**Medido / verificado.**
+
+- **La atribución ya era correcta**: la pantalla itera **todos** los packs abiertos, no el activo.
+  El plan afirmaba lo contrario. Se comprobó **antes** de "arreglarlo", que es la quinta vez en
+  esta sesión que verificar evita tocar algo que funciona.
+- Los dos tests nuevos de pantalla se comprobaron **fallando sin el arreglo** y pasando con él.
+- Gate verde.
+
+**Arquitectura.** ✅ Cumple. `representativePacks` es una sola definición de "cuál pack representa
+a un idioma" que ahora usan el selector y la palabra del día — antes estaba dentro de
+`languageChips` y habría que haberla duplicado.
+
+**Qué salió mal.** Al conectar las etiquetas dejé el parámetro llamándose `idiomas` cuando ya no
+lleva idiomas sino etiquetas. Renombrado: un nombre que miente es peor que uno genérico, porque
+el próximo lo cree.
+
+**Qué quedó sin hacer, y por qué.**
+
+- ⚠️ **Qué cuenta como «el mismo diccionario»** — decisión de producto. Hoy dos variantes del
+  mismo pack **conviven** y el usuario espera que la nueva **reemplace** a la vieja. Se vio en el
+  reloj: *aquatic* devolvía la entrada sin los antónimos nuevos.
+- **El caché del tile sigue siendo por pack.** No duplica nada —el tile muestra uno solo— pero
+  comparte la causa, y arreglarlo toca el formato de lo cacheado.
+- **Composición**: bloqueada por la granularidad de `uid`, que es una decisión abierta.
+
 ## 2026-09-20 — Un emulador que no miente, y cinco cosas que se veían mal
 
 **Qué.** Cinco frentes en autónomo: el emulador fiel al reloj, el selector por idioma, los

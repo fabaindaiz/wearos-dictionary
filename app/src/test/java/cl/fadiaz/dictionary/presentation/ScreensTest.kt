@@ -119,6 +119,10 @@ class ScreensTest {
         )
     }
 
+    private fun resumen(headword: String) =
+        EntrySummary(entryId = headword.hashCode().toLong(), headword = headword,
+                     partOfSpeech = "noun", rank = 100)
+
     private fun visita(headword: String) =
         Visit("es-def", headword.hashCode().toLong(), headword, "noun")
 
@@ -986,6 +990,45 @@ class ScreensTest {
         )
         compose.onNodeWithText("sust. · ES", substring = true).assertExists()
         compose.onNodeWithText("sust. · EN", substring = true).assertExists()
+    }
+
+    @Test
+    fun conDOS_DICCIONARIOS_DEL_MISMO_IDIOMA_la_fila_dice_la_FUENTE() {
+        // "ES · ES" no desambigua nada (D-151). Con dos diccionarios de español, lo que separa
+        // una fila de la otra es de qué fuente salió.
+        val wikc = meta("es-def-wikc", "es", "Español")
+        val wd = meta("es-def-wd", "es", "Español (Wikidata)")
+        showSearch(
+            readyState().copy(
+                results = listOf(suggestion("perro", packId = "es-def-wikc"),
+                                 suggestion("perruno", packId = "es-def-wd")),
+                active = wikc,
+                available = listOf(handle(wikc), handle(wd)),
+            ),
+        )
+        compose.onNodeWithText("sust. · WIKC", substring = true).assertExists()
+        compose.onNodeWithText("sust. · WD", substring = true).assertExists()
+    }
+
+    @Test
+    fun conDOS_PACKS_DEL_MISMO_IDIOMA_hay_UNA_palabra_del_dia() {
+        // ⚠️ El bug que D-145 tapó fundiendo packs: el mapa se calcula por pack, así que dos
+        // diccionarios de español daban dos palabras del día del mismo idioma.
+        val wikc = meta("es-def-wikc", "es", "Español")
+        val wd = meta("es-def-wd", "es", "Español (Wikidata)")
+        showSearch(
+            readyState().copy(
+                query = "", submitted = "",
+                active = wikc,
+                available = listOf(handle(wikc), handle(wd)),
+                wordsOfTheDay = mapOf(
+                    "es-def-wikc" to resumen("guanaco"),
+                    "es-def-wd" to resumen("iquiteño"),
+                ),
+            ),
+        )
+        compose.onNodeWithText("guanaco").assertExists()
+        assertEquals(0, compose.onAllNodesWithText("iquiteño").fetchSemanticsNodes().size)
     }
 
     @Test

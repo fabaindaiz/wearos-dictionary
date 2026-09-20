@@ -634,22 +634,28 @@ El modelo mental que ordena todo, y que costó tres decisiones descubrir:
 | Que dos packs no colisionen | D-138 | `pack_id` con gramática verificada |
 | Que un pack ajeno no rompa nada | D-142 | Las claves se recalculan sobre una muestra al abrir |
 
-**Lo que falta, en orden de bloqueo:**
+**Construido después del plan** (2026-09-20, D-151):
+
+- ✅ **Desambiguar el origen**: la fila dice la **fuente** cuando hay dos diccionarios del idioma
+  activo, y el idioma cuando alcanza.
+- ✅ **Una palabra del día por idioma**, no por pack.
+- ✅ **La atribución ya era correcta**: la pantalla itera **todos** los packs abiertos, no el
+  activo. El plan afirmaba lo contrario y estaba equivocado — se verificó antes de "arreglarlo".
+
+**Lo que falta, y por qué:**
 
 1. ⚠️ **Decidir qué es «el mismo diccionario».** Hoy `es-def-wikc` y `es-def-wikc-tat-wn-wd` son
    dos packs que **conviven**; el usuario espera que el segundo **reemplace** al primero. Ya se
    vio en el reloj: buscar *aquatic* devolvía la entrada del pack viejo, sin los antónimos nuevos.
-   Toca D-138, D-070 y el instalador. **Es una decisión de producto, no de mecanismo.**
-2. **Desambiguar el origen cuando hay dos packs de un idioma.** Decidido en el diseño —mostrar el
-   código de fuente sólo cuando hace falta— y **sin construir**. Con la fusión de D-145 no hay
-   caso real todavía.
-3. **La atribución del idioma activo, no del pack activo.** `state.active` es un pack, y su
-   `attribution` es la que se muestra. Con dos packs del mismo idioma habría que mostrar las dos.
-4. **La palabra del día y el caché del tile** siguen siendo por pack. Con dos packs de un idioma
-   habría dos palabras del día del mismo idioma — el bug que D-145 tapó fundiendo, no arreglando.
-5. **Composición** (sumar campos a una entrada ajena, no filas): la capa existe y el join está
+   Toca D-138, D-070 y el instalador. **Es una decisión de producto y está fuera de lo que un
+   agente puede resolver midiendo.**
+2. **El caché del tile sigue siendo por pack.** Menos grave que la palabra del día de la pantalla
+   —el tile muestra **uno solo**, el del activo— así que no duplica nada; pero comparte la causa.
+   Se arregla usando `representativePacks` en `cacheWeekForTile`, y requiere tocar el formato de
+   lo que se cachea, que hoy guarda `packId`.
+3. **Composición** (sumar campos a una entrada ajena, no filas): la capa existe y el join está
    medido —**8.595 `uid` coinciden**— y sigue bloqueada por la granularidad: `uid` es por entrada
-   y un sinónimo es por acepción.
+   y un sinónimo es por acepción. **Decisión abierta, no trabajo pendiente.**
 
 **Mejores prácticas que se siguieron, y de dónde salen:**
 
