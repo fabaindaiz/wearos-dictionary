@@ -137,8 +137,8 @@ fun SearchScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // Bajo el reloj. Un item y no padding: como padding, la barra quedaba dentro del
-            // transform del borde y salia con la forma cortada. Ver CLOCK_GAP.
-            item(key = "bajo-el-reloj") { Spacer(Modifier.height(CLOCK_GAP)) }
+            // transform del borde y salia con la forma cortada. Ver clockGap().
+            item(key = "bajo-el-reloj") { Spacer(Modifier.height(clockGap())) }
 
             when (val status = state.status) {
                 SearchState.Status.Loading, SearchState.Status.Installing -> item {
