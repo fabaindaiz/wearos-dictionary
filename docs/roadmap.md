@@ -271,6 +271,49 @@ del ítem, no el merge.
 D-028, aunque poco: los ejemplos pagan en el payload y en `fts_def`, como pasó con los sinónimos
 —estimados en 0,30 MB, medidos en 0,89.
 
+### Alinear acepciones entre fuentes: lo que bloquea tres cosas a la vez
+
+**Estado.** **Medido, sin decidir** (2026-09-20). Es el mismo problema con tres caras distintas, y
+por eso conviene tenerlo en un solo lugar.
+
+**El problema.** Una fuente externa da sinónimos, antónimos o ejemplos **por acepción** — pero por
+**su** acepción, no por la nuestra. Nada en el dato dice cuál de nuestras acepciones corresponde.
+
+**Lo que cuesta hoy**, contando lo que se descarta por no poder alinear:
+
+| Aporte | Se pierde | Por qué |
+|---|---|---|
+| Tesauro de WordNet, español | **3.511 entradas** | Tienen aporte y varias acepciones |
+| Tesauro de WordNet, inglés | **17.133 entradas** | Igual |
+| Ejemplos de enwiktionary | ~4.900 (de 5.307 a 307) | D-135 |
+| Definiciones de Wikidata | **9.181** | El lema ya existía; la segunda definición se tira (D-145) |
+
+**Lo que ya funciona y conviene no confundir**: los sinónimos **del wiki** sí son por acepción y
+llegan a entradas con varias — el Wikcionario declara `sense_index` y el Wiktionary los anida
+(D-117, D-124). Medido: **5.762 entradas españolas y 11.694 inglesas tienen sinónimos o antónimos
+repartidos en dos o más acepciones**. La estructura del payload nunca fue el problema.
+
+**Por qué no se resolvió por las malas.** Colgar el aporte de la primera acepción acierta a veces
+y falla otras, **sin dejar rastro**: `bizarro` acepción 2 («lúcido, airoso») con los sinónimos de
+la 1 («arrojado, gallardo») se lee perfectamente plausible. Es el error que D-117 existe para
+impedir y el más caro que tiene este repo.
+
+**Caminos posibles, ninguno medido:**
+
+1. **Comparar la glosa de la fuente con las nuestras** (palabras de contenido compartidas). Barato
+   y sucio; hay que medir cuánto acierta antes de creerle.
+2. **Usar `pos` + orden de acepciones.** Las fuentes no numeran igual, así que probablemente falle.
+3. **Pedir coincidencia fuerte y aceptar poco**: sólo alinear cuando la evidencia sea alta. Sube la
+   precisión y baja el alcance — que es exactamente lo que ya se hizo con la regla de una acepción,
+   sólo que con un umbral en vez de un absoluto.
+
+⚠️ **Cualquiera de los tres introduce error silencioso si se calibra mal**, y el error silencioso
+es el que este repo trata como inaceptable. **Decisión de producto**: aceptar una tasa de
+desalineación a cambio de 20.644 aportes, o seguir perdiéndolos.
+
+**Con qué más choca.** Es el mismo bloqueo de §Composición entre packs: sumar la definición de
+Wikidata a una entrada que ya existe exige saber **a qué acepción** pertenece.
+
 ### Composición entre packs
 
 **Estado.** **La capa existe; el join, no** (2026-09-20). `SearchRepository` se construyó (D-136)
