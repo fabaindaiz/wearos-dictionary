@@ -98,6 +98,8 @@ fun SearchScreen(
     // of the day and each lives in ITS dictionary. Resolving it against the active one would be
     // D-080 again. No default: a word of the day that shows and opens nothing is worse than none.
     onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
+    /** Al historial completo. Default vacío: una pantalla de test que no lo cablea sigue andando. */
+    onOpenHistory: () -> Unit = {},
 ) {
     // De que idioma es cada pack abierto. Se arma una vez y no por fila: la lista se recompone
     // en cada tecla y `available` casi nunca cambia.
@@ -251,7 +253,12 @@ fun SearchScreen(
                     // Sin recortar: el inicio SCROLLEA, asi que limitar aca esconderia
                     // entradas sin ganar nada. El tope vive donde no se puede scrollear -- el
                     // tile (D-131).
-                    val recent = state.history
+                    // ⚠️ **Tres, y el resto detrás de un botón** (D-148). El inicio es la
+                    // pantalla más disputada del reloj: con ocho recientes, los ajustes y la
+                    // atribución quedaban a varios scrolls. Tres es lo que entra después del
+                    // campo y la voz sin empujar nada fuera de alcance.
+                    val recent = state.history.take(HOME_RECENT)
+                    val hayMas = state.history.size > recent.size
                     if (state.submitted.isEmpty() && recent.isNotEmpty()) {
                         item(key = "titulo-recientes") {
                             ListHeader(
@@ -271,6 +278,17 @@ fun SearchScreen(
                                 headword = visit.headword,
                                 detail = visit.partOfSpeech?.let { posLabel(it) },
                             ) { onOpenVisita(visit) }
+                        }
+                        // Sólo si hay más: un botón que lleva a la misma lista que ya estás
+                        // viendo es cromo, y en un reloj el cromo se paga en filas.
+                        if (hayMas) {
+                            item(key = "ver-mas-recientes") {
+                                ListRow(
+                                    headword = stringResource(R.string.home_recent_more),
+                                    detail = state.history.size.toString(),
+                                    onClick = onOpenHistory,
+                                )
+                            }
                         }
                     }
 
@@ -555,11 +573,15 @@ private fun WordOfTheDayRow(
 }
 
 /**
- * The available languages, in the band where the heading used to be.
+ * One chip per **language**, not per file (D-147).
  *
  * 48 dp chips --the Wear OS touch minimum-- spread across the width. Built with
  * `Row`/`Box`/`clickable` and deliberately not with a Wear Compose component: with
  * `allWarningsAsErrors`, an API deprecated in the next bump breaks the build.
+ *
+ * The grouping is [languageChips] and lives outside the composable on purpose: which languages
+ * exist, in what order, and which pack represents each one are **decisions**, so the gate covers
+ * them on the JVM instead of under Robolectric.
  */
 @Composable
 private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit) {
@@ -568,11 +590,10 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        state.available.forEach { handle ->
-            val active = handle.packId == state.active?.packId
-            val label = (handle as PackHandle.Open).metadata.langSource.uppercase()
+        languageChips(state.available, state.active?.packId).forEach { chip ->
+            val active = chip.active
             Text(
-                text = label,
+                text = chip.label,
                 style = MaterialTheme.typography.labelMedium,
                 textAlign = TextAlign.Center,
                 color = if (active) {
@@ -590,13 +611,69 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
                             MaterialTheme.colorScheme.surfaceContainer
                         },
                     )
-                    .clickable { onPackChange(handle.packId) }
+                    .clickable { onPackChange(chip.packId) }
                     .heightIn(min = TOUCH_TARGET)
                     .padding(vertical = 14.dp),
             )
         }
     }
 }
+
+/**
+ * Un idioma ofrecido por el selector, y el pack que lo representa.
+ *
+ * `packId` es a quién se activa al tocarlo: decide **la atribución que se muestra, la palabra del
+ * día del tile y qué pack va primero al desempatar**, no en qué packs se busca — desde D-136 se
+ * busca en **todos** los del idioma activo.
+ */
+internal data class LanguageChip(
+    val label: String,
+    val packId: String,
+    val active: Boolean,
+)
+
+/**
+ * Agrupa los packs abiertos por idioma: **un chip por idioma, no por archivo** (D-147).
+ *
+ * ⚠️ **Cierra una incoherencia que D-136 introdujo y no terminó.** Esa decisión dejó escrito que
+ * el selector pasa a elegir un idioma porque `SearchRepository` consulta todos los packs del
+ * idioma activo — y la pantalla siguió listando packs. Con dos diccionarios de español el inicio
+ * mostraba **dos chips "ES"**, los dos activables, y tocarlos no cambiaba en qué se buscaba.
+ *
+ * **El representante de un idioma** es el pack activo si ya lo es —tocar otro idioma y volver no
+ * puede cambiarte el diccionario elegido por debajo— y si no, **el que más entradas tiene**: es
+ * el que más veces va a tener la palabra.
+ *
+ * ⚠️ **El orden es por código de idioma y no el de `available`**, que sale de listar un
+ * directorio y no promete orden: si los chips lo siguieran, cambiarían de lugar entre arranques y
+ * un control que se mueve solo se toca por error. Mismo criterio que el desempate de D-136.
+ */
+internal fun languageChips(packs: List<PackHandle>, activo: String?): List<LanguageChip> {
+    val abiertos = packs.filterIsInstance<PackHandle.Open>()
+    val activoLang = abiertos.firstOrNull { it.packId == activo }?.metadata?.langSource
+    return abiertos
+        .groupBy { it.metadata.langSource }
+        .toSortedMap()
+        .map { (lang, delIdioma) ->
+            val representante = delIdioma.firstOrNull { it.packId == activo }
+                ?: delIdioma.maxByOrNull { it.metadata.entryCount }
+                ?: delIdioma.first()
+            LanguageChip(
+                label = lang.uppercase(),
+                packId = representante.packId,
+                active = lang == activoLang,
+            )
+        }
+}
+
+/** La clave con la que el input del sistema devuelve lo dictado o escrito. */
+/**
+ * Cuántos recientes van en el inicio (D-148).
+ *
+ * No es el tope de lo que se guarda --eso es `MAX_HISTORY`, y es más grande--: es cuántos caben
+ * sin empujar los ajustes y la atribución fuera de alcance. El resto vive detrás de "ver más".
+ */
+private const val HOME_RECENT = 3
 
 /** La clave con la que el input del sistema devuelve lo dictado o escrito. */
 private const val KEY_SPOKEN = "spoken"
