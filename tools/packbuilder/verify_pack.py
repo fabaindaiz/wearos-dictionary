@@ -12,6 +12,7 @@ Sale con codigo 1 si algo falla.
 
 import os
 import sqlite3
+import re
 import sys
 
 import normalize
@@ -30,6 +31,7 @@ RANK_MINIMO_NOMBRE_PROPIO = 1000
 
 REQUIRED_META = (
     "attribution",
+    "sources",
     "built_at",
     "data_version",
     "entry_count",
@@ -58,6 +60,26 @@ REQUIRED_META = (
 # `if`-- porque el check estructural es OPCIONAL por diseño: "included" no comprueba nada, y sin
 # esta lista un typo como "lexical_only" es indistinguible de "included". O sea que el pack se
 # declara podado, el validador no cuenta un solo nombre propio, y sale verde.
+# La gramatica del `pack_id`, que es el CODIGO del pack (D-138).
+#
+#     <idioma>-<tipo>-<fuente>[-<variante>]*
+#     es-def-wikc            español, definiciones, del Wikcionario
+#     es-def-wikc-tat        el mismo, con frases de Tatoeba
+#     en-def-wikt            ingles, definiciones, del Wiktionary
+#
+# ⚠️ **Existe por la colision, no por prolijidad.** Desde D-136 dos packs del mismo idioma y de
+# fuentes distintas se instalan y se consultan juntos: comparten idioma y tipo, y **lo unico que
+# los separa es el codigo de fuente**. Con un `pack_id` generico --"espanol", "dict"-- uno pisa
+# al otro al instalarse, y el historial y las guardadas del reloj quedan apuntando a entradas de
+# un pack que ya no esta. Es un fallo que no lanza: el pack que quedo abre y funciona.
+#
+# El idioma son dos letras (ISO 639-1); el tipo es `def` o `tr`; la fuente y las variantes salen
+# del catalogo de `build_pack.FUENTES` y de las opciones de la CLI.
+GRAMATICA_DE_PACK_ID = re.compile(r"^[a-z]{2}-(def|tr)-[a-z0-9]{2,8}(-[a-z0-9]{1,16})*$")
+
+# Cuantos campos tiene una fila de `meta.sources`. Espeja PackSource.CAMPOS en Kotlin.
+CAMPOS_DE_FUENTE = 5
+
 POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "definitions-only",
                                 "included")
 
@@ -143,6 +165,34 @@ def verify(path):
     #
     # Los DOS vocabularios de `pos`: kaikki emite "name", sources/toy.py emite "proper noun".
     # Excluir uno solo deja pasar el otro, y ya paso una vez.
+    pack_id = meta.get("pack_id") or ""
+    report.check(
+        bool(GRAMATICA_DE_PACK_ID.match(pack_id)),
+        "meta.pack_id es un codigo y no un nombre generico (%r; forma "
+        "<idioma>-<tipo>-<fuente>[-variante])" % pack_id,
+    )
+
+    # El manifiesto: que aporto cada fuente y bajo que licencia. Sin esto el pack abre, busca y
+    # funciona, y **no se puede saber si se puede redistribuir** -- que es justo lo que alguien
+    # que recibe un .db de 68 MB necesita contestar sin preguntarle a nadie (D-138).
+    filas = [f.split("\t") for f in (meta.get("sources") or "").strip().split("\n") if f.strip()]
+    report.check(bool(filas), "meta.sources declara al menos una fuente")
+    bien_formadas = [f for f in filas if len(f) == CAMPOS_DE_FUENTE]
+    report.check(
+        len(bien_formadas) == len(filas),
+        "cada fuente de meta.sources trae sus %d campos (%d de %d mal formadas)"
+        % (CAMPOS_DE_FUENTE, len(filas) - len(bien_formadas), len(filas)),
+    )
+    sin_nombre = [f for f in bien_formadas if not f[1].strip()]
+    sin_licencia = [f for f in bien_formadas if not f[3].strip()]
+    report.check(not sin_nombre, "cada fuente declara un nombre (%d sin nombre)" % len(sin_nombre))
+    # Declarar la fuente y callar la licencia es PEOR que no declarar nada: parece completo.
+    report.check(
+        not sin_licencia,
+        "cada fuente declara su licencia (%d sin licencia: %s)"
+        % (len(sin_licencia), ", ".join(f[1] for f in sin_licencia) or "-"),
+    )
+
     politica = meta.get("proper_nouns")
     report.check(
         politica in POLITICAS_DE_NOMBRES_PROPIOS,

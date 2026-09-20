@@ -225,7 +225,7 @@ fun EntryScreen(
     AlertDialog(
         visible = menuOpen && actionsFor.isNotEmpty(),
         onDismissRequest = { menuOpen = false },
-        title = { Text("Opciones") },
+        title = { Text(stringResource(R.string.entry_options)) },
     ) {
         items(actionsFor.size) { index ->
             val action = actionsFor[index]
@@ -267,14 +267,14 @@ private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit
     ) {
         IconPill(
             icono = Icons.Filled.Search,
-            description = "Buscar",
+            description = stringResource(R.string.entry_back_to_search),
             onClick = onBackToSearch,
             modifier = Modifier.weight(1f),
         )
         if (onOpenMenu != null) {
             IconPill(
                 icono = Icons.Filled.MoreVert,
-                description = "Opciones",
+                description = stringResource(R.string.entry_options),
                 onClick = onOpenMenu,
                 modifier = Modifier.weight(1f),
             )

@@ -595,6 +595,59 @@ def check_app_version(report):
         )
 
 
+def check_no_hardcoded_translations(report):
+    """Ningun texto que ya tiene clave de recurso puede estar ESCRITO en el codigo.
+
+    ⚠️ **Esto no lo agarra `check_locale_parity`, y por eso hace falta.** Las dos tablas pueden
+    estar perfectamente parejas --las claves existen en los dos idiomas-- y la pantalla seguir
+    dibujando el literal. Fue lo que paso: `home_saved` y `home_settings` existian en `values/` y
+    en `values-es/`, y `SearchScreen` ponia "Guardadas" y "Ajustes" a mano. En un reloj en ingles
+    salian en español, al lado de texto en ingles.
+
+    Lo encontro **mirar la pantalla**, no un test, y este chequeo existe para que la proxima vez
+    no haga falta mirar: si un valor de `values-es/` aparece entre comillas en un `.kt`, es que
+    alguien escribio el texto en vez de pedir el recurso.
+
+    Se compara contra el español y no contra el ingles a proposito: un valor ingles corto
+    ("Search", "Saved") puede aparecer legitimamente en un nombre de test o un comentario, y el
+    chequeo daria falsos positivos. Los valores en español no tienen ese problema.
+    """
+    ruta_es = os.path.join(ROOT, "app", "src", "main", "res", "values-es", "strings.xml")
+    if not os.path.exists(ruta_es):
+        report.failure("falta values-es/strings.xml", ruta_es)
+        return
+    with open(ruta_es, encoding="utf-8") as handle:
+        texto = handle.read()
+    # Solo los suficientemente largos: "ES", "OK" o "%s" aparecen en cualquier lado.
+    valores = {v for v in re.findall(r"<string name=\"[^\"]+\">([^<]*)</string>", texto)
+               if len(v) >= 4 and "%" not in v}
+    encontrados = []
+    for ruta in _kotlin_sources(os.path.join(ROOT, "app", "src", "main")):
+        with open(ruta, encoding="utf-8") as handle:
+            # Sin los comentarios: un KDoc que CITA el texto --"no puede parecerse a `sin.`"--
+            # esta explicando la regla, no rompiendola. Mirar el archivo entero daba ese falso
+            # positivo, y un chequeo con falsos positivos se termina apagando.
+            fuente = "\n".join(
+                l for l in handle.read().split("\n")
+                if not l.lstrip().startswith(("//", "*", "/*"))
+            )
+        for valor in valores:
+            if '"' + valor + '"' in fuente:
+                encontrados.append((os.path.relpath(ruta, ROOT), valor))
+    for ruta, valor in encontrados:
+        report.failure(
+            "texto traducido escrito a mano en el codigo",
+            "%s escribe %r en vez de pedir el recurso" % (ruta, valor),
+        )
+
+
+def _kotlin_sources(base):
+    for carpeta, _dirs, archivos in os.walk(base):
+        for archivo in archivos:
+            if archivo.endswith(".kt"):
+                yield os.path.join(carpeta, archivo)
+
+
 def check_locale_parity(report):
     """Regla: values/ y values-es/ declaran las MISMAS claves, y las cortas siguen cortas. (D-127)
 
@@ -747,6 +800,7 @@ CHECKS = [
     check_release_signing,
     check_app_version,
     check_locale_parity,
+    check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,
     check_rules_without_enforcer,

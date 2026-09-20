@@ -26,6 +26,81 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Tres fuentes nuevas, un manifiesto, y dos bugs que sólo aparecieron mirando
+
+**Qué.** El pack español pasó de una fuente a tres, apareció un segundo diccionario de español
+completo, y los packs pasaron a **declarar por escrito qué son y bajo qué licencia**.
+
+1. **D-134** — tres políticas de nombres propios, y el que entra **pierde prioridad** en vez de
+   desaparecer. Con la comparación de tamaño que se pidió.
+2. **D-135** — segunda fuente (enwiktionary §Spanish) construida, medida y **dejada tras una
+   opción**: 307 entradas.
+3. **D-136** — `SearchRepository`: varios packs del mismo idioma se consultan juntos.
+4. **D-137** — tercera fuente, Tatoeba: **6.499 entradas** ganan una frase de uso.
+5. **D-138** — `meta.sources`: **una licencia por fuente**, y `pack_id` pasa a ser un código con
+   gramática verificada.
+6. **D-139** — `es-def-wd`: segundo pack base de español desde Wikidata Lexemes, **CC0**.
+7. **D-140** — un texto traducido escrito a mano en el código pasa a ser un fallo del gate.
+
+**Áreas.** Fuentes nuevas en `tools/packbuilder/sources/`: `tatoeba.py`, `wikidata.py`,
+`enwikt_examples.py`. Tocados `build.py`, `build_pack.py`, `verify_pack.py`, `sources/kaikki.py` y
+sus tests. En el núcleo, `SearchRepository.kt` y `PackSource.kt` nuevos, más `Model.kt`. En la app,
+`SearchViewModel.kt`, `AttributionScreen.kt`, `SearchScreen.kt`, `EntryScreen.kt`,
+`SettingsScreen.kt` y las dos tablas de strings. En herramientas, `audit_dictionary.py`. Documentos:
+`docs/fuentes.md` nuevo, más `formato-pack.md`, `decisions.md`, `roadmap.md` y `CLAUDE.md`.
+
+**Por qué.** Tres pedidos encadenados: aplicar los ítems 1 y 3 del roadmap; buscar otra fuente para
+el español; y que las atribuciones viajen **en** los packs y se muestren desde ahí.
+
+**Medido.**
+
+- **Por qué el pack inglés es 4× más grande, que era la pregunta**: no está más cargado por
+  entrada — tiene **6,9× más entradas**. Por entrada el **español es más denso**: 596 bytes contra
+  343, 1,49 acepciones contra 1,29, y **12,98 formas flexionadas contra 1,14**, que es lo que hace
+  que `form` se lleve 33 de sus 68 MB. El inglés gana en una sola cosa: ejemplos, 33,3 % contra
+  11,4 %.
+- **Nombres propios, la comparación que se pidió**: `lexical-only` 114.619 entradas / 68,3 MB ·
+  `definitions-only` 117.648 / 69,1 MB (+1,2 %) · `included` 146.193 / 73,3 MB (+7,3 %). La del
+  medio es la barata porque **28.314 de las 31.549 podadas sólo dicen su categoría**.
+- **Ejemplos**: enwiktionary 307 (+8 KB) contra Tatoeba **6.499** (+368 KB). 21×.
+- **Wikidata**: 15.269 entradas, 4,4 MB, **5.092 (33,3 %) exclusivas**, y **8.595 `uid` que unen**
+  con el otro pack de español.
+- Gate: **21 checks**, 0 fallas.
+
+**Arquitectura.** ✅ Cumple. `SearchRepository` vive en `:dict-core` sin dependencias de producción
+(fan-out secuencial) y **deliberadamente no implementa `DictionarySource`**: la mitad de esa
+interfaz se direcciona por `entryId`, que es un rowid local a un pack.
+
+**Qué salió mal.** Cuatro cosas, y **tres las encontró mirar, no un test**:
+
+- **`nadal` recibió una frase sobre el tenista.** `norm()` baja a minúsculas y el filtro de
+  ambigüedad **no podía verlo**: D-116 poda los nombres propios, así que no quedaba entrada con la
+  que empatar — la clave parecía inequívoca *porque su competidor fue podado*. El primer arreglo
+  fue una heurística de posición y **falló** con *«Nadal, mejor deportista español…»*. Lo correcto
+  era un hecho del corpus, no una posición.
+- **`abbacy → "more at abbot § Related terms"`.** Estas listas son las únicas del payload que la
+  fuente no limpia. El gate estaba verde con la basura adentro.
+- **La app mostraba «Guardadas» y «Ajustes» en español en un reloj en inglés.** Los recursos
+  existían en los dos idiomas y `check_locale_parity` no podía verlo. Al escribir el chequeo que
+  sí lo ve **aparecieron cinco más**.
+- **El pack de Wikidata usaba el id del lexema como `sense_key` siempre.** Es una identidad mejor
+  que la de kaikki, y por eso **los `uid` no unían con nada**. Lo agarró `verify_pack.py`. Con la
+  convención correcta unen 8.595.
+
+Además, dos veces escribí test e implementación en la misma pasada y tuve que **forzar el fallo
+después** parchando la función; y un test de orden **pasaba por la razón equivocada** —`sortedWith`
+de Kotlin ya es estable— así que la propiedad real había que escribirla de otra forma.
+
+**Qué quedó sin hacer.**
+
+- **La composición sigue sin construirse.** Existe la capa y existe el número (8.595 uid), falta la
+  decisión de granularidad: `uid` es por entrada, un sinónimo es por acepción.
+- **No se pudo escribir en el teclado del emulador** (quinto golpe del mismo ítem). Lo que sí se
+  vio: la app con tres packs, el manifiesto por fuente renderizando, y el bug de idioma corregido.
+- **`data_version` sigue sin resolverse** y ahora pesa más: hay cinco packs de español posibles.
+- **Los packs de `--ejemplos` y `--frases` cambian el `pack_id`**, así que adoptar Tatoeba en el
+  pack principal mueve el historial del reloj. Es el mismo problema de `data_version`.
+
 ## 2026-09-20 — El último campo que la fuente traía y el builder tiraba
 
 **Qué.** Tres cosas, de un mismo pedido: *«que el código sea genérico pero se adapte de otras

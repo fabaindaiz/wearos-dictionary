@@ -95,6 +95,28 @@ class SegundaFuenteTest(unittest.TestCase):
         self.assertEqual("CC-BY-SA-4.0", meta["license"],
                          "las dos fuentes son CC BY-SA 4.0: la licencia del pack no cambia")
 
+    def test_el_manifiesto_declara_CADA_fuente_con_SU_licencia(self):
+        """`meta.sources`: el manifiesto estructurado (D-138).
+
+        La prosa de `attribution` sirve para leerla; esto sirve para **mostrarla por fuente**. Un
+        pack puede mezclar contenido bajo licencias distintas --el español con `--frases` junta
+        CC BY-SA 4.0 y CC BY 2.0 FR-- y un solo nombre para todo el pack o reclama de mas o
+        acredita de menos.
+        """
+        meta = self._construir(con_ejemplos=True)
+        filas = [l.split("\t") for l in meta["sources"].strip().split("\n")]
+        self.assertEqual(2, len(filas), "tienen que estar las DOS fuentes")
+        self.assertEqual(["definitions", "examples"], [f[0] for f in filas])
+        for fila in filas:
+            self.assertEqual(5, len(fila), "cinco campos por fuente: %r" % (fila,))
+            self.assertTrue(fila[1], "una fuente sin nombre no acredita nada")
+            self.assertTrue(fila[3], "una fuente sin licencia no declara como se puede usar")
+
+    def test_sin_opciones_el_manifiesto_trae_UNA_fuente(self):
+        meta = self._construir(con_ejemplos=False)
+        self.assertEqual(1, len(meta["sources"].strip().split("\n")))
+        self.assertIn("definitions", meta["sources"])
+
     def test_el_pack_id_cambia_para_que_los_dos_PUEDAN_convivir(self):
         # Si compartieran pack_id, instalar uno pisaria al otro y el historial del reloj
         # apuntaria a entradas de un pack que ya no esta.

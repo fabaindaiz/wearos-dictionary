@@ -86,6 +86,13 @@
     <!-- Atribución -->
     <string name="attribution_title">Sobre estos datos</string>
     <string name="attribution_license">Licencia: %1$s</string>
+    <string name="attribution_role_definitions">definiciones</string>
+    <string name="attribution_role_examples">ejemplos</string>
+    <string name="attribution_role_sentences">frases</string>
+    <string name="attribution_role_relations">relaciones</string>
+    <string name="attribution_role_translations">traducciones</string>
+    <string name="attribution_role_other">contenido</string>
+    <string name="attribution_source">%1$s · %2$s · %3$s</string>
 
     <!-- Categorías gramaticales -->
     <string name="pos_noun">sust.</string>

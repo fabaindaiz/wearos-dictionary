@@ -192,6 +192,7 @@ successes is bookkeeping: what warns the next session are the mistakes and the d
 | Where does a new file go? What are the layers? | `docs/architecture.md` |
 | What is next? What does what I want to do collide with? | `docs/roadmap.md` |
 | How do I measure this? Is it slow? How much does it cost? | the `benchmark` skill, and `docs/roadmap.md` §Optimización |
+| Which source should the next pack be built from? Is it worth it? | `docs/fuentes.md` |
 | Did we already research this? What does the official source say? | `docs/references.md` |
 | What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
 | What is this project? (for an outsider) | `README.md` |

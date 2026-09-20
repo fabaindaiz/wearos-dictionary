@@ -18,6 +18,111 @@ Executable definition: [`tools/packbuilder/schema.sql`](../tools/packbuilder/sch
 > appear in the gloss", which is exactly what `fts_def` already indexes better. That table should
 > become optional. See the [roadmap](roadmap.md#reorientar-el-esquema-a-monolingüe).
 
+## Anatomy of a dictionary: what a pack IS
+
+Before the tables, the shape of the thing. A pack answers four questions and nothing else.
+
+```
+                         ┌─────────────────────────────────────────┐
+  what you type  ──────► │ FORM          corriendo, corrí, corres  │
+                         │   ↓ every inflected form points to      │
+                         │ ENTRY         correr        (a lemma)   │
+                         │   ├── headword   "correr"   ← as shown  │
+                         │   ├── norm       "correr"   ← as searched
+                         │   ├── pos        verb                   │
+                         │   ├── rank       769        ← how common│
+                         │   ├── uid                   ← logical id│
+                         │   └── payload  (compressed) ────────┐   │
+                         └─────────────────────────────────────│───┘
+                                                               ▼
+                         ┌─────────────────────────────────────────┐
+                         │ P  verb                   part of speech│
+                         │ S  Moverse rápidamente.   ── SENSE 1 ───│
+                         │ E    Corrió hasta la esquina.   example │
+                         │ Y    desplazarse                synonym │
+                         │ A    detenerse                  antonym │
+                         │ R    trotar                     related │
+                         │ S  Gestionar algo.        ── SENSE 2 ───│
+                         │ E    Corre con los gastos.      example │
+                         └─────────────────────────────────────────┘
+```
+
+**Entry** = one lemma with one part of speech. *"fantasma"* the noun and *"fantasma"* the
+adjective are **two entries**, not one with two senses — the source distinguishes them and so does
+the pack.
+
+**Sense** = one meaning of that entry. Everything inside a sense —example, synonym, antonym,
+related word— belongs **to that sense and not to the entry**. This is the single rule that
+generates most of the decisions in this repo: attributing a synonym to the wrong sense produces
+*content that looks correct*, which is worse than a missing word because the reader has no way to
+suspect it (D-117, D-132, D-135, D-137).
+
+**Form** = an inflected form that must lead to its lemma. Typing *"corriendo"* has to find
+*"correr"*. In Spanish this is most of the file: **12,98 forms per entry**, and `form` is 33 of
+the pack's 68 MB.
+
+**Two columns for one word, and that is deliberate.** `headword` is what is **shown** —`Aarón`,
+`A°`, `Abanto y Ciérvana`, with their capitals and accents intact— and `norm` is what is
+**searched**: lowercased and accent-folded. Nothing in the app ever lowercases a word for display;
+the only `lowercase()` in the whole repo lives in `TextNormalizer`, which builds that key (D-004).
+So the search is case- and accent-insensitive in both directions —typing `MÉXICO`, `mexico` or
+`México` all find the entry— and what comes back on screen is always the original spelling.
+
+**What a pack is NOT.** It has no etymology, no pronunciation, no syllabification and no images:
+they do not get shown on a watch and they are most of the weight of the source dumps.
+
+## The manifest: what a pack declares about itself
+
+The `meta` table **is** the manifest. Someone handed a 68 MB `.db` has to be able to answer three
+questions without asking anyone, and each one has a key:
+
+| Question | Keys | Enforced by |
+|---|---|---|
+| **What is this?** | `pack_id`, `name`, `description`, `kind`, `lang_src`, `lang_dst`, `entry_count` | `verify_pack.py` |
+| **Where did it come from?** | `sources`, `source_url`, `data_version`, `built_at`, `proper_nouns` | `verify_pack.py` |
+| **How may I use it?** | `sources` (a licence **per source**), `license`, `attribution` | `verify_pack.py`, and the app's attribution screen |
+
+### `pack_id` is a code, not a name
+
+```
+<lang>-<kind>-<source>[-<variant>]*
+
+es-def-wikc            Spanish, definitions, from the Wikcionario
+es-def-wikc-tat        the same, plus Tatoeba sentences
+es-def-wd              Spanish, definitions, from Wikidata Lexemes
+en-def-wikt            English, definitions, from Wiktionary
+```
+
+`lang` is ISO 639-1, `kind` is `def` or `tr`, `source` is the code from
+[`docs/fuentes.md`](fuentes.md), and variants come from the builder's flags.
+
+⚠️ **It exists because of collisions, not tidiness.** Since D-136 two packs of the same language
+from different sources are installed and searched **together**: they share language and kind, so
+**the source code is the only thing separating them**. With a generic `pack_id` —`espanol`,
+`dict`— one overwrites the other on install, and the watch's history and saved words end up
+pointing at entries of a pack that is no longer there. Nothing throws: the surviving pack opens
+and works. `verify_pack.py` rejects an id that does not match the grammar.
+
+### `sources`: one line per source, with its own licence
+
+```
+definitions<TAB>Wikcionario (es.wiktionary.org)<TAB>https://…<TAB>CC BY-SA 4.0<TAB>https://…
+sentences<TAB>Tatoeba<TAB>https://tatoeba.org/<TAB>CC BY 2.0 FR<TAB>https://…
+```
+
+Fields: `role`, `name`, `url`, `license`, `license_url`. Roles: `definitions`, `examples`,
+`sentences`, `relations`, `translations`. **An unknown role is kept as "other"** rather than
+dropped — losing a credit over an unrecognised word would be the very breach this prevents.
+
+⚠️ **One licence per source, not one per pack** (D-138). The Spanish pack built with `--frases`
+mixes definitions under CC BY-SA 4.0 with corpus sentences under CC BY 2.0 FR. A single name for
+the whole pack either over-claims or under-credits, and attribution is the **condition of use** of
+the data, not a courtesy (D-031). The app reads this list and shows every line.
+
+**Delimited text and not JSON**, the same choice the payload made and for the same reason: it
+parses with no dependency in either language, it can be read by eye while debugging a pack, and
+`:dict-core` stays free of a JSON library it has no other use for.
+
 ## The `meta` table
 
 Everything the app needs to know before querying. It is read whole, once, on open.
@@ -28,6 +133,7 @@ Everything the app needs to know before querying. It is read whole, once, on ope
 | `norm_version` | Version of the normalization rules. Different → **reject**, see below |
 | `pack_id`, `name` | The pack's identity. `name` is **short** — "Español", not "Español — definiciones" (D-125) |
 | `description` | The long text, for the attribution screen. Optional: a pack older than D-125 does not carry it |
+| `sources` | **The manifest of sources**, one per line with its own licence (D-138). See above. Optional in the reader so a pack older than D-138 still opens; required by `verify_pack.py` for a new one |
 | `kind` | `bilingual` or `monolingual` |
 | `lang_src`, `lang_dst` | Languages; `lang_dst` is mandatory if bilingual |
 | `fuzzy_profile` | Phonetic folding profile: `es`, `en`, `de`, `generic` |

@@ -7,6 +7,7 @@ import androidx.sqlite.execSQL
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.TextNormalizer
 
@@ -128,6 +129,9 @@ class PackFile private constructor(
             dataVersion = meta.getValue("data_version").toInt(),
             license = meta.getValue("license"),
             attribution = meta.getValue("attribution"),
+            // `meta[...]` y no `getValue`: un pack anterior a D-138 no la trae y tiene que
+            // seguir abriendo. `parse` nunca lanza.
+            sources = PackSource.parse(meta["sources"]),
         )
 
         private fun hexToBytes(hex: String): ByteArray =

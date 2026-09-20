@@ -86,6 +86,13 @@
     <!-- Attribution -->
     <string name="attribution_title">About this data</string>
     <string name="attribution_license">License: %1$s</string>
+    <string name="attribution_role_definitions">definitions</string>
+    <string name="attribution_role_examples">examples</string>
+    <string name="attribution_role_sentences">sentences</string>
+    <string name="attribution_role_relations">relations</string>
+    <string name="attribution_role_translations">translations</string>
+    <string name="attribution_role_other">content</string>
+    <string name="attribution_source">%1$s · %2$s · %3$s</string>
 
     <!-- Parts of speech. The pack stores kaikki's code; translating it is the UI's job.
          These 15 are the codes the real packs emit; anything else falls through raw. -->
