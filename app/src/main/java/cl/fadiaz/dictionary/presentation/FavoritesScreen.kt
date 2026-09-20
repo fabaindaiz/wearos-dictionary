@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
@@ -19,6 +20,7 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
 
 /**
@@ -46,14 +48,14 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item(key = "cabecera") { ListHeader { Text("Guardadas") } }
+            item(key = "cabecera") { ListHeader { Text(stringResource(R.string.saved_title)) } }
 
             if (favorites.isEmpty()) {
                 item(key = "vacio") {
                     Text(
                         // It says HOW to save, not just that there is nothing: an empty state
                         // that does not explain the way out of it is a dead end.
-                        text = "Abre una palabra y usa Opciones para guardarla.",
+                        text = stringResource(R.string.saved_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -72,7 +74,7 @@ fun FavoritesScreen(favorites: List<Visit>, onOpen: (Visit) -> Unit) {
                 val visit = favorites[index]
                 ListRow(
                     headword = visit.headword,
-                    detail = visit.partOfSpeech?.let(::posInSpanish),
+                    detail = visit.partOfSpeech?.let { posLabel(it) },
                 ) { onOpen(visit) }
             }
         }

@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import android.content.Context
+import cl.fadiaz.dictionary.R
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -84,7 +85,7 @@ object PackStore {
         val opened = mutableListOf<PackHandle.Open>()
         val problems = mutableListOf<String>()
         for (file in installed) {
-            when (val loaded = openFile(file)) {
+            when (val loaded = openFile(context, file)) {
                 is PackLoad.Ready ->
                     opened += PackHandle.Open(
                         source = loaded.source,
@@ -101,7 +102,7 @@ object PackStore {
         val chosen = candidates.firstOrNull { it.packId == preferred }
             ?: candidates.firstOrNull()
             ?: return@withContext PackSet.Unusable(
-                problems.firstOrNull() ?: "Ningún diccionario se pudo abrir.",
+                problems.firstOrNull() ?: context.getString(R.string.pack_none_opened),
             )
 
         PackSet.Ready(chosen, opened, problems)
@@ -240,16 +241,16 @@ object PackStore {
         return target
     }
 
-    private fun openFile(file: File): PackLoad =
+    private fun openFile(context: Context, file: File): PackLoad =
         try {
             PackLoad.Ready(SqlitePackSource(PackFile.open(file.path)))
         } catch (e: PackFile.IncompatibleException) {
             // The pack is from another format version or from other normalization rules. It
             // would return FEWER results than it holds, in silence: that is why it is rejected
             // whole instead of being opened anyway (D-001, D-006).
-            PackLoad.Unusable("El diccionario no es compatible con esta versión. ${e.message}")
+            PackLoad.Unusable(context.getString(R.string.pack_incompatible, e.message.orEmpty()))
         } catch (e: Exception) {
-            PackLoad.Unusable("El diccionario está dañado o incompleto. ${e.message}")
+            PackLoad.Unusable(context.getString(R.string.pack_damaged, e.message.orEmpty()))
         }
 
     private const val BUFFER = 256 * 1024

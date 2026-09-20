@@ -4,6 +4,7 @@ import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
+import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.Suggestion
@@ -53,13 +54,13 @@ class WordActionsTest {
 
     @Test
     fun withNoTranslationPackTranslateIsNotOffered() {
-        assertEquals(listOf("Guardar", "Copiar"), actions(null))
+        assertEquals(listOf(R.string.action_save, R.string.action_copy), actions(null))
     }
 
     @Test
     fun withABilingualPackItIsOffered() {
         assertEquals(
-            listOf("Guardar", "Ver traducción", "Copiar"),
+            listOf(R.string.action_save, R.string.action_translate, R.string.action_copy),
             actions(pack("es-en", PackKind.BILINGUAL)),
         )
     }
@@ -95,7 +96,7 @@ class WordActionsTest {
             onViewTranslation = {},
             onCopy = {},
         )
-        assertTrue(saved.first().label == "Quitar de guardadas")
+        assertTrue(saved.first().label == R.string.action_unsave)
     }
 }
 

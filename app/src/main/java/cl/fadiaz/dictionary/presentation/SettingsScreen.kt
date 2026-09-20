@@ -4,11 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import cl.fadiaz.dictionary.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
@@ -62,7 +64,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             val opened = packs.filterIsInstance<PackHandle.Open>()
-            item(key = "cabecera-idioma") { ListHeader { Text("Diccionarios") } }
+            item(key = "cabecera-idioma") { ListHeader { Text(stringResource(R.string.settings_dictionaries)) } }
             item(key = "gestionar-packs") {
                 // This is no longer the selector: picking a language happens on the home, which
                 // is where it is needed quickly. You come here to see how much they take and to
@@ -74,13 +76,13 @@ fun SettingsScreen(
                 )
             }
 
-            item(key = "cabecera-texto") { ListHeader { Text("Tamaño del texto") } }
+            item(key = "cabecera-texto") { ListHeader { Text(stringResource(R.string.settings_text_size)) } }
             items(count = TextScale.entries.size, key = { "escala:$it" }) { index ->
                 val option = TextScale.entries[index]
                 RadioButton(
                     selected = option == scale,
                     onSelect = { onScaleChange(option) },
-                    label = { Text(if (option == TextScale.NORMAL) "Normal" else "Grande") },
+                    label = { Text(if (option == TextScale.NORMAL) stringResource(R.string.settings_scale_normal) else stringResource(R.string.settings_scale_large)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -89,7 +91,7 @@ fun SettingsScreen(
                     // WO-V1: the app has to respect the system size. This multiplies on top of
                     // that scale, it does not replace it, and saying so keeps somebody from
                     // reading it as "the app ignores what I set on the watch".
-                    text = "Se suma al tamaño que tengas puesto en el reloj.",
+                    text = stringResource(R.string.settings_text_size_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -97,17 +99,17 @@ fun SettingsScreen(
                 )
             }
 
-            item(key = "cabecera-historial") { ListHeader { Text("Historial") } }
+            item(key = "cabecera-historial") { ListHeader { Text(stringResource(R.string.settings_history)) } }
             item(key = "limpiar-historial") {
                 // Two taps on the SAME button, no dialog: the history rebuilds itself just by
                 // using the app, so it does not justify a screen on top. What is needed is that
                 // a stray tap --and on a wrist there are some-- does not wipe it.
                 Pill(
                     text = when {
-                        emptyHistory -> "Historial borrado"
-                        !hasHistory -> "No hay historial"
-                        confirming -> "Confirmar"
-                        else -> "Borrar el historial"
+                        emptyHistory -> stringResource(R.string.settings_history_cleared)
+                        !hasHistory -> stringResource(R.string.settings_history_empty)
+                        confirming -> stringResource(R.string.settings_confirm)
+                        else -> stringResource(R.string.settings_history_clear)
                     },
                     background = if (confirming) {
                         MaterialTheme.colorScheme.error

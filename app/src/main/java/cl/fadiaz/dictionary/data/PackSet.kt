@@ -1,7 +1,6 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
-import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 
 /**
@@ -72,19 +71,4 @@ sealed interface PackSet {
 
     /** There were files and **none** of them is usable. */
     data class Unusable(val reason: String) : PackSet
-}
-
-/**
- * What kind of dictionary this is, in one word, to sit next to the short name.
- *
- * It exists because the name stopped saying it: it used to be "Español - definiciones" --22
- * characters, cut off in all four places it is shown-- and became "Español" (D-125). What the
- * long name communicated now comes from `kind`, which is **a fact about the pack** and not a
- * string somebody has to remember to spell right in every new pack.
- *
- * Pure and free of Android: it enters the gate (D-072).
- */
-internal fun packTypeLabel(kind: PackKind): String = when (kind) {
-    PackKind.MONOLINGUAL -> "definiciones"
-    PackKind.BILINGUAL -> "traducción"
 }

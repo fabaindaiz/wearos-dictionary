@@ -77,6 +77,9 @@ data class SearchState(
     sealed interface Status {
         data object Loading : Status
 
+        /** No hay ningun diccionario instalado. El texto lo pone la pantalla (D-127). */
+        data object NoDictionary : Status
+
         /** Extracting the pack from the APK. It takes a while, and the screen has to say why. */
         data object Installing : Status
 
@@ -264,9 +267,9 @@ class SearchViewModel(
                 cacheWeekForTile(chosen.source)
             }
 
-            PackSet.NoPack -> _state.update {
-                it.copy(status = SearchState.Status.Failed("No hay ningún diccionario instalado."))
-            }
+            // Sin texto: la logica de :app no puede traducir (D-072), asi que emite un ESTADO
+            // y la pantalla lo resuelve (D-127).
+            PackSet.NoPack -> _state.update { it.copy(status = SearchState.Status.NoDictionary) }
 
             is PackSet.Unusable -> _state.update {
                 it.copy(status = SearchState.Status.Failed(result.reason))
