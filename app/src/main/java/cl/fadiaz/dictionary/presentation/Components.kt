@@ -203,6 +203,31 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
     }
 }
 
+/**
+ * El detalle que acompana a una palabra en CUALQUIER fila: `sust. · ES`.
+ *
+ * ⚠️ **Existe para que las tres listas digan lo mismo** (D-152). Antes un resultado de busqueda
+ * decia `sust. · ES` y el mismo lema en el historial decia solo `sust.`: dos filas que
+ * representan la misma cosa con distinta informacion le ensenan al usuario que la etiqueta
+ * significa algo distinto segun donde este.
+ *
+ * `override` es para los resultados, donde el nivel de coincidencia --`forma`, `similar`--
+ * reemplaza al tipo de palabra en vez de sumarse: en una fila de 234 dp no entran los tres.
+ *
+ * El separador sale del **mismo recurso** que usa la entrada. Estaba escrito a mano aca y como
+ * recurso alla, que son dos definiciones de la misma cosa esperando divergir.
+ */
+@Composable
+internal fun wordDetail(
+    partOfSpeech: String?,
+    tag: String?,
+    override: String? = null,
+): String? {
+    val partes = listOfNotNull(override ?: partOfSpeech, tag)
+    return partes.takeIf { it.isNotEmpty() }
+        ?.joinToString(stringResource(R.string.entry_list_separator))
+}
+
 /** Opening the pack, or extracting it for the first time. */
 @Composable
 internal fun LoadingMessage(message: String) {

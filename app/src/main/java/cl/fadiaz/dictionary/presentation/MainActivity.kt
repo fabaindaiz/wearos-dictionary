@@ -327,6 +327,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         words = state.favorites,
                         title = R.string.saved_title,
                         empty = R.string.saved_empty,
+                        // Las mismas etiquetas que los resultados (D-152): una
+                        // guardada y un resultado son la misma palabra.
+                        tags = resultTags(state.available, state.active?.langSource),
                         // Same reason as the history: the stored id may belong to an earlier
                         // pack. See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
@@ -352,6 +355,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         words = state.history,
                         title = R.string.home_recent,
                         empty = R.string.history_empty,
+                        tags = resultTags(state.available, state.active?.langSource),
                         // Mismo motivo que en el inicio: el id guardado puede ser de un pack
                         // anterior. Ver `SearchViewModel.targetOf`.
                         onOpen = { visit ->

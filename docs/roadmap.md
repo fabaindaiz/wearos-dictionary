@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **77 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **227 JVM
-de `:app`** y **21 checks** de auditoría estructural — **554 tests en total**. Los **41
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **233 JVM
+de `:app`** y **21 checks** de auditoría estructural — **560 tests en total**. Los **41
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -416,39 +416,29 @@ los pixeles.
 
 ### Diseño de la interfaz
 
-**Estado.** **A medias**, y la mitad que falta cambió. Lo hecho (2026-09-17): densidad,
-jerarquía tipográfica, los estados de carga/instalación/error, el tope de acepciones y la corona
-rotatoria (D-073 a D-075). Lo que falta ya no es la base sino lo que sólo se decide con un reloj
-puesto:
+**Estado.** **Lo que se decide en escritorio está hecho; lo que falta necesita un reloj puesto**
+(2026-09-20).
 
-- **La corona está cableada pero nunca se movió.** El emulador no acepta input de corona por
-  `adb` (`Unknown command: rotaryencoder`), así que lo único verificado es que compila contra la
-  API documentada. En un reloj puede estar invertida, ser demasiado sensible, o no tener foco.
-- **El ejemplo de 917 caracteres sigue siendo un muro.** Va en secundario y más chico, pero con
-  las acepciones desplegadas un solo ejemplo largo todavía empuja la siguiente fuera de pantalla.
-  La opción que lo resolvía —ejemplos detrás de un toque— se evaluó y no se tomó.
-- **No hay paleta propia**: se usan los defaults de Wear Material3, que están pensados para OLED.
-  Elegir colores sin un reloj delante es decidir a ciegas sobre contraste y consumo. La barra de
-  búsqueda ya dejó de ser indistinguible de una fila (D-092), pero eso es un borde, no una paleta.
-- 🔴 **El presupuesto de 192 dp puede estar equivocado, y es la moneda de cambio de cinco
-  decisiones.** Medido en el reloj del proyecto (SM-L715F, 2026-09-18): `wm size` da **498×498 px**
-  y `wm density` da **340**, o sea **234 dp** — **22 % más pantalla** que los 192 dp sobre los que
-  se justificaron D-073, D-075, D-078, D-084 y D-085. A 48 dp de área tocable eso da margen para
-  una **cuarta fila**, que son un 33 % más de resultados sin bajar del mínimo de Wear OS.
-  **Falta confirmarlo dentro de la app** con `LocalConfiguration.screenWidthDp`: `wm density` es
-  la densidad física y Compose puede ver otra. Hasta entonces los 192 dp siguen escritos en cinco
-  lugares y `PantallasTest.entranTresResultadosSinScrollear` mide contra el dispositivo que haya.
-  Este repo ya se equivocó una vez con esta aritmética: el mockup prometía cinco filas y entraban
-  tres.
+**Cerrado desde la última revisión de esta sección:**
 
-Voz, lista de resultados, corona rotatoria, Tile, Complication.
+- 🔴 → ✅ **Los 192 dp estaban equivocados y ya no están escritos en ningún lado.** El reloj
+  entrega **234 dp**, confirmado dentro de la app. `rowsThatFit` y `clockGap` se calculan contra
+  la pantalla real (D-131, D-133) y hay un emulador que reporta lo mismo que el reloj (D-150).
+- ✅ **El espacio bajo el reloj**, reportado dos veces, verificado en hardware.
+- ✅ **Las filas de palabra dicen todas lo mismo** (D-152) y el selector elige idioma (D-147).
+- ✅ **Tres recientes y un botón**, para que los ajustes no queden a varios scrolls (D-148).
 
-**Con qué choca.** Con D-026: la búsqueda vive dentro de la app porque los tiles no aceptan text
-input, así que la superficie glanceable necesita un propósito propio, no ser un atajo a lo mismo.
+**Lo que falta, y por qué no se puede cerrar desde acá:**
 
-**Decidido el 2026-09-19.** Los dos: un tile de últimas palabras y uno de palabra del día
-(D-106). Ninguno abre un pack —`onTileRequest` es main thread con 10 s de tope— así que los dos
-leen lo que la app deja escrito en `SharedPreferences`.
+- **La corona está cableada y nunca se movió.** El emulador no acepta input de corona por `adb`
+  (`Unknown command: rotaryencoder`), ni siquiera el de D-150: eso es hardware, no geometría. En
+  un reloj puede estar invertida, ser demasiado sensible, o no tener foco.
+- **No hay paleta propia.** Se usan los defaults de Wear Material3, pensados para OLED. Elegir
+  colores sin un reloj delante es decidir a ciegas sobre contraste y consumo.
+- **El ejemplo largo sigue siendo un muro.** Con las acepciones desplegadas, un ejemplo de 900
+  caracteres empuja la siguiente fuera de pantalla. La salida evaluada —ejemplos detrás de un
+  toque— **no se tomó**, y sigue siendo una decisión de producto: esconder contenido que el
+  usuario no pidió esconder.
 
 ### Pack de inglés
 
@@ -580,54 +570,56 @@ el campo toca las tres superficies y su formato en disco, que ya tiene datos de 
 `elegirActivo` ya cae al idioma del reloj si el preferido no está abierto, así que degrada bien,
 pero está sin comprobar.
 
-### Terminar el bilingüe: en qué idioma corren los tests
+### ~~Terminar el bilingüe~~ — cerrado (2026-09-20)
 
-**Estado.** **A medias, y frenado por una decisión que no es técnica** (2026-09-20, D-127).
-Hecho: `values/strings.xml` con **83 claves en inglés** y `values-es/strings.xml` con las 83 en
-español neutro, paridad verificada. Los **tiles ya salen bilingües** porque eran lo único que ya
-usaba `R.string.*`.
+**Estado.** ✅ **Cerrado.** Quedan 0 piezas de mecanismo.
 
-**Qué falta de mecanismo.** Cablear ~45 textos en 8 archivos; sacar `packTypeLabel` de
-`PackSet.kt` —vigilado por D-072, no puede importar `android.*`—; darle a `SearchViewModel` un
-estado propio en vez de fabricar *"No hay ningún diccionario instalado"*; pasarle el `Context` a
-`PackStore.openFile` para sus dos mensajes; y `posInSpanish` a recursos.
+**Lo que se hizo, en tres tandas.** D-127 puso las 83 claves en los dos idiomas, sacó
+`packTypeLabel` de `PackSet.kt`, le dio a `SearchViewModel` un estado propio en vez de fabricar
+texto, y pasó `posInSpanish` a recursos. **D-140** encontró que eso no alcanzaba: había **seis
+textos escritos a mano** —*Guardadas*, *Ajustes*, *Opciones* ×2, *Buscar*, *Gestionar*,
+*Recientes*— que en un reloj en inglés salían en español, y agregó el chequeo que lo impide.
+**D-153** cerró el último hueco: la base inglesa ahora **se dibuja en tests**.
 
-**Qué hay que decidir, y por eso está acá.** Con la base en inglés, **Robolectric resuelve
-`values/` y los 178 tests JVM que afirman texto en español fallan en bloque**. Las dos salidas no
-son equivalentes:
+**La decisión que lo frenaba se tomó, y fue la tercera opción**: el locale por defecto de los
+tests es español —para que sigan describiendo la pantalla que el usuario ve— **más un puñado de
+tests que fijan `qualifiers = "en"`** sobre las pantallas con más texto. Las dos coberturas son
+distintas y hacen falta las dos:
 
-- **Fijarles el locale español** (`robolectric.properties` o `@Config(qualifiers = "es")`) — los
-  tests quedan como están, siguen describiendo la UI que el usuario ve, y **la base en inglés no
-  se ejercita nunca**.
-- **Pasar las aserciones a inglés** — ejercita la base, pero son ~40 aserciones reescritas y los
-  tests dejan de leerse como la pantalla que el usuario tiene.
+| Falla | Qué la agarra |
+|---|---|
+| Texto traducido escrito a mano en el código | `check_no_hardcoded_translations` (D-140) |
+| Clave presente en `values-es/` y ausente en `values/` | `check_locale_parity` (D-127) |
+| El valor inglés existe pero **no es el que se dibuja** | `EnglishLocaleTest` (D-153) |
 
-Hay una tercera que cuesta más y las cierra las dos: **fijar el locale español por defecto y
-agregar un puñado de tests en inglés** sobre las pantallas que más texto tienen. Es la que yo
-tomaría, pero cambia el contrato de los tests y no la tomo sin que alguien la mire.
-
-**Con qué choca.** Con `app/CLAUDE.md`, que fija el español neutro para los textos de UI: eso
-sigue valiendo, sólo que ahora vive en `values-es/`.
+**Verificado en el emulador y en el reloj**: un dispositivo en inglés muestra *type…*, *Say a
+word*, *Word of the day*, *Saved*, *Settings*.
 
 ### La voz nativa dicta en el idioma del reloj, no en el del pack
 
-**Estado.** **Regresión aceptada a medias** (2026-09-20). La voz pasó a entrar por
-`ACTION_REMOTE_INPUT` —el selector del sistema, con micrófono y teclado— en vez de
-`RecognizerIntent`, que abre sólo el reconocedor de Google. Verificado en dispositivo.
+**Estado.** **Sólo queda la decisión** (2026-09-20). Todo el mecanismo que compensaba está puesto
+y verificado; lo que falta no es código.
 
-**Lo que se perdió.** `RecognizerIntent` aceptaba `EXTRA_LANGUAGE = langSource`, así que se
-dictaba **en el idioma del pack**. El input del sistema usa el **del reloj**. Con el reloj en
-español y el pack inglés abierto, dictar transcribe en español y no va a encontrar nada.
+**Lo hecho.** La voz entra por `ACTION_REMOTE_INPUT` —el selector del sistema, con micrófono,
+teclado y escritura a mano— en vez de `RecognizerIntent`, que abre sólo el reconocedor de Google
+y puede no estar instalado. Verificado en dispositivo.
 
-**Qué hay que decidir.** Si eso es aceptable —el caso real es un reloj en español buscando en
+**Lo que se perdió, y lo que ya lo compensa.** `RecognizerIntent` aceptaba
+`EXTRA_LANGUAGE = langSource`, así que se dictaba **en el idioma del pack**; el input del sistema
+usa el **del reloj**. Con el reloj en español y el pack inglés activo, dictar transcribe en
+español. Dos compensaciones están puestas: **la etiqueta nombra el diccionario** (*«Buscar en
+English»*) y **el botón de acción del teclado ya es una lupa**, verificado en captura.
+
+**Lo que hay que decidir.** Si eso alcanza —el caso real es un reloj en español buscando en
 español— o si hace falta volver a `RecognizerIntent` **sólo cuando el idioma del pack activo no
-es el del reloj**, que es un camino condicional y por lo tanto dos superficies que mantener. Hoy
-lo único que compensa es la etiqueta, que nombra el diccionario: *"Buscar en English"*.
+es el del reloj**. Eso es un camino condicional, o sea **dos superficies que mantener** y una que
+casi nadie ejercita.
 
-**Aparte, verificado desarmando el `.aar` y no leído de memoria:** el tipo de acción del input
-(Buscar en vez de Enviar) **no se puede fijar desde Kotlin** — `setInputActionType` es pública
-pero las constantes `INPUT_ACTION_TYPE_*` de `WearableRemoteInputExtender` son `internal` en
-wear-input 1.2.0. Desde Java se ven públicas. Si alguna versión las abre, es una línea.
+**Cerrado por medición** (2026-09-20): el tipo de acción del input **no hace falta fijarlo**. Se
+creía pendiente porque `INPUT_ACTION_TYPE_SEARCH` es `internal` en wear-input 1.2.0 —verificado
+compilando, no leyendo, porque `javap` las muestra públicas: ésa es la vista de Java—. Pero el
+sistema ya ofrece la lupa. Si alguna vez hiciera falta forzarlo, `setInputActionType` **sí** es
+pública y el valor es **1**, leído del `.aar` con `javap -constants`.
 
 ### Los 234 dp están confirmados: cinco decisiones cotizadas contra 192
 

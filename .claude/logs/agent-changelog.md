@@ -26,6 +26,50 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Las filas dicen todas lo mismo, y el bilingüe se cierra
+
+**Qué.** D-152 (toda fila de palabra dice palabra · tipo · idioma) y D-153 (la base en inglés se
+ejercita). Más una revisión de tres secciones del roadmap que listaban como pendiente trabajo ya
+hecho.
+
+**Áreas.** `Components.kt` (`wordDetail`, compartido), `SearchScreen.kt`, `WordListScreen.kt`,
+`MainActivity.kt` · `EnglishLocaleTest.kt` (nuevo), `ScreensTest` · `docs/decisions.md`,
+`docs/roadmap.md`, `README.md`, el skill `verify`.
+
+**Por qué.** Pedido: *«en búsqueda aparece palabra-tipo-idioma, pero en el historial sólo
+palabra-tipo»*. Dos filas que representan lo mismo con distinta información le enseñan al usuario
+que la etiqueta significa algo distinto según dónde esté.
+
+**Medido / verificado.**
+
+- **`robolectric.properties` afirmaba una cobertura que no existía**: su comentario decía que la
+  base inglesa la cubren *«los pocos tests que fijan `qualifiers = "en"`»* y **no había ninguno**.
+  Ahora hay tres, **comprobados fallando** al cambiar el locale a español.
+- **Los tres ítems "a medias" estaban en gran parte hechos.** El 🔴 de los 192 dp lo cerró D-131;
+  los ~45 textos por cablear, D-140. Lo que quedaba del bilingüe era sólo ese hueco de tests.
+- **Cerrado por medición**: el tipo de acción del input nativo **no hace falta fijarlo** — el
+  sistema ya ofrece la lupa. Y si hiciera falta, `setInputActionType` es pública y el valor es
+  **1**, leído del `.aar` con `javap -constants`, no de memoria.
+- Gate: **77 · 233 · 250 · 21 checks** — **560 tests**.
+
+**Arquitectura.** ✅ Cumple. `wordDetail` es una sola definición del detalle de una fila, y de paso
+unificó el separador, que estaba escrito a mano en las filas y como recurso en la entrada — dos
+definiciones de lo mismo, y una ya había perdido sus espacios una vez.
+
+**Qué salió mal.** **Inserté el helper entre el `@Composable` de `ListRow` y su declaración**, así
+que le robé la anotación y rompí la compilación; al arreglarlo dejé la anotación duplicada, y al
+arreglar eso el KDoc de `ListRow` quedó documentando otra función. Tres pasos para un movimiento
+de texto: editar Kotlin por reemplazo de cadenas es barato hasta que toca anotaciones. Y me
+adelanté con el conteo de tests —escribí 237 donde eran 233— antes de medirlo.
+
+**Qué quedó sin hacer.**
+
+- **La voz nativa**: queda **sólo la decisión** de producto (aceptar que se dicte en el idioma del
+  reloj, o un camino condicional con dos superficies que mantener). El mecanismo compensatorio
+  está puesto y verificado.
+- **El diseño de interfaz**: corona, paleta y el ejemplo largo. Las tres necesitan un reloj
+  puesto o una decisión, no código.
+
 ## 2026-09-20 — Los instrumentados corren por fin en la geometría del reloj
 
 **Qué.** Verificación sobre el emulador fiel de D-150 y barrido final de números. Sin código
