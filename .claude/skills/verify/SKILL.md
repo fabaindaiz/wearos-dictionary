@@ -18,7 +18,7 @@ months later. The gate is the only thing that catches them before that happens.
 ./gradlew check
 ```
 
-It runs compilation, Android Lint, the **77 of `:dict-core`**, the **206 JVM of `:app`** (screens
+It runs compilation, Android Lint, the **77 of `:dict-core`**, the **227 JVM of `:app`** (screens
 included, under Robolectric), the **250 of the Python builder** and the structural audit
 (**21 checks**). **Measured: ~1m07s cold.**
 
