@@ -460,6 +460,58 @@ class SearchViewModelTest {
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
     }
 
+    // --- The history records every way of opening a word --------------------------------------
+
+    @Test
+    fun openingByIdAlsoLandsInTheHistory() = runTest {
+        // Reported: "el historial a veces no se actualiza". The "sometimes" is the whole clue --
+        // `recordVisit` was only called from a SEARCH RESULT. Opening the word of the day, a
+        // recent entry, or a word tapped inside a gloss navigated without recording anything.
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(7L to EntrySummary(7L, "permanecer", "verb", 100))
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.recordVisit("fake", 7L)
+        advanceUntilIdle()
+
+        assertEquals(listOf("permanecer"), vm.state.value.history.map { it.headword })
+    }
+
+    @Test
+    fun openingByIdMovesItToTheFront() = runTest {
+        // Same move-to-front as a search result: opening it again raises it, not duplicates it.
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(7L, "permanecer", "verb", 100),
+            9L to EntrySummary(9L, "correr", "verb", 200),
+        )
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.recordVisit("fake", 7L)
+        vm.recordVisit("fake", 9L)
+        vm.recordVisit("fake", 7L)
+        advanceUntilIdle()
+
+        assertEquals(listOf("permanecer", "correr"), vm.state.value.history.map { it.headword })
+    }
+
+    @Test
+    fun openingByIdFromAPackThatIsNotOpenRecordsNothing() = runTest {
+        // Same rule as `entry`: it does not fall back to the active pack, because falling back
+        // is the D-080 bug -- it would record the wrong word, with the right headword.
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(7L to EntrySummary(7L, "permanecer", "verb", 100))
+        val vm = conPack(fake)
+        advanceUntilIdle()
+
+        vm.recordVisit("otro-pack", 7L)
+        advanceUntilIdle()
+
+        assertEquals(emptyList(), vm.state.value.history)
+    }
+
     // --- The keyboard: while it is open, nothing is searched ---------------------------------
 
     @Test

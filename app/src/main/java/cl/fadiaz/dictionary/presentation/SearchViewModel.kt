@@ -348,13 +348,36 @@ class SearchViewModel(
      * The `Suggestion` already carries the four fields, so recording costs neither opening the entry
      * nor decompressing a payload.
      */
-    fun recordVisit(suggestion: Suggestion) {
-        val visit = Visit(
+    fun recordVisit(suggestion: Suggestion) = recordVisit(
+        Visit(
             packId = suggestion.packId,
             entryId = suggestion.entryId,
             headword = suggestion.headword,
             partOfSpeech = suggestion.partOfSpeech,
-        )
+        ),
+    )
+
+    /**
+     * Anota una visita cuando solo se tiene el id: la palabra del dia, una entrada del historial,
+     * o una palabra tocada dentro de una glosa.
+     *
+     * **Los tres caminos no anotaban nada** (D-129), que es de donde salia el "a veces" del
+     * reporte: el historial se actualizaba al abrir un RESULTADO DE BUSQUEDA y no al abrir de
+     * ninguna otra forma.
+     *
+     * Cuesta una lectura de la fila por rowid --la misma que la pantalla de entrada hace un
+     * instante despues-- y no cae al pack activo si el pedido no es de un pack abierto: caer
+     * seria anotar otra palabra con el lema correcto, que es el bug de D-080.
+     */
+    fun recordVisit(packId: String, entryId: Long) {
+        val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
+        viewModelScope.launch {
+            val header = pack.summary(entryId) ?: return@launch
+            recordVisit(Visit(packId, header.entryId, header.headword, header.partOfSpeech))
+        }
+    }
+
+    fun recordVisit(visit: Visit) {
         // Move-to-front: opening the same word twice raises it, it does not duplicate it.
         visits = (listOf(visit) + visits.filterNot {
             it.packId == visit.packId && it.entryId == visit.entryId
