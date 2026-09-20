@@ -31,6 +31,7 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.core.MatchKind
@@ -839,6 +840,37 @@ class ScreensTest {
         // screen, this test is the only thing that says so.
         compose.setContent {
             AttributionScreen(packs = listOf(handle(meta())))
+        }
+        compose.onNodeWithText("Wikcionario", substring = true).assertExists()
+        compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
+    }
+
+    @Test
+    fun conVariasFuentesSeMuestranTODAS_conSuPropiaLicencia() {
+        // ⚠️ El caso que obligo a D-138: el pack español mezcla definiciones CC BY-SA 4.0 con
+        // frases de corpus CC BY 2.0 FR. Mostrar una sola licencia **incumple la otra**, y
+        // ningun otro test lo veria porque el pack abre y funciona igual.
+        val fuentes = listOf(
+            PackSource(PackSource.Role.DEFINITIONS, "Wikcionario",
+                       "https://es.wiktionary.org/", "CC BY-SA 4.0", ""),
+            PackSource(PackSource.Role.SENTENCES, "Tatoeba",
+                       "https://tatoeba.org/", "CC BY 2.0 FR", ""),
+        )
+        compose.setContent {
+            AttributionScreen(packs = listOf(handle(meta().copy(sources = fuentes))))
+        }
+        // La linea itemizada, no solo el nombre: "Wikcionario" tambien aparece en la prosa de
+        // `attribution`, y encontrarlo ahi no probaria que la fuente se declaro con SU licencia.
+        compose.onNodeWithText("definiciones · Wikcionario · CC BY-SA 4.0").assertExists()
+        compose.onNodeWithText("frases · Tatoeba · CC BY 2.0 FR").assertExists()
+    }
+
+    @Test
+    fun unPackSinFuentesDeclaradasSigueMostrandoSuCredito() {
+        // Un pack anterior a D-138 no trae `meta.sources`. No puede quedarse SIN atribucion:
+        // eso convertiria una mejora de formato en un incumplimiento de licencia.
+        compose.setContent {
+            AttributionScreen(packs = listOf(handle(meta().copy(sources = emptyList()))))
         }
         compose.onNodeWithText("Wikcionario", substring = true).assertExists()
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()

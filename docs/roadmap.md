@@ -245,7 +245,18 @@ D-028, aunque poco: los ejemplos pagan en el payload y en `fts_def`, como pasó 
 
 ### Composición entre packs
 
-**Estado.** Planificado. El join key ya está decidido y medido (D-055 a D-058); falta construirlo.
+**Estado.** **La capa existe; el join, no** (2026-09-20). `SearchRepository` se construyó (D-136)
+y con él la **convivencia**: dos packs base del mismo idioma se instalan y se consultan juntos, y
+la ganancia es la unión de sus lemas. Eso ya corre — `es-def-wikc-tat` y `es-def-wd` conviven
+instalados.
+
+⚠️ **Lo que falta es el join por `uid`, y ahora hay número**: entre los dos packs de español
+**8.595 `uid` coinciden** (D-139). Son las entradas donde un pack podría sumarle campos al otro.
+Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinónimo es por acepción.
+
+⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
+misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
+de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
 > **El selector de idioma NO es composición**, y conviene no confundirlos. El selector elige
 > **un** pack y busca en él (D-078); la composición hace que un pack auxiliar le **sume**

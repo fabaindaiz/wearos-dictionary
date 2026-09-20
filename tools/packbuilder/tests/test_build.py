@@ -23,7 +23,9 @@ from sources import toy  # noqa: E402
 import build  # noqa: E402
 
 BASE_META = {
-    "pack_id": "test",
+    # Un `pack_id` con la forma que D-138 exige: <idioma>-<tipo>-<fuente>. "test" a secas ya no
+    # sirve, y el test que lo rechaza vive en ManifiestoTest.
+    "pack_id": "es-tr-test",
     "kind": "bilingual",
     "name": "Test",
     "lang_src": "es",
@@ -32,6 +34,8 @@ BASE_META = {
     "data_version": "1",
     "license": "CC0-1.0",
     "attribution": "test",
+    "sources": ("definitions\tFuente de prueba\thttps://example.invalid/test\t"
+                "CC0 1.0\thttps://creativecommons.org/publicdomain/zero/1.0/\n"),
     "source_url": "https://example.invalid/test",
     "proper_nouns": "excluded",
 }
@@ -366,6 +370,71 @@ class AntonimosFueraDelIndiceTest(BuilderTestCase):
         self.assertEqual(1, sinonimo, "el sinonimo SI tiene que estar en el indice (D-118)")
         self.assertEqual(0, relacionada, "la relacionada NO tiene que estar en el indice (D-132)")
         self.assertTrue(payload_crudo, "pero si tiene que haber llegado al payload")
+
+
+_FUENTE = ("definitions\tWikcionario\thttps://es.wiktionary.org/\t"
+           "CC BY-SA 4.0\thttps://creativecommons.org/licenses/by-sa/4.0/\n")
+
+
+class ManifiestoTest(BuilderTestCase):
+    """El pack declara QUE es, DE DONDE viene y COMO se puede usar, y el validador lo exige.
+
+    Son las tres preguntas que alguien que recibe un `.db` de 68 MB tiene que poder contestar sin
+    preguntarle a nadie. El modo de falla es silencioso en las tres: un pack sin manifiesto abre,
+    busca y funciona -- y no se puede saber si se puede redistribuir.
+    """
+
+    def _con_meta(self, **cambios):
+        metadata = dict(BASE_META)
+        metadata.update(cambios)
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("correr"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        return codigo, salida.getvalue()
+
+    def test_un_pack_id_demasiado_generico_se_rechaza(self):
+        """El codigo evita la colision, que es lo que un nombre generico no puede evitar.
+
+        Dos packs de español de fuentes distintas instalados a la vez (D-136) comparten idioma y
+        tipo: lo unico que los separa es el codigo de fuente. Con `pack_id = "espanol"` los dos
+        son "espanol", uno pisa al otro al instalar, y el historial del reloj queda apuntando a
+        entradas de un pack que ya no esta.
+        """
+        codigo, salida = self._con_meta(pack_id="espanol")
+        self.assertNotEqual(0, codigo)
+        self.assertIn("pack_id", salida)
+
+    def test_el_pack_id_con_la_forma_correcta_pasa(self):
+        codigo, salida = self._con_meta(pack_id="es-def-wikc", sources=_FUENTE)
+        self.assertEqual(0, codigo, salida)
+
+    def test_las_variantes_son_parte_de_la_forma(self):
+        # "es-def-wikc-tat" y "es-def-wikc-sample10" son packs legitimos que tienen que convivir
+        # con el pelado. Si la gramatica no las admite, el builder no puede construirlos.
+        for pack_id in ("es-def-wikc-tat", "es-def-wikc-ej-tat", "es-def-wikc-sample10",
+                        "en-def-wikt", "es-tr-wikc"):
+            codigo, salida = self._con_meta(pack_id=pack_id, sources=_FUENTE)
+            self.assertEqual(0, codigo, "%s deberia ser valido:\n%s" % (pack_id, salida))
+
+    def test_un_pack_SIN_manifiesto_de_fuentes_se_rechaza(self):
+        """Sin `meta.sources` no se sabe bajo que terminos se puede redistribuir el contenido."""
+        codigo, salida = self._con_meta(pack_id="es-def-wikc", sources="")
+        self.assertNotEqual(0, codigo)
+        self.assertIn("sources", salida)
+
+    def test_una_fuente_SIN_licencia_se_rechaza(self):
+        """Declarar la fuente y callar la licencia es peor que no declarar nada: parece completo.
+
+        Es la comprobacion que paga esta clase. La atribucion es la CONDICION de uso del dato
+        (D-031), y un pack que nombra a Tatoeba sin decir CC BY 2.0 FR no dice como usarse.
+        """
+        codigo, salida = self._con_meta(
+            pack_id="es-def-wikc",
+            sources="definitions\tWikcionario\thttps://es.wiktionary.org/\t\t\n")
+        self.assertNotEqual(0, codigo)
+        self.assertIn("licencia", salida.lower() + salida)
 
 
 class PoliticaDeContenidoTest(BuilderTestCase):

@@ -54,6 +54,20 @@ data class PackMetadata(
     val dataVersion: Int,
     val license: String,
     val attribution: String,
+    /**
+     * The sources this pack declares, each with **its own** licence (D-138).
+     *
+     * ⚠️ **[license] and [attribution] stay, and they are not redundant.** They are the
+     * collection's governing licence and its one-paragraph credit, which is what a pack built
+     * before this field has and all a small screen can show at a glance. This list is the
+     * itemised version: with definitions under CC BY-SA 4.0 and corpus sentences under CC BY
+     * 2.0 FR, one name for the whole pack either over-claims or under-credits.
+     *
+     * Empty for a pack built before D-138, and that is handled rather than rejected: it reads
+     * from `meta["sources"]`, not `getValue`, so an older pack still opens (same tolerance as
+     * `description` in D-125).
+     */
+    val sources: List<PackSource> = emptyList(),
 ) {
     init {
         require(kind != PackKind.BILINGUAL || langTarget != null) {

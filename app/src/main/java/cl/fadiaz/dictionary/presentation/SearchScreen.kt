@@ -251,7 +251,7 @@ fun SearchScreen(
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
-                            ) { Text("Recientes") }
+                            ) { Text(stringResource(R.string.home_recent)) }
                         }
                         items(
                             count = recent.size,
@@ -332,7 +332,7 @@ fun SearchScreen(
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
                                 transformation = SurfaceTransformation(spec),
-                            ) { Text("Opciones") }
+                            ) { Text(stringResource(R.string.home_options)) }
                         }
                         // The language selector lives here and no longer replaces the home
                         // heading. That changes what D-078 said --that it cost ZERO rows-- and
@@ -346,13 +346,17 @@ fun SearchScreen(
                         // that explains the gesture, so arriving with zero is not a dead end.
                         item(key = "favoritos") {
                             ListRow(
-                                headword = "Guardadas",
+                                headword = stringResource(R.string.home_saved),
                                 detail = state.favorites.size.takeIf { it > 0 }?.toString(),
                                 onClick = onOpenFavoritos,
                             )
                         }
                         item(key = "ajustes") {
-                            ListRow(headword = "Ajustes", detail = null, onClick = onOpenSettings)
+                            ListRow(
+                                headword = stringResource(R.string.home_settings),
+                                detail = null,
+                                onClick = onOpenSettings,
+                            )
                         }
                     }
 

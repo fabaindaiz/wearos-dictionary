@@ -50,9 +50,101 @@ import hashlib
 import os
 import sys
 
-from sources import enwikt_examples, kaikki, oewn, tatoeba
+from sources import enwikt_examples, kaikki, oewn, tatoeba, wikidata
 
 from build import PackBuilder
+
+# El CATALOGO de fuentes, y la razon de que sea una tabla y no texto suelto (D-138).
+#
+# Cada fila es una declaracion: quien aporto que, desde donde, y bajo que licencia. De aca salen
+# **las dos** cosas que el pack lleva -- la prosa de `meta.attribution` y la lista estructurada de
+# `meta.sources` -- asi que **no hay forma de sumar contenido sin sumar el credito**: es un dato,
+# no un parrafo que alguien tiene que acordarse de editar.
+#
+# ⚠️ **Una licencia por fuente, no una por pack.** El pack español con `--frases` mezcla
+# definiciones CC BY-SA 4.0 con frases CC BY 2.0 FR. Un solo nombre para todo el pack o reclama de
+# mas o acredita de menos, y la atribucion es la CONDICION de uso del dato (D-031).
+#
+# `codigo` es tambien el que aparece en el `pack_id` (ver GRAMATICA_DE_PACK_ID), para que dos
+# packs del mismo idioma y distinta fuente no colisionen.
+FUENTES = {
+    "wikc": {
+        "codigo": "wikc",
+        "rol": "definitions",
+        "nombre": "Wikcionario (es.wiktionary.org)",
+        "url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
+        "licencia": "CC BY-SA 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "prosa": ("Definiciones del Wikcionario (es.wiktionary.org), licencia CC BY-SA 4.0. "
+                  "Extracción: kaikki.org / wiktextract (Tatu Ylonen)."),
+    },
+    "wikt": {
+        "codigo": "wikt",
+        "rol": "definitions",
+        "nombre": "Wiktionary (en.wiktionary.org)",
+        "url": "https://kaikki.org/dictionary/English/",
+        "licencia": "CC BY-SA 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "prosa": ("Definitions from Wiktionary (en.wiktionary.org), CC BY-SA 4.0. "
+                  "Extraction: kaikki.org / wiktextract (Tatu Ylonen)."),
+    },
+    "enwikt-ej": {
+        "codigo": "ej",
+        "rol": "examples",
+        "nombre": "Wiktionary en inglés, sección Spanish",
+        "url": "https://kaikki.org/dictionary/Spanish/",
+        "licencia": "CC BY-SA 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "prosa": ("Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección "
+                  "Spanish, licencia CC BY-SA 4.0."),
+    },
+    "tatoeba": {
+        "codigo": "tat",
+        "rol": "sentences",
+        "nombre": "Tatoeba",
+        "url": "https://tatoeba.org/",
+        "licencia": "CC BY 2.0 FR",
+        "licencia_url": "https://creativecommons.org/licenses/by/2.0/fr/",
+        "prosa": "Frases de ejemplo del corpus Tatoeba (tatoeba.org), licencia CC BY 2.0 FR.",
+    },
+    "wd": {
+        "codigo": "wd",
+        "rol": "definitions",
+        "nombre": "Wikidata Lexemes",
+        "url": "https://www.wikidata.org/wiki/Wikidata:Lexicographical_data",
+        "licencia": "CC0 1.0",
+        "licencia_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        # Se declara igual aunque CC0 no lo exija: de donde viene un dato es util saberlo
+        # aunque no sea obligatorio decirlo.
+        "prosa": ("Definiciones de Wikidata Lexemes (wikidata.org), dedicadas al dominio "
+                  "público bajo CC0 1.0."),
+    },
+    "oewn": {
+        "codigo": "oewn",
+        "rol": "definitions",
+        "nombre": "Open English WordNet",
+        "url": "https://en-word.net/",
+        "licencia": "CC BY 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by/4.0/",
+        "prosa": "Open English WordNet 2025, CC BY 4.0.",
+    },
+}
+
+
+def _declarar(metadata, clave):
+    """Suma una fuente al manifiesto del pack: la prosa y la fila estructurada, juntas.
+
+    Es una sola funcion para que **no exista** una forma de agregar contenido y olvidar el
+    credito. El modo de falla que evita es silencioso: el pack sale entero, abre, funciona, y
+    esta mal licenciado -- nada en el contenido lo delata.
+    """
+    fuente = FUENTES[clave]
+    fila = "\t".join((fuente["rol"], fuente["nombre"], fuente["url"],
+                       fuente["licencia"], fuente["licencia_url"]))
+    metadata["sources"] = (metadata.get("sources", "") + fila + "\n")
+    prosa = metadata.get("attribution", "")
+    metadata["attribution"] = (prosa + " " + fuente["prosa"]).strip()
+    return fuente
 
 # D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
 # son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
@@ -86,11 +178,29 @@ PACKS = {
         "fuzzy_profile": "es",
         "data_version": "20260915",
         "license": "CC-BY-SA-4.0",
-        "attribution": (
-            "Definiciones del Wikcionario (es.wiktionary.org), licencia CC BY-SA 4.0. "
-            "Extracción: kaikki.org / wiktextract (Tatu Ylonen)."
-        ),
+        # La atribucion NO se escribe aca: se deriva de FUENTES[fuente_base] (D-138), para
+        # que sumar contenido y sumar credito sean el mismo acto.
+        "fuente_base": "wikc",
         "source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
+        "proper_nouns": "lexical-only",
+    },
+    # El SEGUNDO pack base de español (D-139). No reemplaza al del Wikcionario: se instala al
+    # lado y se consulta junto con el (D-136), y la ganancia es la union de lemas -- 5.283 que el
+    # otro no tiene, medidos. Es ademas el unico CC0 del catalogo.
+    "es-wd": {
+        "pack_id": "es-def-wd",
+        "kind": "monolingual",
+        "name": "Español (Wikidata)",
+        "description": (
+            "Definiciones en español de Wikidata Lexemes. Segundo diccionario de español: "
+            "aporta gentilicios regionales y locuciones que el Wikcionario cubre peor."
+        ),
+        "lang_src": "es",
+        "fuzzy_profile": "es",
+        "data_version": "20260920",
+        "license": "CC0-1.0",
+        "fuente_base": "wd",
+        "source_url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
         "proper_nouns": "lexical-only",
     },
     "en": {
@@ -105,10 +215,7 @@ PACKS = {
         "fuzzy_profile": "en",
         "data_version": "20260909",
         "license": "CC-BY-SA-4.0",
-        "attribution": (
-            "Definitions from Wiktionary (en.wiktionary.org), CC BY-SA 4.0. "
-            "Extraction: kaikki.org / wiktextract (Tatu Ylonen)."
-        ),
+        "fuente_base": "wikt",
         "source_url": "https://kaikki.org/dictionary/English/",
         "proper_nouns": "lexical-only",
     },
@@ -126,10 +233,7 @@ PACKS = {
         "fuzzy_profile": "en",
         "data_version": "20251231",
         "license": "CC-BY-4.0",
-        "attribution": (
-            "Open English WordNet 2025 (en-word.net), CC BY 4.0. "
-            "Derived from Princeton WordNet 3.0."
-        ),
+        "fuente_base": "oewn",
         "source_url": "https://en-word.net/",
         # La edicion estandar de OEWN 2025 no trae nombres propios: estan en Open English
         # Namenet / la edicion 2025+. La fuente de referencia del dominio llego a D-116 sola.
@@ -139,7 +243,7 @@ PACKS = {
 
 # De que modulo sale cada pack. Dos lineas en vez de un build_spike_oewn.py aparte, que
 # duplicaria el manejo de --sample, de la metadata y de PackBuilder.
-READERS = {"es": kaikki, "en": kaikki, "en-core": oewn}
+READERS = {"es": kaikki, "en": kaikki, "en-core": oewn, "es-wd": wikidata}
 
 
 def _keep(headword, sample):
@@ -186,6 +290,9 @@ def main(argv):
         dump_frases = argv[argv.index("--frases") + 1]
 
     metadata = dict(PACKS[lang])
+    # El manifiesto se arma antes que nada: la fuente base primero, para que quede arriba en la
+    # lista, y cada opcion agrega la suya donde mezcla su contenido.
+    _declarar(metadata, metadata.pop("fuente_base"))
     if sample > 1:
         metadata["pack_id"] += "-sample%d" % sample
         metadata["name"] += " (piloto 1/%d)" % sample
@@ -202,11 +309,7 @@ def main(argv):
         # distribuye el pack, y las dos fuentes son CC BY-SA 4.0. Se escribe aca, junto al
         # merge, para que no exista manera de mezclar el contenido sin mover el credito.
         ejemplos = enwikt_examples.examples_by_entry(dump_ejemplos)
-        metadata["pack_id"] += "-ej"
-        metadata["attribution"] += (
-            " Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección Spanish, "
-            "licencia CC BY-SA 4.0."
-        )
+        metadata["pack_id"] += "-" + _declarar(metadata, "enwikt-ej")["codigo"]
         metadata["description"] += " Con ejemplos de uso de una segunda fuente."
     frases = None
     if dump_frases:
@@ -215,10 +318,7 @@ def main(argv):
         # --el export CC0 trae 37 frases en español de 562.186-- asi que la atribucion es
         # obligatoria, no cortesia.
         frases = tatoeba.shortest_by_norm(dump_frases)
-        metadata["pack_id"] += "-fr"
-        metadata["attribution"] += (
-            " Frases de ejemplo del corpus Tatoeba (tatoeba.org), licencia CC BY 2.0 FR."
-        )
+        metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
         metadata["description"] += " Con frases de uso del corpus Tatoeba."
 
     if os.path.dirname(output):

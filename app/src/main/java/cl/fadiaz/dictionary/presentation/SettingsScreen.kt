@@ -70,7 +70,7 @@ fun SettingsScreen(
                 // is where it is needed quickly. You come here to see how much they take and to
                 // get rid of the ones you do not need.
                 ListRow(
-                    headword = "Gestionar",
+                    headword = stringResource(R.string.settings_manage),
                     detail = opened.size.toString(),
                     onClick = onManagePacks,
                 )

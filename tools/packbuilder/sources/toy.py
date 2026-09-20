@@ -132,7 +132,7 @@ _DATA = [
 ]
 
 METADATA = {
-    "pack_id": "toy-es-en",
+    "pack_id": "es-tr-toy",
     "kind": "bilingual",
     "name": "Juguete Español → English",
     "lang_src": "es",
@@ -141,6 +141,10 @@ METADATA = {
     "data_version": "1",
     "license": "CC0-1.0",
     "attribution": "Datos de prueba escritos a mano para los tests; no es un diccionario real.",
+    # El manifiesto tambien aca (D-138): si el pack de juguete pudiera saltarselo, la unica
+    # comprobacion de extremo a extremo que corre en el gate dejaria de ejercitarlo.
+    "sources": ("definitions\tDatos de prueba del repo\thttps://example.invalid/toy\t"
+                "CC0 1.0\thttps://creativecommons.org/publicdomain/zero/1.0/\n"),
     "source_url": "https://example.invalid/toy",
     # El toy CONSERVA nombres propios a proposito, al reves que los packs reales (D-116): es el
     # unico fixture vivo de esa rama, y lo que sostiene el test de que los dos vocabularios de

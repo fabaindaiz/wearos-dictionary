@@ -2,6 +2,7 @@ package cl.fadiaz.dictionary.presentation
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -23,6 +24,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
@@ -74,22 +76,51 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                         )
                     }
                 }
+                // ⚠️ **One line per declared source, each with ITS licence** (D-138). A pack
+                // can mix content under different terms --the Spanish one has definitions under
+                // CC BY-SA 4.0 and corpus sentences under CC BY 2.0 FR-- and showing a single
+                // name breaches the other. The text is the pack's, never this app's.
+                meta.sources.forEach { fuente ->
+                    item {
+                        Text(
+                            text = stringResource(
+                                R.string.attribution_source,
+                                stringResource(roleLabelRes(fuente.role)),
+                                fuente.name,
+                                fuente.license,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        )
+                    }
+                }
+                // The one-paragraph credit, which is all a pack older than D-138 has. It is not
+                // dropped when `sources` exists either: it is the prose the source itself
+                // wrote, and the itemised list above is a summary of it.
                 item {
                     Text(
                         text = meta.attribution,
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     )
                 }
-                item {
-                    Text(
-                        text = stringResource(R.string.attribution_license, meta.license),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
+                // The collection's governing licence. Shown only when the pack did NOT itemise:
+                // with the list above, repeating one name for the whole pack is the very
+                // over-claim D-138 removed.
+                if (meta.sources.isEmpty()) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.attribution_license, meta.license),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    }
                 }
             }
             // A rejected pack cannot vanish from the selector in silence.
@@ -106,4 +137,18 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
             }
         }
     }
+}
+
+/**
+ * The label for a source's role. A `when` and not a map so a new [PackSource.Role] does not
+ * compile until it is given a name, the same rule `packTypeLabelRes` follows (D-125).
+ */
+@StringRes
+internal fun roleLabelRes(role: PackSource.Role): Int = when (role) {
+    PackSource.Role.DEFINITIONS -> R.string.attribution_role_definitions
+    PackSource.Role.EXAMPLES -> R.string.attribution_role_examples
+    PackSource.Role.SENTENCES -> R.string.attribution_role_sentences
+    PackSource.Role.RELATIONS -> R.string.attribution_role_relations
+    PackSource.Role.TRANSLATIONS -> R.string.attribution_role_translations
+    PackSource.Role.OTHER -> R.string.attribution_role_other
 }
