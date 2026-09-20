@@ -920,7 +920,7 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **Gate completo** | ✅ 21 checks, verde | |
 | **Tests instrumentados en API 37** | ✅ 34 tests, 0 fallas | |
 | **Tests instrumentados en API 33** (el `minSdk`) | ❌ **sin correr** | El AVD `wear_api33` existe. **El propósito de esos tests es que el ICU difiere entre versiones**, así que correr uno solo no prueba lo que intentan probar |
-| **Cualquier cosa vista en el reloj real** | ❌ **nada de D-116 a D-146** | 31 decisiones de contenido y formato, todas verificadas en emulador |
+| **Cualquier cosa vista en el reloj real** | ⚠️ **parcial** | La app, los dos packs y siete comprobaciones se vieron el 2026-09-20; los tiles dibujando y los tests instrumentados, no. Ver §Lo que YA se vio en el reloj |
 | **R8** | ❌ apagado | **32,9 de los 33 MB son dex.** Es la palanca más grande que queda. Encenderlo reintroduce la clase de bug que sólo aparece en release, así que va atado a la verificación en dispositivo. Ver O-2 |
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
@@ -1079,43 +1079,42 @@ interfaz, no después — rehacer animaciones ya escritas es más caro que no es
 
 ## Comprobación que falta y bloquea el ship
 
-### Los packs del reloj son incompatibles, y nada de D-116 a D-121 se vio en hardware
+### Lo que YA se vio en el reloj, y lo que no
 
-**Estado.** **Bloqueado afuera**, y es lo primero que hay que hacer cuando haya un reloj a mano.
-No falta contenido: falta correrlo.
+**Estado.** **Primera verificación en hardware el 2026-09-20.** El reloj es un **SM-L715F, Wear OS
+sobre Android 17**, y confirma la configuración que D-131 y D-133 asumen:
+`sw234dp w234dp h234dp 340dpi`, pantalla física **498×498**, 40 GB libres.
 
-**Lo concreto, y es una regresión si alguien abre la app hoy.** El `payload_codec` pasó a
-`deflate-v2` (D-119) y `PackFile.open` lo compara con `!=`. Los tres packs que están instalados
-en el reloj desde el 2026-09-18 son `deflate-v1`, así que la app **los rechaza con
-`IncompatibleException`**. Es el comportamiento diseñado, no un bug, pero deja el reloj sin
-diccionarios hasta que se reconstruyan:
+Instalado y funcionando: app **0.3.0 (versionCode 3)**, `es-def-wikc-tat-wn-wd` (75,2 MB) y
+`en-def-wikt-wn` (315,5 MB). Los packs anteriores se borraron — si no, convivirían bajo otro
+`pack_id` y el reloj mostraría dos diccionarios por idioma.
 
-```sh
-python3 tools/packbuilder/build_pack.py es <es.jsonl> ../wearos-dictionary-data/es-def-wikc.db
-python3 tools/packbuilder/build_pack.py en <en.jsonl> ../wearos-dictionary-data/en-def-wikt.db
-python3 tools/packbuilder/verify_pack.py ../wearos-dictionary-data/es-def-wikc.db
-python3 tools/devpack.py install ../wearos-dictionary-data/es-def-wikc.db
-```
+**Lo verificado en hardware, con lo que cierra cada cosa:**
 
-Costo medido: ~46 s y ~3 min de build, y **3 min 38 s** de transferencia del inglés por ADB.
+| Qué se vio | Cierra |
+|---|---|
+| La app abre los dos packs sin rechazarlos | **D-142**: la verificación de `norm()`/`fuzzy()` sobre 64 entradas corre al abrir un pack de **315 MB** en un reloj real, sin coste perceptible |
+| Arranque en frío **2.216 ms** (`am start -W`) | El primer número de rendimiento real que tiene el proyecto. Ver O-1 |
+| El campo de búsqueda **despejado del reloj y con su forma entera** | **D-133**, y es el arreglo que el usuario reportó dos veces |
+| Un `ES` y un `EN` en el selector; **dos palabras del día, una por idioma** | **D-145** |
+| `definitions · 315,5 MB · EN` en la pantalla de diccionarios | **D-125** y **D-138**: el manifiesto llega a la UI |
+| Una entrada inglesa con glosa y cita (`jimpy`) | El pack de 956.150 entradas se lee bien |
+| **Los dos tiles registrados** y reconocidos por el sistema | La mitad de §Ver los dos tiles |
+| Logcat sin un solo error de la app | |
 
-**Las tres cosas que nadie vio funcionar**, en orden de riesgo:
+**Lo que sigue sin verse en hardware:**
 
-1. **El rechazo del pack viejo.** Es el camino que más cambió en esta tanda y **el único que no
-   tiene test en dispositivo**. `:dict-data` es instrumentado y el gate no lo corre. Si
-   `IncompatibleException` no se maneja bien arriba, el síntoma no es un mensaje: es la app sin
-   diccionarios y sin explicar por qué.
-2. **La línea de sinónimos nunca se renderizó en una pantalla real.** `PantallasTest` es
-   Robolectric, o sea JVM, y **topa en SDK 36 mientras el proyecto targetea 37** (D-110). En una
-   pantalla redonda de 234 dp, `sin. a · b · c · d` en `labelSmall` con `padding(start = 10.dp)`
-   puede desbordar o cortarse, y eso no se ve desde acá.
-3. **Que 68,1 MB + 255,7 MiB sigan entrando y arrancando.** Los packs son más chicos que los que
-   ya entraron, así que el riesgo es bajo, pero el cold start sobre un pack con 23,2 % de
-   entradas más largas (los sinónimos van al payload) no está medido.
+- **Los tiles DIBUJANDO.** Están registrados, pero agregarlos al carrusel es un gesto del usuario
+  y no se puede hacer por `adb`. Es lo único que falta de ese ítem.
+- **Los tests instrumentados en el reloj.** Los 34 corrieron en el emulador (API 37). Correrlos en
+  hardware es lo que cierra de verdad las asunciones sobre ICU y SQLite del dispositivo.
+- **Rendimiento y batería medidos.** Hay un número de arranque; no hay latencia de búsqueda ni
+  consumo. Ver O-1 y O-4.
 
-**Lo que lo cierra.** `./gradlew :dict-data:connectedDebugAndroidTest` en **cada nivel de API
-soportado** —el punto es que las versiones de ICU difieren— más abrir la app y buscar *casa*,
-*domingo* y *pololear*, que son las tres entradas donde los sinónimos por acepción se ven.
+⚠️ **Operativo, para no perder media hora la próxima vez:** el reloj está por **adb inalámbrico**,
+y una subida de **315 MB se cortó a los 75** con `BrokenPipeError`. **Reintentar alcanza** —
+`devpack.py` borra el `.part` huérfano antes de escribir, así que la operación es idempotente— pero
+conviene saberlo antes de asumir que el pack está roto. Por cable no debería pasar.
 
 ### Los vectores de normalización, corriendo en un reloj
 
