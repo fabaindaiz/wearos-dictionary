@@ -20,11 +20,13 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 ## Dónde estamos
 
-*Actualizado: 2026-09-17.*
+*Actualizado: 2026-09-19.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **47 tests**) y el
-pipeline de packs (`tools/`, **101 tests**) están completos y en el gate, junto con los **85 JVM
-de `:app`** y **18 checks** de auditoría estructural. El pack de juguete pasa
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **50 tests**) y el
+pipeline de packs (`tools/`, **129 tests**) están completos y en el gate, junto con los **166 JVM
+de `:app`** y **19 checks** de auditoría estructural. Los **31 de `:dict-data` son
+instrumentados y el gate no los corre**: necesitan dispositivo, y son los únicos que cierran las
+asunciones sobre Android. El pack de juguete pasa
 todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
 
 **Hecho y verificado en emulador.** `:dict-data` existe con `PackFile` —abre read-only y valida
@@ -154,7 +156,62 @@ esta decisión se revisa.
   legítimas (prefijos, sufijos, la letra) pero nadie busca eso.
 - La deduplicación es por `(headword, pos)`, así que `perro` sale dos veces si es sustantivo y
   adjetivo. Se respetó a propósito: hay un test que exige que los homógrafos de distinto `pos`
-  se distingan. Si eso se revisa, se revisa ese test primero.
+  se distingan. Si eso se revisa, se revisa ese test primero. En español son **3.024 pares**, y
+  `hacer` aparece cinco veces por etimología.
+
+**⚠️ Esto pesa más desde el 2026-09-19, y en dos direcciones opuestas.**
+
+*A favor:* la poda de nombres propios (D-116) sacó ruido real del orden. Eran **4.267 `norm` del
+inglés donde el topónimo le ganaba en rank a la palabra común** —buscar `freedom` devolvía
+primero un *census-designated place* del condado de Santa Cruz— y esos casos desaparecieron por
+construcción. En español se fueron los 29.599 `norm` que sólo resolvían a un apellido.
+
+*En contra:* los sinónimos entraron a `fts_def` (D-118), así que **la búsqueda por texto libre
+importa más que antes** — y es justamente la que no tiene orden propio. Buscar *bobo* devuelve
+**42 entradas ordenadas por el mismo proxy de `rank`**, con las útiles abajo. Antes eso era una
+función secundaria; ahora es media razón de que los sinónimos existan, y su valor queda
+capado por el ranking.
+
+O sea que la deuda no cambió de tamaño pero **sí de prioridad**: el recorte de ruido ya se
+cobró, y lo que queda —recalibrar el proxy, o cruzar un corpus de frecuencias real (D-067)— es
+ahora lo que más separa al diccionario de ser bueno. Sigue esperando el número de O-1 para saber
+cuánto presupuesto de latencia hay para gastar.
+
+### La calidad del contenido del pack español
+
+**Estado.** **Planificado**, con la mitad barata ya hecha y la cara medida y sin hacer. Es lo que
+queda del pedido *"mejorar el pack de español"* (2026-09-19) después de D-116, D-117 y D-121.
+
+**Lo que ya se hizo, para no repetirlo.** Salieron los nombres propios (22,1 % de las entradas,
+26.265 de ellas definiendo sólo *"Apellido."*), entraron 71.609 sinónimos por acepción en
+26.369 entradas, y se limpiaron las 665 etiquetas de mantenimiento del wiki. El pack quedó en
+**114.619 entradas y 68,1 MB**.
+
+**Lo que queda, en orden de valor por esfuerzo:**
+
+| Qué | Tamaño del problema | Qué costaría |
+|---|---|---|
+| **Ejemplos de uso desde enwiktionary §Spanish** (D-122) | **5.307 entradas** que hoy no tienen ejemplo lo tendrían; sube los lemas compartidos de 17,3 % a **28,8 %** | Una segunda fuente en `sources/`, un merge, y **resolver a qué acepción se pega cada ejemplo** |
+| **Entradas de una sola palabra** | **28,0 % del pack**; los sinónimos sólo alcanzaron al **6,8 %** de ellas | No se arregla desde esta fuente: el Wikcionario no tiene más texto que dar |
+| **Subíndices de referencia cruzada** (*"semejanza a un guanaco₁"*) | 2.204 glosas | Un `str.translate` en `_gloss()`. Barato, pero **pierde información**: el subíndice dice *qué acepción* |
+| **Pares `(headword, pos)` duplicados** | 3.024 | Es de la capa de consulta, no del pack. Ver §El orden de la lista de resultados |
+
+**El riesgo de los ejemplos, que es por lo que no se hizo ya.** El dataset está bajado
+(`wearos-dictionary-data/es-en-wikt.jsonl`, 1,04 GB) y los ejemplos **están en español**, con la
+traducción inglesa en un campo `english` aparte que se ignora. La licencia tampoco es el
+problema: las dos fuentes son CC BY-SA 4.0, y lo que cambia es que la atribución tiene que
+nombrar a las dos.
+
+Lo que falta diseñar es **la atribución por acepción**. Cruzar por lema pone *"Lo acordaron por
+unanimidad"* en la acepción equivocada de *acordar*, y eso es **contenido incorrecto que parece
+correcto** — peor que *falta una palabra*, porque el lector no tiene forma de sospecharlo. Las
+dos fuentes numeran las acepciones distinto, así que no hay una clave obvia: es el trabajo real
+del ítem, no el merge.
+
+**Con qué choca.** Con D-034 si alguien se tienta con traer también las glosas: son
+**traducciones al inglés**, no definiciones, y eso es un pack bilingüe. Y con el presupuesto de
+D-028, aunque poco: los ejemplos pagan en el payload y en `fts_def`, como pasó con los sinónimos
+—estimados en 0,30 MB, medidos en 0,89.
 
 ### Composición entre packs
 
@@ -374,8 +431,15 @@ correcta según la guía es un `Timeline` con ventanas de validez y refresco ≥
 
 ### El historial y las guardadas sobreviven a un backup, pero apuntan a otra palabra
 
-**Estado.** **Defecto abierto, encontrado el 2026-09-19** construyendo los tiles. No lo crean los
-tiles: lo ponen en la carátula del reloj, que es donde se vería.
+**Estado.** ✅ **Cerrado el 2026-09-19 (D-123).** Se resolvió con una **tercera opción que esta
+entrada no listaba**: validar el `entryId` guardado contra el lema al abrir, y corregirlo por
+`idx_entry_norm` si no coincide. Conserva los datos entre relojes y entre rebuilds *y* cuesta cero
+consultas extra en el caso normal —si el lema del id es el guardado, no se resuelve nada—, sin
+migración del formato en disco. Lo que sigue abierto es la mitad chica: `pack_activo` también
+viaja a un reloj donde ese `.db` no existe, y esa degradación sigue sin comprobarse.
+
+*(Lo que sigue es el análisis original, que es lo que llevó a descartar las dos opciones que
+estaban sobre la mesa.)*
 
 **Qué pasa.** `res/xml/data_extraction_rules.xml` excluye **sólo** `packs/`. Las preferencias
 viven en `domain="sharedpref"`, que no está excluido, así que `historial`, `favoritos` y
@@ -403,6 +467,75 @@ el campo toca las tres superficies y su formato en disco, que ya tiene datos de 
 **Aparte, y más chico:** `pack_activo` también viaja, a un reloj donde ese `.db` no existe.
 `elegirActivo` ya cae al idioma del reloj si el preferido no está abierto, así que degrada bien,
 pero está sin comprobar.
+
+### Terminar el bilingüe: en qué idioma corren los tests
+
+**Estado.** **A medias, y frenado por una decisión que no es técnica** (2026-09-20, D-127).
+Hecho: `values/strings.xml` con **83 claves en inglés** y `values-es/strings.xml` con las 83 en
+español neutro, paridad verificada. Los **tiles ya salen bilingües** porque eran lo único que ya
+usaba `R.string.*`.
+
+**Qué falta de mecanismo.** Cablear ~45 textos en 8 archivos; sacar `packTypeLabel` de
+`PackSet.kt` —vigilado por D-072, no puede importar `android.*`—; darle a `SearchViewModel` un
+estado propio en vez de fabricar *"No hay ningún diccionario instalado"*; pasarle el `Context` a
+`PackStore.openFile` para sus dos mensajes; y `posInSpanish` a recursos.
+
+**Qué hay que decidir, y por eso está acá.** Con la base en inglés, **Robolectric resuelve
+`values/` y los 178 tests JVM que afirman texto en español fallan en bloque**. Las dos salidas no
+son equivalentes:
+
+- **Fijarles el locale español** (`robolectric.properties` o `@Config(qualifiers = "es")`) — los
+  tests quedan como están, siguen describiendo la UI que el usuario ve, y **la base en inglés no
+  se ejercita nunca**.
+- **Pasar las aserciones a inglés** — ejercita la base, pero son ~40 aserciones reescritas y los
+  tests dejan de leerse como la pantalla que el usuario tiene.
+
+Hay una tercera que cuesta más y las cierra las dos: **fijar el locale español por defecto y
+agregar un puñado de tests en inglés** sobre las pantallas que más texto tienen. Es la que yo
+tomaría, pero cambia el contrato de los tests y no la tomo sin que alguien la mire.
+
+**Con qué choca.** Con `app/CLAUDE.md`, que fija el español neutro para los textos de UI: eso
+sigue valiendo, sólo que ahora vive en `values-es/`.
+
+### La voz nativa dicta en el idioma del reloj, no en el del pack
+
+**Estado.** **Regresión aceptada a medias** (2026-09-20). La voz pasó a entrar por
+`ACTION_REMOTE_INPUT` —el selector del sistema, con micrófono y teclado— en vez de
+`RecognizerIntent`, que abre sólo el reconocedor de Google. Verificado en dispositivo.
+
+**Lo que se perdió.** `RecognizerIntent` aceptaba `EXTRA_LANGUAGE = langSource`, así que se
+dictaba **en el idioma del pack**. El input del sistema usa el **del reloj**. Con el reloj en
+español y el pack inglés abierto, dictar transcribe en español y no va a encontrar nada.
+
+**Qué hay que decidir.** Si eso es aceptable —el caso real es un reloj en español buscando en
+español— o si hace falta volver a `RecognizerIntent` **sólo cuando el idioma del pack activo no
+es el del reloj**, que es un camino condicional y por lo tanto dos superficies que mantener. Hoy
+lo único que compensa es la etiqueta, que nombra el diccionario: *"Buscar en English"*.
+
+**Aparte, verificado desarmando el `.aar` y no leído de memoria:** el tipo de acción del input
+(Buscar en vez de Enviar) **no se puede fijar desde Kotlin** — `setInputActionType` es pública
+pero las constantes `INPUT_ACTION_TYPE_*` de `WearableRemoteInputExtender` son `internal` en
+wear-input 1.2.0. Desde Java se ven públicas. Si alguna versión las abre, es una línea.
+
+### Los 234 dp están confirmados: cinco decisiones cotizadas contra 192
+
+**Estado.** **Medición cerrada, rediseño sin empezar** (2026-09-19).
+
+Faltaba confirmarlo *dentro* de la app porque `wm density` es la densidad física y Compose puede
+ver otra. Se resolvió preguntándole al sistema qué configuración entrega: **`sw234dp w234dp
+h234dp 340dpi`**, con los bounds de la Activity en los 498×498 completos. Eso es lo que devuelve
+`LocalConfiguration.screenWidthDp`.
+
+**Qué habilita.** Son **22 % más pantalla**. A 48 dp de área tocable entra una **cuarta fila**, que
+son **33 % más resultados** sin bajar del mínimo de Wear OS.
+
+**Qué hay que decidir, y es lo que lo frena.** D-073, D-075, D-078, D-084 y D-085 se justificaron
+con la aritmética de 192 dp. Revisarlas **una por una** no es mecánico: cada una cambió algo a
+cambio de una fila, y con una fila más de presupuesto algunas de esas concesiones dejan de hacer
+falta. Y hay que hacerlo **sin romper el reloj genérico**: un dispositivo de 192 dp tiene que
+seguir mostrando tres filas, así que el número no se reemplaza — se vuelve **adaptable**
+(`LocalConfiguration.screenWidthDp`), y `ScreensTest.threeResultsFitWithoutScrolling` pasa a medir
+contra el tamaño que tenga el dispositivo que lo corre.
 
 ### Ver los dos tiles funcionando en un reloj
 
@@ -658,6 +791,44 @@ interfaz, no después — rehacer animaciones ya escritas es más caro que no es
 ---
 
 ## Comprobación que falta y bloquea el ship
+
+### Los packs del reloj son incompatibles, y nada de D-116 a D-121 se vio en hardware
+
+**Estado.** **Bloqueado afuera**, y es lo primero que hay que hacer cuando haya un reloj a mano.
+No falta contenido: falta correrlo.
+
+**Lo concreto, y es una regresión si alguien abre la app hoy.** El `payload_codec` pasó a
+`deflate-v2` (D-119) y `PackFile.open` lo compara con `!=`. Los tres packs que están instalados
+en el reloj desde el 2026-09-18 son `deflate-v1`, así que la app **los rechaza con
+`IncompatibleException`**. Es el comportamiento diseñado, no un bug, pero deja el reloj sin
+diccionarios hasta que se reconstruyan:
+
+```sh
+python3 tools/packbuilder/build_pack.py es <es.jsonl> ../wearos-dictionary-data/es-def-wikc.db
+python3 tools/packbuilder/build_pack.py en <en.jsonl> ../wearos-dictionary-data/en-def-wikt.db
+python3 tools/packbuilder/verify_pack.py ../wearos-dictionary-data/es-def-wikc.db
+python3 tools/devpack.py install ../wearos-dictionary-data/es-def-wikc.db
+```
+
+Costo medido: ~46 s y ~3 min de build, y **3 min 38 s** de transferencia del inglés por ADB.
+
+**Las tres cosas que nadie vio funcionar**, en orden de riesgo:
+
+1. **El rechazo del pack viejo.** Es el camino que más cambió en esta tanda y **el único que no
+   tiene test en dispositivo**. `:dict-data` es instrumentado y el gate no lo corre. Si
+   `IncompatibleException` no se maneja bien arriba, el síntoma no es un mensaje: es la app sin
+   diccionarios y sin explicar por qué.
+2. **La línea de sinónimos nunca se renderizó en una pantalla real.** `PantallasTest` es
+   Robolectric, o sea JVM, y **topa en SDK 36 mientras el proyecto targetea 37** (D-110). En una
+   pantalla redonda de 234 dp, `sin. a · b · c · d` en `labelSmall` con `padding(start = 10.dp)`
+   puede desbordar o cortarse, y eso no se ve desde acá.
+3. **Que 68,1 MB + 255,7 MiB sigan entrando y arrancando.** Los packs son más chicos que los que
+   ya entraron, así que el riesgo es bajo, pero el cold start sobre un pack con 23,2 % de
+   entradas más largas (los sinónimos van al payload) no está medido.
+
+**Lo que lo cierra.** `./gradlew :dict-data:connectedDebugAndroidTest` en **cada nivel de API
+soportado** —el punto es que las versiones de ICU difieren— más abrir la app y buscar *casa*,
+*domingo* y *pololear*, que son las tres entradas donde los sinónimos por acepción se ven.
 
 ### Los vectores de normalización, corriendo en un reloj
 
