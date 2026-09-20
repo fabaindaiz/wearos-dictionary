@@ -33,6 +33,88 @@ class LanguageChipsTest {
         isDemo = demo,
     )
 
+    // --- El representante de un idioma, que ahora usan tres pantallas (D-151) ---------------
+
+    @Test
+    fun hayUN_REPRESENTANTE_POR_IDIOMA() {
+        val reps = representativePacks(
+            listOf(pack("es-def-wikc", "es"), pack("es-def-wd", "es"), pack("en-def", "en")),
+            null,
+        )
+        assertEquals(listOf("en", "es"), reps.map { it.metadata.langSource })
+    }
+
+    @Test
+    fun LA_PALABRA_DEL_DIA_DEJA_DE_REPETIR_IDIOMA() {
+        // ⚠️ El bug que D-145 tapó fundiendo packs en vez de arreglarlo: con dos diccionarios de
+        // español el inicio calculaba DOS palabras del día del mismo idioma. Fundir Wikidata lo
+        // escondió; vuelve en cuanto alguien instale un pack propio.
+        val reps = representativePacks(
+            listOf(pack("es-a", "es"), pack("es-b", "es"), pack("es-c", "es")),
+            null,
+        )
+        assertEquals(1, reps.size)
+    }
+
+    @Test
+    fun elRepresentanteEsElMasCompletoSiNoHayActivo() {
+        val reps = representativePacks(
+            listOf(pack("es-chico", "es", entries = 15_000),
+                   pack("es-grande", "es", entries = 150_000)),
+            null,
+        )
+        assertEquals("es-grande", reps.single().packId)
+    }
+
+    @Test
+    fun elRepresentanteRESPETA_al_activo() {
+        val reps = representativePacks(
+            listOf(pack("es-chico", "es", entries = 15_000),
+                   pack("es-grande", "es", entries = 150_000)),
+            activo = "es-chico",
+        )
+        assertEquals("es-chico", reps.single().packId)
+    }
+
+    // --- De qué fuente vino un resultado, sólo cuando hace falta (D-151) ---------------------
+
+    @Test
+    fun conUN_SOLO_PACK_del_idioma_la_etiqueta_es_el_IDIOMA() {
+        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en")), "es")
+        assertEquals("ES", tags["es-def-wikc"])
+    }
+
+    @Test
+    fun conDOS_PACKS_del_idioma_la_etiqueta_es_la_FUENTE() {
+        // ⚠️ "ES · ES" no desambigua nada. Lo que distingue dos diccionarios del mismo idioma es
+        // de dónde salieron, y el `pack_id` lo lleva en su tercer segmento por la gramática que
+        // D-138 verifica: <idioma>-<tipo>-<fuente>[-variante].
+        val tags = resultTags(
+            listOf(pack("es-def-wikc", "es"), pack("es-def-wd", "es")), "es",
+        )
+        assertEquals("WIKC", tags["es-def-wikc"])
+        assertEquals("WD", tags["es-def-wd"])
+    }
+
+    @Test
+    fun losPacksDeOTRO_idioma_no_cuentan_para_desambiguar() {
+        // Sólo se busca en el idioma activo (D-136), así que un pack inglés no puede hacer que
+        // el español muestre su fuente.
+        val tags = resultTags(
+            listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en"), pack("en-def-oewn", "en")),
+            "es",
+        )
+        assertEquals("ES", tags["es-def-wikc"])
+    }
+
+    @Test
+    fun unPackIdSIN_LA_FORMA_esperada_cae_al_idioma() {
+        // Un pack anterior a D-138 no cumple la gramática. Mejor mostrar el idioma que inventar
+        // una fuente a partir de un nombre que no la lleva.
+        val tags = resultTags(listOf(pack("viejo", "es"), pack("es-def-wd", "es")), "es")
+        assertEquals("ES", tags["viejo"])
+    }
+
     @Test
     fun unPackPorIdiomaDaUnChipPorIdioma() {
         val chips = languageChips(listOf(pack("es-def", "es"), pack("en-def", "en")), null)
