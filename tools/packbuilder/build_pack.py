@@ -1,6 +1,7 @@
 """Construye un pack real monolingue desde un dump de kaikki.org.
 
     python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
+                          [--ejemplos <es-en-wikt.jsonl>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -31,13 +32,19 @@ solamente "Apellido.") y 163.470 en ingles (17,1 %, 40,7 MB).
 Las dos que no son el default **sufijan el `pack_id`**, asi que se pueden instalar al lado del
 pack normal y compararse en el reloj. `--con-nombres` sigue funcionando como alias de
 `--nombres included`.
+
+`--ejemplos` suma una **segunda fuente**: los ejemplos de uso en español del Wiktionary ingles,
+seccion Spanish (D-135). Solo llena entradas flacas y solo donde no hay atribucion que inventar,
+asi que el numero es chico -- **326 entradas, 0,28 %**. ⚠️ **Cambia la atribucion del pack**,
+porque usar dos fuentes obliga a nombrar a las dos: por eso es una opcion y no un default. Las
+dos son CC BY-SA 4.0.
 """
 
 import hashlib
 import os
 import sys
 
-from sources import kaikki, oewn
+from sources import enwikt_examples, kaikki, oewn
 
 from build import PackBuilder
 
@@ -136,6 +143,21 @@ def _keep(headword, sample):
     return int.from_bytes(digest[:4], "big") % sample == 0
 
 
+def _pegar_ejemplo(record, ejemplos):
+    """Le pega a una entrada FLACA el ejemplo de la segunda fuente. Ver `sources/enwikt_examples`.
+
+    ⚠️ **Solo si la entrada tiene una acepcion y ninguna todavia**, que es la mitad de la regla
+    que impide inventar la atribucion -- la otra mitad la aplica la fuente, exigiendo que alla
+    tambien haya una sola. Con varias acepciones nuestras no se sabe a cual pegarlo, y pegarlo a
+    la primera es contenido incorrecto que parece correcto: el lector no tiene como sospecharlo.
+    """
+    if not ejemplos or len(record.senses) != 1 or record.senses[0]["examples"]:
+        return
+    traidos = ejemplos.get((record.headword, record.part_of_speech))
+    if traidos:
+        record.senses[0]["examples"] = list(traidos)
+
+
 def main(argv):
     if len(argv) < 4 or argv[1] not in PACKS:
         sys.stderr.write(__doc__)
@@ -150,6 +172,9 @@ def main(argv):
         politica = "included"
     if "--nombres" in argv:
         politica = argv[argv.index("--nombres") + 1]
+    dump_ejemplos = None
+    if "--ejemplos" in argv:
+        dump_ejemplos = argv[argv.index("--ejemplos") + 1]
 
     metadata = dict(PACKS[lang])
     if sample > 1:
@@ -161,6 +186,19 @@ def main(argv):
         # Los otros lo sufijan para que dos politicas puedan convivir instaladas y compararse.
         metadata["pack_id"] += "-" + politica.replace("-", "")
         metadata["proper_nouns"] = politica
+    ejemplos = {}
+    if dump_ejemplos:
+        # ⚠️ Dos fuentes obligan a nombrar a las DOS, y eso es lo caro de esta opcion (D-135).
+        # No es una formalidad: la atribucion es la condicion de la licencia con la que se
+        # distribuye el pack, y las dos fuentes son CC BY-SA 4.0. Se escribe aca, junto al
+        # merge, para que no exista manera de mezclar el contenido sin mover el credito.
+        ejemplos = enwikt_examples.examples_by_entry(dump_ejemplos)
+        metadata["pack_id"] += "-ej"
+        metadata["attribution"] += (
+            " Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección Spanish, "
+            "licencia CC BY-SA 4.0."
+        )
+        metadata["description"] += " Con ejemplos de uso de una segunda fuente."
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
@@ -169,8 +207,10 @@ def main(argv):
         reader = READERS[lang]
         argumentos = (source, lang) if reader is oewn else (source, lang, politica)
         for record in reader.records(*argumentos):
-            if _keep(record.headword, sample):
-                builder.add(record)
+            if not _keep(record.headword, sample):
+                continue
+            _pegar_ejemplo(record, ejemplos)
+            builder.add(record)
 
     print("%s: %d entradas, %d bytes" % (output, builder.count, os.path.getsize(output)))
     return 0

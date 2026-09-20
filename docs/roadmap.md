@@ -201,12 +201,32 @@ resultados.
 
 | Qué | Tamaño del problema | Qué costaría |
 |---|---|---|
-| **Ejemplos de uso desde enwiktionary §Spanish** (D-122) | **5.307 entradas** que hoy no tienen ejemplo lo tendrían; sube los lemas compartidos de 17,3 % a **28,8 %** | Una segunda fuente en `sources/`, un merge, y **resolver a qué acepción se pega cada ejemplo** |
+| ~~**Ejemplos desde enwiktionary §Spanish**~~ (D-122) → **construido y medido** (D-135) | El 5.307 era el cruce por lema. Con la regla de D-132 —no inventar atribución— son **307 entradas, +8 KB**. Está hecho y detrás de `--ejemplos` | Ya no cuesta código. Cuesta **atribución doble permanente por un 0,28 %**, y eso lo decide el usuario |
 | **Entradas de una sola palabra** | **28,0 % del pack**; los sinónimos sólo alcanzaron al **6,8 %** de ellas | No se arregla desde esta fuente, y D-132 lo confirmó barriendo los campos sin usar: el Wikcionario no tiene más texto que dar |
 | **Subíndices de referencia cruzada** (*"semejanza a un guanaco₁"*) | 2.204 glosas | Un `str.translate` en `_gloss()`. Barato, pero **pierde información**: el subíndice dice *qué acepción* |
 | **Pares `(headword, pos)` duplicados** | 3.024 | Es de la capa de consulta, no del pack. Ver §El orden de la lista de resultados |
 
-**El riesgo de los ejemplos, que es por lo que no se hizo ya.** El dataset está bajado
+**Los ejemplos: hecho, medido, y la medición es lo que hay que leer** (2026-09-20, D-135). El
+embudo, de la estimación al número real:
+
+| Regla | Entradas |
+|---|---|
+| cruce por lema, como lo estimaba este documento | ~5.300 |
+| + nuestra entrada tiene **una** acepción | 2.172 |
+| + allá también tiene una, y el mismo `pos` | 510 |
+| + trae `english` (confirma que el texto es el español) | 326 |
+| **construido de verdad** | **307, +8 KB** |
+
+La diferencia entre 5.307 y 307 **no es que la fuente tenga menos**: es que la mayoría de los
+cruces exigen colgar el ejemplo de una acepción que nadie dice cuál es. Cada filtro tiene su
+caso medido, y están en D-135.
+
+Está implementado en `sources/enwikt_examples.py` detrás de `--ejemplos`. **No es el default**, y
+el motivo no es técnico: dos fuentes obligan a nombrar a las dos en cada pack, para siempre. Es
+una obligación permanente por un 0,28 %, y pagarla es una decisión de producto.
+
+**El texto que sigue es la evaluación previa, y se conserva porque la parte de licencias sigue
+valiendo.** El dataset está bajado
 (`wearos-dictionary-data/es-en-wikt.jsonl`, 1,04 GB) y los ejemplos **están en español**, con la
 traducción inglesa en un campo `english` aparte que se ignora. La licencia tampoco es el
 problema: las dos fuentes son CC BY-SA 4.0, y lo que cambia es que la atribución tiene que
