@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -23,6 +24,8 @@ import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
@@ -79,6 +82,7 @@ class ScreensTest {
         packId: String = "es-def",
         lang: String = "es",
         name: String = "Español — definiciones",
+        entries: Int = 1,
     ) = PackMetadata(
         packId = packId,
         schemaVersion = 3,
@@ -90,7 +94,7 @@ class ScreensTest {
         langSource = lang,
         langTarget = null,
         fuzzyProfile = FuzzyProfile.SPANISH,
-        entryCount = 1,
+        entryCount = entries,
         dataVersion = 1,
         license = "CC-BY-SA-4.0",
         attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
@@ -251,7 +255,9 @@ class ScreensTest {
     fun theEntryShowsHeadwordPartOfSpeechAndNumberedSenses() {
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()
-        compose.onNodeWithText("sust.", substring = true).assertExists()
+        // Entero y no "sust.": la ficha no pelea por el ancho con nada, y una abreviatura que
+        // hay que descifrar sólo se justifica donde el lema necesita el espacio.
+        compose.onNodeWithText("sustantivo").assertExists()
         compose.onNodeWithText("1.", substring = true).assertExists()
     }
 
@@ -797,16 +803,7 @@ class ScreensTest {
         // No dialog: the history rebuilds itself just by using the app, so a second tap is
         // enough. What cannot happen is a stray tap wiping it.
         var deleted = 0
-        compose.setContent {
-            SettingsScreen(
-                packs = emptyList(),
-                scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
-                onManagePacks = {},
-                onScaleChange = {},
-                onClearHistory = { deleted++ },
-                hasHistory = true,
-            )
-        }
+        showSettings(onClearHistory = { deleted++ })
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Borrar el historial"))
         compose.onNodeWithText("Borrar el historial").performClick()
         compose.waitForIdle()
@@ -846,12 +843,17 @@ class ScreensTest {
     }
 
     @Test
-    fun theLanguageSelectorLivesUnderOptions() {
+    fun elSelectorYaNoViveBajoOpciones() {
+        // ⚠️ **Este test afirmaba lo contrario y el cambio es deliberado** (D-156). El selector
+        // vivía al fondo, bajo "Opciones", porque ahí no competía con la barra por el lugar de
+        // arriba. El costo apareció al usarlo: desaparecía al buscar, que es justo cuando hace
+        // falta —mirando resultados que no son los esperados porque el idioma activo no era el
+        // que uno creía—. Ahora va debajo de la barra, y cuesta una fila de las ~3 que entran.
         showSearch(twoPackState().copy(query = "", submitted = ""))
+        val selector = compose.onNodeWithText("ES").getBoundsInRoot()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Opciones"))
         val options = compose.onNodeWithText("Opciones").getBoundsInRoot()
-        val selector = compose.onNodeWithText("ES").getBoundsInRoot()
-        assertTrue("el selector quedo fuera de Opciones", selector.top >= options.top)
+        assertTrue("el selector tiene que estar ARRIBA de Opciones", selector.top < options.top)
     }
 
     @Test
@@ -908,29 +910,124 @@ class ScreensTest {
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
     }
 
-    // --- Quitar una guardada desde la lista (D-155) -----------------------------------------
+    // --- El inicio y los resultados comparten la cabecera (D-157) ---------------------------
 
     @Test
-    fun laLISTA_DE_GUARDADAS_TRAE_UN_BOTON_DE_BORRAR() {
-        // Hoy la unica forma de quitar una guardada es abrirla y usar el menu: tres toques y
-        // navegar a otra pantalla para deshacer algo que se hizo con uno.
+    fun elINICIO_TIENE_LA_MISMA_CABECERA_QUE_LOS_RESULTADOS() {
+        // Pedido: barra grande a la izquierda, voz chica a la derecha, selector abajo — igual en
+        // los dos estados. Una cabecera que cambia de forma al escribir obliga a reaprenderla.
+        showSearch(twoPackState().copy(query = "", submitted = ""))
+        compose.onNodeWithContentDescription("Decir una palabra").assertExists()
+        // Y ya no el botón grande, que era exclusivo del inicio: ahora el micrófono es lo
+        // único que ofrece voz, en los dos estados.
+        assertEquals(1, compose.onAllNodesWithContentDescription("Decir una palabra")
+            .fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun laVozEstaALaDerechaDeLaBarra() {
+        showSearch(twoPackState().copy(query = "", submitted = ""))
+        val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
+        val voz = compose.onNodeWithContentDescription("Decir una palabra").getBoundsInRoot()
+        assertTrue("la voz tiene que ir a la derecha", voz.left.value > barra.left.value)
+        assertTrue("y en la misma fila", voz.top.value < barra.bottom.value)
+    }
+
+    // --- El selector de idioma, visible también con resultados (D-156) ---------------------
+
+    @Test
+    fun elSELECTOR_SIGUE_VISIBLE_CON_RESULTADOS_EN_PANTALLA() {
+        // ⚠️ Antes vivía dentro del bloque "sin búsqueda", así que desaparecía justo cuando más
+        // hace falta: viendo resultados que no son los que esperabas porque el idioma activo no
+        // era el que creías.
+        showSearch(twoPackState("perder"))
+        compose.onNodeWithText("ES").assertExists()
+        compose.onNodeWithText("EN").assertExists()
+    }
+
+    @Test
+    fun elSelectorVaJustoDebajoDeLaBarra() {
+        // La posición importa: arriba es donde se mira, y al lado de la barra queda claro que
+        // modifica lo que se está buscando. Al fondo de la lista sería un ajuste escondido.
+        showSearch(twoPackState("perder"))
+        val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
+        val chip = compose.onNodeWithText("ES").getBoundsInRoot()
+        assertTrue(chip.top.value > barra.top.value)
+        assertTrue(chip.top.value < barra.bottom.value + 120f)
+    }
+
+    // --- Quitar una guardada: mantener apretado y confirmar (D-155) -------------------------
+
+    private fun guardadas(onDelete: ((Visit) -> Unit)? = {}) = compose.setContent {
+        WordListScreen(
+            words = listOf(visita("perro"), visita("gato")),
+            title = cl.fadiaz.dictionary.R.string.saved_title,
+            empty = cl.fadiaz.dictionary.R.string.saved_empty,
+            onDelete = onDelete,
+            onOpen = {},
+        )
+    }
+
+    @Test
+    fun UN_TOQUE_NORMAL_NO_ARMA_EL_BORRADO() {
+        // La fila sigue haciendo lo que hacía: abrir la palabra. El borrado no puede estar a un
+        // toque de distancia del gesto que más se usa.
+        var abierta = false
         compose.setContent {
             WordListScreen(
                 words = listOf(visita("perro")),
                 title = cl.fadiaz.dictionary.R.string.saved_title,
                 empty = cl.fadiaz.dictionary.R.string.saved_empty,
                 onDelete = {},
-                onOpen = {},
+                onOpen = { abierta = true },
             )
         }
-        compose.onNodeWithContentDescription("Quitar perro de guardadas").assertExists()
+        compose.onNodeWithText("perro").performClick()
+        assertTrue(abierta)
+        assertEquals(0, compose.onAllNodesWithText("Quitar").fetchSemanticsNodes().size)
     }
 
     @Test
-    fun elHISTORIAL_NO_trae_boton_de_borrar() {
-        // ⚠️ El historial no se cura: se llena solo al abrir palabras y ya tiene su tope. Un
-        // boton de borrar por fila invitaria a limpiarlo a mano, que es trabajo sin recompensa;
-        // para vaciarlo entero ya esta Ajustes.
+    fun MANTENER_APRETADO_ARMA_EL_BORRADO() {
+        guardadas()
+        compose.onNodeWithText("perro").performTouchInput { longClick() }
+        compose.onNodeWithText("Quitar").assertExists()
+    }
+
+    @Test
+    fun CON_EL_BORRADO_ARMADO_EL_TOQUE_CONFIRMA() {
+        var borrada: Visit? = null
+        guardadas(onDelete = { borrada = it })
+        compose.onNodeWithText("perro").performTouchInput { longClick() }
+        assertEquals(null, borrada)
+        compose.onNodeWithText("Quitar").performClick()
+        assertEquals("perro", borrada?.headword)
+    }
+
+    @Test
+    fun TOCAR_OTRA_FILA_CANCELA_EN_VEZ_DE_ABRIRLA() {
+        // ⚠️ Con algo armado, un toque en otra fila DESARMA y no navega. Si abriera la palabra,
+        // el usuario se iría de la pantalla con una fila roja esperándolo al volver, y la única
+        // forma de cancelar sería adivinarla.
+        var abierta: Visit? = null
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro"), visita("gato")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                onDelete = {},
+                onOpen = { abierta = it },
+            )
+        }
+        compose.onNodeWithText("perro").performTouchInput { longClick() }
+        compose.onNodeWithText("gato").performClick()
+        assertEquals(null, abierta)
+        assertEquals(0, compose.onAllNodesWithText("Quitar").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun elHISTORIAL_no_se_puede_armar() {
+        // Sin `onDelete` el gesto no hace nada: el historial se llena solo y ya tiene tope.
         compose.setContent {
             WordListScreen(
                 words = listOf(visita("perro")),
@@ -939,32 +1036,8 @@ class ScreensTest {
                 onOpen = {},
             )
         }
-        assertEquals(
-            0,
-            compose.onAllNodesWithContentDescription("Quitar perro de guardadas")
-                .fetchSemanticsNodes().size,
-        )
-    }
-
-    @Test
-    fun BORRAR_PIDE_CONFIRMACION_ANTES_DE_QUITAR() {
-        // ⚠️ El boton queda al lado de la fila que abre la palabra, asi que un toque impreciso
-        // en un reloj borra lo que se queria leer. La confirmacion es lo que separa esas dos
-        // cosas, y es el mismo patron que borrar un diccionario.
-        var borrada: Visit? = null
-        compose.setContent {
-            WordListScreen(
-                words = listOf(visita("perro")),
-                title = cl.fadiaz.dictionary.R.string.saved_title,
-                empty = cl.fadiaz.dictionary.R.string.saved_empty,
-                onDelete = { borrada = it },
-                onOpen = {},
-            )
-        }
-        compose.onNodeWithContentDescription("Quitar perro de guardadas").performClick()
-        assertEquals(null, borrada)
-        compose.onNodeWithText("Quitar").performClick()
-        assertEquals("perro", borrada?.headword)
+        compose.onNodeWithText("perro").performTouchInput { longClick() }
+        assertEquals(0, compose.onAllNodesWithText("Quitar").fetchSemanticsNodes().size)
     }
 
     // --- Toda fila de palabra dice lo mismo: palabra · tipo · idioma (D-152) ----------------
@@ -1297,6 +1370,100 @@ class ScreensTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Sobre estos datos"))
         compose.onNodeWithText("Sobre estos datos").performClick()
         assertEquals(true, abierta)
+    }
+
+    @Test
+    fun theRowKeepsTheAbbreviation() {
+        // La otra mitad del pedido --«resumidos donde no hay espacio, expandidos dentro de la
+        // ficha»-- y la que se rompe sola si alguien "unifica" las dos: en una fila de resultados
+        // "sustantivo" le come el ancho al lema, que es lo único que ahí importa.
+        showSearch(readyState("perro"))
+        compose.onNodeWithText("sust.", substring = true).assertIsDisplayed()
+    }
+
+    /** Settings is a function of its state too: nothing here reads a system service. */
+    private fun showSettings(
+        packs: List<PackHandle> = emptyList(),
+        uiLanguage: String? = null,
+        onUiLanguageChange: (String?) -> Unit = {},
+        onClearHistory: () -> Unit = {},
+        hasHistory: Boolean = true,
+    ) {
+        compose.setContent {
+            SettingsScreen(
+                packs = packs,
+                scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
+                appVersion = "9.9.9",
+                uiLanguage = uiLanguage,
+                onUiLanguageChange = onUiLanguageChange,
+                onManagePacks = {},
+                onScaleChange = {},
+                onClearHistory = onClearHistory,
+                hasHistory = hasHistory,
+            )
+        }
+    }
+
+    @Test
+    fun withNothingChosenTheLanguagePickerSaysAutomatic() {
+        // The default is not English and not Spanish: it is "follow the watch". If the picker
+        // opened with a language marked, changing the watch would stop changing the app and
+        // nobody would connect the two.
+        showSettings(uiLanguage = null)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Automático"))
+        compose.onNodeWithText("Automático").assertIsSelected()
+    }
+
+    @Test
+    fun theRegionOfTheWatchDoesNotUnselectTheLanguage() {
+        // The platform hands back "es-CL" for what the picker wrote as "es".
+        showSettings(uiLanguage = "es-CL")
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Español"))
+        compose.onNodeWithText("Español").assertIsSelected()
+    }
+
+    @Test
+    fun choosingALanguageReportsItsTagAndAutomaticReportsNothing() {
+        var chosen: String? = "sin tocar"
+        showSettings(uiLanguage = null, onUiLanguageChange = { chosen = it })
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Español"))
+        compose.onNodeWithText("Español").performClick()
+        compose.waitForIdle()
+        assertEquals("es", chosen)
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Automático"))
+        compose.onNodeWithText("Automático").performClick()
+        compose.waitForIdle()
+        // null and not "": automatic is the ABSENCE of a choice, which is what an empty
+        // LocaleList means to the platform.
+        assertEquals(null, chosen)
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h1600dp")
+    fun theDiagnosticsNameEveryPackAndSitBelowEverythingElse() {
+        // The user asked for them at the bottom: they are looked up once, when something is
+        // wrong, and they must not push the settings anybody actually changes off the screen.
+        // The 1600 dp qualifier is not a claim about any watch: it is the only way both ends of
+        // a lazy list compose at the same time so their order can be compared. At 900 dp the
+        // About block was still outside the viewport and the assertion measured nothing.
+        showSettings(
+            packs = listOf(
+                handle(meta(packId = "es-def", name = "Español", entries = 114619)),
+                handle(meta(packId = "en-def", lang = "en", name = "English", entries = 794355)),
+            ),
+        )
+        compose.onNodeWithText("App 9.9.9").assertIsDisplayed()
+        compose.onNodeWithText("Español · 114619 entradas").assertIsDisplayed()
+        compose.onNodeWithText("English · 794355 entradas").assertIsDisplayed()
+
+        val historial = compose.onNodeWithText("Borrar el historial").getBoundsInRoot()
+        val version = compose.onNodeWithText("App 9.9.9").getBoundsInRoot()
+        assertEquals(
+            "la informacion de diagnostico va al fondo, debajo del historial",
+            true,
+            version.top > historial.top,
+        )
     }
 }
 

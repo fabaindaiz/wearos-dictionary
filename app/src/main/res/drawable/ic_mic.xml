@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  El micrófono del botón de voz (D-157).
+
+  ⚠️ **Dibujado acá y no tomado de `material-icons-extended`.** Ese paquete trae el icono hecho,
+  pero pesa varios MB en un APK que ya está en 33 y del que el 99 % es dex con R8 apagado. Un
+  micrófono son tres formas.
+
+  ⚠️ **Y es un icono y no la palabra «voz», que es lo que había**: ese texto estaba escrito a mano
+  en español y se dibujaba igual en un reloj en inglés. Un icono no se traduce — la accesibilidad
+  la cubre el `contentDescription`, que sí sale de recursos.
+
+  Viewport de 24, el tamaño estándar de un icono de Material.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="?attr/colorControlNormal">
+
+    <!-- La cápsula: el cuerpo del micrófono. -->
+    <path
+        android:pathData="M12,3 A3,3 0 0 1 15,6 V11 A3,3 0 0 1 9,11 V6 A3,3 0 0 1 12,3 Z"
+        android:fillColor="@android:color/white" />
+
+    <!-- El arco que lo sostiene, abierto hacia arriba. -->
+    <path
+        android:pathData="M5.5,10.5 A6.5,6.5 0 0 0 18.5,10.5"
+        android:strokeWidth="2"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round" />
+
+    <!-- El pie. -->
+    <path
+        android:pathData="M12,17 V20.5"
+        android:strokeWidth="2"
+        android:strokeColor="@android:color/white"
+        android:strokeLineCap="round" />
+</vector>

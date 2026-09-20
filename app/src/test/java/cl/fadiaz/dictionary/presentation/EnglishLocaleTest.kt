@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.FuzzyProfile
@@ -64,7 +65,10 @@ class EnglishLocaleTest {
                 onOpenAttribution = {}, onOpenWordOfTheDay = { _, _ -> },
             )
         }
-        compose.onNodeWithText("Say a word").assertExists()
+        // Por contentDescription y no por texto: desde D-157 el botón de voz es un micrófono,
+        // justamente para no depender del idioma. La cadena sigue siendo la misma y ahora es la
+        // que lee un lector de pantalla, que es donde de verdad importa que esté traducida.
+        compose.onNodeWithContentDescription("Say a word").assertExists()
         compose.onNodeWithText("Recent").assertExists()
         // El botón de D-148, que es de los últimos textos que se agregaron: si una clave nueva se
         // suma sólo a `values-es/`, acá se ve.

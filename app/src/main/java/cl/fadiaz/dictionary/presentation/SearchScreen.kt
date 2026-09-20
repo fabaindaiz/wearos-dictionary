@@ -59,6 +59,10 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.wear.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 
 /**
  * The search screen. It is the app: D-026 says the search lives in here because neither tiles nor
@@ -199,16 +203,17 @@ fun SearchScreen(
                         }
                     }
 
+                    // ⚠️ **Debajo de la barra y SIEMPRE, no sólo en el inicio** (D-156).
+                    // Vivía dentro del bloque "sin búsqueda", así que desaparecía justo cuando
+                    // más hace falta: mirando resultados que no son los esperados porque el
+                    // idioma activo no era el que uno creía. Cuesta una fila de las ~3 que
+                    // entran, y se paga: el caso que evita es escribir una palabra inglesa con
+                    // español activo y no entender por qué no aparece.
+                    if (state.available.size > 1) {
+                        item(key = "selector") { LanguageSelector(state, onPackChange) }
+                    }
+
                     if (state.submitted.isEmpty()) {
-                        // Voice sits next to the bar: both answer the same question --how do I
-                        // enter what I am looking for-- and separating them forced a scroll.
-                        item(key = "voz") {
-                            Button(
-                                onClick = { voice.launch(nativeInputIntent(voiceLabel)) },
-                                modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
-                                transformation = SurfaceTransformation(spec),
-                            ) { Text(stringResource(R.string.home_say_a_word)) }
-                        }
 
                         // One per loaded dictionary, the active one's first. The header shows
                         // ONLY if there is at least one: a heading with nothing under it is
@@ -371,9 +376,6 @@ fun SearchScreen(
                         // heading. That changes what D-078 said --that it cost ZERO rows-- and
                         // the new cost is a row of its own; in exchange it stops competing with
                         // the bar for the top spot, which is where the search has to be.
-                        if (state.available.size > 1) {
-                            item(key = "selector") { LanguageSelector(state, onPackChange) }
-                        }
                         // Always, even when empty: someone who never saved a word had no way
                         // to discover they could. The screen already carries an empty state
                         // that explains the gesture, so arriving with zero is not a dead end.
@@ -520,21 +522,29 @@ private fun SearchBar(
                     .onFocusChanged { onTypingChanged(it.isFocused) },
             )
         }
-        // With something typed the large voice button goes away, but voice cannot go away
-        // with it: it is still the primary path on a wrist.
-        if (query.isNotEmpty()) {
+        // ⚠️ **Siempre, no sólo con algo escrito** (D-157). Antes el inicio tenía un botón
+        // grande aparte y los resultados este chico, así que la cabecera cambiaba de forma al
+        // escribir y había que reaprenderla. Una sola cabecera para los dos estados.
+        run {
             Box(
                 modifier = Modifier
                     .clip(PILL_SHAPE)
                     .background(MaterialTheme.colorScheme.primaryContainer)
                     .clickable(onClick = onVoice)
                     .heightIn(min = TOUCH_TARGET)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .heightIn(min = TOUCH_TARGET)
+                    .width(TOUCH_TARGET),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "voz",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                // ⚠️ **Un icono y no la palabra «voz»** (D-157). El texto estaba escrito a
+                // mano en español y se dibujaba igual en un reloj en inglés; `check_no_hardcoded
+                // _translations` no lo vio porque exige 4 caracteres y «voz» tiene 3. Un micrófono
+                // no se traduce, y en 48 dp se lee mejor que cualquier palabra.
+                Icon(
+                    painter = painterResource(R.drawable.ic_mic),
+                    contentDescription = stringResource(R.string.home_say_a_word),
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }
@@ -798,6 +808,36 @@ internal fun posLabelRes(pos: String): Int? = when (pos) {
 /** [posLabelRes] resuelto en el idioma del reloj; el codigo crudo si no se conoce. */
 @Composable
 internal fun posLabel(pos: String): String = posLabelRes(pos)?.let { stringResource(it) } ?: pos
+
+/**
+ * El tipo ESCRITO ENTERO, para la ficha de una palabra.
+ *
+ * Existe al lado de [posLabel] y no en vez de el: son dos lugares con presupuestos distintos. En
+ * una fila de 234 dp el lema es lo unico que importa y "sustantivo" le come el ancho; en la ficha
+ * no compite con nada y "sust." es una abreviatura que alguien tiene que descifrar.
+ *
+ * Cae a la abreviatura --y no al codigo crudo-- si falta la clave larga: un pack puede traer un
+ * `pos` que no conocemos, y media etiqueta es mejor que `intj`.
+ */
+@Composable
+internal fun posLabelFull(pos: String): String = when (pos) {
+    "noun" -> stringResource(R.string.pos_full_noun)
+    "verb" -> stringResource(R.string.pos_full_verb)
+    "adj" -> stringResource(R.string.pos_full_adj)
+    "adv" -> stringResource(R.string.pos_full_adv)
+    "name" -> stringResource(R.string.pos_full_name)
+    "phrase" -> stringResource(R.string.pos_full_phrase)
+    "intj" -> stringResource(R.string.pos_full_intj)
+    "pron" -> stringResource(R.string.pos_full_pron)
+    "prep" -> stringResource(R.string.pos_full_prep)
+    "conj" -> stringResource(R.string.pos_full_conj)
+    "num" -> stringResource(R.string.pos_full_num)
+    "suffix" -> stringResource(R.string.pos_full_suffix)
+    "prefix" -> stringResource(R.string.pos_full_prefix)
+    "proverb" -> stringResource(R.string.pos_full_proverb)
+    "abbrev" -> stringResource(R.string.pos_full_abbrev)
+    else -> posLabel(pos)
+}
 
 /** [posLabelRes] para quien tiene `Context` y no composicion: los tiles. */
 internal fun posLabel(context: Context, pos: String): String =

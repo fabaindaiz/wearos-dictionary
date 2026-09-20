@@ -160,7 +160,9 @@ fun EntryScreen(
                     )
                     current?.partOfSpeech?.let { pos ->
                         Text(
-                            text = posLabel(pos),
+                            // Entero, no abreviado: esta pantalla no compite por el ancho con
+                            // nada, y es donde el tipo de palabra se lee de verdad.
+                            text = posLabelFull(pos),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,

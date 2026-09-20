@@ -27,6 +27,7 @@ import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.UiLanguage
 
 /**
  * Settings.
@@ -43,8 +44,18 @@ import cl.fadiaz.dictionary.data.PackHandle
 fun SettingsScreen(
     packs: List<PackHandle>,
     scale: TextScale,
+    /**
+     * The tag the app is pinned to, or null for automatic.
+     *
+     * It arrives as a parameter and not from `LocaleManager` because the screen is a function of
+     * its state: that is what lets these four tests run in the gate instead of on a device. The
+     * system service is read and written in `MainActivity`, which is where Android already lives.
+     */
+    uiLanguage: String?,
+    appVersion: String,
     onManagePacks: () -> Unit,
     onScaleChange: (TextScale) -> Unit,
+    onUiLanguageChange: (String?) -> Unit,
     onClearHistory: () -> Unit,
     hasHistory: Boolean,
 ) {
@@ -73,6 +84,41 @@ fun SettingsScreen(
                     headword = stringResource(R.string.settings_manage),
                     detail = opened.size.toString(),
                     onClick = onManagePacks,
+                )
+            }
+
+            item(key = "cabecera-idioma-app") {
+                ListHeader { Text(stringResource(R.string.settings_ui_language)) }
+            }
+            item(key = "idioma-auto") {
+                RadioButton(
+                    // Automatic is the ABSENCE of a choice, not a third language: an empty
+                    // LocaleList is what the platform reads as "follow the watch".
+                    selected = UiLanguage.of(uiLanguage) == null,
+                    onSelect = { onUiLanguageChange(null) },
+                    label = { Text(stringResource(R.string.settings_ui_language_auto)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            items(count = UiLanguage.entries.size, key = { "idioma-app:$it" }) { index ->
+                val option = UiLanguage.entries[index]
+                RadioButton(
+                    selected = UiLanguage.of(uiLanguage) == option,
+                    onSelect = { onUiLanguageChange(option.tag) },
+                    // The endonym, and it is not a resource: a language picker that translates
+                    // itself fails exactly the person it is for --whoever got a watch in a
+                    // language they cannot read and is looking for their own line.
+                    label = { Text(option.endonym) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "nota-idioma-app") {
+                Text(
+                    text = stringResource(R.string.settings_ui_language_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
 
@@ -137,6 +183,33 @@ fun SettingsScreen(
                     },
                 )
             }
+
+            // Last on purpose: this is looked up once, when something is wrong, and it must not
+            // push the settings somebody actually changes off the screen.
+            item(key = "cabecera-acerca") { ListHeader { Text(stringResource(R.string.settings_about)) } }
+            item(key = "version") { Diagnostic(stringResource(R.string.settings_version, appVersion)) }
+            items(count = opened.size, key = { "pack-diag:$it" }) { index ->
+                val pack = opened[index]
+                Diagnostic(
+                    stringResource(
+                        R.string.settings_pack_line,
+                        pack.metadata.name,
+                        pack.metadata.entryCount,
+                    ),
+                )
+            }
         }
     }
+}
+
+/** One line of the diagnostics block: readable, not tappable, and not competing for attention. */
+@Composable
+private fun Diagnostic(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+    )
 }
