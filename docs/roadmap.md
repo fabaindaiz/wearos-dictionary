@@ -781,8 +781,8 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
-**Estado.** Planificado. **68,1 MB** contra un presupuesto blando de 50 (D-028), después de la
-poda de D-116. Sigue esperando el número de latencia de O-1 para saber qué
+**Estado.** Planificado. **68,3 MB** contra un presupuesto blando de 50 (D-028), después de la
+poda de D-116 y de las relacionadas de D-132 (+112 KB). Sigue esperando el número de latencia de O-1 para saber qué
 se puede sacrificar sin romper la búsqueda.
 
 **Dónde está el peso, medido** (desglose completo en `docs/formato-pack.md` §Presupuestos):
