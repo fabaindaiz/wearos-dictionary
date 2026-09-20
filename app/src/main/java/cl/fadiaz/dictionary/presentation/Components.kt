@@ -21,6 +21,7 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -221,3 +222,35 @@ internal fun packTypeLabelRes(kind: PackKind): Int = when (kind) {
 /** El texto de [packTypeLabelRes], en el idioma del reloj. */
 @Composable
 internal fun packTypeLabel(kind: PackKind): String = stringResource(packTypeLabelRes(kind))
+
+/**
+ * Lo que el chrome se come antes de la primera fila: el reloj arriba, el margen final, y lo que
+ * la pantalla redonda curva hacia adentro.
+ *
+ * Sale de resolver la recta con los DOS puntos medidos --192 dp compone 2 filas y 234 compone
+ * 3-- contra un paso de [TOUCH_TARGET] por fila. No es una constante de diseño: es el residuo de
+ * una medicion, y por eso vive al lado de la funcion que la usa y no en una tabla de tokens.
+ */
+private const val CHROME_DP = 60
+
+/** Tope de filas. Wear OS no pasa de ~250 dp hoy; esto es una red, no un caso real. */
+private const val MAX_ROWS_EVER = 8
+
+/**
+ * Cuantas filas de [TOUCH_TARGET] entran en una pantalla de `screenWidthDp` de ancho.
+ *
+ * **Existe para que el codigo sea generico y no para elegir un reloj.** El repo cotizo cinco
+ * decisiones contra 192 dp (D-073, D-075, D-078, D-084, D-085) y el reloj del proyecto entrega
+ * 234: poner 234 en su lugar seria cambiar un numero equivocado por otro. Lo que se adapta es
+ * **cuantas filas se muestran**, no el tamaño de ninguna -- bajar de 48 dp rompe el area tocable
+ * que la guia de Wear OS exige, y ningun test lo veria.
+ *
+ * Nunca devuelve menos de dos: con una sola fila la lista deja de ser una lista.
+ */
+internal fun rowsThatFit(screenWidthDp: Int): Int =
+    ((screenWidthDp - CHROME_DP) / TOUCH_TARGET.value.toInt())
+        .coerceIn(2, MAX_ROWS_EVER)
+
+/** [rowsThatFit] contra la pantalla real, sin que quien llama tenga que saber medirla. */
+@Composable
+internal fun rowsThatFit(): Int = rowsThatFit(LocalConfiguration.current.screenWidthDp)

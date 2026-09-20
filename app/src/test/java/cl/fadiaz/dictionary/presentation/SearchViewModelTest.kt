@@ -870,12 +870,13 @@ class SearchViewModelTest {
 
     @Test
     fun theHistoryIsTrimmedToItsCap() {
-        // The cap is not arbitrary: the screen gives three rows of 48 dp (D-073). Storing more
-        // would be storing what nobody sees.
+        // El tope guardado es el TECHO de lo que cualquier pantalla podria mostrar, no lo que
+        // muestra un reloj concreto: recortar a lo que entra es cosa del inicio (D-131). Antes
+        // eran tres, y eso ataba el almacenamiento a una pantalla de 192 dp.
         val vm = conPack(FakeDictionary("es-def", "es"))
-        (1..6).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
+        (1..12).forEach { vm.recordVisit(suggestion("es-def", it.toLong(), "lema$it")) }
         assertEquals(SearchViewModel.MAX_HISTORY, vm.state.value.history.size)
-        assertEquals("lema6", vm.state.value.history.first().headword)
+        assertEquals("lema12", vm.state.value.history.first().headword)
     }
 
     @Test

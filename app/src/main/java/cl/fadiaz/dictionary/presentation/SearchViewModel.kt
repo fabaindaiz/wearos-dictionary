@@ -646,13 +646,17 @@ class SearchViewModel(
         const val DEBOUNCE_MS: Long = 120
 
         /**
-         * How many recent entries are remembered.
+         * Cuantas entradas recientes se RECUERDAN. Cuantas se MUESTRAN lo decide la pantalla.
          *
-         * Three, and it comes from the same arithmetic as D-073: the screen gives three rows of 48 dp.
-         * Storing ten is free in bytes and expensive in the only scarce thing -- it would be seven rows
-         * nobody sees without scrolling the empty state.
+         * Eran tres, atadas a la aritmetica de D-073 --"la pantalla da tres filas de 48 dp"--, y
+         * eso hacia que el almacenamiento dependiera de un reloj concreto: en uno mas grande
+         * sobraba lugar y el historial seguia teniendo tres.
+         *
+         * Ahora es el **techo de lo que cualquier pantalla podria mostrar** (`rowsThatFit` tope
+         * en 8) y el inicio recorta a lo que entra de verdad. Guardar ocho sigue siendo gratis en
+         * bytes; lo que se cuidaba era no mostrar lo que nadie ve, y de eso se ocupa la pantalla.
          */
-        const val MAX_HISTORY: Int = 3
+        const val MAX_HISTORY: Int = 8
 
         /**
          * Cap on saved words. Deliberately high --they do not compete for the screen like the

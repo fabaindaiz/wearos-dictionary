@@ -242,7 +242,11 @@ fun SearchScreen(
                     // two thirds of a row and there is nothing here to confuse them with" -- but
                     // with the word of the day above and the options below, the only list without
                     // a heading became the odd one out.
-                    if (state.submitted.isEmpty() && state.history.isNotEmpty()) {
+                    // Sin recortar: el inicio SCROLLEA, asi que limitar aca esconderia
+                    // entradas sin ganar nada. El tope vive donde no se puede scrollear -- el
+                    // tile (D-131).
+                    val recent = state.history
+                    if (state.submitted.isEmpty() && recent.isNotEmpty()) {
                         item(key = "titulo-recientes") {
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -250,13 +254,13 @@ fun SearchScreen(
                             ) { Text("Recientes") }
                         }
                         items(
-                            count = state.history.size,
+                            count = recent.size,
                             key = { index ->
-                                val v = state.history[index]
+                                val v = recent[index]
                                 "h:${v.packId}:${v.entryId}"
                             },
                         ) { index ->
-                            val visit = state.history[index]
+                            val visit = recent[index]
                             ListRow(
                                 headword = visit.headword,
                                 detail = visit.partOfSpeech?.let { posLabel(it) },
