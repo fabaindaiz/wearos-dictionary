@@ -129,12 +129,16 @@ class Record:
 
 
 class PackBuilder:
-    def __init__(self, path, metadata, fuzzy_profile=None):
+    def __init__(self, path, metadata, fuzzy_profile=None, sentences=None):
         """`metadata` son las claves de la tabla meta que aporta la fuente.
 
         El builder agrega por su cuenta las que son suyas (versiones, conteo, fecha) y falla si
         la fuente intenta declararlas: una version de esquema escrita a mano seria una forma
         silenciosa de romper la validacion del lado del reloj.
+
+        `sentences` es el mapa `norm -> frase` de un corpus (D-137). Se resuelve en `finish()` y
+        no aca **porque la condicion que lo vuelve seguro solo se puede evaluar al final**: que
+        la palabra lleve a una sola entrada del pack. Ver `_frases_por_entrada`.
         """
         reserved = {
             "schema_version",
@@ -193,6 +197,7 @@ class PackBuilder:
             """
         )
         self.count = 0
+        self._sentences = sentences or {}
         self._sample = []
         self._sampled = 0
         # Determinista: dos builds del mismo input dan el mismo pack.
@@ -278,6 +283,48 @@ class PackBuilder:
             if index < DICTIONARY_SAMPLE_SIZE:
                 self._sample[index] = body
 
+    def _frases_por_entrada(self):
+        """Mapa `entry_id -> frase`, resuelto con el indice YA poblado (D-137).
+
+        ⚠️ **La condicion no es "la palabra aparece", es "la palabra lleva a UNA entrada".** Un
+        corpus no dice de que acepcion --ni de que lema-- es cada oracion. "vino" es un lema (la
+        bebida) y tambien una forma de "venir": colgarle "Ella vino ayer" a la bebida no lanza,
+        no loguea, no lo agarra `verify_pack.py`, y sale del pack como una definicion con un
+        ejemplo que la contradice. Es el modo de falla mas caro que tiene este repo.
+
+        Se evalua aca y no en `add()` porque **la ambiguedad es global**: cuando entra "vino" la
+        entrada de "venir" puede no existir todavia. Recien con el staging y `form` completos se
+        puede preguntar a cuantas entradas llega una clave.
+
+        Cuesta la mitad del rendimiento: de 14.023 entradas alcanzables quedan 7.019. Se paga.
+
+        Ademas solo se le pega a una entrada de **una acepcion y sin ejemplo propio**. Con varias
+        no se sabe cual ilustra (la regla de D-132 y D-135); y si ya tiene el ejemplo que la
+        fuente ATRIBUYO, ese gana: viene con acepcion, el de corpus solo contiene la palabra.
+        """
+        if not self._sentences:
+            return {}
+        cur = self.connection
+        cur.execute("CREATE TEMP TABLE frase (norm TEXT PRIMARY KEY, texto TEXT) WITHOUT ROWID")
+        cur.executemany("INSERT OR IGNORE INTO frase (norm, texto) VALUES (?, ?)",
+                        self._sentences.items())
+        # `HAVING COUNT(DISTINCT id) = 1` es la regla entera. La union mira lema y forma, que son
+        # los dos caminos por los que una palabra escrita llega a una entrada.
+        filas = cur.execute(
+            """
+            SELECT MIN(alcanza.id), frase.texto
+              FROM frase
+              JOIN (SELECT norm, id FROM staging
+                    UNION ALL
+                    SELECT norm, entry_id AS id FROM form) AS alcanza
+                ON alcanza.norm = frase.norm
+             GROUP BY frase.norm
+            HAVING COUNT(DISTINCT alcanza.id) = 1
+            """
+        ).fetchall()
+        cur.execute("DROP TABLE frase")
+        return dict(filas)
+
     def finish(self):
         if self.count == 0:
             raise ValueError("el pack quedo sin entradas")
@@ -288,6 +335,11 @@ class PackBuilder:
 
         # Pasada 2: comprimir y poblar entry + fts_def. Se itera con un cursor separado para no
         # cargar el staging completo en memoria.
+        # Antes de abrir el cursor de lectura: la temp table de `_frases_por_entrada` no se puede
+        # crear ni borrar con un cursor vivo sobre staging en la misma conexion -- SQLite
+        # devuelve "database table is locked".
+        frases = self._frases_por_entrada()
+
         read = self.connection.cursor()
         write = self.connection.cursor()
         read.execute(
@@ -296,6 +348,16 @@ class PackBuilder:
         )
         for row in read:
             entry_id, uid, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
+            frase = frases.get(entry_id)
+            if frase and _admite_frase_de_corpus(body):
+                # El tag E se cuelga de la ULTIMA acepcion abierta, y `_admite_frase_de_corpus`
+                # ya comprobo que hay exactamente una. Se agrega al texto ya renderizado en vez
+                # de re-renderizar: el body es la unica copia y volver a armarlo seria una
+                # segunda implementacion del formato.
+                body = body + payload_codec.TAG_EXAMPLE + "\t" + payload_codec.sanitize(frase) + "\n"
+                # Y al indice de texto libre, o la busqueda por definicion veria un pack distinto
+                # del que se muestra. Los ejemplos ya entraban (D-118).
+                fts_body = (fts_body + " " + frase).strip()
             write.execute(
                 "INSERT INTO entry (id, uid, headword, norm, fuzzy, pos, rank, payload)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -423,6 +485,16 @@ class PackBuilder:
         self.connection.close()
         if os.path.exists(self.path):
             os.remove(self.path)
+
+
+def _admite_frase_de_corpus(body):
+    """El body renderizado tiene UNA acepcion y ninguna ejemplo propio.
+
+    Se lee del texto del payload y no de los `senses` originales porque en la pasada 2 el body es
+    lo unico que queda: el staging guarda el texto, no la estructura. Son dos conteos de lineas.
+    """
+    lineas = [l[0] for l in body.split("\n") if len(l) > 1 and l[1] == "\t"]
+    return lineas.count(payload_codec.TAG_SENSE) == 1 and payload_codec.TAG_EXAMPLE not in lineas
 
 
 def _fts_body(senses):

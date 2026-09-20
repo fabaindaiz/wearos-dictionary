@@ -1,7 +1,7 @@
 """Construye un pack real monolingue desde un dump de kaikki.org.
 
     python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
-                          [--ejemplos <es-en-wikt.jsonl>]
+                          [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -38,13 +38,19 @@ seccion Spanish (D-135). Solo llena entradas flacas y solo donde no hay atribuci
 asi que el numero es chico -- **326 entradas, 0,28 %**. ⚠️ **Cambia la atribucion del pack**,
 porque usar dos fuentes obliga a nombrar a las dos: por eso es una opcion y no un default. Las
 dos son CC BY-SA 4.0.
+
+`--frases` suma una **tercera fuente**: el corpus Tatoeba (D-137). Rinde **23 veces mas** que
+`--ejemplos` --7.019 entradas contra 307-- porque un ejemplo de corpus no necesita que las dos
+fuentes coincidan en como numeran las acepciones: solo necesita contener la palabra **sin
+ambiguedad**, y eso lo comprueba el builder contra su propio indice. ⚠️ Tatoeba es **CC BY 2.0
+FR** y tambien cambia la atribucion. Las dos opciones se pueden combinar.
 """
 
 import hashlib
 import os
 import sys
 
-from sources import enwikt_examples, kaikki, oewn
+from sources import enwikt_examples, kaikki, oewn, tatoeba
 
 from build import PackBuilder
 
@@ -175,6 +181,9 @@ def main(argv):
     dump_ejemplos = None
     if "--ejemplos" in argv:
         dump_ejemplos = argv[argv.index("--ejemplos") + 1]
+    dump_frases = None
+    if "--frases" in argv:
+        dump_frases = argv[argv.index("--frases") + 1]
 
     metadata = dict(PACKS[lang])
     if sample > 1:
@@ -199,11 +208,23 @@ def main(argv):
             "licencia CC BY-SA 4.0."
         )
         metadata["description"] += " Con ejemplos de uso de una segunda fuente."
+    frases = None
+    if dump_frases:
+        # Mismo criterio que arriba y misma razon: el credito se mueve JUNTO con el contenido,
+        # aca, para que no exista una forma de mezclar sin atribuir. Tatoeba es CC BY 2.0 FR
+        # --el export CC0 trae 37 frases en español de 562.186-- asi que la atribucion es
+        # obligatoria, no cortesia.
+        frases = tatoeba.shortest_by_norm(dump_frases)
+        metadata["pack_id"] += "-fr"
+        metadata["attribution"] += (
+            " Frases de ejemplo del corpus Tatoeba (tatoeba.org), licencia CC BY 2.0 FR."
+        )
+        metadata["description"] += " Con frases de uso del corpus Tatoeba."
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
-    with PackBuilder(output, metadata) as builder:
+    with PackBuilder(output, metadata, sentences=frases) as builder:
         reader = READERS[lang]
         argumentos = (source, lang) if reader is oewn else (source, lang, politica)
         for record in reader.records(*argumentos):
