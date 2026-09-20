@@ -26,6 +26,49 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Todo subido al reloj, y la primera verificación en hardware
+
+**Qué.** App y packs instalados en el SM-L715F, y siete comprobaciones de esta sesión vistas por
+primera vez en hardware. Cero código.
+
+**Áreas.** `docs/roadmap.md`: §Lo que YA se vio en el reloj (reemplaza al ítem que decía que no se
+había visto nada) y la fila correspondiente de §Publicar.
+
+**Por qué.** El reloj volvió a estar conectado después de toda la sesión, y era el ítem más grande
+del roadmap: **31 decisiones verificadas sólo en emulador**.
+
+**Medido, en el reloj real.**
+
+- **SM-L715F, Android 17, `sw234dp w234dp h234dp 340dpi`, 498×498 físicos, 40 GB libres.** La
+  configuración que D-131 y D-133 asumen, confirmada otra vez en hardware.
+- **Arranque en frío 2.216 ms** (`am start -W`). El primer número de rendimiento del proyecto.
+- La app abre `en-def-wikt-wn` de **315,5 MB** sin rechazarlo: **la verificación de claves de
+  D-142 corre sobre un pack de ese tamaño en un reloj sin coste perceptible.**
+- Un `ES`, un `EN`, **dos palabras del día** (D-145). El campo despejado del reloj y con su forma
+  entera (D-133). `definitions · 315,5 MB · EN` en diccionarios (D-125 + D-138). Los **dos tiles
+  registrados** y reconocidos por el sistema. Logcat sin un solo error de la app.
+
+**Arquitectura.** ✅ Cumple. Sólo documentación.
+
+**Qué salió mal.**
+
+- **La subida de 315 MB por adb inalámbrico se cortó a los 75** con `BrokenPipeError`. Reintentar
+  alcanzó: `devpack.py` borra el `.part` huérfano antes de escribir, así que es idempotente.
+- ⚠️ **Y casi "arreglo" tres cosas que funcionaban.** Creí que `devpack.py` salía con 0 pese a
+  fallar —era mi `| tail`, que en un pipeline decide el código de salida—; creí que dejaba un
+  `.part` huérfano sin limpiar —lo limpia el propio install—; y creí ver un separador colgando en
+  *«definitions ·»*, que era el recorte de la captura: el texto real es
+  `definitions · 315,5 MB · EN`. **Las tres se descartaron mirando el dato, no el píxel**, con
+  `uiautomator dump` en lugar de leer la imagen. Es el mismo error que ya había cometido con el
+  subtítulo de la palabra del día.
+
+**Qué quedó sin hacer.**
+
+- **Los tiles DIBUJANDO.** Están registrados; agregarlos al carrusel es un gesto del usuario y no
+  se puede hacer por `adb`.
+- **Los tests instrumentados en el reloj** — se consultó antes de correrlos, como se pidió.
+- **Latencia de búsqueda y batería**: hay un número de arranque y nada más.
+
 ## 2026-09-20 — Cierre de sesión: los números de los documentos, puestos al día
 
 **Qué.** Barrido de staleness antes de cerrar. Tres documentos afirmaban conteos de hace
