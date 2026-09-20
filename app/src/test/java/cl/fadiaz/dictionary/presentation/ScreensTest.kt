@@ -908,6 +908,47 @@ class ScreensTest {
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
     }
 
+    // --- Toda fila de palabra dice lo mismo: palabra · tipo · idioma (D-152) ----------------
+
+    @Test
+    fun elHISTORIAL_DEL_INICIO_tambien_dice_el_idioma() {
+        // ⚠️ Antes la fila de resultado decía `sust. · ES` y la de reciente sólo `sust.`. Dos
+        // filas que representan lo mismo tienen que decir lo mismo: si no, el usuario aprende
+        // que la etiqueta significa algo distinto según dónde esté.
+        showSearch(
+            readyState().copy(query = "", submitted = "", history = listOf(visita("perro"))),
+        )
+        compose.onNodeWithText("sust. · ES", substring = true).assertExists()
+    }
+
+    @Test
+    fun laPANTALLA_DE_LISTA_tambien_dice_el_idioma() {
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.home_recent,
+                empty = cl.fadiaz.dictionary.R.string.history_empty,
+                tags = mapOf("es-def" to "ES"),
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithText("sust. · ES", substring = true).assertExists()
+    }
+
+    @Test
+    fun unaPalabraDeUnPackDESCONOCIDO_muestra_solo_el_tipo() {
+        // Igual que en los resultados: heredar la etiqueta del pack activo afirmaría un idioma
+        // que nadie comprobó. Mejor decir menos que decir algo falso.
+        showSearch(
+            readyState().copy(
+                query = "", submitted = "",
+                history = listOf(Visit("fantasma", 1, "perro", "noun")),
+            ),
+        )
+        compose.onNodeWithText("sust.", substring = true).assertExists()
+        assertEquals(0, compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size)
+    }
+
     // --- Recientes: tres en el inicio, el resto detrás de un botón (D-148) ------------------
 
     @Test

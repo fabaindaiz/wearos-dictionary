@@ -41,6 +41,13 @@ fun WordListScreen(
     @StringRes title: Int,
     /** Que decir cuando no hay nada. Una lista vacia sin explicacion parece rota. */
     @StringRes empty: Int,
+    /**
+     * `packId` -> la etiqueta de idioma o fuente. La arma `resultTags`.
+     *
+     * Vacio por defecto para que una pantalla de test que no la cablea siga andando; un `packId`
+     * que no este simplemente no recibe etiqueta, igual que en los resultados.
+     */
+    tags: Map<String, String> = emptyMap(),
     onOpen: (Visit) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -82,7 +89,10 @@ fun WordListScreen(
                 val visit = words[index]
                 ListRow(
                     headword = visit.headword,
-                    detail = visit.partOfSpeech?.let { posLabel(it) },
+                    detail = wordDetail(
+                        visit.partOfSpeech?.let { posLabel(it) },
+                        tags[visit.packId],
+                    ),
                 ) { onOpen(visit) }
             }
         }

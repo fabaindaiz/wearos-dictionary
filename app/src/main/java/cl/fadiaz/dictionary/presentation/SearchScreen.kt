@@ -280,7 +280,10 @@ fun SearchScreen(
                             val visit = recent[index]
                             ListRow(
                                 headword = visit.headword,
-                                detail = visit.partOfSpeech?.let { posLabel(it) },
+                                detail = wordDetail(
+                                    visit.partOfSpeech?.let { posLabel(it) },
+                                    etiquetas[visit.packId],
+                                ),
                             ) { onOpenVisita(visit) }
                         }
                         // Sólo si hay más: un botón que lleva a la misma lista que ya estás
@@ -433,13 +436,13 @@ private fun ResultRow(
     // Una sola ranura a la derecha y no dos: en una fila de 234 dp el lema ya compite por el
     // ancho. El tipo primero porque responde "que clase de palabra es", que es lo que se mira
     // primero; el idioma despues, que solo desambigua cuando hay mas de un diccionario.
-    val etiquetas = listOfNotNull(
-        matchLabel(suggestion.matchKind) ?: suggestion.partOfSpeech?.let { posLabel(it) },
-        etiquetas[suggestion.packId],
-    )
     ListRow(
         headword = suggestion.headword,
-        detail = etiquetas.takeIf { it.isNotEmpty() }?.joinToString(" · "),
+        detail = wordDetail(
+            partOfSpeech = suggestion.partOfSpeech?.let { posLabel(it) },
+            tag = etiquetas[suggestion.packId],
+            override = matchLabel(suggestion.matchKind),
+        ),
         onClick = onClick,
     )
 }
