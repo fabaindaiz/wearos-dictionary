@@ -172,6 +172,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     SearchScreen(
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
+                        onTypingChanged = viewModel::onTypingChanged,
                         onPackChange = viewModel::onPackChange,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
                         // The packId travels with the entry: without it, with two packs open it

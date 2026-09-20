@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.wear.compose.foundation.requestFocusOnHierarchyActive
 import androidx.wear.compose.foundation.rotary.RotaryScrollableDefaults
 import androidx.wear.compose.foundation.rotary.rotaryScrollable
@@ -76,6 +77,9 @@ import cl.fadiaz.dictionary.data.Visit
 fun SearchScreen(
     state: SearchState,
     onQueryChange: (String) -> Unit,
+    // El teclado abierto suspende la busqueda (D-128). Default vacio: una pantalla de test que
+    // no lo cablea sigue comportandose como antes.
+    onTypingChanged: (Boolean) -> Unit = {},
     onPackChange: (String) -> Unit = {},
     // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
     // hatch, indistinguishable from one that works.
@@ -156,12 +160,12 @@ fun SearchScreen(
                     // day and the voice button, and searching is the primary action: the
                     // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
-                        SearchBar(state.query, onQueryChange) {
+                        SearchBar(state.query, onQueryChange, onTypingChanged) {
                             voice.launch(voiceIntent(state.active?.langSource ?: "es"))
                         }
                     }
 
-                    if (state.query.isEmpty()) {
+                    if (state.submitted.isEmpty()) {
                         // Voice sits next to the bar: both answer the same question --how do I
                         // enter what I am looking for-- and separating them forced a scroll.
                         item(key = "voz") {
@@ -214,7 +218,7 @@ fun SearchScreen(
                     // two thirds of a row and there is nothing here to confuse them with" -- but
                     // with the word of the day above and the options below, the only list without
                     // a heading became the odd one out.
-                    if (state.query.isEmpty() && state.history.isNotEmpty()) {
+                    if (state.submitted.isEmpty() && state.history.isNotEmpty()) {
                         item(key = "titulo-recientes") {
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -236,13 +240,13 @@ fun SearchScreen(
                         }
                     }
 
-                    if (state.query.isNotBlank() && state.results.isEmpty()) {
+                    if (state.submitted.isNotBlank() && state.results.isEmpty()) {
                         item(key = "sin-resultados") {
                             Text(
                                 text = if (state.mode == SearchState.Mode.DEFINICIONES) {
                                     "Sin resultados en las definiciones"
                                 } else {
-                                    "Sin resultados para “${state.query}”"
+                                    "Sin resultados para “${state.submitted}”"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -295,7 +299,7 @@ fun SearchScreen(
 
                     // Settings only with an empty search: with results on screen a row of
                     // chrome is one result less (D-073).
-                    if (state.query.isEmpty()) {
+                    if (state.submitted.isEmpty()) {
                         item(key = "titulo-opciones") {
                             ListHeader(
                                 modifier = Modifier.fillMaxWidth().transformedHeight(this, spec),
@@ -369,7 +373,12 @@ private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
  * the keyboard that exercises the incremental search: voice delivers the whole phrase at once.
  */
 @Composable
-private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: () -> Unit) {
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onTypingChanged: (Boolean) -> Unit,
+    onVoice: () -> Unit,
+) {
     // "Accept" did nothing: there was an ImeAction declared and no handler, and
     // KeyboardActions.Default defines no behaviour for Search --unlike Next/Previous,
     // which move focus--. The only way out was the system's back gesture.
@@ -409,8 +418,8 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: (
                     color = MaterialTheme.colorScheme.onSurface,
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                // It fires no query: the search already ran through the debounce. It closes
-                // the keyboard and releases focus, which gives the crown back to the list.
+                // Tocar Buscar cierra el teclado y suelta el foco. Soltarlo es lo que
+                // DISPARA la consulta (D-128): no hace falta llamarla aca.
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         keyboard?.hide()
@@ -420,7 +429,12 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onVoice: (
                         focus.clearFocus()
                     },
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                // El foco ES el teclado: mientras el campo lo tiene, se escribe sin buscar
+                // (D-128). Soltarlo --por Buscar, por el gesto del sistema o por tocar fuera--
+                // es lo que dispara la consulta, una sola vez.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { onTypingChanged(it.isFocused) },
             )
         }
         // With something typed the large voice button goes away, but voice cannot go away
