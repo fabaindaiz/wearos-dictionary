@@ -25,8 +25,8 @@ passes through.
 
 The **screens are outside the rule** as code —a Composable is Android by definition— but **no
 longer as tests**: they run under Robolectric on the JVM and **do enter the gate** (D-110). Of the
-47, **46 run that way in 21 s**; the only one that does not is tapping a word inside a gloss,
-which depends on the real text layout.
+**89**, **88 run that way**; the only one that does not is tapping a word inside a gloss, which
+depends on the real text layout.
 
 ⚠️ **Robolectric runs on SDK 36, not 37**, which is the watch's level: that is as far as it goes
 (`app/src/test/resources/robolectric.properties`). Anything that depends on API 37 still needs a
@@ -67,7 +67,7 @@ on-device counts. **What the pair fixes is the relationship**: 22 % more screen 
 more row, and a change that helps the project's watch while hurting a generic one now fails.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 178 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 251 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
@@ -180,8 +180,27 @@ it: it compiles, it reads fine to whoever wrote it, and it is the user who notic
 surface is small —every string lives in `presentation/` or in `res/values/strings.xml`— so a
 sweep for those forms takes a minute.
 
-When the localization lands, this becomes `values-es` and the English base; the rule for the
-Spanish side does not change.
+**The localization landed** (D-127, D-140, D-153): the 117 keys live in `values/` (English base)
+and `values-es/`, and the rule above governs the Spanish side. Since D-158 the language is also
+**pickable in Settings** — Automatic / English / Español.
+
+⚠️ **The picker does NOT store a preference.** Since API 33 `LocaleManager` keeps the app locale
+per application and applies it before a single Composable runs, so a copy of ours would be a second
+source of truth that the platform's would silently outrank. `SettingsScreen` receives the tag as a
+parameter and `MainActivity` makes the call — same boundary as everything else Android here.
+
+Two things that bite, and both are enforced:
+
+- **The tag comes back resolved**, with a region: `es-CL`, `es-419`, `en-US`. Compare only the
+  primary subtag or the list shows nothing selected, which reads as the choice being forgotten.
+- **Adding a third language is two things**: a `values-xx/` folder with all 117 keys and a row in
+  `UiLanguage`. Miss either and `check_ui_language_picker` says which. A folder without a row is a
+  translation **nobody can pick**; a row without a folder leaves the app in English with the
+  picker marking something else.
+
+And the endonyms —`Español`, `English`— are **the one UI string that is not a resource**, on
+purpose: a language picker written in the language you cannot read fails exactly the person it is
+for.
 
 ## Accepted MVP costs (D-087)
 
@@ -194,8 +213,8 @@ They are no longer inherited from the template: they were decided, with the cost
   dictionary tiles and the complication was switched off, and with it the 24 daily wakeups.
 - ~~`ic_launcher_round` present but without `android:roundIcon`~~ **Closed by D-115**: the icon is
   an open book in vector form, `roundIcon` is declared and the 10 `.webp` files are gone.
-- Minor leftovers untouched: `app_name` = "Dictionary" in English with the UI in Spanish; the
-  `WAKE_LOCK` permission declared and never used.
+- ~~`app_name` = "Dictionary" in English with the UI in Spanish~~ **Closed**: it is a resource in
+  both locales. Minor leftover untouched: the `WAKE_LOCK` permission declared and never used.
 
 ## Signing the release
 

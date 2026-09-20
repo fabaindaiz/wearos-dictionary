@@ -26,6 +26,85 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — El idioma de la interfaz se elige, y el micrófono no habla ningún idioma
+
+**Qué.** D-157 (el botón de voz es un micrófono), D-158 (selector de idioma de la UI + diagnóstico
+al fondo de Ajustes) y D-159 (la ficha escribe el tipo entero, la fila lo sigue abreviando). Un
+chequeo nuevo de auditoría, `check_ui_language_picker`, y `buildFeatures.buildConfig` encendido.
+
+**Áreas.** `data/UiLanguage.kt` (nuevo) · `SettingsScreen.kt` · `MainActivity.kt` ·
+`SearchScreen.kt` (`posLabelFull`) · `EntryScreen.kt` · `AttributionScreen.kt` ·
+`res/drawable/ic_mic.xml` (nuevo) · `values/` y `values-es/strings.xml` (+6 claves, 117 en total) ·
+`app/build.gradle.kts` · `tools/audit_dictionary.py` · `UiLanguageTest.kt` (nuevo), `ScreensTest`,
+`EnglishLocaleTest` · `docs/decisions.md`, `docs/roadmap.md`, `app/CLAUDE.md`.
+
+**Por qué.** Pedido: *«completá la traducción de toda la interfaz para que funcione el selector de
+idiomas (por defecto en automático) y mejorá los ajustes con opciones útiles que consideres
+(consultándome antes). Y que el voz sea un ícono de un micrófono mejor, para que sea
+multiidiomas»*. Se consultó y se eligieron dos opciones —idioma de la interfaz y versión con
+información de diagnóstico— con la instrucción explícita de que **el diagnóstico va al fondo** y de
+que **el problema del ejemplo largo queda en el roadmap**, no se implementa.
+
+**Arquitectura.** ✅ Cumple. Lo importante es lo que **no** se hizo: el idioma de la UI **no es una
+preferencia de la app**. Desde API 33 `LocaleManager` lo guarda por aplicación y lo aplica antes de
+que corra un solo Composable; una clave nuestra en `Settings` habría sido una segunda fuente de
+verdad que la plataforma gana en silencio. Y `SettingsScreen` sigue sin leer un servicio del
+sistema: el tag entra por parámetro y `MainActivity` hace la llamada, que es lo que deja los cuatro
+tests nuevos en el gate y no en un dispositivo (D-072).
+
+**Medido.** Gate verde: **81 `:dict-core` · 251 `:app` JVM · 250 Python · 22 checks**. Las claves de
+recursos quedaron en **117 por idioma**, paritarias. El endónimo se comprobó en las tres mitades del
+chequeo nuevo: carpeta sin fila, fila sin carpeta, y endónimo convertido en recurso — las tres
+fallan. El ícono se dibujó a mano en vez de sumar `material-icons-extended`, que son **varios MB de
+vectores para usar uno**.
+
+**Qué salió mal.**
+
+- **`UiLanguage.of` comparaba el tag entero** en el primer intento, que es lo que cualquiera
+  escribe. `LocaleManager` devuelve el tag **resuelto y con región** —`es-CL`, `es-419`— así que la
+  lista quedaba **sin nada marcado** y eso se lee como que la elección se olvidó. Lo agarró el test
+  que se escribió antes, y falló exactamente ahí.
+- **El test del diagnóstico medía nada a 900 dp.** Afirmaba que *Acerca de* va debajo del historial
+  comparando `getBoundsInRoot()`, pero en un `TransformingLazyColumn` a 900 dp el bloque seguía
+  fuera del viewport. Es la misma familia de falla que `threeResultsFitWithoutScrolling` ya había
+  tenido en este repo —pasar por la razón equivocada—. Se subió el calificador a 1600 dp, que **no
+  es una afirmación sobre ningún reloj** y así está escrito en el test.
+- **D-157 rompió `EnglishLocaleTest` y estuvo roto un rato sin que se notara**: el test afirmaba el
+  texto *Say a word* con `onNodeWithText` y el botón ya no tiene texto. La corrección es mejor que
+  el original —ahora afirma el `contentDescription`, que es donde un lector de pantalla lee la
+  traducción— pero el gate no se había corrido entre D-157 y esto.
+- **La sesión anterior dejó el árbol sin compilar**: `SettingsScreen` referenciaba un
+  `AppLanguagePicker()` que no existía. No es grave porque se retomó de inmediato, pero un commit
+  ahí habría quedado rojo y el historial dejaba de ser bisectable (D-035).
+- **Se escribió un test duplicado.** El nuevo *theCardSpellsOutTheType…* afirmaba lo mismo que
+  `theEntryShowsHeadwordPartOfSpeechAndNumberedSenses` ya afirmaba; se actualizó el viejo y se
+  borró el nuevo, porque dos tests del mismo hecho divergen en cuanto alguien arregle uno.
+
+**Fricción de proceso (primera vez, va acá y no al roadmap).** `CLAUDE.md` obliga a verificar con
+`git worktree` que cada commit queda verde por sí solo, y **un worktree no puede correr el gate tal
+cual**: `local.properties` está gitignoreado, así que el worktree nace sin `sdk.dir` y
+`:app:lintReportDebug` muere con *«SDK location not found»* antes de compilar nada. Se resuelve
+corriendo el gate con `env ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew check` dentro del
+worktree — **no** creando un `local.properties` ahí, que es el archivo que no se toca. Si vuelve a
+pasar, la línea va al roadmap §Proceso con la aritmética.
+
+**Qué quedó sin hacer.**
+
+- **Las 15×2 claves `pos_full_*` estaban escritas y sin usar**, de una sesión anterior: 30 cadenas
+  de texto muerto que **ningún chequeo ve** —la paridad las acepta porque están en las dos tablas—.
+  D-159 las usó. La deuda real que queda: nada detecta un recurso que nadie referencia.
+- **Dos de las tres observaciones pendientes siguen pendientes y están diseñadas en el roadmap**:
+  el respaldo automático entre idiomas (umbral elegido: sin match exacto y sin banda máxima) y la
+  vista de sinónimos/antónimos con categoría y palabras clicables (el mecanismo ya existe,
+  `resolveHeadwords` de D-094; lo que falta decidir es el costo en filas).
+- **El ejemplo largo sigue en el roadmap por pedido explícito**, no por olvido.
+- **Nada de esto se vio en el reloj.** La app instalada está 13 decisiones atrás (D-147 a D-159) y
+  el cambio de idioma es justo el que hay que mirar ahí: `setApplicationLocales` **recrea la
+  Activity**, y que eso no deje la app en la pantalla equivocada ni pierda la búsqueda a medio
+  escribir no lo puede decir Robolectric.
+
+---
+
 ## 2026-09-20 — Las filas dicen todas lo mismo, y el bilingüe se cierra
 
 **Qué.** D-152 (toda fila de palabra dice palabra · tipo · idioma) y D-153 (la base en inglés se

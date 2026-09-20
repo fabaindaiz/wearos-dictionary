@@ -22,9 +22,9 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **77 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **233 JVM
-de `:app`** y **21 checks** de auditoría estructural — **560 tests en total**. Los **41
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **81 tests**) y el
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **251 JVM
+de `:app`** y **22 checks** de auditoría estructural — **604 tests en total**. Los **41
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -427,6 +427,37 @@ los pixeles.
 - ✅ **El espacio bajo el reloj**, reportado dos veces, verificado en hardware.
 - ✅ **Las filas de palabra dicen todas lo mismo** (D-152) y el selector elige idioma (D-147).
 - ✅ **Tres recientes y un botón**, para que los ajustes no queden a varios scrolls (D-148).
+- ✅ **Los nombres propios van abajo** salvo match exacto o casi (D-154).
+- ✅ **Una guardada se quita manteniéndola apretada** y confirmando (D-155).
+- ✅ **El selector de idioma va pegado a la barra y no desaparece al buscar** (D-156).
+- ✅ **El botón de voz es un micrófono** y la cadena vive en `contentDescription` (D-157).
+- ✅ **La barra del inicio es la de resultados**: buscar grande a la izquierda, micrófono chico a
+  la derecha, selector debajo (D-156).
+- ✅ **El tipo de palabra se escribe entero dentro de la ficha** y sigue abreviado en la fila
+  (D-159). Las 15 claves `pos_full_*` estaban escritas y sin usar.
+- ✅ **Ajustes tiene selector de idioma de la interfaz y diagnóstico al fondo** (D-158).
+
+**Lo que falta y SÍ se puede cerrar desde acá** (de la lista de observaciones del 2026-09-20; las
+tres que no se construyeron esa sesión):
+
+1. **Respaldo automático entre idiomas.** Pedido: *«que evite generar conflictos cuando la palabra
+   que busco está en inglés pero por error seleccioné español»*. El umbral está elegido y no
+   implementado: **si la consulta no da ningún match exacto y ninguno en la banda de cobertura
+   máxima**, se consultan también los packs de los otros idiomas y sus resultados van **después**
+   de los del idioma activo. El punto medio que el pedido pide —*«que no se sobrecargue la
+   búsqueda en varios packs innecesariamente»*— es ése: el caso normal no paga nada, porque
+   escribir *perr* sí da banda máxima. Cuesta una segunda pasada de `SearchRepository` sobre los
+   packs restantes, sólo en el caso malo. **Los packs no se pueden apagar** —decisión del usuario,
+   para no complejizar— así que no hay estado nuevo que guardar.
+2. **La vista de sinónimos y antónimos, con categoría arriba y palabras clicables.** Pedido:
+   *«primero mostrando la categoría y abajo las palabras, pudiendo hacerles click para ir a
+   ellas»*. Hoy son tres líneas de texto con prefijo `sin.` / `ant.` / `rel.` (D-126, D-132) y
+   **nada es tocable**. El mecanismo para hacerlas tocables **ya existe**: `resolveHeadwords` en
+   lote es exactamente lo que hace tocables las palabras de una glosa (D-094), así que esto es
+   presentación, no capacidad nueva. Lo que falta decidir es el costo en filas: una categoría en
+   su propia línea más las palabras debajo pasa de 1 fila a 2 por lista, y con las tres listas y
+   varias acepciones eso empuja mucho hacia abajo en 234 dp.
+3. **El caché del tile sigue siendo por pack** (ver §Varios packs por idioma, punto 2).
 
 **Lo que falta, y por qué no se puede cerrar desde acá:**
 
@@ -438,7 +469,9 @@ los pixeles.
 - **El ejemplo largo sigue siendo un muro.** Con las acepciones desplegadas, un ejemplo de 900
   caracteres empuja la siguiente fuera de pantalla. La salida evaluada —ejemplos detrás de un
   toque— **no se tomó**, y sigue siendo una decisión de producto: esconder contenido que el
-  usuario no pidió esconder.
+  usuario no pidió esconder. ⚠️ **Diferido a pedido explícito el 2026-09-20**: *«quiero que el
+  problema con los ejemplos lo dejes en el roadmap»*. No es que no se haya mirado; es que la
+  salida cuesta una decisión que no es del agente.
 
 ### Pack de inglés
 
@@ -594,6 +627,16 @@ distintas y hacen falta las dos:
 
 **Verificado en el emulador y en el reloj**: un dispositivo en inglés muestra *type…*, *Say a
 word*, *Word of the day*, *Saved*, *Settings*.
+
+**Y ahora el idioma se puede elegir a mano** (2026-09-20, D-158). Las **117 claves** están en los
+dos idiomas y Ajustes tiene un selector *Automático / English / Español*. ⚠️ **No guardamos la
+elección**: desde API 33 `LocaleManager` la guarda por aplicación y la aplica antes de que corra
+un solo Composable, así que una copia nuestra daría dos fuentes de verdad. `check_ui_language_picker`
+vigila que la lista del selector y las carpetas `values-*` no se separen: una carpeta sin fila es
+una traducción que **nadie puede elegir**.
+
+**Para agregar un tercer idioma** hacen falta exactamente dos cosas: una carpeta `values-xx/` con
+las 117 claves y una fila en `UiLanguage`. Si falta cualquiera de las dos, el audit lo dice.
 
 ### La voz nativa dicta en el idioma del reloj, no en el del pack
 
@@ -1037,7 +1080,7 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 ### Pendiente de subir al reloj
 
 El reloj se desconectó después de la primera subida, así que **lo que se le instaló es de antes de
-D-147 a D-150**. Los packs están al día; **la app no**.
+D-147**. Los packs están al día; **la app está 13 decisiones atrás (D-147 a D-159)**.
 
 ```sh
 # 1. Con el reloj conectado (adb pair / adb connect, o por cable):
@@ -1055,6 +1098,15 @@ Lo que hay que mirar ahí, y que no se pudo verificar de otra forma:
 - **Las previews de los tiles al agregarlos** (D-149). Agregar un tile es un gesto del usuario y
   no se hace por `adb`; es lo único de esa decisión que queda sin ver.
 - El inicio con **tres recientes y el botón** (D-148) sobre un historial real.
+- **El orden de los nombres propios sobre el pack real** (D-154): escribir *ital* y *medel*. Se
+  simuló contra el pack antes de escribirlo, pero simular no es la lista dibujada.
+- **Mantener apretada una guardada** (D-155). El gesto largo se verificó en Robolectric; que en un
+  reloj puesto el umbral de tiempo se sienta bien es otra cosa.
+- **Cambiar el idioma de la interfaz** (D-158). `setApplicationLocales` **recrea la Activity**: lo
+  que hay que mirar es que el cambio no deje la app en la pantalla equivocada ni pierda la
+  búsqueda a medio escribir.
+- **El diagnóstico al fondo de Ajustes** (D-158) diciendo el `versionName` correcto — es la
+  primera vez que ese número sale del APK y no de un documento.
 
 ⚠️ **Y una advertencia operativa**: la subida de 315 MB por adb inalámbrico se cortó una vez a los
 75 MB. Reintentar alcanza —`devpack.py` limpia el `.part` antes de escribir— pero por cable no
