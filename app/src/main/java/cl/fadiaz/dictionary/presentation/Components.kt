@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import kotlin.math.ceil
 
 /**
  * The pieces the screens share.
@@ -90,8 +91,29 @@ private val BOTTOM_MARGIN: Dp = 32.dp
  * the bar still started inside the `TransformingLazyColumn`'s edge transform, which scales and
  * clips whatever is closest to the rim: the field moved down but **its rounded shape came out
  * cut**. An item of its own is laid out like any other and keeps its shape.
+ *
+ * **It scales with the screen, and that is not a guess** (D-133): Wear Compose Material3 declares
+ * the vertical content padding as 10 % of the screen —read out of `compose-material3-1.6.2.aar`,
+ * `PaddingDefaults.verticalContentPaddingPercentage = 10.0f`— and the 20 dp that used to be
+ * hardcoded here **is exactly 10 % of 192 dp**, the width this repo historically assumed. The
+ * number always was a fraction; it was frozen against the wrong screen. `ClockGapTest` pins that.
+ *
+ * Floored and capped: a mis-reported screen must not put the field back under the clock, and 10 %
+ * of a big screen must not eat the only scarce resource a watch has.
  */
-internal val CLOCK_GAP: Dp = 20.dp
+internal fun clockGap(screenHeightDp: Int): Dp =
+    ceil(screenHeightDp * CLOCK_GAP_FRACTION).toInt().coerceIn(16, 32).dp
+
+/**
+ * The platform's own vertical fraction. A `private const` and not a call to `PaddingDefaults`
+ * because that one is `@Composable` —it reads the configuration itself— and this function has to
+ * stay callable from a plain JVM test, which is what makes the 192 dp anchor verifiable at all.
+ */
+private const val CLOCK_GAP_FRACTION = 0.10f
+
+/** [clockGap] against the real screen, so the caller does not have to know how to measure it. */
+@Composable
+internal fun clockGap(): Dp = clockGap(LocalConfiguration.current.screenHeightDp)
 
 /**
  * The scaffold's `contentPadding`, with room to breathe at the end.
