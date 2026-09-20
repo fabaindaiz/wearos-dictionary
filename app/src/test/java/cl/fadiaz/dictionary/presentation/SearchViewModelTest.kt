@@ -49,6 +49,58 @@ class SearchViewModelTest {
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
 
+    // --- Varios packs del mismo idioma, conviviendo (D-136) --------------------------------
+
+    @Test
+    fun dosPacksDelMISMOIdiomaSeConsultanLosDos() = runTest {
+        // Lo que pide la convivencia: dos fuentes del mismo idioma instaladas a la vez, y la
+        // ganancia es la UNION de sus lemas. Si solo se consultara el activo, el segundo pack
+        // seria peso muerto hasta que alguien lo eligiera a mano.
+        val wikc = FakeDictionary(packId = "es-def-wikc", lang = "es")
+        val otra = FakeDictionary(packId = "es-def-otra", lang = "es")
+        val vm = SearchViewModel({ listos(wikc, otra) })
+        advanceUntilIdle()
+
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+
+        assertTrue(wikc.queries.isNotEmpty(), "no se consulto el pack activo")
+        assertTrue(otra.queries.isNotEmpty(), "no se consulto el segundo pack del mismo idioma")
+    }
+
+    @Test
+    fun unPackDeOTROIdiomaNoSeConsulta() = runTest {
+        // ⚠️ La convivencia es DENTRO de un idioma. Con español e ingles instalados, escribir
+        // "casa" no puede devolver entradas inglesas: el selector sigue eligiendo en que idioma
+        // se busca (D-078), y lo que cambia es que ahora elige un IDIOMA y no un archivo.
+        val es = FakeDictionary(packId = "es-def", lang = "es")
+        val en = FakeDictionary(packId = "en-def", lang = "en")
+        val vm = SearchViewModel({ listos(es, en) })
+        advanceUntilIdle()
+
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+
+        assertTrue(es.queries.isNotEmpty(), "no se consulto el pack del idioma activo")
+        assertTrue(en.queries.isEmpty(), "se consulto un pack de otro idioma: ${en.queries}")
+    }
+
+    @Test
+    fun cambiarDeIdiomaCambiaElConjuntoQueSeConsulta() = runTest {
+        val es = FakeDictionary(packId = "es-def", lang = "es")
+        val en1 = FakeDictionary(packId = "en-def-wikt", lang = "en")
+        val en2 = FakeDictionary(packId = "en-def-otra", lang = "en")
+        val vm = SearchViewModel({ listos(es, en1, en2) })
+        advanceUntilIdle()
+
+        vm.onPackChange("en-def-wikt")
+        vm.onQueryChange("house")
+        advanceUntilIdle()
+
+        assertTrue(en1.queries.isNotEmpty(), "no se consulto el pack elegido")
+        assertTrue(en2.queries.isNotEmpty(), "no se consulto el otro pack del mismo idioma")
+    }
+
     // --- Deleting a dictionary ----------------------------------------------------------------
 
     @Test
