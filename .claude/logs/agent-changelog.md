@@ -33,7 +33,8 @@ escribir ni al borrar (D-128), el historial anota por los cuatro caminos y la et
 recompone (D-129), la voz entra por el input **nativo del reloj**, y la interfaz es
 **inglés/español por recursos** (D-127). Más el espacio bajo el reloj, rehecho.
 
-**Áreas.** `app/src/main/res/values{,-es}/strings.xml` (nuevos), `presentation/*` entero,
+**Áreas.** `app/src/main/res/values/strings.xml` y `app/src/main/res/values-es/strings.xml`
+(nuevos), `presentation/*` entero,
 `data/{PackSet,PackStore}.kt`, `tile/WordOfTheDayTileService.kt`,
 `tools/audit_dictionary.py`, `docs/decisions.md` (D-127 a D-130).
 
