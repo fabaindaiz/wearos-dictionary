@@ -327,6 +327,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         words = state.favorites,
                         title = R.string.saved_title,
                         empty = R.string.saved_empty,
+                        // Quitar desde la lista (D-155): `toggleFavorite` sobre una que YA es
+                        // favorita la saca, asi que no hace falta un camino nuevo en el modelo.
+                        onDelete = viewModel::toggleFavorite,
                         // Las mismas etiquetas que los resultados (D-152): una
                         // guardada y un resultado son la misma palabra.
                         tags = resultTags(state.available, state.active?.langSource),

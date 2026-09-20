@@ -118,8 +118,39 @@ class SearchRepository(private val packs: List<DictionarySource>) {
         private fun orderFor(query: String?): Comparator<Suggestion> {
             if (query.isNullOrEmpty()) return ORDEN
             return compareBy<Suggestion> { it.matchKind.ordinal }
+                .thenBy { if (it.matchKind == MatchKind.PREFIX) demoteProperNoun(query, it) else 0 }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) coverageBand(query, it.headword) else 0 }
                 .thenComparator { a, b -> ORDEN.compare(a, b) }
+        }
+
+        /**
+         * Los `pos` que la fuente usa para un nombre propio.
+         *
+         * Dos vocabularios porque hay dos fuentes: kaikki dice `name` y `sources/toy.py` dice
+         * `proper noun`. Mirar uno solo deja pasar el otro, y ya paso una vez (D-116).
+         */
+        private val NOMBRES_PROPIOS = setOf("name", "proper noun")
+
+        /**
+         * Un nombre propio va **debajo** de una palabra comun, salvo que sea lo que escribiste.
+         *
+         * ⚠️ **El castigo del builder no alcanzaba, y eso se midio.** `CASTIGO_NOMBRE_PROPIO`
+         * (D-134) ya los pone al fondo del `rank`, pero la banda de cobertura va **delante** del
+         * rank en esta mezcla: un toponimo corto le gana a una palabra comun larga. Sobre el pack
+         * real, escribir "ital" devolvia `Italia` primero y `italiano` segundo.
+         *
+         * ⚠️ **La excepcion es la mitad que lo vuelve util.** "Fez", "Car" y "Peru" normalizan a
+         * exactamente lo escrito, o casi: quien escribe la palabra entera puede estar buscando la
+         * ciudad, y castigarla ahi convertiria la mejora en una perdida. Por eso el castigo se
+         * aplica **solo** cuando no es exacto y ademas no esta en la banda de cobertura maxima.
+         *
+         * Se calcula del `pos` y del texto escrito, sin mirar ningun numero del pack -- la misma
+         * propiedad que hace confiable a [coverageBand] frente a un pack mal calibrado.
+         */
+        private fun demoteProperNoun(query: String, suggestion: Suggestion): Int {
+            if (suggestion.partOfSpeech !in NOMBRES_PROPIOS) return 0
+            val exacto = query.equals(suggestion.headword, ignoreCase = true)
+            return if (exacto || coverageBand(query, suggestion.headword) == 0) 0 else 1
         }
 
         /**

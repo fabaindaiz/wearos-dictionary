@@ -908,6 +908,65 @@ class ScreensTest {
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
     }
 
+    // --- Quitar una guardada desde la lista (D-155) -----------------------------------------
+
+    @Test
+    fun laLISTA_DE_GUARDADAS_TRAE_UN_BOTON_DE_BORRAR() {
+        // Hoy la unica forma de quitar una guardada es abrirla y usar el menu: tres toques y
+        // navegar a otra pantalla para deshacer algo que se hizo con uno.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                onDelete = {},
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithContentDescription("Quitar perro de guardadas").assertExists()
+    }
+
+    @Test
+    fun elHISTORIAL_NO_trae_boton_de_borrar() {
+        // ⚠️ El historial no se cura: se llena solo al abrir palabras y ya tiene su tope. Un
+        // boton de borrar por fila invitaria a limpiarlo a mano, que es trabajo sin recompensa;
+        // para vaciarlo entero ya esta Ajustes.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.home_recent,
+                empty = cl.fadiaz.dictionary.R.string.history_empty,
+                onOpen = {},
+            )
+        }
+        assertEquals(
+            0,
+            compose.onAllNodesWithContentDescription("Quitar perro de guardadas")
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun BORRAR_PIDE_CONFIRMACION_ANTES_DE_QUITAR() {
+        // ⚠️ El boton queda al lado de la fila que abre la palabra, asi que un toque impreciso
+        // en un reloj borra lo que se queria leer. La confirmacion es lo que separa esas dos
+        // cosas, y es el mismo patron que borrar un diccionario.
+        var borrada: Visit? = null
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                onDelete = { borrada = it },
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithContentDescription("Quitar perro de guardadas").performClick()
+        assertEquals(null, borrada)
+        compose.onNodeWithText("Quitar").performClick()
+        assertEquals("perro", borrada?.headword)
+    }
+
     // --- Toda fila de palabra dice lo mismo: palabra · tipo · idioma (D-152) ----------------
 
     @Test

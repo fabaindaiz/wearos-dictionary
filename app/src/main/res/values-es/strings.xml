@@ -7,6 +7,9 @@
     <string name="tile_history_label">Últimas palabras</string>
     <string name="tile_history_title">Últimas</string>
     <string name="tile_history_empty">Busca una palabra</string>
+    <string name="saved_remove_named">Quitar %1$s de guardadas</string>
+    <string name="saved_remove_question">¿Quitar %1$s?</string>
+    <string name="saved_remove">Quitar</string>
     <string name="tile_word_label">Palabra del día</string>
     <string name="tile_word_title">Hoy</string>
     <string name="tile_word_empty">Abre el diccionario</string>
