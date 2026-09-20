@@ -20,11 +20,11 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 ## Dónde estamos
 
-*Actualizado: 2026-09-19.*
+*Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **50 tests**) y el
-pipeline de packs (`tools/`, **129 tests**) están completos y en el gate, junto con los **166 JVM
-de `:app`** y **19 checks** de auditoría estructural. Los **31 de `:dict-data` son
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **57 tests**) y el
+pipeline de packs (`tools/`, **161 tests**) están completos y en el gate, junto con los **196 JVM
+de `:app`** y **20 checks** de auditoría estructural. Los **31 de `:dict-data` son
 instrumentados y el gate no los corre**: necesitan dispositivo, y son los únicos que cierran las
 asunciones sobre Android. El pack de juguete pasa
 todas las invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -184,15 +184,25 @@ queda del pedido *"mejorar el pack de español"* (2026-09-19) después de D-116,
 
 **Lo que ya se hizo, para no repetirlo.** Salieron los nombres propios (22,1 % de las entradas,
 26.265 de ellas definiendo sólo *"Apellido."*), entraron 71.609 sinónimos por acepción en
-26.369 entradas, y se limpiaron las 665 etiquetas de mantenimiento del wiki. El pack quedó en
-**114.619 entradas y 68,1 MB**.
+26.369 entradas, después los antónimos (D-126), y se limpiaron las 665 etiquetas de mantenimiento
+del wiki. En 2026-09-20 entraron las **palabras relacionadas** (D-132): hiperónimos, hipónimos y
+`related`, que eran el último campo aprovechable que la fuente traía y el builder tiraba —
+**5.395 entradas en español (4,7 %) y 90.310 en inglés (11,4 %)**, por +112 KB y +1,4 MB. El pack
+quedó en **114.619 entradas y 68,3 MB**.
+
+⚠️ **Y quedó medido que esta fuente ya no tiene mucho más que dar.** Las entradas flacas —una
+acepción, sin ejemplo— son 80.744, el 70,4 % del pack. Barriendo 174.395 registros vivos, sólo el
+**25,4 %** de las flacas traía algún campo sin usar, y **el 20,3 % eran sinónimos que ya
+entraban**. Lo nuevo sumó 4,8 % + 1,7 % + 0,8 %. La conclusión: lo que queda de mejora **no está
+en el dump del Wikcionario español**, está en la segunda fuente (los ejemplos) o en el orden de
+resultados.
 
 **Lo que queda, en orden de valor por esfuerzo:**
 
 | Qué | Tamaño del problema | Qué costaría |
 |---|---|---|
 | **Ejemplos de uso desde enwiktionary §Spanish** (D-122) | **5.307 entradas** que hoy no tienen ejemplo lo tendrían; sube los lemas compartidos de 17,3 % a **28,8 %** | Una segunda fuente en `sources/`, un merge, y **resolver a qué acepción se pega cada ejemplo** |
-| **Entradas de una sola palabra** | **28,0 % del pack**; los sinónimos sólo alcanzaron al **6,8 %** de ellas | No se arregla desde esta fuente: el Wikcionario no tiene más texto que dar |
+| **Entradas de una sola palabra** | **28,0 % del pack**; los sinónimos sólo alcanzaron al **6,8 %** de ellas | No se arregla desde esta fuente, y D-132 lo confirmó barriendo los campos sin usar: el Wikcionario no tiene más texto que dar |
 | **Subíndices de referencia cruzada** (*"semejanza a un guanaco₁"*) | 2.204 glosas | Un `str.translate` en `_gloss()`. Barato, pero **pierde información**: el subíndice dice *qué acepción* |
 | **Pares `(headword, pos)` duplicados** | 3.024 | Es de la capa de consulta, no del pack. Ver §El orden de la lista de resultados |
 
@@ -536,6 +546,63 @@ falta. Y hay que hacerlo **sin romper el reloj genérico**: un dispositivo de 19
 seguir mostrando tres filas, así que el número no se reemplaza — se vuelve **adaptable**
 (`LocalConfiguration.screenWidthDp`), y `ScreensTest.threeResultsFitWithoutScrolling` pasa a medir
 contra el tamaño que tenga el dispositivo que lo corre.
+
+### El margen lateral: el tercer eje adaptable, y el que necesita ojos
+
+**Estado.** **Medido y no hecho, a propósito** (2026-09-20). Decisión que **no se tomó sola**.
+
+Dos ejes ya se adaptan: cuántas filas entran (`rowsThatFit`, D-131) y el espacio bajo el reloj
+(`clockGap`, D-133). El tercero candidato es el **margen lateral**, hoy `16.dp` repetido en unas
+12 llamadas entre `EntryScreen`, `FavoritesScreen`, `Components` y `AttributionScreen` (esta
+última con 12).
+
+**Lo que dice la fuente primaria.** Leído del artefacto, no de memoria:
+`compose-material3-1.6.2.aar` → `PaddingDefaults.horizontalContentPaddingPercentage = 5.2f`
+(y `verticalContentPaddingPercentage = 10.0f`, `edgePadding = 2.dp`).
+
+**Por qué no se aplicó, que es el punto.** A diferencia de `clockGap` —donde los 20 dp resultaron
+ser **exactamente** el 10 % de 192 dp, así que expresarlos como fracción no cambiaba la intención
+sino que la revelaba— los 16 dp **no son el 5,2 % de nada**: a 192 dp la fracción da 10 y a 234 da
+13. Pasar a la fracción **achica el margen en los dos relojes que existen**, o sea ensancha cada
+pill unos 7 dp. Eso probablemente se ve mejor en un reloj —más ancho para el texto, que es el
+recurso escaso— pero es **un cambio visible en 12 lugares, en una dirección que nadie pidió, y sin
+poder mirarlo**. El repo ya se equivocó dos veces seguidas con el espacio de la pantalla de inicio
+por decidir sin ver.
+
+**Qué lo desbloquea.** Un reloj conectado y una mirada: construir con `sideMargin()` = 5,2 % y
+comparar contra los 16 dp actuales. Si se adopta, `AttributionScreen` converge sola — sus 12 dp
+son casi el 5,2 % de 234.
+
+**La alternativa que NO sirve.** `max(16.dp, 5,2 %)` no cambia nada hoy: sólo actuaría por encima
+de 308 dp de ancho, una pantalla que Wear OS no tiene. Sería código muerto con un test que lo
+ratifica.
+
+### Un pack reconstruido no se distingue del viejo: `data_version` es la fecha del DUMP
+
+**Estado.** **Encontrado construyendo, sin decidir** (2026-09-20).
+
+D-132 agregó contenido a los dos packs **sin cambiar el dump**: mismo `es.jsonl` del 20260915,
+mismo `en.jsonl` del 20260909. Como `data_version` es la fecha del dump —y es lo que la app
+compara con `.toInt()` para saber cuál de dos packs es más nuevo (D-070)— **los packs nuevos
+declaran la misma versión que los viejos**. Un reloj con el pack anterior no tiene forma de saber
+que hay uno mejor.
+
+Hoy no rompe nada porque los packs se copian a mano y el instalador no existe. Pero el instalador
+es lo siguiente (§Instalador de packs), y esto es un requisito suyo.
+
+**Qué hay que decidir, y por eso está acá y no resuelto.** Son tres caminos con costos distintos
+y ninguno es obviamente el correcto:
+
+- **`data_version` pasa a ser la fecha del BUILD.** Una línea. Pierde el dato de qué dump es, que
+  es justamente lo que hoy responde *«¿este pack trae las palabras de septiembre?»*.
+- **Una clave nueva, `content_revision`,** que sube cuando cambia el builder y no el dump. Honesta
+  y ordenada; hay que decidir quién la incrementa y que no se olvide, que es cómo mueren estas
+  claves.
+- **`data_version` se queda y el catálogo del instalador lleva su propia versión.** Empuja el
+  problema al catálogo, que todavía no existe: puede ser lo correcto o puede ser patearlo.
+
+Toca D-070 y el §Instalador. **No se resuelve construyendo un pack** — se resuelve decidiendo qué
+pregunta tiene que contestar esa clave.
 
 ### Ver los dos tiles funcionando en un reloj
 
@@ -899,9 +966,24 @@ manejar el emulador desde afuera. Lleva la pantalla al estado por composición, 
 deja el PNG donde se pueda mirar. No necesita dependencias nuevas.
 
 **Visto en.** 2026-09-17 (capturas del emulador, `keyevent 4` cerraba la app), 2026-09-17 otra vez
-(*"ya había pasado la sesión anterior y volvió a pasar"*), y 2026-09-18 (swipe, taps y `input
-text`). **Tercer golpe**, y el primero donde el costo no fue tiempo sino casi un diagnóstico
-equivocado.
+(*"ya había pasado la sesión anterior y volvió a pasar"*), 2026-09-18 (swipe, taps y `input
+text`) y **2026-09-20** (mirar la línea `rel.` de D-132 en pantalla: cuatro intentos, ninguno
+llegó a la entrada). El del 2026-09-18 fue el primero donde el costo no fue tiempo sino casi un
+diagnóstico equivocado.
+
+⚠️ **Y el cuarto golpe cierra la lista de atajos, que es lo único nuevo que aporta.** El IME de
+Wear abre en **modo extract a pantalla completa**: el texto vive en el campo del teclado, no en el
+de la app. Probados y fallidos los cuatro: `input text` + la lupa del IME, `input text` +
+`keyevent 66`, `keyevent 111` (ESC) para cerrar el teclado, y **`input keyboard text`**, que
+debería entrar como teclado físico y saltearse el IME — tampoco. En las cuatro el campo vuelve a
+mostrar el placeholder. **No queda workaround por probar desde afuera**, así que el arreglo de
+arriba —llevar la pantalla al estado por composición y guardar el PNG— deja de ser la opción
+cómoda y pasa a ser la única.
+
+Lo que sí se pudo mirar esa sesión, y sirve de referencia de hasta dónde llega el método: que la
+app arranca con los dos packs nuevos instalados, que el espacio bajo el reloj queda limpio, y
+—primera confirmación visual de D-127— que **un emulador en inglés muestra la UI en inglés**
+(*type…*, *Say a word*, *Word of the day*).
 
 ### No hay forma repetible de preguntarle al pack si su CONTENIDO es bueno
 

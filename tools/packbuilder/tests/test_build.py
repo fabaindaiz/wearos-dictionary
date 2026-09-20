@@ -344,6 +344,29 @@ class AntonimosFueraDelIndiceTest(BuilderTestCase):
         self.assertEqual(1, sinonimo, "el sinonimo SI tiene que estar en el indice (D-118)")
         self.assertEqual(0, antonimo, "el antonimo NO tiene que estar en el indice (D-126)")
 
+    def test_una_relacionada_tampoco_se_puede_buscar_por_texto_libre(self):
+        """Mismo criterio que el antonimo, y es exactamente el descuido que el docstring anuncia.
+
+        `related` es la tercera lista de palabras del payload (D-132) y la tentacion de sumarla
+        a `_fts_body` "por simetria" con los sinonimos es la misma. No corresponde: nadie escribe
+        "camelido" esperando "guanaco", y la entrada que devolveria compite por el orden con la
+        que el usuario si buscaba.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            entrada = record("guanaco")
+            entrada.senses[0].update({"synonyms": ["huanaco"], "related": ["camelido"]})
+            builder.add(entrada)
+        db = sqlite3.connect(self.path)
+        sinonimo = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'huanaco'").fetchone()[0]
+        relacionada = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'camelido'").fetchone()[0]
+        payload_crudo = db.execute("SELECT payload FROM entry").fetchone()[0]
+        db.close()
+        self.assertEqual(1, sinonimo, "el sinonimo SI tiene que estar en el indice (D-118)")
+        self.assertEqual(0, relacionada, "la relacionada NO tiene que estar en el indice (D-132)")
+        self.assertTrue(payload_crudo, "pero si tiene que haber llegado al payload")
+
 
 class PoliticaDeContenidoTest(BuilderTestCase):
     """El validador comprueba el ARTEFACTO, no el builder.

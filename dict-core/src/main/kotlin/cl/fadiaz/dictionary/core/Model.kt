@@ -140,6 +140,22 @@ data class Sense(
      * ruido a una busqueda que ya tiene el orden como deuda abierta (D-067).
      */
     val antonyms: List<String> = emptyList(),
+    /**
+     * Palabras **relacionadas** de esta acepcion: hiperonimo, hiponimo o pariente morfologico
+     * (D-132). No son sinonimos y la lista separada es toda la diferencia: "frances" trae `galo`,
+     * que no es equivalente sino vecino, y presentarlo como sinonimo seria afirmar algo falso.
+     *
+     * Existen por las **entradas flacas**, que son el 70,4 % del pack español: una acepcion sola
+     * sin ejemplo. Medido, 2.142 de 29.817 flacas ganan algo por aca (7,2 %).
+     *
+     * **Solo vienen llenas cuando la entrada tiene una sola acepcion**, porque la fuente las
+     * declara a nivel de entrada y sin `sense_index`: con varias no hay dato de a cual pertenecen.
+     * Ver `sources/kaikki._relacionadas` en el builder.
+     *
+     * Tampoco entran a `fts_def`, por la misma razon que los antonimos: nadie busca "camelido"
+     * esperando "guanaco", y el orden de resultados ya es deuda abierta (D-067).
+     */
+    val related: List<String> = emptyList(),
 )
 
 /** El cuerpo completo de una entrada, tal como sale del payload descomprimido. */
