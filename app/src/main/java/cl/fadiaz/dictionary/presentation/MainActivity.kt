@@ -13,6 +13,7 @@ import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -169,6 +170,17 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                 startDestination = ROUTE_SEARCH,
             ) {
                 composable(ROUTE_SEARCH) {
+                    // ⚠️ **Con texto escrito, atras vuelve al inicio en vez de SALIR de la app**
+                    // (D-143). El inicio es la primera pantalla, asi que el gesto caia en la
+                    // Activity y la cerraba: en un reloj eso es una salida brusca para lo que el
+                    // usuario quiso decir con "deshace lo que escribi". Sin texto no se habilita,
+                    // y entonces salir sigue siendo salir -- atrapar el gesto siempre dejaria la
+                    // app sin forma de cerrarse con el gesto que todo el sistema usa.
+                    //
+                    // Es cableado y no logica: lo que hace `clearQuery` esta cubierto en el gate
+                    // por `SearchViewModelTest`; esta condicion no, porque `createComposeRule()`
+                    // no trae Activity y sin Activity no hay despachador de atras.
+                    BackHandler(enabled = state.query.isNotEmpty()) { viewModel.clearQuery() }
                     SearchScreen(
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
@@ -250,6 +262,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // time is the usual swipe; this is the shortcut to the start, and it is
                         // the repo's first popBackStack.
                         onBackToSearch = {
+                            // Con la palabra BORRADA (D-143): antes volvia con lo que habia
+                            // escrito y habia que borrarlo a mano para buscar otra cosa.
+                            viewModel.clearQuery()
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
                         resolveIn = { norms -> viewModel.resolveIn(packId, norms) },

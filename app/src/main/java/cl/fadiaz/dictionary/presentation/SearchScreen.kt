@@ -99,6 +99,12 @@ fun SearchScreen(
     // D-080 again. No default: a word of the day that shows and opens nothing is worse than none.
     onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
 ) {
+    // De que idioma es cada pack abierto. Se arma una vez y no por fila: la lista se recompone
+    // en cada tecla y `available` casi nunca cambia.
+    val idiomas = remember(state.available) {
+        state.available.filterIsInstance<PackHandle.Open>()
+            .associate { it.packId to it.metadata.langSource }
+    }
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
@@ -322,7 +328,9 @@ fun SearchScreen(
                             "r:${s.packId}:${s.entryId}"
                         },
                     ) { index ->
-                        ResultRow(state.results[index]) { onOpenEntry(state.results[index]) }
+                        ResultRow(state.results[index], idiomas) {
+                            onOpenEntry(state.results[index])
+                        }
                     }
 
                     // Settings only with an empty search: with results on screen a row of
@@ -387,11 +395,28 @@ fun SearchScreen(
  * and going below that would buy density by breaking something worse.
  */
 @Composable
-private fun ResultRow(suggestion: Suggestion, onClick: () -> Unit) {
+private fun ResultRow(
+    suggestion: Suggestion,
+    /**
+     * `packId` -> `langSource` de los packs abiertos.
+     *
+     * ⚠️ **Un `packId` que no este en el mapa NO recibe idioma**, en vez de heredar el del pack
+     * activo. Con varios diccionarios conviviendo (D-136) esa herencia seria afirmar que la
+     * palabra viene de un idioma que nadie comprobo -- la misma familia de falla que D-080.
+     */
+    idiomas: Map<String, String>,
+    onClick: () -> Unit,
+) {
+    // Una sola ranura a la derecha y no dos: en una fila de 234 dp el lema ya compite por el
+    // ancho. El tipo primero porque responde "que clase de palabra es", que es lo que se mira
+    // primero; el idioma despues, que solo desambigua cuando hay mas de un diccionario.
+    val etiquetas = listOfNotNull(
+        matchLabel(suggestion.matchKind) ?: suggestion.partOfSpeech?.let { posLabel(it) },
+        idiomas[suggestion.packId]?.uppercase(),
+    )
     ListRow(
         headword = suggestion.headword,
-        detail = matchLabel(suggestion.matchKind)
-            ?: suggestion.partOfSpeech?.let { posLabel(it) },
+        detail = etiquetas.takeIf { it.isNotEmpty() }?.joinToString(" · "),
         onClick = onClick,
     )
 }

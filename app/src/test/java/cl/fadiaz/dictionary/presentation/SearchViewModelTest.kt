@@ -101,6 +101,45 @@ class SearchViewModelTest {
         assertTrue(en2.queries.isNotEmpty(), "no se consulto el otro pack del mismo idioma")
     }
 
+    // --- Volver a la pantalla de inicio (D-143) ---------------------------------------------
+
+    @Test
+    fun clearQueryDejaLaBarraVaciaYElInicioComoEstaba() = runTest {
+        // Lo que pide el boton de lupa: volver a buscar **con la palabra borrada**, no con lo
+        // que habia escrito. Y es lo mismo que tiene que hacer el gesto de atras con texto.
+        val vm = conPack(FakeDictionary())
+        advanceUntilIdle()
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+        assertEquals("casa", vm.state.value.query)
+        assertTrue(vm.state.value.results.isNotEmpty())
+
+        vm.clearQuery()
+        advanceUntilIdle()
+
+        assertEquals("", vm.state.value.query)
+        assertEquals("", vm.state.value.submitted)
+        assertTrue(vm.state.value.results.isEmpty(), "el inicio no puede quedar con resultados")
+    }
+
+    @Test
+    fun clearQuerySaleDelModoDefiniciones() = runTest {
+        // Si no, volver a la lupa desde una busqueda por definicion dejaria la pantalla en un
+        // modo que ya no corresponde a lo que la barra muestra.
+        val vm = conPack(FakeDictionary())
+        advanceUntilIdle()
+        vm.onQueryChange("mover")
+        advanceUntilIdle()
+        vm.onSearchDefinitions()
+        advanceUntilIdle()
+        assertEquals(SearchState.Mode.DEFINICIONES, vm.state.value.mode)
+
+        vm.clearQuery()
+        advanceUntilIdle()
+
+        assertEquals(SearchState.Mode.NORMAL, vm.state.value.mode)
+    }
+
     // --- Deleting a dictionary ----------------------------------------------------------------
 
     @Test
