@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import android.app.LocaleManager
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -12,6 +13,7 @@ import cl.fadiaz.dictionary.tile.WordOfTheDayTileService
 import android.content.ClipboardManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.LocaleList
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -19,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -29,6 +34,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.BuildConfig
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackStore
@@ -383,11 +389,34 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                     )
                 }
                 composable(ROUTE_SETTINGS) {
+                    // The UI language is NOT one of our preferences: since API 33 the platform
+                    // stores it per app and applies it before a single Composable runs, so
+                    // keeping a copy in Settings would give two sources of truth --and the
+                    // platform's would win, in silence.
+                    val locales = context.getSystemService(LocaleManager::class.java)
+                    var uiLanguage by remember {
+                        mutableStateOf(locales.applicationLocales[0]?.toLanguageTag())
+                    }
                     SettingsScreen(
                         packs = state.available,
                         scale = state.settings.textScale,
+                        uiLanguage = uiLanguage,
+                        appVersion = BuildConfig.VERSION_NAME,
                         onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         onScaleChange = viewModel::onTextScaleChange,
+                        onUiLanguageChange = { tag ->
+                            // The local state is updated too and not only the service: setting
+                            // the locales recreates the Activity, but not before this frame, and
+                            // without it the radio button stayed on the old option for the blink
+                            // in between.
+                            uiLanguage = tag
+                            locales.applicationLocales = if (tag == null) {
+                                // Empty is the automatic case. There is no "auto" tag.
+                                LocaleList.getEmptyLocaleList()
+                            } else {
+                                LocaleList.forLanguageTags(tag)
+                            }
+                        },
                         onClearHistory = viewModel::clearHistory,
                         hasHistory = state.history.isNotEmpty(),
                     )

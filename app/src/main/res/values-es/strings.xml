@@ -76,6 +76,12 @@
     <string name="settings_history_empty">No hay historial</string>
     <string name="settings_history_clear">Borrar el historial</string>
     <string name="settings_confirm">Confirmar</string>
+    <string name="settings_ui_language">Idioma de la app</string>
+    <string name="settings_ui_language_auto">Automático</string>
+    <string name="settings_ui_language_note">Automático sigue al reloj. Si el reloj está en un idioma que esta app no tiene, se muestra en inglés.</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="settings_version">App %1$s</string>
+    <string name="settings_pack_line">%1$s · %2$d entradas</string>
 
     <!-- Gestión de diccionarios -->
     <string name="packs_on_watch">En el reloj</string>
@@ -115,6 +121,21 @@
     <string name="pos_prefix">prefijo</string>
     <string name="pos_proverb">refrán</string>
     <string name="pos_abbrev">abrev.</string>
+    <string name="pos_full_noun">sustantivo</string>
+    <string name="pos_full_verb">verbo</string>
+    <string name="pos_full_adj">adjetivo</string>
+    <string name="pos_full_adv">adverbio</string>
+    <string name="pos_full_name">nombre propio</string>
+    <string name="pos_full_phrase">locución</string>
+    <string name="pos_full_intj">interjección</string>
+    <string name="pos_full_pron">pronombre</string>
+    <string name="pos_full_prep">preposición</string>
+    <string name="pos_full_conj">conjunción</string>
+    <string name="pos_full_num">numeral</string>
+    <string name="pos_full_suffix">sufijo</string>
+    <string name="pos_full_prefix">prefijo</string>
+    <string name="pos_full_proverb">refrán</string>
+    <string name="pos_full_abbrev">abreviatura</string>
 
     <!-- Por qué salió un resultado -->
     <string name="match_inflected">forma</string>

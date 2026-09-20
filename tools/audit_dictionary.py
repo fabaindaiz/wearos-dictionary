@@ -619,8 +619,11 @@ def check_no_hardcoded_translations(report):
     with open(ruta_es, encoding="utf-8") as handle:
         texto = handle.read()
     # Solo los suficientemente largos: "ES", "OK" o "%s" aparecen en cualquier lado.
+    # ⚠️ **Tres y no cuatro, y el cambio tiene un caso**: la palabra "voz" estaba escrita a mano
+    # en `SearchBar` y este chequeo no la vio por un caracter. Se dibujaba en español en un reloj
+    # en ingles. Con tres, "ES" y "OK" siguen afuera, que es lo que el piso protege.
     valores = {v for v in re.findall(r"<string name=\"[^\"]+\">([^<]*)</string>", texto)
-               if len(v) >= 4 and "%" not in v}
+               if len(v) >= 3 and "%" not in v}
     encontrados = []
     for ruta in _kotlin_sources(os.path.join(ROOT, "app", "src", "main")):
         with open(ruta, encoding="utf-8") as handle:
@@ -696,6 +699,74 @@ def check_locale_parity(report):
                     "%s/%s = %r son %d caracteres; el limite es 14 (D-125)"
                     % (idioma, clave, valor, len(valor)),
                 )
+
+
+def check_ui_language_picker(report):
+    """Regla: el selector de idioma ofrece EXACTAMENTE los idiomas que la app tiene. (D-158)
+
+    Las dos mitades se rompen distinto y ninguna da error:
+
+    - Una carpeta `values-xx/` nueva sin fila en el selector: la traduccion existe, se aplica si
+      el reloj esta en ese idioma, y **no hay forma de elegirla a mano**. Nadie la encuentra.
+    - Una fila en el selector sin carpeta: se puede elegir un idioma que no existe, y la app
+      queda en ingles con el selector marcando otra cosa. Es peor que no ofrecerlo.
+
+    El endonimo se comprueba aparte porque es la unica cadena de la UI que **no** se traduce a
+    proposito: un selector de idioma escrito en el idioma que no entiendes no sirve para nada.
+    """
+    fuente = os.path.join(ROOT, "app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                          "data", "UiLanguage.kt")
+    if not os.path.isfile(fuente):
+        report.failure(
+            "falta UiLanguage.kt",
+            "es la lista que el selector de ajustes dibuja; sin ella no hay nada que comparar",
+        )
+        return
+    with open(fuente, encoding="utf-8") as handle:
+        texto = handle.read()
+    entradas = dict(re.findall(r'^\s*[A-Z_]+\("([a-z]{2})",\s*"([^"]+)"\)', texto, re.M))
+    if not entradas:
+        report.failure(
+            "UiLanguage.kt no declara ningun idioma",
+            "o el formato del enum cambio y este chequeo dejo de ver nada. Revisar los dos",
+        )
+        return
+
+    res = os.path.join(ROOT, "app", "src", "main", "res")
+    # `values/` es la base y es el ingles (D-127): no lleva sufijo, pero es un idioma ofrecible.
+    carpetas = {"en"}
+    for nombre in os.listdir(res):
+        if nombre.startswith("values-") and os.path.isfile(
+                os.path.join(res, nombre, "strings.xml")):
+            sufijo = nombre[len("values-"):]
+            # Solo los calificadores de idioma: `values-round` o `values-v33` no son traducciones.
+            if re.fullmatch(r"[a-z]{2}", sufijo):
+                carpetas.add(sufijo)
+
+    sin_fila = sorted(carpetas - set(entradas))
+    sin_carpeta = sorted(set(entradas) - carpetas)
+    if sin_fila:
+        report.failure(
+            "hay traducciones que el selector no ofrece",
+            "%s tienen strings.xml y no estan en UiLanguage: solo salen si el reloj ya viene "
+            "en ese idioma" % ", ".join(sin_fila),
+        )
+    if sin_carpeta:
+        report.failure(
+            "el selector ofrece idiomas que la app no tiene",
+            "%s estan en UiLanguage y no tienen strings.xml: elegirlos deja la app en ingles "
+            "con el selector marcando otra cosa" % ", ".join(sin_carpeta),
+        )
+
+    for tag, endonimo in sorted(entradas.items()):
+        if f'>{endonimo}<' in read(os.path.join("app", "src", "main", "res", "values-es",
+                                                "strings.xml")):
+            report.failure(
+                "el endonimo del selector es un recurso traducible",
+                "%r (%s) aparece como valor en values-es. El nombre de un idioma se escribe en "
+                "ese idioma y no se traduce: es lo unico que hace usable el selector para quien "
+                "tiene el reloj en un idioma que no lee" % (endonimo, tag),
+            )
 
 
 def check_root_budget(report):
@@ -800,6 +871,7 @@ CHECKS = [
     check_release_signing,
     check_app_version,
     check_locale_parity,
+    check_ui_language_picker,
     check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,

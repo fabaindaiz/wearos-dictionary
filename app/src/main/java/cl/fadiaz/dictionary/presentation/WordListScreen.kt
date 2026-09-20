@@ -39,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.Icon
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.text.style.TextOverflow
 
 /**
  * Una lista de palabras visitadas: las guardadas, o el historial completo (D-148).
@@ -75,7 +77,9 @@ fun WordListScreen(
     onDelete: ((Visit) -> Unit)? = null,
     onOpen: (Visit) -> Unit,
 ) {
-    var pendingDelete by remember { mutableStateOf<Visit?>(null) }
+    // Cuál fila está armada para borrar. Una sola a la vez: armar otra desarma la
+    // anterior, que es lo que hace que el estado sea siempre evidente.
+    var armada by remember { mutableStateOf<Visit?>(null) }
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
 
@@ -113,93 +117,108 @@ fun WordListScreen(
                 },
             ) { index ->
                 val visit = words[index]
-                WordRowWithDelete(
+                WordRow(
                     headword = visit.headword,
                     detail = wordDetail(
                         visit.partOfSpeech?.let { posLabel(it) },
                         tags[visit.packId],
                     ),
-                    onDelete = onDelete?.let { { pendingDelete = visit } },
-                    onOpen = { onOpen(visit) },
+                    armada = armada == visit,
+                    onArm = onDelete?.let { { armada = visit } },
+                    onConfirm = {
+                        onDelete?.invoke(visit)
+                        armada = null
+                    },
+                    // ⚠️ Con algo armado, un toque en OTRA fila desarma y no navega: si abriera
+                    // la palabra, te irías de la pantalla con una fila roja esperándote al
+                    // volver y sin forma evidente de cancelar.
+                    onOpen = { if (armada != null) armada = null else onOpen(visit) },
                 )
             }
-        }
-    }
-
-    // La confirmacion, con el mismo lenguaje que borrar un diccionario: el boton destructivo en
-    // rojo y el de cancelar neutro, para que el toque por inercia no sea el que borra.
-    val candidata = pendingDelete
-    AlertDialog(
-        visible = candidata != null,
-        onDismissRequest = { pendingDelete = null },
-        title = {
-            Text(stringResource(R.string.saved_remove_question, candidata?.headword.orEmpty()))
-        },
-    ) {
-        item {
-            Pill(
-                text = stringResource(R.string.saved_remove),
-                background = MaterialTheme.colorScheme.error,
-                ink = MaterialTheme.colorScheme.onError,
-                margin = 8.dp,
-                onClick = {
-                    candidata?.let { onDelete?.invoke(it) }
-                    pendingDelete = null
-                },
-            )
-        }
-        item {
-            Pill(
-                text = stringResource(R.string.packs_cancel),
-                background = MaterialTheme.colorScheme.surfaceContainer,
-                ink = MaterialTheme.colorScheme.onSurfaceVariant,
-                margin = 8.dp,
-                onClick = { pendingDelete = null },
-            )
         }
     }
 
 }
 
 /**
- * Una fila de palabra con un boton de quitar opcional a la derecha (D-155).
+ * Una fila de palabra que se **arma** manteniéndola apretada, y se confirma con un toque (D-155).
  *
- * Mismo reparto que la fila de un diccionario en `PacksScreen`: la palabra ocupa el ancho y el
- * boton es un blanco de 48 dp aparte, para que no haya forma de borrar queriendo abrir.
+ * ⚠️ **Un gesto y no un botón, y en un reloj eso no es estética.** Un botón de 48 dp al lado de
+ * cada fila le come el ancho al lema justo donde el lema es lo único que importa; y queda pegado
+ * al blanco que abre la palabra, así que un toque impreciso borra lo que se quería leer. Mantener
+ * apretado es el gesto que todo el sistema usa para revelar lo destructivo, y **no tiene forma de
+ * dispararse por accidente**.
+ *
+ * Armada, la fila se pinta con el color de error y dice qué va a pasar. El segundo toque borra.
  */
 @Composable
-private fun WordRowWithDelete(
+private fun WordRow(
     headword: String,
     detail: String?,
-    onDelete: (() -> Unit)?,
+    armada: Boolean,
+    onArm: (() -> Unit)?,
+    onConfirm: () -> Unit,
     onOpen: () -> Unit,
 ) {
-    if (onDelete == null) {
-        ListRow(headword = headword, detail = detail, onClick = onOpen)
-        return
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box(modifier = Modifier.weight(1f)) {
-            ListRow(headword = headword, detail = detail, onClick = onOpen)
-        }
-        Box(
+    if (armada) {
+        Row(
             modifier = Modifier
+                .fillMaxWidth()
                 .clip(PILL_SHAPE)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(onClick = onDelete)
+                .background(MaterialTheme.colorScheme.error)
+                .clickable(onClick = onConfirm)
                 .heightIn(min = TOUCH_TARGET)
-                .width(TOUCH_TARGET),
-            contentAlignment = Alignment.Center,
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
                 imageVector = Icons.Filled.Delete,
-                contentDescription = stringResource(R.string.saved_remove_named, headword),
+                contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.onError,
+            )
+            Text(
+                text = stringResource(R.string.saved_remove),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onError,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = headword,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onError,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        return
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(PILL_SHAPE)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .combinedClickable(onClick = onOpen, onLongClick = onArm)
+            .heightIn(min = TOUCH_TARGET)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = headword,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (detail != null) {
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 8.dp),
             )
         }
     }

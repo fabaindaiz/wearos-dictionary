@@ -104,6 +104,10 @@ android {
     useLibrary("wear-sdk")
     buildFeatures {
         compose = true
+        // Solo por VERSION_NAME, que la pantalla de ajustes muestra al fondo: el numero que se
+        // le pide a alguien cuando reporta algo tiene que salir del APK, no de un literal que
+        // se queda atras del que subio la property.
+        buildConfig = true
     }
     testOptions {
         unitTests {

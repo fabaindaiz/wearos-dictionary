@@ -57,7 +57,11 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                 val meta = handle.metadata
                 item {
                     Text(
-                        text = "${meta.name} · ${packTypeLabel(meta.kind)}",
+                        // El separador sale del recurso como en todas las demas filas: era el
+                        // ultimo lugar donde estaba escrito a mano, y con dos copias la que no se
+                        // toca es la que queda distinta.
+                        text = meta.name + stringResource(R.string.entry_list_separator) +
+                            packTypeLabel(meta.kind),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                     )

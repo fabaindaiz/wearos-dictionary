@@ -76,6 +76,12 @@
     <string name="settings_history_empty">No history</string>
     <string name="settings_history_clear">Clear the history</string>
     <string name="settings_confirm">Confirm</string>
+    <string name="settings_ui_language">App language</string>
+    <string name="settings_ui_language_auto">Automatic</string>
+    <string name="settings_ui_language_note">Automatic follows the watch. If the watch is in a language this app does not have, it shows English.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">App %1$s</string>
+    <string name="settings_pack_line">%1$s · %2$d entries</string>
 
     <!-- Dictionary management -->
     <string name="packs_on_watch">On the watch</string>
@@ -116,6 +122,21 @@
     <string name="pos_prefix">prefix</string>
     <string name="pos_proverb">proverb</string>
     <string name="pos_abbrev">abbrev.</string>
+    <string name="pos_full_noun">noun</string>
+    <string name="pos_full_verb">verb</string>
+    <string name="pos_full_adj">adjective</string>
+    <string name="pos_full_adv">adverb</string>
+    <string name="pos_full_name">proper noun</string>
+    <string name="pos_full_phrase">phrase</string>
+    <string name="pos_full_intj">interjection</string>
+    <string name="pos_full_pron">pronoun</string>
+    <string name="pos_full_prep">preposition</string>
+    <string name="pos_full_conj">conjunction</string>
+    <string name="pos_full_num">numeral</string>
+    <string name="pos_full_suffix">suffix</string>
+    <string name="pos_full_prefix">prefix</string>
+    <string name="pos_full_proverb">proverb</string>
+    <string name="pos_full_abbrev">abbreviation</string>
 
     <!-- Why a result showed up. Only the surprising levels get a label. -->
     <string name="match_inflected">form</string>
