@@ -26,6 +26,48 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Se midió cómo dividir los packs, y no se construyó nada
+
+**Qué.** Diseño y mediciones para dividir los packs grandes en vez de achicarlos, tres decisiones
+de producto tomadas por el usuario, y el ítem del margen lateral cerrado. **Sin código**: el
+pedido fue guardarlo en el roadmap.
+
+**Áreas.** `docs/roadmap.md` solamente.
+
+**Por qué.** *«Que los packs muy grandes, en lugar de reducirse, se pueda evaluar dividirlos
+funcionalmente»*, más cómo conviven varios packs del mismo idioma en la interfaz.
+
+**Medido.** Todo lo que sostiene el diseño, y sin esto no había conversación posible:
+
+- **Dónde está el peso**: español `form` 45 %, inglés `entry` 46 %, y **FTS + índices son el 27 %
+  y el 46 %** respectivamente.
+- **Dentro del payload**: glosas 70,6 % / ejemplos 17,0 % / **tesauro 5,9 %** en español; glosas
+  49,5 % / **ejemplos 41,2 %** / tesauro 3,0 % en inglés. ⚠️ **Un «módulo de tesauro» ahorraría
+  ~1 MB**: la idea intuitiva era la peor de la lista.
+- **La señal de frecuencia que faltaba existe y ya estaba descargada**: contar palabras en las
+  442.135 oraciones de Tatoeba. Se comparó contra contar palabras en las glosas del propio
+  diccionario, que resultó sesgada —su top trae *apellido*, *gerundio*, *participio*—.
+- **La curva del pack núcleo**: top 20.000 palabras → 14.388 entradas → **7,5 MB contra 73,6**.
+
+**Arquitectura.** ✅ Cumple. La distinción que ordenó todo el diseño: **dividir por FILAS funciona
+hoy** (un pack núcleo es un diccionario completo y autosuficiente que convive vía D-136);
+**dividir por CAMPOS necesita composición**, que sigue bloqueada por la granularidad de `uid`.
+
+**Qué salió mal.** Empecé a construir el pack núcleo —`tatoeba.frequencies()` y dos suites de
+tests— antes de que el usuario dijera que sólo quería el diseño. Se revirtió el código y se
+conservó sólo el roadmap; el árbol quedó verde. **La lección es de proceso**: el pedido decía
+*«estas decisiones consúltamelas antes de tomarlas»*, y yo pregunté las decisiones pero asumí que
+la respuesta autorizaba a implementar.
+
+**Qué quedó sin hacer.** Todo, a propósito. Y dos cosas sin decidir que quedan anotadas: el `N`
+del núcleo —20.000 es donde la curva se aplana, no una medición de qué necesita un usuario— y el
+corpus inglés de Tatoeba, que no está descargado.
+
+⚠️ **Una consecuencia de la decisión «un módulo sólo enriquece» que conviene no redescubrir**: lo
+que tiene que ser **buscable** no puede salir del pack base. Los sinónimos entran a `fts_def`
+(D-118) y los ejemplos también, así que moverlos a un módulo rompería las dos búsquedas. Las
+relacionadas sí podrían: nunca entraron al índice (D-132).
+
 ## 2026-09-20 — El tesauro deja de depender de que alguien se acordara
 
 **Qué.** D-144: sinónimos y antónimos desde WordNet, en los dos idiomas.
