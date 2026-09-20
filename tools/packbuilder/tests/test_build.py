@@ -388,6 +388,40 @@ class PoliticaDeContenidoTest(BuilderTestCase):
         self.assertNotEqual(0, codigo, "verify_pack tiene que cazar un pack que se contradice")
         self.assertIn("proper_nouns", salida.getvalue())
 
+    def test_definitions_only_exige_que_el_nombre_propio_este_CASTIGADO(self):
+        """La invariante que 'definitions-only' trae consigo (D-134).
+
+        La politica deja entrar nombres propios a proposito, asi que el techo de proporcion que
+        cuida a 'lexical-only' no aplica. Lo que si tiene que cumplirse es lo que hace que la
+        politica sea segura: **que ninguno de ellos pueda ganarle en rank a una palabra comun**.
+        Si alguien cablea mal el castigo, el pack sale entero, abre sin error y devuelve el
+        toponimo arriba -- que es exactamente el modo de falla que D-116 midio en ingles, 4.267
+        veces. Sin este check nada lo veria.
+        """
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "definitions-only"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("fez", gloss="Gorro de fieltro rojo.", rank=120))
+            builder.add(record("Fez", gloss="Ciudad de Marruecos.",
+                               part_of_speech="name", rank=120))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotEqual(0, codigo, "un nombre propio sin castigar tiene que rechazarse")
+        self.assertIn("rank", salida.getvalue())
+
+    def test_definitions_only_acepta_el_pack_bien_construido(self):
+        metadata = dict(BASE_META)
+        metadata["proper_nouns"] = "definitions-only"
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("fez", gloss="Gorro de fieltro rojo.", rank=120))
+            builder.add(record("Fez", gloss="Ciudad de Marruecos.",
+                               part_of_speech="name", rank=1120))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(0, codigo, salida.getvalue())
+
     def test_los_dos_vocabularios_de_pos_cuentan(self):
         """kaikki dice "name", el toy dice "proper noun". Excluir uno solo deja pasar el otro."""
         metadata = dict(BASE_META)

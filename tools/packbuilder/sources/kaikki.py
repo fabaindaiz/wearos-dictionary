@@ -103,6 +103,29 @@ CAMPOS_RELACIONADAS = ("hypernyms", "hyponyms", "related")
 # heuristica contra texto en un idioma. Ver el punto 4 del docstring del modulo.
 SENAL_LEXICA_MINIMA = 5
 
+# Las tres politicas de nombres propios, y el orden es de mas podadora a menos.
+#
+#   "lexical-only"      el default (D-116): entra el que tiene vida lexica --traducciones,
+#                       derivados, descendientes-- por encima de SENAL_LEXICA_MINIMA. Salva
+#                       "January" y tira "Ivanivka".
+#   "definitions-only"  entra el que DEFINE: se poda solo el que la categorizacion del wiki
+#                       marca como registro de nombres. Rescata 3.235 entradas en español
+#                       --ciudades, generos taxonomicos, grafias anticuadas-- por ~0,5 MB.
+#   "included"          entran todos. Existe para MEDIR, no para publicar.
+#
+# El valor se escribe en `meta.proper_nouns` y `verify_pack.py` lo verifica contra el contenido.
+POLITICAS_DE_NOMBRES = ("lexical-only", "definitions-only", "included")
+
+# Lo que se le suma al rank de un nombre propio que entro por una politica permisiva.
+#
+# **No borrar, bajar de prioridad** -- pedido asi. Sin esto la politica empeora la busqueda en
+# lugar de mejorarla: D-116 midio en ingles **4.267 casos donde el toponimo le gana en rank a la
+# palabra comun**, y volverian por la puerta de atras. La columna es "menor es mas comun", asi
+# que sumar es castigar. El valor es RANK_BASE entero: un nombre propio queda por debajo de
+# CUALQUIER palabra comun, no un poco mas abajo. Si algun dia se quiere matizar, el numero esta
+# aca y el test que lo fija es `test_el_nombre_propio_que_entra_PIERDE_prioridad`.
+CASTIGO_NOMBRE_PROPIO = 1000
+
 # Techo del rank. La columna es "menor es mas comun" (schema.sql), asi que el rank se calcula
 # restando: una pagina rica queda cerca de 0, una pobre cerca del techo.
 RANK_BASE = 1000
@@ -120,24 +143,41 @@ class Perfil:
     queda dominado por acepciones y etimologia. Por eso los dos perfiles no son iguales.
     """
 
-    __slots__ = ("w_sense", "w_example", "w_form", "w_translation", "w_etymology", "forms_cap")
+    __slots__ = ("w_sense", "w_example", "w_form", "w_translation", "w_etymology", "forms_cap",
+                 "categorias_de_registro")
 
-    def __init__(self, w_sense, w_example, w_form, w_translation, w_etymology, forms_cap):
+    def __init__(self, w_sense, w_example, w_form, w_translation, w_etymology, forms_cap,
+                 categorias_de_registro=()):
         self.w_sense = w_sense
         self.w_example = w_example
         self.w_form = w_form
         self.w_translation = w_translation
         self.w_etymology = w_etymology
         self.forms_cap = forms_cap
+        # Las categorias del wiki que significan "esta pagina REGISTRA un nombre, no lo define".
+        # Solo las usa la politica "definitions-only". Ver `_es_registro_de_nombres`.
+        self.categorias_de_registro = tuple(categorias_de_registro)
 
 
 PERFILES = {
     # Medido sobre eswiktionary 2026-09-15: "per" devuelve perder/permitir/perseguir/permanecer/
     # perro, y "perro" subio de la posicion 619 a la 5 (D-067).
     "es": Perfil(w_sense=3, w_example=2, w_form=1, w_translation=0.5, w_etymology=5,
-                 forms_cap=80),
+                 forms_cap=80,
+                 # Medido sobre el dump del 2026-09-15: 26.708 acepciones en la primera y 2.398
+                 # repartidas en las otras tres. Entre las cuatro cubren los 28.314 nombres
+                 # propios que solo dicen su categoria.
+                 categorias_de_registro=("ES:Apellidos", "ES:Antropónimos",
+                                         "ES:Antropónimos femeninos",
+                                         "ES:Antropónimos masculinos")),
     # Ingles: el tope de formas baja porque un verbo trae 4-5 y no 137. Los pesos se ajustan
     # contra el dump midiendo que prefijos comunes devuelvan la palabra comun arriba.
+    # ⚠️ El ingles NO declara `categorias_de_registro`, y es una medicion, no un olvido: ahi la
+    # señal esta sucia. "Places in the United States" aparece en 865 acepciones de registro y en
+    # **11.455** que definen, asi que la misma categoria esta en los dos lados y no separa nada.
+    # Con la lista vacia, "definitions-only" deja entrar todos los nombres propios del ingles --
+    # que es justo lo que hace al pack ingles el mas pesado. Ahi la politica util sigue siendo
+    # "lexical-only".
     "en": Perfil(w_sense=3, w_example=2, w_form=4, w_translation=0.5, w_etymology=5,
                  forms_cap=12),
 }
@@ -355,8 +395,12 @@ def _forms(raw, headword, inbound):
     return tuple(seen)
 
 
-def _rank(raw, senses, forms, perfil):
-    """Proxy de frecuencia. Menor es mas comun. Ver `Perfil` y D-063."""
+def _rank(raw, senses, forms, perfil, es_nombre_propio=False):
+    """Proxy de frecuencia. Menor es mas comun. Ver `Perfil` y D-063.
+
+    `es_nombre_propio` aplica [CASTIGO_NOMBRE_PROPIO]: el que entro por una politica permisiva
+    queda **debajo de cualquier palabra comun**, no un poco mas abajo. Ver ahi.
+    """
     score = (
         perfil.w_sense * len(senses)
         + perfil.w_example * sum(len(s["examples"]) for s in senses)
@@ -364,7 +408,8 @@ def _rank(raw, senses, forms, perfil):
         + perfil.w_translation * len(raw.get("translations") or [])
         + (perfil.w_etymology if raw.get("etymology_texts") else 0)
     )
-    return max(0, RANK_BASE - int(score))
+    base = max(0, RANK_BASE - int(score))
+    return base + CASTIGO_NOMBRE_PROPIO if es_nombre_propio else base
 
 
 def _sense_key(raw, index, needs_key):
@@ -384,15 +429,48 @@ def _sense_key(raw, index, needs_key):
     return "%s#%d" % (title, index) if index else title or "#0"
 
 
-def _emit(group, inbound, perfil, con_nombres):
+def _es_registro_de_nombres(raw, perfil):
+    """La pagina REGISTRA un nombre en vez de definirlo: un apellido, un nombre de pila.
+
+    ⚠️ **Mira `categories`, no la glosa, y eso es el punto.** Un patron sobre la prosa
+    ("^Apellido") seria una heuristica en un idioma, justo lo que el punto 4 del docstring del
+    modulo dice que no se hace; `categories` lo emite wiktextract desde la categorizacion del
+    propio wiki y viaja en todos los dumps.
+
+    Medido en español: 26.708 acepciones en `ES:Apellidos` y 2.398 en los tres `ES:Antropónimos`,
+    que entre las cuatro cubren los 28.314 nombres propios que solo dicen su categoria.
+
+    **Hace falta que TODAS las acepciones lo sean.** "Estrella" es nombre de pila y tambien el
+    cuerpo celeste: podarla por la primera perderia la segunda, que es vocabulario.
+    """
+    if not perfil.categorias_de_registro:
+        return False
+    sentidos = raw.get("senses") or []
+    if not sentidos:
+        return False
+    for sense in sentidos:
+        nombres = set()
+        for cat in sense.get("categories") or []:
+            nombres.add(cat if isinstance(cat, str) else (cat.get("name") or ""))
+        if not nombres.intersection(perfil.categorias_de_registro):
+            return False
+    return True
+
+
+def _entra_el_nombre_propio(raw, perfil, politica):
+    """Si este `pos = "name"` sobrevive la poda, segun la politica. Ver POLITICAS_DE_NOMBRES."""
+    if politica == "included":
+        return True
+    if politica == "definitions-only":
+        return not _es_registro_de_nombres(raw, perfil)
+    return _senal_lexica(raw) >= SENAL_LEXICA_MINIMA
+
+
+def _emit(group, inbound, perfil, politica):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
-        if (
-            not con_nombres
-            and raw.get("pos") == "name"
-            and _senal_lexica(raw) < SENAL_LEXICA_MINIMA
-        ):
+        if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             continue
         senses = _senses(raw)
         if not senses:
@@ -416,7 +494,7 @@ def _emit(group, inbound, perfil, con_nombres):
             headword=headword,
             senses=senses,
             part_of_speech=pos,
-            rank=_rank(raw, senses, forms, perfil),
+            rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name")),
             forms=forms,
             translations=(),
             sense_key=_sense_key(raw, index, by_pos[pos] > 1),
@@ -452,7 +530,7 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path, lang="es", con_nombres=False):
+def records(path, lang="es", politica="lexical-only"):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
     **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres
@@ -464,9 +542,17 @@ def records(path, lang="es", con_nombres=False):
     que ademas pesan **40,7 MB (13,8 % del pack)** y en **4.267 casos le ganan en rank a la
     palabra comun**: buscar "freedom" devolvia primero un pueblo del condado de Santa Cruz.
 
-    `con_nombres=True` los trae de vuelta. Sigue existiendo porque es lo que produjo esos
-    numeros, y porque volver a medirlos contra un dump nuevo tiene que seguir siendo barato.
+    `politica` elige entre las tres de [POLITICAS_DE_NOMBRES]. `"included"` sigue existiendo
+    porque es lo que produjo esos numeros, y volver a medirlos contra un dump nuevo tiene que
+    seguir siendo barato. `"definitions-only"` es la intermedia: poda el registro de nombres y
+    deja entrar al que define, con el rank castigado.
+
+    Una politica desconocida **lanza**: un typo en la CLI no puede construir un pack con el
+    default y no decirlo, porque el pack saldria bien y con otro contenido del que se pidio.
     """
+    if politica not in POLITICAS_DE_NOMBRES:
+        raise ValueError("politica de nombres propios desconocida: %r (son %s)"
+                         % (politica, ", ".join(POLITICAS_DE_NOMBRES)))
     perfil = PERFILES[lang]
     inbound = _inbound_forms(path)
     group = []
@@ -480,10 +566,10 @@ def records(path, lang="es", con_nombres=False):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, con_nombres):
+                for record in _emit(group, inbound, perfil, politica):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound, perfil, con_nombres):
+    for record in _emit(group, inbound, perfil, politica):
         yield record
