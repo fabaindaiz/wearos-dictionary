@@ -58,6 +58,14 @@ results. None of those five has been revisited yet: the measurement is in, the r
 If somebody drops below 48 dp to squeeze in a fourth row, the density test **still passes** and
 what breaks is the touch area. That is why the minimum lives in a named constant.
 
+⚠️ **The density test used to pass for the wrong reason.** `threeResultsFitWithoutScrolling` ran
+under Robolectric's **default device, which is not a watch**, so all four suggestions composed and
+the assertion was vacuous. It is now two tests pinned to real sizes with `@Config(qualifiers)`:
+**192 dp composes 2 rows and 234 dp composes 3**. The absolute numbers are lower than the 384×384
+emulator's because `h192dp` is *available* height and discounts decor — so do not compare them to
+on-device counts. **What the pair fixes is the relationship**: 22 % more screen buys exactly one
+more row, and a change that helps the project's watch while hurting a generic one now fails.
+
 ```sh
 ./gradlew :app:testDebugUnitTest         # 178 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device
