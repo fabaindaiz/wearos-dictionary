@@ -1152,10 +1152,28 @@ número de antes para justificarse.
 
 ### O-2. R8 y baseline profiles
 
-**Estado.** Planificado, y ahora **es lo único que separa al release de estar optimizado**.
-La firma ya está (D-086) y el release compila: **35 MB sin firmar**, contra 50 del debug — el
-primer número de release que existe en este repo. R8 sigue apagado por decisión, no por herencia
-(D-087): activarlo necesita la comprobación en dispositivo que O-2 siempre pidió.
+**Estado.** **Medido el 2026-09-20, y el número es mucho más grande de lo que esta sección
+suponía.** R8 sigue apagado por decisión y no por herencia (D-087); lo que cambió es que ahora se
+sabe cuánto vale encenderlo.
+
+| | APK | dex | libs nativas |
+|---|---|---|---|
+| Hoy, R8 apagado | **33,0 MB** | **29,5 MB** | 2,4 MB |
+| R8 encendido | **5,5 MB** | **2,7 MB** | 2,4 MB |
+
+**El dex baja un 91 %**, y compila **sin una sola regla de keep**. Se comprobó además que
+sobreviven las tres clases nombradas en `AndroidManifest.xml` —las dos de tiles y `MainActivity`—
+y el driver JNI de SQLite, leyendo las cadenas del dex encogido.
+
+⚠️ **Eso es un hecho sobre un archivo, no sobre una app que funcione.** Leer nombres de clase del
+dex es evidencia más débil que lanzarlo, y el riesgo que O-2 siempre nombró —código que sólo
+alcanza la reflexión, y que sólo falla en release— no cambió. La medición mueve la prioridad, no
+el gate: sigue atada a la comprobación en dispositivo, y los dos `TileService` son el borde
+filoso, porque `app/CLAUDE.md` ya tiene escrito que romperlos no da error de compilación ni test.
+
+**Por qué importa para batería y no sólo para tamaño**: menos dex es menos carga de clases, menos
+memoria y menos JIT en **cada arranque del proceso**, y en esta app cada arranque es alguien
+mirando la pantalla. Ver `docs/bateria.md` §The action plan.
 
 La guía oficial de rendimiento de Wear OS dice, literal: *"Start with the most effective
 performance tool types: baseline profiles (including startup profiles) and the R8 code
@@ -1248,6 +1266,17 @@ cuestan casi lo mismo**, porque el índice es logarítmico. Con eso, una sesión
 **Lo que falta, y es lo único que decide el resto.** Correr `dumpsys batterystats` en el reloj para
 saber si ese 9,4 % es pantalla o CPU. Todo el árbol de estrategias cuelga de esa respuesta y está
 escrito en el documento, con el protocolo.
+
+**Investigado contra fuentes primarias el 2026-09-20**, y el modelo de energía de Android zanja la
+discusión: `screen.on` son **~200 mA** sólo por estar encendida y `screen.full` suma **100–300 mA**
+más, contra `cpu.idle` en **~3 mA**. Una CPU ocupada cuesta 100–200 mA **durante los milisegundos
+que está ocupada**. De ahí sale el principio que ordena el plan de acción: **en esta app la moneda
+son segundos de pantalla, no milisegundos de CPU**, y cualquier idea que se mida en los segundos es
+grande aunque no toque una consulta.
+
+⚠️ **El famoso 3,2 % por hora NO aplica acá**: es una métrica de *watch faces*, medida *«cuando los
+dispositivos no están cargando y no hay apps en uso»*. Citarlo contra nuestro 9,4 % sería comparar
+dos cosas distintas.
 
 ⚠️ **Y una creencia que la medición mató**: el comentario de `SqlitePackSource` dice que el
 prefijo es *"el 95% del uso"*. Es cierto mientras se escribe y **falso para la búsqueda que de

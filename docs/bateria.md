@@ -1,6 +1,6 @@
 # Battery: where the energy actually goes
 
-**Status.** One real datum, a measured cost model, and **no on-watch measurement yet**.
+**Status.** One real datum, a measured cost model, a diagnostic against the official sources, and an action plan — with **no on-watch measurement yet**, which is item 1 of that plan because it decides the order of the rest.
 
 The datum: the watch reported **9.4 %** attributed to the dictionary, over a stretch the user
 describes as *"lo he tenido abierto harto rato"*. That is the first battery number this project
@@ -200,59 +200,215 @@ is a far more interesting finding.
 
 ---
 
-## Strategies, ordered by what the measurement would have to say first
+## What the official sources actually say
 
-### If it is the screen — the likely case
+Researched 2026-09-20. Primary sources only; each claim links to the page it came from.
 
-None of these are code optimisations. They are about **how long the screen stays on**, which is
-the only lever that matters at this ratio.
+### The power model, which settles the whole argument
 
-1. **Fewer scrolls to the answer.** Every row the user has to scroll past is screen time. This is
-   why D-148 (three recents + a button) and D-154 (proper nouns below common words) are battery
-   decisions and were never filed as such: a result list that answers in the first row ends the
-   session sooner. The pending **cross-language fallback** is in the same family — a search that
-   returns nothing because the wrong language was active costs a second search, which is double
-   the screen.
-2. **The long example is a battery item too.** With senses expanded, a 900-character example
-   pushes the next one off screen (roadmap, §Diseño de la interfaz). Scrolling past it is paid in
-   screen-on seconds, every time.
-3. **Do not add animations.** The official Wear OS guidance asks to minimise them; today there are
-   effectively none, and that is worth keeping (§O-5).
-4. **What is NOT worth doing: dimming, or an ambient mode.** The system already turns the screen
-   off on its own timeout, and the app holds nothing open to prevent it. Adding an ambient mode
-   would make the app draw *more* often, not less.
+Android's power profile gives the display and the CPU separate entries
+([Power profiles for Android](https://source.android.com/docs/core/power/values)):
 
-### If it is the CPU — measure before believing it
+| Entry | What it is | Order of magnitude |
+|---|---|---|
+| `screen.on` | *"Additional power used when screen is turned on at minimum brightness"* | **~200 mA** |
+| `screen.full` | *"...at maximum brightness, compared to screen at minimum brightness"* | **100–300 mA** |
+| `cpu.active` | *"Additional power used by CPUs when running at different speeds"* | **100–200 mA** |
+| `cpu.idle` | *"Total power drawn by the system when CPUs...are in system suspend state"* | **~3 mA** |
 
-**The UI half of this is already measured and clean** (see above): all 21 composables skip. What
-is left is the query side, in rough order of what the cost model says is biggest:
+So a lit screen costs **200–500 mA continuously**, and a busy CPU costs 100–200 mA **for the
+milliseconds it is busy**. That is the whole ranking, and it is why this document keeps repeating
+the same sentence: on this app, nothing about the CPU is ever going to be the battery.
 
-1. **The tolerant rung (`byFuzzy`) is the only expensive operation in the app**: up to 200
-   candidates scored with Damerau-Levenshtein. It runs only when the previous rungs returned fewer
-   than 5 results — which, per the measurement above, is more often than the code comment implies:
-   4 of 12 complete words reached it. Tightening `FUZZY_CANDIDATES` from 200 or raising
-   `FUZZY_TRIGGER` are both one-line knobs. **Do not touch them without a before/after**: the
-   tolerant rung is what makes voice dictation usable, which is the primary input path.
-2. **With two packs installed, the merge queries both, sequentially** (D-136). That doubles the
-   per-search work. It is the price of packs coexisting and should not be paid back by turning
-   packs off — the user already ruled that out — but it is the reason the cross-language fallback
-   must stay behind its threshold (no exact match *and* nothing in the top coverage band) instead
-   of always querying everything.
-3. **The 64-key gloss query in English** is the one place where pack size shows, at 0.86 ms.
-   Lowering `MAX_PALABRAS_POR_CONSULTA` would cut it, at the cost of leaving late words in a long
-   gloss untappable. Not worth it at this magnitude.
+⚠️ **And a consequence that is easy to get backwards**: the framework models the display by
+**time at brightness**, not by what is drawn. Dark pixels save real energy on an OLED panel, but
+that saving **does not appear in Android's estimate** — you cannot verify it with `dumpsys`, only
+with a power monitor. Anyone who dims the palette and then points at a battery screen to prove it
+worked is reading a model that does not contain the effect.
 
-### What must not be cut on battery grounds
+### The Wear OS guidance, and the threshold that is not ours
 
-- **The tappable gloss words (D-094).** Measured at 0.18 ms per word opened. See above.
-- **The key sample on open (D-142).** 64 reads, 0.48 ms, **once per process**. It is what turns
-  `norm_version` from a claim the pack makes about itself into something verified, and it defends
-  the project's central invariant.
-- **The payload dictionary hash (D-008).** Once per open. A wrong preloaded dictionary
-  decompresses *without error* into corrupt text.
-- **The word of the day (D-097).** 32 reads, once a week, per pack.
+[Conserve power and battery](https://developer.android.com/training/wearables/apps/power) is
+prescriptive and short. What applies here:
+
+- Animations: *"avoid long-running animations and loops. If a loop is required, add a pause
+  between loops that's at least as long as the animation itself."*
+- CPU: *"Keep usage short."* and *"Batch any related operations, to maximize the time that your
+  app's process is idle."*
+- Tiles: *"Disable automatic refresh, or increase the refresh rate to 2 hours or longer."*
+  **Already done** — D-107 and D-108.
+- Screen-on locks: *"Avoid whenever possible."* **Already true** — the app holds none.
+
+⚠️ **The famous "3.2 % per hour" number is a watch-face metric and does not apply to this app.**
+[Excessive battery usage](https://developer.android.com/topic/performance/vitals/excessive-battery-usage)
+defines it over *watch face sessions*, measured *"when devices aren't charging and no apps are in
+use"* — that is background drain, and a dictionary you are reading is neither. Quoting it against
+our 9.4 % would be comparing two different things.
+
+**What does transfer is its CPU sub-threshold**: a session is flagged when it uses the CPU for
+**90 seconds or more per hour**. Our deliberately-heavy session is ~3.7 s of CPU *in total*. Two
+orders of magnitude under a bar that was set for something else.
+
+### The SQLite guidance, and how much of it is for us
+
+[Best practices for SQLite performance](https://developer.android.com/topic/performance/sqlite-performance-best-practices)
+is mostly about writes, and **the pack is read-only and immutable** (D-001). So:
+
+- **WAL and `synchronous = NORMAL`: not applicable.** There are no writes. Nobody should "add WAL"
+  to this repo.
+- Transactions, batching inserts, uniqueness constraints: **build-time concerns**, already handled
+  by `tools/packbuilder`.
+- *"Read only the rows you need"* / *"Read only the columns you need"*: already the design.
+  `byPrefix` selects three columns and takes them **whole from the covering index** (D-012).
+- *"Use `EXPLAIN QUERY PLAN`"*: done below, and it found something worth writing down.
+
+What the page gives that we did **not** have is a set of on-device diagnostics:
+
+```sh
+adb shell setprop log.tag.SQLiteTime VERBOSE   # query times, on the watch
+adb shell dumpsys meminfo cl.fadiaz.dictionary # SQLite page cache hits/misses
+# and a Perfetto config with atrace_categories: "database"
+```
+
+The page-cache hit rate is the one number that would tell us whether `mmap_size = 8 MB` and
+`cache_size = -2000` are the right sizes on a 301 MB pack. Today those two values are **reasoned,
+not measured** — the comment in `PackFile.open` says so.
 
 ---
+
+## The diagnostic
+
+Measured on 2026-09-20 against the real packs and a real release build.
+
+### What the app pays on every process start
+
+The app has no rescan: the pack scan is one-shot in the ViewModel's `init`. So **every time the
+process starts, every installed pack is opened and fully validated** — metadata, a 32 KB dictionary
+hashed, and 64 rows read by rowid with `norm()` recomputed over each (D-142).
+
+| Pack | Size | open + meta | sha256 | 64 keys | total |
+|---|---|---|---|---|---|
+| `es-def-wikc` | 71.7 MB | 4.04 ms | 0.03 ms | 13.99 ms | **18.06 ms** |
+| `en-def-wikt` | 300.9 MB | 2.17 ms | 0.07 ms | 22.03 ms | **24.27 ms** |
+| | | | | | **42.33 ms** |
+
+Desktop milliseconds; a watch is far slower. **This is not a battery item — it is a
+seconds-of-screen item**, which on this app is the same thing as a battery item.
+
+### What a release build actually contains
+
+| | APK | dex | native libs |
+|---|---|---|---|
+| Today (R8 off) | **33.0 MB** | **29.5 MB** | 2.4 MB |
+| With R8 on | **5.5 MB** | **2.7 MB** | 2.4 MB |
+
+**The dex drops by 91 %.** It builds with zero keep rules, and the three classes named in
+`AndroidManifest.xml` plus the bundled SQLite JNI driver all survive the shrink — checked by
+reading the strings out of the shrunk dex, which is not the same as running it.
+
+### The query plan, and a trap inside it
+
+```
+EXPLAIN QUERY PLAN <the prefix query>
+|--SEARCH entry USING COVERING INDEX idx_entry_norm (norm>? AND norm<?)
+`--USE TEMP B-TREE FOR ORDER BY
+```
+
+The hot query **does** build a temp B-tree, because it range-scans on `norm` and orders by `rank`
+(D-068), and no index can serve both. Anyone who runs `EXPLAIN QUERY PLAN` will find this and want
+to fix it. **Measured before wanting to:**
+
+| | ms per query |
+|---|---|
+| With the `ORDER BY` (temp B-tree) | 0.093 |
+| Without it (index only) | 0.036 |
+| **What the ordering costs** | **0.057 ms — 62 % of the query** |
+
+62 % of 0.093 ms. At sixty searches that is **3.4 ms**, in exchange for giving up the ordering that
+D-068 exists to provide. It is the textbook shape of a large percentage of a tiny number.
+
+---
+
+## The action plan
+
+Ordered by **seconds of screen removed**, because that is the only currency this app spends in.
+Anything whose effect is measured in milliseconds of CPU is not on this list, and the section after
+it says why.
+
+### 1. Decompose the 9.4 % — blocks everything else
+
+Nothing below should be prioritised before this runs, because it decides whether the list is even
+ordered correctly. The protocol is above; it needs the watch connected. **Cost: minutes.**
+
+### 2. Turn R8 on — the biggest measured lever in the repo
+
+**33.0 MB → 5.5 MB, dex −91 %.** Less dex is less class loading, less memory and less JIT at every
+process start, and on this app every process start is a user staring at a screen.
+
+⚠️ **The risk O-2 named is real and unchanged**: R8 removes code that only reflection reaches, and
+it shows up *only* in a release build. The size is now known; what is not known is whether it runs.
+**Gate: install the R8 release on the watch and exercise every surface** — search, entry, both
+tiles, settings, pack deletion. The two `TileService` classes are the sharp edge, because
+`app/CLAUDE.md` already records that breaking them produces no compile error and no test.
+
+### 3. Baseline and startup profiles
+
+Official numbers: Baseline Profiles *"improve code execution speed by about 30 % from the first
+launch"*, and with Startup Profiles *"app startup is usually between 15 % and 30 % faster than with
+Baseline Profiles alone"*
+([overview](https://developer.android.com/topic/performance/baselineprofiles/overview)). Pairs with
+R8 — Reddit's 51 % came from both together.
+
+This is worth more here than on a phone: a dictionary is opened for fifteen seconds at a time, so
+startup is a large fraction of every session rather than a one-off.
+
+### 4. Cut the searches that return nothing
+
+A search that fails because the wrong language was active costs a **second search** — double the
+screen time, for one answer. The cross-language fallback is designed and unbuilt (roadmap, §Diseño
+de la interfaz): fall back to the other languages **only** when there is no exact match and nothing
+in the top coverage band, so the normal case pays nothing.
+
+Same family, same currency: the long-example wall that pushes the next sense off screen, and
+proper-noun demotion (D-154, done) which puts the likely answer in the first row instead of the
+fourth.
+
+### 5. Reconsider validating every pack on every launch
+
+42 ms of desktop work per cold start, two thirds of it the 64-key sample. D-142 exists for a real
+reason — `norm_version` is a number the pack gives itself — but **the pack is immutable** (D-001),
+so re-proving the same file on every launch proves nothing new. A cached verdict keyed on
+`(path, size, mtime, norm_version)` would keep the guarantee for any file that changed.
+
+⚠️ **This weakens a guardrail and therefore is not an agent's call.** It is listed because it is
+the third-largest measured item, not because it should be done.
+
+### 6. The palette — real, and unverifiable from here
+
+`DictionaryTheme` is still the template's *"Empty theme to customize for your app"*, so the app
+runs Wear Material3's defaults. On an OLED panel every lit pixel costs current, and this is the
+only lever that touches the dominant term directly rather than by shortening it.
+
+⚠️ **But it cannot be verified with software** — Android's model is brightness-based, not
+content-based. Doing this means committing to a design without being able to measure the payoff,
+which is a product decision, not an optimisation.
+
+---
+
+## What is deliberately NOT on the plan, with the number that disqualified it
+
+Each of these looks like an optimisation and is measured to be noise. They are listed so the next
+session does not rediscover them as ideas.
+
+| Idea | Measured cost of the thing being "saved" |
+|---|---|
+| Remove the temp B-tree from the hot query | 0.057 ms per search — and it costs D-068's ordering |
+| Make the tappable gloss words optional (D-094) | 0.18 ms per word opened |
+| Compose stability configuration file | Nothing: all 21 composables already skip |
+| `remember` around the pure grouping functions | Microseconds — done anyway, because one line |
+| WAL / `synchronous = NORMAL` | Not applicable: the pack is read-only |
+| Bigger `page_size` in the pack | Both packs are 4 KB pages with a zero freelist; the covering index already serves the hot path whole |
+| Querying packs in parallel instead of sequentially | Same total work; changes latency, not energy |
 
 ## What this leaves open
 
@@ -266,3 +422,11 @@ is left is the query side, in rough order of what the cost model says is biggest
 - **Nothing here measures drawing.** The Compose report says a composable *can* skip; it does not
   say how expensive the frames that do run are. That needs a trace on the watch, same as
   everything else in the protocol above.
+- **The R8 build was measured, not run.** 33.0 → 5.5 MB is a fact about a file. Whether that file
+  works is the exact thing O-2 has always said needs a device, and reading class names out of the
+  shrunk dex is weaker evidence than launching it.
+- **`mmap_size` and `cache_size` are reasoned, not measured.** 8 MB of mmap and 2 MB of page cache
+  against a 301 MB pack are guesses that `dumpsys meminfo`'s cache hit/miss counters would settle
+  in one session on the watch.
+- **Nobody has counted how often the process actually starts.** The whole weight of items 2, 3 and
+  5 depends on it, and `dumpsys usagestats` answers it.
