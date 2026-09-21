@@ -7,8 +7,6 @@
     <string name="tile_history_label">Últimas palabras</string>
     <string name="tile_history_title">Últimas</string>
     <string name="tile_history_empty">Busca una palabra</string>
-    <string name="saved_remove_named">Quitar %1$s de guardadas</string>
-    <string name="saved_remove_question">¿Quitar %1$s?</string>
     <string name="saved_remove">Quitar</string>
     <string name="tile_word_label">Palabra del día</string>
     <string name="tile_word_title">Hoy</string>
@@ -81,7 +79,14 @@
     <string name="settings_ui_language_note">Automático sigue al reloj. Si el reloj está en un idioma que esta app no tiene, se muestra en inglés.</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_version">App %1$s</string>
-    <string name="settings_pack_line">%1$s · %2$d entradas</string>
+    <plurals name="settings_pack_entries">
+        <item quantity="one">%1$s · %2$d entrada</item>
+        <!-- "many" en español es el millón, y existe por una razón gramatical y no de formato:
+             se dice "un millón DE entradas", no "un millón entradas". El pack de inglés tiene
+             956.150, así que este caso está a una fuente de distancia. -->
+        <item quantity="many">%1$s · %2$d de entradas</item>
+        <item quantity="other">%1$s · %2$d entradas</item>
+    </plurals>
 
     <!-- Gestión de diccionarios -->
     <string name="packs_on_watch">En el reloj</string>

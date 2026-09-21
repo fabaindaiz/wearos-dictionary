@@ -7,8 +7,6 @@
     <string name="tile_history_label">Recent words</string>
     <string name="tile_history_title">Recent</string>
     <string name="tile_history_empty">Search for a word</string>
-    <string name="saved_remove_named">Remove %1$s from saved</string>
-    <string name="saved_remove_question">Remove %1$s?</string>
     <string name="saved_remove">Remove</string>
     <string name="tile_word_label">Word of the day</string>
     <string name="tile_word_title">Today</string>
@@ -81,7 +79,12 @@
     <string name="settings_ui_language_note">Automatic follows the watch. If the watch is in a language this app does not have, it shows English.</string>
     <string name="settings_about">About</string>
     <string name="settings_version">App %1$s</string>
-    <string name="settings_pack_line">%1$s · %2$d entries</string>
+    <!-- Plural y no string: con una sola entrada, "1 entries" esta mal en los dos
+         idiomas. Es el unico contador que la interfaz muestra. -->
+    <plurals name="settings_pack_entries">
+        <item quantity="one">%1$s · %2$d entry</item>
+        <item quantity="other">%1$s · %2$d entries</item>
+    </plurals>
 
     <!-- Dictionary management -->
     <string name="packs_on_watch">On the watch</string>

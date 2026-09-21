@@ -7,6 +7,7 @@ composeFoundation = "1.6.2"
 composeUiTooling = "1.6.2"
 wearToolingPreview = "1.0.0"
 activityCompose = "1.13.0"
+coreKtx = "1.18.0"
 coreSplashscreen = "1.2.0"
 tiles = "1.6.2"
 tilesRenderer = "1.6.2"
@@ -61,6 +62,8 @@ compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooli
 wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+# Ya venia transitivamente; se declara para no depender de que otro la siga trayendo.
+core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "tiles" }
 tiles-renderer = { group = "androidx.wear.tiles", name = "tiles-renderer", version.ref = "tilesRenderer" }
 protolayout = { group = "androidx.wear.protolayout", name = "protolayout", version.ref = "protolayout" }
