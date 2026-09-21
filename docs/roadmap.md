@@ -766,16 +766,28 @@ así que la capa de resultados distingue el origen.
 
 ### Reorientar el esquema a monolingüe
 
-**Estado.** Planificado. Lo que falta es **contenido de decisión**, no mecanismo: qué pasa con `trans`.
+**Estado.** ✅ **La decisión que faltaba quedó tomada el 2026-09-21, y por medición.**
 
-D-034 fijó que el primer pack es monolingüe con definiciones. Falta que el código lo refleje.
+D-034 fijó que el primer pack es monolingüe con definiciones. Esta sección estaba bloqueada
+esperando decidir **qué pasa con `trans`**, sobre esta premisa:
 
-**Con qué choca.** Con `trans`, que en un pack monolingüe se definió como "las palabras que
-aparecen en la glosa" — que es exactamente lo que `fts_def` ya indexa, mejor. En monolingüe esa
-tabla es espacio gastado dos veces.
+> *«`trans`, que en un pack monolingüe se definió como "las palabras que aparecen en la glosa" —
+> que es exactamente lo que `fts_def` ya indexa, mejor. En monolingüe esa tabla es espacio
+> gastado dos veces.»*
 
-**Qué hay que decidir antes.** Si `trans` se vuelve opcional (solo bilingüe) o desaparece del
-todo. Y si el toy pack pasa a ser monolingüe, hay que **conservar uno bilingüe mínimo**: sin él,
+⚠️ **La premisa era correcta para lo que `trans` contenía entonces, y hoy dejó de serlo.** Desde
+que el pack español lee las traducciones del Wikcionario, `trans` no guarda palabras de la glosa:
+guarda **los términos del otro idioma por los que se llega a la entrada**. Medido sobre un pack
+de muestra, pasó de **0 a 3.257 filas**, y buscar `build` en el pack **monolingüe** devuelve
+`construir, edificar`.
+
+**Entonces `trans` no se vuelve opcional ni desaparece: se queda, y cambia de significado.** Es
+el **canal de búsqueda entre idiomas**, y es lo que permite que un pack monolingüe se busque en
+el idioma del lector sin instalar nada más. `fts_def` no lo duplica — indexa el texto de la
+definición, que está en español.
+
+**Lo que sigue pendiente de esta sección es sólo mecanismo**: que el código refleje que un pack
+monolingüe es el caso normal. Y sigue en pie que **hay que conservar un toy bilingüe mínimo**, o
 la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
 ---
