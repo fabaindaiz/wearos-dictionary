@@ -181,6 +181,41 @@ def check_fuzzy_profiles(report):
         )
 
 
+def _patrones_ignorados():
+    """Los patrones de .gitignore que sirven para decidir si una ruta es generada.
+
+    Deliberadamente parcial: solo prefijos de directorio (`build/`) y sufijos (`*.db`), que es
+    todo lo que hace falta para distinguir un artefacto generado de un archivo del repo. No
+    reimplementa el matcher de git, y no tiene por que.
+    """
+    patrones = []
+    ruta = os.path.join(ROOT, ".gitignore")
+    if not os.path.isfile(ruta):
+        return patrones
+    with open(ruta, encoding="utf-8") as handle:
+        for linea in handle:
+            linea = linea.strip()
+            if not linea or linea.startswith(("#", "!")):
+                continue
+            patrones.append(linea.lstrip("/"))
+    return patrones
+
+
+def _esta_ignorado(candidate, patrones):
+    partes = candidate.split("/")
+    for patron in patrones:
+        if patron.endswith("/"):
+            # Un directorio ignorado: cualquier segmento de la ruta que lo nombre alcanza.
+            if patron.rstrip("/") in partes or candidate.startswith(patron):
+                return True
+        elif patron.startswith("*."):
+            if candidate.endswith(patron[1:]):
+                return True
+        elif candidate == patron or candidate.startswith(patron.rstrip("*")):
+            return True
+    return False
+
+
 def check_doc_paths(report):
     """Regla: un documento no apunta a un archivo que no existe. (CLAUDE.md, mapa de documentos)
 
@@ -189,7 +224,18 @@ def check_doc_paths(report):
 
     docs/roadmap.md queda exento a proposito: su trabajo es nombrar cosas que todavia no
     existen.
+
+    ⚠️ **Y lo GENERADO tambien queda exento, porque si no el chequeo miente al reves**: mira
+    `os.path.exists`, asi que una ruta como el pack de juguete --que `build_toy.py` escribe y
+    que D-020 decidio no commitear-- **existe en la maquina de cualquiera que haya construido
+    una vez y no existe en un clone limpio**. El chequeo pasaba en el arbol del que escribia y
+    fallaba en el del que revisaba. Se encontro asi: verificando un commit con `git worktree`,
+    que es donde esa diferencia se ve.
+
+    La exencion sale de `.gitignore` y no de una lista aparte: si git lo ignora, no es un
+    archivo del repo y un documento puede nombrarlo.
     """
+    ignorados = _patrones_ignorados()
     token = re.compile(r"`([^`\n]+)`")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
@@ -202,6 +248,8 @@ def check_doc_paths(report):
             if not candidate.startswith(REPO_DIRS):
                 continue
             if any(ch in candidate for ch in "<>*| "):
+                continue
+            if _esta_ignorado(candidate, ignorados):
                 continue
             if not os.path.exists(os.path.join(ROOT, candidate)):
                 report.failure(
