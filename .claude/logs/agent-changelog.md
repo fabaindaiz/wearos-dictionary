@@ -26,6 +26,85 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Siete cambios de interfaz, cuatro de ellos revirtiendo decisiones medidas
+**Qué.** La lista de cambios pedida tras ver la app en el reloj: búsqueda estricta por idioma,
+la etiqueta pasa a ser el idioma y aparece también en la ficha, las traducciones de palabra suben
+sobre las acepciones, los títulos de sección dejan de parecer enlaces, la gestión de diccionarios
+deja de activar, y `TextScale` gana un paso pequeño. El reordenado de acepciones queda
+**planificado** en el roadmap, sin construir, como se pidió.
+**Áreas.** `SearchRepository.kt` (`LanguageScope`, en `:dict-core`), y en `:app` `EntryScreen.kt`,
+`PackGrouping.kt`, `PacksScreen.kt`, `SettingsScreen.kt`, `data/Settings.kt`, `MainActivity.kt`,
+`strings.xml` ×2, `docs/decisions.md` (D-189…D-192), `docs/roadmap.md`, los dos `build.gradle.kts`.
+**Por qué.** Siete pedidos explícitos después de la primera sesión con la app y los cinco packs
+en el reloj. Cuatro **revierten** decisiones que este repo había medido, y eso está dicho en cada
+fila de `decisions.md` con su costo, no escondido.
+**Arquitectura.** ✅ Cumple. ⚠️ **Cuatro reversiones conscientes**, con el precio sobre la mesa:
+D-189 apaga el respaldo entre idiomas (D-172), D-190 revierte D-151, D-191 saca la activación de
+la pantalla de gestión, D-192 invierte dónde van las traducciones de palabra.
+**Medido.**
+- **El costo de D-189, que es el número que justificaba lo que se revierte**: de 400 lemas
+  ingleses comunes, **321 (80 %)** disparaban el respaldo con español activo. Esos 321 ahora no
+  aparecen hasta cambiar de idioma. Se conserva como `LanguageScope.FALLBACK` —el «modo auto»— en
+  vez de borrarse, porque el umbral no se reconstruye leyendo el código.
+- **El costo de D-192 se paga una vez de cada treinta**: sólo el **3,0 %** de las entradas
+  muestran las dos secciones de traducción a la vez, mientras que el **48,6 %** tienen sólo la de
+  palabra — que hasta hoy quedaba debajo de un `Ver más (12)`.
+- **D-191 compra 26 dp**: los 20 del tick reservado más los 6 de su separación. Era el ancho que
+  le faltaba a `definiciones · 315,9 MB · EN`, que se cortaba antes del `MB`.
+- **El reordenado de acepciones, para el roadmap**: sobre el pack español, **4,2 %** de las
+  entradas tienen más de 3 acepciones — pero **32,9 %** de las 2.000 más comunes. El promedio por
+  entrada oculta el problema; ponderado por uso, **un tercio de lo que se busca** tiene acepciones
+  escondidas tras el plegado, elegidas por el orden del volcado. **No necesita nada nuevo en el
+  pack**: las señales (`E`, `T`, `Y`, `A`, `R`) ya están en el payload, así que aplazarlo es
+  gratis.
+- **Gate**: 26 checks · 739 tests (`:dict-core` 97 · `:app` 291 · Python 351).
+- **`:dict-data` instrumentado en el reloj: 37/37 verdes.**
+**Qué salió mal.**
+- ⚠️ **`./gradlew check` NO compilaba `androidTest/`, y por eso el repo no vio que `WordLink`
+  había roto `GlossLinksOnDeviceTest`.** Se descubrió horas después, al enchufar el reloj. Es la
+  clase de punto ciego que `CLAUDE.md` nombra. **Tapado**: `tasks.named("check") { dependsOn(
+  "assembleDebugAndroidTest") }` en `:app` y `:dict-data` — **12 s en frío, 3 s en caliente**
+  contra 36 s de gate. Verificado por mutación: rompiendo el test a propósito, el gate falla.
+- ⚠️ **Un `connectedAndroidTest` con el reloj desconectado a media corrida sale `BUILD SUCCESSFUL`
+  con CERO tests.** Un verde vacío. Sólo la segunda corrida falló con `No connected devices!`. Si
+  se corre la suite instrumentada, hay que **leer el conteo**, no el color.
+- Reemplacé la ocurrencia equivocada de una aserción —la misma línea existía en dos tests— y
+  rompí un tercero que estaba bien. Lo agarró el propio gate.
+- Escribí la aserción del test de alcance estricto esperando lista vacía, cuando el `FakePack`
+  del idioma activo devuelve su fila igual. El código estaba bien; la expectativa, mal.
+- Mi detector de binomios taxonómicos sobre-contaba **5×** (1,46 % contra 0,295 % real): `Spanish
+  omelette`, `PIN number` y `Achilles heel` son traducciones correctas con la misma forma.
+  Afinado contra el léxico del pack inglés.
+**Añadido después (mismo día).**
+- **La palabra del día, arreglada (D-193).** Ver arriba: era `straitly` en inglés. **La medición
+  eliminó una regla en vez de agregar una** — la rotación de categorías combatía un sesgo de
+  verbos que venía de la riqueza de página, y D-185 lo quitó; hoy sólo estorbaba. Con `rank` de
+  frecuencia se apaga, y los candidatos suben de 32 a **96** porque el pack inglés tiene señal en
+  el 5,8 % de sus entradas. 112 días medidos: **79 %→99 % (es)** y **49 %→100 % (en)**. Verificado
+  por mutación.
+- **El botón de filtrar por traducción: medido y APLAZADO, no construido.** Se pidió *«por si
+  hubiera muchas palabras sin traducción»*, y no las hay donde serviría. De las ~30 filas que se
+  ven: **66,0 % ya tienen traducción con ES activo** (396/600 sobre 20 prefijos) y **6,3 % con EN**
+  (38/600) — o sea que en español el filtro esconde poco y en inglés **vaciaría la pantalla**. El
+  problema de fondo es contenido, no UI: el pack inglés tiene traducción en el **0,5 %** de sus
+  entradas porque falta el bilingüe inverso `en-es`. ⚠️ **El porcentaje de catálogo habría dicho
+  lo contrario** (14,8 % en español): las que faltan son las raras, y la lista muestra las
+  comunes. Al roadmap con los números, el camino ya medido (payload: 3,1–3,9 ms por 30 filas,
+  exacto; `trans`: 21,3 ms, pide índice nuevo y **escondería 2.032 palabras en silencio**) y la
+  precondición que lo haría valer.
+
+**Qué quedó sin hacer.**
+- **Nada instalado en el reloj**: se desconectó a mitad de la verificación y `connectedAndroidTest`
+  ya había desinstalado la app, así que **los cinco packs se perdieron**. Hay que reinstalar APK y
+  volver a empujar ~450 MB.
+- **Los 7 tests instrumentados de `:app` nunca corrieron.** Compilan, pero no se ejecutaron.
+- **Ruido taxonómico en el canal de lectura**: **447 de 151.666** términos (**0,295 %**) son
+  binomios latinos tomados de una aposición — `cas` → `Psidium friedrichsthalianum`. La regla
+  correcta no es descartarlos sino **descartarlos sólo si sobrevive otro término**, porque en
+  `burro → Aloysia polystachya` el binomio es todo lo que hay. Cuesta reconstruir el pack
+  bilingüe, así que espera al próximo build por otra causa.
+- El trace de Perfetto para el redibujo a ~5 fps sigue pendiente.
+
 ## 2026-09-22 — BUILD COMPLETO: los cinco packs reconstruidos, y una regresión que destapó
 **Qué.** Refactor del lector, los dos tests que faltaban, y **el build completo de los cinco
 packs**. APK armado con los núcleos nuevos.
