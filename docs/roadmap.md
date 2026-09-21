@@ -2031,8 +2031,42 @@ tres que no se construyeron esa sesión):
 construye con el mismo pipeline que el español: la poda resultó **estructural**, no del idioma
 (D-076). Pasa `verify_pack.py` entero.
 
-**Qué sigue faltando, y es lo que más importa.**
-- **El orden de resultados en inglés no se evaluó.** El proxy de `rank` está calibrado para
+✅ **MEDIDO el 2026-09-21, y la respuesta es «usable, y claramente peor que el español».**
+
+Sonda sobre el pack reconstruido, replicando el orden real de la app —`matchKind`,
+`demoteProperNoun`, `coverageBand`, `rank`— y deduplicando por `(lema, pos)`:
+
+| escribís | posición de la palabra obvia | lo que va delante |
+|---|---|---|
+| `hous` | 2 | `Hous.` (una abreviatura) |
+| `wor` | 3 | `wor`, `wor` |
+| `tim` | 5 | `TIM, Tim, TIM, Tim` |
+| `wat` | 9 | `wat` ×4, `WAT`, `Wat` |
+| `boo` | 6 | `boo` ×3, `Boo`, `-boo` |
+| `beaut` | 12 | `beaut` ×2, `beauty` ×4 |
+| `chil` · `frien` | 2 | `Child` · `Friend` |
+
+**Posición media: 5,1.** No es el `perro` en la 619 que destapó el español, pero la primera
+pantalla —tres filas— **no contiene la palabra obvia** en la mitad de los casos.
+
+⚠️ **La causa es estructural y no es el `rank`: es `coverageBand` (D-142).** Premia los lemas
+**cortos** — teclear `wat` cubre `wat` al 100 % y `water` al 60 %, así que `wat` gana la banda
+**sin importar la frecuencia**. En español apenas muerde porque hay pocos fragmentos de tres
+letras como lema; el Wiktionary inglés está lleno de ellos: interjecciones, abreviaturas, formas
+ligadas (`-boo`), siglas. Y `demoteProperNoun` **está desactivado justo en la banda 0**, que es
+donde viven, porque ahí se asume que escribiste la palabra entera.
+
+**Una mejora medida, y su límite.** Poner *«tener señal de frecuencia»* por delante de la banda
+—usando `meta.rank_signal_boundary`, que el pack declara desde D-198— baja la posición media de
+**5,1 a 3,6**. ⚠️ **Pero no resuelve el fondo**: `wat`, `boo` y `beaut` **también tienen señal**
+—son tokens reales en subtítulos— así que siguen delante. Es un 30 % de mejora, no una solución.
+
+⚠️ **No se implementó**: toca `orderFor`, que D-185 dejó explícitamente fuera de alcance, y una
+mejora parcial a la regla que protege contra packs hostiles merece decidirse con el precio sobre
+la mesa, no de paso.
+
+**Lo demás que sigue faltando.**
+- ~~El orden de resultados en inglés no se evaluó.~~ **Medido, arriba.** El proxy de `rank` está calibrado para
   verbos españoles: `forms_cap = 80` existe porque un verbo trae 137 formas, y en inglés trae
   cuatro, así que **el tope nunca muerde y `w_form` deja de discriminar**. El perfil `en` ajusta
   ese tope a 12, pero **eso es una corrección a ojo, no medida**. La verificación que falta es la
@@ -3411,10 +3445,16 @@ trade-off que necesita el número de O-1.
 
 **Estado.** Planificado, y **es el ítem que más se movió hoy, en la dirección mala**.
 
-| | antes | hoy |
-|---|---|---|
-| español | 68,3 MB | **73,6 MB** |
-| inglés | 272,4 MB | **315,5 MB** |
+| | antes | 2026-09-20 | **tras el rebuild del 2026-09-21** |
+|---|---|---|---|
+| español | 68,3 MB | 73,6 MB | **77,2 MB** (73,6 MiB) |
+| inglés | 272,4 MB | 315,9 MB | **321,7 MB** (306,8 MiB) |
+| bilingüe | — | 57,9 MB | **66,5 MB** (63,4 MiB), y ganó un idioma entero |
+
+⚠️ **Siguió moviéndose el 2026-09-21** y conviene que esté escrito: el español subió por las
+frecuencias y el bilingüe **+8,2 MB** por volverse bidireccional (D-196) — 85.505 entradas
+inglesas nuevas contra los 13,3 MiB que se ahorran vaciando `trans`. Eran costes conocidos y
+aceptados; lo que no estaba era el número.
 
 Contra un presupuesto blando de **50 MB** (D-028). Lo que lo movió: **D-141** (ninguna fuente
 pierde palabras: el inglés pasó de 794.355 a 956.150 entradas al dejar entrar los nombres
