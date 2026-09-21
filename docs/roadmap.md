@@ -134,7 +134,7 @@ son las de ahora.*
 
 | # | Qué | Por qué primero | Bloquea a |
 |---|---|---|---|
-| 1 | **Verlo en el reloj** (APK + 5 packs, ~450 MB) | Lo del 2026-09-21 se verificó **en el emulador**, que iguala la geometría y **no el hardware** (D-043). Rendimiento y batería sólo cuentan medidos en la muñeca — y la app **dibuja a ~5 fps con la pantalla quieta**, que es el mayor gasto medido y sigue sin localizar | O-1 entera, el trace de Perfetto, cualquier número de batería |
+| 1 | **Medir sobre un build de RELEASE en el reloj** | ✅ La sesión del 2026-09-21 (tarde) ya midió sobre el reloj, pero con un APK `DEBUGGABLE` que **ART nunca compiló** (`status=run-from-apk`): 2203 ms de arranque, 1401 tras forzar `verify`, contra los **500 ms del build con R8**. Todo número de rendimiento y batería que tenemos sale de ese build de debug, así que son **techos, no costes**. El redibujo en reposo quedó **confirmado en 4,0 fps** con ventana limpia, pero ya **no es el mayor gasto**: la pantalla son 33,2 mAh y toda nuestra CPU 6,05 | el número real de O-1 · verificar R8 en dispositivo · cualquier decisión de optimización |
 | 2 | **§Alinear acepciones entre fuentes** | El problema abierto más caro, con **cuatro caras**: bloquea 20.644 aportes de contenido, el espacio de equivalencias entre packs, y la pregunta de qué se muestra cuando dos packs tienen la misma palabra — hoy **se elige uno y el otro se esconde** | sinónimos/ejemplos por acepción de fuentes externas · composición entre packs |
 | 3 | **El instalador** | Los packs entran por cable con `devpack.py`. Sin catálogo no hay forma de que alguien que no seas vos instale un diccionario, y **el `sha256` del pack entero no existe**: una descarga truncada abre sin error y devuelve menos palabras | distribuir la app a cualquiera |
 
@@ -2963,15 +2963,29 @@ para que esa sesión no gaste su tiempo en redescubrir cómo se prepara.
    app** y se lleva `filesDir/packs/` — si los packs ya están, son ~450 MB de vuelta.
 3. **Instalar APK y empujar los tres packs** con `tools/devpack.py install` (nunca `adb push`:
    la copia tiene que ser atómica y con sha256, D-082).
-4. **El trace de Perfetto** del redibujo a ~5 fps. **Es el objetivo real de la sesión**: es el
-   mayor gasto medido y no es diagnosticable desde el código — `CircularProgressIndicator` sólo
-   vive en la pantalla de carga y el spec de `TransformingLazyColumn` depende del scroll.
+4. **El trace de Perfetto** del redibujo en reposo. ⚠️ **Ya no es el objetivo principal**: el
+   redibujo está **confirmado en 4,0 fps** (ventana con `mWakefulness=Awake` y `InputEventId == 0`
+   en todos los frames), pero la batería lo desclasificó — **33,2 mAh de pantalla contra 6,05 de
+   toda nuestra CPU**. Se arregla por corrección, no por batería. Lo que sí acotó la medición: el
+   layout cuesta **0,09 ms** y la recomposición **3,87 ms**, los frames vienen en ráfagas de 60 fps
+   y no en un tick parejo, y **el código de `:app` no tiene ni una animación ni un ticker** — el
+   sospechoso es Wear Compose M3 1.6.x (`ScreenScaffold`, el transform de `TransformingLazyColumn`,
+   o el `TimeText` que ese scaffold superpone).
 5. **Los dos tiles**, que están **construidos y nunca vistos** en hardware. Mirar además el
    `bottomSlot` nuevo (buscar) y la palabra del día con su acepción.
 6. **Medir el chrome del tile** para cerrar el *breakpoint* de 225 dp: hoy se topa en 3 filas y
    se niega a crecer porque ese número no está medido.
 7. **R8 en release**: encendido desde D-163 y **sin verificar en dispositivo**. Lo que rompe, lo
-   rompe sólo en release y sin error de compilación.
+   rompe sólo en release y sin error de compilación. ⚠️ **Y ahora se sabe que es peor que eso**: el
+   APK que se sideloadea es `DEBUGGABLE`, y ART **nunca compila AOT un paquete debuggable** —
+   `cmd package compile -m speed -f` contesta `Success` y el estado aterriza en `verify`. Así que
+   además de R8, falta **el AOT**: ninguna cifra de rendimiento tomada por `devpack`/`adb install`
+   del APK de debug representa lo que corre un usuario. Instalar el release exige el keystore, que
+   vive fuera del repo con su ruta en `local.properties`.
+8. **Antes de medir arranque, mirar `dumpsys package dexopt`.** Si dice `run-from-apk`, la cifra
+   trae **~800 ms** de verificación de dex que no existen en régimen. Y si se corrió
+   `cmd package compile`, el estado **persiste** y sesga la medición siguiente: se revierte con
+   `cmd package compile --reset cl.fadiaz.dictionary`.
 
 #### Las trampas, medidas en esta sesión
 
@@ -3584,7 +3598,11 @@ decisión**: sólo se usó para anotar que se incumplía. Y medía lo que no due
 
 **Lo que lo reemplaza**, atado a mediciones que ya existen:
 1. **El arranque en frío** — 500 ms con 372,6 MB abiertos. Un pack nuevo no puede empeorarlo sin
-   medirlo: eso sí lo siente quien levanta la muñeca.
+   medirlo: eso sí lo siente quien levanta la muñeca. ⚠️ **Ese número es de un build de release con
+   R8 y dos packs.** El 2026-09-21 (tarde), con un APK de debug y 444 MB en tres packs, el mismo
+   arranque dio **2203 ms** (`status=run-from-apk`) y **1401 ms** tras forzar la verificación. No
+   es una regresión: son dos mediciones distintas. **El límite sigue apoyado en el número de
+   release, y re-medirlo sobre release es un ítem abierto.**
 2. **El núcleo dentro del APK** — 17,1 MiB de los 66. Límite **duro**: lo que viaja en el APK se
    descarga aunque no se use.
 

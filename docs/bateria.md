@@ -269,12 +269,138 @@ above is not contaminated, and it is the one that matters.
 | **R8 runs** (D-163) | App launches, survives, no `FATAL`. **Both packs open**, both words of the day render. The SQLite JNI driver crosses fine |
 | **Tile declarations survive R8** | The package manager resolves `.tile.HistoryTileService` and `.tile.WordOfTheDayTileService` by their original names. **Rendering still unseen**: adding a tile is a user gesture |
 | **The app language works end to end** (D-158) | `cmd locale set-app-locales … es` flipped the UI to Spanish and **persisted across force-stop**. This is `localeConfig` doing its job — the hole found the same day |
-| **Startup** | **500 ms cold, 278 ms warm**, with 372.6 MB of packs open. First startup number this project has |
+| **Startup** | **500 ms cold, 278 ms warm**, with 372.6 MB of packs open. First startup number this project has. ⚠️ **Release build with R8, two packs** — the second session measured 1401–2203 ms on a *debug* build with 444 MB in three packs, which is not the same measurement |
 
 ⚠️ **What could NOT be driven from `adb`**: the search field does not take focus from a synthetic
 tap, so the cross-language fallback (D-168) and the tappable synonyms (D-169) stayed unverified.
 The repo already knew this shape — D-093 pinned espresso 3.7.0 over input injection on this API
 level. Navigation taps do work; text entry does not.
+
+---
+
+## What the watch said on the second session (2026-09-21, evening)
+
+A **read-only** session: `dumpsys`, `logcat` and `am start -W`. No input was injected and the app
+was never driven — the user held the watch. Three packs installed (`es-def-wikc` 306.8 MiB,
+`es-tr-enwikt` 73.6 MiB, `en-def-wikt` 63.4 MiB = **444 MB**), schema 4, bidirectional.
+
+⚠️ **Everything below was measured on a `DEBUGGABLE` APK**, which is not what users run. See
+*The APK on the watch was never compiled* below. It bounds the CPU figures from above: a release
+build can only be cheaper.
+
+### The split, over 2 hours on battery
+
+`dumpsys batterystats --charged`, watch at 60 %, 3960 mV, 32.9 °C, capacity 3498 mAh,
+computed drain **220 mAh**.
+
+| | mAh | of our own | of the watch |
+|---|---|---|---|
+| **The app** (`u0a225`) | **39.2** | 100 % | **17.8 %** |
+| screen | 33.2 | **85 %** | 15.1 % |
+| CPU, everything | 6.05 | 15 % | **2.75 %** |
+| ├ foreground | 3.53 (27 m 49 s) | 9 % | |
+| ├ background | 1.66 | 4 % | |
+| └ cached | 0.858 | 2 % | |
+
+⚠️ **This overturns "screen and CPU are roughly equal"** from the earlier window on this page. That
+window was contaminated by ~12 `uiautomator dump` calls, and the page said so. Clean, over two
+hours, the ratio is **5.5 : 1 in favour of the screen** — and this is the *debug* build, so the CPU
+side is overstated.
+
+The watch's screen was on 1 h 29 m 42 s (8.9 %, 66 wakes). Our 27 m 49 s of foreground is **31 % of
+the watch's entire screen time** — so per minute on screen the app is *cheaper* than the watch
+average (31 % of the screen time, 17.8 % of the drain).
+
+### How long a lookup lasts: 73 s
+
+From the `dumpsys power` screen history, pairing `ON`→`OFF` **on consecutive indices of the global
+series** (filtering by package first and pairing afterwards invents intervals — it produced a
+bogus 113.9 min tramo): 7 countable stretches, 18.8 min, **median 73 s**, all ended by `timeout`,
+all started by `WAKE_REASON_WAKE_MOTION`.
+
+That is the number the UI should be designed against: a wrist raised for a bit over a minute.
+
+### The idle redraw, reproduced independently
+
+Confirmed, on a different build and a different pack set from the 142-frames measurement above.
+
+**With a validity criterion**, which is what makes it worth anything: a window counts only if
+`mWakefulness=Awake` throughout *and* **every frame has `InputEventId == 0`**. Of 16 windows, 15
+were discarded — the user's taps produce 60 fps bursts, and an earlier run mixed them in and
+produced a meaningless "22 fps".
+
+| | |
+|---|---|
+| The one clean window | **20 frames in 5 s = 4.0 fps**, zero input, screen awake |
+| What a static screen should render | **0** |
+
+So the ~5 fps of the earlier session is real and is not an artefact.
+
+### But the per-frame cost is healthy, and that relocates the problem
+
+`gfxinfo framestats` phases, median over 120 frames:
+
+| phase | median | p90 |
+|---|---|---|
+| `AnimationStart` → `PerformTraversalsStart` (animation + **recomposition**) | 3.87 ms | 9.94 ms |
+| `PerformTraversalsStart` → `DrawStart` (measure + layout) | **0.09 ms** | 0.16 ms |
+| `IntendedVsync` → `DrawStart` (all CPU) | **5.49 ms** | of a 16.67 ms budget |
+
+Jank 10.69 % (the modern metric; the 97.14 % "legacy" figure measures something else).
+
+**Layout costs nothing; the cost is recomposition.** And the frames arrive in 60 fps bursts
+separated by gaps, not as an even tick — consistent with an animation with a cycle, not with a
+per-frame invalidation.
+
+**Two candidate classes were eliminated from the code**, not guessed: `app/src/main/java` contains
+**zero** `rememberInfiniteTransition`, `infiniteRepeatable`, `withFrameNanos`, `while (true)`,
+`delay(`, placeholder or shimmer usages, and zero `animate*`/`Transition`/`Crossfade`/
+`AnimatedVisibility`. Whatever ticks belongs to Wear Compose M3 1.6.x — `ScreenScaffold`, the
+`TransformingLazyColumn` transform, or the `TimeText` that scaffold overlays.
+
+### The APK on the watch was never compiled
+
+`dumpsys package dexopt` → `arm: [status=run-from-apk] [reason=unknown]`. ART was running the app
+**straight from the APK**, interpreted, with no AOT at all.
+
+| condition | launches (`am start -W`, `TotalTime`) | mean |
+|---|---|---|
+| as installed (`run-from-apk`) | 2234 · 2159 · 2199 · 2173 · 2252 | **2203 ms** |
+| after `cmd package compile -m speed -f` (`verify`) | 1407 · 1354 · 1442 | **1401 ms** |
+
+**802 ms (36 %) were being paid to verify the dex during load.**
+
+⚠️ **And `speed` was refused**: the command answered `Success` and the state landed on **`verify`**,
+because ART never AOT-compiles a `DEBUGGABLE` package — the debugger needs deoptimizable code.
+
+⚠️ **So the 500 ms / 278 ms above is not contradicted, it is not comparable**: it was measured on a
+**release build with R8** (D-163) and **372.6 MB in two packs**. This one is a debug build with
+444 MB in three. Two axes differ. The O-1 constraint of D-207 still rests on the release number,
+and **re-measuring it on a release build is now an open item**.
+
+⚠️ Device state left changed: the watch now holds the app at `verify` instead of `run-from-apk`.
+Reversible with `cmd package compile --reset cl.fadiaz.dictionary`. Worth leaving — it is 800 ms
+free — but it *will* skew the next startup measurement if forgotten.
+
+### Idle cost: zero, and the OS enforces it
+
+| | |
+|---|---|
+| `ServiceRecord` | **0** |
+| wakelocks | **0** — the 17 mentions in `dumpsys power` are the screen history, not wakelocks |
+| jobs | **0** (`debit tally: 0`, `NOT active`) |
+| process state | `cch-rec`, **`t: 0`** — cached, zero activities |
+| the system's own verdict | `FZ : cl.fadiaz.dictionary [cached:O] reason: Bg` — Samsung's *Freecess* **freezes** it |
+| PSS while cached | 69.4 MB, **`Graphics: 0`** |
+| errors | **zero** lines of level E or F from our pid; the `crash` buffer is empty |
+
+`Graphics: 0` is also why `dumpsys gfxinfo` fails outright on a backgrounded app: with no visible
+surface there is no `ViewRootImpl`, and the frame counters live there. The failure is not a bug in
+the dump.
+
+This is the measured confirmation of D-201: the activity is destroyed on leaving
+(`Remove` → `destroyed` → `onLayerDestroyed` in `SurfaceFlinger`), the process survives cached, and
+it costs nothing.
 
 ---
 
@@ -418,11 +544,24 @@ it says why.
 It ran, and the answer was not the one this plan assumed: **screen and CPU are roughly equal**, and
 the app redraws ~5 times a second while idle. Which promotes a brand-new item to the top.
 
-### 1b. Find out why it draws when nothing changes — **now the biggest lever**
+### 1b. Find out why it draws when nothing changes — real, but **not** the biggest lever
 
-~5 fps on a static screen, **3.6 % of a core for as long as the app is open**. Every other item on
-this list is about shortening how long the screen is on; this one is about not burning CPU while it
-is. Localising it needs a Perfetto trace with the `view` and `graphics` categories, on the watch.
+⚠️ **This heading used to say "now the biggest lever" and the second watch session disproved it.**
+The claim rested on a window that showed screen and CPU as roughly equal; that window was
+contaminated and the page said so. Measured clean over two hours: **the screen is 33.2 mAh and all
+our CPU is 6.05 mAh** — 85 % against 15 % of our own drain, 2.75 % of the watch's. Fixing the
+redraw can recover **at most 6.05 mAh**, and that ceiling is itself inflated, because it was
+measured on a debug build that ART never compiled.
+
+**The defect is confirmed** — 4.0 fps on a clean, input-free window — and worth fixing for
+correctness. It is simply not where the battery goes. The items about shortening how long the
+screen is on are worth more, because the screen is 5.5× the CPU.
+
+And the frame data narrows it: **layout costs 0.09 ms and recomposition 3.87 ms**, the frames come
+in 60 fps bursts rather than an even tick, and the app's own code contains no animation or ticker
+at all. The suspect is Wear Compose M3 1.6.x — `ScreenScaffold`, the `TransformingLazyColumn`
+transform, or the `TimeText` overlay. Localising it needs a Perfetto trace with the `view` and
+`graphics` categories, on the watch.
 
 ⚠️ **And it is the one item where the Compose report actively misled**: all 21 composables are
 skippable, which says nothing about how often their state is invalidated.

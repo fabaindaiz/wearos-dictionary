@@ -26,6 +26,81 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Sesión de reloj, sólo lectura: la batería reordena el roadmap y el APK no estaba compilado
+**Qué.** Sesión de **debug puro sobre el reloj** —`dumpsys`, `logcat`, `am start -W`, sin inyectar
+entrada ni navegar la app— pedida así explícitamente: *«quiero que todas las pruebas directamente
+con el reloj sean más de carácter debug, ver logs o obtener parámetros»*. Antes se instaló el APK
+y se empujaron los tres packs de schema 4 (306,8 + 73,6 + 63,4 = **444 MB**) con sha256 verificado.
+No cambia código: cambia **`docs/bateria.md`** (sección nueva con todo lo medido, §1b corregida) y
+**`docs/roadmap.md`** (la prioridad 1, el objetivo de la sesión de reloj, el límite O-1 y la
+checklist).
+
+**Áreas.** `docs/bateria.md`, `docs/roadmap.md`.
+
+**Por qué.** El repo tenía dos creencias apoyadas en mediciones frágiles: que el redibujo en reposo
+era *«el mayor gasto medido»* y que el arranque en frío eran 500 ms. La primera venía de una
+ventana que el propio documento declaraba contaminada; la segunda, de un build distinto al que está
+puesto. Las dos gobernaban decisiones (la §1b del plan de acción, y el límite O-1 que reemplazó al
+presupuesto de 50 MB en D-207).
+
+**Arquitectura.** ✅ Cumple. Nada de código. Respeta D-043 (rendimiento sólo en la muñeca) y la
+política de que el reloj da datos, no pruebas funcionales.
+
+**Medido.**
+- **Batería, 2 h, 220 mAh de consumo computado.** App = **39,2 mAh = 17,8 % del reloj**. Dentro:
+  **pantalla 33,2 (85 %)**, CPU total **6,05 (15 %, y 2,75 % del reloj)**. ⚠️ **Esto derriba el
+  «screen and CPU are roughly equal»** de `bateria.md`: la razón limpia es **5,5 : 1**.
+- **Tiempo de pantalla.** El reloj estuvo 1 h 29 m 42 s encendido; nuestros 27 m 49 s son el **31 %**.
+  O sea: 31 % del tiempo de pantalla y 17,8 % del consumo — por minuto encendido somos **más
+  baratos** que el promedio del reloj.
+- **Cuánto dura una consulta: mediana 73 s**, 7 tramos, todos terminados por `timeout` y empezados
+  por `WAKE_REASON_WAKE_MOTION`. Es el número contra el que hay que diseñar la UI.
+- **Redibujo en reposo: 4,0 fps** (20 frames en 5 s) — **confirmado**, en otro build y otro juego
+  de packs que los 142/30 s anteriores. Pero **con criterio de validez**: sólo cuenta la ventana con
+  `mWakefulness=Awake` y `InputEventId == 0` en **todos** los frames. De 16 ventanas, 15 descartadas.
+- **Coste por frame, sano:** vsync→DrawStart **5,49 ms** de 16,67 de presupuesto; recomposición
+  **3,87 ms**, layout **0,09 ms**. Los frames vienen en **ráfagas de 60 fps**, no en tick parejo.
+- **Arranque: `status=run-from-apk`** — ART ejecutaba el APK **sin compilar nada**. 2234·2159·2199·
+  2173·2252 = **2203 ms**; tras `cmd package compile` (que aterriza en `verify`, no en `speed`),
+  1407·1354·1442 = **1401 ms**. **802 ms (36 %)** eran verificación de dex en la carga.
+- **Coste en reposo: cero.** 0 servicios, 0 wakelocks, 0 jobs, proceso `cch-rec` con `t: 0`, y el
+  sistema lo **congela** (`FZ : … reason: Bg`). 69,4 MB PSS con `Graphics: 0`. Cero líneas de nivel
+  E o F de nuestro pid; buffer `crash` vacío. Confirma D-201 medido.
+
+**Qué salió mal.** Cinco errores, todos de método y todos atrapados por una verificación, no por
+suerte:
+1. ⚠️ **Medí "redibujo en reposo" mientras el usuario tocaba el reloj.** Primer número: 22 fps;
+   segundo: 6 fps. Los dos contaminados — `InputEventId != 0` en el **25 %** de los frames. La
+   columna que lo delata venía en `framestats` desde el principio; lo que faltaba era **descartar**
+   la ventana. Con el criterio puesto, 15 de 16 ventanas se cayeron.
+2. ⚠️ **Inventé un tramo de pantalla de 113,9 min.** Filtré el historial de `dumpsys power` por
+   nuestro paquete y **después** emparejé `ON`→`OFF`, uniendo eventos separados por 22 transiciones
+   de otras apps. Los índices `[21]`, `[22]`… están justamente para eso: hay que emparejar sobre la
+   serie global exigiendo índices consecutivos. Real: 18,8 min en 7 tramos.
+3. ⚠️ **Reporté "46 líneas de error" que eran mis propios comandos.** `grep -E "E .*fadiaz"` matchea
+   `adbd service requested … dumpsys … cl.fadiaz.dictionary`. Filtrando por **nivel** (`-v
+   threadtime`, `$6=="E"`) y por pid: **cero**. Y existe `logcat -b crash`, que es un buffer aparte.
+4. ⚠️ **Parseé `framestats` por la columna equivocada** — usé `FrameTimelineVsyncId`, que es un
+   **identificador**, como si fuera un timestamp, y salieron intervalos de 0,0 ms. El timestamp es
+   `IntendedVsync`, la tercera. Los intervalos imposibles fueron lo que lo delató.
+5. ⚠️ **Corrí 10 ventanas contra un reloj desconectado** y las 10 salieron "descartadas" con razón
+   **vacía**. El mismo modo de fallo que ya está anotado para `connectedAndroidTest`: el comando no
+   falla, devuelve nada. El criterio de validez lo volvió visible; sin él habría reportado ceros.
+
+**Qué quedó sin hacer.**
+- **El reloj se desconectó** y no volvió (`adb reconnect` no encuentra nada). La depuración
+  inalámbrica de Wear OS se cae sola; el puerto cambia en cada sesión y hay que pedirlo.
+- **Reproducir los 4,0 fps con más de una ventana limpia.** Hoy el número se apoya en **una**.
+- **Medir sobre un build de RELEASE.** Es ahora el ítem que bloquea a los demás: todo lo medido
+  sale de un APK `DEBUGGABLE` que ART no compila. Exige el keystore, fuera del repo.
+- **Aislar el componente** del tick: abrir una pantalla sin `TransformingLazyColumn` y comparar.
+- ⚠️ **El reloj quedó con el estado de ART cambiado** (`verify` en vez de `run-from-apk`) por el
+  `cmd package compile` que corrí. Persiste y sesga la próxima medición de arranque. Se revierte
+  con `cmd package compile --reset cl.fadiaz.dictionary`.
+- Sigue sin empujar `9b4016e` y los tiles siguen **construidos y nunca vistos** en hardware.
+
+---
+
 ## 2026-09-21 — CIERRE: build completo verificado en el emulador, y un hallazgo del propio cierre
 **Qué.** Verificación de cierre con **los cinco packs cargados** (461 MiB) en el emulador con la
 geometría del reloj, más un arreglo que salió de esa misma verificación (D-211).
