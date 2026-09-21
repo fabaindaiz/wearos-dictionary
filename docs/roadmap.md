@@ -233,6 +233,61 @@ cobró, y lo que queda —recalibrar el proxy, o cruzar un corpus de frecuencias
 ahora lo que más separa al diccionario de ser bueno. Sigue esperando el número de O-1 para saber
 cuánto presupuesto de latencia hay para gastar.
 
+### El orden de las acepciones dentro de una ficha — PLANIFICADO 2026-09-21
+
+**Estado.** **Diseñado, no construido.** Pedido explícitamente como planificación: *«también me
+interesa explorar el reordenado de acepciones pero esto solo quiero planificarlo y dejarlo en
+roadmap»*.
+
+**El problema.** Las acepciones se muestran **en el orden del volcado**, que es el del Wiktionary,
+y la ficha pliega a partir de la cuarta (`VISIBLE_SENSES = 3`). Así que en toda entrada con más de
+tres acepciones, **cuáles se ven las decide una fuente que no ordenó por uso**.
+
+**Cuánto importa, medido sobre el pack español real (152.281 entradas):**
+
+| Universo | n | acepciones de media | con más de 1 | **con más de 3 (se pliegan)** |
+|---|---|---|---|---|
+| Todas las entradas | 152.281 | 1,38 | 18,6 % | 4,2 % |
+| Con señal de frecuencia (`rank < 500`) | 28.575 | 2,19 | 45,7 % | 15,4 % |
+| **Las 2.000 más comunes** | 2.000 | **3,58** | 60,4 % | **32,9 %** |
+
+⚠️ **El promedio por entrada engaña y por eso está la tercera fila.** Sobre el catálogo entero el
+problema parece marginal —4,2 %—; sobre lo que alguien busca de verdad, **un tercio de las
+entradas tiene acepciones escondidas** detrás de un `Ver más` que hay que tocar. Es el mismo error
+de muestreo que ya costó una sesión: comparar el pack real contra una muestra de 1/12 y leer el
+resultado como una regresión.
+
+**Lo que NO hace falta, y es la conclusión que lo hace barato.** Las señales candidatas ya están
+todas en el payload, porque el builder ya las escribe por acepción:
+
+- `E` — si la fuente la ilustró con un ejemplo. Una acepción con ejemplo es una acepción en uso;
+- `T` — si tiene traducción propia (D-117: sólo entra la que la fuente atribuyó);
+- `Y` / `A` / `R` — sinónimos, antónimos, relacionadas;
+- el largo de la glosa, y el orden de la fuente como prior débil.
+
+**Así que esto es un cambio puro de `:app` y no toca el formato del pack ni obliga a reconstruir
+nada.** Eso es lo que permite aplazarlo sin costo, que es justo lo que no pasaba con
+`meta.rank_basis` — ese sí había que decidirlo antes del build o no existía.
+
+**La única señal que SÍ exigiría tocar el pack** es una frecuencia **por acepción** —qué acepción
+de `banco` se usa más—, que necesita un corpus anotado por sentido. Hoy no tenemos fuente para eso
+(§Alinear acepciones entre fuentes), y si alguna vez la hay, entra como un campo nuevo del payload:
+una etiqueta nueva no sube `CODEC_ID` porque las desconocidas se ignoran por diseño (D-119). **O
+sea: tampoco esa obliga a decidir ahora.**
+
+**Riesgo que hay que medir antes de construirlo, no después.** Reordenar acepciones rompe la
+correspondencia entre el número que se dibuja (`1.`, `2.`) y el orden de la fuente. Eso no es
+cosmético: `sense_code` **no** depende de la posición (D-117), así que los enlaces aguantan; pero
+una captura, una cita o la memoria del usuario —«la acepción 2 de *banco*»— dejan de valer entre
+versiones del pack. La salida probable es **ordenar sin renumerar**, mostrando el número de la
+fuente.
+
+**Cómo se verificaría.** Igual que el orden de resultados: una sonda descartable sobre el pack
+real con lemas comunes y varias acepciones (`banco`, `carta`, `pie`, `tiempo`), impresa y leída a
+ojo, **antes** de escribir la regla. Sin eso se estaría ratificando el orden que el código
+produzca.
+
+
 ### La calidad del contenido del pack español
 
 **Estado.** **En gran parte hecho** (2026-09-20). De una sola fuente se pasó a **cuatro**, y lo
@@ -1770,6 +1825,62 @@ question, and D-136 lets both coexist whenever it is answered.
    second thing is the one wanted before spending the MB.
 
 
+### Un botón para filtrar sólo las palabras con traducción — MEDIDO Y APLAZADO 2026-09-21
+
+**Estado.** **No construido, a propósito.** Pedido como *«un botón que muestre u oculte las
+palabras que tienen traducción de algún tipo»*, con la condición que lo decidió: *«es solo por si
+es que hubieran muchas palabras sin traducción»*. **Se midió, y no las hay donde el botón
+serviría.**
+
+**La medición que lo aplazó.** Lo que importa no es cuántas entradas del catálogo tienen
+traducción, sino **cuántas de las ~30 filas que se ven en pantalla** la tienen. Sonda sobre los
+packs reales, 20 prefijos comunes, aproximando la cascada —peldaño de prefijo, mezcla ordinal,
+dedupe por `(lema, pos)`, corte en 30—:
+
+| Idioma activo | Filas con traducción | |
+|---|---|---|
+| **ES** (`es-def-wikc` + `es-tr-enwikt`) | **396 / 600 = 66,0 %** | el filtro esconde 1 de cada 3 |
+| **EN** (`en-def-wikt`) | **38 / 600 = 6,3 %** | el filtro dejaría **2 filas de 30** |
+
+⚠️ **El botón falla en los dos extremos y por razones opuestas.** Con español **no hace falta**:
+dos de cada tres filas ya califican. Con inglés **no puede**: vaciaría la pantalla, y un filtro
+que deja dos filas no informa, hace parecer que el diccionario está roto.
+
+⚠️ **Y el porcentaje de catálogo habría dado la respuesta contraria**: el pack español tiene
+traducción en el **14,8 %** de sus 152.281 entradas, lo que sugiere que faltan muchísimas. Pero
+las que faltan son las raras, y la lista de resultados muestra las comunes. Es el mismo error de
+muestreo que ya costó una sesión — ver §El orden de las acepciones dentro de una ficha.
+
+**Lo que lo haría valer.** No es trabajo de UI: es **contenido**. El pack inglés tiene traducción
+en el **0,5 %** de sus entradas (4.689 de 956.150) porque **no existe el bilingüe inverso
+`en-es`**. Construido ése, el inglés pasaría a parecerse al español y ahí el botón tendría algo
+que filtrar. **Ésa es la precondición; el botón es el postre.**
+
+**Cómo se construiría, ya medido, para no re-derivarlo.** El predicado es «el payload tiene una
+etiqueta `T` o `W`», que es **exactamente lo que la ficha dibuja**, así que no puede discrepar de
+lo que el usuario ve:
+
+- **Descomprimir los 30 payloads del resultado cuesta 3,1–3,9 ms** sobre los packs reales, y
+  **sólo se paga con el filtro encendido**.
+- ⚠️ **La alternativa obvia —consultar la tabla `trans`— es peor por dos motivos medidos.** Es
+  más lenta: su PK es `(norm, entry_id)`, así que preguntar por `entry_id` **escanea la tabla
+  entera** —21,3 ms para 474.849 filas, 6× el coste del payload— y haría falta un índice nuevo,
+  o sea **reconstruir los packs**. Y es **incorrecta**: `trans` nunca sobre-afirma (0 casos) pero
+  **se queda corta en 2.032 entradas** del pack bilingüe, porque el builder descartó 26.329 claves
+  de búsqueda (`meta.trans_dropped`). Filtrar por ahí escondería 2.032 palabras que sí tienen
+  traducción, **en silencio**.
+- El método iría en `DictionarySource` **sin implementación por defecto**, como `resolveHeadwords`
+  y por el mismo motivo: olvidarlo dejaría el filtro devolviendo cualquier cosa sin dar error.
+- El ícono va como **vector drawable propio**, no con `material-icons-extended`: `Translate` no
+  está en `material-icons-core`, que es lo único que este APK enlaza, y traer la librería
+  extendida por un ícono en un reloj con R8 desactivado no se paga.
+
+**Qué falta decidir antes de construirlo.** Si «activado» significa *mostrar sólo las que tienen
+traducción* (semántica de filtro, la que se asumió al medir) o *esconderlas*. La segunda dejaría
+la app por defecto sin las palabras traducibles, así que probablemente es la primera — pero está
+sin confirmar.
+
+
 ## Aplicación
 
 ### Conectar `:app` a `:dict-data`
@@ -2162,6 +2273,10 @@ El modelo mental que ordena todo, y que costó tres decisiones descubrir:
 
 - ✅ **Desambiguar el origen**: la fila dice la **fuente** cuando hay dos diccionarios del idioma
   activo, y el idioma cuando alcanza.
+  ⚠️ **Superado por D-190 (2026-09-21)**: la etiqueta pasó a ser **siempre el idioma**. La sigla
+  no se entiende sin conocer el `pack_id`, y de qué pack salió una fila es una pregunta de
+  catálogo que tiene su propia pantalla. La ficha ahora también lleva la etiqueta, que es donde
+  de verdad hacía falta: saltando por una traducción se llega a una entrada de otro idioma.
 - ✅ **Una palabra del día por idioma**, no por pack.
 - ✅ **La atribución ya era correcta**: la pantalla itera **todos** los packs abiertos, no el
   activo. El plan afirmaba lo contrario y estaba equivocado — se verificó antes de "arreglarlo".
@@ -2315,8 +2430,8 @@ conviene saber qué parte es cuál.
 3. **Deduplica por `(lema, tipo)`** antes de recortar a 30: dos packs que tengan `casa · sust.`
    producen **una** fila, no dos. Eso ya está probado —`el mismo lema de dos packs sale UNA
    vez`— y el criterio de cuál gana es el orden completo, no el azar.
-4. Cada fila lleva su `packId`, y la etiqueta de la fila dice la **fuente** cuando hay dos
-   diccionarios del idioma activo (D-151).
+4. Cada fila lleva su `packId`, y la etiqueta de la fila dice **el idioma** (D-190, que
+   revirtió D-151).
 
 **O sea que «duplicarse en las queries» no es el problema: el problema es el trabajo de más.**
 Con el completo instalado, consultar además el núcleo es preguntar dos veces por un subconjunto —
