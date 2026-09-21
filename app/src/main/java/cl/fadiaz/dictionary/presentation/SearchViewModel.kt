@@ -314,8 +314,9 @@ class SearchViewModel(
         // ⚠️ **No se consulta todo lo instalado, y ésa es la diferencia.** `packsToQuery` saca
         // los builds viejos de un mismo diccionario y los packs que otro contiene; Ajustes sigue
         // viendo la lista entera, porque lo que no se consulta igual ocupa disco y hay que poder
-        // borrarlo. El activo entra siempre: si el usuario lo eligió, se le pregunta.
         val consultables = packsToQuery(opened)
+        // El activo ya viene de `activePack`, o sea de estas mismas reglas, así que está en la
+        // lista. Se pone primero porque en un empate exacto gana el que el usuario eligió.
         val mismoIdioma = consultables.filter {
             it !== active && it.metadata.langSource == idioma
         }
@@ -324,7 +325,9 @@ class SearchViewModel(
     }
 
     fun onPackChange(packId: String) {
-        val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
+        // Entre los que se consultan, no entre los abiertos: tocar el chip de un idioma no puede
+        // activar un build viejo que la selección ya descartó.
+        val pack = packsToQuery(opened).firstOrNull { it.metadata.packId == packId } ?: return
         // The combine is going to repeat the prefix query on the new pack and would overwrite the
         // definition results anyway: better to leave the mode explicitly than leave the race open.
         leaveDefinitionMode()
