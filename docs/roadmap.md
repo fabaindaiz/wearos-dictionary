@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **272 tests**) están completos y en el gate, junto con los **284 JVM
-de `:app`** y **26 checks** de auditoría estructural — **668 tests en total**. Los **43
+pipeline de packs (`tools/`, **283 tests**) están completos y en el gate, junto con los **284 JVM
+de `:app`** y **26 checks** de auditoría estructural — **679 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1421,8 +1421,8 @@ ordinal and immune to a badly calibrated pack — and it lives in a comment insi
 
 ### An English–Spanish translation pack: one pack or two?
 
-**Status.** Researched 2026-09-21, **nothing built**. The question was whether one pack serves
-both directions.
+**Status.** ✅ **Built 2026-09-21 (D-177).** The question was whether one pack serves both
+directions; the first measurement said no and was measuring the wrong thing.
 
 **Structurally, one pack does serve both.** The schema already has `trans` — `norm, entry_id` —
 which is exactly a reverse index: an entry can be reached by a word in the *other* language, and
@@ -1443,14 +1443,39 @@ senses**:
 Examples of each: `gratis → free, without charge` against `pie → foot (a part of the body)` and
 `pies → second-person singular voseo present subjunctive`.
 
-**So a derived reverse index would cover about one concept in eight.** That is not a dictionary in
-that direction; it is a lottery, and worse than not offering it — the same reasoning as D-126,
-where a wrong synonym is worse than a missing one.
+⚠️ **That number was the wrong one, and building it showed why.** 11.7 % counts *senses whose
+whole gloss* is a clean translation. What the reverse index needs is far weaker: **one usable term
+from any sense of an entry**. Measured again over the records the builder actually emits:
+**87.6 % of entries get at least one translation key**, 2.3 keys each.
 
-**Recommendation: two packs, one per direction**, each built from a source *authored* in that
-direction — the English Wiktionary's Spanish section for ES→EN (downloaded), and the Spanish
-Wiktionary's English section for EN→ES (not downloaded). They coexist at zero cost: D-136 already
-searches every pack of the active language, and D-171 already decides which packs answer.
+So the recommendation flipped, and **one pack does serve both directions** — see D-177, built.
+Spot-checked against the real pack: `hammer → martillo`, `pepper → ají, pimentón, pimiento`,
+`scaffold → andamio, cadalso`.
+
+#### ⚠️ The bilingual pack made an ordering bug impossible to ignore
+
+Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
+number is blunt: searching **`house` returns `solar, alojar, albergar, domiciliar` and `casa` is
+nowhere near the top**. `dog` puts `perro` fourth, behind `encalzar` and `uña de gato`.
+
+It is **not** a coverage bug — `casa` does carry `house` as a key. It is `rank`: 993 for `casa`
+against **911 for `solar`**, and lower means more common. `rank` measures **page richness in the
+dump** (D-063), and in the English Wiktionary's Spanish section `solar` has a longer page than
+`casa`.
+
+The forward direction hides this, because the coverage band puts the word you typed on top
+(D-142). The reverse direction has no such anchor: every candidate for `house` is an exact hit on
+the key, so **`rank` decides alone** and it is deciding badly.
+
+⚠️ **And the signal that would fix it already exists and is already measured**: `tatoeba.frequencies`
+ranks Spanish words by real usage — it is what chose the core packs' vocabulary, where `casa` is in
+the top and `solar` is not. Wiring it into `rank` is a change to D-063 and needs its own
+measurement, which is why it is written here and not done.
+
+**A second pack is still worth considering, but for a different reason than coverage**: what
+ES→EN cannot give is an English *entry*. Searching `dog` finds the Spanish words that mean it; it
+never shows you an English headword with its own senses. Whether that matters is a product
+question, and D-136 lets both coexist whenever it is answered.
 
 **Two things to settle before building either:**
 
