@@ -347,6 +347,104 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+### Naming a sense from another pack: the reference, and the two modes — designed 2026-09-21
+
+Asked as: *«¿hay alguna forma fácil o correcta de enlazar inequívocamente con una palabra y
+acepción específica, para declararlo así en el pack de traducción?»*, with the degradation stated:
+**no definitions pack → list mode; definitions pack present → per sense where there is a
+reference, and the rest as a list.**
+
+There is a correct way, the degradation needs no special mode, and there is one structural
+constraint that decides which packs can use it at all.
+
+#### The reference: a digest of the target's gloss
+
+    sense_ref = h(entry_uid, norm(gloss))
+
+⚠️ **Its virtue is not uniqueness, it is that the reader can verify it against the referenced
+pack's own bytes** — which is exactly what D-142 did for `norm_version`: the app recomputes the
+digests of the entry's senses and looks for the one named. A reference that resolves **is** proof
+that it points where it claims. **No version negotiation, no trust.**
+
+Measured over the 152,281 entries of the real Spanish pack: **22 senses out of 210,249 collide
+with another sense of the same entry — 0.0105 %**, and reading them shows they are genuine
+duplicate glosses in the wiki (`granadino` defines the same thing twice). A collision attaches the
+term to two senses whose text is identical, which is harmless.
+
+**Why not the alternatives**, all of them measured rather than reasoned about:
+
+| candidate | why not |
+|---|---|
+| **sense ordinal** | Breaks on every insert or reorder, and breaks **all-or-nothing**: everything after the first inserted sense shifts. The gloss digest degrades *partially* — a rebuild that edits 5 % of glosses loses 5 % of references and the rest keep working |
+| **the source's `sense_index`** | Only meaningful inside one wiki edition. `es-def-wikc` comes from the **Spanish** Wiktionary and `es-tr-enwikt` from the **English** one; their numbering has nothing to do with each other |
+| **WordNet synset** | Measured: 0.6 % of Spanish synset ids survive into OEWN 2024, and four of five that do are collisions |
+| **Wikidata `P5137`** | Real and CC0, on 30.3 % of Spanish lexeme senses — but the labels live in a >100 GB items dump |
+
+#### ⚠️ The constraint that splits translation packs into two classes
+
+A digest of the target's gloss can only be written by a builder that **has seen that gloss**. That
+is not a detail, it decides which packs can ever carry sense references:
+
+- **Derived packs can.** A translation pack built *from* the definitions pack — the way
+  `build_core.py` derives the core, and for the same reason: *«derivándolo eso es cierto POR
+  CONSTRUCCIÓN»* — has the glosses in hand and can name them.
+- **Independently built packs cannot.** Today's `es-tr-enwikt` comes from the English Wiktionary
+  and has **never seen a single Spanish Wiktionary gloss**. It can only ever declare entry-level
+  translations. That is not a defect to fix; it is the honest description of what it knows.
+
+This also gives the enforcement hook from §Enforcing the contract a concrete shape: a pack that
+carries sense references must declare **what it was derived from**, and `verify_pack.py` can
+refuse references in a pack that declares nothing.
+
+#### The degradation needs no mode, which is the point
+
+| situation | what happens | why it is automatic |
+|---|---|---|
+| definitions pack **absent** | everything renders as the entry-level list | there are no glosses to hash, so no reference resolves |
+| definitions pack **present** | resolved references render under their sense; unresolved ones **and** those that never had a reference render in the list | resolution is a lookup that either finds the digest or does not |
+| definitions pack present but a **different build** | the glosses that survived still resolve; the edited ones fall to the list | the digest is content, not a version number |
+
+⚠️ **The one rule that must not be relaxed: a reference that fails to resolve falls to the LIST,
+never to sense 1.** Falling back to the first sense is precisely the D-117 error, and it is
+invisible: `bizarro` sense 2 carrying sense 1's material reads perfectly plausible.
+
+#### Presenting it, priced
+
+Measured over the 25,328 Spanish entries that have English translations:
+
+| | entries | |
+|---|---|---|
+| **only per-sense** | 12,269 | **48.4 %** |
+| **only list** | 12,306 | **48.6 %** |
+| **both at once** | 753 | **3.0 %** |
+
+**So the screen almost never has to show both sections** — the hard layout case is 3 % of entries,
+not the norm. And the lists are short: **median 1 term, p90 2, max 17** in both modes, so each one
+is typically a single line under its title.
+
+⚠️ **`VISIBLE_SENSES = 3` was the risk and it is not one.** A translation attached to sense 7
+would sit behind *«ver más»* and be invisible. Measured: of the 13,022 entries where some sense
+receives a translation, **12,958 (99.5 %) have at least one inside the visible three**, and the
+distribution is steep — 12,288 on sense 1, 3,765 on sense 2, 1,441 on sense 3. Only **64 entries**
+would have all of them hidden.
+
+**The layout, following what the screen already does:**
+
+1. **Per-sense**: a fourth `TermList` inside `SenseBlock`, alongside synonyms, antonyms and
+   related. Same two lines, same rules.
+2. **Entry-level**: its own section **after** the senses. Not before — the definitions are what
+   the reader opened the entry for — and never inside `SenseBlock`, because a list drawn under a
+   sense **asserts** it belongs to that sense.
+3. ⚠️ **Two different titles, and this is not decoration.** D-126 settled the principle for
+   antonyms: *«las tres listas se ven idénticas, y lo único que separa "otra forma de decirlo" de
+   "lo contrario" es esa palabra»*. Here the same word has to separate *«this sense means this»*
+   from *«the word can mean this, we do not know in which sense»*. If both say **Traducciones**,
+   the format distinguishes the two modes and the screen merges them again, and the claim the
+   format was built to protect is lost at the last step.
+
+The exact wording is a product decision and is not taken here. What the measurement settles is
+that it needs to be **two** strings, and that the cost is one extra line on 3 % of entries.
+
 ### Enforcing the contract on a pack somebody else built — designed 2026-09-21
 
 Asked as: *«mientras yo tenga el control de los packs puedo verificar que alguien externo no rompa

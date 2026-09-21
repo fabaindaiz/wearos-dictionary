@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Cómo nombrar una acepción de otro pack, y por qué la degradación no necesita modo
+**Qué.** Nada de código. Se eligió la identidad de acepción entre packs (**digest de la glosa**),
+se midió su tasa de colisión, y se diseñó la presentación de los dos modos con su reparto real.
+Documentado en `docs/roadmap.md`.
+**Áreas.** `docs/roadmap.md` (§Naming a sense from another pack).
+**Por qué.** El pedido: *«¿hay alguna forma fácil o correcta de enlazar inequívocamente con una
+palabra y acepción específica?»*, con la degradación ya especificada por el usuario (sin pack de
+definiciones → lista; con pack → por acepción donde haya referencia, el resto lista).
+**Arquitectura.** ✅ Cumple. Nada construido. La referencia se verifica recomputando sobre los
+bytes del pack referenciado, que es el principio de D-142 aplicado a un enlace.
+**Medido.**
+- **`sense_ref = h(entry_uid, norm(gloss))`: 22 colisiones en 210.249 acepciones (0,0105 %)**
+  sobre el pack español real, y son glosas genuinamente duplicadas del wiki (`granadino` define
+  lo mismo dos veces). Una colisión adjunta el término a dos acepciones de texto idéntico:
+  inofensivo.
+- ⚠️ **Reparto de los dos modos** sobre las 25.328 entradas con traducción al inglés: **48,4 %
+  sólo por acepción, 48,6 % sólo lista, y apenas 3,0 % los dos a la vez.** O sea que el caso
+  difícil de layout es el 3 %, no la norma.
+- **Términos por entrada: mediana 1, p90 2, máx 17** en los dos modos — una línea bajo su título.
+- ⚠️ **`VISIBLE_SENSES = 3` era el riesgo y no lo es**: de las 13.022 entradas donde alguna
+  acepción recibe traducción, **12.958 (99,5 %) tienen al menos una dentro de las tres visibles**.
+  La distribución es empinada: 12.288 en la acepción 1, 3.765 en la 2, 1.441 en la 3. Sólo **64
+  entradas** quedarían con todo detrás de «ver más».
+**Qué salió mal.** Nada medido mal, pero una consecuencia estructural que no había visto hasta
+escribir el diseño y que cambia el alcance: **el digest sólo lo puede escribir un builder que HAYA
+VISTO esa glosa.** Eso parte los packs de traducción en dos clases — los **derivados** del pack de
+definiciones pueden llevar referencias de acepción; los construidos aparte, no. El
+`es-tr-enwikt` de hoy viene del Wiktionary inglés y **nunca vio una glosa del Wikcionario
+español**, así que estructuralmente sólo puede declarar traducciones a nivel de entrada. No es un
+defecto a arreglar: es la descripción honesta de lo que sabe.
+**Qué quedó sin hacer.**
+- **Nada implementado.**
+- ⚠️ **La regla que no se relaja**: una referencia que no resuelve cae **a la lista, nunca a la
+  acepción 1**. Caer en la primera es exactamente el error de D-117 y es invisible.
+- **Sin decidir**: las dos cadenas de título. La medición fija que tienen que ser **dos** y no una
+  —por el principio de D-126— pero el texto exacto es decisión de producto.
+- **Sin decidir**: cómo se declara en `meta` de qué pack se derivó, que es el gancho con
+  §Enforcing the contract: `verify_pack.py` debería rechazar referencias en un pack que no declara
+  origen.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — Los dos modos de traducción son el enforcement, no una comodidad
 **Qué.** Nada de código. Se diseñó cómo **enforzar** el contrato en un pack construido por otro, y
 se midió una línea de base para el chequeo. Documentado en `docs/roadmap.md` §Enforcing the
