@@ -2941,6 +2941,50 @@ portar un tile uno a uno**.
 independientes entre sí. El #3 es el que más cambia lo que el usuario ve y el único que toca un
 formato en disco.
 
+### 🔌 Preparado para la sesión con el reloj — 2026-09-21
+
+**Todo lo de escritorio está cerrado.** Lo que queda necesita hardware, y esta sección existe
+para que esa sesión no gaste su tiempo en redescubrir cómo se prepara.
+
+#### Lo que ya está listo
+
+| | |
+|---|---|
+| APK | `app/build/outputs/apk/debug/app-debug.apk`, **63,1 MB**, con los dos núcleos dentro |
+| Packs | `../wearos-dictionary-data/`: `es-def-wikc` 73,6 · `en-def-wikt` 306,8 · `es-tr-enwikt` 63,4 MiB. **`schema_version` 4** |
+| Verificado en emulador | los cinco packs cargados, **0 crashes**, 39+7 instrumentados verdes |
+
+#### El orden, y por qué ese orden
+
+1. **Conectar y confirmar la geometría.** `adb shell am get-config` tiene que decir
+   `sw234dp … round … 340dpi`. ⚠️ El puerto de depuración inalámbrica **cambia en cada sesión**:
+   hay que pedírselo al usuario, no adivinarlo.
+2. **`./gradlew :app:connectedDebugAndroidTest` ANTES de empujar packs.** ⚠️ **Desinstala la
+   app** y se lleva `filesDir/packs/` — si los packs ya están, son ~450 MB de vuelta.
+3. **Instalar APK y empujar los tres packs** con `tools/devpack.py install` (nunca `adb push`:
+   la copia tiene que ser atómica y con sha256, D-082).
+4. **El trace de Perfetto** del redibujo a ~5 fps. **Es el objetivo real de la sesión**: es el
+   mayor gasto medido y no es diagnosticable desde el código — `CircularProgressIndicator` sólo
+   vive en la pantalla de carga y el spec de `TransformingLazyColumn` depende del scroll.
+5. **Los dos tiles**, que están **construidos y nunca vistos** en hardware. Mirar además el
+   `bottomSlot` nuevo (buscar) y la palabra del día con su acepción.
+6. **Medir el chrome del tile** para cerrar el *breakpoint* de 225 dp: hoy se topa en 3 filas y
+   se niega a crecer porque ese número no está medido.
+7. **R8 en release**: encendido desde D-163 y **sin verificar en dispositivo**. Lo que rompe, lo
+   rompe sólo en release y sin error de compilación.
+
+#### Las trampas, medidas en esta sesión
+
+- ⚠️ **`adb shell pm clear` borra `filesDir/packs/`.** Me llevó 461 MiB y lo leí como un bug de
+  la app antes de mirar.
+- ⚠️ **Un `connectedAndroidTest` cuyo dispositivo desaparece a media corrida sale `BUILD
+  SUCCESSFUL` con CERO tests.** Hay que leer el **conteo**, no el color.
+- ⚠️ **El IME del reloj desordena `adb shell input text`** y descarta lo escrito con BACK. Las
+  sondas funcionales van al **emulador** (`tools/avd_como_el_reloj.py`); del reloj, sólo datos.
+- ⚠️ Un pack `schema_version 3` se **rechaza al abrir**. Si quedaba alguno viejo en el reloj, hay
+  que borrarlo con `devpack.py rm` — los `pack_id` cambiaron y **coexistirían** en vez de
+  reemplazarse.
+
 ### Ver los dos tiles funcionando en un reloj
 
 **Estado.** **Construido y sin ver** (2026-09-19). Es lo primero a mirar cuando el reloj vuelva a
