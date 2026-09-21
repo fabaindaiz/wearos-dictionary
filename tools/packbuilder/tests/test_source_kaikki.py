@@ -578,6 +578,37 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual([], got.senses[0]["translations"])
         self.assertEqual([], got.senses[1]["translations"])
 
+    def test_el_dump_ingles_traduce_por_el_canal_de_la_palabra(self):
+        """⚠️ Una conclusion anterior era demasiado fuerte y este test la corrige.
+
+        **De caracterizacion**: pasa sin codigo nuevo, porque el canal `W` ya lo resolvia. Se
+        escribe igual porque lo que fija --que el ingles SI puede traducir-- contradice lo que
+        el changelog de esta misma sesion habia dejado escrito, y sin el la proxima sesion
+        volveria a creerle al numero viejo.
+
+        Se habia medido que el dump ingles trae **0 `sense_index` de 9.987** traducciones al
+        español y de ahi se concluyo que *«el pack ingles no puede tener traducciones»*. Eso
+        valia solo para el canal `T`, que exige atribucion. Con el canal `W` --que existe
+        justamente para lo no atribuible-- esas 9.987 si tienen donde vivir, y ademas llenan
+        `trans`, que es lo que hace que `perro` encuentre `dog`.
+        """
+        path = _jsonl({
+            "word": "dog", "pos": "noun", "lang_code": "en", "lang": "English",
+            "pos_title": "Noun",
+            "senses": [{"glosses": ["a domesticated carnivorous mammal"], "sense_index": "1"}],
+            "translations": [
+                {"word": "perro", "code": "es", "sense": "domesticated animal"},
+                {"word": "Hund", "code": "de"},
+            ],
+        })
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en", translations_to="es")))
+        # Sin indice: no se cuelga de la acepcion, va al canal de la palabra.
+        self.assertEqual([], got.senses[0]["translations"])
+        self.assertEqual(("perro",), got.word_translations)
+        # Y entra al canal de busqueda, que es lo que cierra la direccion inversa.
+        self.assertEqual(("perro",), got.translations)
+
     def test_las_no_atribuidas_van_al_canal_de_la_palabra(self):
         """El 37,7 % del dato, que antes se tiraba por no tener donde vivir."""
         path = _jsonl(_raw("banco", "noun", [

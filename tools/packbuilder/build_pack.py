@@ -296,6 +296,12 @@ PACKS = {
             "English definitions from Wiktionary, proper nouns pruned. "
             "Includes synonyms, antonyms and related words per sense."
         ),
+        # ⚠️ **El ingles SI traduce, por el canal de la palabra.** Se habia concluido que no
+        # podia, midiendo que sus 9.987 traducciones al español traen **0 `sense_index`** -- pero
+        # eso solo cierra el canal `T`, que exige atribucion por acepcion. El canal `W` existe
+        # justamente para lo no atribuible, asi que esas 9.987 entran, y de paso llenan `trans`:
+        # es lo que hace que buscar `perro` encuentre `dog` en el pack ingles.
+        "translations_to": "es",
         "lang_src": "en",
         "fuzzy_profile": "en",
         "source_date": "20260909",
