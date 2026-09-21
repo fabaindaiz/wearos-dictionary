@@ -127,6 +127,19 @@ class SearchViewModel(
     private val savedHistory: () -> List<Visit> = { emptyList() },
     private val saveHistory: (List<Visit>) -> Unit = {},
     /**
+     * Lo que el **tile** de recientes puede mostrar: el historial ya filtrado a packs instalados.
+     *
+     * ⚠️ **Va por una clave aparte y no reemplaza al historial completo.** La app esconde las
+     * visitas de un pack desinstalado (`visibleOnes`) pero las **conserva**: reinstalar el
+     * diccionario las devuelve. El tile, en cambio, no puede filtrar por su cuenta --no sabe qué
+     * packs hay sin abrirlos, y abrir un pack en un tile está prohibido (D-106)-- así que lee una
+     * lista ya resuelta.
+     *
+     * Es el mismo patrón que la semana de palabras del día, y por el mismo motivo: lo que un tile
+     * necesita lo deja escrito la app, que sí tiene el contexto.
+     */
+    private val saveTileHistory: (List<Visit>) -> Unit = {},
+    /**
      * Today, as "YYYY-MM-DD". It arrives as a parameter and does not come from a system clock in
      * here: that is what lets the [WordOfTheDay] policy run entirely on the JVM (D-072).
      *
@@ -306,6 +319,11 @@ class SearchViewModel(
                         history = visibleOnes(visits),
                     )
                 }
+                // ⚠️ **Acá y no sólo al visitar**, porque es el único momento en que se sabe qué
+                // packs hay: si se desinstaló un diccionario entre dos arranques, el tile sigue
+                // mostrando sus palabras hasta que alguien abra una nueva. Reescribirlo al abrir
+                // los packs lo corrige sin esperar a nada.
+                saveTileHistory(visibleOnes(visits))
                 // For ALL the offered ones, not just the active: the demo is left out
                 // because `offerable` already removed it when a real dictionary exists.
                 refreshWordsOfTheDay(
@@ -540,6 +558,7 @@ class SearchViewModel(
             it.packId == visit.packId && it.entryId == visit.entryId
         }).take(MAX_HISTORY)
         saveHistory(visits)
+        saveTileHistory(visibleOnes(visits))
         _state.update { it.copy(history = visibleOnes(visits)) }
         notifyTiles()
     }
@@ -748,6 +767,7 @@ class SearchViewModel(
     fun clearHistory() {
         visits = emptyList()
         saveHistory(visits)
+        saveTileHistory(visibleOnes(visits))
         _state.update { it.copy(history = emptyList()) }
     }
 
@@ -797,6 +817,7 @@ class SearchViewModel(
         visits = fix(visits)
         favoriteVisits = fix(favoriteVisits)
         saveHistory(visits)
+        saveTileHistory(visibleOnes(visits))
         saveFavorites(favoriteVisits)
         _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
     }

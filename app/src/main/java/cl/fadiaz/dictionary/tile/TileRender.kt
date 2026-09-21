@@ -16,6 +16,7 @@ import androidx.wear.protolayout.material3.titleCard
 import androidx.wear.protolayout.types.layoutString
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
+import cl.fadiaz.dictionary.presentation.posLabel
 
 /**
  * From [TileContent] to pixels. The only thing these files decide is how it looks.
@@ -114,7 +115,16 @@ internal fun MaterialScope.historyRows(
                     textButton(
                         onClick = openTheEntry(context, visit),
                         width = expand(),
-                        labelContent = { text(visit.headword.layoutString, maxLines = 1) },
+                        // ⚠️ **La MISMA función que la app**, no una copia: la fila decía sólo
+                        // `perro` donde el inicio dice `perro · sust.`, y no por densidad sino
+                        // porque no compartía nada. La guía de tiles pide no mostrar MENOS
+                        // información de la que cabe.
+                        labelContent = {
+                            text(
+                                detalleDeFila(context, visit).layoutString,
+                                maxLines = 1,
+                            )
+                        },
                     ),
                 )
             }
@@ -143,3 +153,17 @@ internal fun MaterialScope.wordCard(
             )
         },
     )
+
+/**
+ * Lo que dice una fila del tile: lo mismo que dice una fila del inicio.
+ *
+ * ⚠️ **Sin la etiqueta de idioma, y a propósito.** En la app sale del idioma ACTIVO, que un tile
+ * no conoce: preguntarlo obligaría a abrir un pack, que en un tile está prohibido (D-106). Y una
+ * `Visit` no guarda el idioma, así que inventarlo sería afirmar una procedencia que nadie
+ * comprobó — la familia de D-080. Mejor decir menos que decir algo falso.
+ */
+private fun detalleDeFila(context: Context, visit: Visit): String =
+    listOfNotNull(
+        visit.headword,
+        visit.partOfSpeech?.let { posLabel(context, it) },
+    ).joinToString(context.getString(R.string.entry_list_separator))

@@ -55,6 +55,25 @@ lógica y **uno que era un defecto real de navegación**.
 - Al quitar `Ver traducción` quedó `translationPack()` sin llamadores y un doc colgando sin
   función. Lo vio el compilador, pero recuerda que borrar una acción es borrar **su cadena, su
   helper y sus tests**, no sólo el botón.
+**Segunda pasada, a pedido («¿verificaste los casos borde? ¿buscaste información de dominio?»).**
+- **La respuesta honesta era NO**: arreglé la instancia del tile y **no barrí la clase** ni
+  consulté fuentes. Barriéndola aparecieron **dos más**, las dos en la misma superficie: el tile
+  de recientes leía el historial **sin filtrar por packs instalados** —mostraba palabras de un
+  diccionario borrado— y su fila decía sólo `perro` donde el inicio dice `perro · sust.`.
+- **Investigación de dominio, fuentes primarias**: la guía de diseño de tiles, la de migración a
+  Wear Widgets y las notas de `glance-wear`. Lo que fija el plan: **un tile no dibuja con
+  Compose** —ProtoLayout serializa a protobuf y renderiza el sistema— así que *«los mismos
+  componentes»* es imposible en el render y ya estaba hecho en el contenido. **Wear Widgets**
+  (Glance + RemoteCompose) lo cambiarían, pero van por **alpha14 / alpha17**: D-024 se revisó y
+  **sigue valiendo**. No hay fecha de deprecación de tiles, y la guía recomienda **servicio dual**
+  enlazado por `group`.
+- Roadmap: sección nueva con los tipos de superficie verificados y **cinco mejoras propuestas**,
+  ninguna construida. La #1 —usar el *breakpoint* de 225 dp— es la única que necesita el reloj.
+- **Prácticas revisadas con herramientas, no con opinión**: `lint` da *No issues found* y
+  `allWarningsAsErrors` está en los tres módulos. El redibujo a ~5 fps **no es diagnosticable
+  desde el código** —`CircularProgressIndicator` sólo vive en la pantalla de carga— y necesita el
+  trace en el reloj: conjeturarlo habría sido una afirmación sin medición.
+
 **Barrido de cierre, a pedido («¿hay alguna regla rota?»).**
 - ⚠️ **Sí había una, y la peor de las posibles: D-200 valía en la pantalla y NO en el tile.** Un
   pack de traducción no genera palabra del día, pero `cacheWeekForTile` recibía el pack **activo**

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
@@ -222,10 +224,29 @@ internal fun wordDetail(
     partOfSpeech: String?,
     tag: String?,
     override: String? = null,
+): String? = wordDetail(LocalContext.current, partOfSpeech, tag, override)
+
+/**
+ * [wordDetail] para quien tiene `Context` y no composición: **los tiles**.
+ *
+ * ⚠️ **Existe para que una fila diga lo mismo en las dos superficies.** El tile de recientes
+ * mostraba sólo `perro` mientras la app mostraba `perro · sust.`, y no por una decisión de
+ * densidad: simplemente no compartía la función. Es la misma familia de fallo que ya apareció dos
+ * veces hoy —una regla que vale en una superficie y no en su paralela— y el mismo remedio que
+ * `posLabel` ya usaba.
+ *
+ * ⚠️ **El separador sale del recurso, no de una constante**: es el mismo `·` que la app, y si
+ * alguna vez cambia, cambia en los dos lados a la vez.
+ */
+internal fun wordDetail(
+    context: Context,
+    partOfSpeech: String?,
+    tag: String?,
+    override: String? = null,
 ): String? {
     val partes = listOfNotNull(override ?: partOfSpeech, tag)
     return partes.takeIf { it.isNotEmpty() }
-        ?.joinToString(stringResource(R.string.entry_list_separator))
+        ?.joinToString(context.getString(R.string.entry_list_separator))
 }
 
 /** Opening the pack, or extracting it for the first time. */

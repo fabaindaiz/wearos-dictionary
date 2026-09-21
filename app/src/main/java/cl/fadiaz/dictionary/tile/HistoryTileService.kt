@@ -43,7 +43,7 @@ class HistoryTileService : TileService() {
             rowsThatFit(requestParams.deviceConfiguration.screenWidthDp),
             TileContents.MAX_ROWS,
         )
-        val content = TileContents.history(PackStore.history(this), rows)
+        val content = TileContents.history(PackStore.tileHistory(this), rows)
         val layout = materialScope(this, requestParams.deviceConfiguration) {
             when (content) {
                 is TileContent.ListRows -> historyRows(this@HistoryTileService, content.visits)
