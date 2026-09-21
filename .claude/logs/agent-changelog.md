@@ -55,6 +55,23 @@ lógica y **uno que era un defecto real de navegación**.
 - Al quitar `Ver traducción` quedó `translationPack()` sin llamadores y un doc colgando sin
   función. Lo vio el compilador, pero recuerda que borrar una acción es borrar **su cadena, su
   helper y sus tests**, no sólo el botón.
+**Tercera pasada: «¿queda algo del roadmap?» — y sí, dos cosas con número.**
+- ✅ **El orden de resultados en INGLÉS estaba sin evaluar desde el 2026-09-17 y ahora está
+  medido.** Veredicto: usable y **claramente peor que el español**. Posición media de la palabra
+  obvia: **5,1** — `hous → Hous.` primero, `tim → TIM, Tim, TIM, Tim` antes de `time`, `beaut`
+  en la 12. La primera pantalla, que son tres filas, **no contiene la palabra obvia en la mitad
+  de los casos**.
+- ⚠️ **La causa no es `rank`: es `coverageBand` (D-142), que premia los lemas CORTOS.** `wat`
+  cubre `wat` al 100 % y `water` al 60 %. En español apenas muerde —pocos fragmentos de tres
+  letras son lema— y el Wiktionary inglés está lleno. Y `demoteProperNoun` está desactivado justo
+  en la banda 0, que es donde viven.
+- **Mejora medida y NO implementada**: poner «tener señal de frecuencia» delante de la banda
+  —usando `meta.rank_signal_boundary`, la clave que se agregó hoy— baja la media de **5,1 a 3,6**.
+  No resuelve el fondo: `wat`, `boo` y `beaut` también tienen señal. Toca `orderFor`, que D-185
+  dejó fuera de alcance, así que va con precio a la mesa y no de paso.
+- **O-3 tenía cifras viejas.** Tras el rebuild: español **77,2 MB**, inglés **321,7 MB**,
+  bilingüe **66,5 MB**. Contra un presupuesto blando de 50 MB.
+
 **Segunda pasada, a pedido («¿verificaste los casos borde? ¿buscaste información de dominio?»).**
 - **La respuesta honesta era NO**: arreglé la instancia del tile y **no barrí la clase** ni
   consulté fuentes. Barriéndola aparecieron **dos más**, las dos en la misma superficie: el tile
