@@ -69,7 +69,7 @@ def _synsets(path):
     """Pasada 1: synset_id -> (definicion, ejemplos, miembros)."""
     out = {}
     with _open(path) as handle:
-        for event, elem in ElementTree.iterparse(handle, events=("end",)):
+        for _event, elem in ElementTree.iterparse(handle, events=("end",)):
             if _strip(elem.tag) != "Synset":
                 continue
             definition = ""
@@ -106,7 +106,7 @@ def records(path, lang="en-core"):
     por_id = {}
     repetidos = {}
     with _open(path) as handle:
-        for event, elem in ElementTree.iterparse(handle, events=("end",)):
+        for _event, elem in ElementTree.iterparse(handle, events=("end",)):
             if _strip(elem.tag) != "LexicalEntry":
                 continue
             lemma = next((c for c in elem if _strip(c.tag) == "Lemma"), None)
@@ -120,7 +120,7 @@ def records(path, lang="en-core"):
             elem.clear()
 
     with _open(path) as handle:
-        for event, elem in ElementTree.iterparse(handle, events=("end",)):
+        for _event, elem in ElementTree.iterparse(handle, events=("end",)):
             if _strip(elem.tag) != "LexicalEntry":
                 continue
             lemma = next((c for c in elem if _strip(c.tag) == "Lemma"), None)

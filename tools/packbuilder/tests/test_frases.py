@@ -18,8 +18,9 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import build  # noqa: E402
 import payload  # noqa: E402
+
+import build  # noqa: E402
 
 META = {
     "pack_id": "test-frases",
@@ -98,7 +99,8 @@ class FrasesTest(unittest.TestCase):
 
     def test_una_entrada_de_VARIAS_acepciones_no_recibe_nada(self):
         # Misma regla que D-132 y D-135: no se sabe cual de las acepciones ilustra.
-        got = self.construir([rec("banco", "Asiento largo.", mas_acepciones=["Entidad financiera."])],
+        got = self.construir([rec("banco", "Asiento largo.",
+                                  mas_acepciones=["Entidad financiera."])],
                              {"banco": "Me senté en el banco."})
         self.assertEqual([[], []], [s["examples"] for s in got["banco"][0]])
 

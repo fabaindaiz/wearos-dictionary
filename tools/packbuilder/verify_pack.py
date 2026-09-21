@@ -11,8 +11,8 @@ Sale con codigo 1 si algo falla.
 """
 
 import os
-import sqlite3
 import re
+import sqlite3
 import sys
 
 import normalize

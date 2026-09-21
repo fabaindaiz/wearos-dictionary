@@ -15,8 +15,9 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import build  # noqa: E402
 import payload  # noqa: E402
+
+import build  # noqa: E402
 
 META = {
     "pack_id": "es-def-test", "kind": "monolingual", "name": "Test", "lang_src": "es",

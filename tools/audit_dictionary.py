@@ -631,8 +631,8 @@ def check_no_hardcoded_translations(report):
             # esta explicando la regla, no rompiendola. Mirar el archivo entero daba ese falso
             # positivo, y un chequeo con falsos positivos se termina apagando.
             fuente = "\n".join(
-                l for l in handle.read().split("\n")
-                if not l.lstrip().startswith(("//", "*", "/*"))
+                linea for linea in handle.read().split("\n")
+                if not linea.lstrip().startswith(("//", "*", "/*"))
             )
         for valor in valores:
             if '"' + valor + '"' in fuente:
@@ -667,8 +667,15 @@ def check_locale_parity(report):
 
     def claves(ruta):
         texto = read(ruta)
-        return {m.group(1): m.group(2) for m in
-                _re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', texto, _re.S)}
+        tabla = {m.group(1): m.group(2) for m in
+                 _re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', texto, _re.S)}
+        # Los plurales cuentan igual. Sin esto, un `<plurals>` que existe en un idioma y falta
+        # en el otro pasa el chequeo: la paridad miraba solo `<string>`, asi que el primer
+        # plural del repo --el contador de entradas de un pack-- habria nacido fuera de la
+        # regla. Se guardan con un prefijo para que no puedan chocar con una clave de string.
+        tabla.update({"plurals:" + m.group(1): m.group(2) for m in
+                      _re.finditer(r'<plurals name="([^"]+)">(.*?)</plurals>', texto, _re.S)})
+        return tabla
 
     base = claves(os.path.join("app", "src", "main", "res", "values", "strings.xml"))
     es = claves(os.path.join("app", "src", "main", "res", "values-es", "strings.xml"))
@@ -766,6 +773,88 @@ def check_ui_language_picker(report):
                 "%r (%s) aparece como valor en values-es. El nombre de un idioma se escribe en "
                 "ese idioma y no se traduce: es lo unico que hace usable el selector para quien "
                 "tiene el reloj en un idioma que no lee" % (endonimo, tag),
+            )
+
+
+def _contar(carpeta, patron):
+    """Cuantas veces aparece `patron` al principio de una linea, bajo `carpeta`."""
+    total = 0
+    base = os.path.join(ROOT, carpeta)
+    if not os.path.isdir(base):
+        return None
+    for actual, _dirs, archivos in os.walk(base):
+        for archivo in archivos:
+            if not archivo.endswith((".kt", ".py")):
+                continue
+            with open(os.path.join(actual, archivo), encoding="utf-8") as handle:
+                for linea in handle:
+                    if linea.lstrip().startswith(patron):
+                        total += 1
+    return total
+
+
+def check_test_counts(report):
+    """Regla: un numero que un documento afirma tiene que ser el numero que hay.
+
+    ⚠️ **Es la decadencia que este repo ya pago cuatro veces a la vez.** En una sola revision se
+    encontro que `README.md` decia 560 tests, `dict-data/CLAUDE.md` decia 31 instrumentados,
+    `tools/CLAUDE.md` decia 129 de Python y `app/CLAUDE.md` decia 178 de JVM. Ninguno era cierto,
+    ninguno rompia nada, y cada uno le hace perder el tiempo a quien lo lea -- o peor, le hace
+    creer que una suite encogio.
+
+    El conteo es **estatico** --lineas que empiezan con `@Test` o `def test_`-- y eso no es una
+    aproximacion: se comparo contra los conteos de runtime de Gradle y unittest el 2026-09-20 y
+    dan **exactamente** lo mismo (81, 251, 250). Un conteo estatico deja el chequeo en la
+    auditoria, que es stdlib pura y no necesita compilar nada.
+
+    ⚠️ **Si una frase se reescribe y el patron deja de matchear, esto FALLA.** Es deliberado y es
+    la misma politica que `check_app_logic_is_jvm_testable`: un chequeo que se apaga solo cuando
+    alguien toca el texto que vigila no vigila nada. Reescribir la frase obliga a venir aca.
+    """
+    nucleo = _contar(os.path.join("dict-core", "src", "test"), "@Test")
+    app_jvm = _contar(os.path.join("app", "src", "test"), "@Test")
+    python = _contar(os.path.join("tools", "packbuilder", "tests"), "def test_")
+    datos = _contar(os.path.join("dict-data", "src", "androidTest"), "@Test")
+    app_disp = _contar(os.path.join("app", "src", "androidTest"), "@Test")
+    if None in (nucleo, app_jvm, python, datos, app_disp):
+        report.failure(
+            "no se pudo contar los tests",
+            "alguna carpeta de tests cambio de lugar; mover tambien este chequeo",
+        )
+        return
+
+    checks = len(CHECKS)
+    # Lo que corre el gate, y lo que no. La suma "en total" incluye los checks a proposito:
+    # es como el roadmap la viene contando.
+    gate = nucleo + app_jvm + python
+    esperados = {
+        ("README.md", r"el gate: compila, lint, (\d+) tests"): gate,
+        ("README.md", r"connectedDebugAndroidTest\s+# los (\d+) tests"): datos,
+        ("app/CLAUDE.md", r"testDebugUnitTest\s+# (\d+) JVM tests"): app_jvm,
+        ("dict-data/CLAUDE.md", r"connectedDebugAndroidTest # the (\d+) tests"): datos,
+        ("tools/CLAUDE.md", r"hatch run test\s+# los (\d+) tests"): python,
+        ("docs/roadmap.md", r"`:dict-core`, \*\*(\d+) tests\*\*"): nucleo,
+        ("docs/roadmap.md", r"`tools/`, \*\*(\d+) tests\*\*"): python,
+        ("docs/roadmap.md", r"\*\*(\d+) JVM\n?de `:app`\*\*"): app_jvm,
+        ("docs/roadmap.md", r"\*\*(\d+) checks\*\* de auditor"): checks,
+        ("docs/roadmap.md", r"\*\*(\d+) tests en total\*\*"): gate + checks,
+        ("docs/roadmap.md", r"Los \*\*(\d+)\n?instrumentados\*\*"): datos + app_disp,
+    }
+    for (documento, patron), esperado in esperados.items():
+        texto = read(documento)
+        hallado = re.search(patron, texto)
+        if hallado is None:
+            report.failure(
+                "un documento dejo de afirmar un conteo que este chequeo vigila",
+                "%s ya no matchea %r. Si la frase se reescribio, actualizar el patron aca; si "
+                "el dato se borro, sacar la fila. Lo que no puede pasar es que el numero quede "
+                "suelto otra vez" % (documento, patron),
+            )
+        elif int(hallado.group(1)) != esperado:
+            report.failure(
+                "un documento afirma un conteo que no es",
+                "%s dice %s donde hay %d (%r)"
+                % (documento, hallado.group(1), esperado, patron),
             )
 
 
@@ -872,6 +961,7 @@ CHECKS = [
     check_app_version,
     check_locale_parity,
     check_ui_language_picker,
+    check_test_counts,
     check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,

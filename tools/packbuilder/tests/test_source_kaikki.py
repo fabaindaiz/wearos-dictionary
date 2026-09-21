@@ -394,7 +394,8 @@ class MarkupEditorialTest(unittest.TestCase):
 
     def test_el_punto_que_queda_colgando_no_duplica(self):
         # "...los labios.^([cita requerida])." termina en DOS puntos si solo se borra el tag.
-        self.assertEqual("Lamer con la boca.", self._gloss("Lamer con la boca.^([cita requerida])."))
+        self.assertEqual("Lamer con la boca.",
+                         self._gloss("Lamer con la boca.^([cita requerida])."))
 
     def test_la_notacion_matematica_NO_se_toca(self):
         """El filtro es la forma con CORCHETES, y esto es por que.

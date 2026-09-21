@@ -229,7 +229,7 @@ class SegundaFuenteTest(unittest.TestCase):
         acredita de menos.
         """
         meta = self._construir(con_ejemplos=True)
-        filas = [l.split("\t") for l in meta["sources"].strip().split("\n")]
+        filas = [linea.split("\t") for linea in meta["sources"].strip().split("\n")]
         self.assertEqual(2, len(filas), "tienen que estar las DOS fuentes")
         self.assertEqual(["definitions", "examples"], [f[0] for f in filas])
         for fila in filas:

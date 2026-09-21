@@ -709,7 +709,8 @@ class LogicalIdentityTest(BuilderTestCase):
 
     def _uids(self, records):
         db = self.build(records)
-        out = {row[0]: (row[1], row[2]) for row in db.execute("SELECT headword, uid, id FROM entry")}
+        filas = db.execute("SELECT headword, uid, id FROM entry")
+        out = {row[0]: (row[1], row[2]) for row in filas}
         db.close()
         return out
 
@@ -735,10 +736,12 @@ class LogicalIdentityTest(BuilderTestCase):
 
     def test_los_homografos_con_pos_distinto_tienen_uid_distinto(self):
         uids = self._uids(
-            [record("bajo", part_of_speech="adjective"), record("bajo", part_of_speech="preposition")]
+            [record("bajo", part_of_speech="adjective"),
+             record("bajo", part_of_speech="preposition")]
         )
         db = self.build(
-            [record("bajo", part_of_speech="adjective"), record("bajo", part_of_speech="preposition")]
+            [record("bajo", part_of_speech="adjective"),
+             record("bajo", part_of_speech="preposition")]
         )
         distintos = db.execute("SELECT COUNT(DISTINCT uid) FROM entry").fetchone()[0]
         db.close()
@@ -749,7 +752,8 @@ class LogicalIdentityTest(BuilderTestCase):
         # Fundirlas seria peor: cualquier desempate por orden de insercion rompe justo la
         # estabilidad entre rebuilds que el uid existe para dar.
         with self.assertRaises(ValueError) as caught:
-            self.build([record("banco", part_of_speech="noun"), record("banco", part_of_speech="noun")])
+            self.build([record("banco", part_of_speech="noun"),
+                        record("banco", part_of_speech="noun")])
         self.assertIn("sense_key", str(caught.exception))
         self.assertFalse(os.path.exists(self.path), "quedo un pack a medio construir")
 
@@ -766,7 +770,6 @@ class LogicalIdentityTest(BuilderTestCase):
     def test_el_uid_no_depende_del_pack_que_lo_escribe(self):
         # Dos packs distintos del mismo idioma tienen que darle el mismo uid a la misma palabra:
         # si dependiera del pack_id, ninguna composicion seria posible.
-        base = dict(BASE_META)
         otro = dict(BASE_META, pack_id="otro", name="Otro")
         primero = self.build([record("correr")])
         uid_primero = primero.execute("SELECT uid FROM entry").fetchone()[0]
