@@ -149,7 +149,7 @@ fun listos(vararg packs: FakeDictionary, demos: Set<String> = emptySet()): PackS
     val handles = packs.map {
         PackHandle.Open(
             source = it,
-            isDemo = it.metadata.packId in demos,
+            isBundled = it.metadata.packId in demos,
             fileName = "${it.metadata.packId}.db",
             bytes = 1024,
         )

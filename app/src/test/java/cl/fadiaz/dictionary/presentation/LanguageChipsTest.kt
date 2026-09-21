@@ -30,7 +30,7 @@ class LanguageChipsTest {
         demo: Boolean = false,
     ): PackHandle = PackHandle.Open(
         source = FakeDictionary(packId = packId, lang = lang, entryCount = entries),
-        isDemo = demo,
+        isBundled = demo,
     )
 
     // --- El representante de un idioma, que ahora usan tres pantallas (D-151) ---------------

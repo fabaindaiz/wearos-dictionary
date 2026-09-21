@@ -114,7 +114,7 @@ class PackSelectionTest {
     // ------------------------------------------------- cuál queda ACTIVO, que es la otra mitad
 
     private fun handle(source: cl.fadiaz.dictionary.core.DictionarySource, demo: Boolean = false) =
-        PackHandle.Open(source = source, isDemo = demo)
+        PackHandle.Open(source = source, isBundled = demo)
 
     @Test
     fun elActivoNuncaEsUnBuildViejo() {

@@ -92,6 +92,7 @@
     <string name="packs_on_watch">En el reloj</string>
     <string name="packs_to_download">Para descargar</string>
     <string name="packs_wip">Todavía no. Hoy los diccionarios se instalan por cable, desde la computadora. Aquí va a aparecer el catálogo para descargarlos desde el reloj.</string>
+    <string name="packs_bundled">Incluido en la app</string>
     <string name="packs_in_use">En uso</string>
     <string name="packs_delete_question">¿Borrar %1$s?</string>
     <string name="packs_delete_cost">Ocupa %1$s. Para recuperarlo hay que volver a instalarlo desde la computadora.</string>

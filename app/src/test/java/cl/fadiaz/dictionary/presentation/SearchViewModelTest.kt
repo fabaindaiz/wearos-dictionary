@@ -38,8 +38,8 @@ class SearchViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    private fun handle(d: FakeDictionary, isDemo: Boolean = false) =
-        PackHandle.Open(d, isDemo)
+    private fun handle(d: FakeDictionary, isBundled: Boolean = false) =
+        PackHandle.Open(d, isBundled)
 
     @BeforeTest
     fun before() = Dispatchers.setMain(dispatcher)
@@ -828,7 +828,7 @@ class SearchViewModelTest {
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(demo), listOf(handle(demo, isDemo = true), handle(real)))
+            PackSet.Ready(handle(demo), listOf(handle(demo, isBundled = true), handle(real)))
         }, preferred = { "en" })
         advanceUntilIdle()
         assertEquals("es-def-wikc", vm.state.value.active?.packId)
@@ -843,7 +843,7 @@ class SearchViewModelTest {
         val demo = FakeDictionary("toy-es-en", "es")
         val real = FakeDictionary("es-def-wikc", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(real), listOf(handle(demo, isDemo = true), handle(real)))
+            PackSet.Ready(handle(real), listOf(handle(demo, isBundled = true), handle(real)))
         })
         advanceUntilIdle()
         assertEquals(listOf("es-def-wikc"), vm.state.value.available.map { it.packId })
@@ -854,7 +854,7 @@ class SearchViewModelTest {
         // That is what it exists for: so a freshly installed app has something to show.
         val demo = FakeDictionary("toy-es-en", "es")
         val vm = SearchViewModel({
-            PackSet.Ready(handle(demo, isDemo = true), listOf(handle(demo, isDemo = true)))
+            PackSet.Ready(handle(demo, isBundled = true), listOf(handle(demo, isBundled = true)))
         })
         advanceUntilIdle()
         assertEquals("toy-es-en", vm.state.value.active?.packId)

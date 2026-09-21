@@ -458,7 +458,7 @@ class SearchViewModel(
 
     private fun offerable(all: List<PackHandle>): List<PackHandle> {
         val opened = all.filterIsInstance<PackHandle.Open>()
-        return if (opened.any { !it.isDemo }) opened.filterNot { it.isDemo } else all
+        return if (opened.any { !it.isBundled }) opened.filterNot { it.isBundled } else all
     }
 
     /** Only those from open packs: a row that opens nothing is worse than no row at all. */
@@ -572,7 +572,7 @@ class SearchViewModel(
         val handle = state.value.available
             .filterIsInstance<PackHandle.Open>()
             .firstOrNull { it.packId == packId } ?: return
-        if (handle.isDemo) return
+        if (handle.isBundled) return
 
         viewModelScope.launch {
             // No active pack and in "loading" while it lasts: a query arriving in the middle
@@ -741,7 +741,7 @@ class SearchViewModel(
             val opened = set.all.filterIsInstance<PackHandle.Open>()
             // The demo pack only wins if there is no other: it exists so a freshly installed app
             // has something to show, not to cover up a real dictionary.
-            val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
+            val candidates = opened.filterNot { it.isBundled }.ifEmpty { opened }
             return candidates.firstOrNull { it.packId == preferred }
                 ?: candidates.firstOrNull { it.metadata.langSource == preferred }
                 ?: candidates.firstOrNull()

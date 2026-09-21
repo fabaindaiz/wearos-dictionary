@@ -26,6 +26,49 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El pack incluido dice que lo es, y por qué no se puede abrir dentro del APK
+
+**Qué.** D-173: la fila del pack del APK dice *«Incluido en la app»* en vez del tamaño, y `isDemo`
+pasó a `isBundled`. Más la respuesta verificada a si se puede abrir un `.db` sin extraerlo.
+
+**Áreas.** `data/PackSet.kt`, `data/PackStore.kt`, `data/PackSelection.kt`,
+`presentation/PacksScreen.kt`, `presentation/SearchViewModel.kt` + 5 archivos de test ·
+`values/` y `values-es/strings.xml` · `docs/roadmap.md`, `docs/decisions.md`.
+
+**Por qué.** *«Me interesa que el pack core se pueda cargar desde dentro del apk y no se descargue
+nunca a memoria. Además me interesa que se pueda mostrar en la lista de diccionarios indicando que
+es un pack incluido y sin dar la opción de borrar.»*
+
+**Arquitectura.** ✅ Cumple. Nada nuevo: el mecanismo de llevar un pack dentro del APK **ya
+funciona** —es lo que hace el de demostración desde siempre— así que cuando el núcleo ocupe ese
+lugar es cambiar el `.db` de los assets y nada más.
+
+**Medido / verificado.**
+
+- **Abrir el `.db` dentro del APK no es alcanzable con este driver.** Verificado con `javap` sobre
+  `sqlite-bundled 2.7.1`: la superficie entera es `open(String)` y `open(String, Int)`. Sin VFS
+  propio (`sqlite3_vfs_register`), sin `sqlite3_deserialize`, sin variante por descriptor. Un
+  asset vive en un **offset** dentro del ZIP y SQLite abre por ruta asumiendo el byte 0.
+- **Y la objeción de D-071 no aplica a esta escala**: mató la extracción cuando el pack pesaba
+  **295 MB**; duplicar un núcleo de ~7,5 MB sobre un reloj con **40 GB libres** es el **0,02 %**.
+- Gate: **86 · 282 · 255 · 25 checks**.
+
+**Qué salió mal.** Nada roto. Una observación de método: **`isDemo` llevaba meses mintiendo y
+ningún test lo notaba**, porque todos los usos preguntaban lo correcto con el nombre equivocado.
+Lo destapó tener que explicar la fila en pantalla — escribir el texto que ve el usuario obligó a
+decir qué significa el flag, y ahí se vio que no era «demo».
+
+**Qué quedó sin hacer.**
+
+- **El núcleo sigue sin construirse.** Lo de hoy prepara su llegada: la fila ya sabe mostrarlo y
+  el flag ya se llama como corresponde.
+- **La etiqueta no se vio en pantalla**, sólo en Robolectric.
+- ⚠️ **`asHumanSize` quedó sin usarse para el pack incluido**, así que un pack del APK ya no
+  muestra cuánto ocupa en ningún lado. Es deliberado —el tamaño sólo sirve para decidir si
+  borrarlo, y éste no se borra— pero si alguna vez se quiere ver, el dato está en `pack.bytes`.
+
+---
+
 ## 2026-09-21 — La regla que se anulaba a sí misma, y dónde está el espacio de verdad
 
 **Qué.** D-172: el pack activo sale de las mismas reglas que deciden a quién se consulta. Más la

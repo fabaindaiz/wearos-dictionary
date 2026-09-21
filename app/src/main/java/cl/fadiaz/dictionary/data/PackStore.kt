@@ -96,7 +96,7 @@ object PackStore {
                 is PackLoad.Ready ->
                     opened += PackHandle.Open(
                         source = loaded.source,
-                        isDemo = file.name in fromAssets,
+                        isBundled = file.name in fromAssets,
                         fileName = file.name,
                         bytes = file.length(),
                     )

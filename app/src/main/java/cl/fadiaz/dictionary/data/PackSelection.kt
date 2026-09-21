@@ -82,6 +82,6 @@ internal fun packsToQuery(opened: List<DictionarySource>): List<DictionarySource
 internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): PackHandle.Open? {
     val consultables = packsToQuery(opened.map { it.source }).toSet()
     val vivos = opened.filter { it.source in consultables }
-    val candidatos = vivos.filterNot { it.isDemo }.ifEmpty { vivos }
+    val candidatos = vivos.filterNot { it.isBundled }.ifEmpty { vivos }
     return candidatos.firstOrNull { it.packId == preferred } ?: candidatos.firstOrNull()
 }
