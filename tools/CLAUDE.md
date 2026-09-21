@@ -6,6 +6,15 @@ deliberada y se conserva: `dependencies = []` en `pyproject.toml`.
 - `packbuilder/` — construye los packs `.db` a partir de fuentes lexicográficas.
 - `unicode/` — genera el repertorio Unicode fijado que comparten el builder y la app.
 
+Y cuatro scripts sueltos en la raíz: `audit_dictionary.py` (la auditoría estructural, que sí corre
+en el gate), `devpack.py` (sideload por adb), `avd_como_el_reloj.py` (el emulador con la geometría
+del reloj, D-150) y `measure_query_cost.py`.
+
+`measure_query_cost.py` **no mide batería, mide el trabajo que la batería paga**: cuántos peldaños
+de la cascada corren, cuántas filas tocan y cuánto SQL cuesta, sobre un pack real. Es una
+**réplica** del SQL de `SqlitePackSource` con sus constantes copiadas, así que si allá cambian y
+acá no, miente en silencio — lo dice en su propio docstring. Ver `docs/bateria.md`.
+
 ## El entorno
 
 Hatch, configurado en `pyproject.toml` en la raíz. No hace falta para correr el gate —
@@ -13,7 +22,7 @@ Hatch, configurado en `pyproject.toml` en la raíz. No hace falta para correr el
 Hatch es la capa de desarrollo.
 
 ```sh
-hatch run test             # los 129 tests
+hatch run test             # los 250 tests
 hatch run audit            # la auditoría estructural
 hatch run all              # ambos
 hatch run matrix:test      # LOS TESTS BAJO TODAS LAS VERSIONES DE PYTHON

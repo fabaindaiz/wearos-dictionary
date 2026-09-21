@@ -358,7 +358,7 @@ class PackBuilder:
             lineas.append(payload_codec.TAG_SYNONYM + "\t" + payload_codec.sanitize(termino))
         for termino in nuevos_antonimos:
             lineas.append(payload_codec.TAG_ANTONYM + "\t" + payload_codec.sanitize(termino))
-        body = body + "".join(l + "\n" for l in lineas)
+        body = body + "".join(linea + "\n" for linea in lineas)
         if nuevos_sinonimos:
             fts_body = (fts_body + " " + " ".join(nuevos_sinonimos)).strip()
         return body, fts_body
@@ -413,7 +413,8 @@ class PackBuilder:
                 # ya comprobo que hay exactamente una. Se agrega al texto ya renderizado en vez
                 # de re-renderizar: el body es la unica copia y volver a armarlo seria una
                 # segunda implementacion del formato.
-                body = body + payload_codec.TAG_EXAMPLE + "\t" + payload_codec.sanitize(frase) + "\n"
+                body = (body + payload_codec.TAG_EXAMPLE + "\t"
+                        + payload_codec.sanitize(frase) + "\n")
                 # Y al indice de texto libre, o la busqueda por definicion veria un pack distinto
                 # del que se muestra. Los ejemplos ya entraban (D-118).
                 fts_body = (fts_body + " " + frase).strip()
@@ -552,7 +553,8 @@ MAX_TESAURO_POR_ACEPCION = 4
 
 
 def _tiene_una_acepcion(body):
-    return [l[0] for l in body.split("\n") if len(l) > 1 and l[1] == "\t"].count(
+    return [linea[0] for linea in body.split("\n")
+            if len(linea) > 1 and linea[1] == "\t"].count(
         payload_codec.TAG_SENSE) == 1
 
 
@@ -579,7 +581,8 @@ def _admite_frase_de_corpus(body):
     Se lee del texto del payload y no de los `senses` originales porque en la pasada 2 el body es
     lo unico que queda: el staging guarda el texto, no la estructura. Son dos conteos de lineas.
     """
-    lineas = [l[0] for l in body.split("\n") if len(l) > 1 and l[1] == "\t"]
+    lineas = [linea[0] for linea in body.split("\n")
+              if len(linea) > 1 and linea[1] == "\t"]
     return lineas.count(payload_codec.TAG_SENSE) == 1 and payload_codec.TAG_EXAMPLE not in lineas
 
 
