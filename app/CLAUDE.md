@@ -251,6 +251,9 @@ into that same directory and the app will not notice the difference.
 
 ```sh
 python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
+# El bilingue NECESITA --flexiones, o la direccion inversa se pierde en silencio (D-184):
+python3 tools/packbuilder/build_pack.py es-en <es-en-wikt.jsonl> es-tr-enwikt.db \
+        --flexiones en-def-wikt.db
 python3 tools/devpack.py install es-def-wikc.db   # or: hatch run push es-def-wikc.db
 python3 tools/devpack.py list                     # what ended up on the watch
 python3 tools/devpack.py rm es-def-wikc           # to test the degradation

@@ -27,10 +27,15 @@ _DATA = [
         ("moverse rapidamente de un lugar a otro", ["corrio hasta la esquina"], ["to run"]),
         ("dicho del tiempo: transcurrir", [], ["to pass", "to elapse"]),
     ], ["corriendo", "corri", "corre", "corremos", "corrio"]),
+    # ⚠️ **La unica entrada con traducciones de NIVEL DE ENTRADA (tag `W`), y esta a proposito.**
+    # Sin ella el toy no ejercita el segundo canal (D-179) --el que existe para que embadurnar
+    # dato no atribuible deje de ser gratis-- y los tests instrumentados nunca verian un `W`.
+    # Es el mismo razonamiento por el que hay que conservar un toy bilingue: un canal sin fixture
+    # se rompe sin que nada avise.
     ("corriente", "noun", 40, [
         ("movimiento de un fluido en una direccion", [], ["current", "stream"]),
         ("que es habitual o comun", [], ["ordinary", "common"]),
-    ], ["corrientes"]),
+    ], ["corrientes"], None, ["draught"]),
     ("corregir", "verb", 120, [
         ("enmendar lo que esta equivocado", [], ["to correct", "to fix"]),
     ], ["corrige", "corrigiendo"]),
@@ -137,6 +142,9 @@ METADATA = {
     "name": "Juguete Español → English",
     "lang_src": "es",
     "lang_dst": "en",
+    # La capacidad, aparte de `kind` (D-183). Un pack bilingue la declara igual: `kind` dice en
+    # que idioma estan las definiciones, esto dice en cual estan las traducciones.
+    "translations_to": "en",
     "fuzzy_profile": "es",
     # No sale de ningun volcado: las 28 entradas estan escritas en este archivo. Se declara
     # igual porque `source_date` dice de donde sale el contenido, y "de ningun lado" es una
@@ -162,6 +170,9 @@ def records():
         # Y pos, que sin sense_key harian fallar el build por identidad repetida.
         headword, pos, rank, senses, forms = item[:5]
         sense_key = item[5] if len(item) > 5 else None
+        # Septima posicion, opcional: las traducciones de la PALABRA, que la fuente no atribuyo
+        # a ninguna acepcion (tag `W`, D-179).
+        word_translations = tuple(item[6]) if len(item) > 6 else ()
         translations = []
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
@@ -179,6 +190,8 @@ def records():
             part_of_speech=pos,
             rank=rank,
             forms=forms,
-            translations=translations,
+            # El canal de busqueda lleva las dos, igual que en un pack real.
+            translations=translations + list(word_translations),
+            word_translations=word_translations,
             sense_key=sense_key,
         )

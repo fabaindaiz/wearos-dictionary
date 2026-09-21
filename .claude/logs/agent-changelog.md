@@ -26,6 +26,38 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Barrido de cabos sueltos: tres reales, uno peligroso
+**Qué.** Un barrido después de haber dicho *«queda sólo el build»* — frase que sobrepasaba lo que
+podía afirmar. Encontró **tres cabos sueltos de la propia sesión**.
+**Áreas.** `tools/packbuilder/sources/toy.py`, `tools/packbuilder/payload.py`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`,
+`tools/packbuilder/tests/test_payload.py`, `tools/CLAUDE.md`, `app/CLAUDE.md`.
+**Por qué.** *«¿no queda nada más pendiente?»*.
+**Arquitectura.** ✅ Cumple.
+**Medido / encontrado.**
+1. ⚠️ **El toy pack tenía `tag W = 0` y no declaraba `translations_to`.** O sea que el segundo
+   canal --el que existe para que embadurnar dato no atribuible deje de ser gratis (D-179)-- **no
+   lo ejercitaba ningún pack de los tests**, y los instrumentados de `:dict-data` corren contra
+   el toy. Es el mismo modo de falla que el roadmap ya había anotado para el toy bilingüe: **un
+   canal sin fixture se rompe sin que nada avise.** Ahora `corriente` lleva `draught` a nivel de
+   entrada y el toy declara la capacidad.
+2. ⚠️ **Cuatro comentarios seguían describiendo `meta.translations_pack` como si existiera**, en
+   `payload.py`, `PayloadCodec.kt` y dos tests. La clave **se eliminó** el mismo día. Documentación
+   que miente sobre el diseño, en el archivo que lo explica.
+3. ⚠️ **`--flexiones` no estaba documentado en ningún lado fuera de su propio archivo.** El
+   peligro es concreto: quien reconstruya el bilingüe sin el flag obtiene un pack **bien formado,
+   que pasa `verify_pack.py`, y con la dirección inversa caída de 98,9 % a 78,1 %** — sin un solo
+   error. `tools/CLAUDE.md` gana una tabla de *flags que no son opcionales* por pack, y
+   `app/CLAUDE.md` el comando con el flag.
+**Qué salió mal.** La frase *«queda sólo el build»*: era cierta para el corte de traducciones y no
+para el repo, y la dije sin acotarla. **El barrido que la desmintió tomó tres minutos** — y la
+lección es que «¿queda algo?» se contesta buscando, no recordando, aunque uno acabe de escribir el
+cierre.
+**Qué quedó sin hacer.**
+- ⚠️ **Falta un test instrumentado que afirme el canal `W` sobre el toy.** La fixture ya lo trae;
+  nadie lo lee todavía. Va con los 43 que esperan dispositivo.
+- El build completo, y todo lo del roadmap que ya estaba listado.
+
 ## 2026-09-21 — Las decisiones de hoy, escritas donde se explican; y el roadmap reordenado
 **Qué.** Segunda parte del cierre. **D-178 a D-184** en `docs/decisions.md`; el formato nuevo en
 `docs/formato-pack.md`; el **segundo contrato cruzado** en `docs/contratos-cruzados.md`; la

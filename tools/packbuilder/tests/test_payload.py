@@ -308,7 +308,7 @@ class ReferenciaDeTraduccionTest(unittest.TestCase):
         acepcion  -> sufijo OPCIONAL del item, porque solo existe cuando la fuente la supo.
 
     De ahi sale que **una traduccion sin acepcion ya es un link a la palabra** y no cuesta un
-    solo byte extra: el caso comun es el barato. Y sin `translations_pack` declarado no hay a
+    solo byte extra: el caso comun es el barato. Y sin `translations_to` declarado no hay a
     donde ir, asi que el termino se muestra sin pintar -- que es la regla de D-084 y lo que se
     pidio: *"mostrarse pero no ser linkeables a menos que tengan algo que mostrar"*.
     """

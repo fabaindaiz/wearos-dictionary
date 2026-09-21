@@ -76,8 +76,9 @@ _RAW_DEFLATE = -15
 # ⚠️ **El reparto de las tres partes de una referencia `(pack, palabra, acepcion)` es el diseño
 # entero, y cada una vive donde cuesta menos:**
 #
-#     pack      -> `meta.translations_pack`, UNA vez por pack. Es constante para todas las
-#                  traducciones del pack; repetirlo por item costaria ~280 KB de una cadena.
+#     pack      -> NO se nombra. El destino se declara por IDIOMA en `meta.translations_to`,
+#                  una vez por pack. Nombrar un pack concreto mataba el enlace del usuario
+#                  que tiene instalado el nucleo y no el completo (D-180).
 #     palabra   -> el valor del item. Ya estaba ahi: es el termino que se muestra.
 #     acepcion  -> este sufijo, OPCIONAL, porque solo existe cuando la fuente la supo.
 #
