@@ -64,6 +64,21 @@ data class PackMetadata(
      * dump tienen que dar numeros distintos o un pack mejor no se propaga.
      */
     val dataVersion: Long,
+    /**
+     * El `pack_id` del diccionario que **contiene a éste**, o null.
+     *
+     * Es una afirmación de CONTENIDO, no de tamaño ni de versión: *«todo lo que yo tengo, ése lo
+     * tiene»*. Eso es justo lo que no se puede deducir en el reloj —comparar 150.000 lemas
+     * costaría más que la búsqueda— y por eso se declara, igual que `pack_id` declara la
+     * identidad en vez de adivinarla del nombre del archivo (D-138).
+     *
+     * ⚠️ **`entry_count` NO sirve para esto.** Dice cuál es más grande, que es otra cosa: dos
+     * packs de fuentes distintas pueden ser los dos grandes sin que ninguno contenga al otro, y
+     * ahí consultarlos a los dos es exactamente lo que se quiere (D-136).
+     *
+     * Null en cualquier pack anterior a esto, que es el caso de todos los de hoy.
+     */
+    val subsetOf: String? = null,
     val license: String,
     val attribution: String,
     /**

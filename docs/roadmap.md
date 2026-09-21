@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **266 JVM
-de `:app`** y **25 checks** de auditoría estructural — **632 tests en total**. Los **43
+pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **273 JVM
+de `:app`** y **25 checks** de auditoría estructural — **639 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -273,11 +273,29 @@ D-028, aunque poco: los ejemplos pagan en el payload y en `fts_def`, como pasó 
 
 ### Alinear acepciones entre fuentes: lo que bloquea tres cosas a la vez
 
-**Estado.** **Medido, sin decidir** (2026-09-20). Es el mismo problema con tres caras distintas, y
-por eso conviene tenerlo en un solo lugar.
+**Estado.** **Medido, sin decidir** (actualizado 2026-09-21). Es el mismo problema con **cuatro**
+caras distintas, y por eso conviene tenerlo en un solo lugar. Reconocido explícitamente como
+problema propio: *«esto es un problema separado por sí mismo que deberíamos incluir en el roadmap
+y estudiarlo»*.
 
 **El problema.** Una fuente externa da sinónimos, antónimos o ejemplos **por acepción** — pero por
 **su** acepción, no por la nuestra. Nada en el dato dice cuál de nuestras acepciones corresponde.
+
+**La cuarta cara, que apareció al diseñar el pack núcleo: qué se muestra cuando dos packs tienen
+la misma palabra.** Hoy la respuesta honesta es **ninguna de las dos cosas que uno esperaría**: no
+se duplican las acepciones ni se complementan — **se elige un pack y el otro se esconde**. En la
+lista de resultados `casa · sust.` de dos fuentes produce una fila; al abrirla se ven las
+acepciones de **un** pack, y las del otro no aparecen en ningún lado.
+
+Eso es correcto hoy porque la alternativa es peor: sin saber qué acepción de acá es cuál de allá,
+una ficha combinada muestra dos veces la misma idea escrita distinto, que en 234 dp es más confuso
+que una sola fuente. **Pero es una pérdida real y no está contabilizada** en los 20.644 aportes de
+abajo: ahí se cuenta lo que se descarta **al construir**, y esto es lo que se descarta **al
+mostrar**, cada vez que alguien abre una palabra que dos packs tienen. Con los dos packs españoles
+instalados son **8.595 entradas** donde pasa.
+
+⚠️ **Para núcleo y completo esto no aplica**: mismos `uid`, mismas acepciones, mismos bytes. La
+cara nueva sólo existe entre packs de **fuentes distintas**.
 
 **Lo que cuesta hoy**, contando lo que se descarta por no poder alinear:
 
@@ -915,7 +933,8 @@ decisiones abiertas y se marcan como tales.
 
 **1. ¿Núcleo y completo son duplicados o complementarios?**
 
-**Duplicados — el núcleo es un subconjunto del completo.** La alternativa (que el completo traiga
+✅ **DECIDIDO el 2026-09-21: duplicados.** *«Quiero que el pack completo tenga duplicados de lo
+que ya tiene el pack core»*. El núcleo es un subconjunto del completo. La alternativa (que el completo traiga
 sólo lo que al núcleo le falta) elimina ~7,5 MB de repetición y a cambio rompe la propiedad que
 hace que todo lo demás funcione: **hoy cada pack es un diccionario completo y autosuficiente**.
 De eso vive que un pack roto no tumbe la búsqueda de los otros (`SearchRepository`), que se pueda
@@ -960,6 +979,17 @@ españoles reales: **ρ = +0,388**, control barajado +0,001. Dos fuentes honesta
 señal sin ser intercambiables. Un ρ bajo **no condena** a un pack: dice cuánto se apoya la mezcla
 en una calibración ajena, y desde D-142 se apoya poco.
 
+**¿Se paga en cada arranque?** Parte sí y parte no, y está medido (D-164):
+
+| | Cuándo corre | Costo, los dos packs reales |
+|---|---|---|
+| `schema_version`, `norm_version`, `payload_codec`, sha256 del diccionario | **Cada vez que abre la app** | **6,30 ms** |
+| Las 64 claves recalculadas (D-142) | **Sólo la primera vez** que se ve ese archivo | 35 ms, una vez |
+| Spearman entre packs | **Nunca en el reloj**: es `compare_calibration.py`, de escritorio | — |
+
+O sea que el arranque pasó de **41,33 a 6,30 ms**. Lo caro se hace una vez y se recuerda con una
+huella que incluye `NORM_VERSION`, así que un cambio en `norm()` vuelve a probar todo.
+
 **4. ¿Las entradas de una misma palabra se muestran juntas? ¿Se complementan o se duplican
 acepciones?**
 
@@ -988,14 +1018,23 @@ acepciones.
 - `data_version` es `AAAAMMDDHHMM` derivado del build (D-170), así que **el mayor es el más
   nuevo**, y dos builds del mismo volcado ya no empatan — que era justo el bug.
 
-⚠️ **Lo que falta es una regla de tres líneas en `PackStore`: de cada `pack_id`, quedarse con el
-`data_version` mayor.** Hoy abre **todos** los `.db` del directorio, así que un pack viejo y uno
-nuevo del mismo diccionario **se abren los dos** y se consultan los dos: el resultado no está mal
-—la deduplicación por `(lema, tipo)` lo tapa— pero se paga el doble de consultas, el doble de
-validación al arrancar y el doble de disco, sin que nada lo diga.
+✅ **CONSTRUIDO el 2026-09-21** (D-171), como una sola función con las dos reglas —eran la misma
+forma, y separarlas habrían sido dos recorridos con el mismo bug:
 
-Y es la misma forma que el núcleo necesita, con otro criterio: *de cada idioma, si hay un `full`,
-no consultes los `core`*. **Una sola regla con dos usos**, y por eso conviene escribirla una vez.
+| Regla | Qué hace | Quién la usa hoy |
+|---|---|---|
+| **De cada `pack_id`, el `data_version` mayor** | Dos archivos con el mismo `pack_id` son el mismo diccionario (D-138) y el build viejo es estrictamente peor (D-170) | **Sí**: cierra un defecto de hoy |
+| **Un pack no se consulta si el que lo contiene está** | La que el núcleo necesita | **No**: ningún pack declara `subset_of` todavía |
+
+⚠️ **Y la distinción que lo hace correcto: instalado y consultado dejan de ser la misma lista.**
+Ajustes sigue mostrando **todo** lo que ocupa disco —si no, un pack que no se consulta se vuelve
+invisible y no hay forma de borrarlo— y la búsqueda pregunta sólo a lo que puede aportar algo.
+
+**¿Vale la pena declarar cuál es más completo?** Sí, y **`entry_count` no alcanza**: dice cuál es
+más grande, que es otra cosa. Dos packs de fuentes distintas pueden ser los dos grandes sin que
+ninguno contenga al otro, y ahí consultarlos a los dos es exactamente lo que se quiere (D-136). Lo
+que hay que declarar es **contención** —*«todo lo que yo tengo, ése lo tiene»*—, que es justo lo
+que no se puede deducir en el reloj: comparar 150.000 lemas costaría más que la búsqueda.
 
 #### El núcleo dentro del APK
 
