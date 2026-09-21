@@ -347,6 +347,44 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+### 📋 Lo que falta para cerrar el punto de traducciones — corte 2026-09-21
+
+Ordenado por lo que cuesta contra lo que cierra, y verificado contra el código, no contra la
+memoria.
+
+#### Barato y visible (horas)
+
+| # | qué | por qué importa |
+|---|---|---|
+| 1 | **`wordActions` deja de filtrar por `kind == PackKind.BILINGUAL`** | Verificado que sigue así (`WordActions.kt:63`). El pack español **ya traduce** y la acción «ver traducción» **no aparece nunca**. Es el bug más visible de todos |
+| 2 | **`bilingual.py` llena `T`/`W`** con las claves crudas que ya calcula | Verificado: **0 referencias** a esos campos. El pack con más traducciones (206.727 filas de `trans`) tiene el canal de lectura **vacío**, y su docstring admite que tira la forma de display |
+| 3 | **El APK deja de empaquetar el toy** | `app/build.gradle.kts:263` sigue apuntando a `demo-es-en.db`. `es-core.db` y `en-core.db` existen desde hoy |
+
+#### Mediano (un día)
+
+| # | qué | precio medido |
+|---|---|---|
+| 4 | Resolver los enlaces en la ficha | El mapa de enlaces tiene que llevar `packId`: toca el límite de D-080 |
+| 5 | Los **10.438 pares** de `en.jsonl` a `trans` del pack inglés | Hace que `perro` encuentre `dog`. No sirven para `T`: **0 `sense_index` de 9.987** |
+| 6 | Índice de flexiones inglesas | **1,84 MB (+3,7 %)**; sube la inversa de 78,1 % a 98,9 % |
+| 7 | **Reconstruir los packs reales** | ~1 hora. Decidido: **un solo build al final**. Sus 350 excepciones de direccionabilidad se cierran ahí |
+
+#### Sin decidir — son decisiones, no trabajo
+
+| # | qué | el número que lo decide |
+|---|---|---|
+| 8 | ¿Plegar el código de acepción? | +7,80 puntos (34,40 % → 42,21 %) entre diccionarios distintos, pero es una segunda regla versionada y obliga a plegar también la clave de fusión |
+| 9 | ¿`kind` describe definiciones o capacidades? | Hoy un pack `monolingual` es buscable en inglés y muestra traducciones. Cambiar el filtro de `wordActions` (#1) o agregar un tercer `kind` |
+| 10 | 🔭 **El espacio de equivalencias entre packs** | Cerraría el **65,60 %** que dos diccionarios del mismo idioma no comparten. Marcado por el usuario como **deseable**. Bloqueado por §Alinear acepciones entre fuentes: falta **quién las declara** |
+
+#### El slot de acepción sigue vacío, y no es pereza
+
+Para escribir una referencia a una acepción hace falta el `uid` y la glosa **del pack destino**, y
+el Wikcionario español no los tiene. Sólo lo puede llenar un pack **derivado** del de definiciones
+— la misma razón por la que `build_core.py` deriva en vez de reconstruir (D-175). **El mecanismo
+quedó listo antes que el dato que lo va a usar**, y eso es correcto: al revés habría que adivinar
+el formato.
+
 ### ✅ «Toda acepción direccionable, sin excepciones» — INVARIANTE CONSTRUIDO 2026-09-21
 
 Pedido literal: *«toda palabra debería poder ser accesible mediante una tupla IDIOMA, PALABRA,
