@@ -22,9 +22,22 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-21.*
 
-⚠️ **El 2026-09-21 el formato del pack cambió más que en ningún otro día, y los `.db` en disco
-todavía no lo reflejan.** Todo lo de abajo describe packs construidos **antes** de esa sesión. Lo
-que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta):
+✅ **Los packs se reconstruyeron el 2026-09-22 y ya lo reflejan todo.** Lo que el rebuild trajo,
+medido sobre los packs reales:
+
+| | antes | ahora |
+|---|---|---|
+| `cas` devuelve | `casar, casa, casta…` | **`casa`, caso, casi, casas** |
+| `lib` devuelve | `libar, libro, libre…` | **`libro`, libre, libra** |
+| `house` (inverso) | `solar, alojar, albergar` | **`casa`, hogar, ama** |
+| `water` (inverso) | `gastar, regar, resbalar` | **`agua`, llave, canal** |
+| irregulares (`went`, `children`) | no llegaban | **`ir, andar` · `hijo, niño`** |
+| rho(`rank`, frecuencia real) | **−0,250** | **−0,787** |
+| filas de `trans` en el bilingüe | 206.727 | **474.849** |
+
+Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-zipf-v1`.
+
+⚠️ **El 2026-09-21 el formato del pack cambió más que en ningún otro día.** Lo que cambió:
 
 - Las traducciones entran al payload por **dos canales**: `T` por acepción y `W` de la palabra.
   Antes ninguno se llenaba.
@@ -36,8 +49,8 @@ que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **96 tests**) y el
-pipeline de packs (`tools/`, **351 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **763 tests en total**. Los **44
+pipeline de packs (`tools/`, **351 tests**) están completos y en el gate, junto con los **291 JVM
+de `:app`** y **26 checks** de auditoría estructural — **764 tests en total**. Los **44
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
