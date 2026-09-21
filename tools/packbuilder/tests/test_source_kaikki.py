@@ -505,6 +505,76 @@ class SinonimosTest(unittest.TestCase):
 
 
 
+class RankPorFrecuenciaTest(unittest.TestCase):
+    """El prior de orden sale de la frecuencia de uso, y la riqueza queda de respaldo.
+
+    ⚠️ **El defecto que cierra, medido**: `rank` correlacionaba **-0,250** con la frecuencia real
+    --se esperaria -1-- porque contaba formas flexionadas y un verbo español trae hasta 222. En los
+    peldaños sin banda de cobertura (D-142 solo defiende `PREFIX`) eso se veia crudo:
+    `house` devolvia `solar, alojar, albergar` y nunca `casa`.
+
+    ⚠️ **Dos bandas disjuntas y no una escala mezclada.** Solo el **17,4 %** de los lemas tiene
+    señal de frecuencia; mezclar riqueza y frecuencia en un mismo numero exigiria calibrar cuanta
+    riqueza *vale* un punto de Zipf, que es una decision que nadie midio. Con bandas, quien tiene
+    señal se ordena por ella y quien no queda debajo **en bloque**, conservando entre pares el
+    orden de riqueza de siempre.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _rank_de(self, palabra, frecuencias=None, formas=None):
+        path = _jsonl(_raw(palabra, "noun", [_sense("una glosa cualquiera")],
+                           forms=[{"form": f} for f in (formas or [])]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", frequencies=frecuencias)))
+        return got.rank
+
+    def test_mas_frecuente_rankea_mejor(self):
+        comun = self._rank_de("casa", {"casa": 5.5})
+        raro = self._rank_de("casa", {"casa": 2.0})
+        self.assertLess(comun, raro, "mayor Zipf tiene que dar menor rank")
+
+    def test_lo_que_tiene_señal_le_gana_a_CUALQUIER_cosa_sin_señal(self):
+        """La afirmacion central de las dos bandas.
+
+        ⚠️ Sin esto, una entrada riquisima sin señal --un verbo con 80 formas-- seguiria ganandole
+        a una palabra comun, que es exactamente el defecto que esto viene a cerrar.
+        """
+        apenas_comun = self._rank_de("casa", {"casa": 1.0})
+        riquisima_sin_señal = self._rank_de("zurriagazo", {}, formas=["z%d" % i for i in range(80)])
+        self.assertLess(apenas_comun, riquisima_sin_señal)
+
+    def test_sin_señal_se_conserva_el_orden_de_riqueza_entre_pares(self):
+        """No aparecer en 50.000 palabras de subtitulos es evidencia de rareza, pero entre raras
+        la riqueza sigue siendo la mejor pista que hay."""
+        rica = self._rank_de("zzz", {}, formas=["a", "b", "c", "d"])
+        pobre = self._rank_de("zzz", {})
+        self.assertLess(rica, pobre)
+
+    def test_sin_mapa_de_frecuencias_nada_cambia(self):
+        """Un pack construido sin la lista tiene que salir igual que antes: `oewn` y `wikidata`
+        tienen su propia formula y no pasan por aca."""
+        self.assertEqual(self._rank_de("zzz", None), self._rank_de("zzz", {}))
+
+    def test_el_castigo_de_nombre_propio_se_suma_ENCIMA(self):
+        """⚠️ `verify_pack.py` exige `rank >= 1000` para nombres propios bajo la politica estricta.
+        Si la frecuencia se aplicara despues del castigo, `Madrid` --que es frecuente-- entraria
+        por debajo de ese piso y el pack fallaria la verificacion."""
+        path = _jsonl(_raw("Madrid", "name", [_sense("capital de España")]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", politica="included",
+                                       frequencies={"madrid": 5.0})))
+        self.assertGreaterEqual(got.rank, kaikki.CASTIGO_NOMBRE_PROPIO)
+
+    def test_el_rank_nunca_es_negativo_con_una_frecuencia_enorme(self):
+        self.assertGreaterEqual(self._rank_de("de", {"de": 99.0}), 0)
+
+
 class TraduccionesTest(unittest.TestCase):
     """Las traducciones van a SU acepcion, y lo que no se puede atribuir NO se cuelga de la 1.
 

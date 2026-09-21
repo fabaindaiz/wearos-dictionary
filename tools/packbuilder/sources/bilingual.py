@@ -90,7 +90,7 @@ def translation_keys(gloss, for_search=True):
     return salida
 
 
-def records(path, lang="es", politica=None):
+def records(path, lang="es", politica=None, frequencies=None):
     """The bilingual records: what `kaikki` yields, with `translations` filled in.
 
     ⚠️ **The entry side is not re-implemented and that is the point.** Pruning, homograph grouping,
@@ -101,7 +101,12 @@ def records(path, lang="es", politica=None):
 
     if politica is None:
         politica = kaikki.POLITICA_POR_DEFECTO
-    for record in kaikki.records(path, lang=lang, politica=politica):
+    # ⚠️ `frequencies` se encadena aca y no es un detalle: este es el pack donde el defecto
+    # de orden era PEOR. `orderFor` aplica la banda de D-142 solo a `PREFIX`, asi que su
+    # peldaño `TRANSLATION` ordena por `rank` puro -- `house` devolvia `solar, alojar,
+    # albergar` y nunca `casa`. Sin esta linea, el unico peldaño sin defensa seguiria roto.
+    for record in kaikki.records(path, lang=lang, politica=politica,
+                                 frequencies=frequencies):
         claves = []
         for sense in record.senses:
             propias = translation_keys(sense.get("gloss"), for_search=False)

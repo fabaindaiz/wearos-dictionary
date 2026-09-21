@@ -4,6 +4,7 @@
                           [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
                           [--tesauro <wordnet>] [--sumar <pack> <dump>]
                           [--flexiones <pack-del-idioma-destino.db>]
+                          [--frecuencias <lista-opensubtitles.txt>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -122,6 +123,16 @@ FUENTES = {
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
         "prosa": ("Definiciones en inglés de palabras españolas, del Wiktionary en inglés "
                   "(en.wiktionary.org), sección Spanish, licencia CC BY-SA 4.0."),
+    },
+    "opensubs": {
+        "codigo": "freq",
+        "rol": "frequency",
+        "nombre": "OpenSubtitles (via FrequencyWords)",
+        "url": "https://github.com/hermitdave/FrequencyWords",
+        "licencia": "CC BY-SA 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "prosa": ("Frecuencias de uso del corpus OpenSubtitles, via FrequencyWords "
+                  "(github.com/hermitdave/FrequencyWords), licencia CC BY-SA 4.0."),
     },
     "tatoeba": {
         "codigo": "tat",
@@ -406,6 +417,9 @@ def main(argv):
     dump_frases = None
     if "--frases" in argv:
         dump_frases = argv[argv.index("--frases") + 1]
+    lista_frecuencias = None
+    if "--frecuencias" in argv:
+        lista_frecuencias = argv[argv.index("--frecuencias") + 1]
     flexiones = None
     if "--flexiones" in argv:
         flexiones = argv[argv.index("--flexiones") + 1]
@@ -448,6 +462,12 @@ def main(argv):
         frases = tatoeba.shortest_by_norm(dump_frases)
         metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
         metadata["description"] += " Con frases de uso del corpus Tatoeba."
+    if lista_frecuencias:
+        # El credito viaja con el contenido, igual que arriba: la lista de frecuencias NO aporta
+        # texto al pack, pero **decide el orden de los resultados**, que es contenido de la misma
+        # forma. D-138 no distingue.
+        metadata["pack_id"] += "-" + _declarar(metadata, "opensubs")["codigo"]
+        metadata["description"] += " Resultados ordenados por frecuencia de uso real."
     tesauro = None
     if dump_tesauro:
         # El formato lo decide el IDIOMA del pack, no una opcion mas: el ingles tiene su propio
@@ -475,16 +495,38 @@ def main(argv):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
+        # ⚠️ **El prior de orden.** Sin esto `rank` es riqueza de pagina --acepciones, ejemplos y
+        # sobre todo FORMAS-- y eso premia verbos: medido, correlaciona **-0,250** con la
+        # frecuencia real de uso donde se esperaria -1. El sintoma se ve donde la banda de
+        # cobertura de D-142 no llega: `house` devolvia `solar, alojar, albergar` y nunca `casa`.
+        #
+        # Se combinan las dos fuentes en escala Zipf: OpenSubtitles manda y Tatoeba --que ya esta
+        # en disco y ya se declara-- rellena lo que aquella no cubre. Cada lema toma su valor de
+        # UNA fuente; promediar ocurrencias contra frases-que-la-contienen seria una calibracion
+        # que nadie midio.
+        mapa_frecuencias = None
+        if lista_frecuencias:
+            from sources import frequency
+            principal = frequency.to_zipf(frequency.load(lista_frecuencias))
+            relleno = {}
+            # ⚠️ `dump_frases` y NO `frases`: a esta altura `frases` ya es el diccionario de
+            # oraciones que arma `shortest_by_norm`, no la ruta del corpus.
+            if dump_frases:
+                lang_corpus = {"es": "spa", "en": "eng"}.get(PACKS[lang]["lang_src"])
+                relleno = frequency.to_zipf(
+                    tatoeba.frequencies(dump_frases, lang=lang_corpus))
+            mapa_frecuencias = frequency.combined(principal, relleno)
         reader = READERS[lang]
         # El lector bilingue recibe el idioma de ORIGEN y no la clave del CLI: "es-en"
         # nombra al pack, pero el perfil de normalizacion y los `PERFILES` de kaikki son los
         # del espanol.
         argumentos = (
             (source, lang) if reader is oewn
-            else (source, PACKS[lang]["lang_src"], politica) if reader is bilingual
+            else (source, PACKS[lang]["lang_src"], politica, mapa_frecuencias)
+            if reader is bilingual
             # `translations_to` sale de la misma tabla que lo declara en `meta`, para que la
             # promesa del pack y lo que el lector emite no puedan separarse.
-            else (source, lang, politica, PACKS[lang].get("translations_to"))
+            else (source, lang, politica, PACKS[lang].get("translations_to"), mapa_frecuencias)
             if reader is kaikki
             else (source, lang, politica)
         )
