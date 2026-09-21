@@ -36,8 +36,8 @@ que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **96 tests**) y el
-pipeline de packs (`tools/`, **349 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **761 tests en total**. Los **43
+pipeline de packs (`tools/`, **351 tests**) están completos y en el gate, junto con los **290 JVM
+de `:app`** y **26 checks** de auditoría estructural — **763 tests en total**. Los **44
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
