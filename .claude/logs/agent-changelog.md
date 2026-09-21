@@ -26,6 +26,44 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El barrido de fuentes de traducción que faltaba hacer
+**Qué.** Nada de código. Se hizo el barrido de **qué fuentes de traducción ES↔EN existen**, con
+licencia leída en la fuente primaria y rendimiento medido contra el pack. Documentado en
+`docs/fuentes.md` §Traducciones ES↔EN; tres filas salen de §Sin evaluar.
+**Áreas.** `docs/fuentes.md`.
+**Por qué.** Pregunta directa: *«¿buscaste fuentes de traducciones para verificar cuáles había y
+de qué calidad?»*. **La respuesta honesta era no**: las sesiones anteriores midieron lo que ya
+estaba descargado o ya listado, nunca qué existe afuera. La recomendación era correcta pero se
+apoyaba en la casualidad de qué se había bajado.
+**Arquitectura.** ✅ Cumple. Nada construido. Se descargaron dos archivos de DBnary (13,3 MB y
+596 KB) a `wearos-dictionary-data/`, fuera del repo.
+**Medido.**
+- **DBnary** (CC BY-SA 3.0): **30.723 pares ES→EN, sólo 9.169 (29,8 %) ligados a acepción** sobre
+  5.661 lemas. Contra los **34.710 pares / 18.817 acepciones** de leer `es.jsonl` directo.
+  **Pierde contra su propia fuente**: desambigua casando glosas, mientras que `sense_index` viene
+  declarado. Calidad buena donde liga (`francés__adjetivo__1 → French` vs
+  `francés__sustantivo_masculino__2 → blowjob`).
+- **Wikidata Lexemes** (CC0, ya en disco): 66.935 lexemas pero sólo **20.872 acepciones**;
+  **6.324 (30,3 %) con `P5137`** y 1.629 (7,8 %) con glosa inglesa. ⚠️ `P5137` sería un puente
+  alineado por acepción y CC0, pero las etiquetas del ítem viven en el dump de **ítems (>100 GB)**,
+  no en el de lexemas. Y las glosas inglesas son **definiciones**, no términos.
+- **PanLex: CC BY-NC-SA 4.0, no CC0.** ⚠️ El buscador la resume como CC0 y la página primaria
+  dice NonCommercial con permiso escrito para uso comercial. **Bloqueada.**
+- **FreeDict `eng-spa`: 64.258 lemas EN→ES —justo la dirección débil— pero GPL.** Viral sobre el
+  dato, choca con el CC BY-SA del pack. Apertium igual (ya estaba anotado).
+**Qué salió mal.** La omisión misma, y conviene que quede escrita: **cuatro sesiones midiendo
+traducciones sin preguntar qué fuentes existían.** Ninguna medición salió mal, pero todas
+partían del conjunto que alguien había descargado antes. `fuentes.md` §Cómo se agrega una fuente
+dice *«leer la licencia en la fuente primaria»* y la trampa de PanLex muestra para qué sirve:
+el resumen del buscador decía CC0.
+**Qué quedó sin hacer.**
+- **Nada implementado.** La conclusión anterior no cambia: leer `translations` de `es.jsonl`.
+- **Sin evaluar todavía**: OmegaWiki, acoli-dicts (3.000+ diccionarios convertidos, incluye
+  Apertium/FreeDict — misma licencia, probablemente mismo bloqueo), y OPUS/OpenSubtitles como
+  corpus paralelo (no es diccionario: daría pares por alineación, ruidosos).
+- El dump de ítems de Wikidata (>100 GB) cerraría el puente `P5137`. No se bajó y no parece valer.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — Traducciones por acepción: la fuente lo declara y D-117 ya escribió el lector
 **Qué.** Nada de código. Se midieron **dos de los tres caminos** que §Alinear acepciones tenía
 como *«ninguno medido»*: atribuir traducciones a la acepción correcta dentro de un idioma, y unir

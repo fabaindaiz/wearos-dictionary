@@ -8,7 +8,7 @@ más útiles, porque evitan volver a intentarlo.
 > **Una fila sin medición no entra.** Si dice un número, al lado dice cómo se obtuvo. Una fuente
 > que nadie midió va en §Sin evaluar, no en la tabla.
 
-*Última medición: 2026-09-20.*
+*Última medición: 2026-09-21 (barrido de fuentes de TRADUCCIÓN, ver §Traducciones ES↔EN).*
 
 ---
 
@@ -104,10 +104,51 @@ antes que el código**.
 
 | Candidata | Por qué podría servir | Lo que hay que averiguar primero |
 |---|---|---|
-| **DBnary** | Extracción RDF de varios Wikcionarios | ¿Aporta algo sobre kaikki, o es la misma fuente con otro formato? |
 | **Wikcionario de otros idiomas, sección español** | Cada wiki define distinto | Las glosas están en el idioma del wiki: sería un pack **bilingüe**, no monolingüe (D-034) |
-| **FreeDict / Apertium** | Pares bilingües ya hechos | Licencia (Apertium es GPL, y eso es viral sobre el dato) |
 | **Spanish WordNet (MCR)** | Estructura de synsets en español | **Ya se usa** como tesauro (D-144), con licencia CC BY 3.0 vía OMW. ⚠️ **Como puente de traducción está medido y descartado**: sólo el 0,6 % de sus synsets existe en OEWN 2024 y 342 de esas 435 coincidencias son colisiones de offset (`soñador ↔ diner`). Ver roadmap §Completing the translations |
+
+---
+
+## Traducciones ES↔EN: el barrido completo
+
+**Medido el 2026-09-21**, y hecho porque faltaba: hasta ese día se habían medido las fuentes que
+ya estaban en disco o ya listadas acá, nunca *qué existe en el mundo* para traducir entre español
+e inglés. El resultado no cambia la recomendación, pero ahora la respalda un barrido en vez de la
+casualidad de qué se había descargado.
+
+| Fuente | Licencia | Qué da para ES↔EN | Medido | Veredicto |
+|---|---|---|---|---|
+| **Wikcionario `es.jsonl`** *(ya en disco)* | CC BY-SA 4.0 | Tabla de traducciones **con `sense_index` declarado** | **34.710 pares; 18.817 acepciones alcanzadas** expandiendo rangos | 🏆 **La mejor, y el pipeline no la lee** |
+| **Wiktionary `en.jsonl`** *(ya en disco)* | CC BY-SA 4.0 | Pares EN→ES con el **texto** de la acepción inglesa | **10.410 pares, 100 % con texto de acepción** | ✅ Complemento para la dirección inversa |
+| **DBnary** | CC BY-SA 3.0 | Traducciones desambiguadas por acepción, 27 ediciones | **30.723 ES→EN, sólo 9.169 (29,8 %) ligadas a acepción**, sobre 5.661 lemas | ❌ **Misma fuente, la mitad del rendimiento** |
+| **Wikidata Lexemes** *(ya en disco)* | CC0 | `P5137` = ítem del concepto, y alguna glosa inglesa | 20.872 acepciones; **6.324 (30,3 %) con `P5137`**, 1.629 (7,8 %) con glosa EN | ❌ Chica, y **le falta la otra orilla** |
+| **PanLex** | ⚠️ **CC BY-NC-SA 4.0** | Base panlingüe enorme | — | ❌ **`NonCommercial` la bloquea** |
+| **FreeDict `eng-spa`** | ⚠️ **GPL** | **64.258 lemas EN→ES** — justo la dirección débil | — | ❌ GPL es viral sobre el dato y choca con CC BY-SA |
+| **Apertium `en-es`** | ⚠️ **GPL** | Diccionario bilingüe de MT | — | ❌ Lo mismo (ya estaba anotado) |
+
+⚠️ **La licencia de PanLex es el ejemplo de por qué este repo exige fuente primaria.** El buscador
+la resume como **CC0**; su propia página de licencia dice *«Creative Commons
+Attribution-NonCommercial-ShareAlike 4.0 International License»* y exige permiso escrito para uso
+comercial. Creerle al resumen habría metido una cláusula NC dentro de un pack que se distribuye.
+
+**Por qué DBnary pierde contra leer el dump directo**, que es contraintuitivo porque DBnary
+*existe* para esto: desambigua sólo cuando puede casar la glosa de la tabla de traducción con una
+acepción, mientras que `sense_index` **viene declarado por el wiki** y no hay nada que casar. Su
+valor real son las **otras 25 ediciones**, no el par que ya tenemos. Su calidad donde sí liga es
+buena —`francés__adjetivo__1 → French`, `francés__sustantivo_masculino__2 → blowjob`, con las
+acepciones bien separadas— así que la fila la rechaza el rendimiento, no el dato.
+
+**Por qué a Wikidata le falta la otra orilla**: `P5137` apunta a un ítem de Wikidata —`berilio →
+Q569`, `vino → Q282`—, que es el concepto y **tiene etiqueta en todo idioma**. Sería un puente
+alineado por acepción y CC0. Pero las etiquetas viven en el dump de **ítems**, que son más de
+100 GB, no en el de lexemas que ya tenemos. Y sus glosas inglesas directas (7,8 %) son
+**definiciones en inglés**, no términos — el mismo problema de forma que el pack bilingüe:
+`parecer → "to seem to be a certain way"`.
+
+**Conclusión, y es la misma de antes pero ahora con el barrido detrás:** de todo lo que existe con
+licencia usable, **lo mejor ya está en disco y sin leer**. Las dos fuentes grandes que podrían
+haber ayudado —PanLex y FreeDict, ésta última justo en la dirección débil— están bloqueadas por
+licencia, no por calidad.
 
 ---
 
