@@ -119,10 +119,10 @@ class SqlitePackSource(
         // acaba de escribir entero y nunca puede faltar.
         val order = " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?"
         val sql = if (upper != null) {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" +
+            "SELECT id, headword, pos, rank FROM entry WHERE norm >= ? AND norm < ?" +
                 porIdioma + order
         } else {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ?" + porIdioma + order
+            "SELECT id, headword, pos, rank FROM entry WHERE norm >= ?" + porIdioma + order
         }
 
         val rows = pack.connection().prepare(sql).use { statement ->
@@ -132,7 +132,7 @@ class SqlitePackSource(
             if (lang != null) statement.bindText(i++, lang)
             statement.bindText(i++, normalized)
             statement.bindInt(i, limit * PREFIX_OVERFETCH)
-            statement.collectSuggestions(MatchKind.PREFIX)
+            statement.collectSuggestions(MatchKind.PREFIX, rankIndex = 3)
         }
 
         // Se pide de mas y se deduplica aca, no con GROUP BY: medido sobre el pack real, el
@@ -414,7 +414,19 @@ class SqlitePackSource(
 
     // ----------------------------------------------------------------- helpers
 
-    private suspend fun SQLiteStatement.collectSuggestions(kind: MatchKind): List<Suggestion> {
+    /**
+     * ⚠️ **`rankIndex` es opcional porque sólo el peldaño de PREFIJO lo trae.** Ahí la consulta
+     * sale del covering index, que ya incluye `rank`, así que pedirlo **no cuesta una fila más**;
+     * en los otros peldaños habría que tocar la tabla para un desempate que no aplica —
+     * `hasFrequencySignal` sólo ordena dentro de `PREFIX`.
+     */
+    private suspend fun SQLiteStatement.collectSuggestions(
+        kind: MatchKind,
+        // `Int?` y no un centinela `-1`: lint lo rechaza --`getInt` exige >= 0-- y tiene razon,
+        // un valor magico en una posicion de columna es justo donde un off-by-one no se ve.
+        rankIndex: Int? = null,
+    ): List<Suggestion> {
+        val frontera = pack.metadata.rankSignalBoundary
         val out = mutableListOf<Suggestion>()
         val context: CoroutineContext = currentCoroutineContext()
         var position = 0
@@ -428,6 +440,12 @@ class SqlitePackSource(
                 matchKind = kind,
                 // Menor es mejor: la posicion dentro de su nivel, que ya viene ordenado por rank.
                 score = position++,
+                // La señal se resuelve ACA, contra la frontera que declara ESTE pack (D-198).
+                // Lo que sale de aca es la respuesta, no el `rank`: la escala no es comparable
+                // entre packs (D-187) y exponerla invitaria justo a esa comparacion.
+                hasFrequencySignal = frontera != null &&
+                    rankIndex != null &&
+                    getInt(rankIndex) < frontera,
             )
         }
         return out

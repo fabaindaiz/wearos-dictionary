@@ -5,6 +5,7 @@
 
     <!-- Tiles -->
     <string name="tile_history_label">Últimas palabras</string>
+    <string name="tile_search">Buscar</string>
     <string name="tile_history_title">Últimas</string>
     <string name="tile_history_empty">Busca una palabra</string>
     <string name="saved_remove">Quitar</string>

@@ -26,6 +26,40 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — A4, A3 y A1: la herramienta primero, y el orden inglés al final
+**Qué.** Tres ítems del roadmap elegidos por el usuario, en el orden que más rinde: la
+herramienta que deja de morder, las mejoras de tiles, y el cambio delicado al final.
+**Áreas.** `tools/audit_dictionary.py`, `tile/TileRender.kt`, `data/Visit.kt`,
+`SearchViewModel.kt`, `MainActivity.kt`, `SearchScreen.kt`, `core/Model.kt`,
+`core/SearchRepository.kt`, `data/SqlitePackSource.kt`, cuatro de test.
+**Arquitectura.** ✅ Cumple. D-204 a D-206.
+**Medido.**
+- **A1, el orden inglés**: posición media de la palabra obvia **5,1 → 3,6**. ⚠️ **No resuelve el
+  fondo**: `wat`, `boo` y `beaut` también tienen señal de frecuencia —son tokens reales de
+  subtítulos— así que siguen delante de `water`, `book` y `beautiful`. Es un desempate.
+- **A4**: en su primer uso real corrigió **cuatro archivos en un comando**, donde antes eran
+  cinco fallas seguidas del gate.
+- **Gate**: 26 checks · 749 JVM · 39 instrumentados en el emulador.
+**Qué salió mal.**
+- ⚠️ **La prueba de `--fix` nació vacua — TERCERA vez en el día.** El `sed` que rompía el conteo
+  no coincidía (el README decía 744, no 770), así que «falla sin `--fix`» pasó sin probar nada.
+  Se repitió con el número correcto. **Tres tests vacuos en una sesión no es mala suerte**: el
+  patrón es escribir la comprobación después del arreglo y creerle al primer verde.
+- Y la primera versión de `--fix` **corregía el archivo y reportaba falla igual**: llamaba a
+  `report.note`, que no existe en este `Report`, y la excepción se tragaba como *«check roto»*.
+- `Suggestion` **no exponía `rank` a propósito** y estuve por agregarlo. El motivo real lo da
+  D-187 —el rank crudo no es comparable entre packs— así que lo que se expone es un **booleano**
+  resuelto dentro del pack contra su propia frontera declarada.
+- Lint rechazó `rankIndex: Int = -1` (*«Value must be ≥ 0»*) y tenía razón: un centinela en una
+  posición de columna es justo donde un off-by-one no se ve. Pasó a `Int?`.
+**Qué quedó sin hacer.**
+- De A3 quedan dos de cinco: el *breakpoint* de 225 dp **necesita el reloj** (el chrome del
+  renderer no está medido) y el salto a Wear Widgets sigue en alpha (D-024).
+- El tile de «seguir leyendo» se descartó por valor bajo: hoy «última abierta» y «última
+  visitada» son la misma cosa.
+
+---
+
 ## 2026-09-21 — Nueve pedidos de uso, y el que era un bug resultó ser sistémico
 **Qué.** Nueve cambios pedidos después de usar la app: siete de recorte e interfaz, uno de
 lógica y **uno que era un defecto real de navegación**.

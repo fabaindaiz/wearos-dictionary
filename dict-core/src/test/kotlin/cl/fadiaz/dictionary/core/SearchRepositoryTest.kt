@@ -66,7 +66,59 @@ class SearchRepositoryTest {
         score: Int = 100,
         pos: String? = "noun",
         id: Long = 1,
-    ) = Suggestion(pack, id, headword, pos, kind, score)
+        conSenal: Boolean = false,
+    ) = Suggestion(pack, id, headword, pos, kind, score, conSenal)
+
+    @Test
+    fun `un lema con FRECUENCIA CONOCIDA le gana a un fragmento corto`() = runTest {
+        // ⚠️ **El defecto que esto corrige se midió sobre el pack inglés reconstruido.** La
+        // posición media de la palabra obvia era **5,1**: `hous` devolvía `Hous.` --una
+        // abreviatura-- primero, `tim` ponía `TIM, Tim, TIM, Tim` antes de `time`, y `beaut`
+        // dejaba `beautiful` en la 12. La primera pantalla son tres filas, así que la mitad de
+        // esas búsquedas no mostraba la palabra.
+        //
+        // ⚠️ **La causa no es `rank`: es `coverageBand`, que premia los lemas CORTOS.** Teclear
+        // `wat` cubre `wat` al 100 % y `water` al 60 %, así que `wat` gana la banda sin importar
+        // la frecuencia. En español apenas muerde --pocos fragmentos de tres letras son lema-- y
+        // el Wiktionary inglés está lleno: interjecciones, siglas, formas ligadas.
+        //
+        // ⚠️ **Va ANTES de la banda y sólo en `PREFIX`.** Después no serviría: la banda ya habría
+        // puesto el fragmento arriba. Y es un BOOLEANO y no el `rank`, porque el rank crudo no es
+        // comparable entre packs (D-187) -- cada pack resuelve la señal contra **su** frontera
+        // declarada (D-198) y lo que cruza es la respuesta, no la escala.
+        //
+        // Medido: la posición media pasa de **5,1 a 3,6**. No resuelve el fondo --`wat` y `boo`
+        // también tienen señal, son tokens reales de subtítulos-- pero es un 30 % sin tocar
+        // ninguna otra regla.
+        val repo = SearchRepository(
+            listOf(
+                FakePack(
+                    "en",
+                    listOf(
+                        row("en", "wat", score = 0),
+                        row("en", "water", score = 1, conSenal = true),
+                    ),
+                    lang = "en",
+                ),
+            ),
+        )
+        assertEquals("water", repo.suggest("wat").first().headword)
+    }
+
+    @Test
+    fun `sin senal en ninguno la banda de cobertura sigue mandando`() = runTest {
+        // La regla nueva DESEMPATA, no reemplaza: si nadie tiene señal --un pack de riqueza de
+        // página, que es lo que eran todos antes de D-185-- el orden es el de siempre.
+        val repo = SearchRepository(
+            listOf(
+                FakePack(
+                    "es",
+                    listOf(row("es", "cas", score = 0), row("es", "casa", score = 1)),
+                ),
+            ),
+        )
+        assertEquals("cas", repo.suggest("cas").first().headword)
+    }
 
     @Test
     fun `la union de dos packs es la ganancia de cobertura`() = runTest {

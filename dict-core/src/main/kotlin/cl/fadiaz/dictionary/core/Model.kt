@@ -224,6 +224,23 @@ data class Suggestion(
     val matchKind: MatchKind,
     /** Menor es mejor. Distancia de edicion en FUZZY; posicion relativa en el resto. */
     val score: Int,
+    /**
+     * Si este lema cae en la banda de `rank` que tiene **frecuencia de uso real** (D-185).
+     *
+     * ⚠️ **Es un booleano y NO el `rank`, y esa forma es la decisión.** El `rank` crudo no es
+     * comparable entre packs --cada uno lo calcula contra su propio volcado con su propia
+     * fórmula (D-187)-- así que exponerlo invitaría justo a la comparación que no vale. Cada
+     * pack resuelve la señal contra **su** `meta.rank_signal_boundary` (D-198) y lo que cruza la
+     * frontera es la respuesta, no la escala.
+     *
+     * ⚠️ **Existe por un defecto medido en inglés.** `coverageBand` premia los lemas cortos
+     * --teclear `wat` cubre `wat` al 100 % y `water` al 60 %-- y el Wiktionary inglés está lleno
+     * de fragmentos de tres letras: interjecciones, siglas, formas ligadas. La posición media de
+     * la palabra obvia era **5,1** sobre una primera pantalla de tres filas.
+     *
+     * `false` para un pack que no declara la frontera, que es como se comportaban todos.
+     */
+    val hasFrequencySignal: Boolean = false,
 )
 
 /**

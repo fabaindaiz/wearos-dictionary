@@ -49,9 +49,9 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **97 tests**) y el
-pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **292 JVM
-de `:app`** y **26 checks** de auditoría estructural — **770 tests en total**. Los **46
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **99 tests**) y el
+pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **295 JVM
+de `:app`** y **26 checks** de auditoría estructural — **775 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3695,7 +3695,16 @@ technical terms this repo deliberately leaves untranslated (gate, covering index
 
 ### Los conteos de tests en los documentos se rompen en cada commit
 
-**Estado.** **Fricción medida, mejora propuesta y no ejecutada** (2026-09-21).
+**Estado.** ✅ **RESUELTO el 2026-09-21 con `--fix`.** `python3 tools/audit_dictionary.py --fix`
+reescribe los conteos que encuentra mal y los reporta como aviso; sin el flag falla igual que
+siempre. Verificado en las dos direcciones, rompiendo un número a propósito.
+
+⚠️ **Sólo corrige el NÚMERO, y esa frontera es la decisión.** Que un documento haya *dejado de
+afirmar* un conteo sigue siendo falla humana: ahí la frase se reescribió o el dato se borró, y
+arreglarlo automáticamente inventaría una frase o **borraría una vigilancia sin que nadie se
+entere**.
+
+**La fricción que lo justificaba.**
 
 `check_doc_paths` y el chequeo de conteos son útiles —atrapan documentación que miente— pero en
 una sola sesión el de conteos **falló cinco veces**, siempre por lo mismo: agregar tests mueve

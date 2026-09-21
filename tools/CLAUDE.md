@@ -24,6 +24,7 @@ layer.
 ```sh
 hatch run test              # the 355 tests
 hatch run audit             # the structural audit
+python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
 hatch run matrix:test       # THE TESTS UNDER EVERY PYTHON VERSION
 hatch run lint:check        # ruff, defects only
