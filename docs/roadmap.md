@@ -1231,26 +1231,28 @@ lo que más gasta. Cada MB que se ahorra es tiempo de radio que no se paga.
 
 ### O-4. Batería
 
-**Estado.** **Bloqueado afuera.** No hay medición de batería que valga sin reloj físico (D-043). Lo reabre conseguirlo.
+**Estado.** **Una sección que creció se volvió un documento: vive en `docs/bateria.md`**
+(2026-09-20). Acá queda el puntero y lo que falta para cerrarla.
 
-Medir con **el power metric de Macrobenchmark, Perfetto o el Power Profiler**. No con Battery
-Historian: la documentación oficial dice que ya no se mantiene.
+**Lo que cambió.** Apareció el primer dato real de batería que este proyecto tuvo: el reloj
+atribuyó **9,4 %** al diccionario tras un rato largo con la app abierta. Lo que esta sección decía
+antes —*"los tres consumidores reales, en orden"*— era razonamiento, no medición, y el orden ya no
+se sostiene solo.
 
-Los tres consumidores reales, en orden:
+**Lo que se midió** (`tools/measure_query_cost.py`, sobre los packs reales): una búsqueda de
+palabra completa cuesta **3,0 peldaños y ~1 ms de SQL**; abrir una palabra cuesta **una sola
+consulta de 0,18 ms** —no una por palabra tocable, que era la sospecha—; y **6,3× más entradas
+cuestan casi lo mismo**, porque el índice es logarítmico. Con eso, una sesión pesada entera suma
+**segundos de CPU** contra **decenas de minutos de pantalla**.
 
-1. **La descarga del pack.** Mitigado por D-029 (cargando + Wi-Fi), pero sin medir.
-2. ~~**La superficie glanceable.**~~ **Cerrado el 2026-09-19.** La complication se apagó —que es
-   la primera opción que nombra la guía, *"disable automatic refresh"*— y con ella los 24
-   despertares diarios. Los dos tiles nuevos no programan refrescos: el de historial va con
-   `freshnessIntervalMillis = 0` (el sistema no lo llama) y se empuja desde la app; el de palabra
-   del día emite un `Timeline` de siete ventanas de reloj de pared y el renderer cambia solo
-   (D-107). **Lo que sigue sin medirse es cuánto ahorra eso en batería**, porque O-4 sigue sin
-   una sola medición en el reloj.
-3. **La pantalla durante la búsqueda.** El `debounce` de 120 ms y la cancelación con `mapLatest`
-   ya están diseñados para no trabajar de más, pero nunca se midieron en un reloj.
+**Lo que falta, y es lo único que decide el resto.** Correr `dumpsys batterystats` en el reloj para
+saber si ese 9,4 % es pantalla o CPU. Todo el árbol de estrategias cuelga de esa respuesta y está
+escrito en el documento, con el protocolo.
 
-**Qué hay que decidir antes.** Nada de la superficie glanceable: ya está decidida. Lo que falta
-es el reloj y un profiler.
+⚠️ **Y una creencia que la medición mató**: el comentario de `SqlitePackSource` dice que el
+prefijo es *"el 95% del uso"*. Es cierto mientras se escribe y **falso para la búsqueda que de
+verdad corre**: D-128 no busca con el teclado abierto, busca una vez al cerrarlo y sobre la
+palabra **completa**, que es justo el caso donde el prefijo devuelve poco y la cascada sigue.
 
 ### O-5. Animaciones y trabajo en el hilo de UI
 

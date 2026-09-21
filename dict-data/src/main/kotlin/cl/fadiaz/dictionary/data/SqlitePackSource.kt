@@ -86,7 +86,14 @@ class SqlitePackSource(
     }
 
     /**
-     * Prefijo del lema: el 95% del uso.
+     * Prefijo del lema: el primer peldano, y el unico que corre cuando alcanza.
+     *
+     * ⚠️ **Decia "el 95% del uso" y la medicion lo desmintio.** Es cierto MIENTRAS SE ESCRIBE
+     * --37 de 70 prefijos llenan el limite-- y falso para la busqueda que de verdad corre: D-128
+     * no busca con el teclado abierto, busca una vez al cerrarlo y sobre la palabra **completa**,
+     * que es justo el caso donde el prefijo devuelve pocas filas y la cascada sigue. Medido sobre
+     * el pack español, el promedio de una busqueda real es **3,0 peldanos**, no 1. No cambia nada
+     * de este metodo; cambia lo que alguien concluye leyendolo. Ver `docs/bateria.md`.
      *
      * Sale integra del covering index, sin tocar la tabla y sin leer un solo payload. Se usa un
      * rango explicito y no `LIKE 'x%'` porque LIKE solo se optimiza a range scan si

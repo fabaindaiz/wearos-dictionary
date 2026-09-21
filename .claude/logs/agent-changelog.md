@@ -26,6 +26,66 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — El primer dato de batería, y lo que la medición desmintió
+
+**Qué.** `docs/bateria.md` (nuevo) y `tools/measure_query_cost.py` (nuevo). §O-4 del roadmap se
+encogió a un puntero. Un comentario de `SqlitePackSource` corregido porque la medición lo
+desmintió. **Ningún cambio de comportamiento**: esto es análisis, no optimización.
+
+**Áreas.** `docs/bateria.md`, `tools/measure_query_cost.py`, `docs/roadmap.md` §O-4, `CLAUDE.md`
+(el mapa de documentos), `dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt` (sólo KDoc).
+
+**Por qué.** Reportado desde el reloj: **9,4 % de batería** atribuido al diccionario. Es el primer
+dato de batería que este proyecto tuvo — §O-4 estaba *«bloqueado afuera»* y sus «tres consumidores
+reales, en orden» eran razonamiento. La pregunta concreta del usuario: si las palabras tocables de
+una glosa (D-094) cuestan batería *«al tener que hacer tantas búsquedas»*.
+
+**Arquitectura.** ✅ Cumple. El documento nuevo es exactamente el disparador que `CLAUDE.md`
+nombra —*«una sección que crece se volvió un documento»*— y se registró **extendiendo la fila que
+ya existía** en el mapa, porque `CLAUDE.md` está en 200 de 200 líneas y una fila nueva habría
+hecho fallar `check_root_budget`.
+
+**Medido.** Con `tools/measure_query_cost.py`, sobre los dos packs reales:
+
+- Una búsqueda de **palabra completa**: **3,0 peldaños, 19 filas, 1,04 ms** de SQL (español,
+  152.281 entradas). En inglés (956.150): 2,2 peldaños, 97 filas, 0,64 ms. **6,3× más entradas
+  cuestan casi lo mismo** — el índice es logarítmico, así que el tamaño del pack es un problema de
+  almacenamiento (§O-3), no de batería.
+- Abrir una palabra: inflate **0,006 ms** + **UNA** consulta de **0,181 ms** para todas las
+  palabras tocables (39,9 claves promedio, tope 64). En inglés 0,861 ms con 58,8 claves.
+- El contrafactual que responde la pregunta: las mismas 64 claves **una por una = 0,378 ms**, **en
+  lote = 0,077 ms**. La función ya está en lote.
+- Aritmética de una sesión pesada (60 búsquedas + 40 palabras + 10 arranques): **74 ms de SQL**,
+  que aun asumiendo un reloj **50× más lento** son **3,7 segundos de CPU** contra ~1.800 segundos
+  de pantalla. Tres órdenes de magnitud.
+
+**Qué salió mal.**
+
+- **La primera medición usó la clave equivocada.** Repliqué el peldaño tolerante con `norm()` en
+  vez de `fuzzy()`, así que los candidatos no eran los reales. Se arregló importando el
+  `normalize.py` del builder en vez de reimplementar — que además es lo correcto: si los dos se
+  separan, el script reporta mal y eso ya es la señal.
+- **El segundo intento leyó las glosas de `fts_def`**, que es **contentless** (D-011): `SELECT def`
+  no existe, mi fallback silencioso usó el lema y dio «1,0 claves por ficha», un número absurdo
+  que casi escribo. Lo agarró que el promedio no tenía sentido, no una excepción.
+- **`meta` no tiene `lang_source` sino `lang_src`.** Trivial, pero es el tipo de cosa que un
+  script que "sólo mide" arrastra a un documento.
+
+**Qué quedó sin hacer.**
+
+- **La medición en el reloj, que es la única que decide.** No estaba conectado. El protocolo
+  (`dumpsys batterystats --reset`, luego `--charged cl.fadiaz.dictionary` contra el tiempo de
+  pantalla) está escrito en el documento. **Todo el árbol de estrategias cuelga de esa respuesta**
+  y está dividido en dos mitades según cuál sea.
+- **Queda marcado ASSUMPTION** si ese 9,4 % incluye el término de pantalla imputado al primer
+  plano o es sólo CPU. Es lo primero que `dumpsys` resuelve.
+- **El cost model es una réplica, no un instrumento**: `measure_query_cost.py` reimplementa el SQL
+  de `SqlitePackSource` en Python con sus constantes copiadas. Si allá cambian y acá no, miente en
+  silencio. Lo dice en su propio docstring; un chequeo que compare las constantes sería el
+  enforcer que hoy no tiene.
+
+---
+
 ## 2026-09-20 — El idioma de la interfaz se elige, y el micrófono no habla ningún idioma
 
 **Qué.** D-157 (el botón de voz es un micrófono), D-158 (selector de idioma de la UI + diagnóstico
