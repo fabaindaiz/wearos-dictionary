@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — CONSTRUIDO: el segundo canal, `trans` lleno, y la referencia (pack, palabra, acepción)
+**Qué.** Tag `W` en el payload para las traducciones que la fuente no atribuyó; `trans` del pack
+español pasa de 0 a 3.257 filas; `meta.translations_pack` declara el diccionario destino una sola
+vez. Cierra los pedidos 1, 2, 7 y 8 de la auditoría.
+**Áreas.** `tools/packbuilder/payload.py`, `sources/kaikki.py`, `build.py`, `build_pack.py`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`, `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/SqlitePackSource.kt`, `app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`, strings, 4 archivos de test.
+**Por qué.** *«implementa 7 considerando una forma simple y eficiente de apuntar a un (pack,
+palabra, acepción), quizás el link al pack pueda ser por diccionario»*.
+**Arquitectura.** ✅ Cumple. `W` es aditivo y **no sube `CODEC_ID`** (D-119). El pack sigue
+`monolingual` con `lang_dst` vacío: sus definiciones siguen siendo en español, cambió por dónde
+se llega a ellas.
+**Medido.** Sobre un pack real de muestra 1/12, contra el build anterior:
+- items de traducción **1.921 → 2.921 (+52 %)**; entradas con algo que mostrar **1.052 → 1.893**.
+- tabla `trans` **0 → 3.257 filas**. Buscar `build` en el pack **monolingüe** devuelve
+  `construir, edificar`.
+- `construir` pasó de **0 a 8** traducciones; `comprender`, `atrapar`, `comenzar`, `infinito`
+  igual.
+- `verify_pack.py` pasa entero. Gate: 26 checks · 299 Python · 287 `:app` · **672 en total**.
+**Qué salió mal.** Dos, y las dos las encontró un test que ya estaba escrito.
+1. ⚠️ **Un agujero de seguridad real en la primera versión de la referencia.** Juntaba
+   `término + separador + acepción` en una cadena y dejaba que `render` **adivinara** partiéndola.
+   Con eso, un término de la fuente que **contuviera** el separador --`ho\x1fuse`-- se leía como
+   el término `ho` apuntando a la acepción `use`: **la fuente podía forjar una referencia**.
+   Arreglado haciéndolo explícito por tipo --`make_ref` devuelve una **tupla**, una cadena es
+   siempre término-- así que no hay nada que adivinar.
+2. Antes de eso, `render` saneaba el valor **ya juntado** y se comía el separador propio: el item
+   salía como `benchd4e5`. Lo agarró el test de ida y vuelta.
+**Qué quedó sin hacer.**
+- **El slot de acepción está definido y vacío**: el Wikcionario español no nombra acepciones del
+  pack inglés. Llenarlo pide el digest de glosa, y eso pide un pack **derivado**.
+- **Nadie resuelve el enlace todavía**: los términos se dibujan sin pintar. Resolverlos pide que
+  el mapa de enlaces lleve `packId` — tocar el límite de D-080.
+- ⚠️ **El pack inglés sigue sin traducciones** y no puede tenerlas por esta vía: 0 `sense_index`
+  de 9.987.
+- **Los packs reales siguen sin reconstruirse.** Decidido con el usuario: un solo build al final
+  de todos los cambios.
+- Pedidos abiertos de la auditoría: **3** (tablas en ambos sentidos, 1,84 MB), **4** (mostrar
+  palabras sin definición — con el matiz de que no sean linkeables ni tengan página propia salvo
+  que haya algo real que mostrar), **9** (enlace inequívoco) y **10** (enforcement).
+
 ## 2026-09-21 — CONSTRUIDO: las traducciones por acepción entran al pack español
 **Qué.** Primer código de la jornada. `kaikki.py` lee la tabla `translations` del dump —que
 siempre estuvo y el pipeline nunca leyó— y la emite al tag `T` **por acepción**; `SenseBlock`

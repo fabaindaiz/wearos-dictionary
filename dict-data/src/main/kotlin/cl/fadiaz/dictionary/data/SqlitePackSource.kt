@@ -295,6 +295,7 @@ class SqlitePackSource(
                 // El pos de la columna manda sobre el del payload: es el que ordena la lista.
                 partOfSpeech = statement.getTextOrNull(1) ?: body.partOfSpeech,
                 senses = body.senses,
+                wordTranslations = body.wordTranslations,
             )
         }
     }

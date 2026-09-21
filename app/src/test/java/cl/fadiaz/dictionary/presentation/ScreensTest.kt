@@ -332,6 +332,29 @@ class ScreensTest {
     }
 
     @Test
+    fun theWordLevelTranslationsGetTheirOwnSectionBelowTheSenses() {
+        // ⚠️ They go OUTSIDE `SenseBlock` and that is the whole point: a list drawn under a
+        // sense **asserts** it belongs to that sense, and what lands here is precisely what the
+        // source could not attribute. Merging them would undo in the screen what the format was
+        // built to keep apart (D-117), and the mistake would read as perfectly plausible.
+        //
+        // Measured: 48.6 % of entries with translations have ONLY these, so for half the words
+        // this section is the whole answer; and only 3.0 % show both sections at once.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(Sense("asiento para varias personas", translations = listOf("bench"))),
+                    wordTranslations = listOf("bank"),
+                )
+            }
+        }
+        compose.onNodeWithText("Traducción").assertExists()
+        compose.onNodeWithText("bench", substring = true).assertExists()
+        compose.onNodeWithText("Traducciones de la palabra").assertExists()
+        compose.onNodeWithText("bank", substring = true).assertExists()
+    }
+
+    @Test
     fun `una acepcion sin traduccion no dibuja el titulo`() {
         // `TermList` returns early on an empty list, and that has to keep holding for the fourth
         // one: a heading with nothing under it costs a row on a screen that has three.

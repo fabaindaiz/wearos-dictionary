@@ -60,7 +60,7 @@ class FrasesTest(unittest.TestCase):
             db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
         out = {}
         for hw, blob in db.execute("SELECT headword, payload FROM entry"):
-            _pos, ss = payload.parse(payload.decompress(blob, dic))
+            _pos, ss, _palabra = payload.parse(payload.decompress(blob, dic))
             out.setdefault(hw, []).append(ss)
         self.db = db
         return out

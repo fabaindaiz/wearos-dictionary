@@ -578,6 +578,49 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual([], got.senses[0]["translations"])
         self.assertEqual([], got.senses[1]["translations"])
 
+    def test_las_no_atribuidas_van_al_canal_de_la_palabra(self):
+        """El 37,7 % del dato, que antes se tiraba por no tener donde vivir."""
+        path = _jsonl(_raw("banco", "noun", [
+            _sense("asiento para varias personas", sense_index="1"),
+            _sense("entidad financiera", sense_index="2"),
+        ], translations=[
+            {"word": "bench", "code": "en", "sense_index": "1"},
+            {"word": "bank", "code": "en"},
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(["bench"], got.senses[0]["translations"])
+        self.assertEqual([], got.senses[1]["translations"])
+        # ⚠️ NO se cuelga de la acepcion 1: vive en el canal de la palabra.
+        self.assertEqual(("bank",), got.word_translations)
+
+    def test_el_canal_de_busqueda_lleva_las_dos(self):
+        """`translations` alimenta la tabla `trans`, y para buscar da igual la atribucion.
+
+        Esto es lo que hace que un pack MONOLINGUE se pueda buscar en el otro idioma: escribir
+        `bank` encuentra `banco` sin que haya un pack bilingue instalado.
+        """
+        path = _jsonl(_raw("banco", "noun", [_sense("entidad financiera", sense_index="1")],
+                           translations=[
+                               {"word": "bank", "code": "en", "sense_index": "1"},
+                               {"word": "bench", "code": "en"},
+                           ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(("bank", "bench"), got.translations)
+
+    def test_lo_que_ya_salio_por_acepcion_no_se_repite_abajo(self):
+        """Repetirlo diria que la palabra significa eso *ademas*, y es lo mismo mejor atribuido."""
+        path = _jsonl(_raw("casa", "noun", [_sense("edificacion para vivir", sense_index="1")],
+                           translations=[
+                               {"word": "house", "code": "en", "sense_index": "1"},
+                               {"word": "house", "code": "en"},
+                           ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(["house"], got.senses[0]["translations"])
+        self.assertEqual((), got.word_translations)
+
     def test_sin_idioma_destino_no_se_emite_ninguna(self):
         """El pack ingles no declara destino, y no tiene que ganar traducciones por accidente."""
         path = _jsonl(_raw("casa", "noun", [_sense("edificacion", sense_index="1")],

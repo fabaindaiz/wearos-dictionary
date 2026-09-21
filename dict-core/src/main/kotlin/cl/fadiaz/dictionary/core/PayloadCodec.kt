@@ -66,8 +66,48 @@ object PayloadCodec {
      */
     private const val TAG_RELATED = 'R'
 
+    /**
+     * Traducciones de la PALABRA, sin acepcion atribuida.
+     *
+     * Aditivo igual que [TAG_ANTONYM] y [TAG_RELATED], asi que **tampoco sube [CODEC_ID]**: un
+     * lector viejo lo cae por el `else -> Unit` y muestra la entrada sin la lista, que es la
+     * degradacion correcta.
+     *
+     * ⚠️ **Existe para que la opcion deshonesta deje de ser la barata.** Con `T` solo --que vive
+     * dentro de una acepcion-- un builder con una traduccion que la fuente no atribuyo podia
+     * tirarla o colgarla de la primera acepcion, y lo segundo se lee plausible y no lo agarra
+     * nadie (D-117). Medido: es el **37,7 %** de las traducciones del dump español.
+     */
+    private const val TAG_WORD_TRANSLATION = 'W'
+
     /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
-    data class Body(val partOfSpeech: String?, val senses: List<Sense>)
+    data class Body(
+        val partOfSpeech: String?,
+        val senses: List<Sense>,
+        /** Traducciones de la palabra entera, sin acepcion. Ver [TAG_WORD_TRANSLATION]. */
+        val wordTranslations: List<String> = emptyList(),
+    )
+
+    /**
+     * Separa un item de traduccion en `(termino, acepcion a la que apunta)`.
+     *
+     * ⚠️ **Las tres partes de una referencia `(pack, palabra, acepcion)` viven en lugares
+     * distintos, y ese reparto es el diseño**: el **pack** lo declara `meta.translations_pack`
+     * una sola vez --es constante, repetirlo por item costaria cientos de KB de una cadena--, la
+     * **palabra** es el termino que ya se muestra, y la **acepcion** es este sufijo opcional,
+     * porque solo existe cuando la fuente la supo.
+     *
+     * De ahi sale la propiedad que importa: **una traduccion sin acepcion ya es un enlace a la
+     * palabra, y no cuesta un solo byte extra**.
+     */
+    fun splitRef(value: String): Pair<String, String?> {
+        val cut = value.indexOf(REF_SEPARATOR)
+        return if (cut < 0) value to null
+        else value.substring(0, cut) to value.substring(cut + 1).ifEmpty { null }
+    }
+
+    /** El mismo juntador que usa `stable_uid()`. El builder lo saca de cualquier dato de fuente. */
+    private const val REF_SEPARATOR = '\u001f'
 
     /**
      * Hash del diccionario precargado, a comparar contra `meta.payload_dict_sha256` UNA VEZ al
@@ -97,6 +137,7 @@ object PayloadCodec {
     fun parse(text: String): Body {
         var partOfSpeech: String? = null
         val senses = mutableListOf<MutableSense>()
+        val wordTranslations = mutableListOf<String>()
 
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
@@ -116,12 +157,17 @@ object PayloadCodec {
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
                 TAG_RELATED -> senses.lastOrNull()?.related?.add(value)
+                // Sin guarda de `senses`: es de la ENTRADA, asi que su posicion en el texto no
+                // decide nada. Si decidiera, un `W` mal ubicado se volveria traduccion de
+                // acepcion -- la atribucion inventada que este canal existe para evitar.
+                TAG_WORD_TRANSLATION -> wordTranslations.add(value)
                 else -> Unit
             }
         }
 
         return Body(
             partOfSpeech = partOfSpeech,
+            wordTranslations = wordTranslations.toList(),
             senses = senses.map {
                 Sense(
                     it.gloss,

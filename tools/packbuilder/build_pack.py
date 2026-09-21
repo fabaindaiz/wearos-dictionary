@@ -226,6 +226,17 @@ PACKS = {
         # `lang_dst` sigue vacio-- porque no se puede BUSCAR por ellas: son contenido de lectura.
         # El canal de busqueda es la tabla `trans`, que en este pack sigue vacia.
         "translations_to": "en",
+        # ⚠️ **El diccionario al que apuntan esas traducciones, declarado UNA vez.** Es la parte
+        # `pack` de la referencia `(pack, palabra, acepcion)`: constante para todas, asi que por
+        # item costaria cientos de KB de una sola cadena. La `palabra` es el termino mismo y la
+        # `acepcion` es un sufijo opcional del item (ver `payload.make_ref`).
+        #
+        # Se nombra por **pack_id y no por archivo**: el pack_id es la identidad del diccionario
+        # (D-138) y sobrevive a los rebuilds, que es justo lo que `data_version` no hace.
+        #
+        # Si ese diccionario no esta instalado, los terminos se muestran **sin pintar**: no hay
+        # a donde ir, y una palabra pintada que no navega es peor que una sin pintar (D-084).
+        "translations_pack": "en-def-wikt",
         "fuzzy_profile": "es",
         "source_date": "20260915",
         "license": "CC-BY-SA-4.0",

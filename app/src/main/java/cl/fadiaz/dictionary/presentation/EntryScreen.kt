@@ -218,6 +218,36 @@ fun EntryScreen(
                 }
             }
 
+            // ⚠️ **Las traducciones de la PALABRA van acá, fuera de `SenseBlock`, y ese lugar
+            // es la mitad del diseño.** Una lista dibujada bajo una acepción **afirma** que le
+            // pertenece, y lo que cae acá es justo lo que la fuente no pudo atribuir: juntarlas
+            // desharía en la pantalla lo que el formato separó (D-117), y el error se leería
+            // perfectamente plausible.
+            //
+            // Van **después** de las acepciones porque las definiciones son a lo que el lector
+            // entró; y con su propio título, que es la única cosa que las distingue de la lista
+            // de arriba — la misma regla que D-126 fijó para los antónimos.
+            //
+            // Medido: el 48,6 % de las entradas con traducción tienen **sólo** éstas, así que
+            // para la mitad de las palabras esta sección es la respuesta entera; y sólo el 3,0 %
+            // muestra las dos secciones a la vez.
+            val wordTranslations = current?.wordTranslations.orEmpty()
+            if (wordTranslations.isNotEmpty()) {
+                item(key = "traducciones-palabra") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        // Mapa vacío como en `SenseBlock`: son del otro idioma y `links` resuelve
+                        // contra ESTE pack, así que nunca resolverían. Pintarlas sería una palabra
+                        // tocable que no lleva a ningún lado (D-084).
+                        TermList(
+                            R.string.entry_word_translations_title,
+                            wordTranslations,
+                            emptyMap(),
+                            onOpenWord,
+                        )
+                    }
+                }
+            }
+
             if (hidden > 0) {
                 item(key = "ver-mas") {
                     Pill(

@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **288 tests**) están completos y en el gate, junto con los **286 JVM
-de `:app`** y **26 checks** de auditoría estructural — **686 tests en total**. Los **43
+pipeline de packs (`tools/`, **299 tests**) están completos y en el gate, junto con los **287 JVM
+de `:app`** y **26 checks** de auditoría estructural — **698 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -346,6 +346,72 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 ⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
+
+### ✅ El segundo canal y la referencia `(pack, palabra, acepción)` — CONSTRUIDO 2026-09-21
+
+Cierra los pedidos **1, 2, 7 y 8** de la auditoría de abajo, y deja definido el mecanismo de
+enlace para conversar alternativas.
+
+#### El reparto de la referencia, que es el diseño entero
+
+| parte | dónde vive | por qué |
+|---|---|---|
+| **pack** | `meta.translations_pack = "en-def-wikt"` — **una vez** | Es constante para todas las traducciones. Por item costaría ~280 KB de una sola cadena. Se nombra por **`pack_id` y no por archivo**: es la identidad del diccionario (D-138) y sobrevive a los rebuilds, que es lo que `data_version` no hace |
+| **palabra** | el valor del item (`T` o `W`) | Ya estaba ahí: es el término que se muestra |
+| **acepción** | sufijo opcional del item, `término\x1fref` | Sólo existe cuando la fuente la supo |
+
+⚠️ **De ese reparto sale la propiedad que importa: una traducción sin acepción YA es un enlace a
+la palabra, y no cuesta un solo byte extra.** El caso común es el gratis. Y sin
+`translations_pack` declarado no hay a dónde ir, así que el término se muestra **sin pintar** —
+que es D-084 y lo que se pidió.
+
+#### Los dos canales
+
+- **`T`**, dentro de una acepción: lo que la fuente atribuyó.
+- **`W`**, de la entrada: lo que no pudo atribuir — **el 37,7 % del dato**, que hasta hoy se
+  tiraba porque no tenía dónde vivir.
+
+Aditivo: **no sube `CODEC_ID`** (D-119). Un lector viejo cae `W` por su `else` y muestra la
+entrada sin la lista.
+
+#### Medido sobre un pack real (muestra 1/12)
+
+| | antes | ahora |
+|---|---|---|
+| items de traducción | 1.921 | **2.921** (+52 %) |
+| entradas con algo que mostrar | 1.052 | **1.893** |
+| tabla `trans` (búsqueda) | **0 filas** | **3.257 filas** |
+
+```
+construir   ->  build, construct, install, establish, implement, set, act, do   (antes: nada)
+comprender  ->  understand, comprehend, realize, appreciate, apprehend, catch, see
+atrapar     ->  capture, catch, grapple, captivate, grab, seize, trap, apprehend
+
+buscar `build` en el pack MONOLINGÜE  ->  construir, edificar
+```
+
+⚠️ **Y eso último es el pedido 2 cerrado**: el pack de definiciones ahora **se busca en inglés**
+sin que haya un pack bilingüe instalado. Sigue declarándose `monolingual` y con `lang_dst` vacío,
+porque sus definiciones siguen siendo en español: lo que cambió es por dónde se llega a ellas.
+
+#### ⚠️ Un agujero de seguridad que encontró su propio test
+
+La primera versión juntaba la referencia en una cadena y dejaba que `render` **adivinara**
+partiéndola por el separador. Con eso, un término de la fuente que **contuviera** el separador
+—`ho\x1fuse`— se leía como el término `ho` apuntando a la acepción `use`: **la fuente podía
+forjar una referencia a otra acepción.**
+
+Arreglado haciéndolo explícito por tipo: `make_ref` devuelve una **tupla**, una cadena es siempre
+un término y se limpia entera, y una referencia sólo la puede construir quien llama. No hay nada
+que adivinar.
+
+#### Lo que queda para conversar
+
+- **La acepción todavía no se llena**: el slot está definido y sin usar, porque el Wikcionario
+  español no nombra acepciones del pack inglés. Llenarlo pide el digest de glosa, y eso pide un
+  pack **derivado** (ver §Naming a sense from another pack).
+- **Nadie resuelve el enlace todavía**: `EntryScreen` dibuja los términos sin pintar. Resolverlos
+  pide que el mapa de enlaces lleve `packId`, que es tocar el límite de D-080.
 
 ### Qué falta del pack de idiomas — auditado 2026-09-21
 
