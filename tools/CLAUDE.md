@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 299 tests
+hatch run test              # the 305 tests
 hatch run audit             # the structural audit
 hatch run all               # both
 hatch run matrix:test       # THE TESTS UNDER EVERY PYTHON VERSION

@@ -45,6 +45,16 @@ internal fun decomposeToNfd(text: String): String =
     Normalizer.normalize(text, Normalizer.Form.NFD)
 
 /**
+ * NFC: la forma **compuesta**, que es la que fija la identidad de una cadena entre fuentes.
+ *
+ * Va aca y no suelta por D-017: toda API de la JVM vive en este archivo. Se delega a la
+ * plataforma igual que NFD, por D-004 -- medido, 0 diferencias sobre los 133.730 code points
+ * del repertorio fijado.
+ */
+internal fun toNfc(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFC)
+
+/**
  * Deflate crudo (sin encabezado zlib) con diccionario precargado.
  *
  * Crudo a proposito: el encabezado zlib trae un DICTID que obliga al lector a esperar

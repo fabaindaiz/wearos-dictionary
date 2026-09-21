@@ -306,4 +306,37 @@ class PayloadCodecTest {
         assertEquals("buena", parsed.senses[0].gloss)
         assertEquals(listOf("vale"), parsed.senses[0].translations)
     }
+
+    @Test
+    fun `el codigo de acepcion coincide con el vector de Python`() {
+        // ⚠️ **Este es el guardrail del espejo, y es el unico mecanismo que detecta que
+        // `payload.sense_code` y `PayloadCodec.senseCode` se separaron.** Si calculan distinto,
+        // los enlaces entre packs apuntan a la nada **sin excepcion y sin log**, que es el modo
+        // de falla central de este repo -- la misma forma que los vectores de normalizacion.
+        //
+        // El mismo numero esta fijado en `test_payload.py`. Cambiarlo es un acto deliberado:
+        // invalida los enlaces de todos los packs ya construidos.
+        assertEquals("8ec316909e48", PayloadCodec.senseCode(1L, "casa"))
+    }
+
+    @Test
+    fun `el codigo NO pasa por norm, asi que NORM_VERSION no lo puede romper`() {
+        // El precedente de D-055. Si pasara por `norm()`, un bump de `NORM_VERSION` --que D-005
+        // permite en cualquier momento-- cambiaria todos los codigos.
+        val gloss = "Un  ASIENTO  largo"
+        assertNotEquals(
+            PayloadCodec.senseCode(7L, gloss),
+            PayloadCodec.senseCode(7L, TextNormalizer.norm(gloss)),
+            "si coinciden es que el codigo esta pasando por norm()",
+        )
+    }
+
+    @Test
+    fun `la misma glosa compuesta o descompuesta da el mismo codigo`() {
+        // Dos fuentes pueden entregar "a" con tilde precompuesta o descompuesta.
+        assertEquals(
+            PayloadCodec.senseCode(7L, "Secci\u00f3n"),
+            PayloadCodec.senseCode(7L, "Seccio\u0301n"),
+        )
+    }
 }

@@ -22,9 +22,9 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **299 tests**) están completos y en el gate, junto con los **287 JVM
-de `:app`** y **26 checks** de auditoría estructural — **698 tests en total**. Los **43
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **89 tests**) y el
+pipeline de packs (`tools/`, **305 tests**) están completos y en el gate, junto con los **287 JVM
+de `:app`** y **26 checks** de auditoría estructural — **707 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -346,6 +346,55 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 ⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
+
+### ✅ El código de acepción: idioma y palabra, sin nombrar un pack — CONSTRUIDO 2026-09-21
+
+Propuesta del usuario, y corrige la parte frágil del diseño anterior:
+
+> *«en lugar de mostrar un pack, se debería mostrar un idioma, la palabra, y que el link a la
+> acepción sea inequívoco y único para esa palabra, idioma y pack (core y completo aquí pueden
+> repetir este código). Así si no está la acepción exacta pero sí la palabra, se puede
+> referenciar a esta.»*
+
+#### Por qué no hizo falta inventar nada
+
+⚠️ **`entry.uid` ya lleva el idioma y la palabra adentro** — `stable_uid(lang, headword, pos,
+sense_key)`. Así que el código es `sha256(uid ␟ NFC(glosa))[:12]` y **no nombra ningún pack**.
+
+Las tres propiedades pedidas, verificadas:
+
+| propiedad | verificación |
+|---|---|
+| **No nombra un pack** | por construcción: sólo entra `uid` y la glosa |
+| **Núcleo y completo lo repiten** | **21.534 de 21.534 — 100,0 %** de los códigos del núcleo español son idénticos en el completo, porque `build_core.py` **copia** el uid (D-175) y conserva la glosa |
+| **Degrada a la palabra** | el código es un **sufijo** del término, no lo reemplaza: sin acepción encontrada, el término sigue siendo un enlace |
+
+Colisiones medidas sobre el pack entero: **22 de 210.249 (0,0105 %)**, y son glosas que el wiki
+define dos veces — apuntan a dos acepciones de texto idéntico.
+
+#### ⚠️ Sobre la glosa CRUDA en NFC, no sobre `norm()`
+
+Es el precedente de D-055 aplicado tal cual — `stable_uid` ya lo decidió: *«así no depende de
+NORM_VERSION, y subir las reglas de normalización no invalida los packs auxiliares»*. **Acá muerde
+más fuerte**: un bump de `NORM_VERSION`, que D-005 permite en cualquier momento, cambiaría
+**todos** los códigos y dejaría apuntando a la nada cada enlace de cada pack ya construido, sin
+error y sin log. El primer intento sí pasaba por `norm()`; lo corrigió leer el docstring de
+`stable_uid`.
+
+#### `translations_pack` se elimina
+
+Declaraba `en-def-wikt`. Con el núcleo inglés instalado y no el completo, **el enlace moría aunque
+hubiera un diccionario inglés capaz de resolverlo**. Ahora sólo se declara `translations_to = "en"`
+—el idioma— y lo resuelve cualquier pack instalado de ese idioma.
+
+#### Es un segundo contrato entre los dos lenguajes, y tiene su guardrail
+
+`payload.sense_code` ↔ `PayloadCodec.senseCode`. Si se separan, **los enlaces apuntan a la nada sin
+excepción y sin log**, que es el modo de falla central del repo. Lo fija el mismo vector en los dos
+lados —`sense_code(1, "casa")` = `8ec316909e48`— y el vector ya hizo su trabajo una vez: detectó el
+cambio de `norm()` a NFC.
+
+`toNfc` vive en `PlatformJvm.kt` por D-017, delegado a la plataforma como NFD por D-004.
 
 ### Revisión de las decisiones de traducción — 2026-09-21
 

@@ -121,6 +121,36 @@ object PayloadCodec {
      */
     fun dictionaryDigest(dictionary: ByteArray): String = sha256Hex(dictionary)
 
+    /** Cuantos caracteres hex nombran una acepcion. Espejo de `SENSE_CODE_LENGTH`. */
+    const val SENSE_CODE_LENGTH = 12
+
+    /**
+     * Nombra una acepcion **sin nombrar un pack**: unico para `(idioma, palabra, acepcion)`.
+     *
+     * ⚠️ **ESTE ES UN ESPEJO de `payload.sense_code`**, y si los dos calculan distinto los
+     * enlaces entre packs apuntan a la nada **sin error y sin log** -- el modo de falla central
+     * de este repo. Lo fija el mismo vector en los dos lados: `sense_code(1, "casa")` es
+     * `8ec316909e48`.
+     *
+     * El idioma y la palabra ya estan dentro de [Entry.uid] --`stable_uid(lang, headword, pos,
+     * sense_key)`-- asi que alcanza con combinarlo con la glosa. De ahi salen las tres
+     * propiedades que se pidieron:
+     *
+     * 1. **No nombra un pack**, asi que cualquier pack instalado de ese idioma puede resolverlo:
+     *    el enlace no muere porque el usuario tenga el nucleo en vez del completo.
+     * 2. **El nucleo y el completo lo comparten.** Verificado sobre los packs reales: los 21.534
+     *    codigos del nucleo español son identicos en el completo, porque `build_core.py` copia
+     *    el uid en vez de recalcularlo (D-175).
+     * 3. **Degrada a la palabra**: el codigo es un sufijo del termino, no lo reemplaza, asi que
+     *    si ningun pack tiene la acepcion pero alguno tiene la palabra, el enlace sigue sirviendo.
+     *
+     * ⚠️ **Sobre la glosa CRUDA en NFC y NO sobre `norm()`**, que es el precedente de D-055: si
+     * pasara por `norm()`, un bump de `NORM_VERSION` --permitido por D-005 en cualquier momento--
+     * cambiaria todos los codigos y romperia cada enlace de cada pack ya construido.
+     */
+    fun senseCode(uid: Long, gloss: String): String =
+        sha256Hex("$uid\u001f${toNfc(gloss)}".encodeToByteArray()).take(SENSE_CODE_LENGTH)
+
     /**
      * Descomprime y parsea el payload.
      *
