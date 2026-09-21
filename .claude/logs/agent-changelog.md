@@ -26,6 +26,41 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El plegado de glosa entra, decidido con el número sobre la mesa
+**Qué.** `payload.fold_gloss` y su espejo `PayloadCodec.foldGloss`: el código de acepción y la
+clave de fusión pasan por el mismo plegado ligero. Ocho tests nuevos en Python, tres en Kotlin.
+**Áreas.** `tools/packbuilder/payload.py`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`, dos de test,
+`docs/roadmap.md`.
+**Por qué.** Decisión del usuario (#8), tomada contra mi recomendación y con el precio explícito
+sobre la mesa. La registro así porque el costo es real y la próxima sesión tiene que saber que se
+aceptó a sabiendas.
+**Arquitectura.** ⚠️ **Desviación consciente y aceptada**: introduce una **segunda regla
+versionada nuestra**, junto a NFC que es un estándar. Cambiarla invalida todos los enlaces
+escritos, así que la fija un vector en los dos lenguajes.
+**Medido.**
+- **34,40 % → 42,21 %** entre Wikcionario y Wikidata, exactamente lo predicho, con el
+  **100,0 %** del derivado intacto.
+- Se pliega **también la clave de fusión**, en la misma función: si sólo plegara el código, dos
+  acepciones que difieren en un punto compartirían código sin fusionarse y una quedaría
+  inalcanzable.
+**Qué salió mal.** Tres cosas, y una es un hallazgo que vale más que el cambio.
+1. ⚠️ **Trampa entre lenguajes que no estaba en el precio**: en Python `\s` sobre `str` es
+   **Unicode** y en Java/Kotlin es **ASCII**. Un espacio duro (U+00A0) se habría colapsado de un
+   lado y del otro no — **dos códigos distintos para la misma acepción, sin error y sin log**. Se
+   enumera el espacio a mano en los dos y hay un test en cada lenguaje que fija que **ninguno** lo
+   colapse.
+2. **Adiviné mal el vector nuevo.** `"Casa."` pliega a `"casa"`, así que da el **mismo** código de
+   antes; yo había supuesto uno nuevo. El test lo corrigió, y de paso quedó como demostración de
+   que el plegado sólo agrega.
+3. **Un test que había escrito ya no probaba nada**: `sense_code(g) != sense_code(norm(g))` usaba
+   `"Un  ASIENTO  largo"`, y con el plegado los dos coinciden. Se cambió a un caso con **acentos**,
+   que es donde plegado y `norm()` difieren de verdad.
+**Qué quedó sin hacer.**
+- Los puntos 1 a 6 del corte, que es lo que sigue en esta sesión.
+- **Los packs reales siguen sin reconstruirse**, así que el 42,21 % es una propiedad del código y
+  todavía no de los `.db` en disco.
+
 ## 2026-09-21 — «Toda acepción direccionable, sin excepciones»: medido, cerrado y exigido
 **Qué.** `payload.merge_duplicate_senses` funde las acepciones que comparten glosa, y
 `verify_pack.py` gana el invariante que lo exige. Cinco tests nuevos.

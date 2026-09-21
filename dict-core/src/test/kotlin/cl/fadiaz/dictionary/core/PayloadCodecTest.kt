@@ -317,13 +317,17 @@ class PayloadCodecTest {
         // El mismo numero esta fijado en `test_payload.py`. Cambiarlo es un acto deliberado:
         // invalida los enlaces de todos los packs ya construidos.
         assertEquals("8ec316909e48", PayloadCodec.senseCode(1L, "casa"))
+        // Que "Casa." de el MISMO numero es el plegado funcionando.
+        assertEquals("8ec316909e48", PayloadCodec.senseCode(1L, "Casa."))
     }
 
     @Test
     fun `el codigo NO pasa por norm, asi que NORM_VERSION no lo puede romper`() {
         // El precedente de D-055. Si pasara por `norm()`, un bump de `NORM_VERSION` --que D-005
         // permite en cualquier momento-- cambiaria todos los codigos.
-        val gloss = "Un  ASIENTO  largo"
+        // ⚠️ El caso tiene que ser uno donde el PLEGADO y `norm()` difieran, y eso son los
+        // acentos: `foldGloss` los conserva y `norm()` los saca.
+        val gloss = "El público"
         assertNotEquals(
             PayloadCodec.senseCode(7L, gloss),
             PayloadCodec.senseCode(7L, TextNormalizer.norm(gloss)),
@@ -338,5 +342,22 @@ class PayloadCodecTest {
             PayloadCodec.senseCode(7L, "Secci\u00f3n"),
             PayloadCodec.senseCode(7L, "Seccio\u0301n"),
         )
+    }
+
+    @Test
+    fun `el espacio duro NO se colapsa, igual que en Python`() {
+        // ⚠️ El guardrail de la trampa entre lenguajes: en Python `\s` sobre `str` es Unicode y
+        // en Java es ASCII. Si algun dia alguien "arregla" uno de los dos usando `\s`, los dos
+        // codigos de la misma acepcion se separan **sin error y sin log**. Se fija que NINGUNO
+        // lo colapse.
+        assertNotEquals(
+            PayloadCodec.senseCode(1L, "una\u00a0casa"),
+            PayloadCodec.senseCode(1L, "una casa"),
+        )
+    }
+
+    @Test
+    fun `el plegado no saca acentos`() {
+        assertNotEquals(PayloadCodec.senseCode(7L, "el publico"), PayloadCodec.senseCode(7L, "el público"))
     }
 }

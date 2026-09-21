@@ -121,6 +121,26 @@ object PayloadCodec {
      */
     fun dictionaryDigest(dictionary: ByteArray): String = sha256Hex(dictionary)
 
+    /**
+     * Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
+     *
+     * ⚠️ **ESPEJO de `payload.fold_gloss`.** Es una regla NUESTRA y versionada, a diferencia de
+     * NFC que es un estandar: cambiarla invalida todos los enlaces ya escritos.
+     *
+     * Ligero a proposito -- minusculas, espacios colapsados, puntuacion final fuera -- y **no**
+     * saca acentos: `publico` y `público` son palabras distintas.
+     *
+     * ⚠️ **El espacio se enumera a mano y NO se usa `\s`**: en Python `\s` sobre `str` es
+     * Unicode y en Java es ASCII, asi que un espacio duro (U+00A0) se colapsaria de un lado y
+     * del otro no, y los dos codigos de la misma acepcion quedarian distintos **sin error y sin
+     * log**.
+     */
+    fun foldGloss(gloss: String): String =
+        ESPACIO.replace(toNfc(gloss).trim().lowercase(), " ").trim(*CIERRE)
+
+    private val ESPACIO = Regex("[ \t\n\r\u000C\u000B]+")
+    private val CIERRE = charArrayOf(' ', '.', ';', ':', ',')
+
     /** Cuantos caracteres hex nombran una acepcion. Espejo de `SENSE_CODE_LENGTH`. */
     const val SENSE_CODE_LENGTH = 12
 
@@ -149,7 +169,7 @@ object PayloadCodec {
      * cambiaria todos los codigos y romperia cada enlace de cada pack ya construido.
      */
     fun senseCode(uid: Long, gloss: String): String =
-        sha256Hex("$uid\u001f${toNfc(gloss)}".encodeToByteArray()).take(SENSE_CODE_LENGTH)
+        sha256Hex("$uid\u001f${foldGloss(gloss)}".encodeToByteArray()).take(SENSE_CODE_LENGTH)
 
     /**
      * Descomprime y parsea el payload.

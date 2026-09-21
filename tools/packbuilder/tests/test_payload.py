@@ -383,7 +383,10 @@ class CodigoDeAcepcionTest(unittest.TestCase):
         de cada pack ya construido, sin error y sin log. Se calcula sobre la glosa cruda.
         """
         import normalize
-        glosa = "Un  ASIENTO  largo"
+        # ⚠️ El caso tiene que ser uno donde el PLEGADO y `norm()` difieran, y eso son los
+        # acentos: `fold_gloss` los conserva y `norm()` los saca. Con "Un  ASIENTO  largo" los
+        # dos dan lo mismo, asi que ese caso no probaba nada.
+        glosa = "El público"
         self.assertNotEqual(payload.sense_code(7, glosa),
                             payload.sense_code(7, normalize.norm(glosa)),
                             "si estos coinciden es que el codigo esta pasando por norm()")
@@ -458,6 +461,81 @@ class AcepcionDireccionableTest(unittest.TestCase):
         texto = payload.render(None, [{"gloss": "una"}, {"gloss": "otra"}])
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual(2, len(senses))
+
+
+class PlegadoDeGlosaTest(unittest.TestCase):
+    """El plegado que hace que dos diccionarios reconozcan la misma acepcion.
+
+    Decidido por el usuario con el numero sobre la mesa: entre Wikcionario y Wikidata sube la
+    coincidencia de **34,40 % a 42,21 % (+1.531 acepciones)**. Los fallos que recupera son de esta
+    forma, y se ven leyendo:
+
+        wikcionario: "Condición o carácter de torpe."
+        wikidata   : "condición o carácter de torpe"
+
+    ⚠️ **El plegado tiene que aplicarse al codigo Y a la clave de fusion, o reaparecen las
+    excepciones de direccionabilidad**: dos acepciones que difieren solo en un punto tendrian el
+    mismo codigo sin fusionarse, y una quedaria inalcanzable. Por eso las dos cosas llaman a la
+    misma funcion.
+
+    ⚠️ **Es una regla NUESTRA y versionada, a diferencia de NFC que es un estandar.** Cambiarla
+    invalida todos los enlaces ya escritos, asi que es un acto deliberado y lo fija un vector en
+    los dos lenguajes.
+    """
+
+    def test_ignora_mayusculas_y_punto_final(self):
+        self.assertEqual(payload.sense_code(7, "Condición o carácter de torpe."),
+                         payload.sense_code(7, "condición o carácter de torpe"))
+
+    def test_colapsa_espacios(self):
+        self.assertEqual(payload.sense_code(7, "un  asiento\tlargo"),
+                         payload.sense_code(7, "un asiento largo"))
+
+    def test_el_espacio_duro_NO_se_colapsa(self):
+        """⚠️ El guardrail de la trampa entre lenguajes.
+
+        En Python `\\s` sobre `str` es **Unicode** y en Java/Kotlin es **ASCII**. Si alguno de
+        los dos usara `\\s`, un espacio duro se colapsaria de un lado y del otro no, y los dos
+        codigos de la misma acepcion quedarian distintos sin error y sin log. Se fija que
+        **ninguno** lo colapse.
+        """
+        self.assertNotEqual(payload.sense_code(1, "una\u00a0casa"),
+                            payload.sense_code(1, "una casa"))
+
+    def test_NO_ignora_los_acentos(self):
+        """Plegado LIGERO: `publico` y `público` son palabras distintas y las glosas tambien."""
+        self.assertNotEqual(payload.sense_code(7, "el publico"), payload.sense_code(7, "el público"))
+
+    def test_NO_ignora_una_palabra_distinta(self):
+        self.assertNotEqual(payload.sense_code(7, "asiento largo"),
+                            payload.sense_code(7, "asiento corto"))
+
+    def test_la_fusion_usa_el_MISMO_plegado_que_el_codigo(self):
+        """Si no, dos acepciones comparten codigo sin fusionarse y una queda inalcanzable."""
+        texto = payload.render(None, [
+            {"gloss": "Condición de torpe.", "examples": ["uno"]},
+            {"gloss": "condición de torpe", "examples": ["dos"]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(1, len(senses), "quedaron dos acepciones con el mismo codigo")
+        self.assertEqual(["uno", "dos"], senses[0]["examples"])
+
+    def test_la_fusion_conserva_la_glosa_de_la_PRIMERA(self):
+        """El plegado decide que es lo mismo; lo que se MUESTRA sigue siendo el texto original."""
+        texto = payload.render(None, [{"gloss": "Condición de torpe."}, {"gloss": "condición de torpe"}])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual("Condición de torpe.", senses[0]["gloss"])
+
+    def test_el_vector_esta_fijado_en_los_dos_lenguajes(self):
+        """⚠️ Si este numero cambia, los enlaces de todos los packs ya construidos mueren.
+
+        Que `"Casa."` y `"casa"` den **el mismo** numero es el plegado funcionando, y que ese
+        numero sea el mismo que antes del plegado dice que para una glosa ya minuscula y sin
+        puntuacion final no cambio nada -- o sea que el plegado sólo agrega, no mueve lo que ya
+        andaba.
+        """
+        self.assertEqual("8ec316909e48", payload.sense_code(1, "Casa."))
+        self.assertEqual("8ec316909e48", payload.sense_code(1, "casa"))
 
 if __name__ == "__main__":
     unittest.main()
