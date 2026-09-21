@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.tile.EXTRA_ENTRY_ID
 import cl.fadiaz.dictionary.tile.EXTRA_HEADWORD
+import cl.fadiaz.dictionary.tile.EXTRA_OPEN_INPUT
 import cl.fadiaz.dictionary.tile.EXTRA_PACK_ID
 import cl.fadiaz.dictionary.tile.HistoryTileService
 import cl.fadiaz.dictionary.tile.WordOfTheDayTileService
@@ -57,7 +58,7 @@ import cl.fadiaz.dictionary.presentation.theme.DictionaryTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { DictionaryApp(requestedEntry(intent)) }
+        setContent { DictionaryApp(requestedEntry(intent), pideInput(intent)) }
     }
 
     /**
@@ -79,6 +80,16 @@ class MainActivity : ComponentActivity() {
         val headword = intent.getStringExtra(EXTRA_HEADWORD).orEmpty()
         return Visit(packId = packId, entryId = entryId, headword = headword, partOfSpeech = null)
     }
+
+    /**
+     * ¿El tile pidió abrir el input del sistema?
+     *
+     * Se lee **una vez, del intent de arranque**. Un tile no acepta texto (D-026) pero sí lanza
+     * un intent, y el `bottomSlot` es donde la guía de Wear OS pone la acción: buscar desde el
+     * carrusel pasa de tres toques a uno.
+     */
+    private fun pideInput(intent: Intent?): Boolean =
+        intent?.getStringExtra(EXTRA_OPEN_INPUT) != null
 }
 
 private const val ROUTE_SEARCH = "busqueda"
@@ -103,7 +114,7 @@ private fun notifyTiles(context: Context) {
 }
 
 @Composable
-fun DictionaryApp(entradaInicial: Visit? = null) {
+fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
@@ -221,6 +232,9 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onTypingChanged = viewModel::onTypingChanged,
                         onLanguageChange = viewModel::onLanguageChange,
                         onSystemInputOpening = viewModel::onSystemInputOpening,
+                        // Sólo la PRIMERA composición: el tile lo pide al abrir, y reabrirlo al
+                        // volver de la entrada sería un bucle.
+                        abrirInputAlEntrar = abrirInput,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
                         // The packId travels with the entry: without it, with two packs open it
                         // would be resolved against the active one and would show another word.

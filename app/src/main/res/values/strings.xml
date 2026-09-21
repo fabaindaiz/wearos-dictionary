@@ -5,6 +5,7 @@
 
     <!-- Tiles -->
     <string name="tile_history_label">Recent words</string>
+    <string name="tile_search">Search</string>
     <string name="tile_history_title">Recent</string>
     <string name="tile_history_empty">Search for a word</string>
     <string name="saved_remove">Remove</string>

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -89,6 +90,14 @@ fun SearchScreen(
     onLanguageChange: (String) -> Unit = {},
     /** Avisa que el input del sistema va a tapar la app. Ver `SearchViewModel.onLeftApp`. */
     onSystemInputOpening: () -> Unit = {},
+    /**
+     * Abrir el input del sistema en cuanto la pantalla exista, porque lo pidió un tile.
+     *
+     * ⚠️ **Una sola vez por composición y no en cada recomposición**: el `LaunchedEffect` lleva
+     * `Unit` como clave a propósito. Sin eso, volver de una ficha reabriría el dictado y no
+     * habría forma de salir.
+     */
+    abrirInputAlEntrar: Boolean = false,
     // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
     // hatch, indistinguishable from one that works.
     onSearchDefinitions: () -> Unit,
@@ -153,6 +162,14 @@ fun SearchScreen(
         R.string.home_search_in,
         state.active?.name ?: stringResource(R.string.home_dictionary),
     )
+
+    // El tile pidió buscar: se abre el input apenas hay pantalla. Ver `abrirInputAlEntrar`.
+    LaunchedEffect(Unit) {
+        if (abrirInputAlEntrar) {
+            onSystemInputOpening()
+            voice.launch(nativeInputIntent(voiceLabel))
+        }
+    }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(

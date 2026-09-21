@@ -43,6 +43,24 @@ class Report:
         self.advisories.append((rule, detail))
 
 
+# Si este pase puede REESCRIBIR los conteos que encuentre mal. Lo enciende `--fix`.
+#
+# ⚠️ **Sólo los conteos, y sólo el número.** Es la única falla del archivo que un humano no
+# puede deducir sin correr la suite: agregar un test mueve cuatro o cinco cifras repartidas en
+# `README.md`, `app/CLAUDE.md`, `tools/CLAUDE.md` y `docs/roadmap.md`. Medido: falló **cinco
+# veces en una sola sesión**, siempre por lo mismo, y **cinco más** en la del 2026-09-21.
+#
+# ⚠️ **Lo que `--fix` NO toca, a propósito**: que un documento haya **dejado de afirmar** un
+# conteo. Ahí la frase se reescribió o el dato se borró, y decidirlo es de quien escribe — un
+# arreglo automático inventaría una frase o borraría una vigilancia sin que nadie se entere.
+ARREGLAR = False
+
+
+def _escribir(path, texto):
+    with open(os.path.join(ROOT, path), "w", encoding="utf-8") as handle:
+        handle.write(texto)
+
+
 def read(path):
     with open(os.path.join(ROOT, path), encoding="utf-8") as handle:
         return handle.read()
@@ -928,11 +946,19 @@ def check_test_counts(report):
                 "suelto otra vez" % (documento, patron),
             )
         elif int(hallado.group(1)) != esperado:
-            report.failure(
-                "un documento afirma un conteo que no es",
-                "%s dice %s donde hay %d (%r)"
-                % (documento, hallado.group(1), esperado, patron),
-            )
+            if ARREGLAR:
+                inicio, fin = hallado.span(1)
+                _escribir(documento, texto[:inicio] + str(esperado) + texto[fin:])
+                report.advisory(
+                    "conteo corregido por --fix",
+                    "%s: %s -> %d" % (documento, hallado.group(1), esperado),
+                )
+            else:
+                report.failure(
+                    "un documento afirma un conteo que no es",
+                    "%s dice %s donde hay %d (%r). Corregible con `--fix`"
+                    % (documento, hallado.group(1), esperado, patron),
+                )
 
 
 def check_r8_keep_rules(report):
@@ -1233,7 +1259,9 @@ CHECKS = [
 ]
 
 
-def main():
+def main(argv=()):
+    global ARREGLAR
+    ARREGLAR = "--fix" in argv
     report = Report()
     for check in CHECKS:
         try:
@@ -1255,4 +1283,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

@@ -140,4 +140,34 @@ class VisitTargetTest {
             visitTarget(visit, headwordAtId = "perro", relocated = 42),
         )
     }
+    @Test
+    fun unaVISITA_CON_GLOSA_sobrevive_al_viaje_de_ida_y_vuelta() {
+        // La palabra del día del tile muestra su primera acepción, así que la caché la guarda.
+        val con = Visit("es-def", 7, "casa", "noun", "Edificación destinada a vivienda.")
+        assertEquals(listOf(con), parseVisits(serializeVisits(listOf(con))))
+    }
+
+    @Test
+    fun unaVISITA_VIEJA_DE_CUATRO_CAMPOS_se_sigue_leyendo() {
+        // ⚠️ **El parser exigía EXACTAMENTE 4 campos**, así que agregar uno habría hecho que la
+        // app rechazara sus propios registros nuevos — y al revés, una preferencia escrita antes
+        // de este cambio tiene que seguir leyéndose. Es un contrato con el disco: lo que está
+        // guardado en un reloj no se migra, se tolera.
+        val vieja = listOf("es-def", "7", "casa", "noun").joinToString(SEPARATOR)
+        assertEquals(
+            listOf(Visit("es-def", 7, "casa", "noun", gloss = null)),
+            parseVisits(vieja),
+        )
+    }
+
+    @Test
+    fun unaGLOSA_CON_SALTO_DE_LINEA_no_parte_el_registro() {
+        // El separador de REGISTROS es `\n`. Una glosa que lo trajera partiría la lista en dos
+        // y la segunda mitad se descartaría en silencio — que es peor que perder la glosa.
+        val sucia = Visit("es-def", 7, "casa", "noun", "linea uno\nlinea dos")
+        val leida = parseVisits(serializeVisits(listOf(sucia))).single()
+        assertEquals("casa", leida.headword)
+        assertEquals(false, leida.gloss?.contains("\n"))
+    }
+
 }

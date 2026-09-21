@@ -10,6 +10,7 @@ import androidx.wear.protolayout.ModifiersBuilders.Clickable
 import androidx.wear.protolayout.material3.MaterialScope
 import androidx.wear.protolayout.material3.Typography
 import androidx.wear.protolayout.material3.primaryLayout
+import androidx.wear.protolayout.material3.textEdgeButton
 import androidx.wear.protolayout.material3.text
 import androidx.wear.protolayout.material3.textButton
 import androidx.wear.protolayout.material3.titleCard
@@ -51,6 +52,18 @@ const val EXTRA_ENTRY_ID: String = "cl.fadiaz.dictionary.ENTRY_ID"
 const val EXTRA_HEADWORD: String = "cl.fadiaz.dictionary.HEADWORD"
 
 /**
+ * Pide que la app abra directamente el **input del sistema** (voz, teclado o escritura a mano).
+ *
+ * ⚠️ **Un tile no acepta texto (D-026), pero sí puede lanzar un intent**, y ésa es la diferencia
+ * que esta clave explota. El `bottomSlot` del `primaryLayout` estaba vacío y es exactamente donde
+ * la guía de Wear OS pone la acción de un tile.
+ *
+ * Lo que ahorra: hoy, buscar desde el carrusel son **tres toques** —abrir la app, tocar el campo,
+ * dictar—. Con esto es uno.
+ */
+const val EXTRA_OPEN_INPUT: String = "cl.fadiaz.dictionary.OPEN_INPUT"
+
+/**
  * Open the app on the search.
  *
  * An explicit component and not a deep link with `<data>`: a scheme would turn an entry's route
@@ -80,6 +93,22 @@ private fun openTheEntry(context: Context, visit: Visit): Clickable =
                     EXTRA_ENTRY_ID to ActionBuilders.longExtra(visit.entryId),
                     EXTRA_HEADWORD to ActionBuilders.stringExtra(visit.headword),
                 ),
+            ),
+        )
+        .build()
+
+/**
+ * El botón que abre la app **con el input ya abierto**. Va en el `bottomSlot`.
+ *
+ * Es la única acción de un tile de diccionario que no es «abrí una palabra concreta»: buscar otra.
+ */
+private fun searchAction(context: Context): Clickable =
+    Clickable.Builder()
+        .setId("buscar")
+        .setOnClick(
+            ActionBuilders.launchAction(
+                mainActivity(context),
+                mapOf(EXTRA_OPEN_INPUT to ActionBuilders.stringExtra("1")),
             ),
         )
         .build()
@@ -130,6 +159,7 @@ internal fun MaterialScope.historyRows(
             }
             column.build()
         },
+        bottomSlot = { searchButton(context) },
     )
 
 /** Today's word: the headword large and its part of speech underneath. */
@@ -146,12 +176,20 @@ internal fun MaterialScope.wordCard(
             )
         },
         mainSlot = {
+            // ⚠️ **La glosa manda sobre el tipo de palabra.** `futuro · sust.` no enseña
+            // nada; la primera acepción es lo que vuelve útil una palabra del día de un
+            // vistazo. El tipo queda como respaldo para un pack que no la traiga, y para una
+            // caché escrita antes de que este campo existiera.
+            val cuerpo = visit.gloss ?: partOfSpeech
             titleCard(
                 onClick = openTheEntry(context, visit),
                 title = { text(visit.headword.layoutString, maxLines = 1) },
-                content = partOfSpeech?.let { { text(it.layoutString, maxLines = 1) } },
+                // Dos líneas: una glosa media son 64 caracteres y en una sola se corta casi
+                // siempre. El tile no scrollea, así que lo que no entra no existe.
+                content = cuerpo?.let { { text(it.layoutString, maxLines = 2) } },
             )
         },
+        bottomSlot = { searchButton(context) },
     )
 
 /**
@@ -167,3 +205,10 @@ private fun detalleDeFila(context: Context, visit: Visit): String =
         visit.headword,
         visit.partOfSpeech?.let { posLabel(context, it) },
     ).joinToString(context.getString(R.string.entry_list_separator))
+
+/** El borde inferior: buscar otra palabra, que es la única acción que un tile de esto ofrece. */
+private fun MaterialScope.searchButton(context: Context) =
+    textEdgeButton(
+        onClick = searchAction(context),
+        labelContent = { text(context.getString(R.string.tile_search).layoutString) },
+    )

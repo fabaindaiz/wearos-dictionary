@@ -640,11 +640,18 @@ class SearchViewModel(
                         rankBasis = active.metadata.rankBasis,
                     )
                 }.getOrNull() ?: return@launch
+                // ⚠️ **La glosa se lee ACÁ y no en el tile**, y ésa es la mitad del diseño:
+                // abrir una entrada descomprime su payload, y `onTileRequest` es `@MainThread`
+                // con diez segundos (D-106). La app, que ya tiene el pack abierto, lo deja
+                // escrito. Son siete lecturas una vez al día.
+                val primera = runCatching { active.entry(picked.entryId) }
+                    .getOrNull()?.senses?.firstOrNull()?.gloss
                 week += Visit(
                     packId = packId,
                     entryId = picked.entryId,
                     headword = picked.headword,
                     partOfSpeech = picked.partOfSpeech,
+                    gloss = primera,
                 )
             }
             saveWeekWords(today, week)

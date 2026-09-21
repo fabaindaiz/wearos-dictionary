@@ -18,6 +18,18 @@ data class Visit(
     val entryId: Long,
     val headword: String,
     val partOfSpeech: String?,
+    /**
+     * La primera acepción, **sólo** cuando quien guarda la visita la necesita para mostrarla.
+     *
+     * ⚠️ **La llena la caché semanal del tile y nadie más.** La palabra del día se veía como
+     * `futuro · sust.` y eso no enseña nada: la glosa es lo que la vuelve útil de un vistazo. El
+     * historial y las guardadas la dejan nula, porque su fila es de una línea y no la dibuja.
+     *
+     * ⚠️ **Es un contrato con el disco y por eso es opcional.** Una preferencia escrita antes de
+     * este campo tiene cuatro columnas y se sigue leyendo; el parser tolera ambas formas. Lo que
+     * no se hace es migrar: lo guardado en un reloj se lee como está.
+     */
+    val gloss: String? = null,
 )
 
 /**
@@ -39,6 +51,10 @@ internal fun serializeVisits(visits: List<Visit>): String =
             visit.entryId.toString(),
             visit.headword,
             visit.partOfSpeech ?: NO_POS,
+            // ⚠️ **Sin saltos de línea**: `\n` separa REGISTROS, así que una glosa que lo trajera
+            // partiría la lista y la segunda mitad se descartaría en silencio. Es el mismo
+            // cuidado que `payload.sanitize()` tiene con el tab.
+            visit.gloss?.replace('\n', ' ')?.replace(SEPARATOR, " ").orEmpty(),
         ).joinToString(SEPARATOR)
     }
 
@@ -52,7 +68,10 @@ internal fun parseVisits(text: String): List<Visit> =
     text.lineSequence()
         .mapNotNull { line ->
             val fields = line.split(SEPARATOR)
-            if (fields.size != 4) return@mapNotNull null
+            // ⚠️ **`< 4` y no `!= 4`.** Exigir exactamente cuatro hacía que agregar una columna
+            // rompiera la lectura de los registros que la propia app acababa de escribir. Con
+            // esto, una preferencia vieja se lee igual y una nueva aporta lo que trae.
+            if (fields.size < 4) return@mapNotNull null
             val entryId = fields[1].toLongOrNull() ?: return@mapNotNull null
             if (fields[0].isEmpty() || fields[2].isEmpty()) return@mapNotNull null
             Visit(
@@ -60,6 +79,7 @@ internal fun parseVisits(text: String): List<Visit> =
                 entryId = entryId,
                 headword = fields[2],
                 partOfSpeech = fields[3].ifEmpty { null },
+                gloss = fields.getOrNull(4)?.ifEmpty { null },
             )
         }
         .toList()

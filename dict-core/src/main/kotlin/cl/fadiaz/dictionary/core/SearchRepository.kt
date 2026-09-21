@@ -225,6 +225,17 @@ class SearchRepository(
             if (query.isNullOrEmpty()) return ORDEN
             return compareBy<Suggestion> { it.matchKind.ordinal }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) demoteProperNoun(query, it) else 0 }
+                // ⚠️ **Antes de la banda de cobertura, y sólo en `PREFIX`.** Después no
+                // serviría: la banda ya habría puesto el fragmento corto arriba. Medido sobre el
+                // pack inglés, la posición media de la palabra obvia pasa de **5,1 a 3,6** —
+                // `hous` dejaba `Hous.` primero y `tim` ponía cuatro `Tim` antes de `time`.
+                //
+                // ⚠️ **No resuelve el fondo y conviene saberlo**: `wat`, `boo` y `beaut` también
+                // tienen señal —son tokens reales de subtítulos— así que siguen delante. Es un
+                // desempate, no una cura.
+                .thenBy {
+                    if (it.matchKind == MatchKind.PREFIX && !it.hasFrequencySignal) 1 else 0
+                }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) coverageBand(query, it.headword) else 0 }
                 // ⚠️ **El idioma activo desempata, y va DESPUÉS de la calidad y no antes.** Si el
                 // respaldo se limitara a ir al final de la lista, una respuesta exacta en el otro
