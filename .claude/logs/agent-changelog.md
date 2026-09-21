@@ -26,6 +26,53 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Extensibilidad: qué se puede agregar, y qué cuesta 372,6 MB
+
+**Qué.** D-174: la política de extensión del formato, por superficie, con un enforcer para la
+única regla verificable mecánicamente (`check_required_meta_keys`). **Ningún cambio de
+comportamiento.**
+
+**Áreas.** `tools/audit_dictionary.py` · `docs/formato-pack.md` (§Extending the format) ·
+`docs/decisions.md`, `docs/roadmap.md`.
+
+**Por qué.** *«¿Tenemos espacio para desarrollo incremental o migración de esquemas sin romper
+muchas cosas? Me interesa empezar a tener consideraciones de extensibilidad.»*
+
+**Arquitectura.** ✅ Cumple, y confirma D-001 en vez de erosionarlo: **no hay migraciones**, así
+que lo único barato es lo que un lector viejo puede ignorar. La política escribe lo que el repo ya
+venía haciendo bien en dos superficies y no tenía dicho en ninguna.
+
+**Inventariado, no supuesto.** La app lee de un pack:
+
+- **4 tablas** (`meta`, `entry`, `form`, `trans`) más `fts_def`, en **13 consultas**.
+- **11 claves de meta con `getValue`** (obligatorias) y **6 con `meta[...]`** (tolerantes).
+- ⚠️ **Ni un solo `SELECT *`.** Cada consulta nombra sus columnas.
+
+**El hallazgo.** De ese inventario sale una asimetría que no estaba escrita: **el código es más
+tolerante que el gate, en exactamente una superficie.** Agregar una columna a `entry` no rompería
+una sola consulta de la app — y `schema_version`, comparado con `!=`, rechaza el pack igual. No se
+arregla hoy: partir la versión en dos números se paga cuando haya un cambio que lo pida.
+
+Y la dirección peligrosa, que es la que nadie mira: una app **nueva** consultando una columna que
+un pack **viejo** no tiene falla **al consultar**, no al abrir. Es el peor lugar posible, porque
+D-001 existe justamente para fallar fuerte al abrir.
+
+**Qué salió mal.** Nada roto. Una cosa que casi escribo mal: iba a decir que agregar una columna
+es seguro, a secas, porque no hay `SELECT *`. Es cierto **en una dirección sola**, y decirlo sin
+esa mitad habría dejado escrita una invitación a un bug que se manifiesta en unos relojes y no en
+otros.
+
+**Qué quedó sin hacer.**
+
+- **La palanca de partir `schema_version` en dos** queda descrita y sin construir, a propósito:
+  mecanismo sin usuario.
+- **Las columnas opcionales no tienen mecanismo**: si alguna vez hace falta una, el camino está
+  escrito (`PRAGMA table_info` al abrir, degradación explícita) pero no hay código.
+- `check_required_meta_keys` **vigila la meta y no el esquema**: que nadie agregue una columna
+  obligatoria sin subir `schema_version` sigue dependiendo de que alguien lea el documento.
+
+---
+
 ## 2026-09-21 — El pack incluido dice que lo es, y por qué no se puede abrir dentro del APK
 
 **Qué.** D-173: la fila del pack del APK dice *«Incluido en la app»* en vez del tamaño, y `isDemo`
