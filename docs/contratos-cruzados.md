@@ -151,7 +151,55 @@ insertion order breaks exactly the stability across rebuilds that `uid` exists t
 dictionary, rebuilt, would hand out the identities differently. The source provides `sense_key` to
 separate homographs with the same headword and the same pos.
 
-## 6. `:dict-core`'s portability
+## 6. `sense_code()` exists twice — el segundo contrato entre los dos lenguajes
+
+**El síntoma**: un enlace a una acepción **lleva a otra palabra, o a ninguna**. Sin excepción,
+sin log, y `verify_pack.py` no lo ve — porque cada lado, por separado, calcula algo perfectamente
+válido.
+
+Desde D-180 una acepción se nombra así, y los dos lenguajes tienen que producir el mismo string:
+
+    sense_code(uid, glosa) = sha256(uid ␟ fold_gloss(glosa))[:12]
+
+        Python  tools/packbuilder/payload.py      sense_code / fold_gloss
+        Kotlin  .../core/PayloadCodec.kt          senseCode  / foldGloss
+
+**Es el mismo modo de falla que `norm()`** (§1) y merece la misma desconfianza. Lo fija un vector
+idéntico en los dos lados: `sense_code(1, "casa")` = **`8ec316909e48`**.
+
+### ⚠️ `\s` no significa lo mismo en Python que en Java
+
+La trampa concreta que apareció escribiendo el espejo, y que **ningún test habría encontrado por
+casualidad**:
+
+| | qué matchea `\s` |
+|---|---|
+| Python, sobre `str` | **Unicode**: incluye el espacio duro U+00A0, el fino, el de tabulación ideográfico… |
+| Java / Kotlin `Regex` | **ASCII**: sólo `[ \t\n\x0B\f\r]` salvo que se pida `UNICODE_CHARACTER_CLASS` |
+
+Con `\s` en los dos lados, una glosa con un espacio duro se plegaría **de un lado y del otro no**,
+y la misma acepción tendría dos códigos distintos. El pack quedaría bien construido y los enlaces
+rotos.
+
+**Por eso el espacio se enumera a mano** en `fold_gloss` y en `foldGloss`, con el mismo conjunto
+explícito, y hay un test en **cada lenguaje** que fija que **ninguno de los dos** colapse el
+espacio duro. Se pierde plegar ese carácter; se gana que los dos hagan exactamente lo mismo, que
+es el trato que este repo ya eligió para `norm()`.
+
+⚠️ **La regla general, para el próximo espejo**: una clase de caracteres de una expresión regular
+**no es portable entre lenguajes**. Si un contrato cruzado necesita una, se enumera.
+
+### Y `fold_gloss` es una regla versionada, no un estándar
+
+`norm()` está atada a `NORM_VERSION` y eso está bien, porque un bump reconstruye los packs.
+`sense_code` **no** pasa por `norm()` a propósito (D-181, precedente de D-055): si lo hiciera, un
+bump de `NORM_VERSION` —que D-005 permite en cualquier momento— cambiaría **todos** los códigos y
+dejaría apuntando a la nada cada enlace de cada pack ya construido.
+
+Pero `fold_gloss` es **nuestra**, y cambiarla tiene exactamente ese efecto. **No se toca sin
+reconstruir todo lo que tenga enlaces escritos.**
+
+## 7. `:dict-core`'s portability
 
 | | |
 |---|---|

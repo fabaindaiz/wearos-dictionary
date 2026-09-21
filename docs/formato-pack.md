@@ -125,6 +125,15 @@ parses with no dependency in either language, it can be read by eye while debugg
 
 ## The `meta` table
 
+⚠️ **`translations_to` declara una CAPACIDAD, no el tipo del pack** (D-183). Dice en qué idioma
+están las traducciones del payload; `kind` sigue contestando en qué idioma están las
+**definiciones**. El pack español es `monolingual` **y** traduce al inglés, y mientras la app
+preguntó por `kind` la acción de traducir no apareció nunca sobre él.
+
+El destino se nombra por **idioma y no por `pack_id`**: nombrar el pack mataba el enlace del
+usuario que tiene instalado el núcleo y no el completo.
+
+
 Everything the app needs to know before querying. It is read whole, once, on open.
 
 | Key | What for |
@@ -298,13 +307,78 @@ Delimited UTF-8 text, compressed with raw deflate and the pack's shared dictiona
 
 ```
 P<TAB>verb                     part of speech, opcional, antes de cualquier S
+W<TAB>to race                  traducción de LA PALABRA, sin acepción (D-179)
 S<TAB>moverse rapidamente      abre una acepción
 E<TAB>corrio hasta la esquina  ejemplo de la acepción abierta
-T<TAB>to run                   traducción de la acepción abierta
+T<TAB>to run                   traducción de la acepción abierta (D-178)
 Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
 A<TAB>detenerse                antónimo de la acepción abierta (D-126)
 R<TAB>camélido                 palabra relacionada de la acepción abierta (D-132)
 ```
+
+### ⚠️ `T` y `W` son dos canales, y la diferencia es una afirmación
+
+`T` vive **dentro** de una acepción y por lo tanto **afirma que la traducción pertenece a esa
+acepción**. `W` es de la entrada: *«la palabra puede significar esto, no sabemos en cuál de sus
+acepciones»*.
+
+**El segundo canal existe para que la opción deshonesta deje de ser la barata.** Con sólo `T`, un
+builder con una traducción que la fuente no atribuyó podía **tirarla** o **embadurnarla por todas
+las acepciones** — y lo segundo es gratis, invisible y pasa `verify_pack.py`. Medido: el **37,7 %**
+de las traducciones del dump español no trae `sense_index`, y sin `W` era dato tirado.
+
+⚠️ **La posición en el texto NO es la semántica.** `W` se escribe antes de la primera `S` para que
+un lector viejo lo descarte por su guarda `if senses:`, pero `parse` lo toma como de la entrada
+aparezca donde aparezca. Si la posición decidiera, un `W` mal ubicado se volvería una traducción de
+acepción — la atribución inventada que el canal existe para evitar.
+
+⚠️ **Y se dibujan en lugares distintos**, o la separación se pierde en el último paso: `T` va
+dentro del bloque de la acepción, `W` en su propia sección debajo de todas.
+
+### ⚠️ El canal de BÚSQUEDA y el de LECTURA no llevan lo mismo
+
+Esto no es obvio y conviene saberlo antes de contar filas:
+
+| | qué lleva | para qué |
+|---|---|---|
+| tabla `trans` | **todas** las traducciones, atribuidas y sueltas, **normalizadas** y **tokenizadas** por D-014 | encontrar la entrada |
+| tags `T` / `W` | las mismas, en **forma de display**, repartidas por atribución | mostrarlas |
+
+**Contar `trans` esperando que coincida con lo que la ficha muestra no cuadra, y es correcto que
+no cuadre.** `trans` guarda `norm()` —`U-turn` es `u turn`— y D-014 tokeniza cada clave en sus
+palabras, así que `cloud cover` deja además `cloud` y `cover`: claves útiles, lista ilegible.
+
+El pack bilingüe da el ejemplo más claro: `translation_keys` indexa `to run` **y** `run` porque
+nadie teclea la preposición al buscar, pero la ficha se queda con `to run`, que es la forma de
+diccionario.
+
+### El código de una acepción: `sense_code`
+
+    sense_code(uid, glosa) = sha256(uid ␟ fold_gloss(glosa))[:12]
+
+Nombra una acepción **sin nombrar un pack**, porque `entry.uid` ya lleva idioma y palabra. Tres
+propiedades, todas verificadas sobre los packs reales (D-180, D-181):
+
+- **Cualquier pack instalado de ese idioma puede resolverlo** — el enlace no muere porque el
+  usuario tenga el núcleo en vez del completo.
+- **Núcleo y completo comparten el código**: 21.534 de 21.534, **100,0 %**, porque `build_core.py`
+  copia el uid en vez de recalcularlo.
+- **Degrada a la palabra**: el código es un *sufijo* del término (`término␟código`), no lo
+  reemplaza.
+
+⚠️ **Es un SEGUNDO contrato entre Python y Kotlin**, con el mismo peso que `norm()`: si los dos
+lados calculan distinto, los enlaces apuntan a la nada **sin excepción y sin log**. Lo fija el
+mismo vector en los dos — `sense_code(1, "casa")` = `8ec316909e48`.
+
+⚠️ **Y `fold_gloss` es una regla nuestra y versionada**, a diferencia de NFC que es un estándar:
+cambiarla invalida todos los enlaces ya escritos.
+
+### Invariante: toda acepción es direccionable
+
+**Dos acepciones de la misma entrada no pueden compartir código.** Si lo comparten, una es
+inalcanzable y un enlace escrito contra ella lleva a la otra, sin error. `render` las **fusiona**
+—uniendo sus adjuntos, porque de 12 grupos duplicados medidos **5 traían ejemplos distintos**— y
+`verify_pack.py` lo comprueba sobre los bytes, que es lo único que vale para un pack ajeno (D-182).
 
 Delimited text instead of JSON or CBOR on purpose: it parses with no dependency at all in both
 languages, it can be read by eye while debugging a pack, and after compression the size
