@@ -214,7 +214,12 @@ class PackFile private constructor(
             langSource = meta.getValue("lang_src"),
             langTarget = meta["lang_dst"],
             // `meta[...]`: la trae sólo un pack que declare traducciones.
-            translationsTo = meta["translations_to"],
+            // ⚠️ **Con respaldo a `lang_dst` para un pack BILINGUE anterior a la clave.** Un
+            // bilingue traduce por definicion --sus glosas ya estan en el idioma destino-- asi
+            // que inferirlo es seguro, y sin esto un pack construido antes de D-183 dejaria de
+            // ofrecerse para traducir aunque sea exactamente lo que hace.
+            translationsTo = meta["translations_to"]
+                ?: meta["lang_dst"]?.takeIf { meta["kind"] == PackKind.BILINGUAL.id },
             // `fromId` no lanza ante un id desconocido: un pack mas nuevo puede
             // traer una base que esta version no sabe leer, y eso degrada bien.
             rankBasis = RankBasis.fromId(meta["rank_basis"]),

@@ -67,6 +67,18 @@ class WordActionsTest {
     }
 
     @Test
+    fun aBilingualPackStillCountsEvenIfItPredatesTheKey() {
+        // ⚠️ **La regresion que esto cierra fue real y la destapo el pack construido.** Al pasar
+        // de `kind` a `translationsTo` (D-183), el pack BILINGUE --cuyo proposito entero es
+        // traducir-- dejaba de ofrecerse, porque su tabla de configuracion no declaraba la clave
+        // nueva. Hoy la declara; esto fija que un pack anterior tambien funcione, porque un
+        // bilingue traduce por definicion: sus glosas ya estan en el idioma destino.
+        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
+                            pack("es-en", PackKind.BILINGUAL))
+        assertEquals("es-en", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
+    }
+
+    @Test
     fun aMonolingualPackThatDeclaresTranslationsIsOne() {
         // ⚠️ El pack español ahora **traduce** --lee la tabla del Wikcionario y llena `T`/`W`--
         // pero sigue siendo `monolingual`, porque sus DEFINICIONES son en español. Filtrar por

@@ -286,6 +286,12 @@ PACKS = {
     "es-en": {
         "pack_id": "es-tr-enwikt",
         "kind": "bilingual",
+        # ⚠️ **Un pack bilingue TAMBIEN lo declara, y olvidarlo fue una regresion real.** Desde
+        # D-183 la app pregunta por esta clave y no por `kind`, asi que sin ella el pack cuyo
+        # proposito entero es traducir dejaba de ofrecerse. Que coincida con `lang_dst` no lo
+        # vuelve redundante: `lang_dst` dice en que idioma estan las GLOSAS, esto dice en que
+        # idioma estan las traducciones del payload.
+        "translations_to": "en",
         "name": "Español → English",
         "description": (
             "Palabras en español definidas en inglés, del Wiktionary en inglés. "

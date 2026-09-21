@@ -26,6 +26,34 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — BUILD COMPLETO: los cinco packs reconstruidos, y una regresión que destapó
+**Qué.** Refactor del lector, los dos tests que faltaban, y **el build completo de los cinco
+packs**. APK armado con los núcleos nuevos.
+**Áreas.** `tools/packbuilder/sources/kaikki.py`, `tools/packbuilder/build_pack.py`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt`, tres de test, y los cinco `.db`.
+**Arquitectura.** ✅ Cumple.
+**Medido — el build, sobre los packs reales.**
+- `es-def-wikc` **152.281** entradas / 72,7 MB · `en-def-wikt` **956.150** / 301 MB ·
+  `es-tr-enwikt` **123.979** / 55,2 MB · núcleos **7.349** y **16.652**.
+- **Los cinco pasan `verify_pack.py` entero** y declaran `rank_basis=frequency-zipf-v1`.
+- **La sonda que era el objetivo**: `cas` devuelve **`casa`** primero (antes `casar`), `lib`
+  devuelve **`libro`** (antes `libar`), `per` devuelve **`pero`**.
+- **La dirección inversa**: `house → casa, hogar`, `water → agua`, `book → libro`,
+  `dog → perro`. Antes eran `solar`, `gastar`, `reservar`, `dogmatizar`.
+- **Los irregulares llegan**: `went → ir, andar`, `children → hijo, niño`, `eaten → comer`.
+- **rho(`rank`, frecuencia real): −0,250 → −0,787** sobre 24.132 lemas.
+- `trans` del bilingüe: **206.727 → 474.849** filas.
+**Qué salió mal.** ⚠️ **Una regresión mía que sólo se vio en el pack construido.** Al inspeccionar
+la meta apareció que `es-tr-enwikt` tenía `translations_to=None`: la tabla de configuración del
+bilingüe nunca declaró la clave, y como D-183 cambió `wordActions` de `kind` a `translationsTo`,
+**el pack cuyo propósito entero es traducir dejaba de ofrecerse**. Arreglado por los dos lados —
+el builder lo declara, y `PackFile` **infiere** desde `lang_dst` para un bilingüe anterior a la
+clave, porque un bilingüe traduce por definición. Con test que lo fija. **Ningún test lo habría
+encontrado**: los fakes construían su metadata a mano.
+**Qué quedó sin hacer.**
+- **Subir APK y packs al reloj** — es lo único que queda, y necesita el reloj conectado.
+- La opción B de las flexiones (~2 MB), el espacio de equivalencias, §Alinear acepciones.
+
 ## 2026-09-22 — El plegado de caja pasa a seguir el estándar, con tabla fijada
 **Qué.** `tools/unicode/gen_casefold.py` + `casefold.txt` + `CaseFolding.kt` + el lector Python:
 `fold_gloss` deja de usar `lower()` y pasa a implementar `toCaseFold()`. Diez tests nuevos.
