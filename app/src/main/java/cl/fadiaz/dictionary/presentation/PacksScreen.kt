@@ -58,8 +58,6 @@ import cl.fadiaz.dictionary.data.asHumanSize
 @Composable
 fun PacksScreen(
     packs: List<PackHandle>,
-    active: String?,
-    onActivate: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
@@ -99,8 +97,6 @@ fun PacksScreen(
                         "${packTypeLabel(pack.metadata.kind)} · " +
                             "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}"
                     },
-                    active = pack.packId == active,
-                    onActivate = { onActivate(pack.packId) },
                     // El incluido no se puede borrar: volvería sola al reiniciar.
                     onDelete = if (pack.isBundled) null else { { pendingDelete = pack } },
                 )
@@ -174,8 +170,6 @@ fun PacksScreen(
 private fun PackRow(
     name: String,
     detail: String,
-    active: Boolean,
-    onActivate: () -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     Row(
@@ -188,33 +182,30 @@ private fun PackRow(
                 .weight(1f)
                 .clip(CARD_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable(onClick = onActivate)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The check's space is always reserved: if it appeared and disappeared, the name
-            // would shift when switching dictionaries.
-            Box(modifier = Modifier.width(20.dp), contentAlignment = Alignment.Center) {
-                if (active) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = stringResource(R.string.packs_in_use),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
+            // ⚠️ **Ni tick ni activacion, y eso CAMBIA lo que esta pantalla hace.** Antes la
+            // fila elegia el diccionario en uso y reservaba 20 dp a la izquierda para el tick,
+            // que se dibujara o no. Pedido: *«quitando completamente el ticket de idioma
+            // seleccionado y dejando que esto se haga solo desde la pantalla de inicio»*.
+            //
+            // Elegir idioma vive en el selector del inicio (D-111), asi que tenerlo tambien aca
+            // era una segunda puerta a lo mismo, dos niveles mas adentro. Lo que queda es
+            // gestion: que hay instalado, cuanto ocupa y como borrarlo.
+            //
+            // Lo que compra: **26 dp de ancho** --los 20 del tick y los 6 de su separacion--
+            // para la linea que se estaba cortando.
             Column(
-                modifier = Modifier.weight(1f).padding(start = 6.dp, top = 6.dp, bottom = 6.dp),
+                modifier = Modifier.weight(1f).padding(top = 6.dp, bottom = 6.dp),
             ) {
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodyMedium,
-                    // TWO lines and not one. Eyeballed on the watch: after the reserved check,
-                    // the paddings and the 48 dp delete button, the name has ~140 dp left, and
-                    // "Español — definiciones" is 22 characters. On one line it was always cut
-                    // off.
+                    // TWO lines and not one. Eyeballed on the watch: after the paddings and the
+                    // 48 dp delete button, the name has ~165 dp left, and "Español —
+                    // definiciones" is 22 characters. On one line it was always cut off.
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -222,7 +213,13 @@ private fun PackRow(
                     text = detail,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    // ⚠️ **DOS lineas, y los 26 dp de arriba no alcanzaban solos.** Se veia
+                    // `definiciones · 315,9` con el `MB · EN` cortado, y el tamaño es justo el
+                    // dato por el que alguien entra a esta pantalla. Con una sola linea el corte
+                    // vuelve en cuanto el texto crece: la escala de texto es ajustable (hasta
+                    // 1,15) y la traduccion mas larga de `kind` no es la de hoy.
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

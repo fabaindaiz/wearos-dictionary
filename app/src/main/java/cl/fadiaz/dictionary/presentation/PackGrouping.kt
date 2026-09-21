@@ -80,29 +80,22 @@ internal fun representativePacks(packs: List<PackHandle>, activo: String?): List
         }
 
 /**
- * Que etiqueta lleva cada resultado: el **idioma**, o la **fuente** cuando el idioma no alcanza.
+ * Que etiqueta lleva cada resultado: **el idioma, y nada mas**.
  *
- * Con un diccionario del idioma activo, `sust. · ES` dice todo lo que hay que decir. Con dos,
- * `ES · ES` no desambigua nada: lo que separa dos diccionarios del mismo idioma es **de donde
- * salieron**, y el `pack_id` lo lleva en su tercer segmento por la gramatica que `verify_pack.py`
- * verifica (D-138): `<idioma>-<tipo>-<fuente>[-variante]`.
+ * ⚠️ **Antes mostraba la FUENTE cuando habia dos packs del mismo idioma** --`WIKC`, `ENWIKT`--
+ * razonando que `ES · ES` no desambigua. Se revirtio a pedido, y el razonamiento que lo revierte
+ * es mejor que el que lo puso: *«solo debe ser EN, ES. No me gusta que haya un ENWIK... porque
+ * solo me interesa conocer el idioma de proveniencia»*.
  *
- * ⚠️ **Solo cuentan los packs del idioma activo.** Desde D-136 se busca unicamente ahi, asi que un
- * pack ingles no puede hacer que una fila española muestre su fuente.
+ * Desambiguar **dos packs** es una pregunta de catalogo y tiene su pantalla --gestion de
+ * diccionarios--; la fila de resultados contesta otra cosa, que es en que idioma esta la palabra
+ * que estoy por abrir. La sigla ademas no se entiende sin conocer el `pack_id`, asi que ocupaba
+ * el mismo ancho para decir menos.
  *
- * ⚠️ **Y un `pack_id` que no cumpla la gramatica cae al idioma** en vez de inventarle una fuente:
- * un pack anterior a D-138 no la lleva, y partir su nombre daria una etiqueta falsa.
+ * Desde que la busqueda es estricta por idioma ([LanguageScope][cl.fadiaz.dictionary.core.LanguageScope]),
+ * todas las filas de una consulta comparten etiqueta; se deja igual porque la ficha la muestra
+ * tambien, y porque el modo auto futuro vuelve a mezclar idiomas sin tocar esto.
  */
-internal fun resultTags(packs: List<PackHandle>, idiomaActivo: String?): Map<String, String> {
-    val delIdioma = packs.filterIsInstance<PackHandle.Open>()
-        .filter { it.metadata.langSource == idiomaActivo }
-    val ambiguo = delIdioma.size > 1
-    return packs.filterIsInstance<PackHandle.Open>().associate { handle ->
-        val idioma = handle.metadata.langSource.uppercase()
-        val fuente = handle.packId.split('-').getOrNull(SEGMENTO_DE_FUENTE)
-        handle.packId to if (ambiguo && !fuente.isNullOrBlank()) fuente.uppercase() else idioma
-    }
-}
-
-/** El tercer segmento del `pack_id`: `<idioma>-<tipo>-<FUENTE>[-variante]` (D-138). */
-private const val SEGMENTO_DE_FUENTE = 2
+internal fun resultTags(packs: List<PackHandle>): Map<String, String> =
+    packs.filterIsInstance<PackHandle.Open>()
+        .associate { handle -> handle.packId to handle.metadata.langSource.uppercase() }

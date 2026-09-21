@@ -69,6 +69,7 @@
     <string name="settings_manage">Manage</string>
     <string name="settings_text_size">Text size</string>
     <string name="settings_text_size_note">Added on top of the size set on your watch.</string>
+    <string name="settings_scale_small">Small</string>
     <string name="settings_scale_normal">Normal</string>
     <string name="settings_scale_large">Large</string>
     <string name="settings_history">History</string>
@@ -93,7 +94,6 @@
     <string name="packs_to_download">To download</string>
     <string name="packs_wip">Not yet. Today dictionaries are installed over a cable, from the computer. The catalogue to download them from the watch will appear here.</string>
     <string name="packs_bundled">Included in the app</string>
-    <string name="packs_in_use">In use</string>
     <string name="packs_delete_question">Delete %1$s?</string>
     <string name="packs_delete_cost">It takes %1$s. To get it back you have to install it again from the computer.</string>
     <string name="packs_delete">Delete</string>

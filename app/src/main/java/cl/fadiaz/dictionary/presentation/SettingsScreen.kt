@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -129,7 +130,7 @@ fun SettingsScreen(
                 RadioButton(
                     selected = option == scale,
                     onSelect = { onScaleChange(option) },
-                    label = { Text(if (option == TextScale.NORMAL) stringResource(R.string.settings_scale_normal) else stringResource(R.string.settings_scale_large)) },
+                    label = { Text(stringResource(scaleLabel(option))) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -216,4 +217,18 @@ private fun Diagnostic(text: String) {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
     )
+}
+
+/**
+ * El nombre de cada paso de [TextScale].
+ *
+ * ⚠️ **Un `when` exhaustivo y no un `if/else`**, que es lo que habia: con dos valores el `else`
+ * funcionaba, y al agregar el tercero habria etiquetado `SMALL` como "Grande" **sin un solo
+ * error de compilacion**. Asi, agregar un paso no compila hasta nombrarlo.
+ */
+@StringRes
+private fun scaleLabel(scale: TextScale): Int = when (scale) {
+    TextScale.SMALL -> R.string.settings_scale_small
+    TextScale.NORMAL -> R.string.settings_scale_normal
+    TextScale.LARGE -> R.string.settings_scale_large
 }

@@ -356,6 +356,36 @@ class ScreensTest {
     }
 
     @Test
+    fun lasTraduccionesDeLaPALABRA_van_ARRIBA_de_las_acepciones() {
+        // ⚠️ **El orden es la decisión, no un detalle de maquetado (D-192).** Iban al final
+        // razonando que "las definiciones son a lo que el lector entró"; lo desmiente la
+        // medición que ya estaba escrita al lado: el **48,6 %** de las entradas con traducción
+        // tienen SÓLO éstas, así que para la mitad de los casos la sección del final era la
+        // respuesta entera y quedaba debajo de un `Ver más` que hay que tocar.
+        //
+        // Se fija con coordenadas y no leyendo el árbol porque es exactamente lo que se revierte
+        // sin que nada avise: mover un `item` de lugar no rompe ningún test que sólo compruebe
+        // que ambas secciones existen.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(Sense("asiento para varias personas")),
+                    wordTranslations = listOf("bank"),
+                )
+            }
+        }
+        val traduccion = compose.onNodeWithText("Traducciones de la palabra")
+            .fetchSemanticsNode().positionInRoot.y
+        val acepcion = compose.onNodeWithText("asiento para varias personas", substring = true)
+            .fetchSemanticsNode().positionInRoot.y
+        assertTrue(
+            "la traducción de la palabra va antes que la primera acepción " +
+                "(traducción y=$traduccion, acepción y=$acepcion)",
+            traduccion < acepcion,
+        )
+    }
+
+    @Test
     fun aTranslationResolvedInTheOtherPackIsTappable() {
         // ⚠️ **Es lo que obligó a que un enlace lleve `packId` y no sólo `entryId`.** Hasta acá
         // el mapa era `norm -> entryId` y `onOpenWord` navegaba dentro del MISMO pack, a
@@ -793,8 +823,6 @@ class ScreensTest {
                     openPack("es-def", "Español", 72_212_480),
                     openPack("en-def", "English", 309_452_800, lang = "en"),
                 ),
-                active = "es-def",
-                onActivate = {},
                 onDelete = {},
             )
         }
@@ -804,10 +832,15 @@ class ScreensTest {
         compose.onNodeWithText("· ES", substring = true).assertExists()
         compose.onNodeWithText("· EN", substring = true).assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB", substring = true))
-        compose.onNodeWithContentDescription("En uso").assertExists()
+        // ⚠️ **Y NINGUNA fila marca cuál está en uso.** Esto invierte lo que este mismo test
+        // exigía hasta hoy --«sólo el activo lleva check»--. Pedido: *«quitando completamente el
+        // ticket de idioma seleccionado y dejando que esto se haga solo desde la pantalla de
+        // inicio»*. Elegir idioma vive en el selector del inicio (D-111); tenerlo también acá
+        // era una segunda puerta a lo mismo, y su hueco reservado de 20 dp era justo el ancho
+        // que le faltaba al tamaño para no cortarse.
         assertEquals(
-            "solo el activo lleva check",
-            1,
+            "ninguna fila marca el activo: eso se elige en el inicio",
+            0,
             compose.onAllNodesWithContentDescription("En uso").fetchSemanticsNodes().size,
         )
     }
@@ -819,8 +852,6 @@ class ScreensTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("demo", "Juguete", 53_248, demo = true)),
-                active = "demo",
-                onActivate = {},
                 onDelete = {},
             )
         }
@@ -838,8 +869,6 @@ class ScreensTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
-                active = "en-def",
-                onActivate = {},
                 onDelete = { deleted = it },
             )
         }
@@ -859,8 +888,6 @@ class ScreensTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("en-def", "English", 309_452_800)),
-                active = "en-def",
-                onActivate = {},
                 onDelete = { deleted = it },
             )
         }
@@ -877,8 +904,6 @@ class ScreensTest {
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
-                active = "es-def",
-                onActivate = {},
                 onDelete = {},
             )
         }
@@ -1266,9 +1291,17 @@ class ScreensTest {
     }
 
     @Test
-    fun conDOS_DICCIONARIOS_DEL_MISMO_IDIOMA_la_fila_dice_la_FUENTE() {
-        // "ES · ES" no desambigua nada (D-151). Con dos diccionarios de español, lo que separa
-        // una fila de la otra es de qué fuente salió.
+    fun conDOS_DICCIONARIOS_DEL_MISMO_IDIOMA_la_fila_sigue_diciendo_el_IDIOMA() {
+        // ⚠️ **Esto invierte D-151, que es lo que este test fijaba.** La regla anterior mostraba
+        // la sigla de la fuente --`WIKC`, `WD`-- cuando dos diccionarios compartían idioma,
+        // porque "ES · ES" no desambigua. El pedido la revierte: *«solo debe ser EN, ES. No me
+        // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
+        // proveniencia»*.
+        //
+        // Lo que se pierde, dicho para que nadie lo redescubra: con dos packs del mismo idioma
+        // la fila **no dice de cuál salió**. Esa pregunta la contesta la pantalla de gestión de
+        // diccionarios; la fila contesta en qué idioma está la palabra que voy a abrir, y la
+        // sigla no se entiende sin conocer el `pack_id`.
         val wikc = meta("es-def-wikc", "es", "Español")
         val wd = meta("es-def-wd", "es", "Español (Wikidata)")
         showSearch(
@@ -1279,8 +1312,18 @@ class ScreensTest {
                 available = listOf(handle(wikc), handle(wd)),
             ),
         )
-        compose.onNodeWithText("sust. · WIKC", substring = true).assertExists()
-        compose.onNodeWithText("sust. · WD", substring = true).assertExists()
+        // LAS DOS filas dicen `ES`, que es exactamente el punto: la etiqueta ya no distingue
+        // packs, sólo idiomas.
+        assertEquals(
+            "las dos filas llevan la etiqueta del idioma",
+            2,
+            compose.onAllNodesWithText("sust. · ES", substring = true).fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "la sigla de la fuente ya no aparece en ninguna fila",
+            0,
+            compose.onAllNodesWithText("WIKC", substring = true).fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -1581,8 +1624,6 @@ class ScreensTest {
         compose.setContent {
             PacksScreen(
                 packs = packs,
-                active = active,
-                onActivate = {},
                 onDelete = {},
             )
         }
