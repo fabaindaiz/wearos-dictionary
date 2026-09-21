@@ -26,6 +26,62 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — CONSTRUIDO: las traducciones por acepción entran al pack español
+**Qué.** Primer código de la jornada. `kaikki.py` lee la tabla `translations` del dump —que
+siempre estuvo y el pipeline nunca leyó— y la emite al tag `T` **por acepción**; `SenseBlock`
+la dibuja como cuarta `TermList`. Siete tests nuevos. Verificado sobre un pack real construido.
+**Áreas.** `tools/packbuilder/sources/kaikki.py`, `tools/packbuilder/build_pack.py`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`, `res/values{,-es}/strings.xml`, dos archivos de test, `docs/roadmap.md`,
+conteos en `README.md`, `app/CLAUDE.md`, `tools/CLAUDE.md`.
+**Por qué.** *«completa el desarrollo del pack de idiomas»*, después de verificar lo conversado.
+**Arquitectura.** ✅ Cumple. Sin cambio de esquema: el tag `T` ya existía en `payload.py`,
+`PayloadCodec` y `Model.Sense`, y `payload.render` ya leía `sense["translations"]`. **No sube
+`CODEC_ID`** (D-119). `meta.translations_to` es clave nueva y el pack sigue `monolingual`.
+**Medido.**
+- **Tests primero y fallaron por la razón esperada**: `records() got an unexpected keyword
+  argument 'translations_to'` (5 de fuente) y 1 de 93 en `ScreensTest`.
+- **Pack real, muestra 1/12**: 12.158 entradas, **1.052 con traducción (8,7 %)**, 1.921 items.
+  Cuadra con lo medido sobre el dump (16,6 % con traducción × ~51 % atribuible).
+- **Costo: +36 KB sobre 6,16 MB — +0,60 %**, contra un **build gemelo** del mismo dump y la misma
+  muestra sin la función. No estimado.
+- `verify_pack.py` pasa entero sobre el pack nuevo.
+- **Leído, no contado**: `sentir` → `feel` / `hear` / `be sorry, regret` en las acepciones 1, 3 y
+  5; `echar` → `throw, cast` / `pour` / `kick out` / `boot`. Las acepciones sin atribución quedan
+  vacías, que es D-117 funcionando.
+- **Riesgo de tocar `_by_sense_index`, que es compartido: medido y nulo.** Sinónimos **100 %
+  índices simples** (0 compuestos de 86.418), antónimos igual (0 de 7.542). Expandir rangos no
+  los toca; a las traducciones les vale +13,2 puntos.
+- ⚠️ **El pack inglés NO puede declarar `translations_to`**: sus traducciones al español traen el
+  texto de la acepción pero **0 `sense_index` de 9.987**. Emitir algo sería inventar la
+  atribución.
+**Qué salió mal.** Dos cosas, las dos agarradas antes de commitear.
+1. ⚠️ **Olvidé el parámetro en la SEGUNDA llamada a `_emit`** —el vaciado del último grupo, fuera
+   del bucle—, lo que habría perdido las traducciones de **la última palabra del archivo** en
+   silencio. Lo agarró leer el `grep` de las llamadas, no un test: ningún test tiene dos palabras
+   donde la segunda sea la última. **Quedó un comentario en esa línea** porque la próxima
+   incorporación al reader va a caer en la misma trampa.
+2. **Hice un reemplazo global de conteos en `docs/roadmap.md` sin contar ocurrencias**, sobre un
+   documento de 2.000 líneas donde "283" o "284" podían ser otra cosa. Salió bien —2 líneas, las
+   dos correctas— pero fue suerte y no método: el `git diff` se revisó después, no antes.
+3. ⚠️ **Commiteé con el gate en rojo.** Corrí `./gradlew check` y el commit en el mismo comando,
+   así que el `git commit` se ejecutó igual y el log del check quedó arriba sin que lo leyera.
+   Falló `check_doc_paths` por una **ruta elidida con puntos suspensivos** en esta misma
+   entrada, que es **la tercera vez que ese check me agarra lo mismo**. ⚠️ Y describir el
+   error citando la ruta mala vuelve a dispararlo: la corrección tampoco puede escribirla. Arreglado y enmendado,
+   pero la lección es de proceso: **el gate y el commit no van en el mismo comando**, porque el
+   `&&` protege del fallo del build pero no de no mirar la salida.
+**Qué quedó sin hacer.**
+- ⚠️ **`trans` del pack español sigue vacía (4 KB)**: `translations_to` es canal de **lectura**.
+  Escribir `casa → house` también en `trans` haría que el pack de definiciones **se busque por
+  palabra inglesa** sin pack bilingüe instalado. Es el puente que la búsqueda multipack entre
+  idiomas necesita y es lo próximo que pidió el usuario. Antes hay que decidir si un pack
+  buscable en dos idiomas sigue siendo `monolingual`, y qué hace `byTranslation` cuando **varios**
+  packs lo contestan.
+- El canal de nivel de entrada (el 37,7 % sin índice) sigue sin existir.
+- **Los packs reales no se reconstruyeron**: lo verificado es una muestra 1/12. El build completo
+  del español es ~1 hora.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — Cómo nombrar una acepción de otro pack, y por qué la degradación no necesita modo
 **Qué.** Nada de código. Se eligió la identidad de acepción entre packs (**digest de la glosa**),
 se midió su tasa de colisión, y se diseñó la presentación de los dos modos con su reparto real.

@@ -220,6 +220,12 @@ PACKS = {
             "Incluye sinónimos, antónimos y palabras relacionadas por acepción."
         ),
         "lang_src": "es",
+        # ⚠️ **El idioma en que estan las traducciones del payload, y es una DECLARACION que el
+        # lector necesita**: sin ella la ficha muestra una lista de palabras inglesas sin decir
+        # que son inglesas. No convierte el pack en bilingue --`kind` sigue siendo monolingual y
+        # `lang_dst` sigue vacio-- porque no se puede BUSCAR por ellas: son contenido de lectura.
+        # El canal de busqueda es la tabla `trans`, que en este pack sigue vacia.
+        "translations_to": "en",
         "fuzzy_profile": "es",
         "source_date": "20260915",
         "license": "CC-BY-SA-4.0",
@@ -456,6 +462,10 @@ def main(argv):
         argumentos = (
             (source, lang) if reader is oewn
             else (source, PACKS[lang]["lang_src"], politica) if reader is bilingual
+            # `translations_to` sale de la misma tabla que lo declara en `meta`, para que la
+            # promesa del pack y lo que el lector emite no puedan separarse.
+            else (source, lang, politica, PACKS[lang].get("translations_to"))
+            if reader is kaikki
             else (source, lang, politica)
         )
         vistos = set()

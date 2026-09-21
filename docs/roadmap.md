@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **283 tests**) están completos y en el gate, junto con los **284 JVM
-de `:app`** y **26 checks** de auditoría estructural — **679 tests en total**. Los **43
+pipeline de packs (`tools/`, **288 tests**) están completos y en el gate, junto con los **286 JVM
+de `:app`** y **26 checks** de auditoría estructural — **686 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -346,6 +346,59 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 ⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
+
+### ✅ Traducciones por acepción en el pack español — CONSTRUIDO 2026-09-21
+
+Lo que las secciones de abajo midieron, construido. `kaikki.py` lee la tabla de traducciones que
+el dump siempre trajo y el pipeline nunca leyó, y la emite al tag `T` **por acepción**;
+`SenseBlock` la dibuja como cuarta `TermList`.
+
+**Verificado leyendo un pack real** (muestra 1/12, 12.158 entradas), no contando filas:
+
+```
+echar   1. Impulsar o empujar algo hacia algún lugar     ->  throw, cast
+        3. Meter o poner algo en un lugar                ->  pour
+        4. Expulsar algo o a alguien violentamente       ->  kick out, let out
+        5. Remover a alguien de su posición              ->  boot
+sentir  1. Percibir por cualquiera de los sentidos       ->  feel
+        3. Percibir por medio del oído                   ->  hear
+        5. Mostrar congoja o arrepentimiento             ->  be sorry, regret
+```
+
+Las acepciones sin traducción atribuida muestran **nada**, que es la regla de D-117 funcionando.
+
+| medición | |
+|---|---|
+| entradas con traducción, en la muestra | **1.052 de 12.158 — 8,7 %** (coincide con el 16,6 % con traducción × 51 % atribuible medido sobre el dump) |
+| items emitidos | 1.921 |
+| **costo en bytes** | **+36 KB sobre 6,16 MB — +0,60 %**, contra un build gemelo del mismo dump y la misma muestra sin la función |
+| `verify_pack.py` | pasa entero |
+
+**Tres decisiones que el código fija, y cada una tiene su motivo escrito en el archivo:**
+
+- ⚠️ **Se filtra por idioma.** El dump trae la tabla entera: `en` son **34.710 de 281.022** items.
+  Sin filtro una entrada española mostraría su traducción al polaco.
+- ⚠️ **Se expanden los rangos** (`1-2`, `1, 4`), que valen **+13,2 puntos** de cobertura. Tocar
+  `_by_sense_index`, que es compartido, era el riesgo — **medido y nulo**: sinónimos y antónimos
+  son **100 % índices simples**, 0 compuestos de 86.418 y 7.542.
+- ⚠️ **Lo que no trae índice se descarta** (el 37,7 % de las traducciones). Es dato real y su
+  lugar honesto es el canal de nivel de entrada que todavía no existe.
+
+**Y una puerta que se cerró con un número:** el pack inglés **no puede** declarar
+`translations_to`. Sus traducciones al español traen el **texto** de la acepción pero
+**0 `sense_index`** de 9.987 — mismo espejo que D-117/D-124, sólo que esta vez la forma inglesa
+**no** es atribución estructural, así que emitir algo sería inventarla.
+
+#### ⚠️ La oportunidad que esto deja servida, y es justo la próxima pregunta
+
+`meta.translations_to = "en"` es un **canal de lectura**: el pack es `monolingual`, `lang_dst`
+sigue vacío y **`trans` sigue pesando 4 KB**, o sea vacía. Escribir `casa → house` también en
+`trans` haría que **el pack de definiciones se busque por palabra inglesa** — `house` encontraría
+`casa` sin que haya un pack bilingüe instalado.
+
+Eso es exactamente el puente que necesita la búsqueda multipack entre idiomas, y no está hecho.
+Lo que hay que decidir antes: si un pack que se busca en dos idiomas sigue siendo `monolingual`,
+y qué le pasa al peldaño `byTranslation` cuando **varios** packs lo contestan.
 
 ### Naming a sense from another pack: the reference, and the two modes — designed 2026-09-21
 

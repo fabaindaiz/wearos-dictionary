@@ -354,6 +354,21 @@ private fun SenseBlock(
         // como prefijo --`sin.`, `ant.`, `rel.`-- y ahora va escrita entera, que es la misma
         // regla de D-159: en una fila se abrevia porque el lema necesita el ancho; acá no
         // compite con nada.
+        // La traducción va PRIMERA de las cuatro, y es la única de las listas que no es un
+        // complemento de la glosa sino **otra respuesta a la misma pregunta**: quien abre una
+        // entrada buscando cómo se dice en el otro idioma quiere eso, no la cuarta línea.
+        //
+        // ⚠️ **Va dentro de `SenseBlock`, y eso AFIRMA que pertenece a esta acepción.** Sólo
+        // entra acá lo que la fuente atribuyó con `sense_index`; lo que no se puede atribuir se
+        // descarta en el builder en vez de colgarse de la primera, que es la regla de D-117.
+        // Su lugar honesto es un canal de nivel de entrada que todavía no existe (roadmap
+        // §Naming a sense from another pack).
+        //
+        // ⚠️ **No se pinta como enlace y no es un olvido**: `links` resuelve contra ESTE pack, y
+        // estos términos son del otro idioma, así que nunca resolverían. Pintarlos sería una
+        // palabra tocable que no lleva a ningún lado (D-084). Por eso se pasa el mapa vacío en
+        // vez de `links`: expresa la decisión en vez de depender de que el lookup falle.
+        TermList(R.string.entry_translations_title, sense.translations, emptyMap(), onOpenWord)
         TermList(R.string.entry_synonyms_title, sense.synonyms, links, onOpenWord)
         // Los antónimos, debajo y con el mismo peso visual (D-126). ⚠️ **La categoría no es
         // opcional**: las tres listas se ven idénticas, y lo único que separa "otra forma de

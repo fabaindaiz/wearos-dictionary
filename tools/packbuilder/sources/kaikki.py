@@ -65,6 +65,12 @@ MAX_EXAMPLES_PER_SENSE = 1
 # linea; el quinto ya obliga a scrollear para leer algo que es una ayuda, no la definicion.
 MAX_SYNONYMS_PER_SENSE = 4
 
+# Tope de traducciones por acepcion. Mas alto que el de sinonimos porque **es la respuesta y no
+# un complemento**: quien abre una entrada buscando la traduccion quiere verla, no cuatro de
+# ellas. Medido sobre el dump español, la mediana es 1 y el p90 es 2, asi que este tope casi
+# nunca muerde -- existe para el maximo de 17.
+MAX_TRADUCCIONES_POR_ACEPCION = 8
+
 # Los tres campos de los que salen las palabras relacionadas, **en este orden**, que es el de
 # cuanto dicen: un hiperonimo ubica la palabra ("guanaco -> camelido"), un hiponimo da un caso, y
 # `related` es una bolsa de parientes morfologicos ("frances -> galo, francofilo"). Con tope 4 el
@@ -238,11 +244,15 @@ def _is_form_of(sense):
     return "form-of" in (sense.get("tags") or []) or bool(sense.get("form_of"))
 
 
-def _by_sense_index(raw, headword, clave):
+def _by_sense_index(raw, headword, clave, idioma=None):
     """Mapa `sense_index` -> items, leido del registro crudo. La forma del dump español.
 
-    `clave` es "synonyms" o "antonyms": es literalmente la misma forma con otro nombre, y dos
-    copias de esto divergirian el dia que alguien arregle un borde en una sola.
+    `clave` es "synonyms", "antonyms" o "translations": es literalmente la misma forma con otro
+    nombre, y dos copias de esto divergirian el dia que alguien arregle un borde en una sola.
+
+    `idioma` filtra por `code`, y sólo las traducciones lo necesitan: el dump trae la tabla
+    entera. Medido sobre el español, `en` son **34.710 de 281.022** items; sin filtro una entrada
+    española mostraria su traduccion al polaco.
 
     **La clave es el `sense_index` que declara la fuente, NUNCA la posicion.** `_senses()` poda
     las acepciones form-of antes de emitir, asi que los ordinales se corren: un `enumerate()`
@@ -259,8 +269,41 @@ def _by_sense_index(raw, headword, clave):
         # El sinonimo igual al lema no aporta nada, igual que en _forms().
         if not index or not word or word == headword:
             continue
-        out.setdefault(index, []).append(word)
+        if idioma is not None and (item.get("code") or item.get("lang_code")) != idioma:
+            continue
+        for numero in _indices(index):
+            out.setdefault(numero, []).append(word)
     return out
+
+
+# Un `sense_index` puede nombrar varias acepciones: "1-2", "1, 4". Medido sobre el dump español:
+# los sinonimos y antonimos son **100 % simples** --0 compuestos de 86.418 y 7.542-- asi que
+# expandir aca no los toca; las traducciones son 53,6 % simples y **8,6 % compuestas**, y sin
+# expandirlas ese 8,6 % no encuentra acepcion.
+_RANGO = re.compile(r"(\d+)\s*[-\u2013\u2014]\s*(\d+)")
+# Techo del rango: "4-10" es real, pero un numero enorme seria un parseo equivocado que colgaria
+# el item de acepciones que no existen. Se descarta en vez de adivinar.
+MAX_ACEPCIONES_POR_RANGO = 50
+
+
+def _indices(index):
+    """Los numeros de acepcion que nombra un `sense_index`, como strings.
+
+    Lo que no se entiende se **descarta**, igual que D-117 descarta un item sin indice: medido,
+    es residuo --`"1b"` 3 veces, `"1 y 2"` 2, `"2 (en el aire)"` 1 en todo el dump-- y adivinar
+    seria inventar la atribucion.
+    """
+    salida = []
+    for parte in re.split(r"[,;]", index):
+        parte = parte.strip()
+        rango = _RANGO.fullmatch(parte)
+        if rango:
+            desde, hasta = int(rango.group(1)), int(rango.group(2))
+            if desde <= hasta and hasta - desde < MAX_ACEPCIONES_POR_RANGO:
+                salida.extend(str(n) for n in range(desde, hasta + 1))
+        elif parte.isdigit():
+            salida.append(parte)
+    return salida
 
 
 def _nested(sense, headword, clave):
@@ -343,11 +386,17 @@ def _relacionadas(fuente, headword, ya_mostrados):
     return out
 
 
-def _senses(raw):
+def _senses(raw, translations_to=None):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
     headword = raw.get("word", "")
     synonyms = _by_sense_index(raw, headword, "synonyms")
     antonyms = _by_sense_index(raw, headword, "antonyms")
+    # Sin destino declarado no se emite ninguna: el pack ingles no tiene que ganar traducciones
+    # por accidente sólo porque su dump trae la tabla.
+    traducciones = (
+        _by_sense_index(raw, headword, "translations", idioma=translations_to)
+        if translations_to else {}
+    )
     out = []
     for sense in raw.get("senses") or []:
         if _is_form_of(sense):
@@ -366,6 +415,12 @@ def _senses(raw):
         out.append({
             "gloss": gloss,
             "examples": examples,
+            # ⚠️ **Lo que no trae indice NO entra**, que es la regla de D-117 y la razon por la
+            # que el modo lista existe: colgarla de la acepcion 1 acierta a veces y falla otras
+            # sin dejar rastro. Medido, el 37,7 % de las traducciones del dump no trae indice --
+            # ese dato es real y su lugar honesto es el canal de nivel de entrada, que todavia
+            # no existe (roadmap §Naming a sense from another pack).
+            "translations": traducciones.get(index, [])[:MAX_TRADUCCIONES_POR_ACEPCION],
             "synonyms": (
                 synonyms.get(index, []) or _nested(sense, headword, "synonyms")
             )[:MAX_SYNONYMS_PER_SENSE],
@@ -479,13 +534,13 @@ def _entra_el_nombre_propio(raw, perfil, politica):
     return _senal_lexica(raw) >= SENAL_LEXICA_MINIMA
 
 
-def _emit(group, inbound, perfil, politica):
+def _emit(group, inbound, perfil, politica, translations_to=None):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             continue
-        senses = _senses(raw)
+        senses = _senses(raw, translations_to)
         if not senses:
             continue
         prepared.append((raw, senses))
@@ -543,7 +598,7 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path, lang="es", politica=POLITICA_POR_DEFECTO):
+def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
     **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres
@@ -579,10 +634,12 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO):
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, politica):
+                for record in _emit(group, inbound, perfil, politica, translations_to):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    for record in _emit(group, inbound, perfil, politica):
+    # ⚠️ El ultimo grupo del archivo sale por aca y NO por el bucle: si este olvida un
+    # parametro, la ultima palabra del dump pierde ese dato en silencio.
+    for record in _emit(group, inbound, perfil, politica, translations_to):
         yield record
