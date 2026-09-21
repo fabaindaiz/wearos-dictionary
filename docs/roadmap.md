@@ -1387,6 +1387,81 @@ sin verificar teniendo el dispositivo en la mano.
 receiver exportado o un log verboso en producción son superficie de ataque y batería. El build
 `benchmark` (D-166) es el lugar natural: ya existe, ya es instalable, y ya no es el release.
 
+### Result ordering: document it, then improve it
+
+**Status.** Asked for on 2026-09-21: *«documentar y mejorar los filtros sobre el orden en que
+poner las palabras en los resultados»*. **Nothing built.**
+
+**The ordering exists and is scattered.** It is assembled across three places, and nobody can see
+the whole of it without reading all three:
+
+| Where | What it contributes | Decision |
+|---|---|---|
+| `build.py` | `rank`: page richness in the dump, plus a proper-noun penalty | D-063, D-134 |
+| `SqlitePackSource` | The cascade's rung order, and `score` = position within one pack's list | D-068 |
+| `SearchRepository.orderFor` | Match kind → proper-noun demotion → coverage band → score → headword, packId, entryId | D-142, D-154 |
+
+⚠️ **And the piece that is easiest to get wrong is already written down in the wrong place**:
+`score` is *the position inside its own pack's list*, not `rank`. That is what makes the merge
+ordinal and immune to a badly calibrated pack — and it lives in a comment inside
+`SearchRepository`, not anywhere a person would look for "how are results ordered".
+
+**What is missing, in order:**
+
+1. **One document that states the whole order**, end to end, and what each step is defending
+   against. Today the *why* of every step exists — in three files.
+2. **A way to see the order change.** Every improvement so far was found by running a query
+   against the real pack and reading the list (D-142's `cas`, D-154's `ital`). That was done by
+   hand each time; `tools/measure_query_cost.py` already opens real packs and could print the
+   ordered list for a set of queries, turning "it looks better" into a diff.
+3. **The known-open filters**, none of them measured yet: whether an inflected form should rank
+   below its lemma, whether a multi-word phrase should rank below a single word of the same
+   coverage, and whether `rank` across two packs from different dumps is comparable at all — the
+   ordering's own comment says it is not, and nothing acts on that.
+
+### An English–Spanish translation pack: one pack or two?
+
+**Status.** Researched 2026-09-21, **nothing built**. The question was whether one pack serves
+both directions.
+
+**Structurally, one pack does serve both.** The schema already has `trans` — `norm, entry_id` —
+which is exactly a reverse index: an entry can be reached by a word in the *other* language, and
+`MatchKind.TRANSLATION` is rung 3 of the cascade. A pack of Spanish entries with English glosses,
+plus `trans` rows keyed by English, answers `perro` directly and `dog` through `trans`.
+
+⚠️ **But the data does not come that way, and that is what settles it.** The dump already
+downloaded — `es-en-wikt.jsonl`, 989 MB, the English Wiktionary's Spanish section — has **no
+`translations` field at all**: it gives Spanish words with English *glosses*. To make the reverse
+direction work, `trans` would have to be derived from those glosses. Measured over **141,166
+senses**:
+
+| | |
+|---|---|
+| Glosses that **are** a translation (terms of ≤ 2 words) | **16,532 — 11.7 %** |
+| Glosses that are a paraphrase | **124,634 — 88.3 %** |
+
+Examples of each: `gratis → free, without charge` against `pie → foot (a part of the body)` and
+`pies → second-person singular voseo present subjunctive`.
+
+**So a derived reverse index would cover about one concept in eight.** That is not a dictionary in
+that direction; it is a lottery, and worse than not offering it — the same reasoning as D-126,
+where a wrong synonym is worse than a missing one.
+
+**Recommendation: two packs, one per direction**, each built from a source *authored* in that
+direction — the English Wiktionary's Spanish section for ES→EN (downloaded), and the Spanish
+Wiktionary's English section for EN→ES (not downloaded). They coexist at zero cost: D-136 already
+searches every pack of the active language, and D-171 already decides which packs answer.
+
+**Two things to settle before building either:**
+
+1. ⚠️ **Prune the inflection notes.** A large share of that 88.3 % are entries like *"plural of
+   pie"* or *"second-person singular voseo…"*, which the monolingual pack already covers through
+   the `form` table. A bilingual pack that keeps them is mostly grammar notes by weight.
+2. **Ask whether it is still needed.** Since D-168 the cross-language fallback already finds `dog`
+   with Spanish active and shows its English entry. That is lookup across languages, not
+   translation — it tells you what `dog` means, not that it is `perro`. Worth confirming that the
+   second thing is the one wanted before spending the MB.
+
 ## Publicar: qué falta para una build de producción
 
 **Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
@@ -1774,6 +1849,47 @@ comparación es honesta. Un log de fricción aparte es un archivo que nadie abre
 
 El umbral es el **segundo golpe**: la primera vez va al changelog de la sesión, la segunda sube
 acá con la aritmética. Una molestia sola es ruido; la segunda es un dato.
+
+### The repo is supposed to be in English and about 3,000 lines are not
+
+**Status.** ⚠️ **Measured 2026-09-21, after the rule was pointed out.** `CLAUDE.md` says it
+plainly — *«Spanish in the conversation, English in the repo. Identifiers, comments, documents and
+commit messages are English»* — with one documented exception, the UI strings. The repo does not
+match:
+
+| | Spanish lines |
+|---|---|
+| `tools/**` comments and docstrings | ~859 |
+| `app/src/main` KDoc and comments | ~402 |
+| `dict-core/src/main` | ~294 |
+| `dict-data/src/main` | ~127 |
+| `docs/roadmap.md` | ~962 |
+| `docs/decisions.md` | ~187 |
+| `docs/fuentes.md`, `README.md`, `tools/CLAUDE.md` | ~141 |
+| | **≈ 3,000** |
+
+⚠️ **This is not a formatting preference and that is why it is here rather than in a backlog.**
+The prose in this repo *is* the design record — `docs/decisions.md` exists so a person can ask
+"why is this decided this way" — and a record half the readers cannot use is worth less than its
+length suggests.
+
+**Why it has to be staged rather than done in one pass.** A mechanical translation of 3,000 lines
+would destroy the thing that makes this prose useful: it is specific, it carries measurements, and
+it names what went wrong. Translating it well is re-writing it. Translating it badly and calling
+the rule satisfied is worse than the current state.
+
+**The order, by how many readers each unit has:**
+
+1. The three `CLAUDE.md` files under `app/`, `tools/`, `dict-*` — read by every session.
+   `tools/CLAUDE.md` is **done**.
+2. `docs/decisions.md` — the most-consulted document.
+3. Source comments, module by module, smallest first: `dict-data` → `dict-core` → `app` → `tools`.
+4. `docs/roadmap.md` last, because it is the biggest and the one that changes most — translating a
+   moving document twice is the likely outcome of doing it first.
+
+⚠️ **And the rule that prevents this from growing again**: everything written from 2026-09-21
+onward is English. No enforcer — a language detector over prose would have false positives on the
+technical terms this repo deliberately leaves untranslated (gate, covering index, payload, rung).
 
 ### Verificar a ojo en el emulador cuesta más que el cambio que se verifica
 
