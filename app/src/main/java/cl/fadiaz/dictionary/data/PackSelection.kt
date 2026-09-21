@@ -1,6 +1,9 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.speaks
 
 /**
@@ -104,3 +107,29 @@ internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): Pack
  */
 internal fun answersFor(pack: DictionarySource, idioma: String?): Boolean =
     pack.metadata.speaks(idioma)
+
+/**
+ * Si de este pack puede salir una **palabra del día**.
+ *
+ * ⚠️ **Vive acá y no en el ViewModel porque la regla ya divergió una vez**: valía en la pantalla
+ * y no en el tile (D-203), y tenerla escrita dos veces es exactamente cómo vuelve a pasar. Los
+ * tres caminos —la pantalla, la caché del tile y el cálculo— consultan esta.
+ *
+ * Quedan fuera dos clases, por motivos distintos:
+ *
+ * - **Los de traducción** (D-200): una entrada inversa no tiene acepciones (D-196), así que la
+ *   ficha diría *«se dice `perro`»* y nada más.
+ * - **Los núcleos**: son las **8.000 palabras más frecuentes**, y elegir la de mejor rank da *la
+ *   más común de las más comunes* — siempre una palabra funcional. Visto en el emulador con sólo
+ *   los núcleos del APK: `my` y `un`.
+ *
+ * ⚠️ **Pregunta por lo que el pack DECLARA** —`kind` y `tier` (D-198)— y nunca por su nombre ni
+ * por cuántas entradas tiene: un pack ajeno puede llamarse como quiera, y lo único que la app
+ * puede creer es lo que el artefacto declara y `verify_pack.py` comprueba.
+ *
+ * ⚠️ **Consecuencia, escrita para que nadie la redescubra**: una instalación recién hecha lleva
+ * sólo los núcleos del APK, así que **no muestra palabra del día hasta instalar un diccionario
+ * completo**. Es la degradación correcta — mejor sin palabra que con una que no enseña.
+ */
+internal fun givesWordOfTheDay(meta: PackMetadata): Boolean =
+    meta.kind != PackKind.BILINGUAL && meta.tier != PackTier.CORE

@@ -56,6 +56,7 @@ import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.givesWordOfTheDay
 import cl.fadiaz.dictionary.data.Visit
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
@@ -132,7 +133,7 @@ fun SearchScreen(
     // pack que no genera ninguna. Filtrar antes y no después es lo que lo arregla.
     val ofTheDay = remember(state.available, state.active?.packId, state.wordsOfTheDay) {
         val conDefiniciones = state.available.filter {
-            it !is PackHandle.Open || it.metadata.kind != PackKind.BILINGUAL
+            it !is PackHandle.Open || givesWordOfTheDay(it.metadata)
         }
         representativePacks(conDefiniciones, state.active?.packId)
             .mapNotNull { handle -> state.wordsOfTheDay[handle.packId]?.let { handle to it } }
