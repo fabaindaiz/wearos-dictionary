@@ -96,6 +96,22 @@ frame, todo recompone igual y el reporte no lo ve.
   por adb inalámbrico, en una conexión que ya se cortó a los 75 MB, no se paga por un campo. **Es
   una desviación del pedido y está dicha.**
 
+**Cuatro cosas reportadas usando la app, que quedaron en el roadmap sin construir.** Una de ellas
+**es un bug y está diagnosticado del todo**: la app avisa que `demo-es-en.db` no es compatible
+—`deflate-v1` contra el `deflate-v2` de hoy— y la causa es que `PackStore.missingFromDisk` extrae
+un asset **sólo si el nombre falta en disco**. El demo se extrajo el 18/09, el archivo sigue ahí, y
+el del APK de hoy —verificado: `deflate-v2`, `data_version 202609210345`— **nunca se copia**. O sea
+que **un pack incluido se extrae una vez y no se actualiza jamás**. ⚠️ **Es exactamente el costo
+que D-119 predijo** al subir `CODEC_ID`, aceptado entonces *«porque hoy el costo es cero»*: dejó de
+serlo. El arreglo es re-extraer cuando cambia el `versionCode`, y **gana importancia con el
+núcleo** — si el pack incluido pasa a ser el diccionario de verdad, no actualizarlo deja de ser una
+molestia.
+
+Las otras tres: el selector de idioma dice **qué** está activo y no **qué hace**; las palabras del
+día salen rarísimas (`posterobuccally`, `evangélicamente`) porque se eligen por `rank`, que es
+riqueza de página y no frecuencia —el mismo defecto que D-142 arregló para el orden—; y **faltan
+herramientas para depurar en el reloj**, que es el hueco que esta sesión hizo evidente.
+
 **Qué quedó sin hacer.**
 
 - ⚠️ **Localizar qué invalida la composición.** Es el ítem más grande del plan de batería ahora.
