@@ -42,12 +42,12 @@ class GlossLinksOnDeviceTest {
 
     @Test
     fun tappingAKnownWordInTheGlossOpensItsEntry() {
-        var abierta: Long? = null
+        var abierta: WordLink? = null
         compose.setContent {
             EntryScreen(
                 entryId = 1,
                 onOpenWord = { abierta = it },
-                resolveIn = { mapOf("cera" to 77L) },
+                resolveIn = { mapOf("cera" to WordLink("test", 77L)) },
             ) { entry("cilindro de cera con mecha") }
         }
         compose.waitForIdle()
@@ -59,6 +59,8 @@ class GlossLinksOnDeviceTest {
             useUnmergedTree = true,
         ).performClick()
 
-        assertEquals(77L, abierta)
+        // El enlace lleva el pack ADEMAS del id (D-080): un `entryId` suelto se resolveria
+        // contra el pack activo y abriria otra palabra.
+        assertEquals(WordLink("test", 77L), abierta)
     }
 }
