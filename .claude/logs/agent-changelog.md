@@ -26,6 +26,40 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — A2 explorado: seguro de hacer, y sin motivo medido para hacerlo
+**Qué.** Verificación de que reordenar acepciones no genera efectos adversos, y qué haría falta
+para aplicarlo. **Nada implementado, a pedido.**
+**Áreas.** `docs/roadmap.md` (la sección se reescribió con la verificación).
+**Por qué.** *«Verifica que reordenarlas visualmente no genere ningún efecto adverso y que
+estemos preparados para aplicar este cambio aunque aún no apliques nada»*.
+**Arquitectura.** ✅ Cumple. Sin cambios de código.
+**Medido.**
+- ✅ **La intuición del usuario era correcta y ahora está probada**: barajando las acepciones de
+  **13.072 entradas** multi-acepción del pack español, **0 códigos de acepción cambiaron** y
+  **0 adjuntos quedaron huérfanos**. `senseCode(uid, gloss)` no toma la posición, así que un
+  enlace sobrevive a cualquier reordenamiento — es lo que D-180 compró y nunca se había
+  ejercitado.
+- **Dos acoplamientos a tocar cuando se aplique**: la glosa que cachea el tile
+  (`senses.firstOrNull()`, agregada ayer) porque **el 65 % cambiaría de primera acepción**; y el
+  número dibujado, que se puede conservar desde la fuente **sin tocar el pack** —`parse`
+  construye la lista en orden, así que el índice original es la posición al parsear—.
+- ⚠️ **Lo que lo bloquea NO es el formato: es la falta de evidencia.** Las señales del payload
+  cubren 26,0 % (sinónimos), 18,9 % (traducciones), 15,2 % (ejemplos) y **0,0 % relacionadas**;
+  una fórmula de riqueza discrimina en el 65,5 % pero **el resultado no es mejor**: lo que más
+  reordena son palabras funcionales —`de`, `a`, `para`— cuyas acepciones el Wikcionario ordenó a
+  propósito.
+**Qué salió mal.**
+- La hipótesis acotada —«hundir sólo las primeras acepciones que REMITEN en vez de definir»—
+  dio 1,1 %, y **leyendo los casos el regex tenía falsos positivos**: `modo → "Forma de
+  hacerse…"` y `calor → "Forma de energía…"` son definiciones de verdad. El número real está
+  bajo el 1 %. Fue medir y **leer la salida**, no sólo contar, lo que lo descartó.
+**Qué quedó sin hacer.**
+- A2 entero, a propósito. Lo desbloquearía una frecuencia **por acepción** —necesita un corpus
+  anotado por sentido, y entraría como etiqueta nueva del payload sin subir `CODEC_ID` (D-119)—
+  o telemetría, que está descartada por construcción: el proyecto es 100 % offline.
+
+---
+
 ## 2026-09-21 — A4, A3 y A1: la herramienta primero, y el orden inglés al final
 **Qué.** Tres ítems del roadmap elegidos por el usuario, en el orden que más rinde: la
 herramienta que deja de morder, las mejoras de tiles, y el cambio delicado al final.

@@ -236,7 +236,90 @@ cobró, y lo que queda —recalibrar el proxy, o cruzar un corpus de frecuencias
 ahora lo que más separa al diccionario de ser bueno. Sigue esperando el número de O-1 para saber
 cuánto presupuesto de latencia hay para gastar.
 
-### El orden de las acepciones dentro de una ficha — PLANIFICADO 2026-09-21
+### El orden de las acepciones dentro de una ficha — VERIFICADO 2026-09-21, y **bloqueado por falta de evidencia**
+
+**Estado.** ⚠️ **Seguro de hacer, y sin motivo medido para hacerlo.** Pedido: verificar que
+reordenar no genere efectos adversos y dejar todo listo **sin aplicar nada**. Las dos mitades
+tienen respuesta, y son opuestas.
+
+#### Lo que SÍ está verificado: reordenar no rompe nada
+
+Sonda sobre el pack español real, **13.072 entradas multi-acepción** de palabras con señal de
+frecuencia, barajando las acepciones y recomputando:
+
+| | resultado |
+|---|---|
+| Códigos de acepción que cambiaron | **0 de 13.072** |
+| Adjuntos huérfanos (ejemplos, traducciones, sinónimos que pierden su acepción) | **0** |
+
+⚠️ **La primera fila es la que el usuario intuía y ahora está medida**: `senseCode(uid, gloss)`
+no toma la posición, así que un enlace escrito contra una acepción **sobrevive a cualquier
+reordenamiento**. Es exactamente lo que D-180 compró y no se había ejercitado.
+
+La segunda es la que faltaba comprobar: cada `Sense` es **autocontenida** después de `parse`.
+Los tags `T`/`E`/`Y`/`A` se cuelgan de `senses.lastOrNull()` **mientras se parsea**, no después,
+así que reordenar la lista ya construida no los desprende.
+
+#### Lo que hay que tocar cuando se aplique — dos cosas, las dos chicas
+
+| | qué | por qué |
+|---|---|---|
+| 1 | **La glosa que cachea el tile** (`SearchViewModel`, `senses.firstOrNull()`) | **El 65 % de las entradas multi cambiaría de primera acepción**, así que el tile mostraría una glosa distinta de la que la ficha muestra arriba. Es la clase de desfase entre superficies que ya apareció tres veces (D-200, D-203) |
+| 2 | **El número que se dibuja** (`number = index + 1`) | Reordenar renumera, y eso rompe *«la acepción 2 de banco»* entre versiones. **Se puede conservar el número de la fuente sin tocar el pack**: `PayloadCodec.parse` construye la lista en orden, así que el índice original es la posición al parsear — un campo más en `Sense` con default, y `Sense` ya se construye con seis argumentos posicionales |
+
+**Lo que NO hay que tocar, verificado**: `sense_index` sólo se usa en el builder y **nunca como
+posición** (D-117); `verify_pack.py` lee `senses[0]` sólo para elegir una palabra con la que
+probar FTS, y cualquiera sirve.
+
+#### Lo que BLOQUEA: no hay señal que se sepa mejor que el orden de la fuente
+
+Las señales disponibles en el payload, sobre **47.001 acepciones** de entradas multi comunes:
+
+| señal | cobertura |
+|---|---|
+| sinónimos | 26,0 % |
+| traducciones | 18,9 % |
+| ejemplos | 15,2 % |
+| antónimos | 3,5 % |
+| relacionadas | **0,0 %** |
+
+Con una fórmula de riqueza sobre eso: **65,5 %** de las entradas discriminan, 6,7 % empatan y
+**27,8 % no tienen ninguna señal** —ahí el orden seguiría siendo el del volcado—. De las que
+discriminan, el **45 %** cambiaría de primera acepción.
+
+⚠️ **Pero mirar el resultado lo desmiente.** Las que más cambian son palabras funcionales, y el
+reordenamiento propuesto no es mejor:
+
+```
+de     'Indica pertenencia.'            -> 'Indica el contenido de algo.'
+a      'Indica complemento directo…'    -> 'Indica complemento destinativo.'
+para   'Indica el objetivo o finalidad' -> 'Indica la dirección o destino…'
+```
+
+La riqueza **discrimina mecánicamente sin evidencia de que discrimine útilmente**, y el
+Wikcionario ordena sus acepciones a propósito: el orden de la fuente es la mejor evidencia que
+hay hasta que aparezca otra.
+
+⚠️ **La hipótesis acotada también murió midiendo.** «Hundir sólo las primeras acepciones que
+*remiten* en vez de definir» da **1,1 %**, y leyendo los casos el regex tiene falsos positivos
+—`modo → "Forma de hacerse…"`, `calor → "Forma de energía…"` son definiciones de verdad— así que
+el número real está **por debajo del 1 %**. No paga el riesgo.
+
+#### Qué lo desbloquearía
+
+Una señal que se sepa correlacionada con lo que el lector busca. Dos candidatas, las dos caras:
+
+1. **Frecuencia por acepción** — qué acepción de `banco` se usa más. Necesita un corpus anotado
+   por sentido, que hoy no tenemos (§Alinear acepciones entre fuentes). ⚠️ **No obliga a decidir
+   ahora**: entraría como una etiqueta nueva del payload, y las desconocidas se ignoran por
+   diseño (D-119).
+2. **Lo que el usuario abre** — qué acepción se lee de verdad. Es telemetría, y este proyecto es
+   **100 % offline**: está descartado por construcción, no por costo.
+
+**Conclusión**: el formato está listo y verificado; lo que falta es una razón. Se deja
+**preparado y sin aplicar**, que es exactamente lo que se pidió.
+
+### El plan original, conservado — PLANIFICADO 2026-09-21
 
 **Estado.** **Diseñado, no construido.** Pedido explícitamente como planificación: *«también me
 interesa explorar el reordenado de acepciones pero esto solo quiero planificarlo y dejarlo en
