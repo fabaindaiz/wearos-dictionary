@@ -9,6 +9,7 @@ import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.data.Settings
 import cl.fadiaz.dictionary.data.TextScale
@@ -310,8 +311,15 @@ class SearchViewModel(
      */
     private fun repositoryFor(active: DictionarySource): SearchRepository {
         val idioma = active.metadata.langSource
-        val mismoIdioma = opened.filter { it !== active && it.metadata.langSource == idioma }
-        val otrosIdiomas = opened.filter { it.metadata.langSource != idioma }
+        // ⚠️ **No se consulta todo lo instalado, y ésa es la diferencia.** `packsToQuery` saca
+        // los builds viejos de un mismo diccionario y los packs que otro contiene; Ajustes sigue
+        // viendo la lista entera, porque lo que no se consulta igual ocupa disco y hay que poder
+        // borrarlo. El activo entra siempre: si el usuario lo eligió, se le pregunta.
+        val consultables = packsToQuery(opened)
+        val mismoIdioma = consultables.filter {
+            it !== active && it.metadata.langSource == idioma
+        }
+        val otrosIdiomas = consultables.filter { it.metadata.langSource != idioma }
         return SearchRepository(listOf(active) + mismoIdioma, otherLanguages = otrosIdiomas)
     }
 

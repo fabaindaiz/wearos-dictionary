@@ -455,6 +455,8 @@ def check_app_logic_is_jvm_testable(report):
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "data", "PackVerification.kt"),
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "PackSelection.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "tile", "TileContent.kt"),
     )
     for relativo in vigilados:

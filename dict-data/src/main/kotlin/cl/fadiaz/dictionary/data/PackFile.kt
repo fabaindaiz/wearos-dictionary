@@ -212,6 +212,10 @@ class PackFile private constructor(
             description = meta["description"],
             langSource = meta.getValue("lang_src"),
             langTarget = meta["lang_dst"],
+            // `meta[...]` otra vez: ningun pack de hoy la trae, y el formato no tiene
+            // migraciones (D-001) pero eso aplica a `schema_version`; una clave nueva y aditiva
+            // es justo lo que la tolerancia existe para soportar.
+            subsetOf = meta["subset_of"],
             fuzzyProfile = FuzzyProfile.fromId(meta["fuzzy_profile"]),
             entryCount = meta.getValue("entry_count").toInt(),
             dataVersion = meta.getValue("data_version").toLong(),

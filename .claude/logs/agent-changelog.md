@@ -26,6 +26,55 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Las reglas de selección de packs, y un ciclo que casi deja la búsqueda sin nada
+
+**Qué.** D-171: instalado y consultado dejan de ser la misma lista, con dos reglas en una función
+(`packsToQuery`). Más las cinco respuestas de diseño del usuario escritas en el roadmap, y la
+alineación de acepciones reconocida como problema propio con una **cuarta cara** que no estaba
+contabilizada.
+
+**Áreas.** `data/PackSelection.kt` (nuevo) + su test · `Model.kt` (`subsetOf`) · `PackFile.kt` ·
+`SearchViewModel.kt` · `tools/audit_dictionary.py` (D-072) · `docs/roadmap.md`,
+`docs/decisions.md`.
+
+**Por qué.** Cinco decisiones del usuario: duplicados sí; poder tener varias versiones e indicar
+cuál contiene a cuál; saber si la compatibilidad se paga en cada arranque; que la mezcla de
+acepciones sea un ítem propio; y *«ayúdame a definir estas reglas»*.
+
+**Arquitectura.** ✅ Cumple. `PackSelection` es puro y **entró a la lista vigilada de D-072**. La
+regla vive en `:app` y no en `:dict-core` a propósito: `SearchRepository` consulta lo que le den,
+y decidir **qué** darle es de la capa que sabe qué hay instalado.
+
+**Medido.** Gate: **86 · 273 · 255 · 25 checks**. Y una respuesta con número a la pregunta 3: el
+arranque pasó de **41,33 a 6,30 ms** (D-164) — las validaciones baratas corren siempre, la muestra
+de 64 claves sólo la primera vez que se ve ese archivo, y el Spearman **nunca corre en el reloj**.
+
+**Qué salió mal.**
+
+- ⚠️ **Mi primera versión de la regla dejaba la búsqueda sin ningún pack.** Escribí en el KDoc que
+  una sola pasada bastaba para un ciclo, y **una sola pasada igual los saca a los dos**: con A y B
+  declarándose subconjunto mutuamente, `filterNot { subsetOf in presentes }` vacía la lista. Lo
+  agarró el test que había escrito justo para ese caso, antes de la implementación. La regla
+  correcta es que **sólo absorbe el que no fue absorbido**. **La lección no es el bug: es que el
+  comentario afirmaba una propiedad que el código no tenía, y lo escribí con confianza.**
+- **Diseñé la función sobre el tipo equivocado.** La escribí tomando `PackHandle.Open` y el
+  ViewModel tiene `List<DictionarySource>`; la regla sólo necesita metadata, así que va sobre la
+  interfaz. Costó una vuelta de compilador.
+
+**Qué quedó sin hacer.**
+
+- **La regla 2 no tiene usuario**: ningún pack declara `subset_of` porque el núcleo no existe.
+  Está escrita y probada, y se activa sola el día que un pack lo declare.
+- **Dos decisiones abiertas del usuario**: si el núcleo se desinstala al llegar el completo o se
+  queda sin consultarse, y el `N` del núcleo.
+- ⚠️ **Y una pérdida que ahora está contabilizada y no resuelta**: con dos packs de fuentes
+  distintas, abrir una palabra que los dos tienen muestra las acepciones de **uno** y esconde las
+  del otro. Son **8.595 entradas** entre los dos packs españoles. No estaba en los 20.644 aportes
+  descartados del roadmap porque aquéllos se pierden **al construir** y éstos **al mostrar**.
+- **Nada de esto se vio en el reloj.**
+
+---
+
 ## 2026-09-21 — El respaldo entre idiomas, los sinónimos tocables, y `data_version` que sí distingue
 
 **Qué.** D-168 (respaldo automático entre idiomas), D-169 (categoría arriba y palabras tocables en
