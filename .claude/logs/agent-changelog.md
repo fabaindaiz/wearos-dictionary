@@ -26,6 +26,45 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Orden multiidioma: el defecto era otro, y la pieza que había que decidir hoy
+**Qué.** `RankBasis` + `meta.rank_basis`: el pack declara **qué significa su `rank`**, y a igual
+posición manda el mejor calibrado. Dos tests, verificados por mutación.
+**Áreas.** `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/SearchRepository.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt`,
+`tools/packbuilder/build_pack.py`, `SearchRepositoryTest.kt`, `docs/roadmap.md`,
+`docs/decisions.md` (D-187).
+**Por qué.** *«considerar también el ordenado multiidioma como parte del problema»*, y después
+*«cualquier métrica que se necesite añadir al pack para lograr esto a futuro se pueda considerar
+ahora»*.
+**Arquitectura.** ✅ Cumple. Clave `meta` aditiva y opcional; `RankBasis.fromId` no lanza ante un
+id desconocido.
+**Medido.**
+- ⚠️ **El defecto multiidioma no existía como tal**: `Suggestion.score` es la **posición dentro
+  del propio pack**, así que la fusión ya era **ordinal** y la escala de `rank` se cancelaba
+  sola. La advertencia del código —*«comparar entre packs es una aproximación que nadie midió»*—
+  era correcta **por otra razón**: un pack mal calibrado pone la palabra equivocada en la
+  posición 0. **Arreglar `rank` arregló la fusión de rebote.**
+- **Zipf es comparable entre idiomas, y ahora está medido**: 20 pares tipo Swadesh, diferencia
+  media **−0,06** puntos de Zipf y desviación **0,20** (`agua` 5,45 / `water` 5,43; `libro` 5,19
+  / `book` 5,20). Son 14 puntos de rank sobre una banda de 500.
+- **Lo que sí faltaba**: `es-def-wikc` tiene rank **668–1997** y `es-def-wd` **911–997** —mismo
+  idioma, fórmulas distintas— y nada se lo decía a la app. `meta.rank_basis` es **la pieza que no
+  se puede agregar después sin reconstruir**, por eso entra con este build.
+- La investigación aportó el vocabulario: round-robin, raw-score, normalized-score y Reciprocal
+  Rank Fusion. Con la medición de Zipf, lo nuestro pasa de raw-score sin medir a
+  **normalized-score justificado**.
+**Qué salió mal.** ⚠️ **Los dos tests nuevos eran VACUOS y pasaban por otra razón.** Ponían `casa`
+en el pack de frecuencia y `casar` en el de riqueza, pero el desempate **alfabético** viene
+después y da el mismo resultado — así que pasaban con el desempate y sin él. **Lo destapó mutar el
+código**: quité la línea y siguieron verdes. Rehechos al revés (`casar` en el de frecuencia), y
+re-mutados: ahora fallan sin la línea. **Un test que nunca se vio fallar no prueba nada**, y esta
+vez el que lo escribió fui yo después del código.
+**Qué quedó sin hacer.**
+- `sources/oewn.py` y `sources/wikidata.py` siguen con su propia fórmula y **declararán
+  `page-richness-v1` por defecto**, que es correcto: es lo que son.
+- La verificación visible sigue esperando el build completo.
+
 ## 2026-09-21 — El prior de orden: de riqueza de página a frecuencia de uso
 **Qué.** Estudio completo del orden de resultados, con investigación de fuentes, y el arreglo
 construido. `sources/frequency.py` nuevo, `_rank` en dos bandas, flag `--frecuencias`, 14 tests.
