@@ -35,9 +35,9 @@ que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **93 tests**) y el
 pipeline de packs (`tools/`, **342 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **749 tests en total**. Los **43
+de `:app`** y **26 checks** de auditoría estructural — **751 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -2823,6 +2823,64 @@ sin verificar teniendo el dispositivo en la mano.
 ⚠️ **Y la restricción que ordena el diseño**: nada de esto puede quedar en el APK de release. Un
 receiver exportado o un log verboso en producción son superficie de ataque y batería. El build
 `benchmark` (D-166) es el lugar natural: ya existe, ya es instalable, y ya no es el release.
+
+### ✅ El orden multiidioma, y lo que el pack tiene que declarar — CONSTRUIDO 2026-09-21
+
+Pedido: incluir el orden multiidioma en la misma optimización, con investigación.
+
+#### Lo que la investigación aporta, y lo que resultó ya estar bien
+
+La recuperación multilingüe fusiona listas de tres formas: **round-robin**, **raw-score** y
+**normalized-score**, más **Reciprocal Rank Fusion**, que *«evita el desajuste de escalas»*. El
+problema conocido es que los scores no son comparables entre idiomas *«por variaciones en las
+estadísticas del corpus»* — que es exactamente lo que `rank` era.
+
+⚠️ **Pero medirlo mostró que la fusión de este repo ya era ordinal.** `Suggestion.score` es **la
+posición dentro del propio pack**, no el `rank`, así que la escala se cancela sola: comparar
+`score` entre packs es round-robin, no raw-score. La advertencia del código —*«comparar entre
+packs es una aproximación que nadie midió»*— era correcta **por otra razón**: un pack mal
+calibrado pone la palabra equivocada en la **posición 0**, y al interlevar recibe el mismo peso
+que uno bien calibrado.
+
+**O sea: arreglar `rank` arregló la fusión de rebote.** El orden multiidioma nunca fue un defecto
+propio; heredaba el de adentro.
+
+#### Zipf es comparable entre idiomas, y ahora está medido
+
+La literatura lo respalda —*«las distribuciones son extremadamente similares entre idiomas, con
+coeficientes de ley de potencia aproximadamente iguales»*— y se verifica con listas tipo Swadesh.
+Medido sobre nuestras dos listas, 20 pares de conceptos básicos:
+
+```
+agua 5,45 / water 5,43      libro 5,19 / book 5,20      mano 5,44 / hand 5,45
+diferencia media: −0,06 puntos de Zipf      desviación: 0,20
+```
+
+**El mismo concepto recibe prácticamente el mismo valor en los dos idiomas.** Una desviación de
+0,20 son 14 puntos de rank sobre una banda de 500: ruido. Eso convierte el *raw-score merging* sin
+medir en *normalized-score merging* justificado, que es el término que la literatura usa.
+
+#### Lo único que había que decidir AHORA: `meta.rank_basis`
+
+⚠️ **Es la pieza que no se puede agregar después sin reconstruir el pack**, y por eso entra con
+este build y no más tarde.
+
+El pack declara **qué significa su `rank`**: `frequency-zipf-v1` o `page-richness-v1`. Sin eso la
+app no tiene forma de saberlo, y el problema es real y medido:
+
+| pack | fórmula | rango de `rank` |
+|---|---|---|
+| `es-def-wikc` | kaikki, riqueza | **668 – 1997** |
+| `es-def-wd` | `wikidata.py`, la suya propia | **911 – 997** |
+
+Mismo idioma, escalas distintas, y nada se lo decía a la app.
+
+**La regla en `orderFor` es la más débil que sirve: a igual posición manda el mejor calibrado.**
+Va **después de `score`** a propósito — desempata, no reordena. Ponerla antes hundiría al otro
+pack entero y con él sus lemas exclusivos, que son justo la ganancia que D-136 midió.
+
+`RankBasis.fromId` **no lanza** ante un id desconocido: un pack más nuevo puede traer una base que
+esta versión no lee, y eso degrada a `page-richness`, que es lo que todos eran.
 
 ### ✅ El prior de orden pasa a ser frecuencia de uso — CONSTRUIDO 2026-09-21
 

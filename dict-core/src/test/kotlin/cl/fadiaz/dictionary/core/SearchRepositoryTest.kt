@@ -31,6 +31,8 @@ class SearchRepositoryTest {
         private val fails: Boolean = false,
         /** El idioma, para los tests del respaldo. El resto de la suite es toda `es`. */
         private val lang: String = "es",
+        /** Como calculo su `rank` este pack. Ver [PackMetadata.rankBasis]. */
+        private val rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
     ) : DictionarySource {
         /** Cuantas veces se consulto. El respaldo se mide por lo que NO pregunta. */
         var consultas = 0
@@ -39,7 +41,7 @@ class SearchRepositoryTest {
             packId = id, schemaVersion = 3, normVersion = 2, kind = PackKind.MONOLINGUAL,
             name = id, description = null, langSource = lang, langTarget = null,
             fuzzyProfile = FuzzyProfile.SPANISH, entryCount = rows.size, dataVersion = 1,
-            license = "CC-BY-SA-4.0", attribution = id,
+            license = "CC-BY-SA-4.0", attribution = id, rankBasis = rankBasis,
         )
         override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
             consultas++
@@ -358,6 +360,61 @@ class SearchRepositoryTest {
         )
         repo.searchDefinitions("vivienda")
         assertEquals(0, ingles.consultas)
+    }
+
+    @Test
+    fun `a igual posicion gana el pack cuyo rank es frecuencia real`() = runTest {
+        // ⚠️ **Lo que esto cierra, y por que necesitaba una clave nueva en el pack.**
+        //
+        // La fusion entre packs ya es ORDINAL: `score` es la posicion dentro del propio pack, asi
+        // que la escala de `rank` se cancela sola y comparar no exige escalas comparables. Pero
+        // hay algo que la fusion ordinal NO arregla: **un pack mal calibrado pone la palabra
+        // equivocada en la posicion 0**, y al interlevar recibe el mismo peso que uno bien
+        // calibrado.
+        //
+        // Medido: `es-def-wikc` tiene rank 668..1997 y `es-def-wd` 911..997 -- mismo idioma,
+        // formulas distintas (`sources/wikidata.py` tiene la suya), y nada se lo decia a la app.
+        //
+        // La regla es la mas debil que sirve: **a igual posicion manda el mejor calibrado**. No
+        // hunde al otro pack --eso perderia sus lemas exclusivos, que son la razon de D-136--
+        // sino que desempata donde antes desempataba el orden alfabetico del `headword`.
+        // ⚠️ **`casar` va en el pack de frecuencia y `casa` en el de riqueza, a proposito.**
+        // El desempate alfabetico viene despues y pondria `casa` primero, asi que si este test
+        // se escribiera al reves pasaria **sin el desempate puesto** -- y la primera version lo
+        // hacia. Lo destapo mutar el codigo: se quito la linea y el test siguio verde.
+        // Los dos caen en la banda 1 (`cas` cubre 0,60 de `casar` y 0,75 de `casa`), asi que la
+        // banda no decide.
+        val porFrecuencia = FakePack(
+            "es-freq", listOf(row("es-freq", "casar", score = 0)),
+            rankBasis = RankBasis.FREQUENCY,
+        )
+        val porRiqueza = FakePack("es-rich", listOf(row("es-rich", "casa", score = 0)))
+        val repo = SearchRepository(listOf(porRiqueza, porFrecuencia))
+        assertEquals(
+            listOf("casar", "casa"),
+            repo.suggest("cas").map { it.headword },
+            "a igual posicion tiene que ganar el pack cuyo rank es frecuencia",
+        )
+    }
+
+    @Test
+    fun `una posicion mejor le gana igual a un pack mejor calibrado`() = runTest {
+        // La regla desempata, NO reordena: si el pack de riqueza puso algo en la posicion 0 y el
+        // de frecuencia en la 1, manda la posicion. Hundir al otro pack perderia sus lemas
+        // exclusivos, que son justo la ganancia que D-136 midio.
+        // Aca el alfabetico SI coincide con lo esperado, pero lo que se fija es otra cosa: que
+        // la posicion siga mandando sobre la calibracion. `casa` esta en la 0 y `casar` en la 1.
+        val porFrecuencia = FakePack(
+            "es-freq", listOf(row("es-freq", "casar", score = 1)),
+            rankBasis = RankBasis.FREQUENCY,
+        )
+        val porRiqueza = FakePack("es-rich", listOf(row("es-rich", "casa", score = 0)))
+        val repo = SearchRepository(listOf(porFrecuencia, porRiqueza))
+        assertEquals(
+            listOf("casa", "casar"),
+            repo.suggest("cas").map { it.headword },
+            "la posicion manda: hundir el otro pack perderia sus lemas exclusivos",
+        )
     }
 
 }

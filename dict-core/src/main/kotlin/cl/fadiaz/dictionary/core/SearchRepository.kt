@@ -42,6 +42,18 @@ class SearchRepository(
     private val activos: Set<String> = packs.map { it.metadata.packId }.toSet()
 
     /**
+     * Los packs cuyo `rank` sale de la frecuencia de uso real. Ver [RankBasis].
+     *
+     * Se calcula una vez y no por consulta: es una propiedad del pack abierto, no de la busqueda.
+     * Incluye tambien los de otros idiomas, porque el desempate vale igual entre ellos.
+     */
+    private val porFrecuencia: Set<String> =
+        (packs + otherLanguages)
+            .filter { it.metadata.rankBasis == RankBasis.FREQUENCY }
+            .map { it.metadata.packId }
+            .toSet()
+
+    /**
      * The normal search, across every pack.
      *
      * `limit` applies to the **merged** list, not to each pack: asking for three and getting
@@ -91,7 +103,7 @@ class SearchRepository(
 
     private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> =
         todas
-            .sortedWith(orderFor(query, activos))
+            .sortedWith(orderFor(query, activos, porFrecuencia))
             .distinctBy { it.headword to it.partOfSpeech }
             .take(limit)
 
@@ -164,7 +176,11 @@ class SearchRepository(
          * —which we compute, so it is already pack-independent— and the coverage of a word that
          * is *not* a prefix of the headword means nothing.
          */
-        private fun orderFor(query: String?, activos: Set<String>): Comparator<Suggestion> {
+        private fun orderFor(
+            query: String?,
+            activos: Set<String>,
+            porFrecuencia: Set<String>,
+        ): Comparator<Suggestion> {
             if (query.isNullOrEmpty()) return ORDEN
             return compareBy<Suggestion> { it.matchKind.ordinal }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) demoteProperNoun(query, it) else 0 }
@@ -175,7 +191,23 @@ class SearchRepository(
                 // pantalla, que es lo mismo que no haberla buscado. Y al revés: a igualdad de
                 // todo lo demás manda el idioma que el usuario eligió, porque lo eligió.
                 .thenBy { if (it.packId in activos) 0 else 1 }
-                .thenComparator { a, b -> ORDEN.compare(a, b) }
+                .thenBy { it.matchKind.ordinal }
+                .thenBy { it.score }
+                // ⚠️ **A igual posición manda el pack mejor calibrado, y es el desempate más
+                // débil que sirve.** La fusión ya es ordinal --`score` es la posición dentro del
+                // propio pack-- así que la escala de `rank` se cancela sola. Lo que eso NO
+                // arregla: un pack mal calibrado pone la palabra equivocada en la posición 0 y
+                // al interlevar recibe el mismo peso que uno bien calibrado. Medido sobre los
+                // packs reales: `es-def-wikc` tiene rank 668..1997 y `es-def-wd` 911..997, el
+                // mismo idioma con fórmulas distintas, y nada se lo decía a la app.
+                //
+                // Va DESPUÉS de `score` a propósito: desempata, no reordena. Ponerlo antes
+                // hundiría al otro pack entero y con él sus lemas exclusivos, que son justo la
+                // ganancia que D-136 midió.
+                .thenBy { if (it.packId in porFrecuencia) 0 else 1 }
+                .thenBy { it.headword }
+                .thenBy { it.packId }
+                .thenBy { it.entryId }
         }
 
         /**

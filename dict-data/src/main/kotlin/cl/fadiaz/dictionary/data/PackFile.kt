@@ -7,6 +7,7 @@ import androidx.sqlite.execSQL
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.RankBasis
 import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.TextNormalizer
@@ -214,6 +215,9 @@ class PackFile private constructor(
             langTarget = meta["lang_dst"],
             // `meta[...]`: la trae sólo un pack que declare traducciones.
             translationsTo = meta["translations_to"],
+            // `fromId` no lanza ante un id desconocido: un pack mas nuevo puede
+            // traer una base que esta version no sabe leer, y eso degrada bien.
+            rankBasis = RankBasis.fromId(meta["rank_basis"]),
             // `meta[...]` otra vez: ningun pack de hoy la trae, y el formato no tiene
             // migraciones (D-001) pero eso aplica a `schema_version`; una clave nueva y aditiva
             // es justo lo que la tolerancia existe para soportar.

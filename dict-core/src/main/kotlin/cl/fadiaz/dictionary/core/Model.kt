@@ -23,6 +23,41 @@ enum class PackKind(val id: String) {
  * normVersion distinta esta indexado con otras reglas de normalizacion y hay que rechazarlo,
  * porque no fallaria, simplemente devolveria menos resultados de los que corresponde.
  */
+/**
+ * Cómo calculó su `rank` un pack, o sea **qué significa el número** con el que ordena.
+ *
+ * ⚠️ **Existe porque la fusión entre packs no puede saberlo de otra forma, y eso costaba orden.**
+ * La fusión ya es **ordinal** --`Suggestion.score` es la posición dentro del propio pack, así que
+ * la escala de `rank` se cancela sola-- y eso la hace inmune a que un pack use 0..1000 y otro
+ * 900..1000. Lo que **no** arregla: un pack mal calibrado pone la palabra equivocada en la
+ * posición 0, y al interlevar recibe el mismo peso que uno bien calibrado.
+ *
+ * Medido sobre los packs reales: `es-def-wikc` tiene rank 668..1997 y `es-def-wd` 911..997 --el
+ * mismo idioma con fórmulas distintas, porque `sources/wikidata.py` tiene la suya-- y nada se lo
+ * decía a la app.
+ *
+ * Se lee con `meta[...]`: un pack anterior no la trae y por defecto se asume [PAGE_RICHNESS], que
+ * es lo que todos eran.
+ */
+enum class RankBasis(val id: String) {
+    /** `rank` sale de la frecuencia de uso real, en escala Zipf. El calibrado bueno. */
+    FREQUENCY("frequency-zipf-v1"),
+
+    /**
+     * `rank` sale de la riqueza de la página del dump: acepciones, ejemplos, **formas**.
+     *
+     * Medido: correlaciona **-0,250** con la frecuencia real de uso, donde se esperaría -1,
+     * porque un verbo español trae hasta 222 formas y las cuenta todas.
+     */
+    PAGE_RICHNESS("page-richness-v1"),
+    ;
+
+    companion object {
+        /** Un id desconocido **no lanza**: un pack más nuevo puede traer una base que no leemos. */
+        fun fromId(id: String?): RankBasis = entries.firstOrNull { it.id == id } ?: PAGE_RICHNESS
+    }
+}
+
 data class PackMetadata(
     val packId: String,
     val schemaVersion: Int,
@@ -58,6 +93,8 @@ data class PackMetadata(
      * Opcional y leída con `meta[...]`: un pack anterior no la trae y tiene que seguir abriendo.
      */
     val translationsTo: String? = null,
+    /** Qué significa el `rank` de este pack. Ver [RankBasis]. */
+    val rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
     val langSource: String,
     val langTarget: String?,
     val fuzzyProfile: FuzzyProfile,

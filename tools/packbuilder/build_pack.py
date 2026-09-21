@@ -463,6 +463,13 @@ def main(argv):
         metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
         metadata["description"] += " Con frases de uso del corpus Tatoeba."
     if lista_frecuencias:
+        # ⚠️ **El pack DECLARA que su `rank` es frecuencia, y eso no es decorativo.** La fusion
+        # entre packs es ordinal --`score` es la posicion dentro del propio pack-- asi que la
+        # escala se cancela sola. Lo que eso no arregla: un pack mal calibrado pone la palabra
+        # equivocada en la posicion 0 y al interlevar pesa igual que uno bien calibrado. Con esta
+        # clave, a igual posicion manda el mejor calibrado. Sin ella la app no tiene como saberlo,
+        # y **no se puede agregar despues sin reconstruir el pack**.
+        metadata["rank_basis"] = "frequency-zipf-v1"
         # El credito viaja con el contenido, igual que arriba: la lista de frecuencias NO aporta
         # texto al pack, pero **decide el orden de los resultados**, que es contenido de la misma
         # forma. D-138 no distingue.
