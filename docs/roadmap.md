@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
-pipeline de packs (`tools/`, **323 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **730 tests en total**. Los **43
+pipeline de packs (`tools/`, **328 tests**) están completos y en el gate, junto con los **290 JVM
+de `:app`** y **26 checks** de auditoría estructural — **735 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -346,6 +346,39 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 ⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
+
+### ✅ Flexiones del idioma destino — CONSTRUIDO 2026-09-21 (#6)
+
+`sources/inflections.py` lee las flexiones del pack **ya construido** del idioma destino y las
+suma a `record.translations`. Se activa con `--flexiones <pack.db>`.
+
+⚠️ **Se eligió la opción A —expandir `trans`— sobre la B —tabla de indirección— y eso cambia el
+precio que se había cotizado.** El corte decía **1,84 MB**, que es lo que pesa B. A pesa más, pero
+**no toca el esquema ni la cascada de consulta**: son más filas de lo mismo, contra una tabla
+nueva, un peldaño nuevo y dos viajes por búsqueda.
+
+**Medido sobre dos builds gemelos del mismo dump y la misma muestra (1/40):**
+
+| | `trans` | tamaño |
+|---|---|---|
+| sin flexiones | 5.688 filas | 1,38 MB |
+| **con flexiones** | **12.792 filas** | **1,48 MB (+7,2 %)** |
+
+Extrapolado al pack completo de 50,2 MB son **~+3,6 MB**, entre las dos opciones medidas y sin
+cambio de formato. **B queda anotada como optimización con su número**, disponible cuando esos
+MB importen.
+
+**Y los irregulares llegan, que era el punto**: `ran`, `went` y `eaten` alcanzan entradas en el
+pack construido — antes no llegaban nunca, porque sólo se encontraban si alguna glosa los
+escribía.
+
+⚠️ **La fuente es un pack y no un dump**, por el mismo razonamiento de D-175: las flexiones ya
+están construidas y podadas dentro de `en-def-wikt.db`, y volver al dump de 3,2 GB sería otra hora
+de build y una segunda poda que puede divergir de la primera.
+
+⚠️ **El filtro no es opcional** y lo descubrió leer filas: el 38,7 % de `form` del pack inglés
+contiene un espacio, y `no table tags` (577) y `glossary` (575) son artefactos de wiktextract.
+Filtrar descarta el 35 % de los candidatos **sin mover la cobertura ni una décima**.
 
 ### 📋 Lo que falta para cerrar el punto de traducciones — corte 2026-09-21
 

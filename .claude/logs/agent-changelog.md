@@ -26,6 +26,32 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — #6: las flexiones del idioma destino, leídas de un pack ya construido
+**Qué.** `tools/packbuilder/sources/inflections.py` + `--flexiones` en `build_pack.py`. Cinco
+tests. Cierra el último punto implementable del corte.
+**Áreas.** `tools/packbuilder/sources/inflections.py` (nuevo),
+`tools/packbuilder/build_pack.py`, `tools/packbuilder/tests/test_source_inflections.py` (nuevo).
+**Arquitectura.** ⚠️ **Desvío del plan acordado, con el precio en la mano.** El corte cotizaba la
+opción **B** (tabla de indirección, 1,84 MB); se construyó la **A** (expandir `trans`), que pesa
+más pero **no toca el esquema ni la cascada**. B queda anotada con su número.
+**Medido.** Dos builds gemelos del mismo dump y muestra 1/40:
+- `trans` **5.688 → 12.792 filas**; tamaño **1,38 → 1,48 MB (+7,2 %)**. Extrapolado al pack
+  completo, **~+3,6 MB** sobre 50,2 — entre las dos opciones medidas.
+- **Los irregulares llegan**: `ran`, `went`, `eaten` alcanzan entradas en el pack construido.
+  Antes sólo se encontraban si alguna glosa los escribía.
+- La fuente es un **pack ya construido** y no el dump, por el razonamiento de D-175: las
+  flexiones ya están podadas dentro de `en-def-wikt.db`.
+- El filtro descarta artefactos (`no table tags` 577, `glossary` 575) y frases (**38,7 %** de
+  `form`), **sin mover la cobertura**.
+**Qué salió mal.** Una de diseño que cambié sobre la marcha: `por_lema` empezó pidiendo el
+conjunto de claves, pero **las claves no se conocen hasta haber leído todos los registros** y
+consultar por registro serían 124.000 consultas. Se generalizó a cargar el mapa entero una vez
+(~600.000 pares después del filtro), que es lo que el build real usa.
+**Qué quedó sin hacer.**
+- **#7, reconstruir los packs reales**: es lo único que queda del corte, acordado para el final.
+- La opción B como optimización de ~2 MB.
+- ⚠️ **Nada de lo de hoy se ha visto en el reloj**: los `.db` en disco son builds viejos.
+
 ## 2026-09-21 — Un enlace ahora dice a qué pack va (#4 y #5 del corte)
 **Qué.** `WordLink(packId, entryId)` reemplaza al `Long` suelto en toda la ficha, y los enlaces se
 resuelven **también en el idioma destino**. El pack inglés declara `translations_to`.

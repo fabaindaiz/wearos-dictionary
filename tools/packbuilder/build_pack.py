@@ -3,6 +3,7 @@
     python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
                           [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
                           [--tesauro <wordnet>] [--sumar <pack> <dump>]
+                          [--flexiones <pack-del-idioma-destino.db>]
 
 `--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
 determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
@@ -405,6 +406,9 @@ def main(argv):
     dump_frases = None
     if "--frases" in argv:
         dump_frases = argv[argv.index("--frases") + 1]
+    flexiones = None
+    if "--flexiones" in argv:
+        flexiones = argv[argv.index("--flexiones") + 1]
     dump_tesauro = None
     if "--tesauro" in argv:
         dump_tesauro = argv[argv.index("--tesauro") + 1]
@@ -485,11 +489,34 @@ def main(argv):
             else (source, lang, politica)
         )
         vistos = set()
+        # ⚠️ **Las flexiones del idioma DESTINO, leidas de un pack ya construido.** Cierran la
+        # direccion inversa, que estaba floja por un motivo estructural: el lado español tiene
+        # `form` y toda flexion llega a su lema, el lado ingles solo tenia las claves derivadas,
+        # asi que `dogs` se encontraba unicamente si alguna glosa lo escribia. Medido sobre las
+        # palabras inglesas mas usadas: **78,1 % -> 98,9 %** en el top 8.000.
+        #
+        # Se expanden dentro de `record.translations`, o sea dentro de la tabla `trans`, y **eso
+        # no toca el esquema ni la consulta**: son mas filas de lo mismo. La alternativa medida
+        # --una tabla de indireccion-- pesa 1,84 MB contra 5,88, pero pide tabla nueva, peldaño
+        # nuevo y dos viajes por busqueda. Queda anotada como optimizacion con su numero.
+        mapa_flexiones = {}
+        if flexiones:
+            from sources import inflections
+            mapa_flexiones = inflections.por_lema(flexiones)
         for record in reader.records(*argumentos):
             if not _keep(record.headword, sample):
                 continue
             _pegar_ejemplo(record, ejemplos)
             vistos.add((record.headword, record.part_of_speech))
+            if mapa_flexiones and record.translations:
+                claves = list(record.translations)
+                ya = set(claves)
+                for clave in record.translations:
+                    for forma in mapa_flexiones.get(clave, ()):
+                        if forma not in ya:
+                            ya.add(forma)
+                            claves.append(forma)
+                record.translations = tuple(claves)
             builder.add(record)
         if sumar:
             # Despues de la base y no mezclado: el orden **es** la regla de arbitraje. El primero
