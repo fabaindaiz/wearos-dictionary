@@ -400,5 +400,64 @@ class CodigoDeAcepcionTest(unittest.TestCase):
         construidos apuntan a la nada. Se fija aqui para que cambiarlo sea un acto deliberado."""
         self.assertEqual("8ec316909e48", payload.sense_code(1, "casa"))
 
+
+class AcepcionDireccionableTest(unittest.TestCase):
+    """**Toda acepcion tiene que ser alcanzable por `(idioma, palabra, acepcion)`, sin excepciones.**
+
+    Pedido literal del usuario. Es una propiedad del PACK, no del hash: el codigo sale de
+    `(uid, glosa)`, asi que **dos acepciones de la misma entrada con la glosa identica comparten
+    codigo** y una de las dos queda inalcanzable.
+
+    Medido sobre los seis packs reales antes de arreglarlo: **350 acepciones** de 1,7 millones
+    caian en ese caso -- 14 en el español, 106 en el ingles, 211 en el bilingue, 0 en el nucleo
+    español. Todas son glosas que la fuente escribe dos veces (`y` → *and* cinco veces).
+
+    ⚠️ **Se FUSIONAN y no se descartan, y eso lo decidio una medicion**: de 12 grupos duplicados
+    inspeccionados, **5 traian adjuntos distintos** -- `them` repite *"Used as the direct object
+    of a verb"* con **ejemplos diferentes**. Descartar la copia habria perdido ese dato en
+    silencio.
+    """
+
+    def test_dos_acepciones_con_la_misma_glosa_se_fusionan(self):
+        texto = payload.render("noun", [
+            {"gloss": "la misma", "examples": ["uno"]},
+            {"gloss": "otra"},
+            {"gloss": "la misma", "examples": ["dos"]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(["la misma", "otra"], [s["gloss"] for s in senses])
+
+    def test_la_fusion_conserva_los_adjuntos_de_las_dos(self):
+        """`them` repite la glosa con ejemplos distintos: descartar perderia uno."""
+        texto = payload.render(None, [
+            {"gloss": "g", "examples": ["She treated them."], "synonyms": ["a"]},
+            {"gloss": "g", "examples": ["Give it to them."], "synonyms": ["b"]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(1, len(senses))
+        self.assertEqual(["She treated them.", "Give it to them."], senses[0]["examples"])
+        self.assertEqual(["a", "b"], senses[0]["synonyms"])
+
+    def test_la_fusion_no_duplica_valores_repetidos(self):
+        texto = payload.render(None, [
+            {"gloss": "g", "synonyms": ["a", "b"]},
+            {"gloss": "g", "synonyms": ["b", "c"]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(["a", "b", "c"], senses[0]["synonyms"])
+
+    def test_la_fusion_conserva_el_ORDEN_de_la_primera(self):
+        """La primera acepcion es la que la fuente puso primero, y el orden es informacion."""
+        texto = payload.render(None, [
+            {"gloss": "primera"}, {"gloss": "segunda"}, {"gloss": "primera"},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(["primera", "segunda"], [s["gloss"] for s in senses])
+
+    def test_glosas_distintas_no_se_tocan(self):
+        texto = payload.render(None, [{"gloss": "una"}, {"gloss": "otra"}])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(2, len(senses))
+
 if __name__ == "__main__":
     unittest.main()

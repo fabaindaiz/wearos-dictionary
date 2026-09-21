@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **89 tests**) y el
-pipeline de packs (`tools/`, **305 tests**) están completos y en el gate, junto con los **287 JVM
-de `:app`** y **26 checks** de auditoría estructural — **707 tests en total**. Los **43
+pipeline de packs (`tools/`, **310 tests**) están completos y en el gate, junto con los **287 JVM
+de `:app`** y **26 checks** de auditoría estructural — **712 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -346,6 +346,86 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 ⚠️ Y hay una lección que costó una reconstrucción: **la convención de `sense_key` tiene que ser la
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
+
+### ✅ «Toda acepción direccionable, sin excepciones» — INVARIANTE CONSTRUIDO 2026-09-21
+
+Pedido literal: *«toda palabra debería poder ser accesible mediante una tupla IDIOMA, PALABRA,
+ACEPCIÓN sin excepciones»*. Se trató como invariante: medir, cerrar las excepciones, y que el
+gate lo exija.
+
+#### Las excepciones que había, medidas sobre los seis packs reales
+
+| pack | acepciones | no direccionables | |
+|---|---|---|---|
+| `es-def-wikc` | 210.249 | 14 | 0,0067 % |
+| `en-def-wikt` | 1.247.842 | 106 | 0,0085 % |
+| `es-tr-enwikt` | 153.944 | **211** | **0,1371 %** |
+| `es-core` | 21.534 | **0** | — |
+| `en-core` | 65.042 | 14 | 0,0215 % |
+| `es-def-wd` | 19.621 | 5 | 0,0255 % |
+
+⚠️ **Ninguna es culpa del hash: los choques ENTRE entradas distintas son 0.** Todas son dos
+acepciones de **la misma entrada** con la glosa idéntica — `y` → *and* cinco veces, `pound` →
+*"Various non-English units of measure"* tres veces.
+
+#### Se fusionan, no se descartan, y eso lo decidió una medición
+
+De 12 grupos duplicados inspeccionados, **5 traían adjuntos distintos**: `them` repite *"Used as
+the direct object of a verb"* con **ejemplos diferentes** (`She treated them.` / `Give it to
+them.`), y `y` con `jamon y queso` / `setenta y seis`. **Descartar la copia habría perdido ese
+dato en silencio.**
+
+`payload.merge_duplicate_senses` funde por glosa conservando el orden y uniendo los adjuntos sin
+duplicar valores. Vive en `render` porque es el **único** paso por el que pasan todos los packs:
+puesto en `kaikki` habría que repetirlo en `oewn`, `wikidata` y `bilingual`, y la propiedad sería
+cierta sólo en los packs cuyo autor se acordó.
+
+#### El gate lo exige, y el check está probado contra un pack que lo viola
+
+`verify_pack.py` recalcula los códigos de cada entrada muestreada y falla si dos coinciden.
+Verificado **mutando un pack a propósito**:
+
+```
+la entrada correr tiene acepciones que comparten codigo: 2 acepciones, 1 codigos
+```
+
+#### ⚠️ Lo que el código NO consigue, medido
+
+El pedido dice *«único para distintos diccionarios para poder compatibilizar esto»*. Medido:
+
+| | coinciden |
+|---|---|
+| Wikcionario ↔ **núcleo** (derivado) | **21.534 / 21.534 — 100,0 %** |
+| Wikcionario ↔ **Wikidata** (otra fuente, mismo idioma) | 6.748 / 19.616 — **34,40 %** |
+
+**El hash sólo puentea redacciones idénticas.** Dos diccionarios que definen el mismo concepto con
+otras palabras dan códigos distintos, y eso no tiene arreglo dentro del hash. Se ve leyendo los
+fallos:
+
+```
+uid 2793751417803243523
+   wikcionario: Condición o carácter de torpe.
+   wikidata   : condición o carácter de torpe
+```
+
+Un **plegado ligero** —minúsculas, espacios colapsados, puntuación final fuera— sube de 34,40 % a
+**42,21 % (+1.531 acepciones)**. Real, pero **no cambia la conclusión**: 42 % sigue sin ser
+compatibilidad. Y tendría un costo: sería una segunda regla versionada, y habría que plegar
+también la clave de fusión o reaparecerían las excepciones que esto acaba de cerrar. **Sin
+decidir.**
+
+#### 🔭 Deseable, no construido: un espacio para declarar equivalencias
+
+Propuesto por el usuario y marcado explícitamente como deseable: *«dar un espacio en el
+diccionario de definiciones para que una acepción pueda apuntar a su equivalente en otros
+packs»*.
+
+**Es el mecanismo correcto para lo que el hash no puede**, y ahora tiene su número: cerraría los
+**65,60 %** de acepciones que dos diccionarios del mismo idioma no comparten por redacción. La
+forma ya existe — sería un tag aditivo cuyo valor es un `sense_code`, es decir la misma referencia
+que ya se sabe escribir y resolver. Lo que no existe es **quién las declara**: alinear acepciones
+entre fuentes es §Alinear acepciones entre fuentes, que sigue siendo el problema abierto más caro
+del repo.
 
 ### ✅ El código de acepción: idioma y palabra, sin nombrar un pack — CONSTRUIDO 2026-09-21
 

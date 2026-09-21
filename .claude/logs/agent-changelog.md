@@ -26,6 +26,45 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — «Toda acepción direccionable, sin excepciones»: medido, cerrado y exigido
+**Qué.** `payload.merge_duplicate_senses` funde las acepciones que comparten glosa, y
+`verify_pack.py` gana el invariante que lo exige. Cinco tests nuevos.
+**Áreas.** `tools/packbuilder/payload.py`, `tools/packbuilder/verify_pack.py`,
+`tools/packbuilder/tests/test_payload.py`, `docs/roadmap.md`.
+**Por qué.** *«toda palabra debería poder ser accesible mediante una tupla IDIOMA, PALABRA,
+ACEPCIÓN sin excepciones»*. Se trató como invariante y no como deseo: medir, cerrar, exigir.
+**Arquitectura.** ✅ Cumple. La fusión vive en `render` porque es el **único** paso por el que
+pasan todos los packs; en `kaikki` habría que repetirla en `oewn`, `wikidata` y `bilingual`.
+**Medido.**
+- **Excepciones reales sobre los seis packs**: 14 en `es-def-wikc`, 106 en `en-def-wikt`, **211
+  en `es-tr-enwikt` (0,1371 %)**, 14 en `en-core`, 5 en `es-def-wd` y **0 en `es-core`**.
+- ⚠️ **Los choques ENTRE entradas distintas son 0**: el hash no es el problema. Todas son dos
+  acepciones de la misma entrada con glosa idéntica (`y` → *and* cinco veces).
+- ⚠️ **Fusionar y no descartar lo decidió una medición**: de 12 grupos inspeccionados, **5 traían
+  adjuntos distintos** — `them` repite la glosa con ejemplos diferentes. Descartar habría perdido
+  ese dato en silencio.
+- **El check está probado contra un pack mutado a propósito**: *"la entrada correr tiene
+  acepciones que comparten codigo: 2 acepciones, 1 codigos"*.
+- ⚠️ **Lo que el código NO consigue, y es el pedido de compatibilidad entre diccionarios**:
+  Wikcionario ↔ núcleo derivado **100,0 %**; Wikcionario ↔ **Wikidata sólo 34,40 %**. El hash
+  puentea redacciones idénticas, no conceptos. Un plegado ligero (minúsculas, espacios,
+  puntuación final) sube a **42,21 % (+1.531)** — real pero no cambia la conclusión, y tendría
+  costo propio: sería una segunda regla versionada y habría que plegar también la clave de fusión
+  o reaparecerían las excepciones recién cerradas. **Sin decidir.**
+**Qué salió mal.** Nada roto, pero una tentación que conviene dejar anotada: al ver
+`Condición o carácter de torpe.` contra `condición o carácter de torpe` el reflejo es plegar el
+hash. Medirlo mostró que compra 7,8 puntos y deja el problema igual de abierto — **la solución no
+es un hash más tolerante sino declarar equivalencias**, que es justo lo que el usuario propuso.
+**Qué quedó sin hacer.**
+- 🔭 **Deseable del usuario, no construido**: un espacio para que una acepción apunte a su
+  equivalente en otro pack. Ahora tiene número: cerraría el **65,60 %** que dos diccionarios del
+  mismo idioma no comparten. La forma ya existe --un tag aditivo cuyo valor es un `sense_code`--;
+  lo que falta es **quién las declara**, que es §Alinear acepciones entre fuentes.
+- **Los packs reales siguen sin reconstruirse**, así que sus 350 excepciones siguen ahí hasta el
+  build final. El invariante las va a atrapar si alguna sobrevive.
+- Sigue abierto: `bilingual.py` sin llenar `T`/`W`, `wordActions` filtrando por `kind`, los
+  10.438 pares de `en.jsonl`.
+
 ## 2026-09-21 — El código de acepción nombra idioma y palabra, no un pack
 **Qué.** `payload.sense_code` y su espejo `PayloadCodec.senseCode`: nombran una acepción sin
 nombrar un pack. Se elimina `meta.translations_pack`. Seis tests en Python, tres en Kotlin.
