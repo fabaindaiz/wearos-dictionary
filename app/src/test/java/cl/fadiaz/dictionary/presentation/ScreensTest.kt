@@ -689,7 +689,7 @@ class ScreensTest {
     ) =
         PackHandle.Open(
             source = FakeSource(meta(packId = id, lang = lang, name = name)),
-            isDemo = demo,
+            isBundled = demo,
             fileName = "$id.db",
             bytes = bytes,
         )
@@ -1445,6 +1445,58 @@ class ScreensTest {
             }
         }
         compose.onNodeWithText("bobo · zonzo").assertIsDisplayed()
+    }
+
+    @Test
+    fun theBundledPackSaysWhyItHasNoDeleteButton() {
+        // Ya no se podía borrar --volvería sola al reiniciar-- pero la fila no lo decía: un
+        // botón que falta sin explicación se lee como un bug, no como una decisión.
+        showPacks(listOf(handle(meta(packId = "es-core-wikc", name = "Español")).copy(
+            isBundled = true, bytes = 7_500_000,
+        )))
+        compose.onNodeWithText("Incluido en la app", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun anInstalledPackDoesNotSayItIsBundled() {
+        // El control: la etiqueta tiene que distinguir, no adornar.
+        showPacks(listOf(handle(meta()).copy(fileName = "es-def-wikc.db", bytes = 71_000_000)))
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Incluido en la app", substring = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun onlyTheInstalledPackOffersDeleting() {
+        // Lo que ya valía y no estaba fijado por ningún test: el pack del APK no ofrece borrar.
+        showPacks(
+            listOf(
+                handle(meta(packId = "es-core-wikc", name = "Núcleo")).copy(isBundled = true),
+                handle(meta(packId = "es-def-wikc", name = "Completo")).copy(
+                    fileName = "es-def-wikc.db",
+                ),
+            ),
+        )
+        assertEquals(
+            "sólo el instalado se puede borrar",
+            1,
+            compose.onAllNodesWithContentDescription("Borrar", substring = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    /** La pantalla de diccionarios, que es función de la lista de packs y de cuál está activo. */
+    private fun showPacks(packs: List<PackHandle.Open>, active: String? = null) {
+        compose.setContent {
+            PacksScreen(
+                packs = packs,
+                active = active,
+                onActivate = {},
+                onDelete = {},
+            )
+        }
     }
 
     /** Settings is a function of its state too: nothing here reads a system service. */

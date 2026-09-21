@@ -17,14 +17,19 @@ sealed interface PackHandle {
     data class Open(
         val source: DictionarySource,
         /**
-         * It came from the APK; nobody installed it.
+         * Vino **dentro del APK**; nadie lo instaló.
          *
-         * The demo pack exists so a freshly installed app has something to show (D-081), so it
-         * **can never beat a real dictionary**. Without this flag alphabetical order decided it,
-         * and "demo-" beats "es-": with both installed, the app opened the 28 toy entries
-         * instead of the 146,194 real ones.
+         * ⚠️ **Se llamaba `isBundled` y el nombre mentía sobre lo que decide.** Lo que se pregunta
+         * en todos los usos es *«¿este archivo lo trajo la app o lo puso el usuario?»* —de ahí
+         * sale que no se pueda borrar (volvería sola al reiniciar) y que no le gane a un
+         * diccionario de verdad—. Que hoy el pack incluido sea uno de juguete es una propiedad
+         * de **este** build, no de la regla: cuando el núcleo ocupe ese lugar, las reglas son
+         * exactamente las mismas y el nombre seguiría siendo falso.
+         *
+         * Sin este flag decidía el orden alfabético, y "demo-" le gana a "es-": con los dos
+         * instalados, la app abría las 28 entradas de juguete en vez de las 146.194 reales.
          */
-        val isDemo: Boolean = false,
+        val isBundled: Boolean = false,
         /**
          * The file in `filesDir/packs`, so it can be deleted.
          *

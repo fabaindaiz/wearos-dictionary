@@ -90,6 +90,7 @@
     <string name="packs_on_watch">On the watch</string>
     <string name="packs_to_download">To download</string>
     <string name="packs_wip">Not yet. Today dictionaries are installed over a cable, from the computer. The catalogue to download them from the watch will appear here.</string>
+    <string name="packs_bundled">Included in the app</string>
     <string name="packs_in_use">In use</string>
     <string name="packs_delete_question">Delete %1$s?</string>
     <string name="packs_delete_cost">It takes %1$s. To get it back you have to install it again from the computer.</string>

@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **279 JVM
-de `:app`** y **25 checks** de auditoría estructural — **645 tests en total**. Los **43
+pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **282 JVM
+de `:app`** y **25 checks** de auditoría estructural — **648 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1056,6 +1056,44 @@ Reemplazarlo por los núcleos cambia la app de *«instalá un diccionario»* a *
 descomprime a `filesDir` duplicando el espacio — que es exactamente el problema que D-071 vino a
 cerrar cuando el pack viajaba como asset. Con `PackStore.installAtomically` ya resuelto, lo que
 falta es medir si extraer 13 MB en el primer arranque es aceptable en un reloj.
+
+##### ¿Se puede abrir el pack **dentro** del APK, sin extraerlo?
+
+Pedido: *«que el pack core se pueda cargar desde dentro del apk y no se descargue nunca a
+memoria»*. **Respuesta corta: no con este driver**, y conviene dejar escrito por qué para que
+nadie lo vuelva a investigar.
+
+Un asset vive **dentro del ZIP que es el APK**, en un offset. SQLite abre por **ruta** y asume que
+el archivo empieza en el byte 0. Las tres formas conocidas de saltear eso necesitan una API que
+`androidx.sqlite` **no expone** — verificado con `javap` sobre `sqlite-bundled 2.7.1`, cuya
+superficie entera es `open(String)` y `open(String, Int)`:
+
+| Camino | Qué haría falta | ¿Está? |
+|---|---|---|
+| `AssetManager.openFd()` + offset | Un **VFS propio** registrado con `sqlite3_vfs_register` | ❌ no expuesto |
+| `sqlite3_deserialize` | Cargar el `.db` **entero en RAM** | ❌ no expuesto, y en un reloj 7,5 MB de heap permanente es caro |
+| Descomprimir al vuelo | SQLite necesita acceso aleatorio; un stream no sirve | ❌ imposible por diseño |
+
+**Lo que sí hay, y ya funciona hoy: extraer una vez.** Es exactamente lo que `PackStore` hace con
+el pack de demostración desde siempre, con copia atómica (D-082) y sin volver a validar en cada
+arranque (D-164). **Cuando el núcleo ocupe ese lugar no hace falta un solo mecanismo nuevo**: es
+cambiar el `.db` que viaja en los assets.
+
+⚠️ **Y el costo de duplicar, que es la objeción real, no aplica a esta escala.** D-071 mató la
+extracción cuando el pack pesaba **295 MB**. Un núcleo de ~7,5 MB duplicado son 7,5 MB de más
+sobre un reloj con **40 GB libres** medidos: **0,02 %**. La objeción era correcta y sigue siéndolo
+para el pack completo; para el núcleo no.
+
+##### Mostrarlo como incluido y sin borrar — ✅ **hecho** (D-173)
+
+El pack del APK **ya** no ofrecía borrar —volvería sola al reiniciar— pero la fila **no decía por
+qué**, y un botón que falta sin explicación se lee como un bug. Ahora la fila dice *«Incluido en la
+app»* **en lugar del tamaño**, que es justo el dato que ahí sobra: el tamaño sólo sirve para
+decidir si conviene borrarlo.
+
+Y el flag pasó de `isDemo` a `isBundled`, porque lo que todos sus usos preguntan es *«¿lo trajo la
+app o lo puso el usuario?»*. Que hoy el pack incluido sea uno de juguete es una propiedad de este
+build, no de la regla.
 
 ⚠️ **Y decide algo que hoy es gratis: el APK deja de ser universal.** Un núcleo por idioma dentro
 del APK significa que todos los usuarios cargan todos los idiomas, o que hay un APK por idioma.

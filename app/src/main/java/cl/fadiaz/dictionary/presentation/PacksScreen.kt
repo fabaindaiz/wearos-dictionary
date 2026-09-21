@@ -84,14 +84,25 @@ fun PacksScreen(
                 val pack = installed[index]
                 PackRow(
                     name = pack.metadata.name,
-                    // Kind, size and language. The kind arrived with D-125: the name became
-                    // short --"Español"-- and what the other half said now comes from `kind`.
-                    detail = "${packTypeLabel(pack.metadata.kind)} · " +
-                        "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}",
+                    // Tipo, tamaño e idioma. El tipo llegó con D-125: el nombre se acortó
+                    // --"Español"-- y lo que decía la otra mitad ahora sale de `kind`.
+                    //
+                    // ⚠️ **Un pack incluido dice que lo es, en lugar del tamaño.** Ya no se podía
+                    // borrar —volvería sola al reiniciar— pero la fila no lo decía, y un botón
+                    // que falta sin explicación se lee como un bug. El tamaño es justo el dato
+                    // que sobra ahí: sólo sirve para decidir si conviene borrarlo.
+                    detail = if (pack.isBundled) {
+                        "${packTypeLabel(pack.metadata.kind)} · " +
+                            "${stringResource(R.string.packs_bundled)} · " +
+                            pack.metadata.langSource.uppercase()
+                    } else {
+                        "${packTypeLabel(pack.metadata.kind)} · " +
+                            "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}"
+                    },
                     active = pack.packId == active,
                     onActivate = { onActivate(pack.packId) },
-                    // The demo one cannot be deleted: it would come back on its own.
-                    onDelete = if (pack.isDemo) null else { { pendingDelete = pack } },
+                    // El incluido no se puede borrar: volvería sola al reiniciar.
+                    onDelete = if (pack.isBundled) null else { { pendingDelete = pack } },
                 )
             }
 
