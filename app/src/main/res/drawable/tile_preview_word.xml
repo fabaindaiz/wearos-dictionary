@@ -11,11 +11,15 @@
   es la ESTRUCTURA — una cabecera chica y una tarjeta grande centrada — que es lo que distingue un tile del otro de un vistazo.
 
   Vectorial y no PNG para que escale del reloj de 192 dp al de 234 sin remuestreo, y para que el
-  diff sea legible. La geometria esta en un viewport de 384x384, el mismo del placeholder anterior.
+  diff sea legible. La geometria esta en un viewport de 384x384, el mismo del placeholder anterior, pero el
+  tamaño DECLARADO es 192dp: el viewport es el sistema de coordenadas del dibujo y el
+  tamaño declarado es cuanto mide por defecto. Declarar 384dp pedia una bitmap de cache
+  de 384x384 para una preview que ningun reloj muestra a ese tamaño; es lo que
+  reportaba `VectorRaster`, y el dibujo no cambia porque es vectorial.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="384dp"
-    android:height="384dp"
+    android:width="192dp"
+    android:height="192dp"
     android:viewportWidth="384"
     android:viewportHeight="384">
 

@@ -1,6 +1,10 @@
 package cl.fadiaz.dictionary.data
 
 import android.content.Context
+// `edit { }` y no `.edit()....apply()`: la segunda forma compila sin el `apply()`
+// final y entonces NO guarda nada, sin error y sin log. La lambda no se puede
+// olvidar. Viene de core-ktx, que ya estaba en el classpath.
+import androidx.core.content.edit
 import cl.fadiaz.dictionary.R
 import java.io.File
 import java.io.IOException
@@ -113,7 +117,7 @@ object PackStore {
         prefs(context).getString(KEY_PACK, null)
 
     fun rememberPack(context: Context, packId: String) {
-        prefs(context).edit().putString(KEY_PACK, packId).apply()
+        prefs(context).edit { putString(KEY_PACK, packId) }
     }
 
     private fun packAssets(context: Context): List<String> =
@@ -127,7 +131,7 @@ object PackStore {
         parseVisits(prefs(context).getString(KEY_HISTORY, null).orEmpty())
 
     fun rememberHistory(context: Context, visits: List<Visit>) {
-        prefs(context).edit().putString(KEY_HISTORY, serializeVisits(visits)).apply()
+        prefs(context).edit { putString(KEY_HISTORY, serializeVisits(visits)) }
     }
 
     /**
@@ -151,7 +155,7 @@ object PackStore {
         parseVisits(prefs(context).getString(KEY_FAVORITES, null).orEmpty())
 
     fun rememberFavorites(context: Context, visits: List<Visit>) {
-        prefs(context).edit().putString(KEY_FAVORITES, serializeVisits(visits)).apply()
+        prefs(context).edit { putString(KEY_FAVORITES, serializeVisits(visits)) }
     }
 
     /**
@@ -172,10 +176,10 @@ object PackStore {
     }
 
     fun rememberWeekWords(context: Context, since: String, words: List<Visit>) {
-        prefs(context).edit()
-            .putString(KEY_WEEK_SINCE, since)
-            .putString(KEY_WEEK_WORDS, serializeVisits(words))
-            .apply()
+        prefs(context).edit {
+            putString(KEY_WEEK_SINCE, since)
+            putString(KEY_WEEK_WORDS, serializeVisits(words))
+        }
     }
 
     /** The settings. Same as the history: the policy lives above, here it is only serialised. */
@@ -183,7 +187,7 @@ object PackStore {
         parseSettings(prefs(context).getString(KEY_SETTINGS, null).orEmpty())
 
     fun rememberSettings(context: Context, settings: Settings) {
-        prefs(context).edit().putString(KEY_SETTINGS, serializeSettings(settings)).apply()
+        prefs(context).edit { putString(KEY_SETTINGS, serializeSettings(settings)) }
     }
 
     private fun prefs(context: Context) =

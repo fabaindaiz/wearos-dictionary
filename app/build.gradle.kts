@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -83,6 +85,7 @@ android {
             // ⚠️ **El costo es que el APK de RELEASE ya no se instala en un emulador x86.** Es
             // deliberado y hay que saberlo antes de perder una tarde: el de debug sigue
             // trayendo las cuatro, que es donde se verifica a diario.
+            //noinspection ChromeOsAbiSupport -- ChromeOS no es un destino de una app de Wear OS
             ndk {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             }
@@ -101,6 +104,25 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    /**
+     * Lint entra al gate DE VERDAD: una advertencia rompe el build.
+     *
+     * Sin esto las advertencias se acumulan sin que nadie las vea, que es exactamente lo que
+     * habia pasado del lado de Python: el linter existia, nadie lo corria, y tenia 26
+     * violaciones -- entre ellas variables sin usar. Aca habia cinco reales, incluidas dos
+     * cadenas muertas y un contador sin plural que en español decia "1 entradas".
+     *
+     * `checkDependencies = false` a proposito: lo que se vigila es el codigo de este repo.
+     */
+    lint {
+        warningsAsErrors = true
+        // Las dos unicas que se apagan, y por el mismo motivo: **avisan de que hay una version
+        // mas nueva de una dependencia**. Eso es cierto casi siempre y no dice nada sobre el
+        // codigo, asi que con `warningsAsErrors` el build se rompe solo con el paso del tiempo
+        // -- y un gate que se rompe sin que nadie toque nada se termina apagando entero.
+        // Actualizar dependencias es una tarea deliberada, no un error de compilacion.
+        disable += setOf("NewerVersionAvailable", "AndroidGradlePluginVersion", "GradleDependency")
+    }
     useLibrary("wear-sdk")
     buildFeatures {
         compose = true
@@ -118,11 +140,34 @@ android {
     }
 }
 
+/**
+ * Los reportes del compilador de Compose, **bajo demanda**.
+ *
+ * `./gradlew :app:assembleDebug -Pdictionary.composeReports` deja en `build/compose_compiler/`
+ * que Composable es skippable y cual no, y por que -- que parametro es inestable, cual fuerza
+ * recomposicion. Es la unica forma de MEDIR el trabajo de UI, que en un reloj es CPU de verdad:
+ * `docs/bateria.md` cotizo el SQL en ~1 ms por busqueda y no cotizo esto.
+ *
+ * Detras de una property y no siempre encendido porque los reportes cuestan tiempo de build y
+ * nadie los mira a diario. El gate no los pide.
+ */
+composeCompiler {
+    if (providers.gradleProperty("dictionary.composeReports").isPresent) {
+        val destino = layout.buildDirectory.dir("compose_compiler")
+        reportsDestination = destino
+        metricsDestination = destino
+    }
+}
+
 // Mismo rigor que :dict-core y :dict-data. `:app` era el unico modulo donde una advertencia del
 // compilador --una API deprecada, un cast redundante-- pasaba el gate sin que nadie la viera.
 kotlin {
     compilerOptions {
         allWarningsAsErrors = true
+        // Explicito, como en :dict-core y :dict-data. Era el unico modulo que lo dejaba al
+        // default de AGP: hoy AGP lo alinea con `compileOptions` y no se nota, pero dos
+        // modulos declarandolo y uno no es una diferencia que nadie decidio.
+        jvmTarget = JvmTarget.JVM_11
     }
 }
 
@@ -214,6 +259,7 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling)
+    implementation(libs.core.ktx)
     implementation(libs.core.splashscreen)
     implementation(libs.guava)
     implementation(libs.protolayout)

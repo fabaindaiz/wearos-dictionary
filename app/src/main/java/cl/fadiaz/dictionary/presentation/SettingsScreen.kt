@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -191,8 +192,11 @@ fun SettingsScreen(
             items(count = opened.size, key = { "pack-diag:$it" }) { index ->
                 val pack = opened[index]
                 Diagnostic(
-                    stringResource(
-                        R.string.settings_pack_line,
+                    // Plural y no `stringResource`: un pack de una sola entrada --el de
+                    // demostracion casi lo es-- diria "1 entradas".
+                    pluralStringResource(
+                        R.plurals.settings_pack_entries,
+                        pack.metadata.entryCount,
                         pack.metadata.name,
                         pack.metadata.entryCount,
                     ),
