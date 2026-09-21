@@ -6,6 +6,7 @@ import cl.fadiaz.dictionary.core.EditDistance
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
+import cl.fadiaz.dictionary.core.fuzzyProfileFor
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.PrefixRange
@@ -51,24 +52,27 @@ class SqlitePackSource(
      * traduccion, y recien si eso devolvio casi nada, el nivel tolerante a errores. Ese ultimo
      * se salta en el caso normal porque es el mas caro y el menos confiable.
      */
-    override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
+    override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {
         val normalized = TextNormalizer.norm(query)
         if (normalized.isEmpty()) return emptyList()
+        // Un pack de un solo idioma no filtra: el WHERE sobraria y cambiaria su plan de
+        // consulta, que `measure_query_cost.py` replica.
+        val filtro = lang?.takeIf { pack.metadata.langs.size > 1 }
 
         return withContext(dispatcher) {
             val accumulated = LinkedHashMap<Long, Suggestion>()
 
-            byPrefix(normalized, limit).forEach { accumulated.putIfBetter(it) }
+            byPrefix(normalized, limit, filtro).forEach { accumulated.putIfBetter(it) }
             if (accumulated.size < limit) {
-                byInflectedForm(normalized, limit).forEach { accumulated.putIfBetter(it) }
+                byInflectedForm(normalized, limit, filtro).forEach { accumulated.putIfBetter(it) }
             }
             if (accumulated.size < limit) {
-                byTranslation(normalized, limit).forEach { accumulated.putIfBetter(it) }
+                byTranslation(normalized, limit, filtro).forEach { accumulated.putIfBetter(it) }
             }
             // El nivel tolerante solo entra cuando lo anterior fue casi vacio. Si ya hay
             // resultados buenos, agregar candidatos por distancia de edicion solo ensucia.
             if (accumulated.size < FUZZY_TRIGGER) {
-                byFuzzy(normalized, query).forEach { accumulated.putIfBetter(it) }
+                byFuzzy(normalized, query, filtro).forEach { accumulated.putIfBetter(it) }
             }
 
             // La deduplicacion va DESPUES de ordenar y al final de la cascada, no dentro de un
@@ -100,23 +104,32 @@ class SqlitePackSource(
      * `case_sensitive_like` esta en el valor correcto, y ante la duda SQLite hace full scan
      * (D-012).
      */
-    private suspend fun byPrefix(normalized: String, limit: Int): List<Suggestion> {
+    private suspend fun byPrefix(
+        normalized: String,
+        limit: Int,
+        lang: String?,
+    ): List<Suggestion> {
         val upper = PrefixRange.upperBound(normalized)
+        // `lang` va al final de `idx_entry_norm`, asi que el filtro sale del mismo indice de
+        // cobertura y no toca la tabla.
+        val porIdioma = if (lang != null) " AND lang = ?" else ""
         // El rango sale del covering index; el orden NO, y es deliberado (D-068). `norm` es
         // alfabetico y ordenar por el entierra la palabra comun debajo de las raras que
         // comparten prefijo. El CASE sube la coincidencia exacta, que es lo que el usuario
         // acaba de escribir entero y nunca puede faltar.
         val order = " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?"
         val sql = if (upper != null) {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" + order
+            "SELECT id, headword, pos FROM entry WHERE norm >= ? AND norm < ?" +
+                porIdioma + order
         } else {
-            "SELECT id, headword, pos FROM entry WHERE norm >= ?" + order
+            "SELECT id, headword, pos FROM entry WHERE norm >= ?" + porIdioma + order
         }
 
         val rows = pack.connection().prepare(sql).use { statement ->
             var i = 1
             statement.bindText(i++, normalized)
             if (upper != null) statement.bindText(i++, upper)
+            if (lang != null) statement.bindText(i++, lang)
             statement.bindText(i++, normalized)
             statement.bindInt(i, limit * PREFIX_OVERFETCH)
             statement.collectSuggestions(MatchKind.PREFIX)
@@ -129,13 +142,20 @@ class SqlitePackSource(
     }
 
     /** Se escribio "corriendo" y el lema es "correr". */
-    private suspend fun byInflectedForm(normalized: String, limit: Int): List<Suggestion> =
+    private suspend fun byInflectedForm(
+        normalized: String,
+        limit: Int,
+        lang: String?,
+    ): List<Suggestion> =
         pack.connection().prepare(
             "SELECT e.id, e.headword, e.pos FROM form f JOIN entry e ON e.id = f.entry_id" +
-                " WHERE f.norm = ? ORDER BY e.rank LIMIT ?",
+                " WHERE f.norm = ?" + (if (lang != null) " AND e.lang = ?" else "") +
+                " ORDER BY e.rank LIMIT ?",
         ).use { statement ->
-            statement.bindText(1, normalized)
-            statement.bindInt(2, limit)
+            var i = 1
+            statement.bindText(i++, normalized)
+            if (lang != null) statement.bindText(i++, lang)
+            statement.bindInt(i, limit)
             statement.collectSuggestions(MatchKind.INFLECTED_FORM)
         }
 
@@ -146,16 +166,23 @@ class SqlitePackSource(
      * misma entrada ("to", "to run", "to pass"), y sin el `IN (SELECT ...)` la entrada saldria
      * una vez por clave.
      */
-    private suspend fun byTranslation(normalized: String, limit: Int): List<Suggestion> {
+    private suspend fun byTranslation(
+        normalized: String,
+        limit: Int,
+        lang: String?,
+    ): List<Suggestion> {
         val upper = PrefixRange.upperBound(normalized) ?: return emptyList()
         return pack.connection().prepare(
             "SELECT e.id, e.headword, e.pos FROM entry e WHERE e.id IN" +
                 " (SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?)" +
+                (if (lang != null) " AND e.lang = ?" else "") +
                 " ORDER BY e.rank LIMIT ?",
         ).use { statement ->
-            statement.bindText(1, normalized)
-            statement.bindText(2, upper)
-            statement.bindInt(3, limit)
+            var i = 1
+            statement.bindText(i++, normalized)
+            statement.bindText(i++, upper)
+            if (lang != null) statement.bindText(i++, lang)
+            statement.bindInt(i, limit)
             statement.collectSuggestions(MatchKind.TRANSLATION)
         }
     }
@@ -171,8 +198,15 @@ class SqlitePackSource(
      * consulta normalizada. El indice incluye `norm` justamente para poder hacer eso sin leer
      * la tabla (D-013); recien los sobrevivientes se buscan por id.
      */
-    private suspend fun byFuzzy(normalized: String, rawQuery: String): List<Suggestion> {
-        val fuzzyKey = TextNormalizer.fuzzy(rawQuery, pack.metadata.fuzzyProfile)
+    private suspend fun byFuzzy(
+        normalized: String,
+        rawQuery: String,
+        lang: String?,
+    ): List<Suggestion> {
+        // ⚠️ **El perfil es el DEL IDIOMA buscado, no el del pack.** Plegar una consulta inglesa
+        // con las reglas del español --`ce`→`se`, `v`→`b`-- daria una clave que no existe en la
+        // mitad inglesa del pack, y el peldaño tolerante dejaria de encontrar nada justo ahi.
+        val fuzzyKey = TextNormalizer.fuzzy(rawQuery, pack.metadata.fuzzyProfileFor(lang))
         if (fuzzyKey.isEmpty()) return emptyList()
 
         val prefix = fuzzyKey.take(FUZZY_PREFIX_LENGTH)
@@ -180,11 +214,14 @@ class SqlitePackSource(
 
         val candidates = mutableListOf<Pair<Long, Int>>()
         pack.connection().prepare(
-            "SELECT id, norm FROM entry WHERE fuzzy >= ? AND fuzzy < ? LIMIT ?",
+            "SELECT id, norm FROM entry WHERE fuzzy >= ? AND fuzzy < ?" +
+                (if (lang != null) " AND lang = ?" else "") + " LIMIT ?",
         ).use { statement ->
-            statement.bindText(1, prefix)
-            statement.bindText(2, upper)
-            statement.bindInt(3, FUZZY_CANDIDATES)
+            var i = 1
+            statement.bindText(i++, prefix)
+            statement.bindText(i++, upper)
+            if (lang != null) statement.bindText(i++, lang)
+            statement.bindInt(i, FUZZY_CANDIDATES)
             val context = currentCoroutineContext()
             while (statement.step()) {
                 context.ensureActive()
@@ -232,7 +269,11 @@ class SqlitePackSource(
      * Es una accion explicita del usuario, **nunca** se dispara mientras escribe: recorre un
      * indice mucho mas grande que el de lemas.
      */
-    override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
+    override suspend fun searchDefinitions(
+        query: String,
+        limit: Int,
+        lang: String?,
+    ): List<Suggestion> {
         val expression = toMatchExpression(query)
         if (expression.isEmpty()) return emptyList()
 
@@ -264,11 +305,19 @@ class SqlitePackSource(
             val posicionEnFts = ids.withIndex().associate { (posicion, id) -> id to posicion }
 
             // fts_def es contentless: solo devuelve rowids, que SON entry.id (D-011).
+            // ⚠️ **El idioma se filtra AQUI y no en el MATCH**, porque `fts_def` es contentless
+            // y no tiene columnas propias que filtrar: solo devuelve rowids. El precio es que el
+            // `LIMIT` de arriba se aplica antes del filtro, asi que una busqueda por definicion
+            // en un pack bidireccional puede devolver menos de `limit`. Se acepta: es una accion
+            // explicita del usuario, no la busqueda incremental, y la alternativa --pedir el
+            // doble y recortar-- duplicaria el peldaño mas caro del pack para un caso raro.
+            val porIdioma = if (lang != null) " AND lang = ?" else ""
             val placeholders = ids.joinToString(",") { "?" }
             pack.connection().prepare(
-                "SELECT id, headword, pos FROM entry WHERE id IN ($placeholders)",
+                "SELECT id, headword, pos FROM entry WHERE id IN ($placeholders)$porIdioma",
             ).use { statement ->
                 ids.forEachIndexed { index, id -> statement.bindLong(index + 1, id) }
+                if (lang != null) statement.bindText(ids.size + 1, lang)
                 statement.collectSuggestions(MatchKind.DEFINITION)
                     .map { it.copy(score = posicionEnFts.getValue(it.entryId)) }
                     .sortedBy { it.score }
@@ -279,7 +328,7 @@ class SqlitePackSource(
     /** El cuerpo de una entrada. Aca si se lee y descomprime el payload. */
     override suspend fun entry(entryId: Long): Entry? = withContext(dispatcher) {
         pack.connection().prepare(
-            "SELECT headword, pos, payload, uid FROM entry WHERE id = ?",
+            "SELECT headword, pos, payload, uid, lang FROM entry WHERE id = ?",
         ).use { statement ->
             statement.bindLong(1, entryId)
             if (!statement.step()) return@withContext null
@@ -291,6 +340,9 @@ class SqlitePackSource(
                 // La fila ya se leyo entera para traer el payload, asi que el uid sale gratis:
                 // es justo el momento en que la composicion entre packs lo necesita.
                 uid = statement.getLong(3),
+                // De la FILA y no del pack: en un bidireccional la entrada abierta puede ser del
+                // otro idioma, y es justo el caso al que se llega tocando una traduccion.
+                lang = statement.getTextOrNull(4),
                 headword = statement.getText(0),
                 // El pos de la columna manda sobre el del payload: es el que ordena la lista.
                 partOfSpeech = statement.getTextOrNull(1) ?: body.partOfSpeech,

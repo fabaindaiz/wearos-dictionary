@@ -20,7 +20,7 @@ import payload  # noqa: E402
 import build  # noqa: E402
 
 META = {
-    "pack_id": "es-def-test", "kind": "monolingual", "name": "Test", "lang_src": "es",
+    "pack_id": "es-def-test", "kind": "monolingual", "name": "Test", "langs": "es",
     "fuzzy_profile": "es", "source_date": "20260101", "license": "CC0-1.0",
     "attribution": "test", "proper_nouns": "included", "source_url": "https://example.invalid/",
     "sources": "definitions\tTest\thttps://example.invalid/\tCC0 1.0\t\n",

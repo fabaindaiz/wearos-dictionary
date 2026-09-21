@@ -33,6 +33,13 @@ CREATE TABLE meta (
 CREATE TABLE entry (
     id       INTEGER PRIMARY KEY,   -- alias de rowid: lo comparte fts_def
     uid      INTEGER NOT NULL,      -- identidad estable entre rebuilds; clave de join entre packs
+    -- Idioma de ESTA entrada, no del pack. Un pack bidireccional tiene entradas de los dos:
+    -- `casa` es `es` y `house` es `en`, en el mismo archivo y como pares (schema_version 4).
+    --
+    -- ⚠️ Es la UNICA columna que obligo a subir schema_version, y por eso esta sola. Una columna
+    -- que la app IGNORA se puede agregar sin romper nada; una que la app EXIGE, no -- y sin esta
+    -- no hay forma de saber en que idioma esta un lema sin descomprimir su payload.
+    lang     TEXT NOT NULL,
     headword TEXT NOT NULL,         -- forma de display, con acentos y mayusculas: "Ärztin"
     norm     TEXT NOT NULL,         -- clave de busqueda por prefijo: "arztin"
     fuzzy    TEXT NOT NULL,         -- clave tolerante a errores, plegada por idioma
@@ -50,8 +57,12 @@ CREATE TABLE form (
     PRIMARY KEY (norm, entry_id)
 ) WITHOUT ROWID;
 
--- Palabra del idioma destino -> entrada. En un pack bilingue es la busqueda inversa; en uno
--- monolingue son las palabras que aparecen en la glosa.
+-- Palabra del OTRO idioma -> entrada. En un pack monolingue son las palabras que aparecen en la
+-- glosa, y es como se llega a "casa" escribiendo "house" con un pack que solo define en español.
+--
+-- ⚠️ **En un pack BIDIRECCIONAL queda vacia a proposito.** Ahi las palabras del otro idioma son
+-- entradas de verdad, asi que buscarlas ya funciona por `entry.norm` y esta tabla seria una
+-- segunda copia del mismo indice: medido, 474.849 filas y 13,3 MiB.
 CREATE TABLE trans (
     norm     TEXT NOT NULL,
     entry_id INTEGER NOT NULL,

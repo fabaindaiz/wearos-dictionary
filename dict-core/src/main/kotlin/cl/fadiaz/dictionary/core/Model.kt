@@ -95,9 +95,46 @@ data class PackMetadata(
     val translationsTo: String? = null,
     /** Qué significa el `rank` de este pack. Ver [RankBasis]. */
     val rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
-    val langSource: String,
-    val langTarget: String?,
-    val fuzzyProfile: FuzzyProfile,
+    /**
+     * Los idiomas del pack, **como pares y en orden de declaracion**.
+     *
+     * ⚠️ **Reemplaza a `langSource`/`langTarget`, y el cambio es conceptual antes que
+     * mecanico.** Aquel par decia que un idioma era el de origen y otro el destino, que es
+     * cierto de un pack que traduce EN UNA direccion. Un pack bidireccional tiene entradas de
+     * los dos --`casa` y `house` en el mismo archivo, cada una con su `entry.lang`-- y ninguno
+     * es el principal. Pedido: *«que declares a la par ambos idiomas y no uno como principal»*.
+     *
+     * Un pack monolingue declara uno solo y nada cambia para el. **El orden es declaracion, no
+     * jerarquia**: lo unico que decide es cual usa una entrada que no declare el suyo.
+     */
+    val langs: List<String>,
+    /**
+     * El perfil de plegado de cada idioma, **posicional contra [langs]**.
+     *
+     * Existe porque el plegado tolerante a errores SI depende del idioma --`ce`→`se` es una
+     * regla del español-- mientras que `norm()` no. Ver [fuzzyProfileFor].
+     */
+    val fuzzyProfiles: List<FuzzyProfile>,
+    /**
+     * Que clase de pack es: `full` o `core`.
+     *
+     * ⚠️ **Lo DECLARA el artefacto en vez de inferirse del nombre.** Un nucleo se hace a un lado
+     * cuando el completo esta instalado, y hasta aca eso salia de `subsetOf` --que nombra al
+     * otro pack-- o de que el `pack_id` terminara en `-core`, que es adivinar del nombre lo que
+     * D-138 decidio que se declara. `subsetOf` contesta *«soy parte de ESE»* y esto contesta
+     * *«soy un nucleo»*, que es lo que hace falta sin conocer al otro.
+     */
+    val tier: PackTier = PackTier.FULL,
+    /**
+     * Donde termina la banda de `rank` que tiene senal de frecuencia, si el pack la declara.
+     *
+     * ⚠️ **Declarado y no copiado, y eso evita un tercer contrato cruzado.** `rank` son dos
+     * bandas disjuntas cuando [rankBasis] es frecuencia (D-185); la app necesita el corte --la
+     * palabra del dia lo usa-- y la alternativa era copiar el `500` del builder en Kotlin, que
+     * es exactamente la clase de constante que se desincroniza en silencio, como `norm()` y
+     * `sense_code`. Nulo = el pack no lo dice, y entonces no hay banda que respetar.
+     */
+    val rankSignalBoundary: Int? = null,
     val entryCount: Int,
     /**
      * Que build del pack es esto: `AAAAMMDDHHMM`, del reloj del build.
@@ -145,8 +182,14 @@ data class PackMetadata(
     val sources: List<PackSource> = emptyList(),
 ) {
     init {
-        require(kind != PackKind.BILINGUAL || langTarget != null) {
-            "un pack bilingue debe declarar meta.lang_dst"
+        require(langs.isNotEmpty()) { "un pack declara al menos un idioma en meta.langs" }
+        require(fuzzyProfiles.size == langs.size) {
+            "meta.fuzzy_profiles trae ${fuzzyProfiles.size} perfiles para ${langs.size} idiomas"
+        }
+        // ⚠️ Un bilingue declara DOS, como pares. Antes exigia `lang_dst`, que presuponia un
+        // origen y un destino; ahora lo que se exige es que haya dos y ninguno sea el principal.
+        require(kind != PackKind.BILINGUAL || langs.size >= 2) {
+            "un pack bilingue declara sus dos idiomas en meta.langs (declara $langs)"
         }
     }
 }
@@ -182,6 +225,39 @@ data class Suggestion(
     /** Menor es mejor. Distancia de edicion en FUZZY; posicion relativa en el resto. */
     val score: Int,
 )
+
+/**
+ * Que clase de pack es, de las dos que la app trata distinto.
+ *
+ * `fromId` no lanza ante un id desconocido: un pack mas nuevo puede traer una clase que esta
+ * version no conoce, y tratarlo como completo es la degradacion segura -- se consulta de mas,
+ * que es trabajo, no un resultado equivocado.
+ */
+enum class PackTier(val id: String) {
+    FULL("full"),
+    CORE("core"),
+    ;
+
+    companion object {
+        fun fromId(id: String?): PackTier = entries.firstOrNull { it.id == id } ?: FULL
+    }
+}
+
+/**
+ * El perfil de plegado del idioma dado, o el del primero si el pack no lo conoce.
+ *
+ * ⚠️ **Nunca lanza, y esa es la decision.** Un idioma que el pack no declara es un bug del
+ * builder o de quien llama, pero fallar aca dejaria la busqueda muerta; caer al primer perfil
+ * devuelve resultados ligeramente peores en el peldaño tolerante, que es el ultimo de la
+ * cascada y el menos confiable de todos modos.
+ */
+fun PackMetadata.fuzzyProfileFor(lang: String?): FuzzyProfile {
+    val indice = langs.indexOf(lang)
+    return fuzzyProfiles.getOrNull(indice) ?: fuzzyProfiles.firstOrNull() ?: FuzzyProfile.GENERIC
+}
+
+/** Si el pack tiene entradas de este idioma. Un pack bidireccional contesta `true` por los dos. */
+fun PackMetadata.speaks(lang: String?): Boolean = lang != null && lang in langs
 
 /**
  * La cabecera barata de una entrada: lo que se puede saber **sin descomprimir el payload**.
@@ -267,6 +343,18 @@ data class Entry(
      * abrir una entrada, no al listarla.
      */
     val uid: Long,
+    /**
+     * El idioma de ESTA entrada, que en un pack bidireccional no es el del pack.
+     *
+     * ⚠️ **Es lo que hace honesta la etiqueta de la ficha (D-190).** La fila de resultados puede
+     * deducir el idioma de la lista --esta filtrada a uno-- pero la ficha no: se llega a ella
+     * tocando una traduccion, y entonces la entrada abierta es **del otro idioma**. Sin este
+     * campo la etiqueta afirmaria el idioma equivocado, que es peor que no ponerla.
+     *
+     * Nulo = un pack anterior a `schema_version` 4. No puede pasar --la app rechaza esos packs--
+     * pero el tipo lo dice en vez de confiar.
+     */
+    val lang: String? = null,
     val headword: String,
     val partOfSpeech: String?,
     val senses: List<Sense>,

@@ -26,6 +26,66 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El pack bilingüe pasa a ser BIDIRECCIONAL por construcción (`schema_version` 4)
+**Qué.** Un pack declara `meta.langs` **como pares** y cada entrada lleva `entry.lang`. El
+bilingüe gana **164.249 entradas inglesas** derivadas de sus propias claves, `trans` se vacía, y
+el selector del inicio pasa a elegir un **idioma** en vez de un pack. Entran en el mismo bump
+`meta.tier` y `meta.rank_signal_boundary`, que sólo esperaban una reconstrucción.
+**Áreas.** `schema.sql`, `indexes.sql`, `build.py`, `build_pack.py`, `build_core.py`,
+`verify_pack.py`, `sources/bilingual.py`, `sources/toy.py`, `audit_dictionary.py`; en Kotlin
+`Model.kt`, `DictionarySource.kt`, `SearchRepository.kt`, `PackFile.kt`, `SqlitePackSource.kt`,
+`PackSelection.kt`, `PackGrouping.kt`, y cinco pantallas de `:app`. Diez archivos de test.
+**Por qué.** Pedido: *«redefinir las traducciones como bidireccionales por construcción, que
+declares a la par ambos idiomas y no uno como principal, y que todas las tareas y consultas se
+puedan hacer usando solo ese pack»*. Lo destapó preguntar si el pack ya lo era: lo era **para
+buscar** y no **para leer**.
+**Arquitectura.** ✅ Cumple. D-195 a D-198.
+**Medido.**
+- **El lado inglés cuesta poco porque se DERIVA**: 164.249 términos, **+20,4 MiB** de entradas
+  contra **−13,3 MiB** de `trans` = **+7 MiB netos**. Cero dumps nuevos y cero horas de build
+  extra — el mismo argumento de D-175 para el núcleo.
+- **Cobertura de la dirección inversa, antes de tocar nada**: 98,4 % de las 1.000 palabras
+  inglesas más frecuentes, 95,0 % del top 4.000, 91,0 % del top 8.000 crudo. De los 721 que
+  faltan en el top 8.000, casi todos son ruido de subtítulos (`didn`, `gonna`, `ooh`) y nombres
+  de pila; reales sólo `any` y `cannot`. **D-184 se sostiene.**
+- **`pos` heredado del equivalente más común: 100 %** de cobertura.
+- **Toy pack**: 28 entradas españolas + **49 inglesas**, `trans` vacía, dos perfiles fuzzy
+  distintos en el mismo archivo (`correr→korer`, `pass→pas`).
+- **Los cinco packs reconstruidos y verificados con el formato nuevo**: `en-def-wikt` 956.150
+  entradas / 306,8 MiB · `es-def-wikc` 152.281 / 73,6 MiB · **`es-tr-enwikt` 209.484 / 63,4 MiB
+  (123.979 españolas + 85.505 inglesas, `trans` vacía)** · núcleos 7.349 y 16.652, los dos
+  declarando `tier=core`. El bilingüe creció **+8,2 MiB** por ganar un idioma entero.
+- ⚠️ **Y una regresión que sólo apareció al medir el pack construido**: volver entradas las
+  palabras inglesas y vaciar `trans` bajó la cobertura inversa de **98,4 % a 89,8 %** en el top
+  1.000 inglés. La causa es que `trans` estaba **tokenizada** (D-014) y `--flexiones` metía ahí
+  `got`, `been`, `were`, `could`, que así llegaban al lema español; las respuestas perdidas eran
+  **correctas** (`been → ser, estar, tener`). Arreglado mandando esas flexiones al `form` de la
+  entrada inglesa —`got` es flexión de `get`, y `get` ya es un lema—: **89,8 % → 97,0 %**, y el
+  mecanismo nuevo es mejor que el viejo, porque `went` ahora es *flexión de `go`* y no una clave
+  suelta. El 1,4 % que falta eran coincidencias accidentales de tokens (`would` dentro de
+  `would like`).
+- **Gate**: 26 checks · 745 tests.
+**Qué salió mal.**
+- ⚠️ **Olvidé subir `SUPPORTED_SCHEMA_VERSION` en Kotlin** y lo agarró la auditoría, no yo:
+  *«SCHEMA_VERSION: Kotlin=3 Python=4»*. Es exactamente el fallo que ese check existe para
+  atrapar — el builder habría escrito packs que la app rechaza, o peor.
+- ⚠️ **Casi rompo una regla de D-080 sin darme cuenta.** Al reducir la etiqueta de fila a una
+  sola —correcto para los resultados, que están filtrados por idioma— se la habría heredado
+  también al **historial**, donde una fila puede venir de un pack desinstalado. Lo atajó
+  `unResultadoDeUnPackDESCONOCIDONoInventaIdioma`. Quedaron **dos mecanismos** con motivos
+  distintos, cada uno documentado.
+- `verify_pack.py` rechazó el toy bidireccional por dos invariantes que el formato nuevo cambia
+  —uid con el idioma del pack, y *«toda entrada tiene acepciones»*—. Las dos eran correctas:
+  ahora el uid usa `entry.lang` y una entrada inversa vale si trae traducciones.
+- Dos reemplazos de texto fallaron **en silencio** por no asertarlos, y uno pisó la ocurrencia
+  equivocada en otro test. Cada `str.replace` en un script de edición va con `assert`.
+**Qué quedó sin hacer.**
+- **La deuda que este bump NO salda**: `detail=none` y `columnsize=0` en `fts_def` siguen sin
+  medir y exigirán **otra** reconstrucción. No entraron porque matan la búsqueda de frases y
+  medirlo pide packs gemelos.
+- `Visit` no guarda el idioma, así que en el historial un pack bidireccional no lleva etiqueta.
+- El reloj sigue sin packs ni APK nuevo; las sondas van al **emulador** desde ahora.
+
 ## 2026-09-21 — Siete cambios de interfaz, cuatro de ellos revirtiendo decisiones medidas
 **Qué.** La lista de cambios pedida tras ver la app en el reloj: búsqueda estricta por idioma,
 la etiqueta pasa a ser el idioma y aparece también en la ficha, las traducciones de palabra suben

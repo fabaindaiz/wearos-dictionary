@@ -90,13 +90,127 @@ def translation_keys(gloss, for_search=True):
     return salida
 
 
-def records(path, lang="es", politica=None, frequencies=None):
+# Cuantos equivalentes del otro idioma muestra una entrada inversa.
+#
+# ⚠️ **8, el mismo tope que las traducciones por acepcion, y por el mismo motivo**: en 234 dp una
+# lista mas larga deja de leerse y empieza a empujar. Los equivalentes van ordenados por `rank`,
+# asi que los 8 que quedan son los 8 mas comunes y no los 8 primeros del volcado.
+MAX_EQUIVALENTES = 8
+
+
+def records(path, lang="es", politica=None, frequencies=None, lang_dst=None,
+            flexiones=None):
     """The bilingual records: what `kaikki` yields, with `translations` filled in.
 
     ⚠️ **The entry side is not re-implemented and that is the point.** Pruning, homograph grouping,
     the proper-noun policy and the inbound forms are decisions with their own measurements in
     `kaikki.py`; a second copy of them here would be a second place to fix every bug.
+
+    ⚠️ **Con `lang_dst` el pack se vuelve BIDIRECCIONAL POR CONSTRUCCION**, que es una cosa
+    distinta de lo que habia: hasta aca las palabras inglesas vivian solo en `trans`, un indice de
+    `norm` a entrada española. Eso hacia que `dog` **encontrara** `perro`, pero `dog` no era un
+    lema: no habia ficha que abrir, ni etiqueta de idioma, ni forma de que la app supiera que el
+    pack lo conoce. Ahora cada palabra del otro idioma es una `Record` con su `lang`, sus
+    equivalentes y su `rank`.
+
+    ⚠️ **Se derivan del mismo volcado que ya se leyo, no de una fuente nueva.** Es el argumento de
+    D-175 para el nucleo: derivar hace la afirmacion cierta **por construccion**. Si `dog` lleva a
+    `perro` es porque la glosa de `perro` decia `dog`; no porque dos fuentes coincidieran y nadie
+    lo comprobara. Cuesta cero horas de build y cero dumps nuevos.
+
+    ⚠️ **Y `trans` deja de llenarse**: seria una segunda copia del mismo indice, porque buscar
+    `dog` ya funciona por `entry.norm`. Medido sobre el pack real: 474.849 filas, **13,3 MiB**.
     """
+    from . import kaikki
+
+    if lang_dst is None:
+        yield from _una_direccion(path, lang, politica, frequencies)
+        return
+    yield from _dos_direcciones(path, lang, politica, frequencies, lang_dst, flexiones)
+
+
+def bidireccional(registros, lang, lang_dst, flexiones=None):
+    """Los registros propios, y detras las entradas del otro idioma derivadas de sus claves.
+
+    Vive aca y no en cada fuente porque **el toy tiene que hacer exactamente lo mismo**: un pack
+    de juguete que no fuera bidireccional dejaria la rama nueva sin el unico fixture que corre en
+    un dispositivo, y un canal sin fixture se rompe sin que nada avise -- ya paso con el tag `W`.
+
+    ⚠️ **El mapa inverso se acumula en memoria y eso rompe el streaming a proposito.** El resto
+    del builder nunca carga el volcado entero --son 1,1 GB-- pero esto no es el volcado: son las
+    claves ya podadas. Medido sobre el pack real, **164.249 terminos ingleses** con 474.849 pares,
+    que en memoria son ~100 MB y en disco **+20,4 MiB** de entradas contra los 13,3 MiB que se
+    ahorran vaciando `trans`. No hay forma de evitarlo: un termino del otro idioma no sabe
+    cuantos equivalentes tiene hasta que se leyo el volcado entero.
+    """
+    inverso = {}
+    for record in registros:
+        for clave in record.translations:
+            # `rank` va en la tupla para ordenar despues: el equivalente mas comun primero, que
+            # es la misma regla con la que se ordena cualquier lista de esta app.
+            inverso.setdefault(clave, []).append(
+                (record.rank, record.headword, record.part_of_speech))
+        # ⚠️ El canal de busqueda se VACIA aca y no en el builder: `trans` existe para los packs
+        # monolingues, donde la palabra del otro idioma no es un lema. Aca si lo es.
+        record.translations = ()
+        # ⚠️ **Explicito y no heredado del pack.** `Record.lang = None` significa "el primario",
+        # que alcanza en un pack de un solo idioma; aca reordenar `meta.langs` reetiquetaria
+        # todas las entradas propias **en silencio**. En un pack bidireccional cada entrada dice
+        # cual es el suyo.
+        record.lang = lang
+        yield record
+
+    flexiones = flexiones or {}
+    for clave, equivalentes in inverso.items():
+        equivalentes.sort()
+        yield _entrada_inversa(clave, equivalentes, lang_dst, flexiones.get(clave, ()))
+
+
+def _dos_direcciones(path, lang, politica, frequencies, lang_dst, flexiones=None):
+    """El volcado leido una vez, y las dos direcciones que salen de el. Ver [bidireccional]."""
+    yield from bidireccional(
+        _una_direccion(path, lang, politica, frequencies), lang, lang_dst, flexiones)
+
+
+def _entrada_inversa(headword, equivalentes, lang_dst, forms=()):
+    """Una palabra del otro idioma, con sus equivalentes como cuerpo.
+
+    ⚠️ **No lleva acepciones, y esa ausencia es honesta.** Un diccionario bilingue contesta *«como
+    se dice»*, no *«que significa»*: las definiciones inglesas son de `en-def-wikt` y meterlas aca
+    seria fundir dos packs. El cuerpo va en el canal `W` --traduccion de la PALABRA-- porque es
+    exactamente lo que es: no se puede atribuir a una acepcion que no existe (D-117).
+
+    ⚠️ **El `pos` se hereda del equivalente mas comun**, con 100 % de cobertura medido: el volcado
+    no trae `pos` para el lado ingles, y la traduccion de un sustantivo es un sustantivo. Es una
+    inferencia, no un dato, pero es la misma que haria el lector.
+
+    ⚠️ **Y el `rank` tambien se hereda**, del mejor equivalente: `dog` es tan comun como `perro`.
+    Sin esto las entradas inversas entrarian todas con rank 0 y taparian a las propias.
+
+    ⚠️ **`forms` son las flexiones del OTRO idioma, y sin ellas la direccion inversa se cae.**
+    Medido: al volver entradas las palabras inglesas y vaciar `trans`, la cobertura del top 1.000
+    ingles cayo de **98,4 % a 89,8 %**. `trans` estaba tokenizada (D-014) y `--flexiones` metia
+    ahi `got`, `been`, `were`, `could`, que asi alcanzaban el lema español -- y las respuestas
+    que se perdian eran correctas (`been -> ser, estar, tener`). Su lugar en el modelo nuevo es
+    `form` de la entrada inglesa: `got` es una flexion de `get`, y `get` ya es un lema. Queda
+    simetrico con el lado español, que es lo que el pack bidireccional afirma.
+    """
+    from build import Record
+
+    mejor_rank, _, mejor_pos = equivalentes[0]
+    return Record(
+        headword=headword,
+        senses=[],
+        part_of_speech=mejor_pos,
+        rank=mejor_rank,
+        word_translations=tuple(
+            hw for _, hw, _ in equivalentes[:MAX_EQUIVALENTES]),
+        forms=tuple(forms),
+        lang=lang_dst,
+    )
+
+
+def _una_direccion(path, lang, politica, frequencies):
     from . import kaikki
 
     if politica is None:

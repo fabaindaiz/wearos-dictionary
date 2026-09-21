@@ -33,10 +33,11 @@ class WordActionsTest {
                 name = "Diccionario $id",
                 // null: exercises the path of a pack older than D-125, which does not carry the key.
                 description = null,
-                langSource = "es",
-                langTarget = if (kind == PackKind.BILINGUAL) "en" else null,
+                langs = if (kind == PackKind.BILINGUAL) listOf("es", "en") else listOf("es"),
+                fuzzyProfiles = if (kind == PackKind.BILINGUAL)
+                    listOf(FuzzyProfile.SPANISH, FuzzyProfile.SPANISH)
+                else listOf(FuzzyProfile.SPANISH),
                 translationsTo = translationsTo ?: if (kind == PackKind.BILINGUAL) "en" else null,
-                fuzzyProfile = FuzzyProfile.SPANISH,
                 entryCount = 1,
                 dataVersion = 1,
                 license = "CC0-1.0",
@@ -136,9 +137,9 @@ class WordActionsTest {
 
 /** The minimum needed to wrap a metadata. No action queries the pack. */
 private class EmptySource(override val metadata: PackMetadata) : DictionarySource {
-    override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun suggest(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
-    override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
     override fun close() = Unit

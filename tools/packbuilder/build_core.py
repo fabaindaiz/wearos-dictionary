@@ -70,6 +70,11 @@ def _meta_del_nucleo(meta):
     # el completo presente, la app no le pregunta al nucleo. Es una afirmacion de CONTENIDO, y
     # derivando el nucleo del completo es verdadera por construccion.
     salida["subset_of"] = completo
+    # ⚠️ **Y `tier`, que dice lo mismo sin nombrar a nadie.** `subset_of` afirma *«soy parte de
+    # ESE pack»* y sirve cuando el completo esta instalado; `tier` afirma *«soy un nucleo»*, que
+    # es lo que hace falta para decidir sin conocer al otro. Se declaran los dos porque contestan
+    # preguntas distintas, y los dos son ciertos por construccion al derivar.
+    salida["tier"] = "core"
     salida["name"] = salida.get("name", "") + " (núcleo)"
     # El credito se mueve con el contenido (D-138): el nucleo distribuye las mismas definiciones,
     # asi que hereda las mismas fuentes. Y el corpus que ELIGIO las palabras se declara tambien,
@@ -153,7 +158,7 @@ def main(argv):
         top = int(argv[argv.index("--top") + 1])
 
     con = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
-    lang = con.execute("SELECT value FROM meta WHERE key='lang_src'").fetchone()[0]
+    lang = con.execute("SELECT value FROM meta WHERE key='langs'").fetchone()[0].split(",")[0].strip()
     con.close()
     # Tatoeba usa ISO 639-3 en su columna de idioma; el pack usa 639-1.
     lang_corpus = {"es": "spa", "en": "eng"}.get(lang, lang)

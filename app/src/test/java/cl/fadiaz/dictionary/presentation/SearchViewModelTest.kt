@@ -93,7 +93,7 @@ class SearchViewModelTest {
         val vm = SearchViewModel({ listos(es, en1, en2) })
         advanceUntilIdle()
 
-        vm.onPackChange("en-def-wikt")
+        vm.onLanguageChange("en")
         vm.onQueryChange("house")
         advanceUntilIdle()
 
@@ -873,7 +873,7 @@ class SearchViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("per"), es.queries)
 
-        vm.onPackChange("en-def")
+        vm.onLanguageChange("en")
         advanceUntilIdle()
         assertEquals(listOf("per"), en.queries, "la query tiene que repetirse en el pack nuevo")
         assertEquals("per", vm.state.value.query)
@@ -888,7 +888,7 @@ class SearchViewModelTest {
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) },
                                  saveActivePack = { recordado = it })
         advanceUntilIdle()
-        vm.onPackChange("en-def")
+        vm.onLanguageChange("en")
         advanceUntilIdle()
         assertEquals("en-def", recordado)
     }
@@ -1096,7 +1096,7 @@ class SearchViewModelTest {
         vm.onSearchDefinitions()
         advanceUntilIdle()
 
-        vm.onPackChange("en-def")
+        vm.onLanguageChange("en")
         advanceUntilIdle()
 
         assertEquals(SearchState.Mode.NORMAL, vm.state.value.mode)

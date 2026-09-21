@@ -41,7 +41,7 @@ class LanguageChipsTest {
             listOf(pack("es-def-wikc", "es"), pack("es-def-wd", "es"), pack("en-def", "en")),
             null,
         )
-        assertEquals(listOf("en", "es"), reps.map { it.metadata.langSource })
+        assertEquals(listOf("en", "es"), reps.map { it.metadata.langs.first() })
     }
 
     @Test
@@ -71,7 +71,7 @@ class LanguageChipsTest {
         val reps = representativePacks(
             listOf(pack("es-chico", "es", entries = 15_000),
                    pack("es-grande", "es", entries = 150_000)),
-            activo = "es-chico",
+            "es-chico",
         )
         assertEquals("es-chico", reps.single().packId)
     }
@@ -79,34 +79,21 @@ class LanguageChipsTest {
     // --- De qué idioma vino un resultado --------------------------------------------------
 
     @Test
-    fun laEtiquetaEsSIEMPRE_el_idioma() {
-        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en")))
-        assertEquals("ES", tags["es-def-wikc"])
-        assertEquals("EN", tags["en-def-wikt"])
+    fun laEtiquetaEsELIDIOMA_ACTIVO_y_no_una_propiedad_del_pack() {
+        // ⚠️ **Esto reemplaza al mapa `packId -> etiqueta`, y el motivo es el pack
+        // bidireccional.** Un pack con entradas de dos idiomas habría tenido que devolver `ES`
+        // para unas filas y `EN` para otras, así que la etiqueta dejó de ser una propiedad del
+        // pack. Lo que la decide es el idioma en el que se buscó: la lista está filtrada a él,
+        // tanto entre packs (D-189) como dentro de uno (`WHERE lang = ?`).
+        assertEquals("ES", resultTag("es"))
+        assertEquals("EN", resultTag("en"))
     }
 
     @Test
-    fun conDOS_PACKS_del_mismo_idioma_la_etiqueta_NO_cambia_a_la_fuente() {
-        // ⚠️ **Esto invierte `conDOS_PACKS_del_idioma_la_etiqueta_es_la_FUENTE`, que existía
-        // hasta hoy.** La regla anterior mostraba `WIKC` / `ENWIKT` para desambiguar dos
-        // diccionarios del mismo idioma; el pedido la revierte: *«solo debe ser EN, ES. No me
-        // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
-        // proveniencia»*.
-        //
-        // Lo que se pierde: con `es-def-wikc` y `es-tr-enwikt` instalados a la vez, la fila no
-        // dice de cuál de los dos salió. Se acepta porque esa pregunta la contesta la pantalla
-        // de gestión de diccionarios, y la fila tiene un ancho que el lema ya disputa.
-        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("es-tr-enwikt", "es")))
-        assertEquals("ES", tags["es-def-wikc"])
-        assertEquals("ES", tags["es-tr-enwikt"])
-    }
-
-    @Test
-    fun unPackIdSIN_LA_FORMA_esperada_igual_da_su_idioma() {
-        // Un pack anterior a D-138 no cumple la gramática del `pack_id`. Ya no importa: la
-        // etiqueta sale de `lang_source`, que es metadato y no se deriva partiendo el nombre.
-        val tags = resultTags(listOf(pack("viejo", "es")))
-        assertEquals("ES", tags["viejo"])
+    fun sinIdiomaActivo_no_hay_etiqueta_que_afirmar() {
+        // Inventar una sería afirmar una procedencia que nadie comprobó, que es la familia de
+        // D-080: mejor sin etiqueta que con la equivocada.
+        assertEquals(null, resultTag(null))
     }
 
     @Test
@@ -135,7 +122,7 @@ class LanguageChipsTest {
                    pack("es-grande", "es", entries = 150_000)),
             null,
         )
-        assertEquals("es-grande", chips.single().packId)
+        assertEquals("es", chips.single().lang)
     }
 
     @Test
@@ -144,9 +131,9 @@ class LanguageChipsTest {
         val chips = languageChips(
             listOf(pack("es-chico", "es", entries = 15_000),
                    pack("es-grande", "es", entries = 150_000)),
-            activo = "es-chico",
+            activoLang = "es",
         )
-        assertEquals("es-chico", chips.single().packId)
+        assertEquals("es", chips.single().lang)
     }
 
     @Test
@@ -167,7 +154,7 @@ class LanguageChipsTest {
 
     @Test
     fun elChipSabeSiEsElIdiomaACTIVO() {
-        val chips = languageChips(listOf(pack("es-def", "es"), pack("en-def", "en")), "es-def")
+        val chips = languageChips(listOf(pack("es-def", "es"), pack("en-def", "en")), "es")
         assertEquals(mapOf("ES" to true, "EN" to false), chips.associate { it.label to it.active })
     }
 }

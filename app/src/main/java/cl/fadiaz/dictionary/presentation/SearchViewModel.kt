@@ -9,6 +9,7 @@ import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.core.speaks
 import cl.fadiaz.dictionary.data.answersFor
 import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.core.EntrySummary
@@ -49,6 +50,14 @@ data class SearchState(
     val status: Status = Status.Loading,
     /** The pack being searched. Its `attribution` and `license` are the ones shown. */
     val active: PackMetadata? = null,
+    /**
+     * El idioma en el que se busca.
+     *
+     * ⚠️ **Existe porque [active] dejo de contestarlo.** Un pack bidireccional habla dos idiomas,
+     * asi que saber cual esta abierto ya no dice en cual se busca: `es-tr-enwikt` tiene `casa` y
+     * `house`. El chip elige esto; el pack se deriva.
+     */
+    val activeLang: String? = null,
     /** Every pack the app knows about, extracted or not. It is what the selector draws. */
     val available: List<PackHandle> = emptyList(),
     /** Packs that were there and did not open. Shown on the attribution screen, not the search. */
@@ -262,13 +271,16 @@ class SearchViewModel(
                 opened = result.all.filterIsInstance<PackHandle.Open>().map { it.source }
                 val chosen = chooseActive(result, preferred())
                 source.value = chosen.source
-                searcher.value = repositoryFor(chosen.source)
+                searcher.value = repositoryFor(
+                    chosen.source, chosen.metadata.langs.firstOrNull())
                 _state.update {
                     it.copy(
                         status = SearchState.Status.Ready,
                         // D-031: the attribution comes from the pack, not from a constant. A
                         // pack from another source brings its own license and must show it.
                         active = chosen.metadata,
+                        // El primer idioma del pack elegido, salvo que ya hubiera uno guardado.
+                        activeLang = it.activeLang ?: chosen.metadata.langs.firstOrNull(),
                         // The demo one is not offered if a real dictionary exists: it is a
                         // placeholder, not an option. Its label would also clash -- with the
                         // toy and the real Spanish one the selector read "ES" and "ES".
@@ -310,8 +322,7 @@ class SearchViewModel(
      * una palabra inglesa con español activo. `SearchRepository` decide cuándo, y su umbral está
      * medido -- 0 de 400 lemas españoles comunes lo disparan.
      */
-    private fun repositoryFor(active: DictionarySource): SearchRepository {
-        val idioma = active.metadata.langSource
+    private fun repositoryFor(active: DictionarySource, idioma: String?): SearchRepository {
         // ⚠️ **No se consulta todo lo instalado, y ésa es la diferencia.** `packsToQuery` saca
         // los builds viejos de un mismo diccionario y los packs que otro contiene; Ajustes sigue
         // viendo la lista entera, porque lo que no se consulta igual ocupa disco y hay que poder
@@ -324,25 +335,37 @@ class SearchViewModel(
         // quedaba invisible justo en la dirección `en → es`, que es la mitad de su razón de ser.
         val mismoIdioma = consultables.filter { it !== active && answersFor(it, idioma) }
         val otrosIdiomas = consultables.filter { !answersFor(it, idioma) }
-        return SearchRepository(listOf(active) + mismoIdioma, otherLanguages = otrosIdiomas)
+        return SearchRepository(
+            listOf(active) + mismoIdioma,
+            otherLanguages = otrosIdiomas,
+            lang = idioma,
+        )
     }
 
-    fun onPackChange(packId: String) {
+    /**
+     * Cambia el IDIOMA en el que se busca, y deriva el pack que lo representa.
+     *
+     * ⚠️ **Antes recibia un `packId` y eso dejo de alcanzar**: un pack bidireccional habla dos
+     * idiomas, asi que elegirlo no dice en cual buscar. El chip manda un idioma; el pack sale de
+     * las mismas reglas que eligen representante en el selector.
+     */
+    fun onLanguageChange(lang: String) {
         // Entre los que se consultan, no entre los abiertos: tocar el chip de un idioma no puede
         // activar un build viejo que la selección ya descartó.
-        val pack = packsToQuery(opened).firstOrNull { it.metadata.packId == packId } ?: return
+        val candidatos = packsToQuery(opened).filter { lang in it.metadata.langs }
+        val pack = candidatos.maxByOrNull { it.metadata.entryCount } ?: return
         // The combine is going to repeat the prefix query on the new pack and would overwrite the
         // definition results anyway: better to leave the mode explicitly than leave the race open.
         leaveDefinitionMode()
         source.value = pack
-        searcher.value = repositoryFor(pack)
-        _state.update { it.copy(active = pack.metadata) }
+        searcher.value = repositoryFor(pack, lang)
+        _state.update { it.copy(active = pack.metadata, activeLang = lang) }
         // Nothing is recomputed for the SCREEN: the words of the day for every pack are already
         // there. The tile is, because it shows only one and it is the active pack's -- leaving it
         // in the previous language would be a wrong word that nobody reports, because nobody opens
         // a tile on purpose.
         cacheWeekForTile(pack)
-        saveActivePack(packId)
+        saveActivePack(pack.metadata.packId)
     }
 
     fun onQueryChange(text: String) {
@@ -716,7 +739,7 @@ class SearchViewModel(
      * lo correcto: una palabra pintada que no navega es peor que una sin pintar (D-084).
      */
     suspend fun resolveInLanguage(lang: String, norms: Set<String>): Map<String, Pair<String, Long>> {
-        val destino = opened.firstOrNull { it.metadata.langSource == lang } ?: return emptyMap()
+        val destino = opened.firstOrNull { it.metadata.speaks(lang) } ?: return emptyMap()
         return destino.resolveHeadwords(norms)
             .mapValues { (_, id) -> destino.metadata.packId to id }
     }
@@ -766,7 +789,7 @@ class SearchViewModel(
             // has something to show, not to cover up a real dictionary.
             val candidates = opened.filterNot { it.isBundled }.ifEmpty { opened }
             return candidates.firstOrNull { it.packId == preferred }
-                ?: candidates.firstOrNull { it.metadata.langSource == preferred }
+                ?: candidates.firstOrNull { it.metadata.speaks(preferred) }
                 ?: candidates.firstOrNull()
                 ?: set.active
         }

@@ -16,7 +16,7 @@ BASE_META = {
     "pack_id": "es-def-wikc",
     "kind": "monolingual",
     "name": "Español",
-    "lang_src": "es",
+    "langs": "es",
     "fuzzy_profile": "es",
     "source_date": "20260915",
     "license": "CC-BY-SA-4.0",

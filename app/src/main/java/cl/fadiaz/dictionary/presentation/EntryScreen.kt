@@ -93,18 +93,6 @@ fun EntryScreen(
      * the same as offering an empty menu.
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
-    /**
-     * El idioma del que viene la entrada, ya en la forma corta que se muestra: `ES`, `EN`.
-     *
-     * ⚠️ **Es el IDIOMA y nunca la fuente.** Pedido: *«solo debe ser EN, ES. No me gusta que
-     * haya un ENWIK... porque solo me interesa conocer el idioma de proveniencia»*. La sigla de
-     * fuente --`WIKC`, `ENWIKT`-- distingue dos packs del mismo idioma, que es un detalle de
-     * catalogo y no algo que el lector de una ficha necesite.
-     *
-     * Nulo = no se dibuja, en vez de heredar el del pack activo: eso seria afirmar una
-     * procedencia que nadie comprobo (misma familia que D-080).
-     */
-    languageTag: String? = null,
     resolveIn: suspend (Set<String>) -> Map<String, WordLink> = { emptyMap() },
     // It goes last so it stays the trailing lambda: that is how the screens and tests call it.
     cargar: suspend (Long) -> Entry?,
@@ -198,6 +186,15 @@ fun EntryScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     val pos = current?.partOfSpeech
+                    // ⚠️ **El idioma sale de la ENTRADA CARGADA, no de un parametro.** Se llega
+                    // a esta pantalla tocando una traduccion, y entonces la entrada abierta es
+                    // del OTRO idioma: tomarlo del pack --que en un bidireccional habla dos--
+                    // afirmaria el idioma equivocado, que es peor que no poner nada.
+                    //
+                    // Es el IDIOMA y nunca la fuente (D-190): *«solo debe ser EN, ES. No me
+                    // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
+                    // proveniencia»*.
+                    val languageTag = current?.lang?.uppercase()
                     if (pos != null || languageTag != null) {
                         Text(
                             // Entero, no abreviado: esta pantalla no compite por el ancho con

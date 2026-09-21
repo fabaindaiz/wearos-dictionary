@@ -92,9 +92,8 @@ class ScreensTest {
         name = name,
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
-        langSource = lang,
-        langTarget = null,
-        fuzzyProfile = FuzzyProfile.SPANISH,
+        langs = listOf(lang),
+        fuzzyProfiles = listOf(FuzzyProfile.SPANISH),
         entryCount = entries,
         dataVersion = 1,
         license = "CC-BY-SA-4.0",
@@ -111,6 +110,9 @@ class ScreensTest {
         results = headwords.map { suggestion(it) },
         status = SearchState.Status.Ready,
         active = meta(),
+        // ⚠️ El idioma es ahora un dato PROPIO del estado y no se deriva del pack activo: un
+        // pack bidireccional habla dos, así que `active` dejó de contestarlo.
+        activeLang = "es",
         available = listOf(handle(meta())),
     )
 
@@ -135,7 +137,7 @@ class ScreensTest {
         state: SearchState,
         onOpenEntry: (Suggestion) -> Unit = {},
         onOpenAttribution: () -> Unit = {},
-        onPackChange: (String) -> Unit = {},
+        onLanguageChange: (String) -> Unit = {},
         onSearchDefinitions: () -> Unit = {},
         onOpenVisita: (Visit) -> Unit = {},
         onOpenSettings: () -> Unit = {},
@@ -143,7 +145,7 @@ class ScreensTest {
         onOpenWordOfTheDay: (String, EntrySummary) -> Unit = { _, _ -> },
         onOpenHistory: () -> Unit = {},
     ) = compose.setContent {
-        SearchScreen(state, onQueryChange = {}, onPackChange = onPackChange,
+        SearchScreen(state, onQueryChange = {}, onLanguageChange = onLanguageChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
             onOpenSettings = onOpenSettings, onOpenFavoritos = onOpenFavoritos,
@@ -1158,6 +1160,9 @@ class ScreensTest {
                 words = listOf(visita("perro")),
                 title = cl.fadiaz.dictionary.R.string.home_recent,
                 empty = cl.fadiaz.dictionary.R.string.history_empty,
+                // El mapa y no una etiqueta suelta: esta lista puede traer palabras de un pack
+                // que ya no esta instalado. Ver `historyTags`.
+                tags = mapOf("es-def" to "ES"),
                 onOpen = {},
             )
         }
@@ -1185,6 +1190,8 @@ class ScreensTest {
                 words = listOf(visita("perro")),
                 title = cl.fadiaz.dictionary.R.string.home_recent,
                 empty = cl.fadiaz.dictionary.R.string.history_empty,
+                // El mapa y no una etiqueta suelta: esta lista puede traer palabras de un
+                // pack que ya no esta instalado. Ver `historyTags`.
                 tags = mapOf("es-def" to "ES"),
                 onOpen = {},
             )
@@ -1274,20 +1281,27 @@ class ScreensTest {
         // Pedido: junto a la palabra y su tipo, el idioma abreviado. Con dos diccionarios del
         // mismo idioma o de idiomas distintos conviviendo (D-136), una fila sin origen obliga a
         // abrir la entrada para saber de donde salio.
+        // ⚠️ **Con dos packs instalados las filas ya NO mezclan idiomas**, y eso cambia lo que
+        // este test puede afirmar. La busqueda es estricta por idioma entre packs (D-189) y
+        // ahora tambien DENTRO de un pack bidireccional (`WHERE lang = ?`), asi que una lista
+        // no contiene filas de dos idiomas: la etiqueta es una sola y vale para todas.
         val es = meta("es-def", "es", "Español")
         val en = meta("en-def", "en", "English")
         showSearch(
             readyState().copy(
                 results = listOf(
                     suggestion("perro", packId = "es-def"),
-                    suggestion("person", packId = "en-def"),
+                    suggestion("perra", packId = "es-def"),
                 ),
                 active = es,
+                activeLang = "es",
                 available = listOf(handle(es), handle(en)),
             ),
         )
-        compose.onNodeWithText("sust. · ES", substring = true).assertExists()
-        compose.onNodeWithText("sust. · EN", substring = true).assertExists()
+        assertEquals(
+            2,
+            compose.onAllNodesWithText("sust. · ES", substring = true).fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -1348,15 +1362,21 @@ class ScreensTest {
     }
 
     @Test
-    fun unResultadoDeUnPackDESCONOCIDONoInventaIdioma() {
-        // Un `packId` que no esta entre los abiertos no puede resolverse a un idioma. Poner el
-        // del pack activo seria afirmar algo falso -- la misma falla que D-080.
-        showSearch(readyState().copy(results = listOf(suggestion("perro", packId = "fantasma"))))
-        compose.onNodeWithText("sust.", substring = true).assertExists()
-        assertEquals(
-            0,
-            compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size,
-        )
+    fun unResultadoLLEVA_EL_IDIOMA_BUSCADO_porque_la_consulta_lo_garantiza() {
+        // ⚠️ **Esto reemplaza a `unResultadoDeUnPackDESCONOCIDONoInventaIdioma`**, y el cambio
+        // no es relajar la regla sino que la regla dejo de necesitar un mecanismo.
+        //
+        // Aquel test protegia contra heredar la etiqueta del pack activo, porque un `packId`
+        // fuera del mapa no se podia resolver a un idioma (familia D-080). Hoy **un resultado de
+        // otro idioma no puede existir**: `SearchRepository` solo consulta packs que hablan el
+        // idioma activo (D-189) y dentro de un pack bidireccional cada peldaño filtra por
+        // `entry.lang`. La etiqueta es cierta **por construccion de la consulta**, no por un
+        // mapa -- que es mas fuerte, porque un mapa se puede desincronizar.
+        //
+        // Lo que SI conserva el mecanismo viejo es el historial: ahi una fila puede ser de un
+        // pack desinstalado. Ver `unaPalabraDeUnPackDESCONOCIDO_muestra_solo_el_tipo`.
+        showSearch(readyState().copy(results = listOf(suggestion("perro"))))
+        compose.onNodeWithText("sust. · ES", substring = true).assertExists()
     }
 
     // --- The language selector ----------------------------------------------------------------
@@ -1377,10 +1397,12 @@ class ScreensTest {
 
     @Test
     fun tappingTheOtherLanguageReportsIt() {
+        // ⚠️ **Reporta el IDIOMA y ya no un `packId`.** Un pack bidireccional habla dos, así que
+        // elegirlo no decía en cuál buscar: el chip pasó a ser lo que D-147 ya decía que era.
         var chosen: String? = null
-        showSearch(twoPackState().copy(query = "", submitted = ""), onPackChange = { chosen = it })
+        showSearch(twoPackState().copy(query = "", submitted = ""), onLanguageChange = { chosen = it })
         compose.onNodeWithText("EN").performClick()
-        assertEquals("en-def", chosen)
+        assertEquals("en", chosen)
     }
 
     @Test
@@ -1718,9 +1740,9 @@ class ScreensTest {
 
 /** The minimum to wrap a `PackMetadata` in a `PackHandle`. The screens never query. */
 private class FakeSource(override val metadata: PackMetadata) : DictionarySource {
-    override suspend fun suggest(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun suggest(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
-    override suspend fun searchDefinitions(query: String, limit: Int) = emptyList<Suggestion>()
+    override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
     override fun close() = Unit

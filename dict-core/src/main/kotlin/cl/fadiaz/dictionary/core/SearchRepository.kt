@@ -67,6 +67,15 @@ class SearchRepository(
      * Ver [LanguageScope]: el respaldo no se borro, se volvio un valor.
      */
     private val scope: LanguageScope = LanguageScope.STRICT,
+    /**
+     * El idioma en el que se busca, o `null` para no filtrar.
+     *
+     * ⚠️ **Hace falta desde que un pack puede tener entradas de DOS idiomas.** Elegir el pack ya
+     * no elige el idioma: un bidireccional habla los dos, asi que sin esto una lista filtrada a
+     * español traeria sus lemas ingleses. Viaja hasta el `WHERE lang = ?` de cada peldaño, donde
+     * sale del mismo indice de cobertura y no cuesta una fila de mas.
+     */
+    private val lang: String? = null,
 ) {
 
     /** Los ids del idioma activo, para el desempate de [orderFor]. */
@@ -91,7 +100,7 @@ class SearchRepository(
      * three per pack would fill a watch screen with whichever pack answered first.
      */
     suspend fun suggest(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> {
-        val propias = recolectar(packs) { it.suggest(query, limit) }
+        val propias = recolectar(packs) { it.suggest(query, limit, lang) }
         val ajenas = if (needsFallback(query, propias)) {
             recolectar(otherLanguages) { it.suggest(query, limit) }
         } else {
@@ -131,7 +140,7 @@ class SearchRepository(
         // ⚠️ **Y por lo mismo no hay respaldo entre idiomas acá**: el umbral de [needsFallback]
         // se calcula con esa cobertura, y sin ella no hay forma de decidir cuándo el idioma
         // activo "no tuvo nada" sin inventar un criterio.
-        ordenar(recolectar(packs) { it.searchDefinitions(query, limit) }, limit, query = null)
+        ordenar(recolectar(packs) { it.searchDefinitions(query, limit, lang) }, limit, query = null)
 
     private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> =
         todas

@@ -14,7 +14,11 @@
 -- Estuvo en DESC hasta schema_version 3, y el sintoma solo se ve con un pack real: "escrit"
 -- devolvia "escrito / Participio de escribir" antes que el sustantivo. Si el indice y el
 -- ORDER BY se separan, SQLite agrega USE TEMP B-TREE y la consulta deja de ser de cobertura.
-CREATE INDEX idx_entry_norm ON entry (norm, rank, headword, pos);
+-- `lang` va AL FINAL y no adelante, y la posicion es la decision: adelante daria mejor
+-- selectividad pero partiria el rango de `norm`, que es el 95% del uso, y ademas el ORDER BY
+-- rank dejaria de estar satisfecho. Al final el indice sigue siendo de cobertura -- la consulta
+-- filtra por idioma sin tocar la tabla -- y el rango por prefijo no cambia.
+CREATE INDEX idx_entry_norm ON entry (norm, rank, headword, pos, lang);
 
 -- Indice del nivel tolerante a errores. Deliberadamente angosto: incluye `norm` para poder
 -- reordenar los candidatos por distancia de edicion sin leer la tabla, y despues se leen de la

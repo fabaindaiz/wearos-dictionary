@@ -222,6 +222,28 @@ def _declarar(metadata, clave):
 # (`build.data_version`), porque reconstruir el mismo dump con otro builder tiene que dar un
 # numero distinto -- si no, `devpack.py` y el instalador leen "es el mismo pack" y un pack mejor
 # no se propaga nunca.
+def _destino(clave):
+    """El SEGUNDO idioma declarado, o None si el pack tiene uno solo.
+
+    Segundo tampoco es secundario: es el otro. Lo que decide es si el lector emite tambien las
+    entradas inversas, que es lo unico que distingue un pack bidireccional de uno que solo sabe
+    buscar en la otra direccion.
+    """
+    declarados = [x.strip() for x in PACKS[clave]["langs"].split(",")]
+    return declarados[1] if len(declarados) > 1 else None
+
+
+def _primario(clave):
+    """El primer idioma declarado por un pack de [PACKS].
+
+    ⚠️ **Primero no es principal.** Es orden de declaracion, y lo unico que decide es el idioma
+    por defecto de un `Record` que no declare el suyo, y de que corpus de frases se lee. En un
+    pack bidireccional los dos idiomas son pares: las entradas de cada uno llevan su propio
+    `entry.lang` y su propio perfil fuzzy.
+    """
+    return PACKS[clave]["langs"].split(",")[0].strip()
+
+
 PACKS = {
     "es": {
         "pack_id": "es-def-wikc",
@@ -231,7 +253,7 @@ PACKS = {
             "Definiciones en español del Wikcionario, sin nombres propios. "
             "Incluye sinónimos, antónimos y palabras relacionadas por acepción."
         ),
-        "lang_src": "es",
+        "langs": "es",
         # ⚠️ **El idioma en que estan las traducciones del payload, y es una DECLARACION que el
         # lector necesita**: sin ella la ficha muestra una lista de palabras inglesas sin decir
         # que son inglesas. No convierte el pack en bilingue --`kind` sigue siendo monolingual y
@@ -268,7 +290,7 @@ PACKS = {
             "Definiciones en español de Wikidata Lexemes. Segundo diccionario de español: "
             "aporta gentilicios regionales y locuciones que el Wikcionario cubre peor."
         ),
-        "lang_src": "es",
+        "langs": "es",
         "fuzzy_profile": "es",
         "source_date": "20260920",
         "license": "CC0-1.0",
@@ -297,8 +319,8 @@ PACKS = {
             "Palabras en español definidas en inglés, del Wiktionary en inglés. "
             "Se puede buscar en los dos idiomas."
         ),
-        "lang_src": "es",
-        "lang_dst": "en",
+        "langs": "es,en",
+        "fuzzy_profiles": "es,en",
         "fuzzy_profile": "es",
         "source_date": "20260915",
         "license": "CC-BY-SA-4.0",
@@ -320,7 +342,7 @@ PACKS = {
         # justamente para lo no atribuible, asi que esas 9.987 entran, y de paso llenan `trans`:
         # es lo que hace que buscar `perro` encuentre `dog` en el pack ingles.
         "translations_to": "es",
-        "lang_src": "en",
+        "langs": "en",
         "fuzzy_profile": "en",
         "source_date": "20260909",
         "license": "CC-BY-SA-4.0",
@@ -338,7 +360,7 @@ PACKS = {
         # `lang_src` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
         # igual al pack de kaikki es lo unico que deja comparable la identidad logica de las
         # dos fuentes si algun dia se quieren cruzar.
-        "lang_src": "en",
+        "langs": "en",
         "fuzzy_profile": "en",
         "source_date": "20251231",
         "license": "CC-BY-4.0",
@@ -476,6 +498,17 @@ def main(argv):
         # clave, a igual posicion manda el mejor calibrado. Sin ella la app no tiene como saberlo,
         # y **no se puede agregar despues sin reconstruir el pack**.
         metadata["rank_basis"] = "frequency-zipf-v1"
+        # ⚠️ **Donde termina la banda con señal, DECLARADO y no hardcodeado en el reloj.**
+        #
+        # `rank` son dos bandas disjuntas (D-185): `[0, frontera)` sale del Zipf y el resto de
+        # la riqueza de pagina. La app necesita saber donde esta el corte --la palabra del dia
+        # lo usa (D-193)-- y la unica alternativa era copiar el 500 en Kotlin, creando un
+        # **tercer contrato cruzado** que al cambiar rompe en silencio, como `norm()` y
+        # `sense_code`. Declararlo lo convierte en un dato del artefacto.
+        #
+        # Es la misma leccion de `rank_basis`: una clave que no se puede agregar sin
+        # reconstruir, y este build es la oportunidad.
+        metadata["rank_signal_boundary"] = str(kaikki.FRONTERA_CON_SENAL)
         # El credito viaja con el contenido, igual que arriba: la lista de frecuencias NO aporta
         # texto al pack, pero **decide el orden de los resultados**, que es contenido de la misma
         # forma. D-138 no distingue.
@@ -486,7 +519,7 @@ def main(argv):
         # El formato lo decide el IDIOMA del pack, no una opcion mas: el ingles tiene su propio
         # WordNet en WN-LMF y el español llega por el .tab de OMW. Son la misma idea servida
         # distinto, igual que las dos formas de los sinonimos del wiki (D-124).
-        ingles = metadata["lang_src"] == "en"
+        ingles = metadata["langs"].split(",")[0].strip() == "en"
         tesauro = wordnet.english(dump_tesauro) if ingles else wordnet.spanish(dump_tesauro)
         metadata["pack_id"] += "-" + _declarar(
             metadata, "oewn-tesauro" if ingles else "mcr")["codigo"]
@@ -525,7 +558,7 @@ def main(argv):
             # ⚠️ `dump_frases` y NO `frases`: a esta altura `frases` ya es el diccionario de
             # oraciones que arma `shortest_by_norm`, no la ruta del corpus.
             if dump_frases:
-                lang_corpus = {"es": "spa", "en": "eng"}.get(PACKS[lang]["lang_src"])
+                lang_corpus = {"es": "spa", "en": "eng"}.get(_primario(lang))
                 relleno = frequency.to_zipf(
                     tatoeba.frequencies(dump_frases, lang=lang_corpus))
             mapa_frecuencias = frequency.combined(principal, relleno)
@@ -535,7 +568,11 @@ def main(argv):
         # del espanol.
         argumentos = (
             (source, lang) if reader is oewn
-            else (source, PACKS[lang]["lang_src"], politica, mapa_frecuencias)
+            # ⚠️ El cuarto argumento es lo que vuelve el pack BIDIRECCIONAL: con el, las
+            # palabras inglesas dejan de ser claves de `trans` y pasan a ser entradas con su
+            # propio `entry.lang`. Sale de `meta.langs`, asi que lo que el pack declara y lo
+            # que el lector emite no se pueden separar.
+            else (source, _primario(lang), politica, mapa_frecuencias, _destino(lang))
             if reader is bilingual
             # `translations_to` sale de la misma tabla que lo declara en `meta`, para que la
             # promesa del pack y lo que el lector emite no puedan separarse.
@@ -558,6 +595,13 @@ def main(argv):
         if flexiones:
             from sources import inflections
             mapa_flexiones = inflections.por_lema(flexiones)
+        # ⚠️ **En un pack bidireccional las flexiones van al lector, no al bucle.** Ahi se
+        # cuelgan del `form` de la ENTRADA inglesa --`got` es flexion de `get`, y `get` ya es un
+        # lema-- en vez de expandirse dentro de `trans`, que en este pack esta vacia. Saltarse
+        # este paso costo **8,6 puntos** de cobertura inversa en el top 1.000 ingles, medidos.
+        if reader is bilingual and mapa_flexiones:
+            argumentos = argumentos + (mapa_flexiones,)
+            mapa_flexiones = {}
         for record in reader.records(*argumentos):
             if not _keep(record.headword, sample):
                 continue
@@ -582,7 +626,7 @@ def main(argv):
             # palabras, y "Dr." o "km²" se perderian contra la entrada que normaliza igual.
             extra = READERS[sumar[0]]
             nuevos = []
-            for record in extra.records(sumar[1], PACKS[sumar[0]]["lang_src"], politica):
+            for record in extra.records(sumar[1], _primario(sumar[0]), politica):
                 clave = (record.headword, record.part_of_speech)
                 if clave in vistos or not _keep(record.headword, sample):
                     continue

@@ -65,6 +65,11 @@ fun WordListScreen(
      * Vacio por defecto para que una pantalla de test que no la cablea siga andando; un `packId`
      * que no este simplemente no recibe etiqueta, igual que en los resultados.
      */
+    /**
+     * `packId` -> etiqueta de idioma. **Un mapa y no una sola**: esta lista puede traer palabras
+     * de un pack que ya no esta instalado, y heredarles el idioma activo afirmaria algo que
+     * nadie comprobo. Ver `historyTags`.
+     */
     tags: Map<String, String> = emptyMap(),
     /**
      * Quitar una palabra de la lista, o `null` si esta lista no se cura a mano (D-155).

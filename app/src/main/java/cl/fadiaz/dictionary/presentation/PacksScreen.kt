@@ -92,10 +92,10 @@ fun PacksScreen(
                     detail = if (pack.isBundled) {
                         "${packTypeLabel(pack.metadata.kind)} · " +
                             "${stringResource(R.string.packs_bundled)} · " +
-                            pack.metadata.langSource.uppercase()
+                            pack.metadata.langs.joinToString("\u2194") { it.uppercase() }
                     } else {
                         "${packTypeLabel(pack.metadata.kind)} · " +
-                            "${asHumanSize(pack.bytes)} · ${pack.metadata.langSource.uppercase()}"
+                            "${asHumanSize(pack.bytes)} · ${pack.metadata.langs.joinToString("\u2194") { it.uppercase() }}"
                     },
                     // El incluido no se puede borrar: volvería sola al reiniciar.
                     onDelete = if (pack.isBundled) null else { { pendingDelete = pack } },

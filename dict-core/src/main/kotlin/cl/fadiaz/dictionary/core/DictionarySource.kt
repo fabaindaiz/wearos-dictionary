@@ -23,7 +23,17 @@ interface DictionarySource {
      * traduccion. Recurre a la clave tolerante a errores solo si lo anterior devuelve muy
      * poco, porque es el camino caro y sus resultados son los menos confiables.
      */
-    suspend fun suggest(query: String, limit: Int = 30): List<Suggestion>
+    suspend fun suggest(query: String, limit: Int = 30, lang: String? = null): List<Suggestion>
+
+    // ⚠️ **`lang` existe porque un pack puede tener entradas de DOS idiomas.** En uno
+    // bidireccional `casa` y `house` conviven, y una lista que el usuario filtro a español no
+    // puede traer lemas ingleses. `null` = todos los idiomas del pack, que es lo que hace un
+    // pack monolingue y lo que hara el "modo auto" cuando exista.
+    //
+    // ⚠️ **No se filtra en Kotlin sino en SQL**, y eso no es microoptimizacion: `idx_entry_norm`
+    // incluye `lang` al final, asi que el filtro se resuelve DENTRO del indice de cobertura sin
+    // tocar la tabla. Filtrando despues habria que traer el doble de filas para llenar el mismo
+    // limite, y el peldaño de prefijo es el 95 % del trabajo.
 
     /** El cuerpo de una entrada. Aca si se lee y descomprime el payload. */
     suspend fun entry(entryId: Long): Entry?
@@ -35,7 +45,11 @@ interface DictionarySource {
      * indice mucho mas grande que el de lemas y no cumple el presupuesto de latencia de la
      * busqueda incremental.
      */
-    suspend fun searchDefinitions(query: String, limit: Int = 30): List<Suggestion>
+    suspend fun searchDefinitions(
+        query: String,
+        limit: Int = 30,
+        lang: String? = null,
+    ): List<Suggestion>
 
     /**
      * Cuales de estas claves normalizadas son un lema del pack, y con que entrada.

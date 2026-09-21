@@ -1073,9 +1073,12 @@ def check_manifest_hygiene(report):
 
 # Las claves de meta que un pack DEBE traer. Crecer esta lista rompe todos los packs ya
 # instalados: `getValue` lanza y el pack se rechaza entero al abrir.
+# ⚠️ `langs` y `fuzzy_profiles` entraron con `schema_version` 4, que es lo que esta lista exige
+# para crecer: los packs anteriores se rechazan al abrir, y eso es correcto porque tampoco tienen
+# la columna `entry.lang`. `lang_src`/`lang_dst` salieron -- los idiomas de un pack son pares.
 META_OBLIGATORIAS = {
-    "attribution", "data_version", "entry_count", "kind", "lang_src", "license", "name",
-    "norm_version", "pack_id", "payload_dict", "schema_version",
+    "attribution", "data_version", "entry_count", "fuzzy_profiles", "kind", "langs", "license",
+    "name", "norm_version", "pack_id", "payload_dict", "schema_version",
 }
 
 
