@@ -1729,6 +1729,100 @@ In order, cheapest first, none of it built:
 rebuilt rather than migrated — an hour of build for the Spanish pack, and the app needs no change
 beyond rendering a field it already parses.
 
+### Both directions as a pack feature, and words with no definition — measured 2026-09-21
+
+Asked as a design question, and it deserves the design answer: *can a translation pack hold tables
+in both directions, as a **feature of the pack format** rather than a build trick — and can a word
+be shown even when no definition for it is available?*
+
+**Yes to both, and the second one costs nothing today**, because the data is already there and
+already indexed. What throws it away is one line of SQL.
+
+#### ⚠️ The reverse direction is already a table, already prefix-indexed, and the query discards it
+
+`trans` is `(norm, entry_id)` `WITHOUT ROWID`, so **the table is the index** (D-010) and a prefix
+range over English keys is a primary-key seek — verified, not assumed:
+
+```
+EXPLAIN QUERY PLAN SELECT norm, entry_id FROM trans WHERE norm >= 'hou' AND norm < 'hov'
+  -> SEARCH trans USING PRIMARY KEY (norm>? AND norm<?)
+```
+
+And the content it reaches is good:
+
+```
+hound        -> can, sabueso, lebrel, podenco ibicenco
+hour         -> hora, cuarto, horario, happy hour, hora pico
+hourglass    -> ampolleta, reloj de arena, cintura de avispa
+houndstooth  -> pata de gallo
+```
+
+⚠️ **But `byTranslation` keeps the entries and drops the key:**
+
+```sql
+SELECT e.id, e.headword, e.pos FROM entry e WHERE e.id IN
+    (SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?)   -- 'hour' is lost here
+ORDER BY e.rank LIMIT ?
+```
+
+So typing `hou` returns `ampolleta, sabueso, hora, …` — a flat list of Spanish words with **no
+indication of which English word each one answers**, and ordered by a `rank` that is page richness
+(which is the `house → solar` bug in §Result ordering). The English word the reader typed is
+matched, used, and then thrown away.
+
+**Keeping it is the whole feature**: `hour` becomes a row, and opening it shows the Spanish words
+it maps to. The pack does not change by one byte, and a word with no definition becomes
+displayable — which is exactly the second half of the request.
+
+#### The three levels, priced
+
+| | what it delivers | cost |
+|---|---|---|
+| **0 — keep the key** | `hour` shows as a row and opens, listing its Spanish entries. Words with no definition become displayable | **0 MB** — `:app` and `:dict-data` only, no pack change |
+| **1 — inflection index** (see above) | `hours`, `ran`, `went` reach it too: 78.1 % → 98.9 % | **1.84 MB** (+3.7 %) |
+| **2 — stub entries in `entry`** | `hour` gets a `uid`, a `rank`, a fuzzy key: favouritable, in history, typo-tolerant, orderable | **7.84–11.00 MB** (+15.6 % to +21.9 %) |
+
+Level 2 was built and weighed over the real 89,049 English keys, not estimated. ⚠️ **Its cost is
+almost entirely structure, not content**: the payloads compress to **1.70 MB (20 bytes per
+entry)** and the other 6–9 MB are the `entry` row itself plus its indexes — `idx_entry_fuzzy`
+alone is 1.88 MB and the covering `idx_entry_norm` 3.18 MB. Dropping the fuzzy index and making
+`idx_entry_norm` non-covering takes 11.00 MB down to 7.84, at the price of no typo tolerance on
+English input.
+
+**Level 0 first, and possibly only.** It delivers the visible feature; levels 1 and 2 buy reach
+and identity, and can be decided separately once level 0 shows what is actually missing.
+
+#### ⚠️ What level 2 collides with — three enforcers and a missing column
+
+Stub entries are not merely absent today, they are **actively rejected**, and that is worth knowing
+before treating them as a small change:
+
+| blocker | where | what happens |
+|---|---|---|
+| `entry` has **no `lang` column** | schema | an English row in a pack declaring `lang_src=es` is indistinguishable from a Spanish one |
+| `uid` is recomputed with the **pack's** language | `verify_pack.py:323`, `stable_uid(lang, …)` | every English stub fails uid verification |
+| an entry with zero senses is a failure | `verify_pack.py:348` | *"la entrada X quedó sin acepciones"* |
+| a `T` before the first `S` is **silently dropped** | `payload.parse`, the `if senses:` guard | entry-level translations have nowhere to live |
+
+So level 2 is a **schema change** — D-001 territory, packs rebuilt rather than migrated — plus a
+`uid` recipe that takes the entry's own language, which means bumping `UID_RECIPE` and therefore
+invalidating every cross-pack join that exists.
+
+⚠️ **The one door that is already open**: `payload.parse` ends with *«los tags desconocidos se
+ignoran a propósito: un builder más nuevo puede agregar campos sin romper un lector viejo»*. A new
+entry-level tag would be ignored by today's readers rather than breaking them, so the payload half
+of level 2 is additive. **The `entry` table half is not.**
+
+#### Declaring it, which is the part that makes it a format feature
+
+Today `kind = bilingual` plus `lang_dst` says the pack **has** a target language. Nothing says
+whether the reverse direction is **usable** — the current pack's is 78.1 % at top 8,000 and
+returns a different *kind* of answer, and a reader has no way to know that. If bidirectionality is
+to be a declared property rather than an accident of the build, it needs to be stated in `meta`
+and checked by `verify_pack.py`, the same way `sources` must carry a licence per source (D-138).
+
+That is a decision, not a measurement, and it is not taken here.
+
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 
 Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
