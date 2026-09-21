@@ -163,6 +163,7 @@ dos formas en que un pack ajeno puede hacer daño, y qué lo frena:
 | **`rank` mal calibrado** | Su basura sale primera | El orden usa una **banda de cobertura** calculada del texto escrito y del lema, **sin mirar ningún dato del pack** (D-142). El `rank` sólo decide *dentro* de una banda |
 | **Manifiesto incompleto** | No se sabe si se puede redistribuir | `verify_pack.py` exige `sources` con **una licencia por fuente** (D-138) |
 | **`pack_id` genérico** | Pisa a otro al instalarse | Gramática verificada `<idioma>-<tipo>-<fuente>` (D-138) |
+| ⚠️ **Atribución inventada** | Un sinónimo o una traducción colgada de la acepción equivocada — **se lee plausible** | **Nada, hoy.** Es la única fila sin freno: el payload tiene un solo canal, así que embadurnar dato de entrada por todas las acepciones es gratis e invisible. Ver roadmap §Enforcing the contract |
 
 **Para saber cuánto se parecen dos calibraciones**, hay una herramienta y no una intuición:
 
