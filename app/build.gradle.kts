@@ -226,26 +226,22 @@ kotlin {
 }
 
 /**
- * El pack de demostracion que viaja dentro del APK.
+ * Los packs que viajan DENTRO del APK: los **nucleos reales** de espanol e ingles.
  *
- * Existe para que la app recien instalada tenga algo que mostrar: sin ningun pack arranca y dice
- * "No hay ningun diccionario instalado.", que es honesto pero no se puede ensenar.
+ * ⚠️ **El pack de demostracion se elimino el 2026-09-21 y con el el respaldo.** Antes, si los
+ * nucleos no estaban, esta tarea generaba un juguete de 28 entradas con `build_toy.py` para que
+ * la app recien instalada tuviera algo que mostrar. Eso dejo de valer la pena: los nucleos son el
+ * contenido de verdad, y un diccionario de 28 palabras al lado de uno real confunde mas de lo que
+ * ensena. Ademas causaba un bug visto en el reloj --la app avisaba que `demo-es-en.db` no era
+ * compatible-- que con esto desaparece de raiz.
  *
- * **Es un placeholder y se nota a proposito**: hoy lo genera `build_toy.py`, el mismo generador
- * del fixture de los tests instrumentados, y su propia atribucion dice que no es un diccionario
- * real. Que contenido deberia tener esta sin decidir (ver docs/roadmap.md); cambiarlo es apuntar
- * esta tarea a otro `.db`.
+ * **Lo que cambia para un clone limpio**: los nucleos se derivan de los packs completos, que pesan
+ * 372 MB y **viven fuera del repo**, asi que un clone sin ellos produce un APK **sin diccionario**.
+ * La app degrada bien --arranca y dice "No hay ningun diccionario instalado."-- y el build **sigue
+ * compilando**, que es lo que D-086 exige. Lo que ya no hace es auto-abastecerse.
  *
- * Se genera en el build y **no se commitea**: un binario que cambia en cada build ensuciaria el
- * diff, y el repo ya decidio eso una vez para el toy pack (D-020).
- */
-/**
- * Los packs que viajan DENTRO del APK.
- *
- * ⚠️ **Degrada, y esa es la mitad importante.** Los nucleos se derivan de los packs completos, que
- * pesan 372 MB y **viven fuera del repo**: un clone limpio no los tiene. Si estan, se empaquetan;
- * si no, se empaqueta el pack de juguete de 53 KB, que se genera del codigo y siempre existe.
- * Misma regla que la keystore (D-086): **un clone limpio tiene que seguir compilando.**
+ * De paso, el build de Android **deja de depender de Python**: `build_toy.py` ya solo genera el
+ * fixture de los tests instrumentados, desde `:dict-data`.
  *
  * El directorio se configura con `dictionary.packsDir`; por defecto es `../wearos-dictionary-data`,
  * que es donde ya estan.
@@ -258,30 +254,17 @@ val nucleos = listOf("es-core.db", "en-core.db")
 
 val bundlePacks = tasks.register("bundlePacks") {
     group = "build"
-    description = "Pone en assets/ los packs nucleo si estan, y si no el de juguete."
+    description = "Pone en assets/ los packs nucleo. Si no estan, el APK viaja sin diccionario."
     val destino = layout.projectDirectory.dir("src/main/assets").asFile
-    val toy = File(destino, "demo-es-en.db")
     inputs.files(nucleos)
-    inputs.dir(rootProject.layout.projectDirectory.dir("tools/packbuilder"))
     outputs.dir(destino)
-    // Se capturan VALORES y no referencias al script: el configuration cache no serializa lo
-    // segundo, y `providers.exec {}` dentro de `doLast` es exactamente eso.
-    val raiz = rootProject.layout.projectDirectory.asFile
     val aCopiar = nucleos
     doLast {
         destino.mkdirs()
-        // Se limpia lo anterior: si ayer viajaba el juguete y hoy los nucleos, dejar los dos
-        // significa que la app abre un diccionario de 28 entradas al lado del de verdad.
+        // Se limpia lo anterior: dejar un pack viejo al lado de uno nuevo significa que la app
+        // abre los dos, y el viejo contesta con datos de otra construccion.
         destino.listFiles()?.filter { it.name.endsWith(".db") }?.forEach { it.delete() }
-        if (aCopiar.isEmpty()) {
-            val salida = ProcessBuilder(
-                "python3", "tools/packbuilder/build_toy.py", toy.absolutePath,
-            ).directory(raiz).redirectErrorStream(true).start()
-            val log = salida.inputStream.bufferedReader().readText()
-            check(salida.waitFor() == 0) { "build_toy.py fallo:\n$log" }
-        } else {
-            aCopiar.forEach { it.copyTo(File(destino, it.name), overwrite = true) }
-        }
+        aCopiar.forEach { it.copyTo(File(destino, it.name), overwrite = true) }
     }
 }
 
