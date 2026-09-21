@@ -47,6 +47,17 @@ data class PackMetadata(
      * soportar.
      */
     val description: String?,
+    /**
+     * El idioma de las traducciones que el pack lleva en su payload, o null si no lleva.
+     *
+     * ⚠️ **Es una CAPACIDAD, y por eso vive aparte de [kind].** `kind` contesta *«en qué idioma
+     * están las definiciones»*; esto contesta *«¿traduce?»*. Son preguntas distintas y el pack
+     * español es la prueba: es `MONOLINGUAL` --define en español-- y **traduce al inglés**.
+     * Mientras la app preguntaba por `kind`, la acción de traducir no aparecía nunca sobre él.
+     *
+     * Opcional y leída con `meta[...]`: un pack anterior no la trae y tiene que seguir abriendo.
+     */
+    val translationsTo: String? = null,
     val langSource: String,
     val langTarget: String?,
     val fuzzyProfile: FuzzyProfile,

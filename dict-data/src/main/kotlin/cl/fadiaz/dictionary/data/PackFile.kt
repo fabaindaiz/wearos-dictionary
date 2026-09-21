@@ -212,6 +212,8 @@ class PackFile private constructor(
             description = meta["description"],
             langSource = meta.getValue("lang_src"),
             langTarget = meta["lang_dst"],
+            // `meta[...]`: la trae sólo un pack que declare traducciones.
+            translationsTo = meta["translations_to"],
             // `meta[...]` otra vez: ningun pack de hoy la trae, y el formato no tiene
             // migraciones (D-001) pero eso aplica a `schema_version`; una clave nueva y aditiva
             // es justo lo que la tolerancia existe para soportar.

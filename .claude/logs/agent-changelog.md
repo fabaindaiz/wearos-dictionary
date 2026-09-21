@@ -26,6 +26,42 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — La app pregunta por la capacidad, y el bilingüe por fin muestra lo que sabe
+**Qué.** Puntos **#1 y #2** del corte. `PackMetadata` gana `translationsTo` y `PackFile` la lee;
+`wordActions` deja de filtrar por `kind`. `bilingual.py` llena el tag `T` por acepción. Seis tests
+nuevos.
+**Áreas.** `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/WordActions.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/MainActivity.kt`,
+`tools/packbuilder/sources/bilingual.py`, dos de test.
+**Arquitectura.** ✅ Cumple. `kind` sigue contestando *«en qué idioma están las definiciones»*;
+la capacidad de traducir se lee de `translations_to`, que es una clave aditiva y opcional.
+**Medido.**
+- **#1**: el filtro era `kind == PackKind.BILINGUAL`, y desde que el pack español traduce eso
+  dejó de ser cierto — es `MONOLINGUAL` y traduce, así que **la acción no aparecía nunca** sobre
+  un pack que sí traduce.
+- **#1 bis**: la acción además **desaparece cuando la entrada ya muestra las suyas**. Existía para
+  ir a buscar la palabra a otro diccionario; ahora se dibujan dentro de la ficha.
+- **#2**: el pack bilingüe tenía **206.727 filas de `trans` y CERO en `T`/`W`** — el que más
+  traducciones tiene del catálogo era el único que no podía mostrarlas. La atribución acá es
+  **estructural** (cada término sale de la glosa de esa acepción), como los sinónimos anidados de
+  D-124.
+**Qué salió mal.** Dos, y las dos las agarró un test.
+1. ⚠️ **Los dos canales necesitan formas distintas del mismo término, y no lo había visto.**
+   `translation_keys` indexa `to run` **y** `run` a propósito, porque nadie teclea la preposición
+   al buscar. Para mostrar, las dos juntas son ruido: la lista salía *"to run, run, to jog, jog"*
+   en 234 dp. Se separó con `for_search`: la ficha se queda con la forma que la fuente escribió.
+2. ⚠️ **El punto #3 del corte estaba mal: ya estaba cerrado.** `bundlePacks` prefiere los núcleos
+   desde D-176 y cae al toy sólo si faltan. Verificado corriendo la tarea: en `assets/` quedan
+   `en-core.db` (12,5 MB) y `es-core.db` (5,0 MB). **El error fue leer una línea suelta del
+   `build.gradle.kts` (`val toy = ...`) en vez del cuerpo de la tarea** — el mismo error de
+   método que este repo persigue en los packs: contar en vez de leer.
+**Qué quedó sin hacer.**
+- Los puntos **#4, #5 y #6** del corte.
+- **Los packs reales siguen sin reconstruirse**: el canal de lectura del bilingüe está en el
+  código y todavía no en el `.db`.
+
 ## 2026-09-21 — El plegado de glosa entra, decidido con el número sobre la mesa
 **Qué.** `payload.fold_gloss` y su espejo `PayloadCodec.foldGloss`: el código de acepción y la
 clave de fusión pasan por el mismo plegado ligero. Ocho tests nuevos en Python, tres en Kotlin.

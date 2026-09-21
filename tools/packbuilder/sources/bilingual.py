@@ -54,11 +54,17 @@ _BORDES = " \t.,;:\"'()[]\u201c\u201d\u2018\u2019"
 _SEPARATORS = re.compile(r"[,;]")
 
 
-def translation_keys(gloss):
-    """The English terms a reader could search to reach this entry. Empty if the gloss describes.
+def translation_keys(gloss, for_search=True):
+    """The English terms of a gloss. Empty if the gloss describes rather than translates.
 
     The keys are returned raw: `PackBuilder` normalises them, the same way it normalises forms, so
     that `trans.norm` is computed by exactly the function that indexes everything else.
+
+    ⚠️ **`for_search` separa los dos canales, y la diferencia se vio al escribir la ficha.** Para
+    BUSCAR hace falta indexar `to run` **y** `run`, porque nadie teclea la preposicion; para
+    MOSTRAR, las dos juntas son ruido -- la lista quedaba *"to run, run, to jog, jog"* en una
+    pantalla de 234 dp. El canal de lectura se queda con la forma que la fuente escribio, que
+    ademas es la forma de diccionario.
     """
     if not gloss or not gloss.strip():
         return []
@@ -76,7 +82,7 @@ def translation_keys(gloss):
         # "to run" is how the dump writes an infinitive; somebody looking up the translation types
         # "run". Both are indexed, and the bare form goes in as its own key.
         candidatos = [termino]
-        if len(palabras) == 2 and palabras[0].lower() == "to":
+        if for_search and len(palabras) == 2 and palabras[0].lower() == "to":
             candidatos.append(palabras[1])
         for candidato in candidatos:
             if candidato and candidato not in salida:
@@ -98,6 +104,18 @@ def records(path, lang="es", politica=None):
     for record in kaikki.records(path, lang=lang, politica=politica):
         claves = []
         for sense in record.senses:
+            propias = translation_keys(sense.get("gloss"), for_search=False)
+            # ⚠️ **El canal de LECTURA, y hasta hoy estas claves se calculaban y se tiraban.**
+            # `record.translations` alimenta la tabla `trans`, que `PackBuilder` normaliza y D-014
+            # tokeniza: sirve para buscar y no para leer. Medido sobre el pack real, eran
+            # **206.727 filas de `trans` y CERO en `T`/`W`** -- el pack con mas traducciones del
+            # catalogo era el unico que no podia mostrarlas.
+            #
+            # ⚠️ **La atribucion aca es ESTRUCTURAL**, como los sinonimos anidados de D-124: cada
+            # termino sale de la glosa de ESA acepcion, asi que no hay nada que adivinar y el
+            # canal de nivel de entrada queda vacio por construccion.
+            sense["translations"] = propias
+            # El canal de busqueda lleva ADEMAS las formas derivadas (`run` de `to run`).
             for clave in translation_keys(sense.get("gloss")):
                 if clave not in claves:
                     claves.append(clave)

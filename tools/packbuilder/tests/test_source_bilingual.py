@@ -6,7 +6,24 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import json  # noqa: E402
+import tempfile  # noqa: E402
+
 from sources import bilingual  # noqa: E402
+
+
+def _bilingue(word, senses):
+    """Un registro bilingue real, pasando por `bilingual.records` y su JSONL."""
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
+    with handle:
+        handle.write(json.dumps({
+            "word": word, "pos": "verb", "lang_code": "es", "lang": "Spanish",
+            "pos_title": "Verb", "senses": senses}, ensure_ascii=False) + "\n")
+    try:
+        return next(iter(bilingual.records(handle.name, lang="es")))
+    finally:
+        os.unlink(handle.name)
 
 
 class TranslationKeysTest(unittest.TestCase):
@@ -86,3 +103,48 @@ class TranslationKeysTest(unittest.TestCase):
     def test_a_term_that_is_too_long_is_dropped(self):
         # A four-word "term" is a description with commas, not a translation.
         self.assertEqual([], bilingual.translation_keys("a thing that goes fast"))
+
+
+class CanalDeLecturaTest(unittest.TestCase):
+    """El pack bilingue tambien LLENA el payload, no solo el indice de busqueda.
+
+    ⚠️ **Hasta hoy calculaba las claves limpias y las tiraba**: `record.translations` alimenta la
+    tabla `trans` --que `PackBuilder` normaliza y D-014 tokeniza-- asi que lo que quedaba en el
+    pack servia para buscar y no para leer. Medido: **206.727 filas de `trans` y CERO en `T`/`W`**,
+    o sea el pack con mas traducciones del catalogo era el unico que no podia mostrarlas.
+
+    ⚠️ **La atribucion aca es ESTRUCTURAL, como los sinonimos anidados de D-124**: cada termino
+    sale de la glosa de **esa** acepcion, asi que no hay nada que adivinar y nada cae en el canal
+    de nivel de entrada.
+    """
+
+    def test_cada_acepcion_se_queda_con_los_terminos_de_SU_glosa(self):
+        record = _bilingue("correr", [
+            {"glosses": ["to run, to jog"], "sense_index": "1"},
+            {"glosses": ["to flow"], "sense_index": "2"},
+        ])
+        # ⚠️ La ficha muestra la forma que la fuente escribio --`to run`-- y NO la derivada.
+        # Las dos juntas ("to run, run, to jog, jog") son ruido en 234 dp; el canal de busqueda
+        # si lleva las dos, porque nadie teclea la preposicion.
+        self.assertEqual(["to run", "to jog"], record.senses[0]["translations"])
+        self.assertEqual(["to flow"], record.senses[1]["translations"])
+
+    def test_el_canal_de_busqueda_sigue_llevando_todo(self):
+        record = _bilingue("correr", [
+            {"glosses": ["to run, to jog"], "sense_index": "1"},
+            {"glosses": ["to flow"], "sense_index": "2"},
+        ])
+        for clave in ("to run", "run", "to jog", "jog", "to flow", "flow"):
+            self.assertIn(clave, record.translations)
+
+    def test_una_glosa_que_DESCRIBE_no_deja_termino_en_la_ficha(self):
+        """La misma regla conservadora del modulo: una descripcion no es una traduccion."""
+        record = _bilingue("abada", [
+            {"glosses": ["a large mammal of the family Rhinocerotidae"], "sense_index": "1"},
+        ])
+        self.assertEqual([], record.senses[0]["translations"])
+
+    def test_nada_cae_en_el_canal_de_nivel_de_entrada(self):
+        """Todo termino viene de una acepcion concreta, asi que `W` queda vacio por construccion."""
+        record = _bilingue("casa", [{"glosses": ["house"], "sense_index": "1"}])
+        self.assertEqual((), record.word_translations)

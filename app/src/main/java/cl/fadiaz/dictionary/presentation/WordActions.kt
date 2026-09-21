@@ -51,13 +51,23 @@ internal fun wordActions(
 /**
  * The pack that can translate this entry, or null.
  *
- * Bilingual and different from the one being read. `PackKind.BILINGUAL` is the right signal and
- * not the name or the language: it is the only thing that forces `lang_dst` to be declared (see
- * `PackMetadata.init`).
+ * ⚠️ **Se pregunta por la CAPACIDAD y no por `kind`, y el cambio no es cosmético.** Antes el
+ * filtro era `kind == PackKind.BILINGUAL`, y desde que el pack español lee la tabla de
+ * traducciones del Wikcionario eso dejó de ser cierto: es `MONOLINGUAL` --sus definiciones son en
+ * español-- y **traduce al inglés**. Con el filtro viejo la acción **no aparecía nunca** sobre un
+ * pack que sí traduce. `kind` contesta en qué idioma están las definiciones; `translationsTo`
+ * contesta si traduce.
+ *
+ * ⚠️ **Y no se ofrece si la entrada ya muestra las suyas.** La acción existía para ir a buscar la
+ * palabra a OTRO diccionario; ahora las traducciones se dibujan dentro de la ficha, así que
+ * ofrecerla además mandaría al lector a otra pantalla por lo que ya está viendo.
  */
 internal fun translationPack(
     opened: List<PackHandle>,
     packOfTheEntry: String,
-): PackHandle.Open? =
-    opened.filterIsInstance<PackHandle.Open>()
-        .firstOrNull { it.packId != packOfTheEntry && it.metadata.kind == PackKind.BILINGUAL }
+    entryHasTranslations: Boolean,
+): PackHandle.Open? {
+    if (entryHasTranslations) return null
+    return opened.filterIsInstance<PackHandle.Open>()
+        .firstOrNull { it.packId != packOfTheEntry && it.metadata.translationsTo != null }
+}

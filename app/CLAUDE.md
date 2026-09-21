@@ -67,7 +67,7 @@ on-device counts. **What the pair fixes is the relationship**: 22 % more screen 
 more row, and a change that helps the project's watch while hurting a generic one now fails.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 287 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 289 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break

@@ -290,7 +290,14 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                         Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
                                     )
                                 },
-                                translationPack = translationPack(state.available, packId),
+                                translationPack = translationPack(
+                                    state.available,
+                                    packId,
+                                    // La ficha ya las dibuja: si esta entrada trae las suyas, la
+                                    // acción mandaría a otra pantalla por lo que ya se ve.
+                                    entryHasTranslations = entry.senses.any { it.translations.isNotEmpty() } ||
+                                        entry.wordTranslations.isNotEmpty(),
+                                ),
                                 onViewTranslation = { other ->
                                     // The same word in the other dictionary: resolved through
                                     // `norm`, which is the key it was indexed by, and opened IN
