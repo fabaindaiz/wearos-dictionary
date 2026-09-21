@@ -340,13 +340,24 @@ def verify(path):
     senses_total = 0
     failures_before = len(report.failures)
     for row in db.execute(
-        "SELECT id, headword, payload FROM entry ORDER BY id LIMIT ?", (PAYLOAD_SAMPLE,)
+        "SELECT id, uid, headword, payload FROM entry ORDER BY id LIMIT ?", (PAYLOAD_SAMPLE,)
     ):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
             _pos, senses, _palabra = payload_codec.parse(text)
             if not senses:
                 report.check(False, "la entrada %s quedo sin acepciones" % row["headword"])
+            # ⚠️ **Toda acepcion tiene que ser alcanzable por `(idioma, palabra, acepcion)`.**
+            # El codigo sale de `(uid, glosa)`, asi que dos acepciones de la misma entrada con la
+            # glosa identica comparten codigo y una queda **inalcanzable** -- un enlace escrito
+            # contra ella lleva a la otra, sin error y sin log. `payload.merge_duplicate_senses`
+            # lo impide al construir; esto lo comprueba sobre los bytes, que es lo unico que vale
+            # para un pack que no construimos nosotros.
+            codigos = {payload_codec.sense_code(row["uid"], s["gloss"]) for s in senses}
+            if len(codigos) != len(senses):
+                report.check(False,
+                             "la entrada %s tiene acepciones que comparten codigo: %d acepciones, "
+                             "%d codigos" % (row["headword"], len(senses), len(codigos)))
             senses_total += len(senses)
             decoded += 1
         except Exception as error:  # noqa: BLE001 - se reporta, no se propaga

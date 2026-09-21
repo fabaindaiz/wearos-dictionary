@@ -177,6 +177,50 @@ def _sanitize_item(value):
     return limpio + REF_SEPARATOR + apunta if apunta else limpio
 
 
+# Los campos de una acepcion que son listas, en el orden en que se escriben.
+_LISTAS = ("examples", "translations", "synonyms", "antonyms", "related")
+
+
+def merge_duplicate_senses(senses):
+    """Funde las acepciones que comparten glosa, conservando el orden y los adjuntos de todas.
+
+    ⚠️ **Es lo que hace cierta la propiedad "toda acepcion es alcanzable por `(idioma, palabra,
+    acepcion)`".** El codigo de una acepcion sale de `(uid, glosa)`, asi que dos acepciones de la
+    misma entrada con la glosa identica **comparten codigo** y una de las dos queda inalcanzable.
+    Medido sobre los seis packs reales: **350 acepciones de 1,7 millones** caian en ese caso --
+    todas glosas que la fuente escribe dos veces (`y` → *and*, cinco veces).
+
+    ⚠️ **Se fusionan y no se descartan, y eso lo decidio una medicion**: de 12 grupos duplicados
+    inspeccionados, **5 traian adjuntos distintos** -- `them` repite *"Used as the direct object
+    of a verb"* con **ejemplos diferentes**. Descartar la copia habria perdido ese dato en
+    silencio, que es justo el modo de falla que este repo no acepta.
+
+    No se vuelven a topear los adjuntos. El desborde esta acotado y medido: son ~5 acepciones en
+    todo el corpus las que quedan con un ejemplo de mas, contra 1,7 millones.
+
+    Vive aca y no en cada fuente porque `render` es el **unico** paso por el que pasan todos los
+    packs: puesto en `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual`, y la
+    propiedad seria cierta sólo en los packs cuyo autor se acordo.
+    """
+    salida = []
+    por_glosa = {}
+    for sense in senses:
+        gloss = sense.get("gloss", "")
+        previa = por_glosa.get(gloss)
+        if previa is None:
+            copia = dict(sense)
+            for campo in _LISTAS:
+                copia[campo] = list(sense.get(campo, ()))
+            por_glosa[gloss] = copia
+            salida.append(copia)
+            continue
+        for campo in _LISTAS:
+            for valor in sense.get(campo, ()):
+                if valor not in previa[campo]:
+                    previa[campo].append(valor)
+    return salida
+
+
 def render(part_of_speech, senses, word_translations=()):
     """Serializa a texto. `senses` es una lista de dicts con gloss/examples/translations.
 
@@ -188,6 +232,7 @@ def render(part_of_speech, senses, word_translations=()):
         pos = sanitize(part_of_speech)
         if pos:
             lines.append(TAG_PART_OF_SPEECH + "\t" + pos)
+    senses = merge_duplicate_senses(senses)
     for translation in word_translations:
         value = _sanitize_item(translation)
         if value:
