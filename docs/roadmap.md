@@ -1452,6 +1452,54 @@ So the recommendation flipped, and **one pack does serve both directions** — s
 Spot-checked against the real pack: `hammer → martillo`, `pepper → ají, pimentón, pimiento`,
 `scaffold → andamio, cadalso`.
 
+#### How complete it is, and which direction the build favours
+
+Measured 2026-09-21 against the real pack, using the most-used words of each language as the test
+set — the same Tatoeba frequency signal that chose the core vocabularies.
+
+| Words tested | **ES→EN** (headword or inflected form) | **EN→ES** (through `trans`) |
+|---|---|---|
+| top 1,000 | **100.0 %** | 92.7 % |
+| top 3,000 | **99.9 %** | 85.9 % |
+| top 8,000 | **99.8 %** | 78.1 % |
+
+⚠️ **Forward is effectively complete; reverse is good and clearly behind — and the gap is
+structural, not accidental.** The Spanish side has the `form` table, so every inflection reaches
+its lemma systematically. The English side has only the derived keys, so an English inflection is
+found **only if some Spanish gloss happens to spell it**:
+
+| | found | | found |
+|---|---|---|---|
+| `dogs` | ✅ | `ran` | ❌ |
+| `running` | ✅ | `went` | ❌ |
+| `houses` | ✅ | `bigger` | ❌ |
+| `children` | ✅ | | |
+
+The regulars survive by luck and the irregulars do not — which is the worst shape for a gap,
+because it is invisible until you hit it.
+
+⚠️ **A second asymmetry, and it is the one no amount of coverage fixes**: the two directions do not
+return the same *kind* of answer. ES→EN opens an **entry** with its senses; EN→ES returns a **list
+of Spanish lemmas** (2.3 per key on average) and there is no English entry to open, because the
+pack contains none. It answers *"which Spanish words mean this"*, never *"what does this English
+word mean"*.
+
+**And against the monolingual pack, the entries themselves are thinner** — same 4,000 best-ranked
+entries of each:
+
+| | entries | senses/entry | only one sense | senses with an example |
+|---|---|---|---|---|
+| bilingual ES→EN | 123,979 | **2.49** | **31.6 %** | 22.0 % |
+| monolingual ES | 152,281 | **3.63** | 8.7 % | 21.6 % |
+
+That is the source, not the build: the English Wiktionary describes Spanish words more briefly than
+the Spanish Wiktionary does. **It is a translation dictionary, not a Spanish dictionary**, and the
+numbers say to keep both rather than treat this one as a replacement.
+
+**What would close the reverse gap**, in order of cost: an English inflection table — the same
+shape as `form`, built from the English monolingual pack's own forms, which is already downloaded;
+and then, only if the *kind* of answer matters, a second pack authored EN→ES.
+
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 
 Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
