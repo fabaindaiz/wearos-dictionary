@@ -347,6 +347,40 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+### Qué falta del pack de idiomas — auditado 2026-09-21
+
+Auditado contra el pack de muestra **realmente construido**, no contra el diseño:
+
+```
+traducciones EN disponibles en el dump para sus lemas : 2947
+   con sense_index : 1836 (62,3 %)
+   SIN sense_index : 1111 (37,7 %)   <- no tienen donde vivir
+emitidas por el pack                                  : 1921 (65,2 %)
+lemas con traduccion disponible que muestran alguna   : 1007 de 1944 (51,8 %)
+tabla `trans` (canal de BUSQUEDA)                     : 0 filas
+```
+
+⚠️ **`construir` tiene 16 traducciones en el dump y el pack muestra cero.** También
+`comprender` (7), `comenzar` (6), `atrapar` (8). No es cobertura de la fuente: es que **no hay
+canal donde ponerlas**.
+
+| # | pedido | estado |
+|---|---|---|
+| 1 | completar con otras fuentes | ⚠️ barrido hecho, ninguna externa usable — pero se usa el **65 %** de la propia |
+| 2 | cómo se **consulta** e integra | ⚠️ integra sí; **consulta no**: `trans` = 0 filas |
+| 3 | tablas en ambos sentidos | ❌ medido (1,84 MB), sin construir |
+| 4 | mostrar palabras sin definición | ❌ diseñado (0 MB), sin construir |
+| 5 | sección de traducciones en la ficha | ✅ **construido** |
+| 6 | traducciones ↔ acepciones entre idiomas | ✅ dentro de un idioma; entre idiomas medido y descartado |
+| 7 | **dos modos: palabra y acepción** | ❌ sólo el de acepción |
+| 8 | degradar a modo lista | ❌ depende de 7 |
+| 9 | enlace inequívoco palabra+acepción | ❌ diseñado, sin construir |
+| 10 | enforcement | ❌ diseñado, sin construir |
+
+**El #7 desbloquea 1, 2, 7 y 8 a la vez**, y su costo está medido: un tag nuevo en el payload
+—aditivo, sin subir `CODEC_ID` por D-119— más **22 llamadores de `parse()` en Python** (19 en
+tests) y el `Body` de Kotlin, que gana un campo con default.
+
 ### ✅ Traducciones por acepción en el pack español — CONSTRUIDO 2026-09-21
 
 Lo que las secciones de abajo midieron, construido. `kaikki.py` lee la tabla de traducciones que
