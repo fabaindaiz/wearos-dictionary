@@ -25,6 +25,31 @@ package cl.fadiaz.dictionary.core
  * already serialises each pack's queries onto its own single-threaded dispatcher (D-050), so
  * `async` would buy little and would cost `:dict-core` a dependency it does not have today.
  */
+/**
+ * Hasta donde llega una busqueda: un idioma, o todos los instalados.
+ *
+ * ⚠️ **[STRICT] es el defecto y eso REVIERTE lo que media D-172.** El pedido fue *«que en los
+ * resultados filtrados por idioma solo aparezcan resultados de ese idioma»*, con la reversion
+ * declarada: *«esto va en contra de lo que habia decidido antes pero creo que es mejor»*.
+ *
+ * **El costo es el numero que justificaba el respaldo**, y no cambio al revertirlo: de 400 lemas
+ * ingleses comunes, **321 (80 %)** lo disparaban con español activo. Esos 321 ahora no aparecen
+ * hasta cambiar de idioma. Se acepta porque una lista que mezcla idiomas sin pedirlo es peor de
+ * leer que una lista corta.
+ *
+ * **Por que un enum y no borrar el respaldo.** El umbral de `needsFallback` se midio sobre los
+ * packs reales y esa medicion no se puede reconstruir leyendo el codigo. Como valor, el "modo
+ * auto" que el pedido nombra para mas adelante es cambiar [STRICT] por [FALLBACK] en un sitio;
+ * borrado, seria volver a derivar el umbral.
+ */
+enum class LanguageScope {
+    /** Solo el idioma activo contesta. El defecto. */
+    STRICT,
+
+    /** Los otros idiomas contestan cuando el activo no tuvo nada parecido. El "modo auto". */
+    FALLBACK,
+}
+
 class SearchRepository(
     private val packs: List<DictionarySource>,
     /**
@@ -36,6 +61,12 @@ class SearchRepository(
      * [needsFallback].
      */
     private val otherLanguages: List<DictionarySource> = emptyList(),
+    /**
+     * Si los packs de [otherLanguages] pueden contestar. Por defecto **no**.
+     *
+     * Ver [LanguageScope]: el respaldo no se borro, se volvio un valor.
+     */
+    private val scope: LanguageScope = LanguageScope.STRICT,
 ) {
 
     /** Los ids del idioma activo, para el desempate de [orderFor]. */
@@ -85,6 +116,7 @@ class SearchRepository(
      * verdad en el pack español**, así que no llegar al respaldo es la respuesta correcta.
      */
     private fun needsFallback(query: String, propias: List<Suggestion>): Boolean {
+        if (scope == LanguageScope.STRICT) return false
         if (otherLanguages.isEmpty() || query.isEmpty()) return false
         return propias.none {
             query.equals(it.headword, ignoreCase = true) || coverageBand(query, it.headword) == 0

@@ -297,6 +297,30 @@ class SearchRepositoryTest {
     // ---------------------------------------------------------------- respaldo entre idiomas
 
     @Test
+    fun `con el alcance estricto los otros idiomas no contestan NUNCA`() = runTest {
+        // ⚠️ **Esto REVIERTE el respaldo por defecto, y el usuario lo pidio con el precio
+        // sobre la mesa**: *«que en los resultados filtrados por idioma solo aparezcan
+        // resultados de ese idioma, esto va en contra de lo que habia decidido antes»*.
+        //
+        // El costo esta medido y es el mismo numero que justificaba el respaldo: de **400 lemas
+        // ingleses comunes, 321 (80 %)** lo disparaban. Con [LanguageScope.STRICT] esos 321
+        // dejan de aparecer mientras el idioma activo sea el otro.
+        //
+        // No se borra la capacidad: queda como [LanguageScope.FALLBACK], que es el "modo auto"
+        // que el pedido nombra para mas adelante. Borrarla habria obligado a re-derivar el
+        // umbral y su medicion.
+        val ingles = FakePack("en", listOf(row("en", "wardrobe")), lang = "en")
+        val repo = SearchRepository(
+            listOf(FakePack("es", listOf(row("es", "guardarropa")))),
+            otherLanguages = listOf(ingles),
+            scope = LanguageScope.STRICT,
+        )
+        val got = repo.suggest("wardrobe").map { it.headword }
+        assertTrue("wardrobe" !in got, "la respuesta del otro idioma NO puede aparecer: $got")
+        assertEquals(0, ingles.consultas, "el pack del otro idioma ni se toco")
+    }
+
+    @Test
     fun `con una buena respuesta en el idioma activo NO se consulta a los demas`() = runTest {
         // ⚠️ **Lo que se mide es lo que NO pregunta.** El punto medio pedido era *«que no se
         // sobrecargue la busqueda en varios packs innecesariamente»*: el caso normal no puede
@@ -320,6 +344,7 @@ class SearchRepositoryTest {
         val repo = SearchRepository(
             listOf(FakePack("es", listOf(row("es", "guardarropa")))),
             otherLanguages = listOf(FakePack("en", listOf(row("en", "wardrobe")), lang = "en")),
+            scope = LanguageScope.FALLBACK,
         )
         val got = repo.suggest("wardrobe").map { it.headword }
         assertTrue("wardrobe" in got, "la respuesta correcta tiene que aparecer: $got")
@@ -333,6 +358,7 @@ class SearchRepositoryTest {
         val repo = SearchRepository(
             listOf(FakePack("es", listOf(row("es", "guardarropa", kind = MatchKind.FUZZY)))),
             otherLanguages = listOf(FakePack("en", listOf(row("en", "wardrobe")), lang = "en")),
+            scope = LanguageScope.FALLBACK,
         )
         assertEquals("wardrobe", repo.suggest("wardrobe").first().headword)
     }
@@ -345,6 +371,7 @@ class SearchRepositoryTest {
             listOf(FakePack("es", listOf(row("es", "faro", score = 100)))),
             otherLanguages = listOf(FakePack("en", listOf(row("en", "farol", score = 100)),
                 lang = "en")),
+            scope = LanguageScope.FALLBACK,
         )
         assertEquals("faro", repo.suggest("far").first().headword)
     }
