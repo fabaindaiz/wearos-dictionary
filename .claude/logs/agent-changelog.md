@@ -26,6 +26,53 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — La sección de traducciones: la pantalla ya sabe, el pack guarda la forma equivocada
+**Qué.** Nada de código. Se diseñó la sección de traducciones dentro de la ficha —complementaria a
+las definiciones, no un modo aparte— contra el código real de `EntryScreen`. Documentado en
+`docs/roadmap.md` con el orden de cuatro pasos.
+**Áreas.** `docs/roadmap.md` (§A translations section inside the entry).
+**Por qué.** El pedido: *«busco una palabra y si la encuentro aparece en la lista de entradas. Una
+vez dentro de esa entrada quiero que me aparezca junto con la sección de definiciones […] una
+sección de traducciones presentando la info desde la db de traducciones de la mejor forma posible
+según como se organiza ahora el repo»*.
+**Arquitectura.** ✅ Cumple. Nada construido. El paso 1 es una cuarta llamada a `TermList` dentro
+de `SenseBlock`, que es el patrón que ya usan sinónimos, antónimos y relacionadas.
+**Medido.**
+- **La estructura ya está entera y desconectada**: `Sense.translations` en `Model.kt`, tag `T` en
+  `payload.py`, parseo en `PayloadCodec` — y `SenseBlock` **no lo renderiza**. Vacío en los tres
+  packs reales.
+- ⚠️ **Las dos fuentes del pack bilingüe son la forma equivocada para mostrar**, y lo destapó leer
+  entradas, no contar filas:
+  - sus **glosas son definiciones**: `tiempo` → *"weather (the short-term state of the atmosphere
+    at a specific time and place, including the temperature, relative humidity, cloud cover,
+    precipitation, wind, etc)"*.
+  - su **`trans` es índice de búsqueda**: `tiempo` → `cloud, cloud cover, cover, humidity, long,
+    long time, precipitation, relative, relative humidity, tense, time, wind`. `cover`, `relative`
+    y `long` son artefactos de la tokenización de D-014, y la forma va normalizada (`U-turn` se
+    guarda `u turn`).
+  - ⚠️ **La forma de display existe en tiempo de build y se tira**: `bilingual.py` lo dice —*"the
+    keys are returned raw: `PackBuilder` normalises them"*—. Llenar `T` con esas claves crudas es
+    el arreglo.
+- **El join por uid es más débil que su titular**: sobre las **3.000 entradas de mejor rank** del
+  pack español —las que de verdad se abren— sólo **1.635 (54,5 %)** tienen gemelo en el bilingüe.
+  `casa`, `perro`, `libro` y `tiempo` sí; **`correr` y `mano` no**. Términos por entrada cuando
+  hay gemelo: mediana 4, p90 10, máximo 53.
+- **Las traducciones no pueden ser tocables sin tocar un límite**: `resolveIn` es
+  `(Set<String>) -> Map<String, Long>` de **un** pack y `onOpenWord` navega dentro de ese mismo
+  pack a propósito (D-080). Un término inglés no resuelve contra un pack español. Además
+  `MAX_PALABRAS_POR_CONSULTA = 64` ya obliga a dos consultas y los términos van en la segunda:
+  sumar traducciones la empuja al tope, donde **recorta en silencio**.
+**Qué salió mal.** Una ruta muerta recorrida entera antes de descartarla: medí primero la sección
+alimentada con las **glosas** del bilingüe y recién al imprimir `tiempo` se vio que son
+definiciones. Corregí a `trans` y salió el segundo defecto (tokenización). **Las dos veces el
+conteo se veía bien** —1 término para `casa`, 12 para `tiempo`— y sólo leerlos lo delató.
+**Qué quedó sin hacer.**
+- **Nada implementado.** Orden propuesto: (1) cuarta `TermList`, (2) llenar `T` del monolingüe
+  desde `es.jsonl`, (3) llenar `T` del bilingüe con las claves crudas, (4) recién ahí el join.
+- **Sin decidir**: si `links` pasa a llevar `packId` para que las traducciones sean tocables. Es
+  tocar el límite que D-080 puso; no se propone a la ligera.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — La dirección inversa ya existe; el SQL tira la clave que la hace visible
 **Qué.** Nada de código. Se contestó si el pack de traducciones puede tener tablas en **los dos
 sentidos como feature del formato**, y si una palabra se puede mostrar sin tener definición.

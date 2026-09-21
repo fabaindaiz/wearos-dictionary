@@ -1823,6 +1823,104 @@ and checked by `verify_pack.py`, the same way `sources` must carry a licence per
 
 That is a decision, not a measurement, and it is not taken here.
 
+### A translations section inside the entry — designed 2026-09-21
+
+The product shape, stated: *translation mode is **complementary** to the structure the app already
+has. Search a word, it appears in the results list as it does now; open it, and alongside the
+definitions section (when there is one) there is a **translations section**, fed from the
+translations DB, presented the way this repo is organised.*
+
+The screen already knows how to do this. What is missing is the data, and the reason it is missing
+is sharper than "nobody built it".
+
+#### The shape is already written: a fourth `TermList`
+
+`SenseBlock` renders, per sense: the gloss, the examples, then **three identical lists** built by
+the same helper — `TermList(title, terms, links, onOpenWord)` — for synonyms, antonyms and related
+(D-126, D-132, D-159). A translations section is **the fourth call**, in the same place, with the
+same two-line cost and the same rule that the category word is never optional because the lists
+look alike.
+
+And its data has a home: **`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag
+`T`, `PayloadCodec` parses it — and `SenseBlock` does not render it.** The field is empty in all
+three real packs, so today the call would draw nothing.
+
+⚠️ **That is the whole feature: one `TermList` call and a build that fills `T`.** No new screen,
+no new navigation, no new module.
+
+#### ⚠️ Why it cannot be read from the bilingual pack as it stands
+
+The obvious implementation — join by `uid` and show what the translations DB has — was tried
+against real entries, and **both of its two possible sources are the wrong shape for display**.
+
+**Its glosses are definitions, not terms.** In a bilingual pack the gloss *is* the English, so it
+looks like a translation list until you read one:
+
+```
+tiempo -> time · a while · period of time · tense ·
+          weather (the short-term state of the atmosphere at a specific time and place,
+          including the temperature, relative humidity, cloud cover, precipitation, wind, etc)
+```
+
+**Its `trans` table is a search index, not a reading list.** `bilingual.translation_keys` already
+does the cleaning — that is what the module is for — but then D-014 tokenizes every key into its
+words so that searching `run` finds `to run`, and `PackBuilder` stores the result of `norm()`:
+
+```
+tiempo -> cloud, cloud cover, cover, humidity, long, long time, precipitation,
+          relative, relative humidity, tense, time, wind
+```
+
+`cover`, `relative` and `long` are tokenizer artifacts of `cloud cover` and `relative humidity`,
+correct as search keys and wrong as a list someone reads. And the form is normalised: `U-turn` is
+stored `u turn`, `Úbeda` is `ubeda`.
+
+⚠️ **The pack has translations for searching and a place for translations for reading, and only
+the first is filled.** `bilingual.py` says it outright — *"the keys are returned raw: `PackBuilder`
+normalises them"* — so **the display form exists at build time and is discarded**. Filling `T` with
+the raw keys, before tokenization and before `norm()`, is the fix, and it is a build change on a
+field that already exists.
+
+#### ⚠️ And the `uid` join is weaker than its headline number
+
+Even with the display form solved, sourcing the section from another pack runs into this, measured
+over the **3,000 best-ranked entries of the Spanish pack** — the ones actually opened:
+
+| | |
+|---|---|
+| have a `uid` twin in the bilingual pack | **1,635 of 3,000 (54.5 %)** |
+| terms per entry when they do | median **4**, p90 **10**, max **53** |
+
+`casa`, `perro`, `libro` and `tiempo` have a twin. **`correr` and `mano` do not** — two of the
+commonest words in the language. A section that is absent on half the entries a reader opens, with
+no pattern they can learn, reads as broken rather than as partial.
+
+#### The order this implies
+
+1. **Render `Sense.translations` as a fourth `TermList`.** Pure `:app`, covered by the gate under
+   Robolectric like the other screens (D-110). Draws nothing until step 2, which is why it is
+   cheap to land first.
+2. **Fill `T` in the monolingual pack from `es.jsonl`'s own `translations` field** — the source
+   measured above: **94.5 % of the top 1,000**, 55 % of lemmas carrying `sense_index`, so the terms
+   attach to the **right sense** and the `uid` matches by construction. This is what makes the
+   section appear, with **one pack installed and no join at all**.
+3. **Fill `T` in the bilingual pack** with `translation_keys`' raw output, so that pack also reads
+   well on its own.
+4. **Only then** the cross-pack `uid` join, for the entries step 2 misses — and priced against the
+   54.5 % above, not against the 86.5 % headline.
+
+⚠️ **One thing steps 1–3 do not give: tappable translations.** `EntryScreen` resolves links with
+`resolveIn: suspend (Set<String>) -> Map<String, Long>`, which is **one pack's** `norm → entryId`,
+and `onOpenWord` navigates inside that same pack — deliberately, because sending it elsewhere is
+the D-080 bug. An English term cannot resolve against a Spanish pack, so translations render as
+**plain text** unless the link map grows a `packId`, which is a real change to a boundary that
+exists for a reason. Painting them as links without it would be a word painted tappable that
+navigates nowhere, which D-084 and `TermList`'s own docstring both forbid.
+
+Also note `MAX_PALABRAS_POR_CONSULTA = 64`: the link resolution already runs as **two** queries to
+stay under it, and terms are the second. Translations would join that query and push it toward the
+cap, where it **truncates silently**.
+
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 
 Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
