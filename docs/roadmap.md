@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **81 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **251 JVM
-de `:app`** y **23 checks** de auditoría estructural — **605 tests en total**. Los **41
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **259 JVM
+de `:app`** y **24 checks** de auditoría estructural — **614 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1152,24 +1152,34 @@ número de antes para justificarse.
 
 ### O-2. R8 y baseline profiles
 
-**Estado.** **Medido el 2026-09-20, y el número es mucho más grande de lo que esta sección
-suponía.** R8 sigue apagado por decisión y no por herencia (D-087); lo que cambió es que ahora se
-sabe cuánto vale encenderlo.
+**Estado.** ✅ **R8 ENCENDIDO** (2026-09-20, D-163). Queda pendiente sólo la verificación en
+dispositivo, que es lo que O-2 siempre pidió, y los baseline profiles, que necesitan el reloj.
 
 | | APK | dex | libs nativas |
 |---|---|---|---|
-| Hoy, R8 apagado | **33,0 MB** | **29,5 MB** | 2,4 MB |
-| R8 encendido | **5,5 MB** | **2,7 MB** | 2,4 MB |
+| Antes | **33,0 MB** | **29,5 MB** | 2,4 MB |
+| Ahora | **5,47 MB** | **2,70 MB** | 2,44 MB |
 
 **El dex baja un 91 %**, y compila **sin una sola regla de keep**. Se comprobó además que
 sobreviven las tres clases nombradas en `AndroidManifest.xml` —las dos de tiles y `MainActivity`—
 y el driver JNI de SQLite, leyendo las cadenas del dex encogido.
 
-⚠️ **Eso es un hecho sobre un archivo, no sobre una app que funcione.** Leer nombres de clase del
-dex es evidencia más débil que lanzarlo, y el riesgo que O-2 siempre nombró —código que sólo
-alcanza la reflexión, y que sólo falla en release— no cambió. La medición mueve la prioridad, no
-el gate: sigue atada a la comprobación en dispositivo, y los dos `TileService` son el borde
-filoso, porque `app/CLAUDE.md` ya tiene escrito que romperlos no da error de compilación ni test.
+⚠️ **Eso es un hecho sobre un archivo, no sobre una app que funcione.** Se comprobó con
+`aapt2 dump xmltree` que el manifest del release conserva los tres nombres de componente y que el
+dex encogido los contiene, pero leer nombres de clase es evidencia más débil que lanzarlo. **El
+riesgo que O-2 siempre nombró no cambió**, y los dos `TileService` son el borde filoso porque
+`app/CLAUDE.md` ya tiene escrito que romperlos no da error de compilación ni test.
+
+**Lo que falta, y necesita el reloj conectado:**
+
+1. **Instalar el release con R8 y ejercitar todas las superficies** — búsqueda, ficha, los dos
+   tiles, ajustes, borrado de packs. Es el gate que esta sección siempre tuvo.
+2. **Generar los baseline profiles.** Requieren Macrobenchmark, que a su vez requiere un build
+   type minificado y no-debuggable; AGP 9 expone además `optimization { baselineProfile { } }`.
+   Números oficiales: ~30 % de arranque, y entre 15 y 30 % más con startup profiles.
+
+⚠️ **Y hace falta una keystore para que el release se pueda instalar** (D-086). La genera el
+humano, nunca el agente: `./gradlew :app:releasePrecheck` imprime el `keytool` exacto.
 
 **Por qué importa para batería y no sólo para tamaño**: menos dex es menos carga de clases, menos
 memoria y menos JIT en **cada arranque del proceso**, y en esta app cada arranque es alguien

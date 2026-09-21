@@ -26,6 +26,84 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — R8 encendido y el arranque baja 85 %: la build que va al reloj
+
+**Qué.** D-163 (R8 encendido, con reglas mínimas y `check_r8_keep_rules`) y D-164 (un pack no se
+vuelve a probar si es el mismo archivo). §O-2 del roadmap cerrado salvo la verificación en
+dispositivo.
+
+**Áreas.** `app/build.gradle.kts`, `app/proguard-rules.pro` (nuevo) ·
+`data/PackVerification.kt` (nuevo) + su test · `data/PackStore.kt` ·
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt` (`verifyKeys`) + `PackKeySampleTest` (+2) ·
+`tools/audit_dictionary.py` · `docs/bateria.md`, `docs/roadmap.md`, `docs/decisions.md`,
+`README.md`, `app/CLAUDE.md`, `dict-data/CLAUDE.md`.
+
+**Por qué.** Pedido: *«quiero que la siguiente build que subamos al reloj incluya R8 y todos los
+cambios que podamos hacer ahora»*, y *«me interesa quitar validaciones innecesarias a los packs
+de idiomas desde el reloj cada vez que se inicia»*.
+
+**Arquitectura.** ✅ Cumple, y el segundo punto merece decirse con todas las letras: **yo había
+listado la validación como «debilita un guardrail y no es decisión de un agente»**. El usuario la
+pidió igual, así que se hizo — pero **no sacando la prueba, sino dejando de re-probar un archivo
+inmutable**. La huella lleva `NORM_VERSION`, así que un cambio en `norm()` o `fuzzy()` vuelve a
+probar todo; el interruptor apaga sólo la muestra; y el default de `verifyKeys` sigue siendo
+`true`. `PackVerification` es puro y **entró a la lista vigilada de D-072**.
+
+**Medido.**
+
+- **R8: APK 33,0 → 5,47 MB, dex 29,5 → 2,70 (−91 %).** Compila sin una sola regla; las tres que
+  hay son red, no requisito. Verificado con `aapt2 dump xmltree` que el manifest del release
+  conserva `MainActivity` y los dos `TileService`, y que el dex encogido los contiene.
+- **Arranque: 41,33 ms el primero tras instalar, 6,30 ms todos los demás (−85 %)** con los dos
+  packs reales. La muestra de 64 claves era 36 de esos 41,33.
+- **Locales: medido y descartado.** Pensaba filtrarlos; R8 ya deja `resources.arsc` en 0,21 MB y
+  no hay una sola carpeta `values-<locale>` de librería en el APK. No compraba nada.
+- Gate: **81 · 259 · 250 · 24 checks**, 43 instrumentados.
+
+**Qué salió mal.**
+
+- ⚠️ **El chequeo nuevo tenía un falso negativo, y sólo apareció al comprobar que fallara.**
+  `check_r8_keep_rules` buscaba `"proguard-rules.pro"` en todo `build.gradle.kts`, y **el
+  comentario del bloque `optimization` también lo nombra** — así que se podía desconectar el
+  `files.add(...)` y el chequeo seguía pasando. Es exactamente el error que
+  `check_no_hardcoded_translations` ya documentaba una capa más arriba, y la lección se repite:
+  **un chequeo que no se ve fallar no está comprobado**.
+- **El DSL de `keepRules` no es el que parece.** `files` es un `SetProperty<File>`, no una
+  `ConfigurableFileCollection`, así que `files.from(...)` no compila. Lo resolvió mirar el
+  `javap` de `com.android.build.api.dsl.KeepRules` en el jar de AGP, no adivinar.
+- **`check_test_counts` disparó siete veces de una** al agregar 10 tests. Funcionó como se
+  esperaba; se anota porque es la primera vez que el enforcer de ayer se gana el sueldo.
+- ⚠️ **Partí mal los commits y el worktree lo agarró.** Había separado «R8» de «el memo de
+  validación», y el de R8 salió **rojo**: se llevaba los conteos de documentos, pero los diez
+  tests que los hacen ciertos estaban en el otro. Intentar arreglarlo mostró que la partición era
+  falsa de raíz — `docs/decisions.md`, `docs/roadmap.md` y `tools/audit_dictionary.py` tienen
+  contenido de **los dos** cambios, así que no se pueden repartir por archivo. **Quedó un solo
+  commit, verde, en vez de dos de los cuales uno no lo era.** La regla del repo es que cada commit
+  quede verde por sí solo; partir por partir la rompe.
+- **`check_r8_keep_rules` fallaba si no existía el `.pro`, aunque R8 estuviera apagado.** O sea
+  que el chequeo habría **impedido apagar R8**, que es justo lo que uno querría hacer si R8
+  rompiera algo en el reloj. Ahora mira el estado de R8 primero. Lo encontró el intento de partir
+  los commits, no una prueba.
+
+**Qué quedó sin hacer.**
+
+- ⚠️ **El release NO se puede instalar todavía: sale sin firmar.** Hace falta una keystore
+  (D-086) y **la genera el humano, nunca el agente**. `./gradlew :app:releasePrecheck` imprime el
+  `keytool` exacto. Es el único bloqueo entre esta build y el reloj.
+- **R8 está medido, no corrido.** 5,47 MB es un hecho sobre un archivo. Que la app funcione es lo
+  que O-2 siempre dijo que necesita dispositivo, y los dos tiles son el borde filoso.
+- **El cableado de `PackStore.openFile` no lo cubre el gate**: la decisión pura sí, el
+  interruptor sí (instrumentado), pero que `PackStore` consulte el memo necesita `Context` **y**
+  un pack real.
+- **Los dos tests instrumentados nuevos no corrieron**: no hay reloj.
+- **Baseline profiles**: necesitan Macrobenchmark y un build type minificado no-debuggable. AGP 9
+  expone `optimization { baselineProfile { } }`. Es lo primero a hacer cuando el reloj esté.
+- **El respaldo automático entre idiomas sigue sin construir**, y es el ítem 4 del plan de
+  batería — segundos de pantalla, que es la moneda cara. **No se construyó a propósito**: cambia
+  el comportamiento visible de la búsqueda y eso se pide, no se asume.
+
+---
+
 ## 2026-09-20 — R8 vale 27,5 MB, y el plan de batería se ordena por segundos de pantalla
 
 **Qué.** Investigación contra fuentes primarias, diagnóstico completo y plan de acción, todo

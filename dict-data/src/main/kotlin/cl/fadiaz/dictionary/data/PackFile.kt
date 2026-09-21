@@ -56,7 +56,23 @@ class PackFile private constructor(
          *   declaraciones, y un pack de la comunidad puede declararlas bien y tener las claves
          *   mal. Ver [checkKeysAgainstASample].
          */
-        fun open(path: String, driver: BundledSQLiteDriver = BundledSQLiteDriver()): PackFile {
+        fun open(
+            path: String,
+            driver: BundledSQLiteDriver = BundledSQLiteDriver(),
+            /**
+             * Si hay que recalcular la muestra de claves (D-142).
+             *
+             * ⚠️ **El default es `true` y tiene que seguir siéndolo**: quien no sepa de esto
+             * obtiene la validación completa. Sólo se apaga cuando el llamador puede demostrar
+             * que **este mismo archivo ya la pasó con estas mismas reglas** — la huella de
+             * `PackVerification` incluye `NORM_VERSION` justo para eso.
+             *
+             * Apaga la muestra y nada más: `schema_version`, `norm_version`, `payload_codec` y
+             * el sha256 del diccionario se comprueban siempre, porque son un puñado de
+             * milisegundos y cubren fallas distintas.
+             */
+            verifyKeys: Boolean = true,
+        ): PackFile {
             val connection = driver.open(path, SQLITE_OPEN_READONLY)
             try {
                 // query_only es cinturon y tiradores: el archivo ya se abrio read-only, pero
@@ -90,7 +106,7 @@ class PackFile private constructor(
                     )
                 }
 
-                checkKeysAgainstASample(connection, metadata)
+                if (verifyKeys) checkKeysAgainstASample(connection, metadata)
 
                 val dictionary = hexToBytes(meta.getValue("payload_dict"))
                 val declared = meta.getValue("payload_dict_sha256")
