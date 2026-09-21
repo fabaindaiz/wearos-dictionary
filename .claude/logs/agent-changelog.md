@@ -91,6 +91,14 @@ mezcla, y su umbral **no mira un solo número de ningún pack** — misma propie
 - **Dos decisiones siguen abiertas y ahora están enlazadas**: qué es «el mismo diccionario»
   (el usuario la quiere decidir junto con el núcleo) y si el núcleo se desinstala al llegar el
   completo o se queda en disco sin consultarse.
+- ⚠️ **Cinco preguntas de diseño del usuario quedaron contestadas en el roadmap**, y contestarlas
+  destapó un hueco real: **`PackStore` no deduplica por `pack_id`**. Abre todos los `.db` del
+  directorio, así que un pack viejo y uno nuevo del mismo diccionario **se abren los dos y se
+  consultan los dos**. El resultado no está mal --la deduplicación por `(lema, tipo)` lo tapa--
+  pero se paga el doble de consultas, el doble de validación al arrancar y el doble de disco, sin
+  que nada lo diga. **Y es la misma regla que el núcleo necesita** con otro criterio, así que
+  conviene escribirla una vez: *de cada `pack_id`, el `data_version` mayor; de cada idioma, si
+  hay un `full`, no consultes los `core`*.
 - **El `N` del núcleo sigue sin decidir**, y para el inglés falta el corpus de Tatoeba.
 - **Nada de esto se vio en el reloj.** El respaldo entre idiomas y la vista de sinónimos son
   cambios visibles que sólo se verificaron en Robolectric.

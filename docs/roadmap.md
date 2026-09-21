@@ -908,6 +908,95 @@ se queda en disco sin consultarse? Quedarse cuesta 7,5 MB y permite volver atrá
 borra el completo; desinstalarlo recupera el espacio y deja al usuario sin diccionario si la
 descarga del completo falla después. **Esto es producto, no mecanismo.**
 
+#### Las cinco preguntas que hay que contestar antes de construirlo
+
+Planteadas el 2026-09-21. Tres ya tienen respuesta en el código o en una medición; dos son
+decisiones abiertas y se marcan como tales.
+
+**1. ¿Núcleo y completo son duplicados o complementarios?**
+
+**Duplicados — el núcleo es un subconjunto del completo.** La alternativa (que el completo traiga
+sólo lo que al núcleo le falta) elimina ~7,5 MB de repetición y a cambio rompe la propiedad que
+hace que todo lo demás funcione: **hoy cada pack es un diccionario completo y autosuficiente**.
+De eso vive que un pack roto no tumbe la búsqueda de los otros (`SearchRepository`), que se pueda
+borrar cualquiera desde Ajustes (D-104), y que instalar packs de fuentes distintas sume en vez de
+requerir un orden. Con packs disjuntos, borrar el núcleo mutila al completo y el completo solo no
+sirve.
+
+**El precio de duplicar está medido: ~10 % del pack completo.** Es barato comparado con convertir
+dos archivos independientes en dos mitades que se necesitan.
+
+**2. ¿De qué pack se sacan las definiciones?**
+
+**Para núcleo y completo la pregunta no existe: son los mismos bytes**, construidos del mismo
+volcado. Da igual cuál conteste.
+
+Para packs de **fuentes distintas** sí existe, y ya está resuelta: `SearchRepository` ordena todo
+junto y **deduplica por `(lema, tipo)`**, así que gana el que quedó primero según el orden
+completo —tipo de coincidencia, nombre propio, banda de cobertura, `score`—. Y abrir una entrada
+**lleva el `packId`** (D-080), así que la ficha que se abre es la del pack cuya fila tocaste, no
+la del pack activo. ⚠️ Lo que ese orden **no** promete está escrito en `SearchRepository.ORDEN`:
+`score` deriva de un `rank` que cada pack calcula contra su propio volcado, así que sirve para
+poner un prefijo arriba de un parecido fonético, **no** para afirmar que la primera fila es la
+mejor de los dos packs.
+
+**3. ¿Se cargan y consultan todos los packs de un idioma? ¿Cómo se detecta compatibilidad?**
+
+**Sí, todos los del idioma activo** (D-136). Y la compatibilidad ya se comprueba **al abrir**, en
+dos niveles:
+
+| Nivel | Qué comprueba | Qué pasa si falla |
+|---|---|---|
+| **Duro, al abrir** | `schema_version`, **`norm_version`**, `payload_codec`, el sha256 del diccionario de payload, y **64 claves recalculadas** (D-142) | El pack se rechaza entero y los demás siguen andando |
+| **Blando, medible aparte** | `compare_calibration.py`: Spearman entre los `rank` de las entradas que comparten `uid` | Nada automático: es información |
+
+⚠️ **`norm_version` ES la compatibilidad**, y por eso es la validación más importante del repo:
+dice que los dos packs calcularon las claves de búsqueda con las mismas reglas. Dos packs que lo
+comparten se pueden mezclar sin que falten palabras; uno que miente se agarra con la muestra de
+claves.
+
+El nivel blando responde otra cosa: **cuánto se están de acuerdo**. Medido entre los dos packs
+españoles reales: **ρ = +0,388**, control barajado +0,001. Dos fuentes honestas que comparten
+señal sin ser intercambiables. Un ρ bajo **no condena** a un pack: dice cuánto se apoya la mezcla
+en una calibración ajena, y desde D-142 se apoya poco.
+
+**4. ¿Las entradas de una misma palabra se muestran juntas? ¿Se complementan o se duplican
+acepciones?**
+
+**Hoy: ninguna de las dos. Se elige una y la otra se esconde.** Ésa es la respuesta honesta y
+conviene tenerla clara antes de decidir:
+
+- En la **lista** de resultados, `casa · sust.` de dos packs produce **una** fila.
+- En la **ficha**, se ven las acepciones de **un** pack. Las del otro no aparecen en ningún lado.
+
+Complementarlas —una ficha con las acepciones de los dos— **es la composición**, y sigue
+bloqueada por la granularidad: `uid` identifica una **entrada**, y una acepción es más fina. Con
+lo que hay se puede decir *«estas dos entradas son la misma palabra»* (8.595 coinciden entre los
+dos packs españoles) pero **no** *«esta acepción de acá es la misma que aquella de allá»*. Sin
+eso, mezclarlas duplica acepciones equivalentes escritas distinto, que en una pantalla de reloj es
+peor que mostrar una sola fuente.
+
+⚠️ **Para núcleo y completo esto también es moot**: mismas entradas, mismos `uid`, mismas
+acepciones.
+
+**5. ¿Y si hay varias versiones del mismo pack?**
+
+**El mecanismo para detectarlo está completo desde hoy, y no lo usa nadie:**
+
+- `pack_id` es la identidad del diccionario, con gramática verificada (D-138). Dos archivos con el
+  mismo `pack_id` **son el mismo diccionario**.
+- `data_version` es `AAAAMMDDHHMM` derivado del build (D-170), así que **el mayor es el más
+  nuevo**, y dos builds del mismo volcado ya no empatan — que era justo el bug.
+
+⚠️ **Lo que falta es una regla de tres líneas en `PackStore`: de cada `pack_id`, quedarse con el
+`data_version` mayor.** Hoy abre **todos** los `.db` del directorio, así que un pack viejo y uno
+nuevo del mismo diccionario **se abren los dos** y se consultan los dos: el resultado no está mal
+—la deduplicación por `(lema, tipo)` lo tapa— pero se paga el doble de consultas, el doble de
+validación al arrancar y el doble de disco, sin que nada lo diga.
+
+Y es la misma forma que el núcleo necesita, con otro criterio: *de cada idioma, si hay un `full`,
+no consultes los `core`*. **Una sola regla con dos usos**, y por eso conviene escribirla una vez.
+
 #### El núcleo dentro del APK
 
 Pedido: *«reorientar el pack demo a usar los packs core del idioma ES y EN»*.
