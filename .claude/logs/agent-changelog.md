@@ -26,6 +26,51 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — CIERRE DE SESIÓN: qué quedó, y qué tendría que re-derivar quien venga
+**Qué.** Entrada de cierre. **34 commits**, gate verde, árbol limpio: 26 checks · 328 Python ·
+91 `:dict-core` · 290 `:app` · **735 en total**.
+**Áreas.** Todo lo de las entradas de hoy, más una pasada de **coherencia** sobre `docs/roadmap.md`.
+**Por qué.** Pedido explícito de cerrar y documentar antes del build completo.
+**Arquitectura.** ✅ Cumple. Una desviación consciente registrada (el plegado de glosa, #8) y una
+del plan acordado (opción A en vez de B para las flexiones, #6), las dos con su precio escrito.
+
+**Lo que esta sesión aprendió y no está en el código.**
+- ⚠️ **Tres afirmaciones del roadmap se contradecían con lo que la misma sesión construyó después**,
+  y se corrigieron marcándolas superadas en vez de borrarlas: *«el pack inglés no puede declarar
+  `translations_to`»* (el número era correcto, la conclusión demasiado fuerte: cerraba `T`, no
+  `W`); *«`translations_pack` nombra un pack y es frágil»* (la clave se eliminó); y *«el código se
+  calcula sobre la glosa cruda en NFC»* (ahora pasa por `fold_gloss`). **Una sesión larga que se
+  corrige a sí misma deja el documento mintiendo si nadie lo revisa al final.**
+- ⚠️ **El error de método que más se repitió: contar en vez de leer.** Pasó con las glosas del
+  bilingüe (parecían traducciones, eran definiciones), con `trans` (parecía una lista, era un
+  índice tokenizado), y con el `build.gradle.kts` (leí una línea suelta y di por pendiente algo ya
+  hecho). En los tres casos el conteo se veía bien.
+- ⚠️ **`check_doc_paths` me agarró cuatro veces** por rutas elididas con puntos suspensivos en el
+  changelog, y una vez más al escribir la corrección citando la ruta mala. **Se escriben enteras.**
+- ⚠️ **Dos commits salieron con el gate en rojo** por encadenar `./gradlew check && git commit`:
+  el `&&` protege del build roto pero no de no leer la salida. **El gate y el commit van en
+  comandos separados.**
+- El chequeo de conteos falló **cinco veces**; se resolvió leyendo la propia salida de la
+  auditoría y reescribiendo sólo el grupo numérico. La mejora (`--fix`) está **propuesta y no
+  ejecutada** en §Proceso.
+
+**Qué quedó sin hacer, en orden.**
+1. **#7, el build completo de los packs reales** (~1 h). Es lo único del corte que falta, y hasta
+   que corra **nada de hoy se ve**: los `.db` en disco son builds previos.
+2. Declarar el reparto distinto entre canal de búsqueda y canal de lectura (fila 2 de la
+   revisión): va a `formato-pack.md` o a `verify_pack.py`.
+3. La opción B de las flexiones, ~2 MB de ahorro, con su número medido.
+4. 🔭 El espacio de equivalencias entre packs: cerraría el 65,60 % que dos diccionarios del mismo
+   idioma no comparten. Bloqueado por **quién las declara** (§Alinear acepciones).
+5. Lo de siempre: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
+**Si la próxima sesión es otro agente sin memoria de ésta, ¿qué tendría que re-derivar?**
+Nada de las mediciones —están todas en el roadmap con su número— pero sí **dos cosas que sólo
+existen como advertencia**: que `\s` significa cosas distintas en Python y en Java (y que por eso
+el espacio se enumera a mano en `fold_gloss`), y que el pack bilingüe necesita `for_search` porque
+**buscar y mostrar quieren formas distintas del mismo término**. Las dos se descubrieron
+escribiendo el espejo, no razonando.
+
 ## 2026-09-21 — #6: las flexiones del idioma destino, leídas de un pack ya construido
 **Qué.** `tools/packbuilder/sources/inflections.py` + `--flexiones` en `build_pack.py`. Cinco
 tests. Cierra el último punto implementable del corte.
