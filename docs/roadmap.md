@@ -22,9 +22,9 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **89 tests**) y el
-pipeline de packs (`tools/`, **310 tests**) están completos y en el gate, junto con los **287 JVM
-de `:app`** y **26 checks** de auditoría estructural — **712 tests en total**. Los **43
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
+pipeline de packs (`tools/`, **318 tests**) están completos y en el gate, junto con los **287 JVM
+de `:app`** y **26 checks** de auditoría estructural — **722 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -446,11 +446,23 @@ uid 2793751417803243523
    wikidata   : condición o carácter de torpe
 ```
 
-Un **plegado ligero** —minúsculas, espacios colapsados, puntuación final fuera— sube de 34,40 % a
-**42,21 % (+1.531 acepciones)**. Real, pero **no cambia la conclusión**: 42 % sigue sin ser
-compatibilidad. Y tendría un costo: sería una segunda regla versionada, y habría que plegar
-también la clave de fusión o reaparecerían las excepciones que esto acaba de cerrar. **Sin
-decidir.**
+✅ **Decidido y construido (2026-09-21): el plegado ligero entra.** Minúsculas, espacios
+colapsados, puntuación final fuera — y **no** saca acentos, porque `publico` y `público` son
+palabras distintas. Verificado sobre los packs reales: **34,40 % → 42,21 %**, con el 100,0 % del
+derivado intacto.
+
+Se aceptaron sus dos costos con los ojos abiertos:
+
+- **Es una segunda regla versionada nuestra**, junto a NFC que es un estándar. Cambiarla invalida
+  todos los enlaces escritos, así que la fija un vector en los dos lenguajes.
+- **Se pliega también la clave de fusión**, en la misma función, o dos acepciones que difieren en
+  un punto compartirían código sin fusionarse y una quedaría inalcanzable.
+
+⚠️ **Y apareció una trampa entre lenguajes que no estaba en el precio**: en Python `\s` sobre
+`str` es **Unicode** y en Java/Kotlin es **ASCII**, así que un espacio duro (U+00A0) se colapsaría
+de un lado y del otro no — dos códigos distintos para la misma acepción, **sin error y sin log**.
+El espacio se enumera a mano en los dos, y hay un test en cada lenguaje que fija que **ninguno**
+lo colapse.
 
 #### 🔭 Deseable, no construido: un espacio para declarar equivalencias
 
@@ -3126,6 +3138,27 @@ the rule satisfied is worse than the current state.
 ⚠️ **And the rule that prevents this from growing again**: everything written from 2026-09-21
 onward is English. No enforcer — a language detector over prose would have false positives on the
 technical terms this repo deliberately leaves untranslated (gate, covering index, payload, rung).
+
+### Los conteos de tests en los documentos se rompen en cada commit
+
+**Estado.** **Fricción medida, mejora propuesta y no ejecutada** (2026-09-21).
+
+`check_doc_paths` y el chequeo de conteos son útiles —atrapan documentación que miente— pero en
+una sola sesión el de conteos **falló cinco veces**, siempre por lo mismo: agregar tests mueve
+cuatro o cinco números repartidos en `README.md`, `app/CLAUDE.md`, `tools/CLAUDE.md` y
+`docs/roadmap.md`, y ninguno se puede deducir sin correr la suite.
+
+**El costo real medido en esta sesión**: cinco interrupciones del gate, y **dos commits que
+salieron con el gate en rojo** porque el `&&` protege del build roto pero no de no leer la salida.
+
+**La mejora, propuesta y no ejecutada** (D-046 y la regla de procesos): la auditoría ya imprime
+`<archivo> dice N donde hay M ('<regex>')`, o sea **tiene todo lo necesario para arreglarse
+sola**. Un `--fix` que reescriba sólo el grupo numérico del regex que ella misma reporta cierra la
+fricción sin tocar los chequeos. Se hizo a mano en esta sesión, leyendo esa salida, y funcionó a
+la primera sobre los cinco.
+
+⚠️ **Lo que NO hay que hacer es relajar el chequeo**: la documentación que miente sobre cuántos
+tests hay es exactamente lo que este chequeo existe para impedir.
 
 ### Verificar a ojo en el emulador cuesta más que el cambio que se verifica
 

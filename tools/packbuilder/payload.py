@@ -24,6 +24,7 @@ nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-119).
 """
 
 import hashlib
+import re
 import unicodedata
 import zlib
 
@@ -108,6 +109,43 @@ def sanitize(value):
 SENSE_CODE_LENGTH = 12
 
 
+# La puntuacion que una fuente pone al final de una glosa y otra no.
+_CIERRE = " .;:,"
+
+# ⚠️ **El espacio se enumera a mano y NO se usa `\s`, y eso es una trampa entre lenguajes.**
+# En Python `\s` sobre `str` es **Unicode** y en Java/Kotlin es **ASCII**: un espacio duro
+# (U+00A0) se colapsaria de un lado y del otro no, y los dos codigos de la misma acepcion
+# quedarian distintos **sin error y sin log**. Se pierde plegar el espacio duro --que aparece en
+# alguna glosa-- a cambio de que los dos lenguajes hagan exactamente lo mismo, que es el trato
+# que este repo ya eligio para `norm()`.
+_ESPACIO = re.compile("[ \t\n\r\f\v]+")
+
+
+def fold_gloss(gloss):
+    """Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
+
+    ⚠️ **Es una regla NUESTRA y versionada, a diferencia de NFC que es un estandar.** Cambiarla
+    invalida todos los enlaces ya escritos de todos los packs, asi que es un acto deliberado y lo
+    fija un vector en los dos lenguajes.
+
+    Decidido con el numero sobre la mesa: entre el Wikcionario y Wikidata sube la coincidencia de
+    **34,40 % a 42,21 % (+1.531 acepciones)**. Los fallos que recupera se ven leyendo:
+
+        wikcionario: "Condición o carácter de torpe."
+        wikidata   : "condición o carácter de torpe"
+
+    **Ligero a proposito**: minusculas, espacios colapsados y puntuacion final fuera. **NO** saca
+    acentos -- `publico` y `público` son palabras distintas, y dos glosas que solo difieren en eso
+    no son la misma acepcion. Cuanto mas plegara, mas acepciones distintas fundiria en silencio.
+
+    ⚠️ **Lo usan `sense_code` Y `merge_duplicate_senses`, y tiene que ser asi**: si solo plegara
+    el codigo, dos acepciones que difieren en un punto compartirian codigo sin fusionarse y una
+    quedaria **inalcanzable** -- justo la excepcion que el invariante cierra.
+    """
+    plegada = unicodedata.normalize("NFC", gloss).strip().lower()
+    return _ESPACIO.sub(" ", plegada).strip(_CIERRE)
+
+
 def sense_code(uid, gloss):
     """Nombra una acepcion **sin nombrar un pack**: unico para `(idioma, palabra, acepcion)`.
 
@@ -124,8 +162,9 @@ def sense_code(uid, gloss):
        el termino sigue siendo un enlace util: el codigo es un *sufijo* del termino, no lo
        reemplaza.
 
-    ⚠️ **Se calcula sobre la glosa CRUDA en NFC, no sobre `norm()`, y eso es el precedente de
-    D-055 aplicado tal cual.** `stable_uid` ya decidio lo mismo y dejo escrito por que: *«asi no
+    ⚠️ **Se calcula sobre la glosa plegada por [fold_gloss], NO sobre `norm()`, y esa distincion
+    es el precedente de D-055 aplicado tal cual.** El plegado es ligero y propio; `norm()` es la
+    funcion del invariante central y esta atada a `NORM_VERSION`. `stable_uid` ya decidio lo mismo y dejo escrito por que: *«asi no
     depende de NORM_VERSION, y subir las reglas de normalizacion no invalida los packs
     auxiliares»*. Aca muerde mas fuerte todavia -- un bump de `NORM_VERSION`, que D-005 permite
     en cualquier momento, cambiaria **todos** los codigos y dejaria apuntando a la nada cada
@@ -138,7 +177,7 @@ def sense_code(uid, gloss):
     distinto, los enlaces apuntan a la nada **sin error y sin log**, que es el modo de falla
     central de este repo. Lo fija un vector en `test_payload.py` y su gemelo en Kotlin.
     """
-    material = "%d\x1f%s" % (uid, unicodedata.normalize("NFC", gloss))
+    material = "%d\x1f%s" % (uid, fold_gloss(gloss))
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:SENSE_CODE_LENGTH]
 
 
@@ -205,7 +244,9 @@ def merge_duplicate_senses(senses):
     salida = []
     por_glosa = {}
     for sense in senses:
-        gloss = sense.get("gloss", "")
+        # ⚠️ La MISMA clave que usa `sense_code`: si divergieran, dos acepciones compartirian
+        # codigo sin fusionarse y una quedaria inalcanzable.
+        gloss = fold_gloss(sense.get("gloss", ""))
         previa = por_glosa.get(gloss)
         if previa is None:
             copia = dict(sense)
