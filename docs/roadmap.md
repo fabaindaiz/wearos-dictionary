@@ -1909,7 +1909,16 @@ Se arregla cuando se reconstruya el pack inglés; no justifica reconstruir 295 M
 
 ### Qué contenido tiene el pack de demostración
 
-**Estado.** **Decidido el 2026-09-21, sin construir**: *«quiero reorientar el pack demo a usar
+**Estado.** ✅ **Cerrado el 2026-09-21, y por una vía que esta sección no contemplaba: el pack de
+demostración se eliminó.** No se reorientó a los núcleos — **desapareció**, y `bundlePacks`
+empaqueta los núcleos reales o nada. La pregunta *«qué contenido debería tener el demo»* dejó de
+tener objeto.
+
+⚠️ **Lo que se pierde y conviene tener presente**: un clone limpio sin los packs completos produce
+un APK **sin diccionario**. La app degrada bien y el build compila (D-086), pero ya no se
+auto-abastece. Lo de abajo queda como registro de la decisión previa.
+
+**Estado anterior.** **Decidido el 2026-09-21, sin construir**: *«quiero reorientar el pack demo a usar
 los packs core del idioma ES y EN»*. O sea que el demo deja de ser un juguete de 28 entradas y
 pasa a ser el **núcleo real** del idioma — ver §Dividir los packs grandes, que tiene el diseño,
 el precio en MB y la trampa del `rank`. Lo de abajo es lo que esta sección decía antes, y el
@@ -2531,7 +2540,22 @@ relacionadas (`R`) cumplen —nunca entraron a `fts_def` (D-132)—; los sinóni
 
 ### Un pack reconstruido no se distingue del viejo: `data_version` es la fecha del DUMP
 
-**Estado.** **Encontrado construyendo, sin decidir** (2026-09-20).
+**Estado.** **La mitad resuelta; la otra sigue abierta** (actualizado 2026-09-21).
+
+✅ **Resuelto: `data_version` ya NO es la fecha del dump.** Se tomó el primer camino de los tres de
+abajo —la fecha del **build**, `AAAAMMDDHHMM`— y se pagó su objeción con una clave nueva:
+`source_date` conserva de qué dump sale el contenido. Verificado en los packs reales:
+`es-tr-enwikt` declara `data_version=202609210540` y `source_date=20260915`. El
+`es-def-wikc.db` viejo todavía muestra `20260915` porque es anterior al cambio, y **el rebuild lo
+corrige solo**.
+
+⚠️ **Sigue abierto el segundo síntoma, que es una pregunta de producto**: qué cuenta como *«el
+mismo diccionario»*. D-138 sufija el `pack_id` por variante —`es-def-wikc-tat-wn`— así que dos
+variantes son dos `pack_id` distintos y **conviven**, mientras el usuario espera que la nueva
+reemplace a la vieja. `packsToQuery` deduplica por `pack_id` (D-171), lo que **no alcanza acá**
+porque los ids difieren. Toca D-138, D-070 y el §Instalador.
+
+**Estado anterior.** **Encontrado construyendo, sin decidir** (2026-09-20).
 
 ⚠️ **Y ahora hay un segundo síntoma, visto en el emulador** (2026-09-20). D-138 hace que cada
 variante sufije el `pack_id` —`es-def-wikc-tat-wn`— justamente para que dos variantes puedan
