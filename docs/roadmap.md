@@ -397,8 +397,10 @@ de licencia. Capturas en la sesión del changelog.
 
 ### Tests de UI para las tres pantallas
 
-**Estado.** **Hecho**, y creció con cada pantalla: **47 tests instrumentados** de Compose en
-`:app`.
+**Estado.** **Hecho**, y **cambió de sitio**: desde D-110 las pantallas se prueban con
+Robolectric **en la JVM y dentro del gate**, no en un dispositivo. De los **89** tests de
+pantalla, **88 corren así**; el único que no es tocar una palabra dentro de una glosa, que
+depende del layout real del texto.
 
 **En qué quedó.** Cubren densidad, truncado del lema largo, los estados que no son "hay
 resultados", el tope de acepciones con su `Ver más`, y la navegación. No usan un
@@ -535,9 +537,11 @@ hasta que abras tres más.
 
 ### El inicio, las acciones de una palabra, y la búsqueda útil
 
-**Estado.** **A medias** (2026-09-18). Hecho: el inicio con palabra del día y ajustes, el
-versionado del APK y el refactor de componentes. Falta: las acciones de una palabra y la búsqueda
-con opciones.
+**Estado.** **Cerrado salvo el catálogo** (2026-09-20). El inicio, el versionado del APK, el
+refactor de componentes y **las acciones de una palabra** están hechos: `WordActions.kt` ofrece
+guardar/quitar, copiar, y *ver en el otro idioma* **sólo si hay un pack bilingüe abierto** — que
+hoy es nunca, porque los dos packs reales son monolingües (D-034). Lo único que sigue abierto de
+esta sección es el catálogo de descarga, que vive en §Instalador de packs.
 
 **El inicio NO es una pantalla propia, y esa fue la decisión que reorientó todo** (D-096). La guía
 de Wear OS pide *"shallow and linear: avoid hierarchies deeper than two levels"* y elevar la
@@ -547,11 +551,10 @@ además cerró D-091: el botón de volver de una entrada tiene un solo destino p
 
 **Lo que falta, en orden de costo.**
 
-- **Las acciones de una palabra**: los dos botones de arriba en un `ButtonGroup` —lado a lado
-  cuestan 48 dp, igual que uno; apilados costarían 96— y un menú con *ver en el otro idioma*,
-  *favoritos* y *copiar*. Wear Material3 **no tiene menú desplegable ni overflow**, verificado
-  contra la referencia de API: las dos formas soportadas son `AlertDialog` (el overload sobre
-  `TransformingLazyColumn` que trajo 1.6) o empujar una pantalla de lista.
+- ~~**Las acciones de una palabra**~~ **HECHAS.** Wear Material3 **no tiene menú desplegable ni
+  overflow**, verificado contra la referencia de API, así que se resolvió con las dos formas
+  soportadas: botones lado a lado —48 dp, igual que uno; apilados costarían 96— y `AlertDialog`
+  sobre `TransformingLazyColumn`.
 - ~~**Gestionar packs: ver y borrar.**~~ **HECHO 2026-09-18** (D-103, D-104). Lo que falta de esa
   pantalla es la mitad de abajo: el **catálogo de descarga**, hoy un WIP explícito que dice cómo
   se instala un diccionario mientras tanto. Sigue bloqueado por lo mismo que el instalador: dónde
@@ -1310,13 +1313,18 @@ palabra **completa**, que es justo el caso donde el prefijo devuelve poco y la c
 
 ### O-5. Animaciones y trabajo en el hilo de UI
 
-**Estado.** Planificado. Depende de que exista una interfaz; hoy no existe.
+**Estado.** ✅ **Cumplido por omisión, y verificado** (2026-09-20). Esta sección decía *«depende
+de que exista una interfaz; hoy no existe»*, lo cual dejó de ser cierto hace sesiones.
 
 La guía oficial pide minimizar animaciones y, si hay un loop, dejar una pausa al menos tan larga
-como la animación.
+como la animación. **Medido buscándolas: el código no tiene ni una** — ni `animate*`, ni
+`Animatable`, ni `rememberInfiniteTransition`, ni `AnimatedVisibility`. Las únicas que corren son
+las que traen los componentes de Wear Material3, que es su responsabilidad y no la nuestra.
 
-**Con qué choca.** Con nada todavía: la UI no existe. Esta fase entra junto con el diseño de la
-interfaz, no después — rehacer animaciones ya escritas es más caro que no escribirlas mal.
+**Lo que queda es no romperlo.** Cada animación que alguien agregue despierta la CPU, y
+`docs/bateria.md` es claro en que la moneda cara son segundos de pantalla: una animación que
+retrasa la respuesta cuesta dos veces. No hay enforcer — sería un chequeo sobre una lista de
+nombres de API, y eso envejece mal.
 
 ---
 
