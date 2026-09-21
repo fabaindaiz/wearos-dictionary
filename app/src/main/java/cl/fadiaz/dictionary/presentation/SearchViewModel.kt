@@ -9,6 +9,7 @@ import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.answersFor
 import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.data.Settings
@@ -317,10 +318,12 @@ class SearchViewModel(
         val consultables = packsToQuery(opened)
         // El activo ya viene de `activePack`, o sea de estas mismas reglas, así que está en la
         // lista. Se pone primero porque en un empate exacto gana el que el usuario eligió.
-        val mismoIdioma = consultables.filter {
-            it !== active && it.metadata.langSource == idioma
-        }
-        val otrosIdiomas = consultables.filter { it.metadata.langSource != idioma }
+        // ⚠️ **`answersFor` y no `langSource ==`, porque un pack BILINGÜE contesta por sus dos
+        // idiomas.** `es-tr-enwikt` declara `langSource = es`, así que con inglés activo caía en
+        // `otrosIdiomas` — que desde D-189 no contestan nunca. El único pack con traducciones
+        // quedaba invisible justo en la dirección `en → es`, que es la mitad de su razón de ser.
+        val mismoIdioma = consultables.filter { it !== active && answersFor(it, idioma) }
+        val otrosIdiomas = consultables.filter { !answersFor(it, idioma) }
         return SearchRepository(listOf(active) + mismoIdioma, otherLanguages = otrosIdiomas)
     }
 

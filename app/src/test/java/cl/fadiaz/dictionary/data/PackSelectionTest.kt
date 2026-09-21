@@ -22,11 +22,13 @@ class PackSelectionTest {
         lang: String = "es",
         subsetOf: String? = null,
         entries: Int = 1000,
+        kind: PackKind = PackKind.MONOLINGUAL,
+        langTarget: String? = null,
     ): cl.fadiaz.dictionary.core.DictionarySource = SoloMetadata(
             PackMetadata(
                 packId = packId, schemaVersion = 3, normVersion = 2,
-                kind = PackKind.MONOLINGUAL, name = packId, description = null,
-                langSource = lang, langTarget = null, fuzzyProfile = FuzzyProfile.SPANISH,
+                kind = kind, name = packId, description = null,
+                langSource = lang, langTarget = langTarget, fuzzyProfile = FuzzyProfile.SPANISH,
                 entryCount = entries, dataVersion = dataVersion,
                 license = "CC0-1.0", attribution = packId, subsetOf = subsetOf,
             ),
@@ -170,6 +172,36 @@ class PackSelectionTest {
     fun sinNingunPackNoHayActivo() {
         assertEquals(null, activePack(emptyList(), preferred = "es-def-wikc"))
     }
+
+    // --- Un pack bilingue contesta por SUS DOS idiomas --------------------------------------
+
+    @Test
+    fun unPackBILINGUE_contesta_tambien_por_su_idioma_DESTINO() {
+        // ⚠️ **La regresion que esto cierra la introdujo D-189 hoy mismo.** Los packs se elegian
+        // por `langSource`, y el bilingue `es-tr-enwikt` declara `es`. Con INGLES activo caia en
+        // "otros idiomas", que hasta D-189 contestaban como respaldo y desde D-189 no contestan
+        // nunca: **el unico pack con traducciones quedaba invisible con ingles activo**, asi que
+        // `dog` no devolvia `perro` y la direccion en->es desaparecia de la app.
+        //
+        // ⚠️ **Y los datos SIEMPRE estuvieron ahi**: `trans` tiene 474.849 filas que mapean
+        // terminos ingleses a entradas españolas, y cubren el **98,4 % de las 1.000 palabras
+        // inglesas mas frecuentes**. El pack ya era bidireccional; lo que no lo era es a quien
+        // se le preguntaba.
+        val bilingue = pack("es-tr-enwikt", kind = PackKind.BILINGUAL, lang = "es", langTarget = "en")
+        assertEquals(true, answersFor(bilingue, "es"))
+        assertEquals(true, answersFor(bilingue, "en"))
+    }
+
+    @Test
+    fun unPackMONOLINGUE_contesta_SOLO_por_su_idioma() {
+        // ⚠️ La regla mira `kind`, no `translationsTo`, y la diferencia importa: el pack español
+        // monolingue tambien declara `translations_to = en` --es una CAPACIDAD, trae traducciones
+        // por acepcion-- pero sus lemas son españoles. Preguntarle con ingles activo devolveria
+        // palabras españolas en una lista que el usuario filtro a ingles.
+        val monolingue = pack("es-def-wikc", lang = "es", langTarget = "en")
+        assertEquals(true, answersFor(monolingue, "es"))
+        assertEquals(false, answersFor(monolingue, "en"))
+    }
 }
 
 /** Un pack del que sólo importa su metadata: lo que se prueba es la selección, no la consulta. */
@@ -183,5 +215,4 @@ private class SoloMetadata(override val metadata: PackMetadata) :
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): cl.fadiaz.dictionary.core.EntrySummary? = null
     override fun close() = Unit
-
 }

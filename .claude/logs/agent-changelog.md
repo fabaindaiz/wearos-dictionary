@@ -93,6 +93,25 @@ la pantalla de gestión, D-192 invierte dónde van las traducciones de palabra.
   exacto; `trans`: 21,3 ms, pide índice nuevo y **escondería 2.032 palabras en silencio**) y la
   precondición que lo haría valer.
 
+**Añadido al revisar si el pack de traducción es bidireccional (D-194).**
+- ⚠️ **Encontré una regresión que D-189 había introducido horas antes, contestando una pregunta
+  del usuario.** Los packs se elegían con `langSource == idiomaActivo`, y el bilingüe declara
+  `es`: **con inglés activo el único pack con traducciones quedaba invisible**, así que `dog`
+  dejaba de devolver `perro`. Hasta D-189 lo tapaba el respaldo entre idiomas; al apagarlo, la
+  dirección `en → es` desapareció de la app sin un solo error.
+- **El pack SÍ es bidireccional y SÍ está todo en un archivo**, y eso se midió antes de
+  afirmarlo: 123.979 entradas españolas con glosa inglesa, más 474.849 filas en `trans` para la
+  dirección inversa, que cubre el **98,4 % de las 1.000 palabras inglesas más frecuentes**, 95,0 %
+  del top 4.000 y 91,0 % del top 8.000 crudo. De los 721 que faltan en el top 8.000, casi todos
+  son ruido de subtítulos (`didn`, `gonna`, `ooh`) y nombres de pila; reales sólo `any` y
+  `cannot`. **D-184 se sostiene** — mi 91 % era contra una lista de tokens crudos, no de lemas.
+- **Lo que NO es simétrico**, y conviene tenerlo escrito: el lado inglés es un **índice, no
+  entradas**. `dog` y `book` no son lemas del bilingüe, así que se llega a `perro` y `libro`
+  pero no se lee la ficha de `dog`. Para eso está `en-def-wikt`.
+- **Política de pruebas, a pedido**: las funcionales van en el **emulador**; del reloj sólo datos
+  de debug y experimentos cortos. Anotado en `app/CLAUDE.md` junto a los comandos, con el costo
+  medido que lo motiva.
+
 **Qué quedó sin hacer.**
 - **Nada instalado en el reloj**: se desconectó a mitad de la verificación y `connectedAndroidTest`
   ya había desinstalado la app, así que **los cinco packs se perdieron**. Hay que reinstalar APK y
