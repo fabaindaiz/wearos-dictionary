@@ -76,42 +76,36 @@ class LanguageChipsTest {
         assertEquals("es-chico", reps.single().packId)
     }
 
-    // --- De qué fuente vino un resultado, sólo cuando hace falta (D-151) ---------------------
+    // --- De qué idioma vino un resultado --------------------------------------------------
 
     @Test
-    fun conUN_SOLO_PACK_del_idioma_la_etiqueta_es_el_IDIOMA() {
-        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en")), "es")
+    fun laEtiquetaEsSIEMPRE_el_idioma() {
+        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en")))
         assertEquals("ES", tags["es-def-wikc"])
+        assertEquals("EN", tags["en-def-wikt"])
     }
 
     @Test
-    fun conDOS_PACKS_del_idioma_la_etiqueta_es_la_FUENTE() {
-        // ⚠️ "ES · ES" no desambigua nada. Lo que distingue dos diccionarios del mismo idioma es
-        // de dónde salieron, y el `pack_id` lo lleva en su tercer segmento por la gramática que
-        // D-138 verifica: <idioma>-<tipo>-<fuente>[-variante].
-        val tags = resultTags(
-            listOf(pack("es-def-wikc", "es"), pack("es-def-wd", "es")), "es",
-        )
-        assertEquals("WIKC", tags["es-def-wikc"])
-        assertEquals("WD", tags["es-def-wd"])
-    }
-
-    @Test
-    fun losPacksDeOTRO_idioma_no_cuentan_para_desambiguar() {
-        // Sólo se busca en el idioma activo (D-136), así que un pack inglés no puede hacer que
-        // el español muestre su fuente.
-        val tags = resultTags(
-            listOf(pack("es-def-wikc", "es"), pack("en-def-wikt", "en"), pack("en-def-oewn", "en")),
-            "es",
-        )
+    fun conDOS_PACKS_del_mismo_idioma_la_etiqueta_NO_cambia_a_la_fuente() {
+        // ⚠️ **Esto invierte `conDOS_PACKS_del_idioma_la_etiqueta_es_la_FUENTE`, que existía
+        // hasta hoy.** La regla anterior mostraba `WIKC` / `ENWIKT` para desambiguar dos
+        // diccionarios del mismo idioma; el pedido la revierte: *«solo debe ser EN, ES. No me
+        // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
+        // proveniencia»*.
+        //
+        // Lo que se pierde: con `es-def-wikc` y `es-tr-enwikt` instalados a la vez, la fila no
+        // dice de cuál de los dos salió. Se acepta porque esa pregunta la contesta la pantalla
+        // de gestión de diccionarios, y la fila tiene un ancho que el lema ya disputa.
+        val tags = resultTags(listOf(pack("es-def-wikc", "es"), pack("es-tr-enwikt", "es")))
         assertEquals("ES", tags["es-def-wikc"])
+        assertEquals("ES", tags["es-tr-enwikt"])
     }
 
     @Test
-    fun unPackIdSIN_LA_FORMA_esperada_cae_al_idioma() {
-        // Un pack anterior a D-138 no cumple la gramática. Mejor mostrar el idioma que inventar
-        // una fuente a partir de un nombre que no la lleva.
-        val tags = resultTags(listOf(pack("viejo", "es"), pack("es-def-wd", "es")), "es")
+    fun unPackIdSIN_LA_FORMA_esperada_igual_da_su_idioma() {
+        // Un pack anterior a D-138 no cumple la gramática del `pack_id`. Ya no importa: la
+        // etiqueta sale de `lang_source`, que es metadato y no se deriva partiendo el nombre.
+        val tags = resultTags(listOf(pack("viejo", "es")))
         assertEquals("ES", tags["viejo"])
     }
 

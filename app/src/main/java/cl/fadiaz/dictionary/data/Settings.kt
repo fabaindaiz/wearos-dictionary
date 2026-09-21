@@ -7,11 +7,26 @@ package cl.fadiaz.dictionary.data
  * system font size, so this multiplies that scale and never replaces it. Someone who already
  * raised the font size across the whole watch keeps seeing it raised.
  *
- * Two values and not a continuous slider: a continuous one cannot be tested against the density
- * budget (D-073), which defines how many rows fit on screen. With two, the density test can be
- * parameterised and still means something.
+ * **Three fixed steps and not a continuous slider**: a continuous one cannot be tested against
+ * the density budget (D-073), which defines how many rows fit on screen. With a closed set, the
+ * density test can be parameterised and still means something.
+ *
+ * ⚠️ **The order of the entries IS the order on screen** (`TextScale.entries` drives the list),
+ * so they go smallest to largest. [NORMAL] is not first and that is deliberate: it stays the
+ * default, and the default is stored **by name**, so adding a step never reinterprets what an
+ * older install saved.
  */
 enum class TextScale(val factor: Float) {
+    /**
+     * Added on request: *«en text size me interesa incluir el tamaño pequeño junto con el normal
+     * y grande»*.
+     *
+     * 0.85 and not less: below that the 234 dp screen stops gaining rows --the row height is
+     * [TOUCH_TARGET][cl.fadiaz.dictionary.presentation.TOUCH_TARGET], a touch area the Wear OS
+     * guidance fixes at 48 dp, not a text measurement-- so all a smaller number buys is text
+     * that is harder to read inside a row that does not shrink.
+     */
+    SMALL(0.85f),
     NORMAL(1.0f),
     LARGE(1.15f),
 }

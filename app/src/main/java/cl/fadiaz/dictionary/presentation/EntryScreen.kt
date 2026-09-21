@@ -32,6 +32,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
@@ -92,6 +93,18 @@ fun EntryScreen(
      * the same as offering an empty menu.
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
+    /**
+     * El idioma del que viene la entrada, ya en la forma corta que se muestra: `ES`, `EN`.
+     *
+     * ⚠️ **Es el IDIOMA y nunca la fuente.** Pedido: *«solo debe ser EN, ES. No me gusta que
+     * haya un ENWIK... porque solo me interesa conocer el idioma de proveniencia»*. La sigla de
+     * fuente --`WIKC`, `ENWIKT`-- distingue dos packs del mismo idioma, que es un detalle de
+     * catalogo y no algo que el lector de una ficha necesite.
+     *
+     * Nulo = no se dibuja, en vez de heredar el del pack activo: eso seria afirmar una
+     * procedencia que nadie comprobo (misma familia que D-080).
+     */
+    languageTag: String? = null,
     resolveIn: suspend (Set<String>) -> Map<String, WordLink> = { emptyMap() },
     // It goes last so it stays the trailing lambda: that is how the screens and tests call it.
     cargar: suspend (Long) -> Entry?,
@@ -184,11 +197,14 @@ fun EntryScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    current?.partOfSpeech?.let { pos ->
+                    val pos = current?.partOfSpeech
+                    if (pos != null || languageTag != null) {
                         Text(
                             // Entero, no abreviado: esta pantalla no compite por el ancho con
-                            // nada, y es donde el tipo de palabra se lee de verdad.
-                            text = posLabelFull(pos),
+                            // nada, y es donde el tipo de palabra se lee de verdad. El idioma
+                            // va detras, con el mismo separador que usa la fila de resultados.
+                            text = listOfNotNull(pos?.let { posLabelFull(it) }, languageTag)
+                                .joinToString(stringResource(R.string.entry_list_separator)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -206,6 +222,40 @@ fun EntryScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     )
+                }
+            }
+
+            // ⚠️ **Las traducciones de la PALABRA van acá, fuera de `SenseBlock`, y ese lugar
+            // es la mitad del diseño.** Una lista dibujada bajo una acepción **afirma** que le
+            // pertenece, y lo que cae acá es justo lo que la fuente no pudo atribuir: juntarlas
+            // desharía en la pantalla lo que el formato separó (D-117), y el error se leería
+            // perfectamente plausible.
+            //
+            // ⚠️ **Van ANTES de las acepciones, y eso invierte lo que decía este comentario.**
+            // Estaban después, razonando que "las definiciones son a lo que el lector entró".
+            // Lo desmiente la medición que ya estaba acá al lado: el **48,6 %** de las entradas
+            // con traducción tienen **sólo** éstas, así que para la mitad de los casos la
+            // sección que iba al final era la respuesta entera, y quedaba debajo de un
+            // `Ver más (12)` que hay que tocar para llegar. Pedido: *«que la traducción por
+            // palabra en caso de estar disponible sin acepciones aparezca al inicio»*.
+            //
+            // Sólo el 3,0 % muestra las dos secciones a la vez, así que el costo de empujar las
+            // acepciones hacia abajo lo paga una entrada de cada treinta.
+            //
+            // Con `prominent`: no cuelga de ninguna acepción, así que no se dibuja subordinada
+            // a una.
+            val wordTranslations = current?.wordTranslations.orEmpty()
+            if (wordTranslations.isNotEmpty()) {
+                item(key = "traducciones-palabra") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        TermList(
+                            R.string.entry_word_translations_title,
+                            wordTranslations,
+                            links,
+                            onOpenWord,
+                            prominent = true,
+                        )
+                    }
                 }
             }
 
@@ -228,33 +278,6 @@ fun EntryScreen(
                         links = links,
                         onOpenWord = onOpenWord,
                     )
-                }
-            }
-
-            // ⚠️ **Las traducciones de la PALABRA van acá, fuera de `SenseBlock`, y ese lugar
-            // es la mitad del diseño.** Una lista dibujada bajo una acepción **afirma** que le
-            // pertenece, y lo que cae acá es justo lo que la fuente no pudo atribuir: juntarlas
-            // desharía en la pantalla lo que el formato separó (D-117), y el error se leería
-            // perfectamente plausible.
-            //
-            // Van **después** de las acepciones porque las definiciones son a lo que el lector
-            // entró; y con su propio título, que es la única cosa que las distingue de la lista
-            // de arriba — la misma regla que D-126 fijó para los antónimos.
-            //
-            // Medido: el 48,6 % de las entradas con traducción tienen **sólo** éstas, así que
-            // para la mitad de las palabras esta sección es la respuesta entera; y sólo el 3,0 %
-            // muestra las dos secciones a la vez.
-            val wordTranslations = current?.wordTranslations.orEmpty()
-            if (wordTranslations.isNotEmpty()) {
-                item(key = "traducciones-palabra") {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        TermList(
-                            R.string.entry_word_translations_title,
-                            wordTranslations,
-                            links,
-                            onOpenWord,
-                        )
-                    }
                 }
             }
 
@@ -424,15 +447,22 @@ private fun SenseBlock(
 }
 
 /**
- * Una de las tres listas de la acepción: la categoría arriba, las palabras abajo y **tocables**.
+ * Una de las listas de la acepción: la categoría arriba, las palabras abajo y **tocables**.
  *
  * Pedido: *«mejorar la vista de sinónimos y antónimos, primero mostrando la categoría y abajo las
  * palabras pudiendo hacerles click para ir a ellas»*.
  *
  * ⚠️ **Cuesta una línea más por lista, y en 234 dp eso se paga.** Se acepta porque la línea que
  * agrega es la que dice de qué lista estás leyendo, que es la información que D-126 y D-132
- * dicen que no puede faltar; y se abarata con `labelSmall` y sin padding vertical entre el
- * título y sus palabras, así que las dos líneas juntas ocupan menos que una fila de lista.
+ * dicen que no puede faltar; y se abarata sin padding vertical entre el título y sus palabras,
+ * así que las dos líneas juntas ocupan menos que una fila de lista.
+ *
+ * ⚠️ **El título NO va del color de los enlaces, y eso corrige un error de diseño.** Iba en
+ * `primary`, que en esta pantalla es exactamente el color con que se pinta una palabra que
+ * navega: el encabezado prometía un toque que nunca existió. Pedido: *«los prefijos que indican
+ * cosas como traducción, sinónimos y así deben estar más destacados y visibles y no ser
+ * clickeables como hipervínculos»*. Ahora se destaca por **peso** --negrita sobre `onSurface`--
+ * que es lo que distingue un encabezado de un enlace sin competir con él.
  *
  * ⚠️ **Sólo se pinta como enlace lo que existe en el pack**, igual que en la glosa: el color es
  * la promesa de que lleva a algún lado, y una palabra pintada que no navega es peor que una sin
@@ -444,19 +474,37 @@ private fun TermList(
     terms: List<String>,
     links: Map<String, WordLink>,
     onOpenWord: (WordLink) -> Unit,
+    /**
+     * Si la sección pesa lo mismo que una acepción en vez de colgar de una.
+     *
+     * Pedido: *«que estas secciones individuales tengan la misma relevancia que una acepción»*.
+     * Lo que cambia es el cuerpo del texto y la sangría: una lista de nivel de entrada no está
+     * subordinada a nada, así que arranca en el margen y no indentada bajo una glosa.
+     */
+    prominent: Boolean = false,
 ) {
     if (terms.isEmpty()) return
+    val indent = if (prominent) 0.dp else 10.dp
     Text(
         text = stringResource(title),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 6.dp, start = 10.dp),
+        style = if (prominent) {
+            MaterialTheme.typography.bodyMedium
+        } else {
+            MaterialTheme.typography.labelMedium
+        },
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(top = 6.dp, start = indent),
     )
     Text(
         text = linkedTerms(terms, links, onOpenWord),
-        style = MaterialTheme.typography.labelSmall,
+        style = if (prominent) {
+            MaterialTheme.typography.bodyMedium
+        } else {
+            MaterialTheme.typography.labelSmall
+        },
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 10.dp),
+        modifier = Modifier.padding(start = indent),
     )
 }
 

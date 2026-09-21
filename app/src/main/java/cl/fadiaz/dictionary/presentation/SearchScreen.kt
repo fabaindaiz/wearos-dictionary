@@ -105,7 +105,7 @@ fun SearchScreen(
     // idioma activo y el idioma ya no desambigua (D-151). Se arma una vez y no por fila: la
     // lista se recompone en cada tecla.
     val etiquetas = remember(state.available, state.active?.langSource) {
-        resultTags(state.available, state.active?.langSource)
+        resultTags(state.available)
     }
     // Las palabras del día que se van a mostrar: **una por idioma, no una por pack** (D-151),
     // el activo primero. Se calcula acá y no dentro del lambda de la lista porque ahí no hay
