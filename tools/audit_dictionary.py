@@ -453,6 +453,8 @@ def check_app_logic_is_jvm_testable(report):
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "data", "Settings.kt"),
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
+                     "data", "PackVerification.kt"),
+        os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                      "tile", "TileContent.kt"),
     )
     for relativo in vigilados:
@@ -906,6 +908,80 @@ def check_test_counts(report):
             )
 
 
+def check_r8_keep_rules(report):
+    """Regla: las reglas de keep estan cableadas y no protegen clases que ya no existen. (D-163)
+
+    R8 esta encendido y **lo que rompe, lo rompe solo en release y sin error de compilacion**.
+    Este chequeo cubre las dos formas en que las reglas dejan de servir sin que nadie lo note:
+
+    ⚠️ **(1) El archivo deja de estar cableado.** `keepRules { files.add(...) }` es una linea de
+    `app/build.gradle.kts`; si alguien reorganiza ese bloque y la pierde, las reglas **siguen ahi
+    y no se aplican**. El build sigue verde, el APK sigue saliendo, y lo que falla es un tile en
+    un reloj.
+
+    ⚠️ **(2) Una regla nombra una clase que ya no existe.** Renombrar `HistoryTileService` sin
+    tocar el `.pro` deja una regla muerta que no protege nada -- y `app/CLAUDE.md` ya tiene
+    escrito que romper un tile no da error de compilacion ni test. Es la misma decadencia que
+    `check_doc_paths` atrapa para los documentos, aplicada a las reglas.
+
+    No comprueba que cada componente del manifest TENGA regla: AGP ya conserva los componentes
+    declarados, asi que exigirlo seria sobre-restringir. Lo que se vigila es que lo que decidimos
+    proteger siga protegido de verdad.
+    """
+    # Sin los comentarios: el bloque `optimization` EXPLICA que las reglas estan en
+    # proguard-rules.pro, asi que mirar el archivo entero daba un falso negativo -- se podia
+    # desconectar el `files.add(...)` y el chequeo seguia pasando por culpa de la prosa. Se
+    # encontro comprobando que el chequeo fallara, que es para lo que se comprueba.
+    build = "\n".join(
+        linea for linea in read(os.path.join("app", "build.gradle.kts")).split("\n")
+        if not linea.lstrip().startswith(("//", "*", "/*"))
+    )
+    if "enable = true" not in build:
+        # R8 apagado: no hay nada que vigilar. Va PRIMERO, antes incluso de mirar si el archivo
+        # de reglas existe: con R8 apagado no hace falta, y fallar por su ausencia haria que este
+        # chequeo impidiera apagar R8 -- que es justo lo que alguien querria hacer si R8 rompiera
+        # algo en el reloj.
+        return
+
+    reglas_rel = os.path.join("app", "proguard-rules.pro")
+    reglas_path = os.path.join(ROOT, reglas_rel)
+    if not os.path.isfile(reglas_path):
+        report.failure(
+            "faltan las reglas de keep de R8",
+            "%s no existe y R8 esta encendido: el release encoge sin la red que decidimos "
+            "poner" % reglas_rel,
+        )
+        return
+
+    if "proguard-rules.pro" not in build:
+        report.failure(
+            "las reglas de keep no estan cableadas al build",
+            "app/build.gradle.kts no nombra proguard-rules.pro. Las reglas quedan en el disco "
+            "sin aplicarse: el build sigue verde y lo que falla es un tile en un reloj",
+        )
+
+    with open(reglas_path, encoding="utf-8") as handle:
+        contenido = handle.read()
+
+    # Solo las clases nuestras: las de androidx cambian de paquete con la libreria y no son
+    # nuestras para arreglar.
+    nuestras = re.findall(r"^-keep class (cl\.fadiaz\.[\w.]+)", contenido, re.M)
+    if not nuestras:
+        report.failure(
+            "las reglas de keep no protegen ninguna clase propia",
+            "%s existe pero no nombra una sola clase de cl.fadiaz. O sobra el archivo, o "
+            "alguien vacio las reglas" % reglas_rel,
+        )
+    for clase in nuestras:
+        relativo = os.path.join("app", "src", "main", "java", *clase.split(".")) + ".kt"
+        if not os.path.isfile(os.path.join(ROOT, relativo)):
+            report.failure(
+                "una regla de keep protege una clase que no existe",
+                "%s nombra %s y no hay %s. Una regla muerta no protege nada, y romper un tile "
+                "no da error de compilacion ni test" % (reglas_rel, clase, relativo),
+            )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -1010,6 +1086,7 @@ CHECKS = [
     check_locale_parity,
     check_ui_language_picker,
     check_test_counts,
+    check_r8_keep_rules,
     check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,

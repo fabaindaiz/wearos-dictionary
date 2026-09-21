@@ -61,6 +61,38 @@ class PackKeySampleTest {
     }
 
     @Test
+    fun conVerifyKeysApagadoSeSALTEALaMuestraPeroNoElResto() {
+        // El ahorro de arranque: un pack que ya pasó la muestra no la vuelve a pagar mientras el
+        // archivo sea el mismo (`PackVerification`, del lado de :app). Acá se comprueba que el
+        // interruptor **sólo** apaga la muestra.
+        val archivo = copiaDelToy("saltea-la-muestra.db")
+        BundledSQLiteDriver().open(archivo.absolutePath).use { conexion ->
+            conexion.prepare("UPDATE entry SET norm = norm || 'x' WHERE id = 1").use { it.step() }
+        }
+        // Con la muestra apagada, esa fila rota ya no se ve: es exactamente el riesgo que se
+        // acepta a cambio del arranque, y por eso la huella incluye NORM_VERSION.
+        PackFile.open(archivo.absolutePath, verifyKeys = false).close()
+    }
+
+    @Test
+    fun conVerifyKeysApagadoUnNormVersionDISTINTOSigueRechazandose() {
+        // ⚠️ La mitad que no se puede perder. Saltear la muestra no puede volverse "abrir
+        // cualquier cosa": las tres validaciones baratas --schema, norm_version, payload_codec--
+        // y el sha256 del diccionario siguen corriendo siempre.
+        val archivo = copiaDelToy("otra-norm-version.db")
+        BundledSQLiteDriver().open(archivo.absolutePath).use { conexion ->
+            conexion.prepare("UPDATE meta SET value = '9999' WHERE key = 'norm_version'")
+                .use { it.step() }
+        }
+        try {
+            PackFile.open(archivo.absolutePath, verifyKeys = false).close()
+            fail("norm_version distinta tiene que rechazarse aunque la muestra esté apagada")
+        } catch (esperado: PackFile.IncompatibleException) {
+            assertTrue(esperado.message.orEmpty().contains("norm_version"))
+        }
+    }
+
+    @Test
     fun unPackConUnFuzzyMalCalculadoSeRECHAZA() {
         val archivo = copiaDelToy("fuzzy-roto.db")
         BundledSQLiteDriver().open(archivo.absolutePath).use { conexion ->

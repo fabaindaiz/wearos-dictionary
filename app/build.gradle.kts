@@ -90,13 +90,21 @@ android {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             }
 
-            // R8 sigue APAGADO, y eso ya no es herencia del template: es una decision con fecha.
-            // La guia oficial de Wear OS lo nombra como una de las dos palancas mas efectivas,
-            // pero activarlo reintroduce la clase de bug que solo aparece en release --codigo o
-            // recursos que R8 quita y que en debug estaban-- y va atado a una comprobacion en
-            // dispositivo que todavia no se hizo. Roadmap O-2.
+            // R8 ENCENDIDO. Medido antes de encenderlo: el APK pasa de 33,0 a 5,5 MB y el
+            // dex de 29,5 a 2,7 -- un 91 % menos -- y compila sin una sola regla de keep.
+            //
+            // Importa para bateria y no solo para tamano: menos dex es menos carga de clases,
+            // menos memoria y menos JIT en CADA arranque del proceso, y en esta app cada
+            // arranque es alguien mirando la pantalla (docs/bateria.md).
+            //
+            // ⚠️ **Lo que R8 rompe, lo rompe SOLO en release y sin error de compilacion.** Los
+            // dos TileService son el borde filoso: `app/CLAUDE.md` ya tiene escrito que romperlos
+            // no da error ni test. Tienen regla propia en proguard-rules.pro.
             optimization {
-                enable = false
+                enable = true
+                keepRules {
+                    files.add(file("proguard-rules.pro"))
+                }
             }
         }
     }

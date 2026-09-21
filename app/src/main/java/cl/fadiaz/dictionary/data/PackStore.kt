@@ -6,6 +6,7 @@ import android.content.Context
 // olvidar. Viene de core-ktx, que ya estaba en el classpath.
 import androidx.core.content.edit
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.core.TextNormalizer
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -102,6 +103,18 @@ object PackStore {
             }
         }
 
+        // El memo de verificados se poda con lo que quedó en disco: un pack borrado deja una
+        // línea que ya no sirve, y sin esto crecería para siempre en SharedPreferences.
+        prefs(context).edit {
+            putString(
+                KEY_VERIFIED,
+                PackVerification.prune(
+                    prefs(context).getString(KEY_VERIFIED, null),
+                    installed.map { it.name }.toSet(),
+                ),
+            )
+        }
+
         val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
         val chosen = candidates.firstOrNull { it.packId == preferred }
             ?: candidates.firstOrNull()
@@ -196,6 +209,8 @@ object PackStore {
     private const val KEY_PACK = "pack_activo"
     private const val KEY_HISTORY = "historial"
     private const val KEY_SETTINGS = "ajustes"
+    /** Qué packs ya pasaron la muestra de claves de D-142. Ver [PackVerification]. */
+    private const val KEY_VERIFIED = "packs_verificados"
     private const val KEY_FAVORITES = "favoritos"
     private const val KEY_WEEK_WORDS = "palabras_semana"
     private const val KEY_WEEK_SINCE = "palabras_desde"
@@ -245,9 +260,33 @@ object PackStore {
         return target
     }
 
+    /**
+     * Abre un pack, salteando la muestra de claves **si este mismo archivo ya la pasó**.
+     *
+     * Medido: la muestra son 36 de los 42 ms que costaba cada arranque con los dos packs reales,
+     * y el pack es inmutable (D-001), así que volver a probar el mismo archivo no prueba nada
+     * nuevo. Lo que hace que esto sea seguro y no un atajo está en [PackVerification]: la huella
+     * lleva `NORM_VERSION`, así que un cambio en `norm()` o `fuzzy()` vuelve a probar todo.
+     *
+     * ⚠️ **Se anota DESPUÉS de abrir bien, nunca antes.** Anotar primero convertiría un pack que
+     * falla a medias en un pack que la próxima vez ni se revisa.
+     */
     private fun openFile(context: Context, file: File): PackLoad =
         try {
-            PackLoad.Ready(SqlitePackSource(PackFile.open(file.path)))
+            val memo = prefs(context).getString(KEY_VERIFIED, null)
+            val fingerprint = PackVerification.fingerprint(
+                file.length(),
+                file.lastModified(),
+                TextNormalizer.NORM_VERSION,
+            )
+            val yaVerificado = PackVerification.isVerified(memo, file.name, fingerprint)
+            val pack = PackFile.open(file.path, verifyKeys = !yaVerificado)
+            if (!yaVerificado) {
+                prefs(context).edit {
+                    putString(KEY_VERIFIED, PackVerification.remember(memo, file.name, fingerprint))
+                }
+            }
+            PackLoad.Ready(SqlitePackSource(pack))
         } catch (e: PackFile.IncompatibleException) {
             // The pack is from another format version or from other normalization rules. It
             // would return FEWER results than it holds, in silence: that is why it is rejected

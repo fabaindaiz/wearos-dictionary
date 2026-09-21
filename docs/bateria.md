@@ -340,10 +340,14 @@ it says why.
 Nothing below should be prioritised before this runs, because it decides whether the list is even
 ordered correctly. The protocol is above; it needs the watch connected. **Cost: minutes.**
 
-### 2. Turn R8 on — the biggest measured lever in the repo
+### 2. ~~Turn R8 on~~ — **done** (D-163), and the device check is what is left
 
-**33.0 MB → 5.5 MB, dex −91 %.** Less dex is less class loading, less memory and less JIT at every
-process start, and on this app every process start is a user staring at a screen.
+**33.0 MB → 5.47 MB, dex 29.5 → 2.70 (−91 %).** Less dex is less class loading, less memory and
+less JIT at every process start, and on this app every process start is a user staring at a screen.
+
+Three keep rules were added, none of which the build needs — it compiles and shrinks without any.
+They exist so it keeps working when someone changes something, and `check_r8_keep_rules` fails if
+they stop being wired in or start naming a class that no longer exists.
 
 ⚠️ **The risk O-2 named is real and unchanged**: R8 removes code that only reflection reaches, and
 it shows up *only* in a release build. The size is now known; what is not known is whether it runs.
@@ -373,15 +377,20 @@ Same family, same currency: the long-example wall that pushes the next sense off
 proper-noun demotion (D-154, done) which puts the likely answer in the first row instead of the
 fourth.
 
-### 5. Reconsider validating every pack on every launch
+### 5. ~~Reconsider validating every pack on every launch~~ — **done** (D-164)
 
-42 ms of desktop work per cold start, two thirds of it the 64-key sample. D-142 exists for a real
-reason — `norm_version` is a number the pack gives itself — but **the pack is immutable** (D-001),
-so re-proving the same file on every launch proves nothing new. A cached verdict keyed on
-`(path, size, mtime, norm_version)` would keep the guarantee for any file that changed.
+Asked for explicitly after this section said it was not an agent's call. It was done the way the
+paragraph described — not by removing the proof, but by not re-proving an immutable file.
 
-⚠️ **This weakens a guardrail and therefore is not an agent's call.** It is listed because it is
-the third-largest measured item, not because it should be done.
+| | per process start |
+|---|---|
+| First launch after installing | **41.33 ms** |
+| Every launch after that | **6.30 ms** (−85 %) |
+
+The fingerprint carries `NORM_VERSION`, so a change to `norm()` or `fuzzy()` re-proves every pack;
+and the switch turns off **only** the key sample — `schema_version`, `norm_version`,
+`payload_codec` and the dictionary's sha256 still run on every open, because they are 6.30 ms and
+they cover different failures.
 
 ### 6. The palette — real, and unverifiable from here
 
@@ -430,3 +439,8 @@ session does not rediscover them as ideas.
   in one session on the watch.
 - **Nobody has counted how often the process actually starts.** The whole weight of items 2, 3 and
   5 depends on it, and `dumpsys usagestats` answers it.
+- **The R8 release cannot be installed yet**: it comes out unsigned because no keystore is
+  configured (D-086), and the human generates that, never the agent.
+- **`PackStore.openFile`'s wiring is not covered by the gate.** The pure decision is, and the
+  switch is, but that `PackStore` actually consults the memo would need a `Context` *and* a real
+  pack — an on-device test.
