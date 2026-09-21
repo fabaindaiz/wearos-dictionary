@@ -25,6 +25,8 @@ class FakeDictionary(
     /** Tells two packs apart in the selector tests. */
     private val packId: String = "fake",
     private val lang: String = "es",
+    /** Los idiomas del pack. `null` = solo [lang]; con dos, el pack es bidireccional. */
+    private val langs: List<String>? = null,
     /** How long each `suggest` takes. Useful to keep one query alive when another arrives. */
     private val demora: Long = 0,
     /**
@@ -55,8 +57,8 @@ class FakeDictionary(
         name = "Diccionario $packId",
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
-        langs = listOf(lang),
-        fuzzyProfiles = listOf(FuzzyProfile.SPANISH),
+        langs = langs ?: listOf(lang),
+        fuzzyProfiles = List((langs ?: listOf(lang)).size) { FuzzyProfile.SPANISH },
         entryCount = entryCount,
         dataVersion = 1,
         license = "CC0-1.0",

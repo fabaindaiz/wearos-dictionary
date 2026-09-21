@@ -345,7 +345,7 @@ Esto no es obvio y conviene saberlo antes de contar filas:
 
 | | qué lleva | para qué |
 |---|---|---|
-| tabla `trans` | **todas** las traducciones, atribuidas y sueltas, **normalizadas** y **tokenizadas** por D-014 | encontrar la entrada |
+| tabla `trans` | **todas** las traducciones, atribuidas y sueltas, **normalizadas** y **tokenizadas** por D-014. ⚠️ **Vacía en un pack bidireccional**: ahí las palabras del otro idioma son entradas de verdad (D-196) | encontrar la entrada |
 | tags `T` / `W` | las mismas, en **forma de display**, repartidas por atribución | mostrarlas |
 
 **Contar `trans` esperando que coincida con lo que la ficha muestra no cuadra, y es correcto que

@@ -19,10 +19,14 @@ import cl.fadiaz.dictionary.data.PackHandle
  * --"chocolate", "Madrid"-- and in everything else it was a button that did nothing, which is
  * worse than not having it.
  *
- * Translating for real needs the pack to **carry** the translations, and today both real ones are
- * monolingual (D-034): `trans` is empty and `MatchKind.TRANSLATION` returns not a single row. So
- * the action is offered **only if a bilingual pack is open**, which is the only thing that
- * declares `lang_dst` and therefore the only thing that can translate. Today: never.
+ * Translating for real needs the pack to **carry** the translations. The action is offered only
+ * if something open declares `translationsTo`, which since D-183 is a **capability** and not a
+ * direction: the Spanish monolingual pack declares it too, because it carries per-sense
+ * translations even though its headwords are Spanish.
+ *
+ * ⚠️ **And since D-196 the bilingual pack rarely needs this action at all**: the other language's
+ * words are entries in that same file, so tapping a translation opens it there. What is left for
+ * this action is the case it was written for — the same word in ANOTHER dictionary.
  */
 internal fun wordActions(
     isFavorite: Boolean,

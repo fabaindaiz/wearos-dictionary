@@ -115,8 +115,12 @@ worse.** There is no error to notice, so they are listed here rather than only i
 | pack | sin qué sale peor | qué se pierde |
 |---|---|---|
 | `es` | `--frases` · `--tesauro` · `--sumar es-wd` | ejemplos, sinónimos de WordNet, 5.283 lemas |
-| **`es-en`** | **`--flexiones en-def-wikt.db`** | **la dirección inversa**: sin él `ran`, `went` y `eaten` no llegan, y la cobertura del top 8.000 inglés cae de **98,9 % a 78,1 %** (D-184) |
+| **`es-en`** | **`--flexiones en-def-wikt.db`** | **la dirección inversa**: sin él `ran`, `went` y `eaten` no llegan. ⚠️ **Desde D-196 las flexiones van al `form` de la ENTRADA inglesa** —`went` es flexión de `go`, y `go` ya es un lema— en vez de expandirse dentro de `trans`, que en un pack bidireccional está vacía. Saltarse el flag costó **8,6 puntos** de cobertura inversa en el top 1.000, medidos sobre el pack construido: 97,0 % con él, 89,8 % sin él |
 | `en` | `--tesauro` | +30.423 entradas con sinónimos |
+
+⚠️ **Y el bilingüe se construye DESPUÉS del inglés, no en cualquier orden**: `--flexiones` lee
+un pack ya construido, así que `en-def-wikt.db` tiene que existir antes. El orden completo de un
+rebuild es **inglés → español → bilingüe → los dos núcleos**.
 
 `--flexiones` toma un **pack ya construido** del idioma destino, no un dump: las flexiones ya
 están extraídas y podadas ahí, y volver al dump de 3,2 GB sería otra hora de build más una segunda

@@ -257,7 +257,8 @@ PACKS = {
         # ⚠️ **El idioma en que estan las traducciones del payload, y es una DECLARACION que el
         # lector necesita**: sin ella la ficha muestra una lista de palabras inglesas sin decir
         # que son inglesas. No convierte el pack en bilingue --`kind` sigue siendo monolingual y
-        # `lang_dst` sigue vacio-- porque no se puede BUSCAR por ellas: son contenido de lectura.
+        # el pack declara un solo idioma-- porque no se puede BUSCAR por ellas: son contenido
+        # de lectura. El canal de busqueda es `trans`, que en este pack sigue vacia.
         # El canal de busqueda es la tabla `trans`, que en este pack sigue vacia.
         # ⚠️ **El IDIOMA al que apuntan las traducciones, y a proposito no un pack.**
         #
@@ -310,14 +311,18 @@ PACKS = {
         "kind": "bilingual",
         # ⚠️ **Un pack bilingue TAMBIEN lo declara, y olvidarlo fue una regresion real.** Desde
         # D-183 la app pregunta por esta clave y no por `kind`, asi que sin ella el pack cuyo
-        # proposito entero es traducir dejaba de ofrecerse. Que coincida con `lang_dst` no lo
-        # vuelve redundante: `lang_dst` dice en que idioma estan las GLOSAS, esto dice en que
-        # idioma estan las traducciones del payload.
+        # proposito entero es traducir dejaba de ofrecerse. Que coincida con el segundo idioma
+        # de `meta.langs` no lo vuelve redundante: `langs` dice que idiomas TIENE el pack, esto
+        # dice en que idioma estan las traducciones del payload.
         "translations_to": "en",
-        "name": "Español → English",
+        # ⚠️ **La flecha es de DOS puntas desde D-196**, y no es cosmetica: el pack tiene
+        # entradas de los dos idiomas --`casa` y `house` en el mismo archivo-- y el nombre es lo
+        # que el usuario lee en el inicio y en la gestion de diccionarios. Una flecha en una
+        # direccion afirmaba algo que dejo de ser cierto.
+        "name": "Español ↔ English",
         "description": (
-            "Palabras en español definidas en inglés, del Wiktionary en inglés. "
-            "Se puede buscar en los dos idiomas."
+            "Diccionario bilingüe en las dos direcciones: palabras españolas definidas en "
+            "inglés y palabras inglesas con sus equivalentes en español."
         ),
         "langs": "es,en",
         "fuzzy_profiles": "es,en",
@@ -357,7 +362,7 @@ PACKS = {
         "kind": "monolingual",
         "name": "English core",
         "description": "Spike: Open English WordNet 2025. Not a production pack (D-120).",
-        # `lang_src` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
+        # `langs` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
         # igual al pack de kaikki es lo unico que deja comparable la identidad logica de las
         # dos fuentes si algun dia se quieren cruzar.
         "langs": "en",

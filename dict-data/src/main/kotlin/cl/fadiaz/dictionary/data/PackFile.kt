@@ -232,8 +232,10 @@ class PackFile private constructor(
             // bilingue traduce por definicion --sus glosas ya estan en el idioma destino-- asi
             // que inferirlo es seguro, y sin esto un pack construido antes de D-183 dejaria de
             // ofrecerse para traducir aunque sea exactamente lo que hace.
-            // ⚠️ El respaldo ahora sale del SEGUNDO idioma declarado, que es lo que antes
-            // decia `lang_dst`. Un bilingue traduce por definicion, asi que inferirlo es seguro.
+            // ⚠️ **Se infiere del SEGUNDO idioma declarado cuando el pack no lo dice.** Un
+            // bilingue traduce por definicion --sus glosas ya estan en el otro idioma-- asi que
+            // inferirlo es seguro, y sin esto un pack que no declare la capacidad dejaria de
+            // ofrecerse para traducir aunque sea exactamente lo que hace.
             translationsTo = meta["translations_to"]
                 ?: parseList(meta["langs"]).getOrNull(1)
                     ?.takeIf { meta["kind"] == PackKind.BILINGUAL.id },

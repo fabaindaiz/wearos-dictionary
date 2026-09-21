@@ -64,12 +64,34 @@ class SqlitePackSourceTest {
     }
 
     @Test
-    fun traduccionInversaYSinRepetidos() = runTest {
-        val resultados = source.suggest("run")
+    fun laDireccionInversaLLEGA_A_UNA_ENTRADA_del_otro_idioma() = runTest {
+        // ⚠️ **Esto cambio de mecanismo con D-196 y por eso cambia el test.** Antes `run` era
+        // una clave de `trans` que apuntaba a `correr`; el resultado era una fila ESPAÑOLA con
+        // `MatchKind.TRANSLATION`. Ahora `run` es un **lema ingles** con sus equivalentes en el
+        // cuerpo, asi que buscarlo con ingles activo devuelve la entrada inglesa -- que se
+        // puede abrir, tiene idioma y dice a que palabras españolas lleva.
+        val resultados = source.suggest("run", lang = "en")
+        val run = resultados.firstOrNull { it.headword == "run" }
+        assertNotNull("'run' tiene que ser un lema: ${resultados.map { it.headword }}", run)
         val ids = resultados.map { it.entryId }
-        assertTrue("'run' no llego a ninguna entrada", ids.isNotEmpty())
-        assertEquals("la inversa devolvio entradas repetidas", ids.size, ids.toSet().size)
-        assertTrue(resultados.any { it.headword == "correr" })
+        assertEquals("la lista trajo entradas repetidas", ids.size, ids.toSet().size)
+        // Y su cuerpo lleva al español, que es la direccion inversa entera.
+        val abierta = source.entry(run!!.entryId)
+        assertEquals("en", abierta?.lang)
+        assertTrue("'run' tiene que llevar a 'correr': ${abierta?.wordTranslations}",
+            abierta?.wordTranslations.orEmpty().contains("correr"))
+    }
+
+    @Test
+    fun elFiltroDeIDIOMA_deja_fuera_al_otro() = runTest {
+        // ⚠️ La mitad de D-197: en un pack bidireccional `casa` y `house` conviven, y una lista
+        // que el usuario filtro a español no puede traer lemas ingleses.
+        val enEspanol = source.suggest("c", limit = 20, lang = "es")
+        assertTrue("con 'es' no puede venir un lema ingles: ${enEspanol.map { it.headword }}",
+            enEspanol.none { it.headword in setOf("child", "common", "current") })
+        val enIngles = source.suggest("c", limit = 20, lang = "en")
+        assertTrue("con 'en' tiene que venir alguno: ${enIngles.map { it.headword }}",
+            enIngles.any { it.headword in setOf("child", "common", "current") })
     }
 
     @Test
@@ -225,7 +247,11 @@ class SqlitePackSourceTest {
         // Con prefijo "c" el pack tiene siete lemas. El orden tiene que ser por rank --menor es
         // mas comun-- y no alfabetico: "correr" (10) antes que "casa" (15) antes que "cazar"
         // (200). Ordenado alfabeticamente, "casa" y "cazar" encabezarian.
-        val lemas = source.suggest("c", limit = 7).map { it.headword }
+        // ⚠️ **Con `lang = "es"`, y eso NO es decoracion**: sin filtro el pack bidireccional
+        // intercala sus lemas ingleses --`child`, `common`, `current`-- que tienen su propio
+        // rank y rompen la comparacion. Sin idioma la consulta es la del "modo auto" futuro,
+        // que es otra pregunta.
+        val lemas = source.suggest("c", limit = 7, lang = "es").map { it.headword }
         assertEquals("correr", lemas.first())
         assertTrue("'cazar' es el menos comun y deberia ir ultimo: $lemas", lemas.last() == "cazar")
     }

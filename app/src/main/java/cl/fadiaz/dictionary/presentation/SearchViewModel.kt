@@ -111,9 +111,17 @@ data class SearchState(
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
     private val openPacks: suspend (onExtracting: () -> Unit) -> PackSet,
-    /** Last time's pack, or the watch locale. Never alphabetical order. */
+    /**
+     * El **idioma** de la última vez, o el del reloj. Nunca el orden alfabético.
+     *
+     * ⚠️ **Era un `packId` y con un pack bidireccional dejó de alcanzar**: uno solo habla dos
+     * idiomas, así que recordar cuál estaba abierto no dice en cuál se estaba buscando. Al
+     * reiniciar, quien había elegido inglés volvía al español — sin error, y pareciendo que el
+     * chip no hace nada. Un `packId` viejo guardado sigue funcionando: `chooseActive` lo prueba
+     * primero y sólo después como idioma.
+     */
     private val preferred: () -> String? = { null },
-    private val saveActivePack: (packId: String) -> Unit = {},
+    private val saveActiveLanguage: (lang: String) -> Unit = {},
     /** The persisted history. It arrives as a parameter because it lives in Android (D-072). */
     private val savedHistory: () -> List<Visit> = { emptyList() },
     private val saveHistory: (List<Visit>) -> Unit = {},
@@ -269,18 +277,26 @@ class SearchViewModel(
         when (val result = openPacks { _state.update { it.copy(status = SearchState.Status.Installing) } }) {
             is PackSet.Ready -> {
                 opened = result.all.filterIsInstance<PackHandle.Open>().map { it.source }
-                val chosen = chooseActive(result, preferred())
+                val preferido = preferred()
+                val chosen = chooseActive(result, preferido)
                 source.value = chosen.source
                 searcher.value = repositoryFor(
-                    chosen.source, chosen.metadata.langs.firstOrNull())
+                    chosen.source,
+                    preferido.takeIf { chosen.metadata.speaks(it) }
+                        ?: chosen.metadata.langs.firstOrNull(),
+                )
                 _state.update {
                     it.copy(
                         status = SearchState.Status.Ready,
                         // D-031: the attribution comes from the pack, not from a constant. A
                         // pack from another source brings its own license and must show it.
                         active = chosen.metadata,
-                        // El primer idioma del pack elegido, salvo que ya hubiera uno guardado.
-                        activeLang = it.activeLang ?: chosen.metadata.langs.firstOrNull(),
+                        // ⚠️ **Lo guardado manda sobre el primer idioma del pack**, y ésa es la
+                        // mitad del arreglo: `langs.first()` daría siempre `es` en un pack
+                        // bidireccional, borrando la elección del usuario en cada arranque.
+                        activeLang = it.activeLang
+                            ?: preferido.takeIf { l -> chosen.metadata.speaks(l) }
+                            ?: chosen.metadata.langs.firstOrNull(),
                         // The demo one is not offered if a real dictionary exists: it is a
                         // placeholder, not an option. Its label would also clash -- with the
                         // toy and the real Spanish one the selector read "ES" and "ES".
@@ -365,7 +381,7 @@ class SearchViewModel(
         // in the previous language would be a wrong word that nobody reports, because nobody opens
         // a tile on purpose.
         cacheWeekForTile(pack)
-        saveActivePack(pack.metadata.packId)
+        saveActiveLanguage(lang)
     }
 
     fun onQueryChange(text: String) {

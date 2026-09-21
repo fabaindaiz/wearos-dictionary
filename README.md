@@ -29,7 +29,7 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 ```
 
 ```sh
-./gradlew check                                   # el gate: compila, lint, 745 tests y la auditoría
+./gradlew check                                   # el gate: compila, lint, 748 tests y la auditoría
 ./gradlew :dict-core:test                         # solo el núcleo de búsqueda (rápido)
 python3 tools/packbuilder/build_toy.py            # pack de juguete para los tests instrumentados
 python3 tools/packbuilder/verify_pack.py <pack>   # invariantes de un pack real
@@ -65,7 +65,7 @@ Tools → Device Manager → Add a new device → Wear OS → imagen de API 33 o
 
 ```sh
 ./gradlew :dict-data:devicePrecheck             # ¿hay con qué correrlos? Dice qué falta
-./gradlew :dict-data:connectedDebugAndroidTest  # los 37 tests en dispositivo
+./gradlew :dict-data:connectedDebugAndroidTest  # los 38 tests en dispositivo
 ```
 
 **Creá un AVD por cada nivel de API que soportes, no uno solo.** El punto de

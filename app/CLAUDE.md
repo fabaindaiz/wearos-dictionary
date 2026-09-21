@@ -78,7 +78,7 @@ packs went with it** — ~450 MB to push again. The watch's IME also reorders th
 ZERO tests.** An empty green. Read the **count**, never the colour.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 293 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 296 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device -- UNINSTALLS the app
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
@@ -299,8 +299,11 @@ Three things that are not preference but defences against bugs that already exis
   silence: `en-` sorts before `es-`.
 - **Navigation carries `packId`** as well as `entryId` (D-080). Without it, tapping an English
   result resolved it against the active pack and showed another word.
-- **Voice comes from the active pack's `metadata.langSource`.** A watch dictating "perro" against
-  the English recogniser returns anything.
+- ~~**Voice comes from the active pack's `metadata.langSource`.**~~ **Superseded twice.** First
+  the input moved to `ACTION_REMOTE_INPUT`, which uses the **watch's** language and accepts no
+  `EXTRA_LANGUAGE`; then `langSource` itself disappeared — a pack declares `meta.langs` as peers
+  (D-195), so "the pack's language" stopped being a single value. What tells the user which
+  language they are searching is the chip, which is now the thing they pick (D-197).
 
 The selector lives **inside the Options section of the home** and costs a row of its own (D-111).
 That changed what D-078 said —that it cost zero rows, because it replaced the title— in exchange

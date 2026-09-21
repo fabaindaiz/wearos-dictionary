@@ -65,7 +65,33 @@ buscar** y no **para leer**.
   suelta. El 1,4 % que falta eran coincidencias accidentales de tokens (`would` dentro de
   `would like`).
 - **Gate**: 26 checks · 745 tests.
+**Verificado en el EMULADOR** (`tools/avd_como_el_reloj.py`, `sw234dp … round … 340dpi`), que
+desde hoy es donde van las sondas funcionales:
+- La app abre los packs `schema_version 4` sin crashear, con el APK llevando los núcleos nuevos.
+- **Dos chips, ES y EN, con un solo pack instalado** — el bilingüe aporta los dos.
+- La fila dice `noun · ES` y ya no `ENWIKT` (D-190).
+- **La palabra del día es `futuro`**, no `straitly` (D-193).
+- **38 tests instrumentados verdes**, incluidos dos nuevos que corren contra el toy
+  bidireccional: que `run` es un lema **inglés** cuyo cuerpo lleva a `correr`, y que filtrar por
+  idioma deja fuera al otro.
+
+**Dos bugs que sólo aparecieron al mirar la pantalla.**
+- ⚠️ **El selector contaba ARCHIVOS y no idiomas.** Con sólo `es-tr-enwikt` instalado —un pack
+  que habla dos idiomas— no se dibujaba ningún chip, así que **no había forma de llegar a su
+  mitad inglesa**: el pack ofrecía dos y la app cero. Es exactamente el caso que el pack
+  bidireccional existe para servir.
+- ⚠️ **El pack seguía llamándose «Español → English»**, una flecha de una punta para un
+  diccionario que ahora tiene las dos. Corregido a `↔` y reconstruido.
+
 **Qué salió mal.**
+- ⚠️ **`measure_query_cost.py` estaba roto y no de hoy**: desempaquetaba dos valores de
+  `payload.parse`, que devuelve tres desde D-179. Crasheaba desde entonces. Es la réplica que
+  `tools/CLAUDE.md` advierte que "miente en silencio" — esta vez avisó. Arreglado, y ahora mide
+  **un pack bidireccional una vez por idioma**, porque son dos consultas distintas.
+- ⚠️ **Se perdía el idioma elegido al reiniciar.** Se persistía un `packId`, y con un pack que
+  habla dos idiomas eso dejó de decir en cuál se buscaba: quien elegía inglés volvía a abrir en
+  español. Ahora se guarda el **idioma**; un `packId` viejo guardado sigue sirviendo porque
+  `chooseActive` lo prueba primero como identidad.
 - ⚠️ **Olvidé subir `SUPPORTED_SCHEMA_VERSION` en Kotlin** y lo agarró la auditoría, no yo:
   *«SCHEMA_VERSION: Kotlin=3 Python=4»*. Es exactamente el fallo que ese check existe para
   atrapar — el builder habría escrito packs que la app rechaza, o peor.

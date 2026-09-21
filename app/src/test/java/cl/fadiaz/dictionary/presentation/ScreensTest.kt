@@ -84,16 +84,18 @@ class ScreensTest {
         lang: String = "es",
         name: String = "Español — definiciones",
         entries: Int = 1,
+        /** Con dos, el pack es bidireccional y aporta un chip por cada uno. */
+        langs: List<String>? = null,
     ) = PackMetadata(
         packId = packId,
-        schemaVersion = 3,
+        schemaVersion = 4,
         normVersion = 1,
-        kind = PackKind.MONOLINGUAL,
+        kind = if ((langs?.size ?: 1) > 1) PackKind.BILINGUAL else PackKind.MONOLINGUAL,
         name = name,
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
-        langs = listOf(lang),
-        fuzzyProfiles = listOf(FuzzyProfile.SPANISH),
+        langs = langs ?: listOf(lang),
+        fuzzyProfiles = List((langs ?: listOf(lang)).size) { FuzzyProfile.SPANISH },
         entryCount = entries,
         dataVersion = 1,
         license = "CC-BY-SA-4.0",
@@ -1380,6 +1382,25 @@ class ScreensTest {
     }
 
     // --- The language selector ----------------------------------------------------------------
+
+    @Test
+    fun conUN_SOLO_PACK_BIDIRECCIONAL_el_selector_IGUAL_aparece() {
+        // ⚠️ **Encontrado en el emulador, y es el caso que el pack bidireccional existe para
+        // servir.** El selector se dibujaba con `state.available.size > 1` --contaba ARCHIVOS--
+        // así que con sólo `es-tr-enwikt` instalado no aparecía ninguno, y **no había forma de
+        // llegar a su mitad inglesa**: el pack hablaba dos idiomas y la app ofrecía cero.
+        //
+        // Lo que se cuenta ahora son IDIOMAS, que es lo que el chip elige desde D-197.
+        val bi = meta("es-tr-enwikt", "es", "Español ↔ English", langs = listOf("es", "en"))
+        showSearch(
+            readyState().copy(
+                query = "", submitted = "",
+                active = bi, activeLang = "es", available = listOf(handle(bi)),
+            ),
+        )
+        compose.onNodeWithText("ES").assertExists()
+        compose.onNodeWithText("EN").assertExists()
+    }
 
     @Test
     fun withTwoPacksTheSelectorShowsBothLanguages() {
