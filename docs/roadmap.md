@@ -514,6 +514,28 @@ construye con el mismo pipeline que el español: la poda resultó **estructural*
   mirarlas.
 - **Nada de esto corrió en un reloj físico**, y menos con 295 MiB.
 
+#### ⚠️ El 38,7 % de la tabla `form` inglesa no son flexiones — medido 2026-09-21
+
+Encontrado de rebote, midiendo el índice inverso del pack bilingüe, y **es un defecto del pack
+inglés por sí solo**: de sus **985.992** filas de `form`,
+
+- **381.590 (38,7 %) contienen un espacio** — `big fat hairy deals`, `ate breathed and slept`,
+  `1 000 000 questions`. Son frases de ejemplo que el parser dejó caer en la tabla de flexiones.
+- **`no table tags` (577 filas) y `glossary` (575) son artefactos de wiktextract**, no palabras.
+  Se delatan por repetición: una flexión real casi no se repite.
+
+El contraste con el español cierra el diagnóstico: sus 1.499.895 filas tienen como forma más
+repetida `unas`, **16 veces**. El defecto es de la fuente inglesa y del filtro que no está, no del
+pipeline.
+
+**Qué cuesta.** Peso muerto en el peldaño `byInflectedForm` del pack inglés —nadie va a teclear
+`ate breathed and slept`— y filas que el índice nunca usa. **Qué lo arregla**: el mismo filtro que
+el índice inverso ya necesita (una palabra, alfabética, no artefacto), aplicado en `kaikki.py` al
+construir. Ahí se midió que **descarta el 35 % de los candidatos sin mover la cobertura ni una
+décima**.
+
+Se arregla cuando se reconstruya el pack inglés; no justifica reconstruir 295 MiB por sí solo.
+
 ### Qué contenido tiene el pack de demostración
 
 **Estado.** **Decidido el 2026-09-21, sin construir**: *«quiero reorientar el pack demo a usar
@@ -1496,9 +1518,84 @@ That is the source, not the build: the English Wiktionary describes Spanish word
 the Spanish Wiktionary does. **It is a translation dictionary, not a Spanish dictionary**, and the
 numbers say to keep both rather than treat this one as a replacement.
 
-**What would close the reverse gap**, in order of cost: an English inflection table — the same
-shape as `form`, built from the English monolingual pack's own forms, which is already downloaded;
-and then, only if the *kind* of answer matters, a second pack authored EN→ES.
+#### Closing the reverse gap: measured, 2026-09-21
+
+The question was whether a translation pack can carry its index **in both directions** and what
+that weighs. It was measured rather than argued, and the answer is that it is cheap — but only in
+one of the two shapes, and only after the source is filtered.
+
+**The source is the English monolingual pack's own `form` table**, which is already built and
+already downloaded. Of the 89,049 English keys in `trans`, **70,504 (79.2 %) are a lemma there**,
+and their inflections are exactly the rows the reverse direction is missing.
+
+**What it buys** — the same top-N test as the table above, so the numbers are comparable:
+
+| Words tested | EN→ES today | with the inflection index |
+|---|---|---|
+| top 1,000 | 92.7 % | **99.4 %** |
+| top 3,000 | 85.9 % | **99.6 %** |
+| top 8,000 | 78.1 % | **98.9 %** |
+
+⚠️ **The residue is not vocabulary, it is the tokenizer.** What still misses at top 8,000 is
+led by `didn`, `doesn`, `wasn`, `shouldn`, `hasn`, `hadn` — the halves of contractions that
+`tatoeba.frequencies` splits on the apostrophe — plus `cannot` and `any`. Real misses
+(`ambitious`, `amid`, `tend`, `altogether`) are a handful. **The gap this closes is essentially
+all of the gap there was**, and the measurement of what remains is worth more than the coverage
+number: it says the next thing to fix is the frequency tokenizer, not the pack.
+
+##### ⚠️ Two storage shapes, and the expensive one is the obvious one
+
+Both were built and weighed, not estimated:
+
+| | rows | size | query cost |
+|---|---|---|---|
+| **A — expand into `trans`** `(norm, entry_id)` | 379,000 | **5.88 MB** | none: the `byTranslation` rung is unchanged |
+| **B — an indirection table** `(norm, lemma)` | 84,319 | **1.84 MB** | one extra lookup before the rung |
+
+**A costs 3.2× more for the same answers**, and the reason is worth stating because it is not
+obvious from the row counts: an English key maps to **2.3 Spanish entries** on average — `dog` is
+a key of *can, perro, chucha, choco, hotdog* — so expanding `dogs` writes that fanout **again**,
+once per inflection. B stores each inflection **once** and pays the fanout at query time, where it
+is already being paid.
+
+On a 50.2 MB pack that is **+3.7 % against +11.7 %**. B is the recommendation; its cost is a new
+table, which is a **schema change** and therefore D-001 territory: the pack is rejected and rebuilt
+rather than migrated, which for a pack that is not published yet costs nothing.
+
+##### ⚠️ The filter is not optional, and it was found by reading rows
+
+A blind sample of 20 candidate rows — the discipline in root `CLAUDE.md`, *look at the output, not
+just the numbers* — showed the raw source is dirty, and the dirt is in the **English monolingual
+pack itself**:
+
+- `no table tags` (577 rows) and `glossary` (575 rows) are **wiktextract parse artifacts** sitting
+  in `form` as if they were inflections.
+- **38.7 % of the English `form` table's 985,992 rows contain a space**: `big fat hairy deals`,
+  `ate breathed and slept`, `1 000 000 questions`. The Spanish pack is clean by comparison — its
+  most repeated form appears 16 times, and it is `unas`.
+
+Keeping one word, alphabetic, non-artifact drops the candidates from 130,378 to **84,319 — 35 %
+was junk — and the coverage numbers above do not move by a tenth of a point.** That is the
+measurement that matters: the filter is free.
+
+**This is a defect in `en-def-wikt.db` regardless of this feature**, and it is filed under §Pack
+de inglés: those phrase rows are dead weight in the inflection rung of the English pack too, where
+nothing filters them.
+
+##### The other direction, priced and discarded
+
+The alternative reading of *"tables in both directions"* is a pack **authored** EN→ES, with English
+headwords and English senses — the thing that would answer *"what does this English word mean"*
+rather than *"which Spanish words mean this"*. The English Wiktionary does carry a real
+`translations` field for its **English** entries, unlike the Spanish section which has none at all.
+
+⚠️ **It was counted over the full 3.2 GB dump and the data is not there**: of **1,492,836** English
+entries, **9,221 (0.6 %)** have any `translations` and **5,080 (0.3 %)** have a Spanish one, for
+**10,438** EN→ES pairs total. Against the **206,727** rows already derived from the glosses, a pack
+built that way would be **twenty times smaller** than the reverse index it is meant to replace.
+
+The curated pairs are good — `dictionary → diccionario, tumbaburros, mataburros`, sense-tagged —
+so they are worth **folding in as extra keys**, which is cheap. They are not worth a pack.
 
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 
