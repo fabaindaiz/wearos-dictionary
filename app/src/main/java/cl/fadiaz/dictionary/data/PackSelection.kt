@@ -60,3 +60,28 @@ internal fun packsToQuery(opened: List<DictionarySource>): List<DictionarySource
         .toSet()
     return masNuevos.filterNot { it.metadata.subsetOf in absorbentes }
 }
+
+/**
+ * Cuál pack queda **activo**, que es la otra mitad de las mismas reglas.
+ *
+ * ⚠️ **Elegir el activo aparte de [packsToQuery] era un agujero, y uno que se anulaba solo.** La
+ * regla sacaba el build viejo de la lista a consultar, pero el activo se elegía del listado del
+ * directorio —que no promete orden— y después se agregaba a la consulta **siempre**. Si caía el
+ * viejo, se consultaba el viejo por ser activo y el nuevo por estar en la lista: **los dos builds
+ * contestando**, que es exactamente el defecto que la regla venía a cerrar.
+ *
+ * El orden de preferencias, y cada uno tiene su motivo:
+ *
+ * 1. **Sólo entre los que se consultan.** Elegir a mano un pack que otro contiene no puede
+ *    devolverlo: no se le va a preguntar nada.
+ * 2. **Un diccionario real le gana a uno de demostración** (D-081). El demo existe para que una
+ *    app recién instalada muestre algo; ganarle a lo que el usuario instaló sería al revés.
+ * 3. **Lo que el usuario eligió la última vez**, si sigue estando.
+ * 4. Cualquiera, con tal de que sea estable — la lista ya viene ordenada por las reglas.
+ */
+internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): PackHandle.Open? {
+    val consultables = packsToQuery(opened.map { it.source }).toSet()
+    val vivos = opened.filter { it.source in consultables }
+    val candidatos = vivos.filterNot { it.isDemo }.ifEmpty { vivos }
+    return candidatos.firstOrNull { it.packId == preferred } ?: candidatos.firstOrNull()
+}

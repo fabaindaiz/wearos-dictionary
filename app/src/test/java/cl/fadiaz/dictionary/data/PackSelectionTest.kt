@@ -110,6 +110,66 @@ class PackSelectionTest {
             "una declaración circular no puede dejar la búsqueda sin packs"
         }
     }
+
+    // ------------------------------------------------- cuál queda ACTIVO, que es la otra mitad
+
+    private fun handle(source: cl.fadiaz.dictionary.core.DictionarySource, demo: Boolean = false) =
+        PackHandle.Open(source = source, isDemo = demo)
+
+    @Test
+    fun elActivoNuncaEsUnBuildViejo() {
+        // ⚠️ **La mitad que faltaba.** La regla de selección sacaba el build viejo de la lista a
+        // consultar, pero el pack ACTIVO se elegía aparte, del listado del directorio — que no
+        // promete orden. Si caía el viejo, se consultaba el viejo (por ser activo) **y** el nuevo
+        // (por estar en la lista): los dos builds contestando, que es justo lo que se cerró.
+        val viejo = handle(pack("es-def-wikc", dataVersion = 202601010000))
+        val nuevo = handle(pack("es-def-wikc", dataVersion = 202609210000))
+        for (entrada in listOf(listOf(viejo, nuevo), listOf(nuevo, viejo))) {
+            assertEquals(
+                202609210000L,
+                activePack(entrada, preferred = "es-def-wikc")?.metadata?.dataVersion,
+            )
+        }
+    }
+
+    @Test
+    fun elActivoTampocoEsUnPackQueOtroContiene() {
+        val nucleo = handle(pack("es-core-wikc", subsetOf = "es-def-wikc"))
+        val completo = handle(pack("es-def-wikc"))
+        assertEquals(
+            "elegir a mano un pack que otro contiene no puede devolverlo: no se consulta",
+            "es-def-wikc",
+            activePack(listOf(nucleo, completo), preferred = "es-core-wikc")?.packId,
+        )
+    }
+
+    @Test
+    fun seRespetaLoQueElUsuarioEligio() {
+        // El control: la regla no puede pasar por encima de la preferencia cuando no hay motivo.
+        val wikc = handle(pack("es-def-wikc"))
+        val wd = handle(pack("es-def-wd"))
+        assertEquals("es-def-wd", activePack(listOf(wikc, wd), preferred = "es-def-wd")?.packId)
+    }
+
+    @Test
+    fun unPackDeDemostracionNuncaLeGanaAUnDiccionarioReal() {
+        // D-081: el demo existe para que una app recién instalada muestre algo, y no puede
+        // ganarle a lo que el usuario instaló. Era `firstOrNull` sobre una lista sin orden.
+        val demo = handle(pack("demo-es-en", entries = 28), demo = true)
+        val real = handle(pack("es-def-wikc", entries = 152281))
+        assertEquals("es-def-wikc", activePack(listOf(demo, real), preferred = null)?.packId)
+    }
+
+    @Test
+    fun sinNadaMasElDemoSIEsElActivo() {
+        val demo = handle(pack("demo-es-en", entries = 28), demo = true)
+        assertEquals("demo-es-en", activePack(listOf(demo), preferred = null)?.packId)
+    }
+
+    @Test
+    fun sinNingunPackNoHayActivo() {
+        assertEquals(null, activePack(emptyList(), preferred = "es-def-wikc"))
+    }
 }
 
 /** Un pack del que sólo importa su metadata: lo que se prueba es la selección, no la consulta. */
@@ -123,4 +183,5 @@ private class SoloMetadata(override val metadata: PackMetadata) :
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): cl.fadiaz.dictionary.core.EntrySummary? = null
     override fun close() = Unit
+
 }

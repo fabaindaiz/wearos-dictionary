@@ -26,6 +26,64 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — La regla que se anulaba a sí misma, y dónde está el espacio de verdad
+
+**Qué.** D-172: el pack activo sale de las mismas reglas que deciden a quién se consulta. Más la
+respuesta medida a *«¿quedan optimizaciones importantes de espacio o batería?»*.
+
+**Áreas.** `data/PackSelection.kt` (`activePack`) + su test · `data/PackStore.kt` ·
+`presentation/SearchViewModel.kt` · `README.md`, `app/CLAUDE.md`, `docs/roadmap.md`,
+`docs/decisions.md`.
+
+**Por qué.** *«Quiero implementar las reglas que discutimos ahora que no impliquen empezar a
+desarrollar la separación de packs»*, más la pregunta por optimizaciones antes de subir una build.
+
+**Arquitectura.** ✅ Cumple. `activePack` vive al lado de `packsToQuery`, en el mismo archivo puro
+y vigilado por D-072: eran la misma decisión partida en dos lugares.
+
+**Medido, y es la respuesta a la pregunta:**
+
+| | MB |
+|---|---|
+| APK con R8 | **5,48** |
+| Pack español | 71,68 |
+| Pack inglés | 300,93 |
+
+**Los packs son 68× el APK.** O sea que el espacio del reloj es enteramente el problema que la
+división núcleo/completo resuelve, y que está diferido a propósito. Dentro del APK, lo único que
+queda es 1,20 MB de `armeabi-v7a` — el 22 % del APK y el **0,3 %** de lo que ocupa la app en total.
+No califica de importante.
+
+**Y el plan de batería quedó agotado salvo lo que necesita el reloj**: R8 hecho, arranque de 41,33
+a 6,30 ms, búsquedas que no devolvían nada cortadas por el respaldo entre idiomas. Lo que falta
+—decomponer el 9,4 %, los baseline profiles— es medición en dispositivo, no código.
+
+**Qué salió mal.**
+
+- ⚠️ **D-171 tenía un agujero que la anulaba, y lo encontré buscándolo a propósito.** La regla
+  filtraba la lista a consultar, pero el activo se elegía por otro camino y se agregaba siempre.
+  **La lección: una regla que filtra una lista no sirve si otro camino construye esa lista de
+  nuevo.** Al escribir una regla así, lo que hay que buscar no es dónde aplicarla sino **quién más
+  decide lo mismo** — acá eran tres lugares.
+- **Inserté seis tests dentro de la clase equivocada.** `rfind("\n}")` encontró el cierre de la
+  clase auxiliar del final, no el de la clase de tests. Lo agarró el compilador.
+- **Invertí los argumentos de `assertEquals`.** `org.junit.Assert` toma `(mensaje, esperado,
+  real)` y kotlin.test toma `(esperado, real, mensaje)`; este archivo usa el primero. El mensaje
+  entró como valor esperado y el test falló comparando una frase contra un `pack_id`.
+
+**Qué quedó sin hacer.**
+
+- ⚠️ **Esta build cambia cómo se parsea la metadata de un pack** (`dataVersion` pasó a `Long`,
+  `subset_of` es nuevo) **y los packs que están en el reloj son anteriores**. Verificado a nivel
+  de datos: los dos traen `data_version` de 8 dígitos —que parsea como `Long` sin problema— y no
+  traen `subset_of`, que se lee con `meta[...]` y da null. Pero **verificado en los datos, no en
+  el dispositivo**: es justo la clase de cosa que sólo se ve al abrir.
+- **La regla 2 sigue sin usuario**: ningún pack declara `subset_of`.
+- **`armeabi-v7a` es una decisión abierta**, no una tarea: 1,20 MB a cambio de dejar fuera relojes
+  más viejos. Con 372 MB de packs al lado, no mueve la aguja.
+
+---
+
 ## 2026-09-21 — Las reglas de selección de packs, y un ciclo que casi deja la búsqueda sin nada
 
 **Qué.** D-171: instalado y consultado dejan de ser la misma lista, con dos reglas en una función

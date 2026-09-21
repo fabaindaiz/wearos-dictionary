@@ -117,9 +117,9 @@ object PackStore {
             )
         }
 
-        val candidates = opened.filterNot { it.isDemo }.ifEmpty { opened }
-        val chosen = candidates.firstOrNull { it.packId == preferred }
-            ?: candidates.firstOrNull()
+        // El activo sale de las MISMAS reglas que deciden a quién se consulta: elegirlo aparte
+        // dejaba entrar un build viejo, que después se consultaba igual por ser el activo.
+        val chosen = activePack(opened, preferred)
             ?: return@withContext PackSet.Unusable(
                 problems.firstOrNull() ?: context.getString(R.string.pack_none_opened),
             )
