@@ -23,7 +23,7 @@ import kotlin.test.assertTrue
  */
 class WordActionsTest {
 
-    private fun pack(id: String, kind: PackKind) = PackHandle.Open(
+    private fun pack(id: String, kind: PackKind, translationsTo: String? = null) = PackHandle.Open(
         source = EmptySource(
             PackMetadata(
                 packId = id,
@@ -35,6 +35,7 @@ class WordActionsTest {
                 description = null,
                 langSource = "es",
                 langTarget = if (kind == PackKind.BILINGUAL) "en" else null,
+                translationsTo = translationsTo ?: if (kind == PackKind.BILINGUAL) "en" else null,
                 fuzzyProfile = FuzzyProfile.SPANISH,
                 entryCount = 1,
                 dataVersion = 1,
@@ -66,6 +67,27 @@ class WordActionsTest {
     }
 
     @Test
+    fun aMonolingualPackThatDeclaresTranslationsIsOne() {
+        // ⚠️ El pack español ahora **traduce** --lee la tabla del Wikcionario y llena `T`/`W`--
+        // pero sigue siendo `monolingual`, porque sus DEFINICIONES son en español. Filtrar por
+        // `kind` dejaba la acción sin ofrecer nunca sobre un pack que sí traduce: `kind`
+        // contesta en qué idioma están las definiciones, no qué sabe hacer el pack.
+        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
+                            pack("es-otro", PackKind.MONOLINGUAL, translationsTo = "en"))
+        assertEquals("es-otro", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
+    }
+
+    @Test
+    fun theActionDisappearsWhenTheEntryAlreadyShowsItsOwn() {
+        // La acción existía para ir a buscar la palabra a OTRO pack. Ahora las traducciones se
+        // muestran dentro de la ficha, así que ofrecerla además sería mandar al lector a otra
+        // pantalla por lo que ya está viendo.
+        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
+                            pack("es-en", PackKind.BILINGUAL))
+        assertNull(translationPack(opened, "es-def", entryHasTranslations = true))
+    }
+
+    @Test
     fun anotherMONOLINGUALDictionaryIsNotATranslationPack() {
         // This is today's real case: Spanish and English, both monolingual. Looking "house" up
         // in the Spanish dictionary returns no translation, it returns nothing.
@@ -73,7 +95,7 @@ class WordActionsTest {
             pack("es-def", PackKind.MONOLINGUAL),
             pack("en-def", PackKind.MONOLINGUAL),
         )
-        assertNull(translationPack(opened, packOfTheEntry = "es-def"))
+        assertNull(translationPack(opened, packOfTheEntry = "es-def", entryHasTranslations = false))
     }
 
     @Test
@@ -82,9 +104,9 @@ class WordActionsTest {
             pack("es-def", PackKind.MONOLINGUAL),
             pack("es-en", PackKind.BILINGUAL),
         )
-        assertEquals("es-en", translationPack(opened, "es-def")?.packId)
+        assertEquals("es-en", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
         // While reading the bilingual one, translating to itself is not offered.
-        assertNull(translationPack(opened, "es-en"))
+        assertNull(translationPack(opened, "es-en", entryHasTranslations = false))
     }
 
     @Test

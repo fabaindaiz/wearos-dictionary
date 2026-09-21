@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
-pipeline de packs (`tools/`, **318 tests**) están completos y en el gate, junto con los **287 JVM
-de `:app`** y **26 checks** de auditoría estructural — **722 tests en total**. Los **43
+pipeline de packs (`tools/`, **322 tests**) están completos y en el gate, junto con los **289 JVM
+de `:app`** y **26 checks** de auditoría estructural — **728 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -358,7 +358,7 @@ memoria.
 |---|---|---|
 | 1 | **`wordActions` deja de filtrar por `kind == PackKind.BILINGUAL`** | Verificado que sigue así (`WordActions.kt:63`). El pack español **ya traduce** y la acción «ver traducción» **no aparece nunca**. Es el bug más visible de todos |
 | 2 | **`bilingual.py` llena `T`/`W`** con las claves crudas que ya calcula | Verificado: **0 referencias** a esos campos. El pack con más traducciones (206.727 filas de `trans`) tiene el canal de lectura **vacío**, y su docstring admite que tira la forma de display |
-| 3 | **El APK deja de empaquetar el toy** | `app/build.gradle.kts:263` sigue apuntando a `demo-es-en.db`. `es-core.db` y `en-core.db` existen desde hoy |
+| ~~3~~ | ~~El APK deja de empaquetar el toy~~ | ⚠️ **Ya estaba hecho y el corte lo listó mal.** `bundlePacks` prefiere los núcleos desde D-176 y cae al toy sólo si faltan; verificado corriendo la tarea: en `assets/` quedan `en-core.db` (12,5 MB) y `es-core.db` (5,0 MB). El error fue leer una línea suelta (`val toy = ...`) en vez del cuerpo de la tarea |
 
 #### Mediano (un día)
 
