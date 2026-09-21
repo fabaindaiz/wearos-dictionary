@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.EntrySummary
+import cl.fadiaz.dictionary.core.RankBasis
 
 /**
  * Which word is shown today.
@@ -19,28 +20,51 @@ import cl.fadiaz.dictionary.core.EntrySummary
  * consecutive days gave *Eyaralar, piscigranja, Ynda, desquiciador* in Spanish and *Voorschoten,
  * Negerhollands, nonparaxiality* in English. Proper nouns and terms nobody knows.
  *
- * The cause is that `rank` is **flattened**: median 992 against a maximum of 997, with every
- * entry below 3000. It only discriminates in the tail --the best are "hacer, venir, salir,
- * correr" and "water, woman, take, break"-- and proper nouns with rich pages sneak in there,
- * which is what `rank` actually measures (D-067): `Ivanivka` has rank 529.
- *
  * Hence one candidate is not picked but **the best of [CANDIDATES]**, skipping proper nouns. It
  * costs [CANDIDATES] single-row primary-key reads --nothing, and the home screen is built once--
  * and above all it **needs no per-language threshold**: the first version used one, and the good
  * value was measured at 912 in Spanish and 978 in English. A third language would have needed
  * another hand-picked number, and that is exactly the kind of constant that rots in silence when
  * nobody measures it again.
+ *
+ * ⚠️ **WHAT D-185 CHANGED UNDER THIS FILE, AND IT IS MOST OF IT.**
+ *
+ * This class used to justify itself with three claims about `rank` that are **no longer true**:
+ * that it is flattened (median 992 of a 997 maximum), that it measures page richness (D-067),
+ * and that Spanish verbs therefore win. Since D-185 a pack that says `rank_basis=frequency` has
+ * `rank` in **two disjoint bands** -- with frequency signal, and without -- so the flattening is
+ * gone and so is the verb bias.
+ *
+ * The symptom was on the watch: the English word of the day was **`straitly`**. Measured over
+ * 112 days on the real packs, the old policy landed on a word with known frequency **79 % of
+ * days in Spanish and 49 % in English**; the rest were `photoless`, `nonscripturally`,
+ * `Anglice`. Two things caused it and both are fixed here -- see [CATEGORY_ROTATION] and
+ * [CANDIDATES].
  */
 internal object WordOfTheDay {
 
     /**
      * How many candidates are tried before keeping the best one.
      *
-     * 32 and not 8 because `rank` is flattened: with few samples nearly all of them land on the
-     * median and the word of the day goes back to being obscure. 32 single-row reads cost
-     * nothing and the home screen is built only once.
+     * ⚠️ **96 and not 32, and the number comes from the size of the English pack.** Only
+     * **5.8 %** of its 956,150 entries carry a frequency signal (55,903), so with 32 draws the
+     * chance that **every** candidate misses the signal band is 0.942^32 = 15 %: one week in
+     * seven the word of the day was picked out of the 94 % nobody recognises.
+     *
+     * Measured over 112 days on the real packs, days landing on a word with known frequency:
+     *
+     * | candidatos | es | en |
+     * |---|---|---|
+     * | 32 | 99 % | 85 % |
+     * | 64 | 100 % | 98 % |
+     * | **96** | **100 %** | **100 %** |
+     *
+     * Spanish is already fine at 32 (18.8 % of its entries carry signal); **96 is what English
+     * costs**, and it is cheap enough not to split the constant per language: they are
+     * single-row primary-key reads on an open connection, and the whole day's pick measured
+     * **under 6 ms** on both packs. The home screen is built once.
      */
-    const val CANDIDATES: Int = 32
+    const val CANDIDATES: Int = 96
 
     /**
      * The `pos` values that are never the word of the day.
@@ -69,13 +93,25 @@ internal object WordOfTheDay {
     )
 
     /**
-     * The part of speech preferred on each day.
+     * The part of speech preferred on each day, **only for packs that do not rank by frequency**.
      *
      * It exists because of a MEASURED bias on the real pack: without it, 28 consecutive days
      * gave **28 verbs** in Spanish. It is not that verbs are over-represented --the pack is
-     * 29.2 % nouns against 28.5 % verbs, nearly tied-- but that `rank` measures page richness
+     * 29.2 % nouns against 28.5 % verbs, nearly tied-- but that `rank` measured page richness
      * (D-067) and in Spanish the verb pages are the richest because they carry the conjugations.
-     * Rotating the category, the same sample gives 12 nouns, 8 verbs, 7 adjectives, 1 adverb.
+     *
+     * ⚠️ **D-185 removed the cause, and with the cause gone the cure does harm.** A rank that is
+     * real usage frequency has no verb bias, so the rotation stopped fixing anything and started
+     * forcing *the best word of today's category* over a far more common word of another.
+     * Measured over 112 days on the real packs, days landing on a word with known frequency:
+     * **79 % → 99 %** in Spanish and **49 % → 82 %** by dropping the rotation. And the bias does
+     * not come back: 58 nouns, 20 adjectives, 18 verbs, 7 adverbs in Spanish.
+     *
+     * ⚠️ **It is not deleted, because a pack is not updated when the app is.** The watch may
+     * hold a pack built before D-185, or one from a source with its own formula
+     * (`sources/wikidata.py`); there the verb bias is real and this is the only defence.
+     * [RankBasis] is what tells the two cases apart -- the same key that already decides
+     * `orderFor`'s tie-break, so a pack that lies about it was already lying.
      *
      * It is a **preference, not a filter**: a pack with no adverbs cannot be left without a word
      * of the day on the day adverbs come up.
@@ -98,9 +134,19 @@ internal object WordOfTheDay {
         entryCount: Int,
         read: suspend (Long) -> EntrySummary?,
         candidates: Int = CANDIDATES,
+        /**
+         * Como calculo su `rank` el pack. Ver [CATEGORY_ROTATION].
+         *
+         * El defecto es [RankBasis.PAGE_RICHNESS] a proposito: es lo que era **todo** pack antes
+         * de D-185, y un sitio de llamada que se olvide de pasarlo degrada al comportamiento de
+         * siempre en vez de a uno nuevo.
+         */
+        rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
     ): EntrySummary? {
         if (entryCount <= 0) return null
 
+        // Con frecuencia real no hay categoria del dia: manda el rank y punto.
+        val rotate = rankBasis != RankBasis.FREQUENCY
         val categoryOfTheDay = CATEGORY_ROTATION[
             positiveModulo(
                 seed(date, packId, CATEGORY_PASS),
@@ -128,7 +174,7 @@ internal object WordOfTheDay {
             val previous = best
             if (previous == null || candidate.rank < previous.rank) best = candidate
 
-            if (candidate.partOfSpeech == categoryOfTheDay) {
+            if (rotate && candidate.partOfSpeech == categoryOfTheDay) {
                 val previousInCategory = bestInCategory
                 if (previousInCategory == null || candidate.rank < previousInCategory.rank) {
                     bestInCategory = candidate
