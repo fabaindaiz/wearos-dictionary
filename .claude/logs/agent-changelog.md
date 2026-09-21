@@ -26,6 +26,75 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Un APK con R8 instalable hoy, el hash en el lugar correcto, y un hueco propio
+
+**Qué.** D-165 (el sha256 va al instalar, no en cada arranque), D-166 (build type `benchmark`
+instalable por adb con R8) y D-167 (el manifest declara su lista de idiomas y no pide permisos
+que no usa). Dos chequeos nuevos y uno acotado.
+
+**Áreas.** `app/build.gradle.kts` (build type `benchmark`, `generateLocaleConfig`) ·
+`AndroidManifest.xml` · `res/resources.properties` (nuevo) ·
+`data/PackStore.kt` (`installAtomically` con digest) + `PackStoreTest` (+4) ·
+`data/PackVerification.kt` (los tres momentos) · `tools/audit_dictionary.py`
+(`check_manifest_hygiene`, `check_release_signing` acotado) · `docs/roadmap.md`,
+`docs/decisions.md`, `README.md`, `app/CLAUDE.md`.
+
+**Por qué.** Tres pedidos: *«¿se puede activar R8 en modo debug? sigo sin release productivo para
+poder instalarlo por adb»*, *«me interesa que exista un proceso de validación de diccionarios…
+que se realice una vez y luego se guarde que ese pack ya fue validado por algún método barato,
+considerando quizás hash»*, y *«realiza una validación sobre buenas prácticas en manifest y
+ajustes de Android»*.
+
+**Arquitectura.** ✅ Cumple. El `benchmark` firma con la clave de debug y eso **no** viola
+`check_release_signing`: la regla habla del APK que sale a la gente, y estaba mal escrita —
+miraba el archivo entero. Se acotó al bloque `release`, que es de lo que habla.
+
+**Medido.**
+
+- **`benchmark`: 5,48 MB, firma V2 «Android Debug», mismo `applicationId` que el debug.** Se
+  instala por adb hoy y **reemplaza al debug sin tocar los 300 MB de packs**, porque no lleva
+  `applicationIdSuffix`.
+- **`localeConfig` generado**: el manifest fusionado declara `en` y `es`, sacados de las carpetas
+  reales.
+- Permisos que quedan en el manifest fusionado: **uno solo**, y lo agrega una librería. Ni
+  `INTERNET` ni `WAKE_LOCK`.
+- Gate: **81 · 263 · 250 · 25 checks**.
+
+**Lo que la revisión corrigió, y es lo más importante de la entrada.**
+
+- ⚠️ **Faltaba `android:localeConfig`, así que la app NO aparecía en Ajustes → Idiomas del
+  sistema.** Es un hueco que abrí yo con D-158 y **que no se ve usando la app**: el selector
+  propio funciona igual, porque `setApplicationLocales` no necesita esa declaración. Dos sesiones
+  sin que nadie lo notara. La lección: una función que anda no prueba que su integración con el
+  sistema exista.
+- ⚠️ **Un hash es la herramienta correcta para una pregunta y la equivocada para otra.** Al
+  instalar, *«¿llegaron los bytes publicados?»* — y sale casi gratis porque ya están pasando. En
+  cada arranque, *«¿es el mismo archivo?»* — y ahí obligaría a releer 301 MB, peor que las 64
+  filas que se querían ahorrar. Escribirlo separado era la mitad del trabajo.
+
+**Qué salió mal.**
+
+- **`check_release_signing` habría prohibido el build type nuevo por accidente.** Buscaba
+  `getByName("debug")` en todo `build.gradle.kts` cuando la regla es sobre el release. Es la
+  tercera vez en tres sesiones que un chequeo de este repo mira más archivo del que debería
+  —`check_r8_keep_rules` y `check_no_hardcoded_translations` tuvieron lo mismo—. **Va como
+  fricción: el patrón «acotá el chequeo a la sección que vigila» ya se repitió lo suficiente como
+  para ser una regla al escribir chequeos nuevos**, y si vuelve a pasar sube al roadmap §Proceso.
+- **`META-INF/*.RSA` no prueba que un APK esté firmado.** Lo usé para verificar el `benchmark` y
+  dio cero: las firmas v2/v3 van **fuera** del ZIP. La herramienta es `apksigner verify`.
+- **`check_test_counts` disparó cuatro veces más.** Ya es rutina y funciona.
+
+**Qué quedó sin hacer.**
+
+- **El catálogo de packs sigue sin existir**, así que `expectedSha256` es un parámetro que hoy
+  nadie pasa. El mecanismo está; la decisión de dónde se hostea es de producto (§Instalador).
+- **El `benchmark` no se instaló en ningún lado**: no hay reloj. Que sea instalable está
+  verificado con `apksigner`; que la app **funcione** con R8 sigue siendo lo que O-2 pide.
+- **Los baseline profiles siguen pendientes** y ahora tienen la mitad del camino hecho: el build
+  type que Macrobenchmark exige ya existe.
+
+---
+
 ## 2026-09-20 — R8 encendido y el arranque baja 85 %: la build que va al reloj
 
 **Qué.** D-163 (R8 encendido, con reglas mínimas y `check_r8_keep_rules`) y D-164 (un pack no se
