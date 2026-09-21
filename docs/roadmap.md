@@ -1921,6 +1921,109 @@ Also note `MAX_PALABRAS_POR_CONSULTA = 64`: the link resolution already runs as 
 stay under it, and terms are the second. Translations would join that query and push it toward the
 cap, where it **truncates silently**.
 
+### Can translations be attached to the right sense, across languages? — measured 2026-09-21
+
+Asked as *«is this very complex to achieve?»*, which deserves a measurement rather than a
+judgement — §Alinear acepciones entre fuentes lists three possible paths and says of all of them
+**«ninguno medido»**. Two of them are measured here.
+
+**The short answer: within a language it is not complex at all — the source already labels both
+sides and the machinery already exists. Across languages it is not complex either; it is empty.**
+
+#### ⚠️ Within a language: the source declares it, and D-117 already built the reader
+
+The suspicion that started this was that `sense_index` looked broken: `alemán` has **2 senses** in
+its record and translations at `[1]`, `[2]` and **`[4]`**. It is not broken — **the index numbers
+the wiki page, and kaikki splits a page into one record per part of speech**:
+
+```
+alemán (adj)    sense_index '1'   Originario, relativo a, o propio de Alemania.
+alemán (noun)   sense_index '2'   Persona originaria de Alemania.
+                sense_index '3'   Persona de piel clara, cabellos rubios…
+alemán (noun)   sense_index '4'   Idioma de la familia germánica occidental…
+
+translations (repeated on every record of the page):  German[1], German[2], German[4]
+```
+
+⚠️ **Each sense carries its own label, so the join is a key match and never arithmetic** — which
+is exactly what `_by_sense_index` already does for synonyms, and exactly the trap D-117 spells
+out: *«la clave es el `sense_index` que declara la fuente, NUNCA la posición»*. The full page's
+translation table is attached to every record, and the indices that belong to another record
+**simply fail to join**, which is the correct outcome rather than a bug. Sense `'3'` gets nothing,
+because the wiki declares no translation for it.
+
+Measured over the whole dump:
+
+| | |
+|---|---|
+| Spanish senses in entries that have translations | 51,911 |
+| **that declare a `sense_index`** | **51,850 — 99.9 %** |
+| that receive a translation, exact string match | 11,961 — **23.0 %** |
+| that receive one **once index ranges are expanded** | 18,817 — **36.2 %** |
+
+**The one piece of real work is the ranges**: 18.8 % of pairs are written `1-2`, `1, 4` rather
+than `3`, and `_by_sense_index` compares strings, so today a sense labelled `'1'` would not match
+a translation labelled `'1-2'`. Expanding them is worth **+13.2 points**, and what remains
+unparseable is a rounding error — `'1b'` (3 occurrences), `'1 y 2'` (2), `'2 (en el aire)'` (1) —
+which is dropped, exactly as D-117 drops a synonym with no index rather than inventing an
+attribution.
+
+**And it works where it matters, which is polysemy:**
+
+```
+planta  ->  plant    (Forma de vida vegetal…)        vela  ->  candle  (Cilindro de cera…)
+planta  ->  floor    (conjunto de habitaciones…)     vela  ->  sail    (Tela resistente…)
+banco   ->  bank     ·  pila -> basin  ·  muñeca -> wrist  ·  copa -> cocktail, drink
+```
+
+That is the feature working: the same headword, a different English word per sense, with the
+source stating the attribution rather than anybody guessing it.
+
+#### Across languages, sense to sense: it works and there is almost none of it
+
+The stronger reading — linking Spanish sense *k* to English sense *m*, not merely to the English
+word — has a real mechanism, because the two dumps label from opposite ends:
+
+- `es.jsonl` gives a translation **plus the index of OUR sense**.
+- `en.jsonl` gives a translation **plus the text of THEIR sense** (`pound → libra`, *"unit of
+  currency"*). Measured: **10,410 EN→ES pairs, and 100 % of them carry that sense text.**
+
+Where both exist for the same word pair, the two halves form a bridge. Measured: **1,461 pairs**,
+and they are good — the mechanism distinguishes senses correctly:
+
+```
+libra  <->  pound   [unit of mass (16 ounces avoirdupois)]
+libra  <->  pound   [unit of currency]
+gato   <->  cat     [domestic species]      castaño <-> brown  [colour]
+día    <->  day     [period of 24 hours]    palabra <-> word   [unit of language]
+```
+
+⚠️ **So the obstacle is not difficulty, it is quantity — and that changes what to do about it.**
+1,461 pairs against 152,281 Spanish entries is not a feature; it is a curiosity. And the English
+side is **prose, not an index**: reaching an actual sense of the English pack needs that text
+matched against its glosses, a second fuzzy step with its own error rate, on top of a base of
+1,461.
+
+**Compare with what the within-language path already yields, free, from a field the pipeline does
+not read**: 18,817 senses with a correctly attributed translation, no matching, no threshold, no
+silent-error risk.
+
+#### What this says to do
+
+1. **Read `translations` in `kaikki.py` exactly as `_by_sense_index` reads synonyms**, and emit
+   them into tag `T` per sense. Same function, same discard rule, same test shape.
+2. **Expand numeric ranges in the index** — a small generalisation of `_by_sense_index`, worth
+   +13.2 points, and it benefits synonyms and antonyms at the same time since they share the
+   reader.
+3. **Leave sense-to-sense across languages alone.** It is measured, it works, and at 1,461 pairs
+   it does not pay for the machinery. Revisit only if a source with real coverage appears —
+   which is what the ILI bridge would have been, had the offsets lined up (see above).
+
+⚠️ **Note what this does NOT unblock.** §Alinear acepciones entre fuentes stays open: its 20,644
+discarded contributions come from sources that state no sense at all (WordNet, Wikidata, the
+enwiktionary examples). This path works precisely because the Wikcionario **declares** the
+attribution, and that is the property the other sources lack.
+
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 
 Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
