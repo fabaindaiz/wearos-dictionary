@@ -26,6 +26,68 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — R8 vale 27,5 MB, y el plan de batería se ordena por segundos de pantalla
+
+**Qué.** Investigación contra fuentes primarias, diagnóstico completo y plan de acción, todo
+dentro de `docs/bateria.md` (233 → 432 líneas). §O-2 y §O-4 del roadmap actualizados con lo
+medido. **Ningún cambio de código.**
+
+**Áreas.** `docs/bateria.md`, `docs/roadmap.md` §O-2 y §O-4.
+
+**Por qué.** Pedido: *«buscá en internet toda la información de optimizaciones de batería basadas
+en SQL o los componentes que use esta app, hacé un diagnóstico completo del repo, documentalo y
+generá un plan de acción con optimizaciones; me interesan las cosas grandes, no cambios que
+generen ahorros insignificantes»*.
+
+**Arquitectura.** ✅ Cumple. El plan **no propone tocar ningún guardrail**: la única idea que lo
+haría —cachear la validación de packs entre arranques, que debilita D-142— está listada con esa
+advertencia explícita y marcada como decisión que no es del agente.
+
+**Medido.**
+
+- **R8: el APK pasa de 33,0 a 5,5 MB y el dex de 29,5 a 2,7 — un 91 % menos.** Compila **sin una
+  sola regla de keep**, y sobreviven las tres clases del manifest y el driver JNI de SQLite. Es,
+  por lejos, la palanca más grande del repo, y §O-2 la tenía como «planificado» sin número.
+- **Cada arranque del proceso valida todos los packs instalados**: 18,06 ms el español + 24,27 ms
+  el inglés = **42,33 ms**, dos tercios de eso la muestra de 64 claves de D-142.
+- **El plan de la consulta caliente usa TEMP B-TREE**, y el orden cuesta **0,057 ms, el 62 % de
+  una consulta de 0,093 ms**. Es el ejemplo perfecto de un porcentaje grande sobre un número
+  minúsculo, y por eso está en la lista de lo que NO se va a hacer.
+- **Fuentes primarias**: `screen.on` ~200 mA y `screen.full` +100–300 mA contra `cpu.idle` ~3 mA
+  (AOSP power profiles). Baseline Profiles ~30 % de arranque, +15–30 % con startup profiles.
+
+**Lo que la investigación corrigió.**
+
+- ⚠️ **El «3,2 % por hora» que todo el mundo cita NO aplica a esta app.** Es una métrica de
+  *watch faces*, medida explícitamente *«cuando los dispositivos no están cargando y no hay apps
+  en uso»* — background, no una app que estás leyendo. Estuve a punto de usarla como vara contra
+  el 9,4 % del usuario, que habría sido comparar dos cosas distintas. Lo que sí transfiere es su
+  sub-umbral de CPU: 90 s de CPU por hora es «excesivo», y una sesión pesada nuestra son 3,7 s.
+- ⚠️ **El modelo de energía de Android es por BRILLO, no por contenido.** O sea que el ahorro de
+  una paleta oscura en OLED es real en el panel y **no aparece en la estimación del sistema**: no
+  se puede verificar con `dumpsys`, sólo con un medidor. Cualquiera que oscurezca la paleta y
+  después señale la pantalla de batería está leyendo un modelo que no contiene el efecto.
+- **Casi toda la guía oficial de SQLite es sobre escrituras** y el pack es read-only e inmutable
+  (D-001). WAL y `synchronous = NORMAL` **no aplican**, y quedó escrito para que nadie los agregue.
+
+**Qué salió mal.** Nada roto. El único traspié fue de método: empecé buscando «optimizaciones de
+SQLite» y lo útil no estaba ahí — el SQL de esta app ya estaba afinado y medido en ~1 ms. Lo que
+movió la aguja fue medir **el APK** y **el arranque**, que no son SQL. Buscar donde dice el pedido
+en vez de donde dice la medición habría dado un documento largo y sin nada grande adentro.
+
+**Qué quedó sin hacer.**
+
+- **El plan entero está bloqueado por su propio ítem 1**: decomponer el 9,4 % con `dumpsys` en el
+  reloj. Sin eso, el orden del plan es una hipótesis bien fundada, no un hecho.
+- **El release con R8 se midió, no se corrió.** 33 → 5,5 MB es un hecho sobre un archivo; que ese
+  archivo funcione es exactamente lo que O-2 siempre dijo que necesita dispositivo.
+- **`mmap_size` y `cache_size` siguen razonados y no medidos** (8 MB y 2 MB contra un pack de 301
+  MB). `dumpsys meminfo` da los contadores de aciertos del page cache y lo zanjaría en una sesión.
+- **Nadie contó cuántas veces arranca el proceso**, y el peso de tres ítems del plan depende de
+  eso. `dumpsys usagestats` lo responde.
+
+---
+
 ## 2026-09-20 — Revisión completa: los dos linters estaban apagados y los documentos mentían
 
 **Qué.** D-160 (las herramientas de calidad son gates o se pudren), D-161 (un número que un
