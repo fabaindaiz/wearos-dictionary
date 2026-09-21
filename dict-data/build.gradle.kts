@@ -195,3 +195,13 @@ tasks.register("devicePrecheck") {
         )
     }
 }
+
+// ⚠️ **El gate COMPILA los tests instrumentados aunque no pueda correrlos.**
+//
+// Correrlos necesita un reloj y por eso no entran (`CLAUDE.md` §Verificación). Pero compilarlos
+// no necesita nada, y sin esta línea el `androidTest/` queda **fuera de todo**: un cambio de
+// firma en `:app/main` lo rompe y `./gradlew check` sigue verde. Pasó el 2026-09-21 — `WordLink`
+// dejó `GlossLinksOnDeviceTest` sin compilar y sólo se supo al enchufar el reloj, horas después.
+//
+// Medido: **12 s en frío y 3 s en caliente** para los dos módulos, contra 36 s de gate.
+tasks.named("check") { dependsOn("assembleDebugAndroidTest") }
