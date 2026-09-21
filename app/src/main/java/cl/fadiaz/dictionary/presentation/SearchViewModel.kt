@@ -698,6 +698,24 @@ class SearchViewModel(
             ?.resolveHeadwords(norms)
             .orEmpty()
 
+    /**
+     * Resuelve los mismos `norms` en el primer pack instalado de `lang`, que **no** es el de la
+     * entrada.
+     *
+     * ⚠️ **Se busca por IDIOMA y no por `pack_id`, y esa es la decisión que evita que el enlace
+     * muera.** Declarar el pack destino por nombre haría que un usuario con el **núcleo** inglés
+     * instalado y no el completo perdiera todos los enlaces, aunque tenga un diccionario inglés
+     * perfectamente capaz de resolverlos.
+     *
+     * Devuelve vacío si no hay ninguno, y entonces el término se muestra **sin pintar** — que es
+     * lo correcto: una palabra pintada que no navega es peor que una sin pintar (D-084).
+     */
+    suspend fun resolveInLanguage(lang: String, norms: Set<String>): Map<String, Pair<String, Long>> {
+        val destino = opened.firstOrNull { it.metadata.langSource == lang } ?: return emptyMap()
+        return destino.resolveHeadwords(norms)
+            .mapValues { (_, id) -> destino.metadata.packId to id }
+    }
+
     /** Closes the pack. Public so a test can exercise it without simulating the lifecycle. */
     fun close() {
         opened.forEach { it.close() }

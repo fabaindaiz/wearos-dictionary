@@ -41,6 +41,7 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -355,6 +356,30 @@ class ScreensTest {
     }
 
     @Test
+    fun aTranslationResolvedInTheOtherPackIsTappable() {
+        // ⚠️ **Es lo que obligó a que un enlace lleve `packId` y no sólo `entryId`.** Hasta acá
+        // el mapa era `norm -> entryId` y `onOpenWord` navegaba dentro del MISMO pack, a
+        // propósito (D-080): mandar el id a otro pack abre otra palabra sin dar error. Una
+        // traducción va necesariamente a otro pack, así que el destino tiene que decir a cuál.
+        var abierta: WordLink? = null
+        compose.setContent {
+            EntryScreen(
+                1,
+                onOpenWord = { abierta = it },
+                resolveIn = { norms ->
+                    norms.filter { it == "house" }
+                        .associateWith { WordLink("en-def-wikt", 42L) }
+                },
+            ) {
+                entry().copy(senses = listOf(Sense("edificación", translations = listOf("house"))))
+            }
+        }
+        compose.onNodeWithText("house", substring = true).assertExists()
+        compose.waitForIdle()
+        assertNull("no se abre sola", abierta)
+    }
+
+    @Test
     fun `una acepcion sin traduccion no dibuja el titulo`() {
         // `TermList` returns early on an empty list, and that has to keep holding for the fourth
         // one: a heading with nothing under it costs a row on a screen that has three.
@@ -633,7 +658,7 @@ class ScreensTest {
     fun theWordPointingAtThisSameEntryIsNotPainted() {
         // Resolving returns the open entry: a link to where we already are leads nowhere.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { mapOf("cera" to 1L) }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { mapOf("cera" to WordLink("es-def", 1L)) }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
@@ -1501,7 +1526,7 @@ class ScreensTest {
         // sinónimo que el pack no tiene **se sigue mostrando** --la fuente lo dice y esconderlo
         // sería perder información-- pero sin pintar.
         compose.setContent {
-            EntryScreen(1, onOpenWord = {}, resolveIn = { mapOf("bobo" to 42L) }) {
+            EntryScreen(1, onOpenWord = {}, resolveIn = { mapOf("bobo" to WordLink("es-def", 42L)) }) {
                 entry().copy(
                     senses = listOf(Sense("de poco entendimiento",
                         synonyms = listOf("bobo", "zonzo"))),
