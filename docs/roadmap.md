@@ -347,6 +347,74 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+### Revisión de las decisiones de traducción — 2026-09-21
+
+#### ¿Se está usando todo el dato verificado? **No: faltan tres conjuntos**
+
+| dato verificado | medido | ¿se usa? |
+|---|---|---|
+| `es.jsonl`, traducciones con `sense_index` | 34.710 pares | ✅ tag `T` |
+| `es.jsonl`, traducciones sin índice | 37,7 % | ✅ tag `W` |
+| `es.jsonl` → canal de búsqueda | 3.257 filas en la muestra | ✅ `trans` |
+| **`en.jsonl`, 10.438 pares EN→ES curados** | 100 % con **texto** de acepción, 0 índices | ❌ **sin usar** |
+| **claves de display del pack bilingüe** | `translation_keys` las calcula y las tira | ❌ **sin usar** |
+| **índice de flexiones inglesas** | 1,84 MB · 78,1 % → 98,9 % | ❌ sin construir |
+
+⚠️ **El pack bilingüe tiene 206.727 filas de `trans` y CERO en `T`/`W`.** Su canal de lectura
+está vacío y **reconstruirlo con el código de hoy no lo llenaría**: `bilingual.py` sólo escribe
+`record.translations`, nunca toca el payload. Abrir `casa` ahí sigue mostrando `house` como
+**glosa**, no como traducción — y las claves limpias que su propio módulo calcula se descartan,
+como dice su docstring: *«the keys are returned raw: PackBuilder normalises them»*.
+
+⚠️ **El pack inglés no tiene traducciones de ninguna clase**: `trans` en 0 y sin `translations_to`.
+Los 10.438 pares curados de `en.jsonl` no pueden llenar `T` —traen texto de acepción, no índice—
+pero **sí pueden llenar `trans`**, que es lo que haría que buscar `perro` encuentre `dog` en el
+pack inglés.
+
+#### Las decisiones, y cuáles conviene revisar
+
+Validadas por medición, sin deuda:
+
+| decisión | qué la valida |
+|---|---|
+| Tope de **8** por acepción y por palabra | pierde **57 de 34.710 — 0,16 %** |
+| Descartar el `sense_index` que no se parsea | **17 de 34.710 — 0,049 %** |
+| Expandir rangos en el lector compartido | sinónimos y antónimos son **100 % índices simples**: no los toca |
+| Referencia como **tupla**, no cadena | su test encontró que la cadena dejaba **forjar** una referencia |
+| El `pack` en `meta` y no por item | por item costaría ~280 KB de una sola cadena |
+
+⚠️ **Tres que sí conviene discutir, porque tienen un supuesto adentro:**
+
+**1. `translations_pack` nombra UN pack, y eso es frágil.** Hoy declara `en-def-wikt`. Si el
+usuario tiene instalado `en-def-wikt-core` y no el completo, **el enlace muere aunque haya un
+diccionario inglés perfectamente capaz de resolverlo**. La alternativa es nombrar el **idioma**
+—que ya está en `translations_to`— y dejar que la app elija cualquier pack instalado de ese
+idioma, con `translations_pack` como *preferencia* y no como requisito. Cuesta cero bytes y
+sobrevive a que el usuario instale el núcleo en vez del completo.
+
+**2. El canal de búsqueda y el de lectura se reparten distinto, y no está declarado.** `trans`
+lleva **todas** las traducciones (atribuidas y sueltas) porque para buscar da igual; `T` y `W`
+las reparten por atribución. Es correcto, pero **un lector no tiene cómo saberlo**: si alguien
+cuenta `trans` esperando que coincida con lo que se muestra, no va a cuadrar. O se documenta en
+`formato-pack.md`, o `verify_pack.py` lo afirma como invariante.
+
+**3. `kind = monolingual` ya no describe lo que el pack hace.** Es buscable en inglés y muestra
+traducciones, pero `wordActions.translationPack` filtra por `kind == BILINGUAL`, así que **la app
+sigue sin ofrecer «ver traducción» sobre un pack que ahora sí traduce**. Las opciones: agregar un
+tercer `kind`, o —mejor— dejar que `kind` describa **las definiciones** y que las capacidades se
+lean de `translations_to`/`translations_pack`, que es lo que ya hacen. Eso implica cambiar el
+filtro de `wordActions`, no el formato.
+
+#### Lo que yo cerraría primero
+
+1. **`bilingual.py` llena `T`/`W`** con sus claves crudas: es el pack que más traducciones tiene
+   y el único cuyo canal de lectura está vacío. No cuesta fuente nueva, sólo dejar de tirar lo
+   que ya calcula.
+2. **`wordActions` deja de mirar `kind`** y mira si el pack declara traducciones. Es el bug más
+   visible: hay traducciones y la acción no aparece.
+3. **`translations_pack` pasa a ser preferencia sobre un idioma**, no requisito sobre un pack.
+4. Los 10.438 pares de `en.jsonl` a `trans` del pack inglés.
+
 ### ✅ El segundo canal y la referencia `(pack, palabra, acepción)` — CONSTRUIDO 2026-09-21
 
 Cierra los pedidos **1, 2, 7 y 8** de la auditoría de abajo, y deja definido el mecanismo de
