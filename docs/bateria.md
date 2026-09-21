@@ -541,8 +541,10 @@ it says why.
 
 ### 1. ~~Decompose the 9.4 %~~ — **done 2026-09-21**, and it reordered the list
 
-It ran, and the answer was not the one this plan assumed: **screen and CPU are roughly equal**, and
-the app redraws ~5 times a second while idle. Which promotes a brand-new item to the top.
+It ran, and the answer was not the one this plan assumed: the app redraws ~5 times a second while
+idle. ⚠️ **It also said "screen and CPU are roughly equal", and the second watch session disproved
+that**: over a clean two-hour window the split is **33.2 mAh of screen against 6.05 of CPU**, 5.5 : 1.
+The redraw is real and stays on the list; it is not at the top.
 
 ### 1b. Find out why it draws when nothing changes — real, but **not** the biggest lever
 

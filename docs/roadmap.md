@@ -3521,6 +3521,15 @@ priori.
 midió: arranque **500 ms en frío / 278 ms tibio** con 372,6 MB de packs abiertos, y el desglose de
 energía de `dumpsys batterystats`. Ver `docs/bateria.md` §What the watch actually said.
 
+⚠️ **Segunda sesión de reloj, la misma tarde: los números son de un build que nadie usa.** El APK
+sideloadeado es `DEBUGGABLE` y **ART no lo compila AOT** (`status=run-from-apk`), así que el mismo
+arranque dio **2203 ms**, y **1401 ms** tras forzar la verificación del dex. Los 500 ms son de un
+build **con R8** y dos packs. Lo que sí quedó medido limpio: **la app es el 17,8 % del consumo del
+reloj**, y dentro de eso **la pantalla es el 85 % y toda la CPU el 15 %** — lo que **desclasifica**
+el redibujo en reposo como prioridad de batería, aunque quede **confirmado en 4,0 fps**. O-1 no se
+cierra hasta medir sobre **release**. Ver `docs/bateria.md` §What the watch said on the second
+session.
+
 La reabre conseguir el reloj.
 
 Macrobenchmark sobre el emulador para correctitud y sobre el reloj para números. Baseline de:
