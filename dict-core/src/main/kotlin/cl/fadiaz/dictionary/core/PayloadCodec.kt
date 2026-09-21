@@ -92,8 +92,9 @@ object PayloadCodec {
      * Separa un item de traduccion en `(termino, acepcion a la que apunta)`.
      *
      * ⚠️ **Las tres partes de una referencia `(pack, palabra, acepcion)` viven en lugares
-     * distintos, y ese reparto es el diseño**: el **pack** lo declara `meta.translations_pack`
-     * una sola vez --es constante, repetirlo por item costaria cientos de KB de una cadena--, la
+     * distintos, y ese reparto es el diseño**: el **pack no se nombra** --el destino se declara
+     * por IDIOMA en `meta.translations_to`, así cualquier pack instalado de ese idioma lo
+     * resuelve y el enlace no muere con el núcleo en vez del completo (D-180)--, la
      * **palabra** es el termino que ya se muestra, y la **acepcion** es este sufijo opcional,
      * porque solo existe cuando la fuente la supo.
      *

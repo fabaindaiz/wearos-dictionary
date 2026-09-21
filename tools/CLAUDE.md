@@ -106,6 +106,22 @@ same filters, a promise nothing checks. It also takes seven seconds instead of a
 measured**: by `rank` a core takes **91 %** of the Spanish inflection table — the richest pages are
 verbs, and a Spanish verb has 33 forms — while by frequency it takes **5.5 %**. See D-175.
 
+## ⚠️ Rebuilding a pack: the flags that are not optional
+
+**A pack built without its flags comes out well-formed, passes `verify_pack.py`, and is quietly
+worse.** There is no error to notice, so they are listed here rather than only in
+`build_pack.py --help`:
+
+| pack | sin qué sale peor | qué se pierde |
+|---|---|---|
+| `es` | `--frases` · `--tesauro` · `--sumar es-wd` | ejemplos, sinónimos de WordNet, 5.283 lemas |
+| **`es-en`** | **`--flexiones en-def-wikt.db`** | **la dirección inversa**: sin él `ran`, `went` y `eaten` no llegan, y la cobertura del top 8.000 inglés cae de **98,9 % a 78,1 %** (D-184) |
+| `en` | `--tesauro` | +30.423 entradas con sinónimos |
+
+`--flexiones` toma un **pack ya construido** del idioma destino, no un dump: las flexiones ya
+están extraídas y podadas ahí, y volver al dump de 3,2 GB sería otra hora de build más una segunda
+poda que puede divergir de la primera — el mismo razonamiento de D-175.
+
 ## Adding a source
 
 It goes in `sources/`, and it hands back `Record` — the builder knows nothing about formats. What
