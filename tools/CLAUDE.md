@@ -22,7 +22,7 @@ Hatch, configurado en `pyproject.toml` en la raíz. No hace falta para correr el
 Hatch es la capa de desarrollo.
 
 ```sh
-hatch run test             # los 255 tests
+hatch run test             # los 272 tests
 hatch run audit            # la auditoría estructural
 hatch run all              # ambos
 hatch run matrix:test      # LOS TESTS BAJO TODAS LAS VERSIONES DE PYTHON

@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
-pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **282 JVM
-de `:app`** y **26 checks** de auditoría estructural — **649 tests en total**. Los **43
+pipeline de packs (`tools/`, **272 tests**) están completos y en el gate, junto con los **284 JVM
+de `:app`** y **26 checks** de auditoría estructural — **668 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.

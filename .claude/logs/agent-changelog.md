@@ -26,6 +26,70 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Los núcleos de ES y EN viajan en el APK, derivados del pack completo
+
+**Qué.** D-175 (el APK lleva los dos núcleos) y D-176 (una versión nueva re-extrae sus packs).
+Más `tatoeba.frequencies` y `build_core.py`, los dos nuevos.
+
+**Áreas.** `sources/tatoeba.py` (`frequencies`, `_mayormente_en_minuscula`) · `build_core.py`
+(nuevo) + `tests/test_core.py` (nuevo) · `build.py` (`Record.uid`) · `app/build.gradle.kts`
+(`bundlePacks`) · `data/PackStore.kt` (`assetsToExtract`) + su test · `docs/decisions.md`.
+
+**Por qué.** *«Quiero que mientras te quedes trabajando en reemplazar el pack demo por los packs
+core de español e inglés con todas las consideraciones que ya vimos.»*
+
+**Arquitectura.** ✅ Cumple. Lo importante es que **degrada**: los packs completos viven fuera del
+repo, así que un clone limpio empaqueta el juguete de 52 KB — misma regla que la keystore (D-086).
+Verificado construyendo con `-Pdictionary.packsDir=../no-existe`.
+
+**Medido.**
+
+| | entradas | MB | del completo |
+|---|---|---|---|
+| núcleo español | **7.349** | **4,76** | de 71,68 (15× menos) |
+| núcleo inglés | **16.652** | **11,92** | de 300,93 (25× menos) |
+| APK | | **17,11** | era 5,48 con el juguete |
+
+- **La trampa del `rank`, confirmada con la implementación real**: por frecuencia, las 7.349
+  entradas se llevan el **5,5 %** de la tabla de flexiones; por `rank`, un núcleo comparable se
+  llevaba el **91 %**. Dieciséis veces.
+- **El filtro de nombres propios necesitó medirse dos veces.** «Vista en minúscula alguna vez» no
+  alcanzaba: **`tom` pasaba con 1 de 36.749 apariciones (0,0 %)** y quedaba en el puesto 11 del
+  español. Con un umbral de proporción la separación es limpia — `tom` 0,0 %, `maria` 0,3 %,
+  `john` 0,0 % contra `agua` 99,4 %, `water` 98,1 %, `enero` 89,2 %.
+- **El techo del N lo pone el inglés**: 41.512 frases contra 442.135 del español. En el puesto
+  8.000 una palabra española aparece en 21 frases y una inglesa en 5; en el 15.000, en 9 y en 2.
+  Por eso `TOP_POR_DEFECTO = 8000`.
+
+**Qué salió mal.**
+
+- ⚠️ **El pack inglés no terminaba nunca, y la causa era mía.** `SELECT norm FROM form WHERE
+  entry_id = ?` **no usa índice**: la PK de `form` es `(norm, entry_id)`, así que filtrar por
+  `entry_id` solo es un scan completo. Con 986.000 formas y 16.652 entradas son **16 mil millones
+  de filas visitadas**. Se descubrió esperando: el archivo se quedó en 0,04 MB varios minutos. Con
+  una sola pasada agrupando, **7 segundos**. **La lección: una PK compuesta no es un índice para
+  su segunda columna**, y el síntoma no es lentitud sino que no termina.
+- **Colisión de nombres**: `import build` y `def build` en el mismo módulo, así que
+  `build.PackBuilder` resolvía contra la función. Lo agarró el primer test.
+- **`providers.exec {}` dentro de `doLast` rompe el configuration cache** porque captura
+  referencias al script. Se reemplazó por `ProcessBuilder` capturando sólo valores.
+- **Casi publico un número sin mirar el contenido.** El núcleo trae **556 entradas con
+  `pos='name'`** y parecía una fuga del filtro; al leerlas son `Sol`, `Luna`, `Granada`, `León`,
+  `Rosa`, `Domingo` — **homógrafos de palabras comunes**, que entran porque la selección es por
+  palabra y la palabra entra entera. Es el comportamiento que un test ya fijaba.
+
+**Qué quedó sin hacer.**
+
+- **Nada de esto se instaló en el reloj**: se desconectó antes. El APK de 17,11 MB está construido.
+- **El `N` = 8.000 es defendible, no óptimo.** Sale de dónde el corpus inglés deja de ser
+  evidencia, no de qué necesita un usuario.
+- **Los días y meses en inglés quedan fuera del núcleo**, porque en inglés se escriben siempre en
+  mayúscula (`monday` 0,0 %). En español no pasa (`enero` 89,2 %). El pack completo los tiene.
+- **El experimento que bisecta el redibujado continuo sigue sin correr** — era lo que estaba
+  haciendo cuando el reloj se desconectó.
+
+---
+
 ## 2026-09-21 — El reloj desmintió el documento de batería: la app dibuja cuando nada cambia
 
 **Qué.** Primera sesión de diagnóstico con el reloj conectado. `versionCode` 3 → 4, el build

@@ -117,35 +117,76 @@ class PackStoreTest {
     // through `adb push` or, once it exists, through the installer (D-071).
 
     @Test
-    fun theDemoPackIsExtractedTheFirstTime() {
-        assertEquals(listOf("demo-es-en.db"), PackStore.missingFromDisk(listOf("demo-es-en.db"), emptyList()))
+    fun theBundledPackIsExtractedTheFirstTime() {
+        assertEquals(
+            listOf("es-core.db"),
+            PackStore.assetsToExtract(listOf("es-core.db"), emptyList(), last = 0, current = 4),
+        )
     }
 
     @Test
     fun anAlreadyInstalledPackIsNotExtractedAgain() {
-        // Without this it gets copied on every launch.
+        // Sin esto se copia en cada arranque.
         assertEquals(
             emptyList(),
-            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("demo-es-en.db")),
+            PackStore.assetsToExtract(
+                listOf("es-core.db"), listOf("es-core.db"), last = 4, current = 4),
         )
     }
 
     @Test
     fun aDictionaryInstalledByHandIsLeftAlone() {
-        // This is today's path for the real packs: `adb push` into filesDir/packs. If the
-        // extraction overwrote or deleted them, that path would not exist.
+        // El camino de hoy para los packs reales: `adb push` a filesDir/packs. Si la extracción
+        // los pisara o los borrara, ese camino no existiría.
         assertEquals(
             emptyList(),
-            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("demo-es-en.db", "es-def-wikc.db")),
+            PackStore.assetsToExtract(
+                listOf("es-core.db"), listOf("es-core.db", "es-def-wikc.db"),
+                last = 4, current = 4,
+            ),
         )
     }
 
     @Test
-    fun aNewDemoInTheApkIsExtractedEvenWithDictionariesInstalled() {
-        // Updating the APK with a different demo cannot stay invisible behind the real packs.
+    fun aNewVersionOfTheAppReExtractsItsBundledPacks() {
+        // ⚠️ **El bug que esto cierra, visto en el reloj.** La app avisaba que `demo-es-en.db` no
+        // era compatible: se extrajo el 18/09 con `deflate-v1` y la app pasó a `deflate-v2`
+        // (D-119). El APK nuevo traía uno bueno y **nunca se copiaba**, porque la extracción
+        // miraba sólo si el NOMBRE faltaba en disco. Un pack incluido se extraía una vez y no se
+        // actualizaba jamás.
+        //
+        // ⚠️ Y deja de ser una molestia cuando el pack incluido es el núcleo: ahí no sería un
+        // juguete desactualizado, sería el diccionario.
         assertEquals(
-            listOf("demo-es-en.db"),
-            PackStore.missingFromDisk(listOf("demo-es-en.db"), listOf("es-def-wikc.db")),
+            listOf("en-core.db", "es-core.db"),
+            PackStore.assetsToExtract(
+                listOf("es-core.db", "en-core.db"), listOf("es-core.db", "en-core.db"),
+                last = 3, current = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun theDictionariesTheUserInstalledSurviveAnUpdate() {
+        // El control de lo de arriba: re-extraer lo del APK no puede tocar lo que el usuario
+        // instaló por su cuenta. Son 372 MB que nadie quiere volver a copiar.
+        assertEquals(
+            listOf("es-core.db"),
+            PackStore.assetsToExtract(
+                listOf("es-core.db"), listOf("es-core.db", "es-def-wikc.db"),
+                last = 3, current = 4,
+            ),
+        )
+    }
+
+    @Test
+    fun aNewBundledPackIsExtractedEvenWithDictionariesInstalled() {
+        // Actualizar el APK con un pack incluido distinto no puede quedar invisible detrás de
+        // los packs reales.
+        assertEquals(
+            listOf("es-core.db"),
+            PackStore.assetsToExtract(
+                listOf("es-core.db"), listOf("es-def-wikc.db"), last = 4, current = 4),
         )
     }
 

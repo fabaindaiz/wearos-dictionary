@@ -1,3 +1,4 @@
+import java.io.File
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -238,22 +239,53 @@ kotlin {
  * Se genera en el build y **no se commitea**: un binario que cambia en cada build ensuciaria el
  * diff, y el repo ya decidio eso una vez para el toy pack (D-020).
  */
-val buildDemoPack = tasks.register<Exec>("buildDemoPack") {
+/**
+ * Los packs que viajan DENTRO del APK.
+ *
+ * ⚠️ **Degrada, y esa es la mitad importante.** Los nucleos se derivan de los packs completos, que
+ * pesan 372 MB y **viven fuera del repo**: un clone limpio no los tiene. Si estan, se empaquetan;
+ * si no, se empaqueta el pack de juguete de 53 KB, que se genera del codigo y siempre existe.
+ * Misma regla que la keystore (D-086): **un clone limpio tiene que seguir compilando.**
+ *
+ * El directorio se configura con `dictionary.packsDir`; por defecto es `../wearos-dictionary-data`,
+ * que es donde ya estan.
+ */
+val packsDir = providers.gradleProperty("dictionary.packsDir")
+    .getOrElse("../wearos-dictionary-data")
+val nucleos = listOf("es-core.db", "en-core.db")
+    .map { rootProject.layout.projectDirectory.file("$packsDir/$it").asFile }
+    .filter { it.isFile }
+
+val bundlePacks = tasks.register("bundlePacks") {
     group = "build"
-    description = "Genera el pack de demostracion que se empaqueta en el APK."
-
+    description = "Pone en assets/ los packs nucleo si estan, y si no el de juguete."
+    val destino = layout.projectDirectory.dir("src/main/assets").asFile
+    val toy = File(destino, "demo-es-en.db")
+    inputs.files(nucleos)
     inputs.dir(rootProject.layout.projectDirectory.dir("tools/packbuilder"))
-    outputs.file(layout.projectDirectory.file("src/main/assets/demo-es-en.db"))
-
-    workingDir = rootProject.layout.projectDirectory.asFile
-    commandLine(
-        "python3",
-        "tools/packbuilder/build_toy.py",
-        layout.projectDirectory.file("src/main/assets/demo-es-en.db").asFile.absolutePath,
-    )
+    outputs.dir(destino)
+    // Se capturan VALORES y no referencias al script: el configuration cache no serializa lo
+    // segundo, y `providers.exec {}` dentro de `doLast` es exactamente eso.
+    val raiz = rootProject.layout.projectDirectory.asFile
+    val aCopiar = nucleos
+    doLast {
+        destino.mkdirs()
+        // Se limpia lo anterior: si ayer viajaba el juguete y hoy los nucleos, dejar los dos
+        // significa que la app abre un diccionario de 28 entradas al lado del de verdad.
+        destino.listFiles()?.filter { it.name.endsWith(".db") }?.forEach { it.delete() }
+        if (aCopiar.isEmpty()) {
+            val salida = ProcessBuilder(
+                "python3", "tools/packbuilder/build_toy.py", toy.absolutePath,
+            ).directory(raiz).redirectErrorStream(true).start()
+            val log = salida.inputStream.bufferedReader().readText()
+            check(salida.waitFor() == 0) { "build_toy.py fallo:\n$log" }
+        } else {
+            aCopiar.forEach { it.copyTo(File(destino, it.name), overwrite = true) }
+        }
+    }
 }
 
-tasks.named("preBuild") { dependsOn(buildDemoPack) }
+tasks.named("preBuild") { dependsOn(bundlePacks) }
 
 /**
  * Diagnostica si se puede firmar el release, ANTES de armarlo.
