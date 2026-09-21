@@ -52,7 +52,26 @@ herramienta que deja de morder, las mejoras de tiles, y el cambio delicado al fi
   resuelto dentro del pack contra su propia frontera declarada.
 - Lint rechazó `rankIndex: Int = -1` (*«Value must be ≥ 0»*) y tenía razón: un centinela en una
   posición de columna es justo donde un off-by-one no se ve. Pasó a `Int?`.
+**Cuatro decisiones cerradas a pedido (D-207 a D-210).**
+- ⚠️ **Se retiró el presupuesto de 50 MB por pack.** El usuario tenía razón al llamarlo roto: se
+  incumplía **desde el primer build** y en nueve citas **nunca hizo cambiar una decisión** —sólo
+  se usó para anotar que se incumplía—. Y medía lo que no duele: el reloj reporta **9,0 GiB
+  libres** y los cinco packs son el **5 %**. Lo reemplazan **el arranque en frío** (500 ms con
+  372,6 MB abiertos) y **el núcleo dentro del APK** (17,1 de 66 MiB, límite duro), que son lo que
+  el usuario paga sin pedirlo.
+- **El rediseño a 234 dp se cerró SIN trabajo**: se diseña contra la resolución estándar y la app
+  se adapta hacia arriba sola. Llevaba abierto desde el 2026-09-19.
+- **C4 tenía mal el diagnóstico y ahora está escrito**: el problema no era *dónde* se guardan los
+  ajustes sino **qué** se guarda. `Visit` lleva `entry_id`, que `schema.sql` declara identidad
+  **física** y que no sobrevive a reconstruir un pack. `entry.uid` —identidad lógica, en el
+  formato desde D-055— es la pieza que faltaba, y con ella `fixEntryId` deja de ser necesario.
+  **No implementado**: toca el formato en disco de `Visit` por segunda vez en el día.
+- **C5 investigado en fuentes primarias**: `ACTION_REMOTE_INPUT` **no admite parámetro de
+  idioma**; `RecognizerIntent` sí (`EXTRA_LANGUAGE`) pero abre sólo el reconocedor de Google, que
+  puede no estar. Se deja como está: el peldaño tolerante **existe por esto**.
+
 **Qué quedó sin hacer.**
+- **D-209 sin implementar**: guardar el `uid` junto al `entryId`.
 - De A3 quedan dos de cinco: el *breakpoint* de 225 dp **necesita el reloj** (el chrome del
   renderer no está medido) y el salto a Wear Widgets sigue en alpha (D-024).
 - El tile de «seguir leyendo» se descartó por valor bajo: hoy «última abierta» y «última
