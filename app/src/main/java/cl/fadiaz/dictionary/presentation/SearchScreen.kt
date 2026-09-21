@@ -2,8 +2,6 @@ package cl.fadiaz.dictionary.presentation
 
 import android.app.Activity
 import android.content.Intent
-import android.content.Context
-import androidx.annotation.StringRes
 import android.app.RemoteInput
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,7 +41,6 @@ import androidx.wear.compose.foundation.rotary.rotaryScrollable
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -55,7 +52,6 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
-import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
@@ -105,13 +101,19 @@ fun SearchScreen(
     /** Al historial completo. Default vacío: una pantalla de test que no lo cablea sigue andando. */
     onOpenHistory: () -> Unit = {},
 ) {
-    // De que idioma es cada pack abierto. Se arma una vez y no por fila: la lista se recompone
-    // en cada tecla y `available` casi nunca cambia.
     // Que etiqueta lleva cada fila: el idioma, o la FUENTE cuando hay dos diccionarios del
     // idioma activo y el idioma ya no desambigua (D-151). Se arma una vez y no por fila: la
     // lista se recompone en cada tecla.
     val etiquetas = remember(state.available, state.active?.langSource) {
         resultTags(state.available, state.active?.langSource)
+    }
+    // Las palabras del día que se van a mostrar: **una por idioma, no una por pack** (D-151),
+    // el activo primero. Se calcula acá y no dentro del lambda de la lista porque ahí no hay
+    // `remember` --no es un scope de composición-- y se rehacía en cada recomposición.
+    val ofTheDay = remember(state.available, state.active?.packId, state.wordsOfTheDay) {
+        representativePacks(state.available, state.active?.packId)
+            .mapNotNull { handle -> state.wordsOfTheDay[handle.packId]?.let { handle to it } }
+            .sortedByDescending { it.first.packId == state.active?.packId }
     }
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -218,14 +220,6 @@ fun SearchScreen(
                         // One per loaded dictionary, the active one's first. The header shows
                         // ONLY if there is at least one: a heading with nothing under it is
                         // worse than no heading.
-                        // ⚠️ **Una por IDIOMA, no una por pack** (D-151). El mapa se calcula
-                        // por pack, asi que con dos diccionarios de un idioma salian dos
-                        // palabras del dia del mismo idioma. `representativePacks` elige una.
-                        val ofTheDay = representativePacks(state.available, state.active?.packId)
-                            .mapNotNull { handle ->
-                                state.wordsOfTheDay[handle.packId]?.let { handle to it }
-                            }
-                            .sortedByDescending { it.first.packId == state.active?.packId }
                         if (ofTheDay.isNotEmpty()) {
                             item(key = "titulo-del-dia") {
                                 ListHeader(
@@ -603,12 +597,22 @@ private fun WordOfTheDayRow(
  */
 @Composable
 private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit) {
+    // `remember` y no la llamada suelta, igual que `resultTags` en el inicio. Desde D-156 esto
+    // se dibuja SIEMPRE --tambien con resultados en pantalla-- asi que reagrupaba los packs en
+    // cada recomposicion, y `available` no cambia entre teclas.
+    //
+    // ⚠️ **No es un arreglo de bateria y no hay que venderlo como tal**: `docs/bateria.md` midio
+    // que el trabajo de este tipo son microsegundos contra minutos de pantalla. Es correccion de
+    // practica, y el motivo de hacerla es que cuesta una linea.
+    val chips = remember(state.available, state.active?.packId) {
+        languageChips(state.available, state.active?.packId)
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        languageChips(state.available, state.active?.packId).forEach { chip ->
+        chips.forEach { chip ->
             val active = chip.active
             Text(
                 text = chip.label,
@@ -637,102 +641,6 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
     }
 }
 
-/**
- * Un idioma ofrecido por el selector, y el pack que lo representa.
- *
- * `packId` es a quién se activa al tocarlo: decide **la atribución que se muestra, la palabra del
- * día del tile y qué pack va primero al desempatar**, no en qué packs se busca — desde D-136 se
- * busca en **todos** los del idioma activo.
- */
-internal data class LanguageChip(
-    val label: String,
-    val packId: String,
-    val active: Boolean,
-)
-
-/**
- * Agrupa los packs abiertos por idioma: **un chip por idioma, no por archivo** (D-147).
- *
- * ⚠️ **Cierra una incoherencia que D-136 introdujo y no terminó.** Esa decisión dejó escrito que
- * el selector pasa a elegir un idioma porque `SearchRepository` consulta todos los packs del
- * idioma activo — y la pantalla siguió listando packs. Con dos diccionarios de español el inicio
- * mostraba **dos chips "ES"**, los dos activables, y tocarlos no cambiaba en qué se buscaba.
- *
- * **El representante de un idioma** es el pack activo si ya lo es —tocar otro idioma y volver no
- * puede cambiarte el diccionario elegido por debajo— y si no, **el que más entradas tiene**: es
- * el que más veces va a tener la palabra.
- *
- * ⚠️ **El orden es por código de idioma y no el de `available`**, que sale de listar un
- * directorio y no promete orden: si los chips lo siguieran, cambiarían de lugar entre arranques y
- * un control que se mueve solo se toca por error. Mismo criterio que el desempate de D-136.
- */
-internal fun languageChips(packs: List<PackHandle>, activo: String?): List<LanguageChip> {
-    val activoLang = packs.filterIsInstance<PackHandle.Open>()
-        .firstOrNull { it.packId == activo }?.metadata?.langSource
-    return representativePacks(packs, activo).map { representante ->
-        LanguageChip(
-            label = representante.metadata.langSource.uppercase(),
-            packId = representante.packId,
-            active = representante.metadata.langSource == activoLang,
-        )
-    }
-}
-
-/**
- * **Un pack por idioma**: el que lo representa. Ordenados por codigo de idioma.
- *
- * Tres pantallas necesitan lo mismo y por eso vive suelto (D-151): el selector dibuja uno por
- * idioma, la **palabra del dia** se calcula una por idioma, y el tile cachea la del activo. Antes
- * la palabra del dia se calculaba **por pack**, asi que con dos diccionarios de español el inicio
- * mostraba dos palabras del dia del mismo idioma — el bug que D-145 tapo fundiendo los packs en
- * lugar de arreglarlo, y que vuelve en cuanto alguien instale un pack propio.
- *
- * **El representante** es el pack activo si ya lo es —elegir otro idioma y volver no puede
- * cambiarte el diccionario por debajo— y si no, **el que mas entradas tiene**: es el que mas veces
- * va a tener la palabra.
- *
- * ⚠️ **El orden es por codigo de idioma y no el de `packs`**, que sale de listar un directorio y
- * no promete orden. Mismo criterio que el desempate de D-136.
- */
-internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> =
-    packs.filterIsInstance<PackHandle.Open>()
-        .groupBy { it.metadata.langSource }
-        .toSortedMap()
-        .map { (_lang, delIdioma) ->
-            delIdioma.firstOrNull { it.packId == activo }
-                ?: delIdioma.maxByOrNull { it.metadata.entryCount }
-                ?: delIdioma.first()
-        }
-
-/**
- * Que etiqueta lleva cada resultado: el **idioma**, o la **fuente** cuando el idioma no alcanza.
- *
- * Con un diccionario del idioma activo, `sust. · ES` dice todo lo que hay que decir. Con dos,
- * `ES · ES` no desambigua nada: lo que separa dos diccionarios del mismo idioma es **de donde
- * salieron**, y el `pack_id` lo lleva en su tercer segmento por la gramatica que `verify_pack.py`
- * verifica (D-138): `<idioma>-<tipo>-<fuente>[-variante]`.
- *
- * ⚠️ **Solo cuentan los packs del idioma activo.** Desde D-136 se busca unicamente ahi, asi que un
- * pack ingles no puede hacer que una fila española muestre su fuente.
- *
- * ⚠️ **Y un `pack_id` que no cumpla la gramatica cae al idioma** en vez de inventarle una fuente:
- * un pack anterior a D-138 no la lleva, y partir su nombre daria una etiqueta falsa.
- */
-internal fun resultTags(packs: List<PackHandle>, idiomaActivo: String?): Map<String, String> {
-    val delIdioma = packs.filterIsInstance<PackHandle.Open>()
-        .filter { it.metadata.langSource == idiomaActivo }
-    val ambiguo = delIdioma.size > 1
-    return packs.filterIsInstance<PackHandle.Open>().associate { handle ->
-        val idioma = handle.metadata.langSource.uppercase()
-        val fuente = handle.packId.split('-').getOrNull(SEGMENTO_DE_FUENTE)
-        handle.packId to if (ambiguo && !fuente.isNullOrBlank()) fuente.uppercase() else idioma
-    }
-}
-
-/** El tercer segmento del `pack_id`: `<idioma>-<tipo>-<FUENTE>[-variante]` (D-138). */
-private const val SEGMENTO_DE_FUENTE = 2
-
-/** La clave con la que el input del sistema devuelve lo dictado o escrito. */
 /**
  * Cuántos recientes van en el inicio (D-148).
  *
@@ -774,88 +682,5 @@ private fun nativeInputIntent(label: String): Intent {
         RemoteInputIntentHelper.createActionRemoteInputIntent(),
         listOf(input),
     )
-}
-
-/**
- * El `pos` que guarda el pack es el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
- * UI: meterlo en el pack lo ataria a un idioma de interfaz y costaria bytes por entrada.
- *
- * Devuelve el **id de recurso** y no el texto porque esto lo usan dos superficies distintas: las
- * pantallas, que resuelven con `stringResource`, y los tiles, que tienen `Context` y resuelven
- * con `getString`. Un codigo que no conocemos devuelve null y se muestra crudo, que es mejor que
- * esconderlo.
- */
-@StringRes
-internal fun posLabelRes(pos: String): Int? = when (pos) {
-    "noun" -> R.string.pos_noun
-    "verb" -> R.string.pos_verb
-    "adj" -> R.string.pos_adj
-    "adv" -> R.string.pos_adv
-    "name" -> R.string.pos_name
-    "phrase" -> R.string.pos_phrase
-    "intj" -> R.string.pos_intj
-    "pron" -> R.string.pos_pron
-    "prep" -> R.string.pos_prep
-    "conj" -> R.string.pos_conj
-    "num" -> R.string.pos_num
-    "suffix" -> R.string.pos_suffix
-    "prefix" -> R.string.pos_prefix
-    "proverb" -> R.string.pos_proverb
-    "abbrev" -> R.string.pos_abbrev
-    else -> null
-}
-
-/** [posLabelRes] resuelto en el idioma del reloj; el codigo crudo si no se conoce. */
-@Composable
-internal fun posLabel(pos: String): String = posLabelRes(pos)?.let { stringResource(it) } ?: pos
-
-/**
- * El tipo ESCRITO ENTERO, para la ficha de una palabra.
- *
- * Existe al lado de [posLabel] y no en vez de el: son dos lugares con presupuestos distintos. En
- * una fila de 234 dp el lema es lo unico que importa y "sustantivo" le come el ancho; en la ficha
- * no compite con nada y "sust." es una abreviatura que alguien tiene que descifrar.
- *
- * Cae a la abreviatura --y no al codigo crudo-- si falta la clave larga: un pack puede traer un
- * `pos` que no conocemos, y media etiqueta es mejor que `intj`.
- */
-@Composable
-internal fun posLabelFull(pos: String): String = when (pos) {
-    "noun" -> stringResource(R.string.pos_full_noun)
-    "verb" -> stringResource(R.string.pos_full_verb)
-    "adj" -> stringResource(R.string.pos_full_adj)
-    "adv" -> stringResource(R.string.pos_full_adv)
-    "name" -> stringResource(R.string.pos_full_name)
-    "phrase" -> stringResource(R.string.pos_full_phrase)
-    "intj" -> stringResource(R.string.pos_full_intj)
-    "pron" -> stringResource(R.string.pos_full_pron)
-    "prep" -> stringResource(R.string.pos_full_prep)
-    "conj" -> stringResource(R.string.pos_full_conj)
-    "num" -> stringResource(R.string.pos_full_num)
-    "suffix" -> stringResource(R.string.pos_full_suffix)
-    "prefix" -> stringResource(R.string.pos_full_prefix)
-    "proverb" -> stringResource(R.string.pos_full_proverb)
-    "abbrev" -> stringResource(R.string.pos_full_abbrev)
-    else -> posLabel(pos)
-}
-
-/** [posLabelRes] para quien tiene `Context` y no composicion: los tiles. */
-internal fun posLabel(context: Context, pos: String): String =
-    posLabelRes(pos)?.let(context::getString) ?: pos
-
-/**
- * Solo se etiquetan los niveles que sorprenden.
- *
- * Que un resultado salga por prefijo es lo esperado y no merece una palabra en una pantalla de
- * reloj. Que salga por una forma flexionada o por parecido si: explica por que aparece algo que
- * el usuario no escribio.
- */
-@Composable
-private fun matchLabel(kind: MatchKind): String? = when (kind) {
-    MatchKind.PREFIX -> null
-    MatchKind.INFLECTED_FORM -> stringResource(R.string.match_inflected)
-    MatchKind.TRANSLATION -> stringResource(R.string.match_translation)
-    MatchKind.FUZZY -> stringResource(R.string.match_fuzzy)
-    MatchKind.DEFINITION -> stringResource(R.string.match_definition)
 }
 
