@@ -214,7 +214,7 @@ class PackFile private constructor(
             langTarget = meta["lang_dst"],
             fuzzyProfile = FuzzyProfile.fromId(meta["fuzzy_profile"]),
             entryCount = meta.getValue("entry_count").toInt(),
-            dataVersion = meta.getValue("data_version").toInt(),
+            dataVersion = meta.getValue("data_version").toLong(),
             license = meta.getValue("license"),
             attribution = meta.getValue("attribution"),
             // `meta[...]` y no `getValue`: un pack anterior a D-138 no la trae y tiene que

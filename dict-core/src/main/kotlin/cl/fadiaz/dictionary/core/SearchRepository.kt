@@ -25,7 +25,21 @@ package cl.fadiaz.dictionary.core
  * already serialises each pack's queries onto its own single-threaded dispatcher (D-050), so
  * `async` would buy little and would cost `:dict-core` a dependency it does not have today.
  */
-class SearchRepository(private val packs: List<DictionarySource>) {
+class SearchRepository(
+    private val packs: List<DictionarySource>,
+    /**
+     * Los packs de los **otros** idiomas, que contestan sólo cuando el activo no tuvo nada.
+     *
+     * Pedido: *«que evite generar conflictos cuando la palabra que busco está en inglés pero por
+     * error seleccioné español como idioma principal»*, con la condición explícita de *«que no se
+     * sobrecargue la búsqueda en varios packs innecesariamente»*. Las dos mitades están en
+     * [needsFallback].
+     */
+    private val otherLanguages: List<DictionarySource> = emptyList(),
+) {
+
+    /** Los ids del idioma activo, para el desempate de [orderFor]. */
+    private val activos: Set<String> = packs.map { it.metadata.packId }.toSet()
 
     /**
      * The normal search, across every pack.
@@ -33,22 +47,60 @@ class SearchRepository(private val packs: List<DictionarySource>) {
      * `limit` applies to the **merged** list, not to each pack: asking for three and getting
      * three per pack would fill a watch screen with whichever pack answered first.
      */
-    suspend fun suggest(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> =
-        merge(limit, query) { it.suggest(query, limit) }
+    suspend fun suggest(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> {
+        val propias = recolectar(packs) { it.suggest(query, limit) }
+        val ajenas = if (needsFallback(query, propias)) {
+            recolectar(otherLanguages) { it.suggest(query, limit) }
+        } else {
+            emptyList()
+        }
+        return ordenar(propias + ajenas, limit, query)
+    }
+
+    /**
+     * ¿Hay que preguntarle a los otros idiomas?
+     *
+     * **Sólo si el idioma activo no devolvió nada que se parezca a lo escrito**: ni una
+     * coincidencia exacta, ni una sola fila en la banda de cobertura máxima. La condición se
+     * calcula del texto escrito y del lema, **sin mirar un número de ningún pack**, igual que
+     * [coverageBand] -- así que un pack mal calibrado no puede ni disparar el respaldo ni
+     * taparlo.
+     *
+     * ⚠️ **El umbral se midió antes de elegirlo, sobre los dos packs reales.** De **400 lemas
+     * españoles comunes, 0** disparan el respaldo: el caso normal no paga absolutamente nada. De
+     * **400 lemas ingleses comunes, 321 (80 %)** lo disparan, que es exactamente el caso para el
+     * que existe. Los 79 que no lo disparan --`break`, `man`, `go`, `line`, `bear`-- **están de
+     * verdad en el pack español**, así que no llegar al respaldo es la respuesta correcta.
+     */
+    private fun needsFallback(query: String, propias: List<Suggestion>): Boolean {
+        if (otherLanguages.isEmpty() || query.isEmpty()) return false
+        return propias.none {
+            query.equals(it.headword, ignoreCase = true) || coverageBand(query, it.headword) == 0
+        }
+    }
 
     /** The free-text search over definitions (D-084). Same merge, same order. */
     suspend fun searchDefinitions(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> =
         // Sin `query` para la banda: acá lo escrito no es un prefijo del lema sino una palabra
         // de la definición, así que la cobertura no significa nada. Ver [coverageBand].
-        merge(limit, query = null) { it.searchDefinitions(query, limit) }
+        //
+        // ⚠️ **Y por lo mismo no hay respaldo entre idiomas acá**: el umbral de [needsFallback]
+        // se calcula con esa cobertura, y sin ella no hay forma de decidir cuándo el idioma
+        // activo "no tuvo nada" sin inventar un criterio.
+        ordenar(recolectar(packs) { it.searchDefinitions(query, limit) }, limit, query = null)
 
-    private suspend fun merge(
-        limit: Int,
-        query: String?,
+    private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> =
+        todas
+            .sortedWith(orderFor(query, activos))
+            .distinctBy { it.headword to it.partOfSpeech }
+            .take(limit)
+
+    private suspend fun recolectar(
+        fuentes: List<DictionarySource>,
         consultar: suspend (DictionarySource) -> List<Suggestion>,
     ): List<Suggestion> {
         val todas = mutableListOf<Suggestion>()
-        for (pack in packs) {
+        for (pack in fuentes) {
             // ⚠️ A broken pack must not take the search down with it. A corrupt or truncated
             // file opens fine and fails when queried; with two installed, one falling over
             // cannot leave the user with no dictionary at all. Same criterion the word of the
@@ -63,9 +115,6 @@ class SearchRepository(private val packs: List<DictionarySource>) {
             todas.addAll(suyas)
         }
         return todas
-            .sortedWith(orderFor(query))
-            .distinctBy { it.headword to it.partOfSpeech }
-            .take(limit)
     }
 
     private companion object {
@@ -115,11 +164,17 @@ class SearchRepository(private val packs: List<DictionarySource>) {
          * —which we compute, so it is already pack-independent— and the coverage of a word that
          * is *not* a prefix of the headword means nothing.
          */
-        private fun orderFor(query: String?): Comparator<Suggestion> {
+        private fun orderFor(query: String?, activos: Set<String>): Comparator<Suggestion> {
             if (query.isNullOrEmpty()) return ORDEN
             return compareBy<Suggestion> { it.matchKind.ordinal }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) demoteProperNoun(query, it) else 0 }
                 .thenBy { if (it.matchKind == MatchKind.PREFIX) coverageBand(query, it.headword) else 0 }
+                // ⚠️ **El idioma activo desempata, y va DESPUÉS de la calidad y no antes.** Si el
+                // respaldo se limitara a ir al final de la lista, una respuesta exacta en el otro
+                // idioma quedaría debajo de diez parecidos fonéticos del activo -- fuera de
+                // pantalla, que es lo mismo que no haberla buscado. Y al revés: a igualdad de
+                // todo lo demás manda el idioma que el usuario eligió, porque lo eligió.
+                .thenBy { if (it.packId in activos) 0 else 1 }
                 .thenComparator { a, b -> ORDEN.compare(a, b) }
         }
 

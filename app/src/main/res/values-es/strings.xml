@@ -47,9 +47,9 @@
     <string name="entry_show_more">Ver más (%1$d)</string>
     <string name="entry_options">Opciones</string>
     <string name="entry_back_to_search">Buscar</string>
-    <string name="entry_synonyms_prefix">sin.</string>
-    <string name="entry_antonyms_prefix">ant.</string>
-    <string name="entry_related_prefix">rel.</string>
+    <string name="entry_synonyms_title">Sinónimos</string>
+    <string name="entry_antonyms_title">Antónimos</string>
+    <string name="entry_related_title">Relacionadas</string>
     <string name="entry_list_separator">" · "</string>
 
     <!-- El menú de una palabra -->

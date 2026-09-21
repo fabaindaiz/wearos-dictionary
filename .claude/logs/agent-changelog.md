@@ -26,6 +26,77 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El respaldo entre idiomas, los sinónimos tocables, y `data_version` que sí distingue
+
+**Qué.** D-168 (respaldo automático entre idiomas), D-169 (categoría arriba y palabras tocables en
+sinónimos/antónimos/relacionadas) y D-170 (`data_version` derivado, `source_date` aparte). Más el
+diseño del **pack núcleo** escrito en el roadmap **sin construir**, a pedido explícito.
+
+**Áreas.** `SearchRepository.kt` + su test · `SearchViewModel.kt` · `EntryScreen.kt` + `ScreensTest`
++ `EnglishLocaleTest` · `values/` y `values-es/strings.xml` · `build.py`, `build_pack.py`,
+`sources/toy.py`, `tests/` · `Model.kt`, `PackFile.kt` · `docs/roadmap.md`, `docs/decisions.md`.
+
+**Por qué.** *«Aplica los pasos construibles ahora 1, 2, y para el 3 considera solo dividir el
+pack core y completo»*, más cuatro respuestas sobre decisiones abiertas. A mitad de camino:
+*«lo del pack core por ahora quiero planificarlo y dejarlo en el roadmap»* — así que el 3 pasó de
+construir a diseñar.
+
+**Arquitectura.** ✅ Cumple. El respaldo vive en `SearchRepository`, que es donde ya vivía la
+mezcla, y su umbral **no mira un solo número de ningún pack** — misma propiedad que
+`coverageBand`, así que un pack mal calibrado no puede ni disparar el respaldo ni taparlo.
+
+**Medido.**
+
+- **El umbral del respaldo, antes de elegirlo**: de 400 lemas españoles comunes **0** lo disparan;
+  de 400 ingleses, **321 (80 %)**. Los 79 que no —`break`, `man`, `go`, `bear`— **están en el pack
+  español**, así que es la respuesta correcta.
+- **El 93 % de las formas flexionadas españolas son de verbos** (1.393.997 de 1.499.895), a 33 por
+  verbo. Y `form` es **32,9 MB de 71,7**, la tabla más grande del pack.
+- **Un core de 14.388 entradas elegido por `rank` se lleva el 91 % de la tabla `form`**; el mismo
+  conteo sin verbos, el 1,9 %.
+- `data_version` real del pack de juguete reconstruido: `202609210340`, junto a `built_at`
+  `2026-09-21T03:40:26Z`.
+- Gate: **86 · 266 · 255 · 25 checks**.
+
+**Lo que la medición cambió.**
+
+- ⚠️ **El diseño del pack núcleo tenía una trampa que nadie había visto, y la habría hecho
+  fracasar sin que se entendiera por qué.** La sección estimaba 7,5 MB para un núcleo de 20.000
+  palabras, y eso **sólo se sostiene con la selección por frecuencia**: quien lo implemente
+  filtrando por `rank` —que es lo natural, porque es la columna que ya está— se lleva la tabla de
+  flexiones entera y obtiene decenas de MB. La razón para preferir Tatoeba ya estaba escrita
+  (ordena mejor); ahora hay una segunda que entonces no se conocía.
+- ⚠️ **El respaldo no podía ir «después», como yo mismo lo había diseñado.** Con diez resultados
+  por parecido fonético del idioma activo, la respuesta correcta queda fuera de pantalla. Se
+  mezcla con el mismo comparador y el idioma activo desempata **después** de la calidad.
+- ⚠️ **`data_version` mezclaba dos cosas**, y por eso ninguna elección funcionaba: de qué volcado
+  sale el contenido, y qué build es. Separadas, cada una tiene su forma.
+
+**Qué salió mal.**
+
+- **Un test afirmó una subcadena que aparecía dos veces.** `camélido` está en la glosa **y** en
+  las relacionadas, así que `substring = true` encontró dos nodos. Que esté en los dos lugares es
+  correcto; el test tenía que mirar el que le importaba.
+- **Escribí un test con un nombre sintácticamente inválido** (`def test_..., = None`) al generarlo
+  desde un heredoc. Lo agarró el propio intérprete, pero es un recordatorio de que generar código
+  con `cat` no tiene quien lo revise antes de correrlo.
+- **Mi primera medición del tamaño del core dio un número que no cerraba** —6,6 % de las filas
+  pesando 35 % del archivo— y la tentación era publicarlo. Mirarlo dos veces destapó que `form`
+  es el 46 % del pack, que resultó ser el hallazgo principal de la sesión.
+
+**Qué quedó sin hacer.**
+
+- **El pack núcleo no se construyó**, a pedido. El diseño, el precio y la trampa están en el
+  roadmap.
+- **Dos decisiones siguen abiertas y ahora están enlazadas**: qué es «el mismo diccionario»
+  (el usuario la quiere decidir junto con el núcleo) y si el núcleo se desinstala al llegar el
+  completo o se queda en disco sin consultarse.
+- **El `N` del núcleo sigue sin decidir**, y para el inglés falta el corpus de Tatoeba.
+- **Nada de esto se vio en el reloj.** El respaldo entre idiomas y la vista de sinónimos son
+  cambios visibles que sólo se verificaron en Robolectric.
+
+---
+
 ## 2026-09-20 — Un APK con R8 instalable hoy, el hash en el lugar correcto, y un hueco propio
 
 **Qué.** D-165 (el sha256 va al instalar, no en cada arranque), D-166 (build type `benchmark`

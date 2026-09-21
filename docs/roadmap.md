@@ -22,9 +22,9 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-20.*
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **81 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **263 JVM
-de `:app`** y **25 checks** de auditoría estructural — **619 tests en total**. Los **43
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **86 tests**) y el
+pipeline de packs (`tools/`, **255 tests**) están completos y en el gate, junto con los **266 JVM
+de `:app`** y **25 checks** de auditoría estructural — **632 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -498,7 +498,13 @@ construye con el mismo pipeline que el español: la poda resultó **estructural*
 
 ### Qué contenido tiene el pack de demostración
 
-**Estado.** Planificado, y **es una decisión de producto, no de mecanismo**. El mecanismo está
+**Estado.** **Decidido el 2026-09-21, sin construir**: *«quiero reorientar el pack demo a usar
+los packs core del idioma ES y EN»*. O sea que el demo deja de ser un juguete de 28 entradas y
+pasa a ser el **núcleo real** del idioma — ver §Dividir los packs grandes, que tiene el diseño,
+el precio en MB y la trampa del `rank`. Lo de abajo es lo que esta sección decía antes, y el
+mecanismo que describe sigue siendo el que se usa.
+
+**Estado anterior.** Planificado, y **es una decisión de producto, no de mecanismo**. El mecanismo está
 hecho (D-081): `:app:buildDemoPack` genera el `.db` que viaja en el APK, y cambiarlo es apuntar
 esa tarea a otro archivo.
 
@@ -769,10 +775,11 @@ geometría, no el hardware.
 
 ### Dividir los packs grandes en vez de achicarlos
 
-**Estado.** **Diseñado y medido, sin construir** (2026-09-20). Decisión del usuario: *«que los
-packs muy grandes, en lugar de reducirse, se pueda evaluar dividirlos funcionalmente para poder
-instalar las partes que uno quiere»*. Lo que sigue es el diseño con precio; **nada de esto está
-implementado**.
+**Estado.** **Diseñado y medido, sin construir** (actualizado 2026-09-21). Decisión del usuario:
+*«que los packs muy grandes, en lugar de reducirse, se pueda evaluar dividirlos funcionalmente»*,
+y después *«lo del pack core por ahora quiero planificarlo y dejarlo en el roadmap; necesito
+entender bien el mecanismo con que funcionará antes de querer implementarlo»*. Lo que sigue es el
+diseño con precio; **nada de esto está implementado**.
 
 #### Dónde está el peso, medido sobre los packs de hoy
 
@@ -838,6 +845,94 @@ contenido, y `sources` existe para contestar cómo se armó el pack (D-138).
 
 ⚠️ **Núcleo y completo son alternativas, no compañeros.** Instalar los dos no aporta nada: el
 completo contiene al núcleo. Eso los distingue de los packs de fuentes distintas, que sí se suman.
+
+#### ⚠️ La trampa que puede multiplicar por diez el tamaño: elegir por `rank`
+
+Medido el 2026-09-21, y es lo que puede hacer fracasar la implementación sin que nadie entienda
+por qué:
+
+| | |
+|---|---|
+| Formas flexionadas del pack español | **1.499.895** para 152.281 entradas |
+| De ésas, **de verbos** | **1.393.997 — el 93 %**, a 33 formas por verbo |
+| Un core de 14.388 entradas elegido **por `rank`** | se lleva **1.366.667 formas: el 91 % de la tabla** |
+| El mismo conteo **sin verbos** | 28.032 formas — **el 1,9 %** |
+
+`form` es la tabla más grande del pack español —**32,9 MB de 71,7**, el 46 %— así que quien
+construya el core filtrando por `rank` va a obtener un pack de decenas de MB y va a concluir que
+la idea no servía. **No es la idea: es el criterio de selección.**
+
+La estimación de 7,5 MB de arriba **sólo se sostiene con la selección por frecuencia**, porque un
+top de uso trae unos pocos miles de verbos y no los 41.724 que tiene el pack. Es la misma razón
+por la que se eligió Tatoeba sobre el `rank` del propio diccionario, ahora con un segundo motivo
+que entonces no se conocía: no es sólo que ordena mejor, es que **evita arrastrar la tabla de
+flexiones entera**.
+
+En inglés el problema no existe: **1,0 formas por entrada** contra 9,8 del español.
+
+#### Cómo conviven dos packs del mismo idioma sin duplicarse
+
+La pregunta que hay que entender antes de construir nada. **La mayor parte ya funciona**, y
+conviene saber qué parte es cuál.
+
+**Lo que ya pasa hoy, sin agregar nada:**
+
+1. `SearchViewModel` arma el repositorio con **todos** los packs del idioma activo (D-136).
+2. `SearchRepository` los consulta a todos y junta las respuestas.
+3. **Deduplica por `(lema, tipo)`** antes de recortar a 30: dos packs que tengan `casa · sust.`
+   producen **una** fila, no dos. Eso ya está probado —`el mismo lema de dos packs sale UNA
+   vez`— y el criterio de cuál gana es el orden completo, no el azar.
+4. Cada fila lleva su `packId`, y la etiqueta de la fila dice la **fuente** cuando hay dos
+   diccionarios del idioma activo (D-151).
+
+**O sea que «duplicarse en las queries» no es el problema: el problema es el trabajo de más.**
+Con el completo instalado, consultar además el núcleo es preguntar dos veces por un subconjunto —
+cada respuesta del núcleo o ya vino del completo y se descarta al deduplicar, o es un lema que el
+completo no tiene, **lo cual no puede pasar si el núcleo es un subconjunto**.
+
+**Lo que falta, entonces, es una sola cosa: que el núcleo se haga a un lado.** Y hay dos formas,
+con precios distintos:
+
+| Forma | Cómo | Qué cuesta |
+|---|---|---|
+| **Por declaración** | `meta.tier` = `core` \| `full`. Si hay un `full` del idioma X abierto, los `core` de X no se consultan | Una clave de meta nueva y una línea en `repositoryFor`. **Explícita**: el pack declara qué es, igual que `pack_id` declara su identidad (D-138) |
+| Por nombre | inferir de que el `pack_id` termine en `-core` | Gratis y **frágil**: es adivinar del nombre lo que D-138 decidió que se declara. Ya se rechazó una vez para la fuente |
+
+⚠️ **Recomendación: `meta.tier`**, y no porque sea más elegante. Un pack de la comunidad puede
+llamarse como quiera; lo único que la app puede creer es lo que el artefacto declara y el
+validador comprueba.
+
+⚠️ **Y una asimetría que hay que decidir**, porque es donde esto se cruza con *«qué es el mismo
+diccionario»* (la decisión abierta): ¿el núcleo se **desinstala** solo al instalar el completo, o
+se queda en disco sin consultarse? Quedarse cuesta 7,5 MB y permite volver atrás si el usuario
+borra el completo; desinstalarlo recupera el espacio y deja al usuario sin diccionario si la
+descarga del completo falla después. **Esto es producto, no mecanismo.**
+
+#### El núcleo dentro del APK
+
+Pedido: *«reorientar el pack demo a usar los packs core del idioma ES y EN»*.
+
+**Hoy el APK lleva un pack de juguete de 53 KB** con 28 entradas, que existe para que una app
+recién instalada muestre algo y que **se nota a propósito** que no es un diccionario real (D-081).
+Reemplazarlo por los núcleos cambia la app de *«instalá un diccionario»* a *«ya tenés uno»*.
+
+**El precio, con los números de hoy:**
+
+| | MB |
+|---|---|
+| APK actual, con R8 y el pack de juguete | **5,47** |
+| \+ núcleo español (20.000 palabras, estimado) | ~13 |
+| \+ núcleo inglés (falta el corpus para estimarlo) | ? |
+
+⚠️ **Los `.db` NO se comprimen dentro del APK** y hay que declararlo, o el instalador los
+descomprime a `filesDir` duplicando el espacio — que es exactamente el problema que D-071 vino a
+cerrar cuando el pack viajaba como asset. Con `PackStore.installAtomically` ya resuelto, lo que
+falta es medir si extraer 13 MB en el primer arranque es aceptable en un reloj.
+
+⚠️ **Y decide algo que hoy es gratis: el APK deja de ser universal.** Un núcleo por idioma dentro
+del APK significa que todos los usuarios cargan todos los idiomas, o que hay un APK por idioma.
+La salida estándar —Play Feature Delivery por idioma— **no está documentada para Wear OS**, que
+es la misma razón por la que D-038 descartó Play Asset Delivery.
 
 **Lo que queda sin decidir**: el `N`. 20.000 es el punto donde la curva se aplana, no una medición
 de qué necesita un usuario. Y para el inglés hace falta el corpus inglés de Tatoeba, que no está
@@ -966,6 +1061,14 @@ renombrar**: un archivo que no coincide nunca llega a llamarse como el pack.
 ⚠️ **Lo que sigue faltando es de producto, no de código: el catálogo.** Sin un lugar donde estén
 publicados los `sha256`, el parámetro existe y nadie tiene qué pasarle. Hoy sólo `devpack.py`
 compara hashes, y lo hace desde el lado del escritorio.
+
+**Decisión del 2026-09-21**: *«por ahora no es necesario hostearlo, considera todas las
+preparaciones para esta update sin tener una fuente de descargas»*. O sea que el mecanismo se
+construye completo y el catálogo queda como un dato que alguien llenará después — y eso es
+exactamente lo que ya pasó con `expectedSha256` (D-165). **Lo que falta preparar, en orden:**
+la forma del catálogo (un JSON con `pack_id`, `data_version`, `bytes`, `sha256`, `url`), el
+trabajo de WorkManager con las restricciones de D-029, y la pantalla que hoy es un WIP explícito
+en `PacksScreen`. Nada de eso necesita un servidor para escribirse ni para probarse.
 
 #### Los tres momentos de validación, y por qué no usan lo mismo
 

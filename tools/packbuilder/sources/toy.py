@@ -138,7 +138,10 @@ METADATA = {
     "lang_src": "es",
     "lang_dst": "en",
     "fuzzy_profile": "es",
-    "data_version": "1",
+    # No sale de ningun volcado: las 28 entradas estan escritas en este archivo. Se declara
+    # igual porque `source_date` dice de donde sale el contenido, y "de ningun lado" es una
+    # respuesta valida que conviene que este escrita.
+    "source_date": "n/a",
     "license": "CC0-1.0",
     "attribution": "Datos de prueba escritos a mano para los tests; no es un diccionario real.",
     # El manifiesto tambien aca (D-138): si el pack de juguete pudiera saltarselo, la unica

@@ -301,14 +301,18 @@ class SearchViewModel(
      * `SearchRepository`'s business, and it does not promise that `score` is comparable across
      * packs built from different dumps.
      *
-     * A pack whose `langSource` differs is left out, not ranked lower: it is not a worse answer,
-     * it is an answer to another question.
+     * ⚠️ **Un pack de otro idioma ya no se deja afuera del todo: pasa a ser el respaldo.** Antes
+     * se descartaba con el argumento de que *«no es una respuesta peor, es la respuesta a otra
+     * pregunta»*, y eso es cierto **mientras el idioma activo conteste algo**. Cuando no contesta
+     * nada parecido a lo escrito, la pregunta que el usuario hizo de verdad era la otra: escribió
+     * una palabra inglesa con español activo. `SearchRepository` decide cuándo, y su umbral está
+     * medido -- 0 de 400 lemas españoles comunes lo disparan.
      */
     private fun repositoryFor(active: DictionarySource): SearchRepository {
-        val mismoIdioma = opened.filter {
-            it !== active && it.metadata.langSource == active.metadata.langSource
-        }
-        return SearchRepository(listOf(active) + mismoIdioma)
+        val idioma = active.metadata.langSource
+        val mismoIdioma = opened.filter { it !== active && it.metadata.langSource == idioma }
+        val otrosIdiomas = opened.filter { it.metadata.langSource != idioma }
+        return SearchRepository(listOf(active) + mismoIdioma, otherLanguages = otrosIdiomas)
     }
 
     fun onPackChange(packId: String) {
