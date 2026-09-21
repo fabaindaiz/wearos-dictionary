@@ -1319,6 +1319,74 @@ en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de
 
 ---
 
+### Reportado usando la app en el reloj (2026-09-21)
+
+Cuatro cosas que salieron de tener la app puesta, no de razonar sobre ella. **Ninguna está
+construida.**
+
+#### 🔴 El pack de demostración del reloj quedó incompatible y nunca se reemplaza
+
+**Es un bug, no una mejora, y está diagnosticado.** La app muestra la advertencia de que
+`demo-es-en.db` no es compatible: fue construido con `deflate-v1` y la app de hoy lee `deflate-v2`.
+
+**La causa exacta:** `PackStore.missingFromDisk` extrae un asset del APK **sólo si el nombre falta
+en disco**. El demo se extrajo el 2026-09-18, el archivo sigue ahí, y el APK de hoy trae uno nuevo
+—verificado: `payload_codec = deflate-v2`, `data_version = 202609210345`— que **nunca se copia**.
+O sea que **un pack incluido se extrae una vez y no se actualiza nunca**, aunque el APK traiga uno
+mejor.
+
+⚠️ **Y esto es exactamente el costo que D-119 predijo** cuando subió `CODEC_ID` a `deflate-v2`:
+*«subirlo tira la propiedad de que los tags desconocidos se ignoren, porque `PackFile.open` lo
+compara con `!=` y rechaza el pack»*. Se aceptó *«porque hoy el costo es cero»*. Dejó de serlo.
+
+**El arreglo, y es chico:** re-extraer los assets cuando cambia el `versionCode` de la app, en vez
+de sólo cuando el archivo falta. Una clave de preferencia con el `versionCode` que extrajo por
+última vez. Hoy son 53 KB; con el núcleo adentro serían ~7,5 MB una vez por actualización.
+
+⚠️ **Y gana importancia con el núcleo**: si el pack incluido pasa a ser el diccionario de verdad,
+que no se actualice con la app deja de ser una molestia y pasa a ser un diccionario viejo.
+
+#### El selector de idioma principal no se explica
+
+Los dos chips `ES` / `EN` dicen **qué** está activo y no **qué hacen**. Sin haber leído el roadmap,
+nada en pantalla dice que se busca en *todos* los packs de ese idioma (D-136), ni que desde hoy los
+otros idiomas contestan cuando el activo no tiene nada (D-168). Falta o una interfaz mejor, o una
+explicación — y la segunda cuesta filas, que en 234 dp es la moneda cara.
+
+#### Las palabras del día son demasiado raras
+
+Reportado mirando el reloj: salieron **`posterobuccally`** y **`evangélicamente`**. La palabra del
+día se elige de 32 candidatos repartidos por `rank` (D-097), y `rank` es **riqueza de página, no
+frecuencia de uso** — el mismo defecto que D-142 arregló para el orden de resultados y que la señal
+de Tatoeba resolvería acá.
+
+Dos salidas, y la segunda es más barata de lo que parece:
+
+1. **Acotar por frecuencia real**, con la misma señal de Tatoeba que el pack núcleo va a necesitar
+   (§Dividir los packs grandes). Una sola medición sirve a las dos cosas.
+2. **Acotar por tópico**, que es lo que el usuario pidió como alternativa. Necesita una etiqueta
+   que hoy el pack no trae: sería una clave de meta o un campo nuevo, o sea que entra por la
+   política de D-174.
+
+### Herramientas para depurar la app EN el reloj
+
+**El hueco que esta sesión hizo evidente.** Con el reloj conectado se pudo medir batería, arranque
+y frames, y **no se pudo escribir en el campo de búsqueda**: no toma foco con un tap sintético, que
+es la misma forma del problema que obligó a fijar espresso 3.7.0 (D-093). Eso dejó D-168 y D-169
+sin verificar teniendo el dispositivo en la mano.
+
+**Lo que falta, en orden de lo que habría desbloqueado hoy:**
+
+| | Qué | Qué desbloquea |
+|---|---|---|
+| 1 | **Una forma de sembrar la consulta desde `adb`** — un intent con la palabra, o un receiver de debug sólo en builds no-release | Verificar cualquier cosa que dependa de buscar, sin depender de un dedo |
+| 2 | **Logs de diagnóstico que se puedan leer con `logcat`**: qué packs abrieron, cuántos peldaños corrió la cascada, cuántos ms tardó | Hoy la app no emite **una sola línea**; todo lo que se sabe sale de `dumpsys` |
+| 3 | **Un volcado del estado** —packs abiertos, activo, memo de verificación— por intent o por el diagnóstico de Ajustes | Que `PackVerification` y las reglas de selección se puedan comprobar en el dispositivo |
+
+⚠️ **Y la restricción que ordena el diseño**: nada de esto puede quedar en el APK de release. Un
+receiver exportado o un log verboso en producción son superficie de ataque y batería. El build
+`benchmark` (D-166) es el lugar natural: ya existe, ya es instalable, y ya no es el release.
+
 ## Publicar: qué falta para una build de producción
 
 **Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
