@@ -349,7 +349,9 @@ de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo aga
 
 > **El selector de idioma NO es composición**, y conviene no confundirlos. El selector elige
 > **un** pack y busca en él (D-078); la composición hace que un pack auxiliar le **sume**
-> información a la misma entrada de otro. `SearchRepository` sigue sin existir.
+> información a la misma entrada de otro. `SearchRepository` **ya existe** (D-136) y resuelve la
+> convivencia —varios packs consultados y sus resultados fusionados—; lo que sigue sin existir es
+> el **join por `uid`**, que es sumarle campos a una entrada.
 
 Que un pack de sinónimos y uno de traducciones puedan sumar información **a la misma entrada**
 del pack de definiciones.
@@ -1596,6 +1598,136 @@ built that way would be **twenty times smaller** than the reverse index it is me
 
 The curated pairs are good — `dictionary → diccionario, tumbaburros, mataburros`, sense-tagged —
 so they are worth **folding in as extra keys**, which is cheap. They are not worth a pack.
+
+### Completing the translations, and where they belong in an entry — measured 2026-09-21
+
+Two questions, asked together: **complete the translation pack from other sources**, and work out
+**how that information is queried and integrated into the entry structure that already exists**.
+The second turned out to be almost entirely answered already, and the first has a source nobody
+had looked at.
+
+#### ⚠️ The structure already has the field, and it is empty in all three packs
+
+`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag `T`, `PayloadCodec`
+reads it, and the entry screen can render it. **Nothing fills it.** Read from the real packs:
+
+```
+BILINGUAL es-tr-enwikt      casa (noun) — 1 sense
+   S: house                 related: hogar, lar
+   trans table -> house
+
+MONOLINGUAL es-def-wikc     casa (noun) — 15 senses
+   S: Edificación destinada a vivienda.
+   S: Domicilio.            synonyms: domicilio, hogar, lar, morada
+   trans table -> (empty)
+```
+
+So the two halves each hold what the other needs and neither carries a translation in the field
+meant for one. The bilingual pack puts the English **in the gloss** (`S: house`), which is why it
+reads as a dictionary whose definitions happen to be English words; the monolingual pack has the
+15 real senses and no English at all.
+
+**This is why `wordActions` says the translate action shows up "today: never"** — it is not
+waiting on a mechanism, it is waiting on data.
+
+#### The source that was never looked at: the Wikcionario already has translation tables
+
+⚠️ **`es.jsonl` — the very dump that builds `es-def-wikc` — carries a `translations` field**, and
+nothing in the pipeline reads it. Measured over the whole dump:
+
+| | |
+|---|---|
+| Spanish entries | 854,460 |
+| with `translations` | 32,453 (3.8 %) |
+| with an **English** translation | 25,328 (3.0 %) |
+| ES→EN pairs | **34,710** over 22,520 lemmas |
+| **of those, carrying `sense_index`** | **55 % of lemmas** |
+
+That last row is the one that matters, and it is worth more than the coverage: **`sense_index` is
+the same field D-117 and D-124 already use to attach wiki synonyms to the right sense.** The
+alignment problem that blocks WordNet, Wikidata and the enwiktionary examples —§Alinear acepciones
+entre fuentes, 20,644 contributions currently thrown away— **does not apply here**. Same dump,
+same entry, same numbering, so the `uid` matches by construction and the sense is stated by the
+source.
+
+```
+casa   -> home, house              idx=1
+libro  -> book                     idx=1
+       -> omasum, psalterium, third stomach   idx=6
+```
+
+`libro` is the whole argument in three lines: senses 1 and 6 get different English, and the source
+says which is which.
+
+#### Coverage: what fraction of entries would actually show a translation
+
+Over the Spanish frequency list, asking *"the entry the user opens — does it carry an English
+translation?"*, with inflections resolved through `form` the way the reverse-index numbers were:
+
+| Words tested | Wikcionario `translations` | via `uid` join to the bilingual pack | **both** |
+|---|---|---|---|
+| top 1,000 | 94.5 % | 86.5 % | **98.3 %** |
+| top 3,000 | 90.0 % | 84.0 % | **96.8 %** |
+| top 8,000 | 84.2 % | 81.6 % | **94.8 %** |
+
+The two sources are **complementary rather than redundant** — neither alone reaches what the pair
+does — and the cheap one is also the better one: it needs no join, no new pack and no new rung.
+
+#### ⚠️ The `uid` join is not the bottleneck, and that kills the obvious next idea
+
+The natural reaction to 31 % is to blame the join key and loosen it. Measured, between the
+monolingual and bilingual Spanish packs:
+
+| key | in common | % of the monolingual pack |
+|---|---|---|
+| `uid` | 47,646 | 31.3 % |
+| `(norm, pos)` | 50,882 | 34.6 % |
+| `norm` alone | 52,552 | 37.9 % |
+
+**Going all the way down to bare headword buys 6.6 points** and gives up everything D-055 bought.
+What does not overlap is the **vocabulary**: the English Wiktionary's Spanish section and the
+Spanish Wiktionary describe different words. No key recovers that, and the fix is a second source,
+which is exactly what the row above is.
+
+#### ⚠️ WordNet as a translation bridge is a trap, and the trap is silent
+
+The tempting idea: `wn-data-spa.tab` gives Spanish lemmas per synset, OEWN gives English lemmas
+per synset, a synset **is** one sense — so joining them would give translations aligned by sense
+for free, solving §Alinear acepciones outright. `wordnet.py` already reads both files.
+
+**It does not work, and the failure is the dangerous kind.** Of the 78,417 Spanish synset ids,
+only **435 (0.6 %)** exist in OEWN 2024: the `.tab` carries Princeton WordNet 3.0 offsets and OEWN
+renumbered. Worse, the 435 are not a usable subset — they split by offset magnitude:
+
+| offset | count | what they are |
+|---|---|---|
+| 4–6 digits | 93 | **real matches**: `apto, capaz, competente ↔ able` · `ente, entidad ↔ entity` · `cosa ↔ thing` |
+| 7–8 digits | **342** | **collisions**: `soñador ↔ diner` · `jefa, jefe ↔ girl` · `epidemiólogo ↔ easterner` · `lama ↔ joiner` · `hedonista ↔ groundskeeper` |
+
+**Four out of five pairs are wrong and none of them looks wrong** — `hedonista ↔ groundskeeper`
+reads as a bad dictionary, not as a bug, which is the failure mode this repo treats as
+unacceptable. Bridging the two would need the **ILI** (OEWN declares `ili="i1"` per synset) plus a
+PWN-3.0 → ILI map, which is not downloaded. Until that exists, **the MCR is usable within Spanish
+and must not cross languages.** `wordnet.py` already refuses to transfer antonymy across
+languages for a different reason (it is a lexical relation); this is a second, stronger reason
+that applies to everything.
+
+#### What this adds up to
+
+In order, cheapest first, none of it built:
+
+1. **Read `translations` from `es.jsonl` in `kaikki.py` and write tag `T` per sense**, gated on
+   `sense_index` exactly as synonyms are. No schema change, no new table, no join, no alignment
+   risk — `trans` and the `T` tag already exist and `verify_pack.py` already checks them. Gets
+   **94.5 % of the top 1,000**.
+2. **The same for `en.jsonl`**, which carries 10,438 curated EN→ES pairs (see above) — it makes the
+   English monolingual pack translate too.
+3. **Only then** the `uid` join to the bilingual pack for the remaining 3.8 points, which is the
+   part that needs `SearchRepository` to compose across packs and is entry-level, not sense-level.
+
+⚠️ **Step 1 changes what a pack contains, not how it is read**, so under D-001 the packs are
+rebuilt rather than migrated — an hour of build for the Spanish pack, and the app needs no change
+beyond rendering a field it already parses.
 
 #### ⚠️ The bilingual pack made an ordering bug impossible to ignore
 

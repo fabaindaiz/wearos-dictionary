@@ -107,7 +107,7 @@ antes que el código**.
 | **DBnary** | Extracción RDF de varios Wikcionarios | ¿Aporta algo sobre kaikki, o es la misma fuente con otro formato? |
 | **Wikcionario de otros idiomas, sección español** | Cada wiki define distinto | Las glosas están en el idioma del wiki: sería un pack **bilingüe**, no monolingüe (D-034) |
 | **FreeDict / Apertium** | Pares bilingües ya hechos | Licencia (Apertium es GPL, y eso es viral sobre el dato) |
-| **Spanish WordNet (MCR)** | Estructura de synsets en español | La licencia del MCR no es abierta sin acuerdo; hay que leerla antes de bajar nada |
+| **Spanish WordNet (MCR)** | Estructura de synsets en español | **Ya se usa** como tesauro (D-144), con licencia CC BY 3.0 vía OMW. ⚠️ **Como puente de traducción está medido y descartado**: sólo el 0,6 % de sus synsets existe en OEWN 2024 y 342 de esas 435 coincidencias son colisiones de offset (`soñador ↔ diner`). Ver roadmap §Completing the translations |
 
 ---
 

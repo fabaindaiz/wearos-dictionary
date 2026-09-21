@@ -26,6 +26,55 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Las traducciones ya tienen dónde ir, y una fuente que nadie había abierto
+**Qué.** Nada de código. Se evaluó con qué completar el pack de traducciones y **cómo se integra
+esa información a la estructura de entradas que ya existe**. Resultado: la estructura no hay que
+diseñarla —está y está vacía— y la fuente principal ya estaba descargada. Documentado en
+`docs/roadmap.md`; corregidas dos afirmaciones obsoletas.
+**Áreas.** `docs/roadmap.md` (§Completing the translations, §Composición entre packs),
+`docs/fuentes.md` (fila del MCR).
+**Por qué.** El pedido: *«me interesa completar este pack de traducción con otras fuentes […] y
+evaluar cómo esta información nueva se consulta e integra a la estructura ya definida»*.
+**Arquitectura.** ✅ Cumple. Nada construido. El camino 1 no toca esquema: llena el tag `T`, que
+ya existe en `payload.py`, `PayloadCodec` y `Model.Sense`.
+**Medido.**
+- **El tag `T` está vacío en los tres packs reales.** El bilingüe pone el inglés **en la glosa**
+  (`casa` → 1 acepción, `S: house`); el monolingüe tiene las 15 acepciones y cero traducciones.
+  Por eso `wordActions` dice que la acción traducir hoy no aparece nunca: falta el dato, no el
+  mecanismo.
+- **`es.jsonl` —el dump que ya construye `es-def-wikc`— trae campo `translations` y el pipeline no
+  lo lee**: 34.710 pares ES→EN sobre 22.520 lemas, y **el 55 % con `sense_index`**, que es el
+  mismo campo que D-117/D-124 usan para los sinónimos del wiki. O sea que **el problema de
+  alineación de acepciones no aplica a esta fuente**.
+- Cobertura *«la entrada que se abre trae traducción»*, resolviendo flexiones por `form`:
+  **94,5 / 90,0 / 84,2 %** (Wikcionario) y **98,3 / 96,8 / 94,8 %** sumando el bilingüe por `uid`.
+- **La llave de join no es el cuello de botella**: `uid` une 31,3 %, `(norm,pos)` 34,6 %, `norm`
+  pelado 37,9 %. Aflojar hasta el lema gana 6,6 puntos y tira D-055. Lo que no se solapa es el
+  vocabulario.
+- **WordNet como puente de traducción: medido y descartado.** Sólo **435 de 78.417** synsets
+  españoles (0,6 %) existen en OEWN 2024 —el `.tab` trae offsets de PWN 3.0—, y de esos 435, los
+  **342** de offset alto son colisiones: `soñador ↔ diner`, `jefa ↔ girl`, `hedonista ↔
+  groundskeeper`. **Cuatro de cada cinco pares mal y ninguno se ve mal.**
+**Qué salió mal.** Tres veces, y las tres las agarró un número que no cuadraba con otro ya escrito.
+1. **Usé el corpus equivocado para el español.** `sentences_CC0.csv` **no tiene español** —sus
+   idiomas son kab, ber, eng, rus— así que la lista de frecuencias salió con `guanches`,
+   `pedrenales` y `muuuuu` en la cabeza, y la cobertura dio 13,7 % en vez de 94,5 %. El corpus
+   español es `tatoeba-spa.tsv`. **Lo delató mirar las palabras, no el porcentaje.** Se verificó
+   en el acto que los núcleos **no** tienen ese defecto: `es-core.db` trae `casa`, `perro`, `agua`
+   y ninguna de las palabras del corpus sesgado, así que se derivó con el corpus correcto.
+2. **Medí cobertura comparando tokens flexionados del corpus contra claves de lema**, sin pasar
+   por `form`. Dio 13,5 % donde ya había un 99,8 % escrito, y esa contradicción fue la alarma.
+3. **Leí la muestra de WordNet sin ordenar** y concluí que *todas* las coincidencias eran basura.
+   Ordenadas, las de offset bajo son perfectas (`cosa ↔ thing`). La conclusión final —0,6 % de
+   solape, 4/5 mal— es más precisa que la primera y dice lo contrario sobre los offsets bajos.
+**Qué quedó sin hacer.**
+- **Nada implementado.** El orden propuesto está en el roadmap: (1) leer `translations` de
+  `es.jsonl` en `kaikki.py` y escribir `T` por acepción, (2) lo mismo con `en.jsonl`, (3) recién
+  ahí el join por `uid`.
+- El bridge ILI (OEWN declara `ili=` por synset) necesitaría un mapa PWN 3.0 → ILI que no está
+  descargado. No se evaluó.
+- Sigue pendiente lo de siempre: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — El índice inverso del pack bilingüe, pesado en vez de discutido
 **Qué.** Nada de código. Se midió si el pack de traducciones puede llevar el índice **en los dos
 sentidos**, cuánto pesa cada forma de guardarlo, y se descartó con números la alternativa de un
