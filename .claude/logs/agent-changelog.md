@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — La dirección inversa ya existe; el SQL tira la clave que la hace visible
+**Qué.** Nada de código. Se contestó si el pack de traducciones puede tener tablas en **los dos
+sentidos como feature del formato**, y si una palabra se puede mostrar sin tener definición.
+Respuesta: la segunda sale **gratis hoy** y la primera ya está a medias construida. Los tres
+niveles quedaron pesados en `docs/roadmap.md`.
+**Áreas.** `docs/roadmap.md` (§Both directions as a pack feature).
+**Por qué.** El pedido: *«¿es posible que el pack de traducciones tenga tablas en ambos sentidos?
+[…] me interesa además que las palabras se puedan mostrar aunque no estén disponibles sus
+definiciones»*, planteado explícitamente como diseño del formato y no como build.
+**Arquitectura.** ✅ Cumple. Nada construido. El nivel 0 no toca el pack; el nivel 2 sí y se
+documentó como cambio de esquema bajo D-001 con bump de `UID_RECIPE`.
+**Medido.**
+- **`trans` ya soporta prefijo con seek de PK**, verificado con `EXPLAIN QUERY PLAN`:
+  `SEARCH trans USING PRIMARY KEY (norm>? AND norm<?)`. Y `SqlitePackSource` **ya consulta por
+  prefijo** ahí.
+- ⚠️ **`byTranslation` descarta la clave que hizo match**: devuelve `entry` por
+  `id IN (SELECT entry_id FROM trans …)`, así que `hou` da `ampolleta, sabueso, hora…` sin decir
+  que salen de `hourglass`, `hound`, `hour`. **Mostrar la clave es la feature entera, y cuesta
+  0 MB.**
+- Entradas-stub construidas sobre las 89.049 claves inglesas reales: **11,00 MB** (+21,9 %), o
+  **7,84 MB** (+15,6 %) sin índice fuzzy y con `idx_entry_norm` no cubridor. ⚠️ **El costo es
+  estructura, no contenido**: los payloads comprimen a **1,70 MB (20 bytes/entrada)**;
+  `idx_entry_fuzzy` solo pesa 1,88 MB y el covering 3,18 MB.
+- Los stubs hoy están **prohibidos por tres enforcers**, no ausentes: `entry` no tiene columna
+  `lang`; `verify_pack.py:323` recalcula el uid con el idioma **del pack**; `verify_pack.py:348`
+  falla una entrada sin acepciones; y `payload.parse` **descarta en silencio** un `T` anterior al
+  primer `S` por la guarda `if senses:`.
+**Qué salió mal.** Nada que invalidara un número, pero una corrección de rumbo: la primera
+estimación mental era que «ambos sentidos» significaba duplicar tablas, y medir el nivel 2 primero
+habría llevado a proponer +22 % de peso para una feature que el nivel 0 da en cero. **Lo que lo
+evitó fue leer el SQL del peldaño antes de diseñar**, no medir más.
+**Qué quedó sin hacer.**
+- **Nada implementado.** Nivel 0 (conservar la clave) es `:app` + `:dict-data`; niveles 1 y 2
+  quedan decididos y sin construir.
+- **Sin decidir, y es decisión de producto**: cómo se **declara** la bidireccionalidad en `meta`
+  para que `verify_pack.py` pueda exigirla. Hoy `kind=bilingual` + `lang_dst` dicen que el pack
+  tiene idioma destino, no que la inversa sirva.
+- El `ORDER BY e.rank` del peldaño inverso es el mismo defecto de §Result ordering
+  (`house → solar`): mostrar la clave lo deja más visible, no lo arregla.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — Las traducciones ya tienen dónde ir, y una fuente que nadie había abierto
 **Qué.** Nada de código. Se evaluó con qué completar el pack de traducciones y **cómo se integra
 esa información a la estructura de entradas que ya existe**. Resultado: la estructura no hay que
