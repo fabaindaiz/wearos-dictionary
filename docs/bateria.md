@@ -1,6 +1,6 @@
 # Battery: where the energy actually goes
 
-**Status.** One real datum, a measured cost model, a diagnostic against the official sources, and an action plan — with **no on-watch measurement yet**, which is item 1 of that plan because it decides the order of the rest.
+**Status.** ⚠️ **Measured on the watch on 2026-09-21, and the measurement killed this document's central conclusion.** It said CPU could never be the battery on this app. Measured: the framework attributes **5.98 mAh to the screen and 6.08 mAh to the CPU** — roughly equal — and the app **redraws about five times a second while sitting completely still**. The cost model below is still correct about SQL; it was measuring the wrong thing.
 
 The datum: the watch reported **9.4 %** attributed to the dictionary, over a stretch the user
 describes as *"lo he tenido abierto harto rato"*. That is the first battery number this project
@@ -153,9 +153,12 @@ brutal and assume **50× slower**: that is **3.7 seconds of CPU** for the whole 
 Against that, *"lo he tenido abierto harto rato"* — say 30 minutes — is **1,800 seconds of
 screen**.
 
-**Three orders of magnitude apart.** For the CPU to account for 9.4 % it would have to be doing
-something this cost model does not contain, and the way to find out is to look, not to guess (see
-below).
+**Three orders of magnitude apart.** ⚠️ **Y medido, esto resultó FALSO — o más exactamente,
+verdadero sobre lo que medía e irrelevante para la pregunta.** La CPU sí da cuenta de la mitad del
+consumo: 6,08 mAh contra 5,98 de pantalla. El error no estaba en la aritmética, estaba en el
+alcance: *«something this cost model does not contain»* era precisamente el caso, y lo que no
+contenía es el dibujado. Se deja escrito el razonamiento equivocado a propósito, porque la lección
+es cuánta confianza transmitía una cuenta que sólo pesaba una de las dos mitades.
 
 The primary source for how the framework builds that percentage says the two terms are computed
 separately: it *"multiplies the CPU time for each application by the mA required to run the CPU at
@@ -197,6 +200,81 @@ adb shell dumpsys usagestats | grep -A 5 cl.fadiaz.dictionary
 If CPU is seconds and screen is tens of minutes, the answer is the screen and every CPU
 optimisation below is theatre. If CPU is minutes, something in this cost model is wrong and that
 is a far more interesting finding.
+
+---
+
+## What the watch actually said (2026-09-21)
+
+The first on-device measurement this project has. `SM-L715F`, Wear OS 7 / API 37, on battery, with
+the R8 build (`versionCode 4`) and both real packs installed — 372.6 MB.
+
+### The number that kills the arithmetic further down
+
+⚠️ **Three minutes with the app open, on screen, and nobody touching it:**
+
+| | |
+|---|---|
+| Window | 3 m 3 s on battery, screen on 100 % |
+| App foreground | 3 m 0.6 s, **one** launch, **zero** interaction |
+| **App CPU time** | **30.7 s user + 8.0 s system = 38.7 s** |
+| That is | **21 % of a core, doing nothing** |
+
+And in steady state, sampled from `/proc/<pid>/stat` over a clean 30 s window: **3.6 % of a core**.
+So the 21 % is front-loaded — startup, first frames, `ProfileInstaller` — and what persists is
+3.6 %, which is still **~128 s of CPU per hour with the app merely open**.
+
+### And the cause is visible: it never stops drawing
+
+`dumpsys gfxinfo`, reset and then left alone for 30 s on a **static** screen with nobody touching
+the watch:
+
+| | |
+|---|---|
+| Frames rendered | **142 in 30 s ≈ 5 fps** |
+| What a screen that does not change should render | **0** |
+
+⚠️ **Something invalidates the composition continuously.** The Compose report said all 21
+composables are *skippable*, and that is still true — **skippable is not the same as not
+invalidated**. If some state changes every frame, everything recomposes anyway, and the report
+cannot see it. That is exactly the gap this document named and could not close from a desk:
+*"Nothing here measures drawing."*
+
+**Not yet localised.** The candidates, in order of suspicion: the `TransformingLazyColumn`'s
+per-item transform (`rememberTransformationSpec`, `transformedHeight`), Wear's `TimeText` inside
+`AppScaffold`, and any `LaunchedEffect` that re-arms. Localising it needs a Perfetto trace with
+`view` and `graphics` categories — which the watch is connected for.
+
+### Where the energy went, over a longer window
+
+Over 53 minutes on battery with 13 m 50 s of screen:
+
+| Component | mAh | |
+|---|---|---|
+| `screen` | **5.98** | |
+| `cpu` | **6.08** | apps: 6.07 |
+| `ambient_display` | 2.99 | |
+| `wifi` | 2.77 | |
+| Total computed drain | **11.7** | of a 784 mAh rated battery |
+| **The dictionary alone** | **6.80** | **58 % of everything the watch spent** |
+
+⚠️ **Screen and CPU are roughly equal, and the app is the majority of both.** That window is
+contaminated — it includes ~12 `uiautomator dump` calls, each of which builds the accessibility
+tree *inside the app's process* — so the 6.80 mAh is an overestimate. The 3-minute clean window
+above is not contaminated, and it is the one that matters.
+
+### What else the watch confirmed
+
+| | |
+|---|---|
+| **R8 runs** (D-163) | App launches, survives, no `FATAL`. **Both packs open**, both words of the day render. The SQLite JNI driver crosses fine |
+| **Tile declarations survive R8** | The package manager resolves `.tile.HistoryTileService` and `.tile.WordOfTheDayTileService` by their original names. **Rendering still unseen**: adding a tile is a user gesture |
+| **The app language works end to end** (D-158) | `cmd locale set-app-locales … es` flipped the UI to Spanish and **persisted across force-stop**. This is `localeConfig` doing its job — the hole found the same day |
+| **Startup** | **500 ms cold, 278 ms warm**, with 372.6 MB of packs open. First startup number this project has |
+
+⚠️ **What could NOT be driven from `adb`**: the search field does not take focus from a synthetic
+tap, so the cross-language fallback (D-168) and the tappable synonyms (D-169) stayed unverified.
+The repo already knew this shape — D-093 pinned espresso 3.7.0 over input injection on this API
+level. Navigation taps do work; text entry does not.
 
 ---
 
@@ -335,10 +413,19 @@ Ordered by **seconds of screen removed**, because that is the only currency this
 Anything whose effect is measured in milliseconds of CPU is not on this list, and the section after
 it says why.
 
-### 1. Decompose the 9.4 % — blocks everything else
+### 1. ~~Decompose the 9.4 %~~ — **done 2026-09-21**, and it reordered the list
 
-Nothing below should be prioritised before this runs, because it decides whether the list is even
-ordered correctly. The protocol is above; it needs the watch connected. **Cost: minutes.**
+It ran, and the answer was not the one this plan assumed: **screen and CPU are roughly equal**, and
+the app redraws ~5 times a second while idle. Which promotes a brand-new item to the top.
+
+### 1b. Find out why it draws when nothing changes — **now the biggest lever**
+
+~5 fps on a static screen, **3.6 % of a core for as long as the app is open**. Every other item on
+this list is about shortening how long the screen is on; this one is about not burning CPU while it
+is. Localising it needs a Perfetto trace with the `view` and `graphics` categories, on the watch.
+
+⚠️ **And it is the one item where the Compose report actively misled**: all 21 composables are
+skippable, which says nothing about how often their state is invalidated.
 
 ### 2. ~~Turn R8 on~~ — **done** (D-163), and the device check is what is left
 

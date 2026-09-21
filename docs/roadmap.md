@@ -1366,8 +1366,15 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 
 ### Pendiente de subir al reloj
 
-El reloj se desconectó después de la primera subida, así que **lo que se le instaló es de antes de
-D-147**. Los packs están al día; **la app está 13 decisiones atrás (D-147 a D-159)**.
+✅ **Subido y verificado el 2026-09-21.** El reloj tiene `versionCode 4` / `0.4.0`, el build
+**benchmark con R8** (5,48 MB), y los packs **no se tocaron porque son los mismos bytes** que los
+locales —mismo `pack_id`, mismo tamaño— y lo único que cambiaría al reconstruirlos es metadata
+(`data_version`, `source_date`). Empujar 372 MB por adb inalámbrico para cambiar un campo, en una
+conexión que ya se cortó una vez a los 75 MB, no se paga.
+
+⚠️ **Y eso deja algo sin verificar a propósito**: D-170 (`data_version` de 12 dígitos) sólo se
+comprobó en los datos, con los packs viejos de 8 dígitos parseando bien como `Long`. La primera
+reconstrucción de packs lo cierra.
 
 ```sh
 # 1. Con el reloj conectado (adb pair / adb connect, o por cable):
@@ -1382,8 +1389,13 @@ python3 tools/devpack.py rm <pack viejo>.db        # los anteriores NO se reempl
 
 Lo que hay que mirar ahí, y que no se pudo verificar de otra forma:
 
-- **Las previews de los tiles al agregarlos** (D-149). Agregar un tile es un gesto del usuario y
-  no se hace por `adb`; es lo único de esa decisión que queda sin ver.
+- **Las previews de los tiles al agregarlos** (D-149) y **que los tiles se dibujen con R8**
+  (D-163). El package manager resuelve los dos `TileService` por su nombre original, así que R8 no
+  los borró; que RENDERICEN es lo que falta, y agregar un tile es un gesto del usuario.
+- ⚠️ **El respaldo entre idiomas (D-168) y los sinónimos tocables (D-169)**, que necesitan escribir
+  en el campo de búsqueda. **No se pueden manejar por `adb`**: el campo no toma foco con un tap
+  sintético, que es la misma forma del problema que obligó a fijar espresso 3.7.0 (D-093). Los taps
+  de navegación sí funcionan.
 - El inicio con **tres recientes y el botón** (D-148) sobre un historial real.
 - **El orden de los nombres propios sobre el pack real** (D-154): escribir *ital* y *medel*. Se
   simuló contra el pack antes de escribirlo, pero simular no es la lista dibujada.
@@ -1419,7 +1431,9 @@ priori.
 
 ### O-1. Hacerlo medible (antes de tocar nada)
 
-**Estado.** Planificado. Su mitad de rendimiento está **bloqueada afuera**: necesita un reloj físico (D-043).
+**Estado.** **Desbloqueada y con los primeros números** (2026-09-21). El reloj se conectó y se
+midió: arranque **500 ms en frío / 278 ms tibio** con 372,6 MB de packs abiertos, y el desglose de
+energía de `dumpsys batterystats`. Ver `docs/bateria.md` §What the watch actually said.
 
 La reabre conseguir el reloj.
 
@@ -1560,9 +1574,16 @@ consulta de 0,18 ms** —no una por palabra tocable, que era la sospecha—; y *
 cuestan casi lo mismo**, porque el índice es logarítmico. Con eso, una sesión pesada entera suma
 **segundos de CPU** contra **decenas de minutos de pantalla**.
 
-**Lo que falta, y es lo único que decide el resto.** Correr `dumpsys batterystats` en el reloj para
-saber si ese 9,4 % es pantalla o CPU. Todo el árbol de estrategias cuelga de esa respuesta y está
-escrito en el documento, con el protocolo.
+✅ **CORRIDO el 2026-09-21, y la respuesta no era la esperada.** El sistema atribuye **5,98 mAh a
+la pantalla y 6,08 a la CPU** —casi iguales— y, peor, **la app redibuja ~5 veces por segundo con la
+pantalla estática y nadie tocándola**, quemando **3,6 % de un núcleo mientras esté abierta**.
+
+⚠️ **Eso mató la conclusión central de `docs/bateria.md`**, que decía que en esta app la CPU nunca
+podía ser la batería. Era cierto sobre el SQL —~1 ms por búsqueda, medido— y el documento mismo
+avisaba que no pesaba el dibujado. Ahí estaba todo.
+
+**El ítem más grande del plan pasó a ser otro**: encontrar qué invalida la composición cuando nada
+cambia. Necesita una traza de Perfetto con las categorías `view` y `graphics`.
 
 **Investigado contra fuentes primarias el 2026-09-20**, y el modelo de energía de Android zanja la
 discusión: `screen.on` son **~200 mA** sólo por estar encendida y `screen.full` suma **100–300 mA**

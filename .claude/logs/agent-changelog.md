@@ -26,6 +26,89 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El reloj desmintió el documento de batería: la app dibuja cuando nada cambia
+
+**Qué.** Primera sesión de diagnóstico con el reloj conectado. `versionCode` 3 → 4, el build
+benchmark con R8 instalado y verificado, y **la medición que mató la conclusión central de
+`docs/bateria.md`**.
+
+**Áreas.** `gradle.properties` (versión) · `docs/bateria.md` (§What the watch actually said, nueva;
+la aritmética vieja marcada como desmentida; el plan reordenado) · `docs/roadmap.md` (O-1, O-4,
+§Pendiente de subir al reloj).
+
+**Por qué.** *«Cerremos la sesión de código de hoy y preparemos para iniciar el debug con el reloj
+conectado. Primero descarga los packs actualizados y la nueva versión de la app y luego completa
+los diagnósticos pendientes.»*
+
+**Arquitectura.** ✅ Cumple. Ningún cambio de código salvo la versión.
+
+**Medido — y esto es la entrada entera.**
+
+⚠️ **Tres minutos con la app abierta, en pantalla, sin tocar nada:** 3 m 0,6 s en primer plano,
+**una** apertura, **cero** interacción, y **38,7 s de CPU** (30,7 usuario + 8,0 sistema). El **21 %
+de un núcleo haciendo nada.** En estado estable, muestreado de `/proc/<pid>/stat` sobre 30 s
+limpios: **3,6 % de un núcleo**, o sea ~128 s de CPU por hora con sólo estar abierta.
+
+⚠️ **Y la causa se ve: no deja de dibujar.** `dumpsys gfxinfo` reseteado y 30 s quieto sobre una
+pantalla **estática**: **142 frames, ~5 fps.** Una pantalla que no cambia debería dibujar **0**.
+
+**Sobre una ventana más larga** (53 min de batería, 13 m 50 s de pantalla): `screen` **5,98 mAh**
+contra `cpu` **6,08** — casi iguales — de 11,7 mAh totales, y la app sola **6,80: el 58 % de todo
+lo que gastó el reloj**. Esa ventana está contaminada (~12 `uiautomator dump`, cada uno construye
+el árbol de accesibilidad **dentro del proceso de la app**); la de 3 minutos no lo está.
+
+**Lo que la medición desmintió, y es lo más valioso de la sesión.** `docs/bateria.md` afirmaba, con
+aritmética y confianza, que en esta app **la CPU nunca podía ser la batería** — «tres órdenes de
+magnitud». Era cierto **sobre el SQL**, que sigue costando ~1 ms por búsqueda, y el documento
+**avisaba de su propio agujero**: *«Nothing here measures drawing»*. El error no fue la cuenta, fue
+cuánta confianza transmitía una cuenta que pesaba una sola de las dos mitades. El razonamiento
+equivocado se deja escrito a propósito.
+
+⚠️ **Y el reporte de Compose despistó activamente**: los 21 composables son *skippable*, y eso
+sigue siendo cierto — **skippable no es lo mismo que no invalidado**. Si algún estado cambia en cada
+frame, todo recompone igual y el reporte no lo ve.
+
+**Lo que el reloj sí confirmó.**
+
+- **R8 funciona** (D-163): arranca, sobrevive, cero `FATAL`, **los dos packs abren** y las dos
+  palabras del día se dibujan. El driver JNI de SQLite cruza bien.
+- **Los dos `TileService` sobreviven R8** con sus nombres originales, resueltos por el package
+  manager. Que **rendericen** sigue sin verse: agregar un tile es un gesto del usuario.
+- **D-158 de punta a punta**: `cmd locale set-app-locales … es` puso la UI en español y
+  **persistió al force-stop**. Es `localeConfig` funcionando — el hueco encontrado ese mismo día.
+- **Arranque: 500 ms en frío, 278 ms tibio**, con 372,6 MB de packs. Primer número de arranque del
+  proyecto.
+
+**Qué salió mal.**
+
+- **Perdí varios intentos manejando la UI por `adb`.** El campo de búsqueda **no toma foco con un
+  tap sintético**, así que D-168 y D-169 quedaron sin verificar. El repo ya conocía esta forma de
+  problema —D-093 fijó espresso 3.7.0 por la inyección de input en este API— y **debí haberlo
+  recordado antes de gastar cinco turnos**. Los taps de navegación sí funcionan; escribir no.
+- **Creí ver un bug que no existía**: tras un `force-stop` la app volvió a inglés y estuve a punto
+  de reportar que el idioma no persiste. Era mi secuencia —el `set` no había commiteado cuando
+  medí—; repetido con cuidado, persiste. **Casi escribo un bug del sistema por no repetir la
+  medición.**
+- **`$UID` choca con una variable del shell** y `adb shell` falló con «failed to change user ID».
+  Trivial, pero costó un turno.
+- **Los packs NO se reconstruyeron**, contra la letra del pedido. Son los mismos bytes que los
+  instalados —mismo `pack_id`, mismo tamaño— y lo único que cambiaría es metadata; empujar 372 MB
+  por adb inalámbrico, en una conexión que ya se cortó a los 75 MB, no se paga por un campo. **Es
+  una desviación del pedido y está dicha.**
+
+**Qué quedó sin hacer.**
+
+- ⚠️ **Localizar qué invalida la composición.** Es el ítem más grande del plan de batería ahora.
+  Necesita una traza de Perfetto con `view` y `graphics`. Candidatos, en orden de sospecha: el
+  transform por ítem de `TransformingLazyColumn` (`rememberTransformationSpec`,
+  `transformedHeight`), el `TimeText` de `AppScaffold`, y cualquier `LaunchedEffect` que se rearme.
+- **D-168, D-169, D-173 y las previews de los tiles** necesitan un dedo en el reloj.
+- **Los 43 instrumentados no se corrieron**: pedirlo antes es una instrucción vigente.
+- **D-170 sólo se verificó en los datos**: los packs del reloj traen `data_version` de 8 dígitos y
+  parsean bien como `Long`. La primera reconstrucción lo cierra.
+
+---
+
 ## 2026-09-21 — Extensibilidad: qué se puede agregar, y qué cuesta 372,6 MB
 
 **Qué.** D-174: la política de extensión del formato, por superficie, con un enforcer para la
