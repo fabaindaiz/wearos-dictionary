@@ -1071,6 +1071,51 @@ def check_manifest_hygiene(report):
         )
 
 
+# Las claves de meta que un pack DEBE traer. Crecer esta lista rompe todos los packs ya
+# instalados: `getValue` lanza y el pack se rechaza entero al abrir.
+META_OBLIGATORIAS = {
+    "attribution", "data_version", "entry_count", "kind", "lang_src", "license", "name",
+    "norm_version", "pack_id", "payload_dict", "schema_version",
+}
+
+
+def check_required_meta_keys(report):
+    """Regla: la lista de claves de meta OBLIGATORIAS no crece sin que alguien lo decida. (D-174)
+
+    ⚠️ **Agregar una clave con `getValue` rompe todos los packs que ya estan en un reloj**, y no
+    al construirlos: al ABRIRLOS. `getValue` lanza, `PackFile.open` lo convierte en un pack
+    rechazado, y el usuario se queda sin diccionario hasta reconstruir y volver a subir -- hoy
+    **372,6 MB**.
+
+    La forma correcta de sumar un dato al pack es `meta[...]`, que devuelve null en un pack viejo
+    y deja que el codigo decida. Es lo que ya se hizo con `description` (D-125), `sources`
+    (D-138) y `subset_of`: tres claves nuevas, cero packs rotos.
+
+    Este chequeo no prohibe subir la lista: **obliga a venir aca y cambiarla a mano**, que es la
+    diferencia entre una decision y un descuido. Es la misma politica que los archivos vigilados
+    de D-072.
+    """
+    fuente = read(os.path.join("dict-data", "src", "main", "kotlin", "cl", "fadiaz",
+                               "dictionary", "data", "PackFile.kt"))
+    encontradas = set(re.findall(r'meta\.getValue\("([a-z_]+)"\)', fuente))
+    nuevas = encontradas - META_OBLIGATORIAS
+    if nuevas:
+        report.failure(
+            "un pack pasa a necesitar una clave de meta que los instalados no traen",
+            "%s se lee con getValue. Todos los packs ya instalados se rechazarian AL ABRIR "
+            "(372,6 MB para reconstruir). Si de verdad es obligatoria, sumarla a "
+            "META_OBLIGATORIAS aca y subir schema_version en el mismo commit; si no, leerla con "
+            "meta[...] como description, sources y subset_of" % ", ".join(sorted(nuevas)),
+        )
+    fueron = META_OBLIGATORIAS - encontradas
+    if fueron:
+        report.failure(
+            "una clave de meta dejo de ser obligatoria y la lista no se entero",
+            "%s ya no se lee con getValue. Sacarla de META_OBLIGATORIAS: una lista que sobra "
+            "deja de describir el contrato y nadie vuelve a creerle" % ", ".join(sorted(fueron)),
+        )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -1177,6 +1222,7 @@ CHECKS = [
     check_test_counts,
     check_r8_keep_rules,
     check_manifest_hygiene,
+    check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,

@@ -326,6 +326,50 @@ fragments.
 and returns corrupt text. See
 [contratos-cruzados.md](contratos-cruzados.md#3-deflate-does-not-validate-its-preloaded-dictionary).
 
+## Extending the format without breaking what is installed
+
+The question this answers: **what can be added later, and what costs every installed pack?**
+There are no migrations (D-001) — a pack that is not compatible is rejected at open and has to be
+rebuilt — so the only cheap extension is one an old reader can ignore.
+
+**The cost of getting it wrong, in today's numbers: 372.6 MB** of packs to rebuild and push again.
+That is the figure that makes the table below worth following.
+
+### The four surfaces, and what each one tolerates
+
+| Surface | Adding is safe? | How, and what makes it safe |
+|---|---|---|
+| **Payload tag** | ✅ **both directions** | The parser ignores unknown tags on purpose. An old app skips a new tag; a new app simply does not find it in an old pack. ⚠️ **Do not bump `payload_codec`** for an additive tag — it is compared with `!=`, so bumping it throws the whole property away. Already the rule for `A` and `R` |
+| **`meta` key** | ✅ **both directions** | Read it with `meta[...]`, **never** `getValue`. Done three times with zero broken packs: `description` (D-125), `sources` (D-138), `subset_of`. Enforced by `check_required_meta_keys` |
+| **Column or table** | ⚠️ **one direction only** | Nothing breaks an **old app**: there is not a single `SELECT *` in the codebase, every query names its columns. But a **new app** querying a column an old pack lacks fails **at query time**, which is the worst place — the whole point of D-001 is failing loudly at open |
+| **Meaning of something that already exists** | ❌ never | `schema_version`. Bump it and every installed pack is rejected |
+
+⚠️ **And `norm()` / `fuzzy()` are outside this table entirely.** They bump `NORM_VERSION` always
+(D-005, D-006) and the rejection is the point: a pack indexed with other rules **returns fewer
+words, with no error** — the failure this whole repo is built to prevent.
+
+### The asymmetry worth knowing about
+
+**The code is more tolerant than the gate, on exactly one surface.** Adding a column to `entry`
+would not break a single query in the app — and `schema_version`'s `!=` rejects the pack anyway.
+
+That is not a bug to fix today; it is a lever that exists if it is ever needed. Using it would
+mean splitting the version in two — one number for *structure a reader must understand* and
+another for *things it may ignore* — and the moment to pay for that is when there is a change that
+wants it, not before.
+
+### If a new column really is needed
+
+The additive path exists but it has to be walked deliberately:
+
+1. The new app must **detect the column at open**, with `PRAGMA table_info(entry)`, not discover
+   its absence in the middle of a query.
+2. Everything that uses it degrades when it is missing — the same shape `meta[...]` already has.
+3. `schema_version` bumps **only** if the app cannot work without it.
+
+⚠️ **If that degradation is not written, bump `schema_version` instead.** Rejecting a pack at open
+is expensive and honest; a query that fails on some devices and not others is cheap and a lie.
+
 ## How the builder builds it
 
 Two passes over a staging table inside the file itself, never in memory: the real sources are
