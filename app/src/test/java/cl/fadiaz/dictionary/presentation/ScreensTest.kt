@@ -304,6 +304,47 @@ class ScreensTest {
     }
 
     @Test
+    fun theSenseShowsItsTranslationAndKeepsItApartFromTheSynonyms() {
+        // Same risk as the antonyms above and the same fix: the lists are visually identical, so
+        // the only thing separating "another way to say it" from "this is the English for it" is
+        // the title. Pinning presence alone would pass with all four lists titled the same.
+        //
+        // ⚠️ It is a FOURTH list on a 234 dp screen and it earns the row: measured over the dump,
+        // the median entry carries ONE translation and p90 is two, so it is one line under its
+        // title -- and it is the answer somebody opened the entry for, not a complement.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(
+                        Sense(
+                            "cilindro de cera que da luz al arder",
+                            translations = listOf("candle"),
+                            synonyms = listOf("cirio"),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("Traducción").assertExists()
+        compose.onNodeWithText("candle", substring = true).assertExists()
+        compose.onNodeWithText("Sinónimos").assertExists()
+        compose.onNodeWithText("cirio", substring = true).assertExists()
+    }
+
+    @Test
+    fun `una acepcion sin traduccion no dibuja el titulo`() {
+        // `TermList` returns early on an empty list, and that has to keep holding for the fourth
+        // one: a heading with nothing under it costs a row on a screen that has three.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(senses = listOf(Sense("de poco entendimiento", synonyms = listOf("bobo"))))
+            }
+        }
+        compose.onNodeWithText("Sinónimos").assertExists()
+        compose.onNodeWithText("Traducción").assertDoesNotExist()
+    }
+
+    @Test
     fun `el separador de listas lleva espacios a los dos lados`() {
         // ⚠️ Encontrado MIRANDO la pantalla: salia "marine·freshwater·limnic", pegado, porque
         // **Android recorta los espacios de un `<string>`** salvo que el valor este entre

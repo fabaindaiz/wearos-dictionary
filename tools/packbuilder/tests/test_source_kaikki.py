@@ -505,6 +505,88 @@ class SinonimosTest(unittest.TestCase):
 
 
 
+class TraduccionesTest(unittest.TestCase):
+    """Las traducciones van a SU acepcion, y lo que no se puede atribuir NO se cuelga de la 1.
+
+    Misma forma que los sinonimos de D-117 --`raw["translations"]` con `sense_index` declarado--
+    con dos diferencias que estos tests fijan:
+
+    1. **Hay que filtrar por idioma.** El dump trae la tabla entera: medido sobre el dump español,
+       `en` son 34.710 de 281.022 items; el resto es frances, aleman, italiano, neerlandes...
+       Sin filtro, una entrada española mostraria su traduccion al polaco.
+    2. **El indice puede ser un rango.** Medido: 53,6 % simple, 8,6 % compuesto (`1-2`, `1, 4`) y
+       37,7 % sin indice. Los sinonimos son 100 % simples, asi que expandir rangos no los toca.
+
+    El modo de falla que existen para impedir es el de D-117: una traduccion colgada de la
+    acepcion equivocada se lee perfectamente plausible y no la agarra `verify_pack.py`.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_las_traducciones_van_a_su_acepcion(self):
+        path = _jsonl(_raw("vela", "noun", [
+            _sense("cilindro de cera que da luz al arder", sense_index="1"),
+            _sense("tela que impulsa una embarcacion", sense_index="2"),
+        ], translations=[
+            {"word": "candle", "code": "en", "sense_index": "1"},
+            {"word": "sail", "code": "en", "sense_index": "2"},
+        ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(["candle"], got.senses[0]["translations"])
+        self.assertEqual(["sail"], got.senses[1]["translations"])
+
+    def test_un_rango_alcanza_las_dos_acepciones(self):
+        path = _jsonl(_raw("amante", "noun", [
+            _sense("persona que ama", sense_index="1"),
+            _sense("companero sexual", sense_index="2"),
+        ], translations=[{"word": "lover", "code": "en", "sense_index": "1-2"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(["lover"], got.senses[0]["translations"])
+        self.assertEqual(["lover"], got.senses[1]["translations"])
+
+    def test_una_traduccion_a_otro_idioma_no_entra(self):
+        path = _jsonl(_raw("casa", "noun", [_sense("edificacion para vivir", sense_index="1")],
+                           translations=[
+                               {"word": "house", "code": "en", "sense_index": "1"},
+                               {"word": "Haus", "code": "de", "sense_index": "1"},
+                               {"word": "maison", "code": "fr", "sense_index": "1"},
+                           ]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(["house"], got.senses[0]["translations"])
+
+    def test_una_traduccion_sin_indice_no_se_cuelga_de_la_primera(self):
+        """La regla de D-117, y la razon por la que existe el modo lista.
+
+        Colgarla de la acepcion 1 acierta a veces y falla otras **sin dejar rastro**. Se descarta
+        aca; el lugar honesto para este dato es el canal de nivel de entrada, que todavia no
+        existe (roadmap §Naming a sense from another pack).
+        """
+        path = _jsonl(_raw("banco", "noun", [
+            _sense("asiento para varias personas", sense_index="1"),
+            _sense("entidad financiera", sense_index="2"),
+        ], translations=[{"word": "bank", "code": "en"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual([], got.senses[0]["translations"])
+        self.assertEqual([], got.senses[1]["translations"])
+
+    def test_sin_idioma_destino_no_se_emite_ninguna(self):
+        """El pack ingles no declara destino, y no tiene que ganar traducciones por accidente."""
+        path = _jsonl(_raw("casa", "noun", [_sense("edificacion", sense_index="1")],
+                           translations=[{"word": "house", "code": "en", "sense_index": "1"}]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es")))
+        self.assertEqual([], got.senses[0]["translations"])
+
+
 class SinonimosAnidadosTest(unittest.TestCase):
     """La OTRA forma en que la fuente sirve sinonimos, que es la unica que usa el ingles.
 

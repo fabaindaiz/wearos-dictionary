@@ -47,6 +47,7 @@
     <string name="entry_show_more">Show more (%1$d)</string>
     <string name="entry_options">Options</string>
     <string name="entry_back_to_search">Search</string>
+    <string name="entry_translations_title">Translation</string>
     <string name="entry_synonyms_title">Synonyms</string>
     <string name="entry_antonyms_title">Antonyms</string>
     <string name="entry_related_title">Related</string>
