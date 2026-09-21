@@ -106,6 +106,7 @@ class Record:
         "senses",
         "forms",
         "translations",
+        "word_translations",
         "sense_key",
         "uid",
     )
@@ -118,6 +119,7 @@ class Record:
         rank=0,
         forms=(),
         translations=(),
+        word_translations=(),
         sense_key=None,
         uid=None,
     ):
@@ -127,6 +129,9 @@ class Record:
         self.rank = rank
         self.forms = forms
         self.translations = translations
+        # Traducciones de la PALABRA, sin acepcion. Van al payload (tag `W`) y NO a `trans`
+        # por si solas: `translations` es el canal de busqueda y lleva la union de las dos.
+        self.word_translations = word_translations
         self.sense_key = sense_key
         self.uid = uid
 
@@ -245,7 +250,8 @@ class PackBuilder:
             # Un lema que se normaliza a vacio (solo puntuacion) no se puede buscar.
             return
 
-        body = payload_codec.render(record.part_of_speech, record.senses)
+        body = payload_codec.render(
+            record.part_of_speech, record.senses, record.word_translations)
         if not body:
             # Sin ninguna acepcion utilizable la entrada no tiene nada que mostrar.
             return

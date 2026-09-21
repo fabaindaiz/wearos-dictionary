@@ -28,7 +28,7 @@ class RenderParseTest(unittest.TestCase):
              "synonyms": [], "antonyms": [], "related": []},
         ]
         text = payload.render("verb", senses)
-        pos, parsed = payload.parse(text)
+        pos, parsed, _palabra = payload.parse(text)
         self.assertEqual("verb", pos)
         self.assertEqual(senses, parsed)
 
@@ -46,39 +46,39 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual("", text)
 
     def test_examples_before_first_sense_are_ignored(self):
-        _pos, senses = payload.parse("E\tsin acepcion\nS\tla acepcion\n")
+        _pos, senses, _palabra = payload.parse("E\tsin acepcion\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["examples"])
 
     def test_los_sinonimos_antes_de_la_primera_acepcion_se_ignoran(self):
         # Mismo caso que el ejemplo huerfano: un sinonimo sin acepcion abierta no tiene de que
         # colgarse, y colgarlo de la primera que venga seria atribuirlo mal.
-        _pos, senses = payload.parse("Y\tsin acepcion\nS\tla acepcion\n")
+        _pos, senses, _palabra = payload.parse("Y\tsin acepcion\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["synonyms"])
 
     def test_los_sinonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
         # Lo que este test protege: que el orden de los tags no mezcle acepciones. Un sinonimo
         # atribuido a la acepcion equivocada no falla ni loguea, sale como contenido correcto.
-        _pos, senses = payload.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
+        _pos, senses, _palabra = payload.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
         self.assertEqual(["bobo"], senses[0]["synonyms"])
         self.assertEqual(["listo"], senses[1]["synonyms"])
 
     def test_los_antonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
         # Mismo modo de falla que los sinonimos y peor consecuencia: un antonimo mal atribuido
         # no se lee como "raro", se lee como lo contrario de otra cosa.
-        _pos, senses = payload.parse("S\tuna\nA\tfrio\nS\totra\nA\tlento\n")
+        _pos, senses, _palabra = payload.parse("S\tuna\nA\tfrio\nS\totra\nA\tlento\n")
         self.assertEqual(["frio"], senses[0]["antonyms"])
         self.assertEqual(["lento"], senses[1]["antonyms"])
 
     def test_los_antonimos_antes_de_la_primera_acepcion_se_ignoran(self):
-        _pos, senses = payload.parse("A\tsin acepcion\nS\tla acepcion\n")
+        _pos, senses, _palabra = payload.parse("A\tsin acepcion\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["antonyms"])
 
     def test_sinonimos_y_antonimos_no_se_mezclan(self):
         # El tag es lo unico que los separa, y confundirlos invierte el significado.
-        _pos, senses = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\n")
+        _pos, senses, _palabra = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\n")
         self.assertEqual(["ardiente"], senses[0]["synonyms"])
         self.assertEqual(["frio"], senses[0]["antonyms"])
 
@@ -86,11 +86,11 @@ class RenderParseTest(unittest.TestCase):
         texto = payload.render("adj", [
             {"gloss": "caliente", "synonyms": ["ardiente"], "antonyms": ["frio", "helado"]},
         ])
-        _pos, senses = payload.parse(texto)
+        _pos, senses, _palabra = payload.parse(texto)
         self.assertEqual(["frio", "helado"], senses[0]["antonyms"])
 
     def test_las_relacionadas_van_a_su_acepcion(self):
-        _pos, senses = payload.parse("S\tuna\nR\tprimera\nS\totra\nR\tsegunda\n")
+        _pos, senses, _palabra = payload.parse("S\tuna\nR\tprimera\nS\totra\nR\tsegunda\n")
         self.assertEqual(["primera"], senses[0]["related"])
         self.assertEqual(["segunda"], senses[1]["related"])
 
@@ -98,7 +98,7 @@ class RenderParseTest(unittest.TestCase):
         # Los tres son listas de palabras y el tag es lo unico que las separa. Una relacionada
         # leida como sinonimo afirma una equivalencia que la fuente no da: "frances" trae `galo`
         # como related, y como sinonimo seria falso.
-        _pos, senses = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\nR\tcalor\n")
+        _pos, senses, _palabra = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\nR\tcalor\n")
         self.assertEqual(["ardiente"], senses[0]["synonyms"])
         self.assertEqual(["frio"], senses[0]["antonyms"])
         self.assertEqual(["calor"], senses[0]["related"])
@@ -107,22 +107,22 @@ class RenderParseTest(unittest.TestCase):
         texto = payload.render("noun", [
             {"gloss": "silabario", "related": ["hiragana", "kanji"]},
         ])
-        _pos, senses = payload.parse(texto)
+        _pos, senses, _palabra = payload.parse(texto)
         self.assertEqual(["hiragana", "kanji"], senses[0]["related"])
 
     def test_una_relacionada_antes_de_la_primera_acepcion_se_ignora(self):
-        _pos, senses = payload.parse("R\thuerfana\nS\tla acepcion\n")
+        _pos, senses, _palabra = payload.parse("R\thuerfana\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["related"])
 
     def test_unknown_tags_are_ignored(self):
         # Compatibilidad hacia adelante con un builder mas nuevo.
-        pos, senses = payload.parse("P\tnoun\nZ\tcampo futuro\nS\tuna\n")
+        pos, senses, _palabra = payload.parse("P\tnoun\nZ\tcampo futuro\nS\tuna\n")
         self.assertEqual("noun", pos)
         self.assertEqual(1, len(senses))
 
     def test_only_first_part_of_speech_wins(self):
-        pos, _senses = payload.parse("P\tnoun\nP\tverb\nS\tuna\n")
+        pos, _senses, _palabra = payload.parse("P\tnoun\nP\tverb\nS\tuna\n")
         self.assertEqual("noun", pos)
 
 
@@ -250,6 +250,96 @@ class FixtureTest(unittest.TestCase):
             "el sha256 publicado en el fixture no corresponde; regenerar el fixture",
         )
 
+
+
+class TraduccionesDeNivelEntradaTest(unittest.TestCase):
+    """El tag `W`: las traducciones que la fuente NO pudo atribuir a una acepcion.
+
+    ⚠️ **Existe para que la opcion deshonesta deje de ser la barata.** Con un solo canal, un
+    builder con dato no atribuible solo podia tirarlo o embadurnarlo por todas las acepciones --y
+    embadurnar es gratis, invisible y pasa `verify_pack.py`, que es el error de D-117. Medido: el
+    **37,7 %** de las traducciones del dump español no trae `sense_index`, y sobre el pack de
+    muestra eso era el **34,8 % del dato tirado** (`construir` tenia 16 y mostraba 0).
+
+    Va **antes de la primera `S`** a proposito: un lector viejo lo descarta por la guarda
+    `if senses:` y muestra la entrada sin la lista, que es degradacion correcta. Por eso
+    **no sube `CODEC_ID`** (D-119).
+    """
+
+    def test_las_de_nivel_entrada_no_se_cuelgan_de_ninguna_acepcion(self):
+        pos, senses, palabra = payload.parse(
+            "P\tnoun\nW\tbank\nS\tasiento para varias personas\nS\tentidad financiera\n")
+        self.assertEqual("noun", pos)
+        self.assertEqual(["bank"], palabra)
+        self.assertEqual([], senses[0]["translations"])
+        self.assertEqual([], senses[1]["translations"])
+
+    def test_los_dos_modos_conviven_sin_mezclarse(self):
+        _pos, senses, palabra = payload.parse(
+            "W\tbank\nS\tasiento\nT\tbench\nS\tentidad financiera\n")
+        self.assertEqual(["bank"], palabra)
+        self.assertEqual(["bench"], senses[0]["translations"])
+        self.assertEqual([], senses[1]["translations"])
+
+    def test_render_las_emite_antes_de_la_primera_acepcion(self):
+        texto = payload.render("noun", [{"gloss": "asiento"}], word_translations=["bank"])
+        self.assertTrue(texto.index("W\tbank") < texto.index("S\tasiento"),
+                        "va antes de la primera S para que un lector viejo la descarte")
+
+    def test_un_W_despues_de_una_acepcion_igual_es_de_la_entrada(self):
+        """La posicion es una convencion de escritura, no la semantica.
+
+        Si fuera la semantica, un `W` mal ubicado se volveria una traduccion de acepcion --que es
+        exactamente la atribucion inventada que este canal existe para evitar.
+        """
+        _pos, senses, palabra = payload.parse("S\tuna\nW\ttarde\n")
+        self.assertEqual(["tarde"], palabra)
+        self.assertEqual([], senses[0]["translations"])
+
+
+class ReferenciaDeTraduccionTest(unittest.TestCase):
+    """Apuntar a `(pack, palabra, acepcion)` sin gastar bytes en lo que es constante.
+
+    ⚠️ **Las tres partes viven en lugares distintos, y ese reparto ES el diseño**:
+
+        pack      -> `meta.translations_pack`, UNA vez por pack. Es constante para todas las
+                     traducciones: repetirlo por item costaria ~280 KB de una sola cadena.
+        palabra   -> el valor del item. Ya estaba ahi: es el termino que se muestra.
+        acepcion  -> sufijo OPCIONAL del item, porque solo existe cuando la fuente la supo.
+
+    De ahi sale que **una traduccion sin acepcion ya es un link a la palabra** y no cuesta un
+    solo byte extra: el caso comun es el barato. Y sin `translations_pack` declarado no hay a
+    donde ir, asi que el termino se muestra sin pintar -- que es la regla de D-084 y lo que se
+    pidio: *"mostrarse pero no ser linkeables a menos que tengan algo que mostrar"*.
+    """
+
+    def test_un_termino_pelado_es_la_palabra_sin_acepcion(self):
+        self.assertEqual(("house", None), payload.split_ref("house"))
+
+    def test_un_termino_con_sufijo_nombra_una_acepcion(self):
+        texto = payload.render(None, [{"gloss": "g",
+                                       "translations": [payload.make_ref("house", "a1b2c3")]}])
+        self.assertEqual(("house", "a1b2c3"),
+                         payload.split_ref(payload.parse(texto)[1][0]["translations"][0]))
+
+    def test_el_separador_no_puede_venir_del_dato(self):
+        """Si la fuente pudiera meterlo, podria FORJAR una referencia a otra acepcion.
+
+        Este test **fallo de verdad** contra la primera version, que juntaba en una cadena y
+        dejaba que `render` adivinara: `ho\x1fuse` se leia como `ho` apuntando a `use`.
+        """
+        texto = payload.render(None, [{"gloss": "g", "translations": ["ho\x1fuse"]}])
+        self.assertIn("T\thouse", texto)
+        _pos, senses, _palabra = payload.parse(texto)
+        self.assertEqual(("house", None), payload.split_ref(senses[0]["translations"][0]))
+
+    def test_la_referencia_sobrevive_el_ida_y_vuelta(self):
+        texto = payload.render(
+            "noun", [{"gloss": "asiento", "translations": [payload.make_ref("bench", "d4e5")]}],
+            word_translations=[payload.make_ref("bank", "f6a7")])
+        _pos, senses, palabra = payload.parse(texto)
+        self.assertEqual(("bench", "d4e5"), payload.split_ref(senses[0]["translations"][0]))
+        self.assertEqual(("bank", "f6a7"), payload.split_ref(palabra[0]))
 
 if __name__ == "__main__":
     unittest.main()

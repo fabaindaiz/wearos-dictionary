@@ -50,13 +50,46 @@ TAG_ANTONYM = "A"
 # para entradas de una sola acepcion -- ver `sources/kaikki._relacionadas`.
 TAG_RELATED = "R"
 
+# Traducciones de la PALABRA, sin acepcion atribuida.
+#
+# ⚠️ **Es el segundo canal, y existe para que la opcion deshonesta deje de ser la barata.** Con
+# `T` solo --que vive dentro de una acepcion-- un builder con dato no atribuible podia tirarlo o
+# embadurnarlo por todas las acepciones, y embadurnar es gratis, invisible y pasa `verify_pack`:
+# el error de D-117. Medido sobre el dump español, el **37,7 %** de las traducciones no trae
+# `sense_index`, y en el pack de muestra eso era el **34,8 % del dato tirado**.
+#
+# ⚠️ **Se escribe antes de la primera `S` y NO sube [CODEC_ID]** (D-119): un lector viejo lo
+# descarta por su guarda `if senses:` y muestra la entrada sin la lista. Pero la posicion es una
+# convencion de escritura y **no** la semantica: `parse` lo toma como de la entrada aparezca
+# donde aparezca, porque si la posicion decidiera, un `W` mal ubicado se volveria una traduccion
+# de acepcion -- la atribucion inventada que este canal existe para evitar.
+TAG_WORD_TRANSLATION = "W"
+
 # Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
 # esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
 _RAW_DEFLATE = -15
 
+# Separa el termino de la acepcion a la que apunta, DENTRO del valor de un item.
+#
+# ⚠️ **El reparto de las tres partes de una referencia `(pack, palabra, acepcion)` es el diseño
+# entero, y cada una vive donde cuesta menos:**
+#
+#     pack      -> `meta.translations_pack`, UNA vez por pack. Es constante para todas las
+#                  traducciones del pack; repetirlo por item costaria ~280 KB de una cadena.
+#     palabra   -> el valor del item. Ya estaba ahi: es el termino que se muestra.
+#     acepcion  -> este sufijo, OPCIONAL, porque solo existe cuando la fuente la supo.
+#
+# De ese reparto sale la propiedad que importa: **una traduccion sin acepcion ya es un link a la
+# palabra y no cuesta un byte extra**. El caso comun es el gratis.
+#
+# Se elige `\x1f` porque es el mismo juntador que usa `stable_uid()` y porque **no es whitespace
+# para `str.split()`**, asi que sobrevive a `sanitize`. Por eso mismo entra en los prohibidos: si
+# la fuente pudiera escribirlo, podria FORJAR una referencia a otra acepcion.
+REF_SEPARATOR = "\x1f"
+
 # Caracteres que romperian el formato delimitado. Se sanean al construir, no al leer: el reloj
 # no deberia gastar ciclos defendiendose de datos que nosotros mismos generamos.
-_FORBIDDEN = str.maketrans({"\t": " ", "\n": " ", "\r": " "})
+_FORBIDDEN = str.maketrans({"\t": " ", "\n": " ", "\r": " ", REF_SEPARATOR: ""})
 
 
 def sanitize(value):
@@ -65,7 +98,42 @@ def sanitize(value):
     return cleaned or None
 
 
-def render(part_of_speech, senses):
+def make_ref(term, sense_ref=None):
+    """Un item de traduccion, como TUPLA `(termino, acepcion_o_None)`.
+
+    ⚠️ **Devuelve una tupla y no una cadena a proposito, y esto no es estilo: es la defensa.**
+    La primera version devolvia la cadena ya juntada y `render` tenia que adivinar si un valor
+    traia referencia partiendolo por el separador. Con eso, un termino de la fuente que
+    **contuviera** el separador --`ho\x1fuse`-- se leia como el termino `ho` apuntando a `use`:
+    la fuente podia FORJAR una referencia a otra acepcion. Lo agarro su propio test.
+
+    Con la tupla no hay nada que adivinar: una cadena es siempre un termino y se limpia entera,
+    y una referencia solo la puede construir quien llama a esto.
+    """
+    return (term, sense_ref) if sense_ref else term
+
+
+def split_ref(value):
+    """`(termino, acepcion_o_None)`. Lo que no trae sufijo apunta a la palabra entera."""
+    termino, _, destino = value.partition(REF_SEPARATOR)
+    return termino, destino or None
+
+
+def _sanitize_item(value):
+    """Serializa un item de traduccion: una cadena es un termino, una tupla es una referencia.
+
+    Las dos partes se limpian **por separado** y recien despues se juntan, asi que el separador
+    del formato solo puede venir de nosotros. Ver [make_ref].
+    """
+    termino, destino = value if isinstance(value, tuple) else (value, None)
+    limpio = sanitize(termino)
+    if not limpio:
+        return None
+    apunta = sanitize(destino) if destino else None
+    return limpio + REF_SEPARATOR + apunta if apunta else limpio
+
+
+def render(part_of_speech, senses, word_translations=()):
     """Serializa a texto. `senses` es una lista de dicts con gloss/examples/translations.
 
     Los valores se sanean aca: un tab perdido en una glosa de Wiktionary corromperia la
@@ -76,6 +144,10 @@ def render(part_of_speech, senses):
         pos = sanitize(part_of_speech)
         if pos:
             lines.append(TAG_PART_OF_SPEECH + "\t" + pos)
+    for translation in word_translations:
+        value = _sanitize_item(translation)
+        if value:
+            lines.append(TAG_WORD_TRANSLATION + "\t" + value)
     for sense in senses:
         gloss = sanitize(sense.get("gloss", ""))
         if not gloss:
@@ -87,7 +159,7 @@ def render(part_of_speech, senses):
             if value:
                 lines.append(TAG_EXAMPLE + "\t" + value)
         for translation in sense.get("translations", ()):
-            value = sanitize(translation)
+            value = _sanitize_item(translation)
             if value:
                 lines.append(TAG_TRANSLATION + "\t" + value)
         for synonym in sense.get("synonyms", ()):
@@ -106,9 +178,13 @@ def render(part_of_speech, senses):
 
 
 def parse(text):
-    """Inverso de render(). Existe para verify_pack.py y los tests, no para el camino normal."""
+    """Inverso de render(). Existe para verify_pack.py y los tests, no para el camino normal.
+
+    Devuelve `(pos, acepciones, traducciones_de_la_palabra)`.
+    """
     part_of_speech = None
     senses = []
+    word_translations = []
     for line in text.split("\n"):
         if not line or len(line) < 2 or line[1] != "\t":
             continue
@@ -129,6 +205,8 @@ def parse(text):
                     "related": [],
                 }
             )
+        elif tag == TAG_WORD_TRANSLATION:
+            word_translations.append(value)
         elif tag == TAG_EXAMPLE:
             if senses:
                 senses[-1]["examples"].append(value)
@@ -149,7 +227,7 @@ def parse(text):
                 senses[-1]["related"].append(value)
         # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar
         # campos sin romper un lector viejo.
-    return part_of_speech, senses
+    return part_of_speech, senses, word_translations
 
 
 def compress(text, dictionary):

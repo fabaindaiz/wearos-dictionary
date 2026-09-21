@@ -138,7 +138,7 @@ class SumarVocabularioTest(unittest.TestCase):
             db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
         blob = db.execute("SELECT payload FROM entry WHERE headword='banco'").fetchone()[0]
         db.close()
-        _pos, ss = payload.parse(payload.decompress(blob, dic))
+        _pos, ss, _palabra = payload.parse(payload.decompress(blob, dic))
         self.assertIn("Asiento", ss[0]["gloss"], "gano la glosa del Wikcionario")
 
     def test_la_fuente_sumada_se_declara_en_el_manifiesto(self):
@@ -263,7 +263,7 @@ class SegundaFuenteTest(unittest.TestCase):
             db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
         por_lema = {}
         for hw, blob in db.execute("SELECT headword, payload FROM entry"):
-            _pos, ss = payload.parse(payload.decompress(blob, dic))
+            _pos, ss, _palabra = payload.parse(payload.decompress(blob, dic))
             por_lema[hw] = ss
         db.close()
         self.assertEqual(["El acomodador nos tendía los abrigos."],

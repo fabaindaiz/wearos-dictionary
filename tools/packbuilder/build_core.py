@@ -121,7 +121,7 @@ def derive(completo, salida, vocabulario):
     escritos = 0
     with build.PackBuilder(salida, _meta_del_nucleo(meta)) as constructor:
         for entry_id, uid, headword, pos, rank, blob in filas:
-            _pos_payload, senses = payload_codec.parse(
+            _pos_payload, senses, _palabra = payload_codec.parse(
                 payload_codec.decompress(blob, diccionario))
             formas = formas_por_entrada.get(entry_id, ())
             traducciones = traducciones_por_entrada.get(entry_id, ())

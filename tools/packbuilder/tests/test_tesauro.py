@@ -51,7 +51,7 @@ class TesauroTest(unittest.TestCase):
             self.db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
         out = {}
         for hw, blob in self.db.execute("SELECT headword, payload FROM entry"):
-            _pos, ss = payload.parse(payload.decompress(blob, dic))
+            _pos, ss, _palabra = payload.parse(payload.decompress(blob, dic))
             out[hw] = ss
         return out
 

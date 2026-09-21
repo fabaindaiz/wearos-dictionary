@@ -113,7 +113,7 @@ class BuildCoreTest(unittest.TestCase):
             dic = binascii.unhexlify(
                 db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
             blob = db.execute("SELECT payload FROM entry").fetchone()[0]
-        _pos, senses = payload.parse(payload.decompress(blob, dic))
+        _pos, senses, _palabra = payload.parse(payload.decompress(blob, dic))
         self.assertEqual("definición de agua", senses[0]["gloss"])
 
     def test_hereda_la_atribucion_del_completo_y_suma_la_del_corpus(self):

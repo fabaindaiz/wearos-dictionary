@@ -47,6 +47,7 @@
     <string name="entry_show_more">Ver más (%1$d)</string>
     <string name="entry_options">Opciones</string>
     <string name="entry_back_to_search">Buscar</string>
+    <string name="entry_word_translations_title">Traducciones de la palabra</string>
     <string name="entry_translations_title">Traducción</string>
     <string name="entry_synonyms_title">Sinónimos</string>
     <string name="entry_antonyms_title">Antónimos</string>

@@ -386,6 +386,34 @@ def _relacionadas(fuente, headword, ya_mostrados):
     return out
 
 
+def _word_translations(raw, headword, idioma, ya_en_acepciones):
+    """Las traducciones que la fuente NO atribuyo a ninguna acepcion.
+
+    ⚠️ **Son el 37,7 % del dato y hasta hoy se tiraban**, porque el payload tenia un solo canal:
+    `T` vive dentro de una acepcion, asi que emitir esto ahi habria sido colgarlo de la primera
+    --el error de D-117, que se lee plausible y no lo agarra nadie. Medido sobre el pack de
+    muestra, eran el **34,8 % de las traducciones disponibles**: `construir` tenia 16 y mostraba
+    cero.
+
+    Se excluye lo que ya salio por acepcion: repetirlo abajo diria que la palabra significa eso
+    "ademas", cuando es lo mismo con mejor atribucion.
+    """
+    if not idioma:
+        return ()
+    salida = []
+    for item in raw.get("translations") or []:
+        word = (item.get("word") or "").strip()
+        if not word or word == headword:
+            continue
+        if (item.get("code") or item.get("lang_code")) != idioma:
+            continue
+        if (item.get("sense_index") or "").strip():
+            continue
+        if word not in salida and word not in ya_en_acepciones:
+            salida.append(word)
+    return tuple(salida[:MAX_TRADUCCIONES_POR_ACEPCION])
+
+
 def _senses(raw, translations_to=None):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
     headword = raw.get("word", "")
@@ -558,13 +586,19 @@ def _emit(group, inbound, perfil, politica, translations_to=None):
         index_in_pos[pos] = index + 1
         headword = raw["word"]
         forms = _forms(raw, headword, inbound.get(headword, ()))
+        por_acepcion = [t for s in senses for t in s["translations"]]
+        sueltas = _word_translations(raw, headword, translations_to, set(por_acepcion))
         yield Record(
             headword=headword,
             senses=senses,
             part_of_speech=pos,
             rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name")),
             forms=forms,
-            translations=(),
+            # ⚠️ **El canal de BUSQUEDA lleva las dos**, atribuidas y sueltas: para encontrar
+            # `casa` escribiendo `house` da igual si la fuente supo a que acepcion pertenece.
+            # Esto es lo que hace que un pack monolingue se busque tambien en el otro idioma.
+            translations=tuple(dict.fromkeys(por_acepcion + list(sueltas))),
+            word_translations=sueltas,
             sense_key=_sense_key(raw, index, by_pos[pos] > 1),
         )
 

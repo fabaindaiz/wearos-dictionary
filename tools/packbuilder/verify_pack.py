@@ -344,7 +344,7 @@ def verify(path):
     ):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
-            _pos, senses = payload_codec.parse(text)
+            _pos, senses, _palabra = payload_codec.parse(text)
             if not senses:
                 report.check(False, "la entrada %s quedo sin acepciones" % row["headword"])
             senses_total += len(senses)
@@ -477,7 +477,7 @@ def _verify_search_paths(db, report, profile):
     dictionary = bytes.fromhex(
         db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
     )
-    _pos, senses = payload_codec.parse(payload_codec.decompress(sample["payload"], dictionary))
+    _pos, senses, _palabra = payload_codec.parse(payload_codec.decompress(sample["payload"], dictionary))
     words = [w for w in normalize.norm(senses[0]["gloss"]).split(" ") if len(w) > 3]
     if not words:
         report.note("no se encontro una palabra utilizable para probar FTS")

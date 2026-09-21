@@ -222,4 +222,12 @@ data class Entry(
     val headword: String,
     val partOfSpeech: String?,
     val senses: List<Sense>,
+    /**
+     * Traducciones de la palabra entera, que la fuente **no** pudo atribuir a una acepcion.
+     *
+     * Van aparte de [Sense.translations] y no mezcladas: una lista dibujada bajo una acepcion
+     * **afirma** que pertenece a esa acepcion, y colgar ahi lo no atribuido es el error de
+     * D-117 --se lee plausible y no lo agarra nadie. Medido, son el 37,7 % del dato.
+     */
+    val wordTranslations: List<String> = emptyList(),
 )
