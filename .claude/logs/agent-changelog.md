@@ -26,6 +26,44 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El plegado de caja pasa a seguir el estándar, con tabla fijada
+**Qué.** `tools/unicode/gen_casefold.py` + `casefold.txt` + `CaseFolding.kt` + el lector Python:
+`fold_gloss` deja de usar `lower()` y pasa a implementar `toCaseFold()`. Diez tests nuevos.
+**Áreas.** `tools/unicode/gen_casefold.py` (nuevo), `tools/unicode/casefold.txt` (generado),
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/CaseFolding.kt` (generado),
+`tools/packbuilder/casefold.py` (nuevo), `tools/packbuilder/payload.py`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`, tres de test,
+`CLAUDE.md`, `tools/CLAUDE.md`, `docs/contratos-cruzados.md`, `docs/decisions.md` (D-188).
+**Por qué.** El usuario preguntó cuál era el estándar contra el que yo contrastaba y si se podía
+seguir también. Al ir a contestar resultó que **yo usaba la operación equivocada**.
+**Arquitectura.** ✅ Cumple. Mismo patrón que `UnicodeRepertoire`: tabla fijada, sha256 que ata
+las copias, generador que aborta si la versión de Unicode no es la fijada.
+**Medido.**
+- El estándar es **`toCaseFold()`**, regla R4 §3.13, referenciada por UAX #31 para *caseless
+  matching*. El estándar separa explícitamente: `toLowerCase()` es *case mapping*, para MOSTRAR;
+  `toCaseFold()` es para COMPARAR. El código de acepción compara.
+- **242 de 133.730** code points del repertorio difieren entre `lower()` y `casefold()`; sobre
+  las glosas reales, **8 de 97.337** en español y **19 de 162.820** en inglés.
+- ⚠️ **Java no tiene `toCaseFold()`**, y lo único que lo ofrece es ICU — que **D-003 prohíbe**,
+  porque cada Android trae su Unicode y eso clasificaba 14.773 code points distinto entre relojes.
+  Por eso es tabla y no llamada: **297 pares, Unicode 13.0.0**.
+- Verificado caso por caso entre los dos lenguajes, incluido `İstanbul → i̇stanbul` (la I turca,
+  que es la trampa de locale) y el ejemplo del propio estándar: **«Μάϊος» y «ΜΆΪΟΣ» ahora casan**.
+- **El vector existente no se movió** (`sense_code(1,"Casa.")` sigue siendo `8ec316909e48`), así
+  que ningún test previo se rompió: el plegado sólo agrega.
+**Qué salió mal.** Dos, y las dos las agarró un enforcer que ya existía.
+1. ⚠️ **`ArchitectureTest` rechazó el `CaseFolding.kt` generado** porque usaba `Character.charCount`
+   y `appendCodePoint`, y **D-017 no admite APIs de la JVM en `:dict-core`**. Se reescribió
+   indexando por `Char` — lo cual es válido sólo porque **ningún par cae fuera del BMP**, y eso el
+   generador ahora **lo verifica en vez de confiarlo**: aborta si algún día deja de ser cierto.
+2. `CLAUDE.md` estaba en **200 de 200 líneas** y agregar el comando lo pasó. Se colapsaron los dos
+   generadores en una línea en vez de sacar otra cosa.
+**Qué quedó sin hacer.**
+- ⚠️ **Se hizo AHORA a propósito**: cambiar el plegado cambia todos los `sense_code`, y hoy eso es
+  gratis —el slot de referencias está vacío y ningún pack se construyó con el plegado anterior—.
+  Después del build costaría reconstruir todo.
+- Sigue pendiente el build completo, el refactor del reader y el test instrumentado del canal `W`.
+
 ## 2026-09-21 — CIERRE FINAL: 42 commits, y lo que la sesión aprendió sobre sí misma
 **Qué.** Cierre de la jornada más larga del repo. **42 commits hoy**, 53 por subir contando los
 de sesiones previas. Gate verde: 26 checks · 342 Python · 93 `:dict-core` · 290 `:app` ·

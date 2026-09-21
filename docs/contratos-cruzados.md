@@ -189,15 +189,46 @@ es el trato que este repo ya eligió para `norm()`.
 ⚠️ **La regla general, para el próximo espejo**: una clase de caracteres de una expresión regular
 **no es portable entre lenguajes**. Si un contrato cruzado necesita una, se enumera.
 
-### Y `fold_gloss` es una regla versionada, no un estándar
+### ✅ El plegado de caja SÍ sigue el estándar, con una tabla fijada
+
+La primera versión usaba `lowercase()`, y el estándar es explícito en que esa es la operación
+equivocada: **`toLowerCase()` es *case mapping*, para MOSTRAR texto; `toCaseFold()` es *case
+folding*, para COMPARARLO** (regla R4, §3.13 del Estándar Unicode, referenciada por UAX #31 como
+la operación para *caseless matching*).
+
+⚠️ **No se podía llamar a la función, y por un motivo que este documento ya conoce.** Python tiene
+`str.casefold()`; **Java y Kotlin no tienen equivalente**. Lo único que lo ofrece es ICU, y §2 de
+este mismo documento explica por qué eso está prohibido: cada Android trae su versión de Unicode y
+**14.773 code points se clasificaban distinto entre relojes**.
+
+Así que la tabla se **fija**, igual que el repertorio de §2 y por el mismo motivo: los dos
+lenguajes aplican **los mismos datos**, y el sha256 ata las dos copias.
+
+    tools/unicode/casefold.txt   <->   dict-core/.../CaseFolding.kt
+    297 pares · Unicode 13.0.0 · generada por tools/unicode/gen_casefold.py
+
+Medido: **242 de los 133.730** code points del repertorio difieren entre `lower()` y `casefold()`
+—`ß`→`ss`, `ſ`→`s`, `ς`→`σ`— y sobre las glosas reales son 8 de 97.337 en español y 19 de 162.820
+en inglés. El ejemplo que el propio estándar usa queda fijado en los dos lenguajes: **«Μάϊος» y
+«ΜΆΪΟΣ» casan**, cosa que con `lowercase()` solo no pasaba.
+
+⚠️ **El generador verifica su propio supuesto**: el lado Kotlin indexa por `Char` para no usar
+APIs de la JVM que D-017 prohíbe en `:dict-core`, y eso sólo vale mientras nada pliegue fuera del
+BMP. Si Unicode alguna vez agrega uno, el generador aborta y lo dice.
+
+### Lo que sigue siendo una regla nuestra: la puntuación final
+
+Quitar la puntuación del final de la glosa **no lo hace ningún estándar**: es una decisión de
+contenido —el Wikcionario escribe *«Casa.»* y Wikidata *«casa»*— y es la única parte de
+`fold_gloss` que seguimos manteniendo nosotros.
 
 `norm()` está atada a `NORM_VERSION` y eso está bien, porque un bump reconstruye los packs.
 `sense_code` **no** pasa por `norm()` a propósito (D-181, precedente de D-055): si lo hiciera, un
 bump de `NORM_VERSION` —que D-005 permite en cualquier momento— cambiaría **todos** los códigos y
 dejaría apuntando a la nada cada enlace de cada pack ya construido.
 
-Pero `fold_gloss` es **nuestra**, y cambiarla tiene exactamente ese efecto. **No se toca sin
-reconstruir todo lo que tenga enlaces escritos.**
+**Cambiar la tabla de plegado o la regla de puntuación tiene exactamente ese efecto: no se tocan
+sin reconstruir todo lo que tenga enlaces escritos.**
 
 ## 7. `:dict-core`'s portability
 

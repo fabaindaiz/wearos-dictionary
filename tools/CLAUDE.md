@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 342 tests
+hatch run test              # the 349 tests
 hatch run audit             # the structural audit
 hatch run all               # both
 hatch run matrix:test       # THE TESTS UNDER EVERY PYTHON VERSION
@@ -69,7 +69,7 @@ is not a convenience: it is the central invariant.
 (Unicode 16.0), including `abࡰcd` → `ab cd`, which is the exact case that diverged before the
 repertoire was pinned. The builder is independent of the Python version.
 
-The one exception is `gen_repertoire.py`, which **requires Python 3.9.x** because it needs exactly
+The exceptions are `gen_repertoire.py` **and `gen_casefold.py`**, which **require Python 3.9.x** because they need exactly
 Unicode 13.0.0. The guard is verified: under 3.14 it refuses with exit 1.
 
 ## The file to copy
@@ -135,6 +135,19 @@ the source has to solve:
   words.
 
 ## Regenerating the Unicode repertoire is a deliberate act
+
+**Two generators, same rule.** `gen_casefold.py` emits the pinned case-folding table that
+`payload.fold_gloss` and `PayloadCodec.foldGloss` both read.
+
+⚠️ **It is a table and not a function call for a measured reason**: `toCaseFold()` — the operation
+the standard defines for *caseless matching*, rule R4 of §3.13 — exists in Python as
+`str.casefold()` and **does not exist in Java or Kotlin**. The only thing that offers it is ICU,
+and D-003 forbids the platform's Unicode data because every Android ships its own version. So the
+table is pinned, the way `UnicodeRepertoire` already is, and the sha256 ties the two copies.
+
+It also **verifies its own assumption**: the Kotlin side indexes by `Char` to avoid JVM APIs that
+D-017 bans in `:dict-core`, which only holds while nothing folds outside the BMP. The generator
+aborts if that ever stops being true.
 
 `gen_repertoire.py` aborts if the Python running it does not ship exactly Unicode 13.0.0. That is
 not a bug: it pins the repertoire to the **floor** shared by the builder and the oldest Android we

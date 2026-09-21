@@ -360,4 +360,24 @@ class PayloadCodecTest {
     fun `el plegado no saca acentos`() {
         assertNotEquals(PayloadCodec.senseCode(7L, "el publico"), PayloadCodec.senseCode(7L, "el público"))
     }
+
+    @Test
+    fun `el plegado coincide con Python caso por caso`() {
+        // ⚠️ **El guardrail del tercer contrato cruzado.** `payload.fold_gloss` y `foldGloss`
+        // leen la MISMA tabla fijada, pero eso solo vale si tambien la aplican igual. Estos
+        // pares se imprimieron desde Python y se pegaron aca: si los dos lados se separan, los
+        // `sense_code` divergen y los enlaces entre packs apuntan a la nada, sin error ni log.
+        val esperado = listOf(
+            "Casa." to "casa.",
+            "ß-ENDORFINA" to "ss-endorfina",
+            "ΜΆΪΟΣ" to "μάϊοσ",
+            "Μάϊος" to "μάϊοσ",
+            "µm" to "μm",
+            "ſaber" to "saber",
+            "PÚBLICO" to "público",
+        )
+        for ((entrada, salida) in esperado) {
+            assertEquals(salida, CaseFolding.fold(entrada), "plegado distinto para $entrada")
+        }
+    }
 }
