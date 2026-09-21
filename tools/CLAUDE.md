@@ -129,6 +129,22 @@ of `repertoire.txt`, and raising `NORM_VERSION`. Read the generator's header fir
 
 ## The mirror obligation
 
+**There are now TWO mirrors, not one**, and the second is easy to forget because it does not look
+like normalisation:
+
+| Python | Kotlin | qué se rompe si divergen |
+|---|---|---|
+| `normalize.py` | `TextNormalizer.kt` | **falta una palabra** en los resultados |
+| `payload.py` → `sense_code` / `fold_gloss` | `PayloadCodec.kt` → `senseCode` / `foldGloss` | **un enlace a una acepción lleva a otra**, o a ninguna |
+
+Los dos fallan igual: sin excepción, sin log, y con el pack pasando todas sus invariantes. El
+segundo lo fija un vector idéntico en ambos lados — `sense_code(1, "casa")` = `8ec316909e48`.
+
+⚠️ **Y trajo una lección general para el próximo espejo**: una clase de caracteres de una
+expresión regular **no es portable**. `\s` en Python sobre `str` es **Unicode** y en Java es
+**ASCII**, así que un espacio duro se plegaría de un lado y del otro no. En `fold_gloss` el
+espacio se enumera a mano por eso. Ver `docs/contratos-cruzados.md` §6.
+
 `normalize.py` is the hand-written mirror of `TextNormalizer.kt`. Any file with a mirror declares it
 in its header:
 
