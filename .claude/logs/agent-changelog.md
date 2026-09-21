@@ -26,6 +26,33 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — CIERRE: build completo verificado en el emulador, y un hallazgo del propio cierre
+**Qué.** Verificación de cierre con **los cinco packs cargados** (461 MiB) en el emulador con la
+geometría del reloj, más un arreglo que salió de esa misma verificación (D-211).
+**Áreas.** `data/PackSelection.kt`, `presentation/SearchViewModel.kt`, `presentation/SearchScreen.kt`,
+`FakeDictionary.kt`, `SearchViewModelTest.kt`, `docs/decisions.md`.
+**Arquitectura.** ✅ Cumple.
+**Medido / verificado.**
+- **Los 15 commits de la sesión pasan la auditoría en aislamiento**, y los tres de más riesgo
+  pasan el **gate completo** en un `git worktree`. Historia bisectable, comprobada y no supuesta.
+- **Los 7 tests instrumentados de `:app` corrieron por primera vez en la sesión y pasan.** Era
+  una deuda anotada dos veces.
+- **39 instrumentados de `:dict-data`** verdes en el emulador. Gate: 26 checks · 750 JVM.
+- **App con los cinco packs (461 MiB), sin un solo crash.** En pantalla se verificaron cuatro
+  cambios de hoy a la vez: `skipper · noun · EN` (la etiqueta es el idioma, D-190), la acepción
+  numerada, `Synonyms` en negrita y **no** en color de enlace (D-192), y el menú nuevo con el
+  selector de tres `Aa` y sin *Ver traducción* (D-202).
+**Qué salió mal — y lo encontró el cierre.**
+- ⚠️ **Con sólo los núcleos instalados, la palabra del día era `my` y `un`.** Un núcleo son las
+  8.000 más frecuentes y D-193 elige la de mejor rank: *la más común de las más comunes*, que es
+  siempre una palabra funcional. Arreglado con `meta.tier` —la clave que se agregó hoy
+  justamente para que un pack declare lo que es— y la regla se movió a **un solo predicado**,
+  `givesWordOfTheDay`, porque estaba en tres sitios y **ya había divergido una vez** (D-203).
+- ⚠️ **`adb shell pm clear` borra `filesDir/packs/`.** Me llevó los 461 MiB empujados y lo leí
+  como un bug de la app antes de mirar. Vale para el reloj igual.
+
+---
+
 ## 2026-09-21 — A2 explorado: seguro de hacer, y sin motivo medido para hacerlo
 **Qué.** Verificación de que reordenar acepciones no genera efectos adversos, y qué haría falta
 para aplicarlo. **Nada implementado, a pedido.**

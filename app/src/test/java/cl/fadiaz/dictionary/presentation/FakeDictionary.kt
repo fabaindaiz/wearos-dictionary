@@ -8,6 +8,7 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
@@ -39,6 +40,8 @@ class FakeDictionary(
     private val entryCount: Int = 1,
     /** `BILINGUAL` para probar la rama de los packs de traducción. */
     private val kind: PackKind = PackKind.MONOLINGUAL,
+    /** `CORE` para probar la rama de los núcleos. */
+    private val tier: PackTier = PackTier.FULL,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
@@ -56,6 +59,7 @@ class FakeDictionary(
         schemaVersion = 3,
         normVersion = 1,
         kind = kind,
+        tier = tier,
         name = "Diccionario $packId",
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,

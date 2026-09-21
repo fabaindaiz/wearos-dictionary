@@ -10,8 +10,10 @@ import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.speaks
 import cl.fadiaz.dictionary.data.answersFor
+import cl.fadiaz.dictionary.data.givesWordOfTheDay
 import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.data.Settings
@@ -666,20 +668,15 @@ class SearchViewModel(
      * la misma regla de representante que usa el selector.
      */
     private fun elegirParaPalabraDelDia(activo: DictionarySource): DictionarySource? {
-        if (activo.metadata.kind != PackKind.BILINGUAL) return activo
+        if (givesWordOfTheDay(activo.metadata)) return activo
         return packsToQuery(opened)
-            .filter { it.metadata.kind != PackKind.BILINGUAL && answersFor(it, state.value.activeLang) }
+            .filter { givesWordOfTheDay(it.metadata) && answersFor(it, state.value.activeLang) }
             .maxByOrNull { it.metadata.entryCount }
     }
 
     private fun refreshWordsOfTheDay(packs: List<DictionarySource>) {
         val date = todayDate() ?: return
-        // ⚠️ **Un pack de traducción no da palabra del día.** Pedido: *«esto queda solo para los
-        // diccionarios de definiciones»*, y la razón se ve al abrirla: la entrada inversa de un
-        // bilingüe no tiene acepciones (D-196), así que la palabra del día abriría una ficha que
-        // dice *«se dice `perro`»* y nada más. Una palabra del día existe para **aprender algo**,
-        // y sin definición no hay nada que aprender.
-        for (pack in packs.filter { it.metadata.kind != PackKind.BILINGUAL }) {
+        for (pack in packs.filter { givesWordOfTheDay(it.metadata) }) {
             viewModelScope.launch {
                 val picked = runCatching {
                     WordOfTheDay.pick(

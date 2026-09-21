@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackSet
 import kotlin.test.AfterTest
@@ -942,6 +943,34 @@ class SearchViewModelTest {
             paraElTile.map { it.headword },
             "el tile no puede mostrar una palabra de un pack que ya no está: $paraElTile",
         )
+    }
+
+    @Test
+    fun unPackNUCLEO_tampoco_genera_palabra_del_dia() = runTest {
+        // ⚠️ **Visto en el emulador con sólo los núcleos instalados: `my` y `un`.** Un núcleo son
+        // las **8.000 palabras más frecuentes**, y D-193 elige la de mejor rank — o sea **la más
+        // común de las más comunes**, que es siempre una palabra funcional. Una palabra del día
+        // existe para enseñar algo, y `un` no enseña nada.
+        //
+        // ⚠️ **Se pregunta por `tier`, que el pack DECLARA (D-198)**, y no por el nombre ni por
+        // el conteo de entradas: es la misma razón por la que `tier` se agregó — un pack de la
+        // comunidad puede llamarse como quiera, y lo único que la app puede creer es lo que el
+        // artefacto declara y `verify_pack.py` comprueba.
+        //
+        // ⚠️ **La consecuencia, dicha para que nadie la redescubra**: una instalación recién
+        // hecha sólo lleva los núcleos del APK, así que **no muestra palabra del día hasta que
+        // se instale un diccionario completo**. Es la degradación correcta — mejor sin palabra
+        // que con una que no enseña.
+        var palabras: Map<String, EntrySummary> = emptyMap()
+        val nucleo = FakeDictionary("es-core", "es", entryCount = 300, tier = PackTier.CORE)
+        nucleo.summaries = (1L..300L).associateWith { EntrySummary(it, "nucleo$it", "noun", 100) }
+        val vm = SearchViewModel(
+            { PackSet.Ready(handle(nucleo), listOf(handle(nucleo))) },
+            todayDate = { "2026-10-01" },
+        )
+        advanceUntilIdle()
+        palabras = vm.state.value.wordsOfTheDay
+        assertEquals(emptyMap(), palabras, "un núcleo no genera palabra del día: $palabras")
     }
 
     @Test
