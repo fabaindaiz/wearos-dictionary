@@ -140,11 +140,15 @@ METADATA = {
     "pack_id": "es-tr-toy",
     "kind": "bilingual",
     "name": "Juguete Español → English",
-    "lang_src": "es",
-    "lang_dst": "en",
+    "langs": "es,en",
     # La capacidad, aparte de `kind` (D-183). Un pack bilingue la declara igual: `kind` dice en
     # que idioma estan las definiciones, esto dice en cual estan las traducciones.
     "translations_to": "en",
+    # ⚠️ **Uno por idioma, y el toy los declara DISTINTOS a proposito.** Si los dos fueran "es"
+    # el fixture no ejercitaria la rama que importa: un lema ingles plegado con las reglas del
+    # español --`ce`→`se`, `v`→`b`-- da una clave que la consulta inglesa nunca calcula, y el
+    # peldaño tolerante dejaria de encontrar nada justo en la mitad inglesa del pack.
+    "fuzzy_profiles": "es,en",
     "fuzzy_profile": "es",
     # No sale de ningun volcado: las 28 entradas estan escritas en este archivo. Se declara
     # igual porque `source_date` dice de donde sale el contenido, y "de ningun lado" es una
@@ -165,6 +169,17 @@ METADATA = {
 
 
 def records():
+    """Las 28 entradas españolas, y detras las inglesas que salen de sus traducciones.
+
+    ⚠️ **El toy es bidireccional porque el pack real lo es**, y porque es el unico fixture de esa
+    rama que corre en un dispositivo. Un canal sin fixture se rompe sin que nada avise: ya paso
+    con el tag `W`, que estuvo emitiendose sin que ningun test lo mirara.
+    """
+    from . import bilingual
+    yield from bilingual.bidireccional(_propias(), "es", "en")
+
+
+def _propias():
     for item in _DATA:
         # La sexta posicion es opcional: solo la llevan los homografos que comparten headword
         # Y pos, que sin sense_key harian fallar el build por identidad repetida.
@@ -190,8 +205,22 @@ def records():
             part_of_speech=pos,
             rank=rank,
             forms=forms,
-            # El canal de busqueda lleva las dos, igual que en un pack real.
-            translations=translations + list(word_translations),
+            # El canal de busqueda lleva las dos, igual que en un pack real, **y la forma
+            # desnuda de un infinitivo**: el volcado escribe "to run" y quien busca teclea
+            # "run". Hasta aca eso lo resolvia el tokenizado de `trans` (D-014); vaciada esa
+            # tabla en un pack bidireccional, tiene que ser una entrada propia o `run` deja de
+            # encontrar `correr` -- que es justo el camino que este fixture existe para probar.
+            translations=_con_forma_desnuda(translations + list(word_translations)),
             word_translations=word_translations,
             sense_key=sense_key,
         )
+
+
+def _con_forma_desnuda(claves):
+    """`["to run"]` -> `["to run", "run"]`, igual que `bilingual.translation_keys`."""
+    salida = []
+    for clave in claves:
+        for candidata in (clave, clave[3:] if clave.startswith("to ") else None):
+            if candidata and candidata not in salida:
+                salida.append(candidata)
+    return salida

@@ -28,7 +28,13 @@ class PackSelectionTest {
             PackMetadata(
                 packId = packId, schemaVersion = 3, normVersion = 2,
                 kind = kind, name = packId, description = null,
-                langSource = lang, langTarget = langTarget, fuzzyProfile = FuzzyProfile.SPANISH,
+                // ⚠️ El segundo idioma sólo lo declara un pack BILINGÜE. Un monolingüe con
+                // `translations_to` trae traducciones de lectura, no lemas del otro idioma.
+                langs = if (kind == PackKind.BILINGUAL) listOfNotNull(lang, langTarget)
+                        else listOf(lang),
+                fuzzyProfiles = if (kind == PackKind.BILINGUAL && langTarget != null)
+                    listOf(FuzzyProfile.SPANISH, FuzzyProfile.SPANISH)
+                else listOf(FuzzyProfile.SPANISH),
                 entryCount = entries, dataVersion = dataVersion,
                 license = "CC0-1.0", attribution = packId, subsetOf = subsetOf,
             ),
@@ -207,9 +213,9 @@ class PackSelectionTest {
 /** Un pack del que sólo importa su metadata: lo que se prueba es la selección, no la consulta. */
 private class SoloMetadata(override val metadata: PackMetadata) :
     cl.fadiaz.dictionary.core.DictionarySource {
-    override suspend fun suggest(query: String, limit: Int) =
+    override suspend fun suggest(query: String, limit: Int, lang: String?) =
         emptyList<cl.fadiaz.dictionary.core.Suggestion>()
-    override suspend fun searchDefinitions(query: String, limit: Int) =
+    override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) =
         emptyList<cl.fadiaz.dictionary.core.Suggestion>()
     override suspend fun entry(entryId: Long): cl.fadiaz.dictionary.core.Entry? = null
     override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()

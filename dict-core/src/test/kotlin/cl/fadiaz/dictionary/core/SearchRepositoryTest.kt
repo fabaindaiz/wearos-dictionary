@@ -39,16 +39,16 @@ class SearchRepositoryTest {
             private set
         override val metadata = PackMetadata(
             packId = id, schemaVersion = 3, normVersion = 2, kind = PackKind.MONOLINGUAL,
-            name = id, description = null, langSource = lang, langTarget = null,
-            fuzzyProfile = FuzzyProfile.SPANISH, entryCount = rows.size, dataVersion = 1,
+            name = id, description = null, langs = listOf(lang),
+            fuzzyProfiles = listOf(FuzzyProfile.SPANISH), entryCount = rows.size, dataVersion = 1,
             license = "CC-BY-SA-4.0", attribution = id, rankBasis = rankBasis,
         )
-        override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
+        override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {
             consultas++
             if (fails) throw IllegalStateException("este pack esta roto")
             return rows.take(limit)
         }
-        override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
+        override suspend fun searchDefinitions(query: String, limit: Int, lang: String?): List<Suggestion> {
             if (fails) throw IllegalStateException("este pack esta roto")
             return definitions.take(limit)
         }

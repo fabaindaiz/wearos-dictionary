@@ -85,7 +85,7 @@ fun SearchScreen(
     // El teclado abierto suspende la busqueda (D-128). Default vacio: una pantalla de test que
     // no lo cablea sigue comportandose como antes.
     onTypingChanged: (Boolean) -> Unit = {},
-    onPackChange: (String) -> Unit = {},
+    onLanguageChange: (String) -> Unit = {},
     // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
     // hatch, indistinguishable from one that works.
     onSearchDefinitions: () -> Unit,
@@ -101,12 +101,15 @@ fun SearchScreen(
     /** Al historial completo. Default vacío: una pantalla de test que no lo cablea sigue andando. */
     onOpenHistory: () -> Unit = {},
 ) {
-    // Que etiqueta lleva cada fila: el idioma, o la FUENTE cuando hay dos diccionarios del
-    // idioma activo y el idioma ya no desambigua (D-151). Se arma una vez y no por fila: la
-    // lista se recompone en cada tecla.
-    val etiquetas = remember(state.available, state.active?.langSource) {
-        resultTags(state.available)
-    }
+    // ⚠️ **Una sola etiqueta para toda la lista, y eso es consecuencia de dos decisiones.**
+    // La busqueda es estricta por idioma (D-189) y ahora ademas filtra por `entry.lang` dentro
+    // de un pack bidireccional, asi que **todas las filas visibles son del idioma activo**.
+    // Antes era un mapa `packId -> etiqueta`, que con un pack de dos idiomas ya no alcanzaba:
+    // el mismo pack habria tenido que devolver `ES` para unas filas y `EN` para otras.
+    val etiqueta = resultTag(state.activeLang)
+    // El historial del inicio lleva el OTRO mecanismo: sus filas pueden ser de un pack que ya no
+    // esta. Ver `historyTags`.
+    val etiquetasHistorial = remember(state.available) { historyTags(state.available) }
     // Las palabras del día que se van a mostrar: **una por idioma, no una por pack** (D-151),
     // el activo primero. Se calcula acá y no dentro del lambda de la lista porque ahí no hay
     // `remember` --no es un scope de composición-- y se rehacía en cada recomposición.
@@ -212,7 +215,7 @@ fun SearchScreen(
                     // entran, y se paga: el caso que evita es escribir una palabra inglesa con
                     // español activo y no entender por qué no aparece.
                     if (state.available.size > 1) {
-                        item(key = "selector") { LanguageSelector(state, onPackChange) }
+                        item(key = "selector") { LanguageSelector(state, onLanguageChange) }
                     }
 
                     if (state.submitted.isEmpty()) {
@@ -281,7 +284,7 @@ fun SearchScreen(
                                 headword = visit.headword,
                                 detail = wordDetail(
                                     visit.partOfSpeech?.let { posLabel(it) },
-                                    etiquetas[visit.packId],
+                                    etiquetasHistorial[visit.packId],
                                 ),
                             ) { onOpenVisita(visit) }
                         }
@@ -335,11 +338,16 @@ fun SearchScreen(
                         val other = state.available
                             .filterIsInstance<PackHandle.Open>()
                             .firstOrNull { it.packId != state.active?.packId }
-                        if (other != null) {
+                        // ⚠️ **Manda el IDIOMA y no el pack.** Con un bidireccional instalado el
+                        // "otro diccionario" puede ser el mismo archivo: lo que cambia es en cual
+                        // de sus dos idiomas se busca.
+                        val otroIdioma = idiomasDisponibles(state.available)
+                            .firstOrNull { it != state.activeLang }
+                        if (other != null && otroIdioma != null) {
                             item(key = "escotilla-idioma") {
                                 Pill(
                                     text = stringResource(R.string.home_search_in, other.metadata.name),
-                                    onClick = { onPackChange(other.packId) },
+                                    onClick = { onLanguageChange(otroIdioma) },
                                 )
                             }
                         }
@@ -352,7 +360,7 @@ fun SearchScreen(
                             "r:${s.packId}:${s.entryId}"
                         },
                     ) { index ->
-                        ResultRow(state.results[index], etiquetas) {
+                        ResultRow(state.results[index], etiqueta) {
                             onOpenEntry(state.results[index])
                         }
                     }
@@ -426,7 +434,7 @@ private fun ResultRow(
      * activo. Con varios diccionarios conviviendo (D-136) esa herencia seria afirmar que la
      * palabra viene de un lugar que nadie comprobo -- la misma familia de falla que D-080.
      */
-    etiquetas: Map<String, String>,
+    etiqueta: String?,
     onClick: () -> Unit,
 ) {
     // Una sola ranura a la derecha y no dos: en una fila de 234 dp el lema ya compite por el
@@ -436,7 +444,7 @@ private fun ResultRow(
         headword = suggestion.headword,
         detail = wordDetail(
             partOfSpeech = suggestion.partOfSpeech?.let { posLabel(it) },
-            tag = etiquetas[suggestion.packId],
+            tag = etiqueta,
             override = matchLabel(suggestion.matchKind),
         ),
         onClick = onClick,
@@ -596,7 +604,7 @@ private fun WordOfTheDayRow(
  * them on the JVM instead of under Robolectric.
  */
 @Composable
-private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit) {
+private fun LanguageSelector(state: SearchState, onLanguageChange: (String) -> Unit) {
     // `remember` y no la llamada suelta, igual que `resultTags` en el inicio. Desde D-156 esto
     // se dibuja SIEMPRE --tambien con resultados en pantalla-- asi que reagrupaba los packs en
     // cada recomposicion, y `available` no cambia entre teclas.
@@ -604,8 +612,8 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
     // ⚠️ **No es un arreglo de bateria y no hay que venderlo como tal**: `docs/bateria.md` midio
     // que el trabajo de este tipo son microsegundos contra minutos de pantalla. Es correccion de
     // practica, y el motivo de hacerla es que cuesta una linea.
-    val chips = remember(state.available, state.active?.packId) {
-        languageChips(state.available, state.active?.packId)
+    val chips = remember(state.available, state.activeLang) {
+        languageChips(state.available, state.activeLang)
     }
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -633,7 +641,7 @@ private fun LanguageSelector(state: SearchState, onPackChange: (String) -> Unit)
                             MaterialTheme.colorScheme.surfaceContainer
                         },
                     )
-                    .clickable { onPackChange(chip.packId) }
+                    .clickable { onLanguageChange(chip.lang) }
                     .heightIn(min = TOUCH_TARGET)
                     .padding(vertical = 14.dp),
             )

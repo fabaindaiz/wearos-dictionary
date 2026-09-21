@@ -21,15 +21,15 @@ import verify_pack  # noqa: E402
 from sources import toy  # noqa: E402
 
 import build  # noqa: E402
+import payload as payload_codec  # noqa: E402
 
 BASE_META = {
     # Un `pack_id` con la forma que D-138 exige: <idioma>-<tipo>-<fuente>. "test" a secas ya no
     # sirve, y el test que lo rechaza vive en ManifiestoTest.
-    "pack_id": "es-tr-test",
-    "kind": "bilingual",
+    "pack_id": "es-def-test",
+    "kind": "monolingual",
     "name": "Test",
-    "lang_src": "es",
-    "lang_dst": "en",
+    "langs": "es",
     "fuzzy_profile": "es",
     "source_date": "1",
     "license": "CC0-1.0",
@@ -84,6 +84,14 @@ class ToyPackFixtureTest(BuilderTestCase):
 
     # Espejo de SqlitePackSource.FUZZY_TRIGGER. Si cambia alla, cambia aca.
     FUZZY_TRIGGER = 5
+
+    def _payload(self, entry_id):
+        """El cuerpo descomprimido de una entrada, para mirar lo que la ficha mostraria."""
+        diccionario = bytes.fromhex(self.db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        blob = self.db.execute(
+            "SELECT payload FROM entry WHERE id=?", (entry_id,)).fetchone()[0]
+        return payload_codec.decompress(blob, diccionario)
 
     def setUp(self):
         super().setUp()
@@ -165,12 +173,20 @@ class ToyPackFixtureTest(BuilderTestCase):
             ).fetchone()[0],
             0,
         )
-        self.assertGreater(
-            self.db.execute(
-                "SELECT COUNT(*) FROM trans t JOIN entry e ON e.id = t.entry_id"
-                " WHERE t.norm = 'run' AND e.headword = 'correr'"
-            ).fetchone()[0],
+        # ⚠️ **`run` ya no vive en `trans` sino que ES una entrada**, y ese cambio es el pack
+        # bidireccional: `trans` se vacia porque seria una segunda copia del mismo indice.
+        # Lo que se comprueba es lo mismo de siempre --que escribiendo `run` se llegue a
+        # `correr`-- por el camino nuevo.
+        fila = self.db.execute(
+            "SELECT id, lang FROM entry WHERE norm = 'run'").fetchone()
+        self.assertIsNotNone(fila, "la palabra inglesa tiene que ser un lema")
+        self.assertEqual("en", fila[1], "y declarar su idioma")
+        cuerpo = self._payload(fila[0])
+        self.assertIn("correr", cuerpo, "y llevar a su equivalente español")
+        self.assertEqual(
             0,
+            self.db.execute("SELECT COUNT(*) FROM trans").fetchone()[0],
+            "en un pack bidireccional `trans` sobra: 474.849 filas y 13,3 MiB en el pack real",
         )
 
     def test_hay_un_lema_exacto_que_rankea_peor_que_uno_que_lo_extiende(self):
@@ -783,8 +799,8 @@ class LogicalIdentityTest(BuilderTestCase):
         segundo.close()
         self.assertEqual(uid_primero, uid_segundo)
 
-    def test_un_pack_sin_lang_src_se_rechaza(self):
-        sin_idioma = {k: v for k, v in BASE_META.items() if k != "lang_src"}
+    def test_un_pack_sin_langs_se_rechaza(self):
+        sin_idioma = {k: v for k, v in BASE_META.items() if k != "langs"}
         with self.assertRaises(ValueError):
             self.build([record("correr")], metadata=sin_idioma)
 

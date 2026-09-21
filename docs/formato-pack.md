@@ -1,4 +1,4 @@
-# Pack format (`schema_version = 3`)
+# Pack format (`schema_version = 4`)
 
 A pack is a **read-only** SQLite file holding a dictionary. The app opens one per active language
 and never writes to it.
@@ -78,7 +78,7 @@ questions without asking anyone, and each one has a key:
 
 | Question | Keys | Enforced by |
 |---|---|---|
-| **What is this?** | `pack_id`, `name`, `description`, `kind`, `lang_src`, `lang_dst`, `entry_count` | `verify_pack.py` |
+| **What is this?** | `pack_id`, `name`, `description`, `kind`, `langs`, `tier`, `entry_count` | `verify_pack.py` |
 | **Where did it come from?** | `sources`, `source_url`, `data_version`, `built_at`, `proper_nouns` | `verify_pack.py` |
 | **How may I use it?** | `sources` (a licence **per source**), `license`, `attribution` | `verify_pack.py`, and the app's attribution screen |
 
@@ -144,7 +144,10 @@ Everything the app needs to know before querying. It is read whole, once, on ope
 | `description` | The long text, for the attribution screen. Optional: a pack older than D-125 does not carry it |
 | `sources` | **The manifest of sources**, one per line with its own licence (D-138). See above. Optional in the reader so a pack older than D-138 still opens; required by `verify_pack.py` for a new one |
 | `kind` | `bilingual` or `monolingual` |
-| `lang_src`, `lang_dst` | Languages; `lang_dst` is mandatory if bilingual |
+| `langs` | The pack's languages, **as peers**: `es` or `es,en`. A bilingual one declares two and neither is the principal |
+| `fuzzy_profiles` | One folding profile per language, **positional against `langs`** |
+| `tier` | `full` or `core`. Declared, so a core can step aside without the app guessing from the name |
+| `rank_signal_boundary` | Where `rank`'s frequency-signal band ends, when `rank_basis` is frequency. Declared so the app does not copy the builder's constant |
 | `fuzzy_profile` | Phonetic folding profile: `es`, `en`, `de`, `generic` |
 | `payload_codec` | `deflate-v2`. **Different → reject the pack** (`PackFile.open` compares with `!=`). See D-119 |
 | `payload_dict` | Shared compression dictionary, in hex |
@@ -167,6 +170,7 @@ returns fewer results than it holds, with no error at all. It has to be rejected
 CREATE TABLE entry (
     id       INTEGER PRIMARY KEY,   -- alias de rowid: lo comparte fts_def
     uid      INTEGER NOT NULL,      -- identidad estable entre rebuilds; join entre packs
+    lang     TEXT NOT NULL,         -- idioma de ESTA entrada, no del pack (schema_version 4)
     headword TEXT NOT NULL,         -- forma de display, con acentos: "Ärztin"
     norm     TEXT NOT NULL,         -- clave de prefijo: "arztin"
     fuzzy    TEXT NOT NULL,         -- clave tolerante a errores, plegada por idioma
@@ -183,7 +187,7 @@ CREATE TABLE entry (
 | What it is | **Physical** identity: the local rowid | **Logical** identity of the word |
 | Who references it | `fts_def.rowid`, `form.entry_id`, `trans.entry_id` | The auxiliary packs |
 | Survives rebuilding the pack | **No**: one new word in the middle shifts every following one | **Yes** |
-| Why it is that way | Sequential is what makes it cheap: FTS5 stores rowid *deltas* | It is a hash of `(lang_src, NFC(headword), pos, sense_key)` |
+| Why it is that way | Sequential is what makes it cheap: FTS5 stores rowid *deltas* | It is a hash of `(entry.lang, NFC(headword), pos, sense_key)` |
 
 Measured over 200,000 synthetic entries: using the hash *as* `entry.id` costs **+35.2 %** in size
 —`fts_def_data` goes from 10.39 to 28.35 MB— while a separate column costs **+2.3 %**.

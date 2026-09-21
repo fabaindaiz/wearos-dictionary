@@ -25,7 +25,7 @@ import unicodedata
 import normalize
 import payload as payload_codec
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # Receta con la que se calcula entry.uid, la identidad LOGICA de una entrada (D-055).
 #
@@ -87,6 +87,49 @@ def stable_uid(lang, headword, pos, sense_key=None):
     return int.from_bytes(hashlib.sha256(material.encode("utf-8")).digest()[:8], "big") >> 1
 
 
+# ⚠️ **Separador `,` y no `+`**: `meta` es TEXT y estas dos claves son listas. La coma es lo que
+# ya usa `meta.sources`, asi que el lector del reloj no aprende una convencion nueva.
+_SEPARADOR_DE_LISTA = ","
+
+
+def _parse_langs(crudo):
+    """Los idiomas del pack, en orden de declaracion. `"es,en"` -> `["es", "en"]`."""
+    if not crudo:
+        return []
+    vistos = []
+    for parte in crudo.split(_SEPARADOR_DE_LISTA):
+        lang = parte.strip()
+        # Repetir un idioma no es un error del usuario sino un bug del que arma la metadata:
+        # duplicaria el perfil fuzzy y el idioma por defecto seguiria siendo el primero.
+        if lang and lang not in vistos:
+            vistos.append(lang)
+    return vistos
+
+
+def _parse_profiles(crudo, langs, unico=None):
+    """`{idioma: perfil fuzzy}`.
+
+    Acepta tres formas, de la mas explicita a la mas comoda:
+
+    - `"es,en"` en `meta.fuzzy_profiles`, **posicional contra `langs`** -- es lo que escribe un
+      pack bidireccional;
+    - `fuzzy_profile=` o `meta.fuzzy_profile`, un solo perfil para todos los idiomas;
+    - nada, y cae en `generic`.
+
+    ⚠️ **Posicional y no un mapa `es=es`**: el perfil de un idioma no siempre se llama como el
+    idioma --hay `generic`-- y un mapa obligaria a repetir la clave. Que las dos listas tengan
+    el mismo largo lo comprueba esta funcion, que es donde un desajuste todavia es barato.
+    """
+    if crudo:
+        perfiles = [p.strip() for p in crudo.split(_SEPARADOR_DE_LISTA)]
+        if len(perfiles) != len(langs):
+            raise ValueError(
+                "meta.fuzzy_profiles tiene %d perfiles para %d idiomas: %r vs %r"
+                % (len(perfiles), len(langs), perfiles, langs))
+        return dict(zip(langs, perfiles))
+    return {lang: (unico or "generic") for lang in langs}
+
+
 class Record:
     """Una entrada lista para indexar, tal como la entrega una fuente.
 
@@ -109,6 +152,7 @@ class Record:
         "word_translations",
         "sense_key",
         "uid",
+        "lang",
     )
 
     def __init__(
@@ -122,9 +166,12 @@ class Record:
         word_translations=(),
         sense_key=None,
         uid=None,
+        lang=None,
     ):
         self.headword = headword
         self.senses = senses
+        # None = el idioma primario del pack. Solo una fuente bidireccional lo llena.
+        self.lang = lang
         self.part_of_speech = part_of_speech
         self.rank = rank
         self.forms = forms
@@ -193,16 +240,30 @@ class PackBuilder:
         if conflicts:
             raise ValueError("estas claves de meta las escribe el builder: %s" % sorted(conflicts))
 
-        if not metadata.get("lang_src"):
+        # ⚠️ **`langs` y no `lang_src`: los idiomas de un pack son PARES.** Un pack
+        # bidireccional tiene entradas de los dos y ninguno es el principal; uno monolingue
+        # declara una sola y nada cambia. El orden de la lista es orden de declaracion, no
+        # jerarquia -- lo unico que hace es fijar el idioma por defecto de un `Record` que no
+        # declare el suyo.
+        self.langs = _parse_langs(metadata.get("langs"))
+        if not self.langs:
             # Entra en entry.uid: sin el, la identidad logica de dos packs de idiomas distintos
             # podria colisionar.
-            raise ValueError("falta meta.lang_src, que forma parte de entry.uid")
+            raise ValueError("falta meta.langs, que forma parte de entry.uid")
 
         self.path = path
         self.metadata = dict(metadata)
-        self.fuzzy_profile = fuzzy_profile or metadata.get("fuzzy_profile", "generic")
-        if self.fuzzy_profile not in normalize.FUZZY_PROFILES:
-            raise ValueError("perfil fuzzy desconocido: %r" % (self.fuzzy_profile,))
+        # Un perfil por idioma. `fuzzy_profile=` sigue aceptandose para el caso de un solo
+        # idioma, que es el 99 % de las llamadas y de los tests.
+        self.fuzzy_profiles = _parse_profiles(
+            metadata.get("fuzzy_profiles"), self.langs,
+            fuzzy_profile or metadata.get("fuzzy_profile"),
+        )
+        for perfil in self.fuzzy_profiles.values():
+            if perfil not in normalize.FUZZY_PROFILES:
+                raise ValueError("perfil fuzzy desconocido: %r" % (perfil,))
+        # El del idioma primario, para lo que todavia habla de "el" perfil del pack.
+        self.fuzzy_profile = self.fuzzy_profiles[self.langs[0]]
 
         if os.path.exists(path):
             os.remove(path)
@@ -218,6 +279,7 @@ class PackBuilder:
             CREATE TABLE staging (
                 id       INTEGER PRIMARY KEY,
                 uid      INTEGER NOT NULL,
+                lang     TEXT NOT NULL,
                 headword TEXT NOT NULL,
                 norm     TEXT NOT NULL,
                 fuzzy    TEXT NOT NULL,
@@ -256,12 +318,18 @@ class PackBuilder:
             # Sin ninguna acepcion utilizable la entrada no tiene nada que mostrar.
             return
 
-        fuzzy_key = normalize.fuzzy(record.headword, self.fuzzy_profile)
+        # El idioma de ESTA entrada decide su perfil fuzzy y entra en su uid. Un `Record` que no
+        # lo declara es del idioma primario, que es el caso de todo pack monolingue.
+        lang = record.lang or self.langs[0]
+        if lang not in self.fuzzy_profiles:
+            raise ValueError(
+                "el record declara lang=%r, que no esta en meta.langs=%r" % (lang, self.langs))
+        fuzzy_key = normalize.fuzzy(record.headword, self.fuzzy_profiles[lang])
         fts_body = _fts_body(record.senses)
 
         cursor = self.connection.execute(
-            "INSERT INTO staging (uid, headword, norm, fuzzy, pos, rank, body, fts_body)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO staging (uid, lang, headword, norm, fuzzy, pos, rank, body, fts_body)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 # ⚠️ **Un `uid` ya calculado se COPIA, no se recalcula**, y eso sólo lo usa
                 # `build_core`. Derivar un pack de otro tiene que conservar la identidad logica:
@@ -269,11 +337,12 @@ class PackBuilder:
                 # subconjunto tiene menos homografos, asi que recalcularlo le daria otra
                 # identidad a la misma palabra y rompería el join entre packs (D-055).
                 record.uid if record.uid is not None else stable_uid(
-                    self.metadata["lang_src"],
+                    lang,
                     record.headword,
                     record.part_of_speech,
                     record.sense_key,
                 ),
+                lang,
                 record.headword,
                 norm_key,
                 fuzzy_key,
@@ -442,11 +511,11 @@ class PackBuilder:
         read = self.connection.cursor()
         write = self.connection.cursor()
         read.execute(
-            "SELECT id, uid, headword, norm, fuzzy, pos, rank, body, fts_body"
+            "SELECT id, uid, lang, headword, norm, fuzzy, pos, rank, body, fts_body"
             " FROM staging ORDER BY id"
         )
         for row in read:
-            entry_id, uid, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
+            entry_id, uid, lang, headword, norm_key, fuzzy_key, pos, rank, body, fts_body = row
             body, fts_body = self._sumar_tesauro(entry_id, headword, pos, body, fts_body)
             frase = frases.get(entry_id)
             if frase and _admite_frase_de_corpus(body):
@@ -460,11 +529,12 @@ class PackBuilder:
                 # del que se muestra. Los ejemplos ya entraban (D-118).
                 fts_body = (fts_body + " " + frase).strip()
             write.execute(
-                "INSERT INTO entry (id, uid, headword, norm, fuzzy, pos, rank, payload)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO entry (id, uid, lang, headword, norm, fuzzy, pos, rank, payload)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry_id,
                     uid,
+                    lang,
                     headword,
                     norm_key,
                     fuzzy_key,
@@ -545,6 +615,12 @@ class PackBuilder:
             {
                 "schema_version": str(SCHEMA_VERSION),
                 "norm_version": str(normalize.NORM_VERSION),
+                # ⚠️ **`fuzzy_profiles` en plural y posicional contra `langs`.** El singular se
+                # sigue escribiendo --es el del idioma primario-- porque `verify_pack.py` y los
+                # packs de un solo idioma lo leen, y porque un lector viejo que solo entienda el
+                # singular falla ya en `schema_version`, no aca.
+                "fuzzy_profiles": _SEPARADOR_DE_LISTA.join(
+                    self.fuzzy_profiles[lang] for lang in self.langs),
                 "fuzzy_profile": self.fuzzy_profile,
                 "payload_codec": payload_codec.CODEC_ID,
                 # El diccionario de compresion va en hex: la tabla meta es TEXT, y un BLOB
@@ -555,6 +631,15 @@ class PackBuilder:
                 # Con que receta se calculo entry.uid: un pack auxiliar construido con otra
                 # apunta a entradas equivocadas, y sin esto no habria como notarlo.
                 "uid_recipe": UID_RECIPE,
+                # ⚠️ **`full` salvo que quien construya diga otra cosa**, y por eso el default
+                # vive aca y no en cada llamador. Lo escribe `build_core.py` como `core`.
+                #
+                # Existe porque hoy un nucleo se hace a un lado por `subset_of`, que un pack
+                # ajeno puede declarar mal o no declarar; `tier` dice **que es** el pack, igual
+                # que `pack_id` dice quien es (D-138). El roadmap ya lo recomendaba sobre
+                # inferirlo de que el nombre termine en `-core`, que es adivinar del nombre lo
+                # que D-138 decidio que se declara.
+                "tier": values.get("tier", "full"),
                 "entry_count": str(self.count),
                 "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "data_version": data_version(),

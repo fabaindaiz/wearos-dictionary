@@ -6,6 +6,8 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackTier
+import cl.fadiaz.dictionary.core.fuzzyProfileFor
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.RankBasis
 import cl.fadiaz.dictionary.core.PackSource
@@ -40,7 +42,7 @@ class PackFile private constructor(
 
     companion object {
         /** Version de esquema que esta app entiende. Otra distinta se rechaza. */
-        const val SUPPORTED_SCHEMA_VERSION: Int = 3
+        const val SUPPORTED_SCHEMA_VERSION: Int = 4
 
         /**
          * Abre y valida un pack.
@@ -155,9 +157,13 @@ class PackFile private constructor(
             val total = metadata.entryCount
             if (total <= 0) return
             val step = maxOf(1, total / KEY_SAMPLE_SIZE)
-            val profile = metadata.fuzzyProfile
+            // ⚠️ **El perfil sale de la FILA y no del pack**, porque en un pack bidireccional
+            // las entradas inglesas se pliegan con el perfil ingles y las españolas con el
+            // español. Comprobar las dos con un solo perfil daria falsos positivos justo en la
+            // mitad del pack -- y esta comprobacion existe para rechazar packs incompatibles,
+            // asi que un falso positivo deja al usuario sin diccionario.
             connection.prepare(
-                "SELECT headword, norm, fuzzy FROM entry WHERE id = ?",
+                "SELECT headword, norm, fuzzy, lang FROM entry WHERE id = ?",
             ).use { statement ->
                 var id = 1L
                 while (id <= total) {
@@ -178,7 +184,8 @@ class PackFile private constructor(
                         // tolerante a proposito, y `verify_pack.py` las cuenta sin alarmarse.
                         if (!statement.isNull(2)) {
                             val storedFuzzy = statement.getText(2)
-                            val expectedFuzzy = TextNormalizer.fuzzy(headword, profile)
+                            val expectedFuzzy = TextNormalizer.fuzzy(
+                                headword, metadata.fuzzyProfileFor(statement.getText(3)))
                             if (storedFuzzy != expectedFuzzy) {
                                 throw IncompatibleException(
                                     "entry.fuzzy no coincide con fuzzy() en '$headword': el pack " +
@@ -211,15 +218,25 @@ class PackFile private constructor(
             // `meta[...]` y no `getValue`: un pack construido antes de D-125 no la trae y
             // tiene que seguir abriendo.
             description = meta["description"],
-            langSource = meta.getValue("lang_src"),
-            langTarget = meta["lang_dst"],
+            // ⚠️ **`langs` y no `lang_src`: los idiomas son PARES.** Un pack bidireccional
+            // tiene entradas de los dos y ninguno es el principal.
+            langs = parseList(meta.getValue("langs")),
+            fuzzyProfiles = parseList(meta.getValue("fuzzy_profiles"))
+                .map { FuzzyProfile.fromId(it) },
+            tier = PackTier.fromId(meta["tier"]),
+            // `toIntOrNull` y no `toInt`: un pack que declare cualquier cosa degrada a "sin
+            // banda", que es como se comportaban todos antes de D-185.
+            rankSignalBoundary = meta["rank_signal_boundary"]?.toIntOrNull(),
             // `meta[...]`: la trae sólo un pack que declare traducciones.
             // ⚠️ **Con respaldo a `lang_dst` para un pack BILINGUE anterior a la clave.** Un
             // bilingue traduce por definicion --sus glosas ya estan en el idioma destino-- asi
             // que inferirlo es seguro, y sin esto un pack construido antes de D-183 dejaria de
             // ofrecerse para traducir aunque sea exactamente lo que hace.
+            // ⚠️ El respaldo ahora sale del SEGUNDO idioma declarado, que es lo que antes
+            // decia `lang_dst`. Un bilingue traduce por definicion, asi que inferirlo es seguro.
             translationsTo = meta["translations_to"]
-                ?: meta["lang_dst"]?.takeIf { meta["kind"] == PackKind.BILINGUAL.id },
+                ?: parseList(meta["langs"]).getOrNull(1)
+                    ?.takeIf { meta["kind"] == PackKind.BILINGUAL.id },
             // `fromId` no lanza ante un id desconocido: un pack mas nuevo puede
             // traer una base que esta version no sabe leer, y eso degrada bien.
             rankBasis = RankBasis.fromId(meta["rank_basis"]),
@@ -227,7 +244,6 @@ class PackFile private constructor(
             // migraciones (D-001) pero eso aplica a `schema_version`; una clave nueva y aditiva
             // es justo lo que la tolerancia existe para soportar.
             subsetOf = meta["subset_of"],
-            fuzzyProfile = FuzzyProfile.fromId(meta["fuzzy_profile"]),
             entryCount = meta.getValue("entry_count").toInt(),
             dataVersion = meta.getValue("data_version").toLong(),
             license = meta.getValue("license"),
@@ -236,6 +252,10 @@ class PackFile private constructor(
             // seguir abriendo. `parse` nunca lanza.
             sources = PackSource.parse(meta["sources"]),
         )
+
+        /** `"es,en"` -> `["es", "en"]`. Vacios y espacios fuera; el orden se conserva. */
+        private fun parseList(crudo: String?): List<String> =
+            crudo.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
         private fun hexToBytes(hex: String): ByteArray =
             ByteArray(hex.length / 2) { index ->

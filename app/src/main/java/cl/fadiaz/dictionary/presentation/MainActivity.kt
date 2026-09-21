@@ -193,7 +193,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         state = state,
                         onQueryChange = viewModel::onQueryChange,
                         onTypingChanged = viewModel::onTypingChanged,
-                        onPackChange = viewModel::onPackChange,
+                        onLanguageChange = viewModel::onLanguageChange,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
                         // The packId travels with the entry: without it, with two packs open it
                         // would be resolved against the active one and would show another word.
@@ -286,7 +286,6 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // traduccion se llega a una ficha de otro idioma, y es justo ahi donde
                         // la etiqueta tiene que decir la verdad. Del mismo mapa que etiqueta las
                         // filas, para que las dos pantallas no puedan discrepar.
-                        languageTag = resultTags(state.available)[packId],
                         resolveIn = { norms ->
                             // Primero este pack; lo que no resuelva acá se busca en el idioma
                             // que el pack declara como destino de sus traducciones. El orden
@@ -369,7 +368,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onDelete = viewModel::toggleFavorite,
                         // Las mismas etiquetas que los resultados (D-152): una
                         // guardada y un resultado son la misma palabra.
-                        tags = resultTags(state.available),
+                        tags = historyTags(state.available),
                         // Same reason as the history: the stored id may belong to an earlier
                         // pack. See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
@@ -395,7 +394,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         words = state.history,
                         title = R.string.home_recent,
                         empty = R.string.history_empty,
-                        tags = resultTags(state.available),
+                        tags = historyTags(state.available),
                         // Mismo motivo que en el inicio: el id guardado puede ser de un pack
                         // anterior. Ver `SearchViewModel.targetOf`.
                         onOpen = { visit ->

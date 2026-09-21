@@ -37,7 +37,7 @@ REQUIRED_META = (
     "entry_count",
     "fuzzy_profile",
     "kind",
-    "lang_src",
+    "langs",
     "license",
     "name",
     "norm_version",
@@ -146,8 +146,43 @@ def verify(path):
         meta.get("fuzzy_profile") in normalize.FUZZY_PROFILES,
         "fuzzy_profile es un perfil conocido (%s)" % meta.get("fuzzy_profile"),
     )
+    declarados = [x.strip() for x in meta.get("langs", "").split(",") if x.strip()]
+    perfiles = [x.strip() for x in meta.get("fuzzy_profiles", "").split(",") if x.strip()]
+    report.check(
+        len(perfiles) == len(declarados) and all(p in normalize.FUZZY_PROFILES for p in perfiles),
+        "meta.fuzzy_profiles trae un perfil conocido por cada idioma (%r para %r)"
+        % (perfiles, declarados),
+    )
+    report.check(
+        meta.get("tier") in ("core", "full"),
+        "meta.tier declara que clase de pack es (%r)" % meta.get("tier"),
+    )
+    # ⚠️ **Ningun `entry.lang` puede quedar fuera de lo declarado.** Es la invariante que hace
+    # util la columna: la app filtra por idioma con ella, asi que una entrada con un idioma que
+    # el pack no declara **no aparece nunca** -- sin error, sin log, y con el pack pasando todo
+    # lo demas. Es la misma clase de falla que `norm()`.
+    usados = {row[0] for row in db.execute("SELECT DISTINCT lang FROM entry")}
+    report.check(
+        usados <= set(declarados),
+        "todo entry.lang esta en meta.langs (usa %r, declara %r)"
+        % (sorted(usados), declarados),
+    )
     if meta.get("kind") == "bilingual":
-        report.check(meta.get("lang_dst"), "un pack bilingue declara lang_dst")
+        # ⚠️ Un pack bilingue declara DOS idiomas en `meta.langs`, como pares. Ya no hay
+        # `lang_dst`: no hay un idioma principal y otro destino, hay dos.
+        report.check(
+            len(declarados) == 2,
+            "un pack bilingue declara sus DOS idiomas en meta.langs (%r)" % declarados,
+        )
+        # ⚠️ **Y tiene entradas de los dos, que es lo que lo vuelve bidireccional POR
+        # CONSTRUCCION.** Sin esto un pack puede declararse bilingue con el otro idioma vacio,
+        # que es exactamente lo que era antes: `dog` encontraba `perro` por `trans` pero `dog`
+        # no era un lema, y nada en el artefacto lo decia.
+        report.check(
+            usados == set(declarados),
+            "un pack bilingue tiene ENTRADAS de sus dos idiomas (tiene %r de %r)"
+            % (sorted(usados), declarados),
+        )
 
     print("\n[estructura]")
     indexes = {row["name"] for row in db.execute(
@@ -277,12 +312,18 @@ def verify(path):
     # La comprobacion mas importante del archivo. Si el pack se construyo con otra version de
     # normalize.py, las claves guardadas no son las que la app va a calcular y simplemente
     # faltarian palabras, sin ningun error.
-    profile = meta.get("fuzzy_profile", "generic")
+    # Un perfil por idioma: en un pack bidireccional las entradas inglesas se pliegan con el
+    # perfil ingles y las españolas con el español, en el mismo archivo.
+    por_idioma = dict(zip(
+        [x.strip() for x in meta.get("langs", "").split(",") if x.strip()],
+        [x.strip() for x in meta.get("fuzzy_profiles", "").split(",") if x.strip()],
+    ))
     mismatched_norm = 0
     mismatched_fuzzy = 0
-    for row in db.execute("SELECT headword, norm, fuzzy FROM entry"):
+    for row in db.execute("SELECT headword, norm, fuzzy, lang FROM entry"):
         if normalize.norm(row["headword"]) != row["norm"]:
             mismatched_norm += 1
+        profile = por_idioma.get(row["lang"], "generic")
         if normalize.fuzzy(row["headword"], profile) != row["fuzzy"]:
             mismatched_fuzzy += 1
     report.check(mismatched_norm == 0, "entry.norm == norm(headword) en todas las filas")
@@ -306,7 +347,7 @@ def verify(path):
     # Se recalcula la receta solo donde se puede: el sense_key que desambigua homografos no se
     # guarda en el pack, asi que las entradas que comparten (headword, pos) se saltean. En un
     # pack real son una minoria y el resto queda cubierto.
-    lang = meta.get("lang_src", "")
+    lang = meta.get("langs", "").split(",")[0].strip()
     ambiguous = {
         row[0]
         for row in db.execute(
@@ -316,11 +357,14 @@ def verify(path):
     }
     mismatched_uid = 0
     checked_uid = 0
-    for row in db.execute("SELECT headword, pos, uid FROM entry"):
+    # ⚠️ **Con `entry.lang` y no con el idioma del pack.** En un pack bidireccional `casa` y
+    # `house` viven en el mismo archivo y su uid lleva idiomas distintos -- que es justo lo que
+    # hace que no puedan colisionar entre packs (D-055).
+    for row in db.execute("SELECT headword, pos, uid, lang FROM entry"):
         if (row["headword"] + "\x1f" + (row["pos"] or "")) in ambiguous:
             continue
         checked_uid += 1
-        if build.stable_uid(lang, row["headword"], row["pos"]) != row["uid"]:
+        if build.stable_uid(row["lang"], row["headword"], row["pos"]) != row["uid"]:
             mismatched_uid += 1
     report.check(
         mismatched_uid == 0,
@@ -344,9 +388,16 @@ def verify(path):
     ):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
-            _pos, senses, _palabra = payload_codec.parse(text)
-            if not senses:
-                report.check(False, "la entrada %s quedo sin acepciones" % row["headword"])
+            _pos, senses, palabra = payload_codec.parse(text)
+            # ⚠️ **Sin acepciones se acepta SOLO si trae traducciones de palabra**, y esa
+            # excepcion es el lado inverso de un pack bidireccional: `dog` contesta *«como se
+            # dice»* --`perro`, `can`-- y no *«que significa»*, que es trabajo del pack
+            # monolingue ingles. Lo que sigue prohibido es una entrada VACIA: ocupa una fila,
+            # aparece en la lista y al abrirla no hay nada.
+            if not senses and not palabra:
+                report.check(
+                    False,
+                    "la entrada %s no tiene ni acepciones ni traducciones" % row["headword"])
             # ⚠️ **Toda acepcion tiene que ser alcanzable por `(idioma, palabra, acepcion)`.**
             # El codigo sale de `(uid, glosa)`, asi que dos acepciones de la misma entrada con la
             # glosa identica comparten codigo y una queda **inalcanzable** -- un enlace escrito

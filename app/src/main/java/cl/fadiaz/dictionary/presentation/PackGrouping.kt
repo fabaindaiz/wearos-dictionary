@@ -21,7 +21,14 @@ import cl.fadiaz.dictionary.data.PackHandle
  */
 internal data class LanguageChip(
     val label: String,
-    val packId: String,
+    /**
+     * El idioma, no el pack.
+     *
+     * ⚠️ **Antes llevaba un `packId` y con packs bidireccionales eso dejo de alcanzar**: uno
+     * solo habla dos idiomas, asi que elegirlo no dice en cual se busca. Es lo que D-147 ya
+     * empujaba --*«un chip por idioma, no por archivo»*-- llevado hasta el final.
+     */
+    val lang: String,
     val active: Boolean,
 )
 
@@ -41,17 +48,28 @@ internal data class LanguageChip(
  * directorio y no promete orden: si los chips lo siguieran, cambiarían de lugar entre arranques y
  * un control que se mueve solo se toca por error. Mismo criterio que el desempate de D-136.
  */
-internal fun languageChips(packs: List<PackHandle>, activo: String?): List<LanguageChip> {
-    val activoLang = packs.filterIsInstance<PackHandle.Open>()
-        .firstOrNull { it.packId == activo }?.metadata?.langSource
-    return representativePacks(packs, activo).map { representante ->
-        LanguageChip(
-            label = representante.metadata.langSource.uppercase(),
-            packId = representante.packId,
-            active = representante.metadata.langSource == activoLang,
-        )
+internal fun languageChips(packs: List<PackHandle>, activoLang: String?): List<LanguageChip> =
+    idiomasDisponibles(packs).map { lang ->
+        LanguageChip(label = lang.uppercase(), lang = lang, active = lang == activoLang)
     }
-}
+
+/**
+ * Los idiomas que se pueden buscar, ordenados por codigo.
+ *
+ * ⚠️ **Un pack aporta UNO POR CADA idioma que declara**, y eso es lo que hace que un bilingue
+ * de dos chips: tiene entradas de los dos --`casa` y `house` en el mismo archivo-- asi que
+ * elegir `EN` filtra a sus lemas ingleses sin abrir ningun otro pack. Pedido: *«que todas las
+ * tareas y consultas se puedan hacer usando solo ese pack»*.
+ *
+ * ⚠️ **El orden es por codigo y no el de `packs`**, que sale de listar un directorio y no
+ * promete orden: si los chips lo siguieran cambiarian de lugar entre arranques, y un control
+ * que se mueve solo se toca por error.
+ */
+internal fun idiomasDisponibles(packs: List<PackHandle>): List<String> =
+    packs.filterIsInstance<PackHandle.Open>()
+        .flatMap { it.metadata.langs }
+        .distinct()
+        .sorted()
 
 /**
  * **Un pack por idioma**: el que lo representa. Ordenados por codigo de idioma.
@@ -69,15 +87,18 @@ internal fun languageChips(packs: List<PackHandle>, activo: String?): List<Langu
  * ⚠️ **El orden es por codigo de idioma y no el de `packs`**, que sale de listar un directorio y
  * no promete orden. Mismo criterio que el desempate de D-136.
  */
-internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> =
-    packs.filterIsInstance<PackHandle.Open>()
-        .groupBy { it.metadata.langSource }
-        .toSortedMap()
-        .map { (_lang, delIdioma) ->
-            delIdioma.firstOrNull { it.packId == activo }
-                ?: delIdioma.maxByOrNull { it.metadata.entryCount }
-                ?: delIdioma.first()
-        }
+internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> {
+    val abiertos = packs.filterIsInstance<PackHandle.Open>()
+    // ⚠️ **Se agrupa por CADA idioma que el pack declara, no por uno solo.** Un bilingue entra en
+    // los dos grupos, asi que puede representar al ingles aunque tambien hable español -- que es
+    // lo que hace falta cuando es el unico pack instalado.
+    return idiomasDisponibles(packs).mapNotNull { lang ->
+        val delIdioma = abiertos.filter { lang in it.metadata.langs }
+        delIdioma.firstOrNull { it.packId == activo }
+            ?: delIdioma.maxByOrNull { it.metadata.entryCount }
+            ?: delIdioma.firstOrNull()
+    }.distinctBy { it.packId }
+}
 
 /**
  * Que etiqueta lleva cada resultado: **el idioma, y nada mas**.
@@ -96,6 +117,26 @@ internal fun representativePacks(packs: List<PackHandle>, activo: String?): List
  * todas las filas de una consulta comparten etiqueta; se deja igual porque la ficha la muestra
  * tambien, y porque el modo auto futuro vuelve a mezclar idiomas sin tocar esto.
  */
-internal fun resultTags(packs: List<PackHandle>): Map<String, String> =
+internal fun resultTag(lang: String?): String? = lang?.uppercase()
+
+/**
+ * La etiqueta de una fila del HISTORIAL o de las guardadas, por `packId`.
+ *
+ * ⚠️ **Es un mecanismo distinto del de los resultados, y la diferencia es real.** Una fila de
+ * resultados no puede ser de otro idioma: la busqueda filtra por el activo, entre packs (D-189)
+ * y dentro de un pack bidireccional. Una fila del historial **si**: se guardo cuando habia otro
+ * diccionario instalado, o con otro idioma elegido. Etiquetarla con el idioma activo seria
+ * afirmar una procedencia que nadie comprobo -- la misma familia de falla que D-080.
+ *
+ * ⚠️ **Y un pack bidireccional no recibe etiqueta**, porque no hay una sola verdadera: `casa` y
+ * `house` viven en el mismo archivo y `Visit` no guarda el idioma. Se prefiere **sin etiqueta**
+ * antes que con la equivocada, que es la misma regla con la que se pintan los enlaces de una
+ * glosa. Guardar el idioma en `Visit` lo arreglaria; no se hizo porque cambia lo que hay escrito
+ * en las preferencias y eso merece su propia decision.
+ */
+internal fun historyTags(packs: List<PackHandle>): Map<String, String> =
     packs.filterIsInstance<PackHandle.Open>()
-        .associate { handle -> handle.packId to handle.metadata.langSource.uppercase() }
+        .mapNotNull { handle ->
+            handle.metadata.langs.singleOrNull()?.let { handle.packId to it.uppercase() }
+        }
+        .toMap()

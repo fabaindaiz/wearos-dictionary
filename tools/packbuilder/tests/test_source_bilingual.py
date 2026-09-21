@@ -172,3 +172,98 @@ class CanalDeLecturaTest(unittest.TestCase):
         """Todo termino viene de una acepcion concreta, asi que `W` queda vacio por construccion."""
         record = _bilingue("casa", [{"glosses": ["house"], "sense_index": "1"}])
         self.assertEqual((), record.word_translations)
+
+
+def _todos_con_flexiones(entradas, flexiones):
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
+    with handle:
+        for e in entradas:
+            handle.write(json.dumps(e, ensure_ascii=False) + "\n")
+    try:
+        return list(bilingual.records(handle.name, lang="es", lang_dst="en",
+                                      flexiones=flexiones))
+    finally:
+        os.unlink(handle.name)
+
+
+def _todos(entradas):
+    """Todos los registros de un JSONL bilingue, en orden."""
+    handle = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
+    with handle:
+        for e in entradas:
+            handle.write(json.dumps(e, ensure_ascii=False) + "\n")
+    try:
+        return list(bilingual.records(handle.name, lang="es", lang_dst="en"))
+    finally:
+        os.unlink(handle.name)
+
+
+class LadoInversoTest(unittest.TestCase):
+    """Las entradas del OTRO idioma, que hacen el pack bidireccional por construccion.
+
+    ⚠️ **Hasta aca el pack era bidireccional para BUSCAR y no para LEER.** Las palabras inglesas
+    vivian solo en `trans` --un indice de `norm` a entrada española--, asi que `dog` encontraba
+    `perro` pero `dog` no era un lema: no habia ficha que abrir ni forma de saber que el pack lo
+    conocia. Pedido: *«redefinir las traducciones como bidireccionales por construccion y que
+    declares a la par ambos idiomas»*.
+
+    ⚠️ **Se DERIVAN del propio volcado que ya se leyo, no de una fuente nueva**, que es el mismo
+    razonamiento de D-175 para el nucleo: derivar hace la afirmacion cierta por construccion. Si
+    `dog` lleva a `perro`, es porque la glosa de `perro` decia `dog` -- no porque dos fuentes
+    coincidieran.
+    """
+
+    def test_una_palabra_inglesa_se_vuelve_ENTRADA_con_su_idioma(self):
+        registros = _todos([{
+            "word": "perro", "pos": "noun", "lang_code": "es", "lang": "Spanish",
+            "pos_title": "Noun", "senses": [{"glosses": ["dog"]}],
+        }])
+        por_lema = {r.headword: r for r in registros}
+        self.assertIn("perro", por_lema)
+        self.assertIn("dog", por_lema, "la palabra inglesa tiene que ser un lema")
+        self.assertEqual("es", por_lema["perro"].lang)
+        self.assertEqual("en", por_lema["dog"].lang)
+
+    def test_la_entrada_inglesa_lleva_sus_equivalentes_españoles(self):
+        registros = _todos([
+            {"word": "perro", "pos": "noun", "lang_code": "es", "lang": "Spanish",
+             "pos_title": "Noun", "senses": [{"glosses": ["dog"]}]},
+            {"word": "can", "pos": "noun", "lang_code": "es", "lang": "Spanish",
+             "pos_title": "Noun", "senses": [{"glosses": ["dog"]}]},
+        ])
+        dog = next(r for r in registros if r.headword == "dog")
+        self.assertEqual({"perro", "can"}, set(dog.word_translations))
+
+    def test_el_lado_inverso_NO_llena_trans(self):
+        # ⚠️ Seria una segunda copia del mismo indice: buscar "dog" ya funciona por `entry.norm`.
+        # Medido sobre el pack real, `trans` pesaba 474.849 filas y 13,3 MiB.
+        registros = _todos([{
+            "word": "perro", "pos": "noun", "lang_code": "es", "lang": "Spanish",
+            "pos_title": "Noun", "senses": [{"glosses": ["dog"]}],
+        }])
+        for r in registros:
+            self.assertEqual((), tuple(r.translations),
+                             "en un pack bidireccional `trans` sobra: %r" % r.headword)
+
+    def test_la_entrada_inglesa_recibe_SUS_FLEXIONES(self):
+        # ⚠️ **La regresion que esto cierra la encontro una medicion, no un test.** Al volver
+        # entradas las palabras inglesas y vaciar `trans`, la cobertura de la direccion inversa
+        # cayo de **98,4 % a 89,8 %** en las 1.000 palabras inglesas mas frecuentes.
+        #
+        # La causa: `trans` estaba TOKENIZADA (D-014), y `--flexiones` metia ahi las flexiones
+        # inglesas -- `got`, `been`, `were`, `could`-- que asi llegaban al lema español. Con
+        # `trans` vacia esa ruta desaparecio, y las respuestas que se perdian eran **correctas**:
+        # `been -> ser, estar, tener`, `could -> poder`.
+        #
+        # El lugar correcto en el modelo nuevo es `form` de la entrada INGLESA: `got` es una
+        # flexion de `get`, y `get` ahora es un lema. Queda simetrico con el lado español, que
+        # es justo lo que el pack bidireccional afirma.
+        registros = _todos_con_flexiones(
+            [{"word": "conseguir", "pos": "verb", "lang_code": "es", "lang": "Spanish",
+              "pos_title": "Verb", "senses": [{"glosses": ["to get"]}]}],
+            {"get": ("got", "gets", "getting")},
+        )
+        get = next(r for r in registros if r.headword == "get")
+        self.assertEqual({"got", "gets", "getting"}, set(get.forms))

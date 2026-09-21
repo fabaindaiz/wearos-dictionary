@@ -55,16 +55,15 @@ class FakeDictionary(
         name = "Diccionario $packId",
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,
-        langSource = lang,
-        langTarget = null,
-        fuzzyProfile = FuzzyProfile.SPANISH,
+        langs = listOf(lang),
+        fuzzyProfiles = listOf(FuzzyProfile.SPANISH),
         entryCount = entryCount,
         dataVersion = 1,
         license = "CC0-1.0",
         attribution = "sin atribucion: es un fake",
     )
 
-    override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
+    override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {
         queries += query
         var termino = false
         try {
@@ -110,7 +109,7 @@ class FakeDictionary(
     /** Which sets it was asked to resolve. Useful for counting queries, not just results. */
     val resueltas = mutableListOf<Set<String>>()
 
-    override suspend fun searchDefinitions(query: String, limit: Int): List<Suggestion> {
+    override suspend fun searchDefinitions(query: String, limit: Int, lang: String?): List<Suggestion> {
         definitionMode += query
         if (demora > 0) delay(demora)
         return listOf(

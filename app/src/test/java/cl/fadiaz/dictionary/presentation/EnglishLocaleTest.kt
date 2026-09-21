@@ -44,8 +44,8 @@ class EnglishLocaleTest {
 
     private fun meta() = PackMetadata(
         packId = "es-def-wikc", schemaVersion = 3, normVersion = 1, kind = PackKind.MONOLINGUAL,
-        name = "Español", description = null, langSource = "es", langTarget = null,
-        fuzzyProfile = FuzzyProfile.SPANISH, entryCount = 1, dataVersion = 1,
+        name = "Español", description = null, langs = listOf("es"),
+        fuzzyProfiles = listOf(FuzzyProfile.SPANISH), entryCount = 1, dataVersion = 1,
         license = "CC-BY-SA-4.0", attribution = "Wikcionario",
     )
 

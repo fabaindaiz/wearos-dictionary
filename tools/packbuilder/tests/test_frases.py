@@ -26,7 +26,7 @@ META = {
     "pack_id": "test-frases",
     "kind": "monolingual",
     "name": "Test",
-    "lang_src": "es",
+    "langs": "es",
     "fuzzy_profile": "es",
     "source_date": "20260101",
     "license": "CC0-1.0",
