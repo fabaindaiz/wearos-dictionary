@@ -1,118 +1,140 @@
 # tools
 
-Dos áreas de Python, **sin dependencias de terceros** (solo stdlib). Esa propiedad es
-deliberada y se conserva: `dependencies = []` en `pyproject.toml`.
+Two areas of Python, **with no third-party dependencies** (stdlib only). That property is
+deliberate and is kept: `dependencies = []` in `pyproject.toml`.
 
-- `packbuilder/` — construye los packs `.db` a partir de fuentes lexicográficas.
-- `unicode/` — genera el repertorio Unicode fijado que comparten el builder y la app.
+- `packbuilder/` — builds the `.db` packs from lexicographic sources.
+- `unicode/` — generates the pinned Unicode repertoire shared by the builder and the app.
 
-Y cuatro scripts sueltos en la raíz: `audit_dictionary.py` (la auditoría estructural, que sí corre
-en el gate), `devpack.py` (sideload por adb), `avd_como_el_reloj.py` (el emulador con la geometría
-del reloj, D-150) y `measure_query_cost.py`.
+Plus five loose scripts at the root: `audit_dictionary.py` (the structural audit, which *does*
+run in the gate), `devpack.py` (sideloading over adb), `avd_como_el_reloj.py` (the emulator with
+the watch's geometry, D-150) and `measure_query_cost.py`.
 
-`measure_query_cost.py` **no mide batería, mide el trabajo que la batería paga**: cuántos peldaños
-de la cascada corren, cuántas filas tocan y cuánto SQL cuesta, sobre un pack real. Es una
-**réplica** del SQL de `SqlitePackSource` con sus constantes copiadas, así que si allá cambian y
-acá no, miente en silencio — lo dice en su propio docstring. Ver `docs/bateria.md`.
+`measure_query_cost.py` **does not measure battery — it measures the work the battery pays for**:
+how many rungs of the cascade run, how many rows they touch, and how much the SQL costs, over a
+real pack. It is a **replica** of `SqlitePackSource`'s SQL with its constants copied, so if those
+change and this does not, it lies quietly — it says so in its own docstring. See `docs/bateria.md`.
 
-## El entorno
+## The environment
 
-Hatch, configurado en `pyproject.toml` en la raíz. No hace falta para correr el gate —
-`./gradlew check` usa `python3` a secas, para que un clone limpio funcione sin instalar nada.
-Hatch es la capa de desarrollo.
+Hatch, configured in the root `pyproject.toml`. The gate does not need it — `./gradlew check` runs
+plain `python3`, so a clean clone works without installing anything. Hatch is the development
+layer.
 
 ```sh
-hatch run test             # los 272 tests
-hatch run audit            # la auditoría estructural
-hatch run all              # ambos
-hatch run matrix:test      # LOS TESTS BAJO TODAS LAS VERSIONES DE PYTHON
-hatch run lint:check       # ruff (lint + formato)
-hatch run lint:fix         # arregla lo que se pueda solo
-hatch run build-toy        # regenera el pack de juguete
-hatch run verify <pack.db> # invariantes de un pack real
-hatch run gen-repertoire   # regenera el repertorio (solo corre bajo Python 3.9)
-hatch run push <pack.db>   # instala un pack en el reloj por adb
-hatch run packs            # que packs hay instalados
+hatch run test              # the 272 tests
+hatch run audit             # the structural audit
+hatch run all               # both
+hatch run matrix:test       # THE TESTS UNDER EVERY PYTHON VERSION
+hatch run lint:check        # ruff, defects only
+hatch run lint:fix          # fixes what it can on its own
+hatch run format-check      # the formatter, kept separate on purpose (see below)
+hatch run build-toy         # regenerates the toy pack
+hatch run verify <pack.db>  # invariants of a real pack
+hatch run gen-repertoire    # regenerates the repertoire (only runs under Python 3.9)
+hatch run push <pack.db>    # installs a pack on the watch over adb
+hatch run packs             # which packs are installed
 ```
 
-## `devpack.py` no es el instalador
+⚠️ **`check` is the linter and not the formatter, and that split is measured.** They used to run
+together and the result was that neither ran: `ruff format --check` reports **2,359 lines across 28
+of 36 files**, because this repo's Python was written by hand in another style and the formatter
+never ran. With that much noise the 26 real findings the linter did have — unused variables,
+ambiguous names — were invisible. So `check` looks for **defects** and has to be zero; adopting the
+formatter is a separate act with its own commit (D-160).
 
-`tools/devpack.py` es la capa de desarrollo del sideload, igual que Hatch es la capa de
-desarrollo del gate: mete un `.db` en `filesDir/packs/` por adb y nada más. No descarga, no
-conoce catálogos y no sabe de D-029. El instalador de verdad está bloqueado en una decisión de
-producto —dónde se hostea el catálogo— y cuando exista escribirá en el mismo directorio.
+## `devpack.py` is not the installer
 
-Lo que resuelve, y por lo que no es un `adb push`: la copia es **atómica** (`.part` + `mv`, la
-misma convención que usa `PackStore.instalarAtomico`) y se comprueba con **sha256 de los dos
-lados** antes de renombrar. Un `.db` copiado a medias se abre sin error y devuelve menos palabras
-de las que tiene. Ver D-082.
+`tools/devpack.py` is the development layer of sideloading, the same way Hatch is the development
+layer of the gate: it puts a `.db` into `filesDir/packs/` over adb and nothing else. It does not
+download, it knows no catalogue, and it knows nothing about D-029. The real installer is blocked on
+a product decision — where the catalogue is hosted — and when it exists it will write into that same
+directory.
 
-Vive en `tools/` y no en `packbuilder/` porque no construye ni valida packs: habla con el
-dispositivo. Su lógica pura —armar el plan de comandos, elegir dispositivo, comparar hashes—
-entra al gate por `:tools:pythonTest`; ejecutar adb necesita un reloj y **no entra**.
+What it solves, and why it is not an `adb push`: the copy is **atomic** (`.part` + `mv`, the same
+convention `PackStore.installAtomically` uses) and it is checked with **sha256 on both sides**
+before renaming. A half-copied `.db` opens without error and returns fewer words than it holds. See
+D-082.
 
-## Por qué la matriz de versiones es lo que más importa
+It lives in `tools/` and not in `packbuilder/` because it neither builds nor validates packs: it
+talks to the device. Its pure logic — assembling the command plan, picking a device, comparing
+hashes — enters the gate through `:tools:pythonTest`; running adb needs a watch and **does not**.
 
-El builder escribe claves que el reloj vuelve a calcular. Que se comporte igual en todo Python
-no es comodidad: es el invariante central.
+## Why the version matrix matters most
 
-**Medido el 2026-09-17:** los tests pasan idénticos bajo Python 3.9 (Unicode 13.0) y 3.14
-(Unicode 16.0), incluido `ab\u0870cd` → `ab cd`, que es el caso exacto que divergía antes de
-fijar el repertorio. El builder es independiente de la versión de Python.
+The builder writes keys that the watch recomputes. That it behaves identically across every Python
+is not a convenience: it is the central invariant.
 
-La única excepción es `gen_repertoire.py`, que **exige Python 3.9.x** porque necesita
-exactamente Unicode 13.0.0. El guardián está verificado: bajo 3.14 se niega con exit 1.
+**Measured 2026-09-17:** the tests pass identically under Python 3.9 (Unicode 13.0) and 3.14
+(Unicode 16.0), including `abࡰcd` → `ab cd`, which is the exact case that diverged before the
+repertoire was pinned. The builder is independent of the Python version.
 
-## El archivo a copiar
+The one exception is `gen_repertoire.py`, which **requires Python 3.9.x** because it needs exactly
+Unicode 13.0.0. The guard is verified: under 3.14 it refuses with exit 1.
 
-Un módulo: `payload.py` — docstring que explica la decisión y su alternativa descartada,
-funciones cortas, cero estado global.
+## The file to copy
 
-Un test: `tests/test_build.py` — construye packs de verdad en un directorio temporal y los
-inspecciona con SQL. No mockea SQLite.
+One module: `payload.py` — a docstring that explains the decision and the alternative that was
+rejected, short functions, zero global state.
 
-## El builder es de dos pasadas, y no por gusto
+One test: `tests/test_build.py` — it builds real packs in a temporary directory and inspects them
+with SQL. It does not mock SQLite.
 
-Las fuentes reales son de gigabytes (el JSONL del Wikcionario son 1,1 GB) y no entran en
-memoria. Por eso `PackBuilder` escribe a una tabla de staging dentro del propio archivo, arma el
-diccionario de compresión con una muestra por reservorio, y recién en la segunda pasada
-comprime y llena `entry` y `fts_def`.
+## The builder is two-pass, and not for fun
 
-Los índices se crean **al final**, sobre las tablas ya pobladas. Mantenerlos durante la ingesta
-es mucho más lento.
+The real sources are gigabytes (the Wiktionary JSONL is 1.1 GB) and do not fit in memory. So
+`PackBuilder` writes to a staging table inside the file itself, assembles the compression dictionary
+from a reservoir sample, and only on the second pass compresses and fills `entry` and `fts_def`.
 
-Si algo falla a mitad, el pack se borra. Un pack a medio construir es peor que ninguno: se abre
-sin error y devuelve menos resultados de los que debería.
+Indexes are created **at the end**, over already-populated tables. Maintaining them during ingestion
+is far slower.
 
-## Agregar una fuente
+If something fails halfway, the pack is deleted. A half-built pack is worse than none: it opens
+without error and returns fewer results than it should.
 
-Va en `sources/`, y entrega `Record` — el builder no sabe de formatos. Lo que la fuente debe
-resolver:
+## Deriving a core pack
 
-- **Poda.** Es donde se decide el tamaño del pack. Conservar `word`, `pos`, glosas, formas y
-  traducciones; descartar etimologías, pronunciaciones, categorías y citas.
-- **Streaming.** Nunca cargar el archivo entero.
-- **De qué edición y sección viene.** El Wikcionario y el Wiktionary inglés son datasets
-  distintos: el primero da glosas en español, el segundo glosas en inglés sobre palabras
-  españolas.
+`build_core.py` takes a **complete pack that is already built** and keeps the entries whose headword
+is among the most-used words of the language.
 
-## Regenerar el repertorio Unicode es un acto deliberado
+⚠️ **It derives rather than rebuilding from the dumps, and that is correctness rather than
+convenience.** The core declares `subset_of`, and deriving it makes that claim true **by
+construction** — built separately it would hold only while both runs used the same sources and the
+same filters, a promise nothing checks. It also takes seven seconds instead of an hour.
 
-`gen_repertoire.py` aborta si el Python que lo corre no trae exactamente Unicode 13.0.0. Eso no
-es un bug: fija el repertorio al **piso** común entre el builder y el Android más viejo que
-soportamos.
+⚠️ **The vocabulary comes from usage frequency (Tatoeba), never from `rank`, and the gap is
+measured**: by `rank` a core takes **91 %** of the Spanish inflection table — the richest pages are
+verbs, and a Spanish verb has 33 forms — while by frequency it takes **5.5 %**. See D-175.
 
-Subir de versión exige comprobar que el piso nuevo lo soporten todas las plataformas, revisar el
-diff de `repertoire.txt` y subir `NORM_VERSION`. Leé el encabezado del generador antes.
+## Adding a source
 
-## La obligación de espejo
+It goes in `sources/`, and it hands back `Record` — the builder knows nothing about formats. What
+the source has to solve:
 
-`normalize.py` es el espejo escrito a mano de `TextNormalizer.kt`. Cualquier archivo con espejo
-lo declara en su encabezado:
+- **Pruning.** This is where the pack's size is decided. Keep `word`, `pos`, glosses, forms and
+  translations; drop etymologies, pronunciations, categories and citations.
+- **Streaming.** Never load the whole file.
+- **Which edition and section it comes from.** The Spanish Wiktionary and the English Wiktionary are
+  different datasets: the first gives Spanish glosses, the second English glosses about Spanish
+  words.
+
+## Regenerating the Unicode repertoire is a deliberate act
+
+`gen_repertoire.py` aborts if the Python running it does not ship exactly Unicode 13.0.0. That is
+not a bug: it pins the repertoire to the **floor** shared by the builder and the oldest Android we
+support.
+
+Raising the version requires checking that every platform supports the new floor, reviewing the diff
+of `repertoire.txt`, and raising `NORM_VERSION`. Read the generator's header first.
+
+## The mirror obligation
+
+`normalize.py` is the hand-written mirror of `TextNormalizer.kt`. Any file with a mirror declares it
+in its header:
 
 ```
-ESTE ARCHIVO TIENE UN ESPEJO: <ruta>
+ESTE ARCHIVO TIENE UN ESPEJO: <path>
 ```
 
-`tools/audit_dictionary.py` comprueba que la ruta declarada exista. Que el **contenido**
-coincida lo comprueban los vectores compartidos, no la auditoría.
+`tools/audit_dictionary.py` checks that the declared path exists. That the **contents** match is
+checked by the shared vectors, not by the audit.

@@ -909,7 +909,7 @@ def check_test_counts(report):
         ("README.md", r"connectedDebugAndroidTest\s+# los (\d+) tests"): datos,
         ("app/CLAUDE.md", r"testDebugUnitTest\s+# (\d+) JVM tests"): app_jvm,
         ("dict-data/CLAUDE.md", r"connectedDebugAndroidTest # the (\d+) tests"): datos,
-        ("tools/CLAUDE.md", r"hatch run test\s+# los (\d+) tests"): python,
+        ("tools/CLAUDE.md", r"hatch run test\s+# the (\d+) tests"): python,
         ("docs/roadmap.md", r"`:dict-core`, \*\*(\d+) tests\*\*"): nucleo,
         ("docs/roadmap.md", r"`tools/`, \*\*(\d+) tests\*\*"): python,
         ("docs/roadmap.md", r"\*\*(\d+) JVM\n?de `:app`\*\*"): app_jvm,
