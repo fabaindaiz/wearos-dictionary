@@ -26,6 +26,39 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — «Compatibles por construcción» son tres cosas y sólo una lo es
+**Qué.** Nada de código. Se verificó sobre los seis `.db` reales qué significa que los packs sean
+compatibles, y se separó en tres niveles con su medición. Documentado en `docs/roadmap.md`
+§Composición entre packs.
+**Áreas.** `docs/roadmap.md`.
+**Por qué.** El usuario formuló su modelo mental —*«entonces por construcción mis 3 packs son
+compatibles entre sí, lo que facilita la interconexión»*— y era correcto en un nivel y equivocado
+en otro. Confirmarlo de memoria habría dejado en pie la parte equivocada.
+**Arquitectura.** ✅ Cumple. Sólo documentación.
+**Medido.**
+- **Formato idéntico en los seis packs**: `schema_version=3`, `norm_version=2`,
+  `uid_recipe=uid-v1`, `payload_codec=deflate-v2`. Eso sí es por construcción y está forzado
+  (vectores compartidos, muestra de 64 de D-142, D-005/D-006).
+- **Identidad dentro de un idioma, por contenido**: `es-core` ↔ `es-def-wikc` **100,0 %**
+  (7.349/7.349) y `en-core` ↔ `en-def-wikt` **100,0 %** (16.652/16.652); pero
+  `es-def-wikc` ↔ `es-tr-enwikt` **31,3 %** y `es-def-wikc` ↔ `es-def-wd` **9,6 %**. ⚠️ El 100 %
+  de los núcleos **no sale del formato sino de que `build_core.py` COPIA el uid** en vez de
+  recalcularlo.
+- ⚠️ **Entre idiomas el solape de `uid` es CERO**: `es-def-wikc` ↔ `en-def-wikt` = **0**, y
+  `es-tr-enwikt` ↔ `en-def-wikt` = **0**. `stable_uid()` lleva `lang` dentro del hash, así que una
+  entrada española y una inglesa no pueden compartir identidad ni con la misma grafía.
+- **La consecuencia que gobierna todo el trabajo de traducción**: la integración ES↔EN **no puede
+  pasar por `uid`**; pasa por `trans` (buscar) y el tag `T` (leer). Eso explica por qué todas las
+  mediciones de las sesiones de hoy aterrizan en las tablas de traducción y ninguna en el join.
+**Qué salió mal.** Nada en esta entrada, pero sí una imprecisión acumulada que conviene corregir:
+las entradas anteriores hablaban del «join por uid» para traducciones sin decir que **entre
+idiomas es estructuralmente imposible**. No era falso —el join que midieron era español↔español,
+entre el pack de definiciones y el bilingüe, que comparten `lang_src=es`— pero se leía como si
+`uid` pudiera unir español con inglés algún día. No puede.
+**Qué quedó sin hacer.**
+- Nada nuevo. Sigue pendiente lo de siempre: APK y packs al reloj, trace de Perfetto,
+  ~3.000 líneas en español, y los cuatro pasos de la sección de traducciones.
+
 ## 2026-09-21 — El barrido de fuentes de traducción que faltaba hacer
 **Qué.** Nada de código. Se hizo el barrido de **qué fuentes de traducción ES↔EN existen**, con
 licencia leída en la fuente primaria y rendimiento medido contra el pack. Documentado en

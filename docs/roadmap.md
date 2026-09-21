@@ -347,6 +347,62 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+#### ⚠️ «Compatibles por construcción» son TRES cosas, y sólo una lo es — medido 2026-09-21
+
+Pregunta directa: *«¿entonces por construcción mis 3 packs son compatibles entre sí, lo que
+facilita la interconexión?»*. Medido sobre los seis `.db` reales, la respuesta se parte en tres
+niveles y conviene no confundirlos, porque cada uno habilita cosas distintas.
+
+**1. El formato: idéntico en los seis, y eso sí es por construcción.**
+
+| | `schema_version` | `norm_version` | `uid_recipe` | `payload_codec` |
+|---|---|---|---|---|
+| los **seis** packs | `3` | `2` | `uid-v1` | `deflate-v2` |
+
+Eso es lo que permite que convivan: mismas claves de búsqueda, misma receta de identidad, mismo
+payload. Y no es una coincidencia que haya que vigilar — está **forzado**: los vectores
+compartidos comparan `norm()` entre los dos idiomas, `PackFile.open` recalcula las claves de 64
+entradas repartidas y rechaza el pack si no coinciden (D-142), y D-005/D-006 obligan a subir
+`NORM_VERSION` en el mismo commit que toque `norm()` o `fuzzy()`.
+
+**2. La identidad dentro de un idioma: depende del CONTENIDO, no del formato.**
+
+| par | `uid` en común | |
+|---|---|---|
+| `es-core` ↔ `es-def-wikc` | **7.349 / 7.349 — 100,0 %** | ✅ el único *por construcción* |
+| `en-core` ↔ `en-def-wikt` | **16.652 / 16.652 — 100,0 %** | ✅ ídem |
+| `es-def-wikc` ↔ `es-tr-enwikt` | 47.646 — **31,3 %** | contenido |
+| `es-def-wikc` ↔ `es-def-wd` | 14.609 — **9,6 %** | contenido |
+
+⚠️ **El 100 % de los núcleos no sale del formato: sale de que `build_core.py` COPIA el `uid` en
+vez de recalcularlo.** Esa línea es toda la diferencia entre «compatible» y «unido». Recalcularlo
+contando los homógrafos del núcleo daría otra identidad para la misma palabra — que es el fallo
+que D-145 encontró.
+
+Y D-139 dejó la lección inversa: el pack de Wikidata usaba **otra convención de `sense_key`**, con
+la misma receta `uid-v1`, y **sus uid no unían con nada**. Misma receta no es misma identidad.
+
+**3. Entre idiomas: cero, y es por diseño.**
+
+| par | `uid` en común |
+|---|---|
+| `es-def-wikc` ↔ `en-def-wikt` | **0** |
+| `es-tr-enwikt` ↔ `en-def-wikt` | **0** |
+
+⚠️ **`stable_uid(lang, headword, pos, sense_key)` lleva el idioma dentro del hash**, así que una
+entrada española y una inglesa **no pueden compartir `uid` jamás**, ni con la misma grafía. Es
+correcto —`casa` en español y `casa` en otro idioma son palabras distintas— y tiene una
+consecuencia que gobierna todo el trabajo de traducción:
+
+> **La integración ES↔EN no puede pasar por `uid`.** Pasa por las tablas de traducción — `trans`
+> para buscar y el tag `T` para leer. `uid` es el join **dentro** de un idioma; entre idiomas el
+> puente es el contenido de traducción, y por eso todo lo medido arriba aterriza ahí y no en el
+> join.
+
+**Resumen en una línea:** los packs son **interoperables** por construcción (se abren, conviven y
+se consultan juntos), son **unibles** sólo donde el contenido coincide, y **entre idiomas no se
+unen nunca por identidad** — se unen por traducción.
+
 > **El selector de idioma NO es composición**, y conviene no confundirlos. El selector elige
 > **un** pack y busca en él (D-078); la composición hace que un pack auxiliar le **sume**
 > información a la misma entrada de otro. `SearchRepository` **ya existe** (D-136) y resuelve la
