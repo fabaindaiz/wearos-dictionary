@@ -2288,7 +2288,13 @@ pública y el valor es **1**, leído del `.aar` con `javap -constants`.
 
 ### Los 234 dp están confirmados: cinco decisiones cotizadas contra 192
 
-**Estado.** **Medición cerrada, rediseño sin empezar** (2026-09-19).
+**Estado.** ✅ **CERRADO SIN TRABAJO el 2026-09-21 (D-208).** Decisión del usuario: *«ya se ve
+bien en el tamaño del reloj y me interesa pensar en la resolución estándar»*. Se diseña contra el
+estándar y la app se adapta hacia arriba sola —`rowsThatFit` es genérico—; lo que se descarta es
+**rediseñar para aprovechar los 42 dp extra**. Los dos tests de densidad siguen protegiendo la
+**relación**, que es lo que importaba.
+
+**La medición, que sigue valiendo.**
 
 Faltaba confirmarlo *dentro* de la app porque `wm density` es la densidad física y Compose puede
 ver otra. Se resolvió preguntándole al sistema qué configuración entrega: **`sw234dp w234dp
@@ -3443,7 +3449,23 @@ trade-off que necesita el número de O-1.
 
 ### O-3. Tamaño del pack
 
-**Estado.** Planificado, y **es el ítem que más se movió hoy, en la dirección mala**.
+**Estado.** ⚠️ **REENCUADRADO el 2026-09-21 (D-207): el presupuesto de 50 MB se retiró.**
+
+Se rompió desde el primer build —72,2 MB contra 50— y en nueve citas **nunca hizo cambiar una
+decisión**: sólo se usó para anotar que se incumplía. Y medía lo que no duele: el reloj reporta
+**9,0 GiB libres** y los cinco packs juntos son 478 MB, el **5 %**.
+
+**Lo que lo reemplaza**, atado a mediciones que ya existen:
+1. **El arranque en frío** — 500 ms con 372,6 MB abiertos. Un pack nuevo no puede empeorarlo sin
+   medirlo: eso sí lo siente quien levanta la muñeca.
+2. **El núcleo dentro del APK** — 17,1 MiB de los 66. Límite **duro**: lo que viaja en el APK se
+   descarga aunque no se use.
+
+**Lo que ya no se limita**: los bytes de un pack completo. Llegan por descarga diferida a carga y
+Wi-Fi (D-029) y el usuario elige instalarlos. Así se resuelve la tensión que esta sección
+arrastraba: *«que vayan completas»* gana, y lo que se vigila es **lo que se paga sin pedirlo**.
+
+**Cómo se movió el tamaño, para tenerlo escrito.**
 
 | | antes | 2026-09-20 | **tras el rebuild del 2026-09-21** |
 |---|---|---|---|
