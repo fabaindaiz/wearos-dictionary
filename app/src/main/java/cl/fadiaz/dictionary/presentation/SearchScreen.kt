@@ -214,7 +214,11 @@ fun SearchScreen(
                     // idioma activo no era el que uno creía. Cuesta una fila de las ~3 que
                     // entran, y se paga: el caso que evita es escribir una palabra inglesa con
                     // español activo y no entender por qué no aparece.
-                    if (state.available.size > 1) {
+                    // ⚠️ **Se cuentan IDIOMAS y no archivos, y la diferencia se vio en el
+                    // emulador.** Con sólo el pack bidireccional instalado --un archivo que
+                    // habla dos idiomas-- el selector no se dibujaba, así que no había forma de
+                    // llegar a su mitad inglesa: el pack ofrecía dos y la app, cero.
+                    if (idiomasDisponibles(state.available).size > 1) {
                         item(key = "selector") { LanguageSelector(state, onLanguageChange) }
                     }
 
@@ -428,7 +432,7 @@ private fun ResultRow(
     suggestion: Suggestion,
     /**
      * `packId` -> la etiqueta que lleva la fila: el idioma, o la fuente si el idioma no alcanza.
-     * La arma [resultTags].
+     * La arma [resultTag], del idioma activo.
      *
      * ⚠️ **Un `packId` que no este en el mapa NO recibe etiqueta**, en vez de heredar la del pack
      * activo. Con varios diccionarios conviviendo (D-136) esa herencia seria afirmar que la
@@ -605,7 +609,7 @@ private fun WordOfTheDayRow(
  */
 @Composable
 private fun LanguageSelector(state: SearchState, onLanguageChange: (String) -> Unit) {
-    // `remember` y no la llamada suelta, igual que `resultTags` en el inicio. Desde D-156 esto
+    // `remember` y no la llamada suelta, igual que `historyTags` en el inicio. Desde D-156 esto
     // se dibuja SIEMPRE --tambien con resultados en pantalla-- asi que reagrupaba los packs en
     // cada recomposicion, y `available` no cambia entre teclas.
     //
@@ -669,7 +673,7 @@ private const val KEY_SPOKEN = "spoken"
  * no siempre esta.
  *
  * ⚠️ **Lo que se pierde, y no es cosmetico**: `RecognizerIntent` aceptaba
- * `EXTRA_LANGUAGE = langSource`, asi que se dictaba en el idioma DEL PACK. El input del sistema
+ * `EXTRA_LANGUAGE` con el idioma del pack, asi que se dictaba en ESE idioma. El input del sistema
  * usa el idioma **del reloj**. Con el reloj en español y el pack ingles abierto, dictar va a
  * transcribir en español. Por eso la etiqueta nombra el diccionario: es lo unico que queda para
  * decirle al usuario en que esta buscando.

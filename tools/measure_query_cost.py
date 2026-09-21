@@ -61,11 +61,25 @@ def _upper(prefix):
 class Cascade:
     """Los cuatro peldanos, con el mismo corte temprano que la implementacion real."""
 
-    def __init__(self, path):
+    def __init__(self, path, lang=None):
         self.con = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
-        self.profile = self._meta("fuzzy_profile")
+        # ⚠️ **Un pack puede tener DOS idiomas** desde schema_version 4, asi que la replica
+        # tiene que filtrar igual que la app o mide otra consulta. `lang=None` no filtra, que es
+        # lo que hace un pack monolingue.
+        self.langs = [x.strip() for x in self._meta("langs").split(",") if x.strip()]
+        perfiles = [x.strip() for x in self._meta("fuzzy_profiles").split(",") if x.strip()]
+        self.lang = lang if lang in self.langs else self.langs[0]
+        self.profile = dict(zip(self.langs, perfiles)).get(self.lang, "generic")
+        # Un solo idioma no filtra: el WHERE cambiaria el plan de consulta que se esta midiendo.
+        self.filtro = self.lang if len(self.langs) > 1 else None
         self.entries = self.con.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
         self.dictionary = binascii.unhexlify(self._meta("payload_dict"))
+
+    def _por_idioma(self, columna="lang"):
+        return (" AND %s = ?" % columna) if self.filtro else ""
+
+    def _args(self, *antes):
+        return tuple(antes) + ((self.filtro,) if self.filtro else ())
 
     def _meta(self, key):
         return self.con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()[0]
@@ -79,22 +93,24 @@ class Cascade:
         """Devuelve (peldanos corridos, filas tocadas, ms de SQL)."""
         key = normalize.norm(raw)
         rows, ms = self._timed(
-            "SELECT id FROM entry WHERE norm >= ? AND norm < ? "
-            "ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?",
-            (key, _upper(key), key, LIMIT * PREFIX_OVERFETCH))
+            "SELECT id FROM entry WHERE norm >= ? AND norm < ?" + self._por_idioma() +
+            " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?",
+            self._args(key, _upper(key)) + (key, LIMIT * PREFIX_OVERFETCH))
         rungs, seen, touched = 1, len(rows), len(rows)
 
         if seen < LIMIT:
             rows, extra = self._timed(
                 "SELECT e.id FROM form f JOIN entry e ON e.id = f.entry_id "
-                "WHERE f.norm = ? ORDER BY e.rank LIMIT ?", (key, LIMIT))
+                "WHERE f.norm = ?" + self._por_idioma("e.lang") +
+                " ORDER BY e.rank LIMIT ?", self._args(key) + (LIMIT,))
             rungs, seen, touched, ms = 2, seen + len(rows), touched + len(rows), ms + extra
 
         if seen < LIMIT:
             rows, extra = self._timed(
                 "SELECT e.id FROM entry e WHERE e.id IN "
-                "(SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?) "
-                "ORDER BY e.rank LIMIT ?", (key, _upper(key), LIMIT))
+                "(SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?)" +
+                self._por_idioma("e.lang") +
+                " ORDER BY e.rank LIMIT ?", self._args(key, _upper(key)) + (LIMIT,))
             rungs, seen, touched, ms = 3, seen + len(rows), touched + len(rows), ms + extra
 
         if seen < FUZZY_TRIGGER:
@@ -102,8 +118,9 @@ class Cascade:
             if fuzzy_key:
                 prefix = fuzzy_key[:FUZZY_PREFIX_LENGTH]
                 rows, extra = self._timed(
-                    "SELECT id, norm FROM entry WHERE fuzzy >= ? AND fuzzy < ? LIMIT ?",
-                    (prefix, _upper(prefix), FUZZY_CANDIDATES))
+                    "SELECT id, norm FROM entry WHERE fuzzy >= ? AND fuzzy < ?" +
+                    self._por_idioma() + " LIMIT ?",
+                    self._args(prefix, _upper(prefix)) + (FUZZY_CANDIDATES,))
                 rungs, touched, ms = 4, touched + len(rows), ms + extra
 
         return rungs, touched, ms
@@ -118,7 +135,10 @@ class Cascade:
             start = time.perf_counter()
             text = payload.decompress(blob, self.dictionary)
             inflate += (time.perf_counter() - start) * 1000
-            _pos, senses = payload.parse(text)
+            # Tres valores desde D-179 (el canal `W`). Esta replica se quedo en dos y
+            # **crasheaba desde entonces**: es la desincronizacion que la cabecera de este
+            # archivo advierte, y de las pocas que avisan en vez de mentir.
+            _pos, senses, _palabra = payload.parse(text)
             glosses = " ".join(s["gloss"] for s in senses if s.get("gloss"))
             keys = list({normalize.norm(w)
                          for w in re.findall(r"[^\W\d_]{3,}", glosses, re.UNICODE)})
@@ -143,15 +163,15 @@ class Cascade:
         return (time.perf_counter() - start) * 1000
 
 
-def report(path):
-    pack = Cascade(path)
-    lang = pack._meta("lang_src")
-    words = PALABRAS.get(lang, PALABRAS["es"])
-    missing = INEXISTENTES.get(lang, INEXISTENTES["es"])
+def report(path, lang=None):
+    pack = Cascade(path, lang)
+    words = PALABRAS.get(pack.lang, PALABRAS["es"])
+    missing = INEXISTENTES.get(pack.lang, INEXISTENTES["es"])
 
     print("=" * 72)
-    print("%s -- %s entradas, perfil fuzzy %r"
-          % (os.path.basename(path), format(pack.entries, ","), pack.profile))
+    print("%s -- %s entradas, idiomas %s, buscando en %r con perfil %r"
+          % (os.path.basename(path), format(pack.entries, ","),
+             ",".join(pack.langs), pack.lang, pack.profile))
     print("=" * 72)
 
     print("\nUna busqueda de PALABRA COMPLETA -- el caso real, porque con el teclado")
@@ -204,7 +224,11 @@ def main(argv):
         if not os.path.exists(path):
             print("no existe: %s" % path)
             return 1
-        report(path)
+        # ⚠️ **Un pack bidireccional se mide UNA VEZ POR IDIOMA**, porque son dos consultas
+        # distintas: distinto filtro, distinto perfil fuzzy y distinto conjunto de filas. Medirlo
+        # solo en el primero diria la mitad.
+        for lang in Cascade(path).langs:
+            report(path, lang)
     print("\nEstos ms son de la maquina donde corrio esto, no del reloj. Sirven para COMPARAR")
     print("caminos entre si; el valor absoluto en el reloj hay que medirlo en el reloj (D-043).")
     return 0

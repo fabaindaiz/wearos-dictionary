@@ -817,6 +817,40 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun elIDIOMA_ELEGIDO_SOBREVIVE_al_reinicio_en_un_pack_BIDIRECCIONAL() = runTest {
+        // ⚠️ **El bug que esto cierra lo introdujo el pack bidireccional.** Lo que se persiste
+        // es la elección del usuario, y hasta acá era un `packId`. Con un pack que habla DOS
+        // idiomas eso dejó de alcanzar: al reiniciar, `activeLang` caía al **primero** de
+        // `meta.langs`, así que alguien que eligió inglés volvía a abrir la app en español —
+        // sin error, y pareciendo que el chip no hace nada.
+        //
+        // Lo que se guarda ahora es el **idioma**, que además es lo que ya devolvía el respaldo
+        // cuando no había nada guardado: la config regional del reloj.
+        val bilingue = FakeDictionary("es-tr-enwikt", "es", langs = listOf("es", "en"))
+        val vm = SearchViewModel(
+            { PackSet.Ready(handle(bilingue), listOf(handle(bilingue))) },
+            preferred = { "en" },
+        )
+        advanceUntilIdle()
+        assertEquals("en", vm.state.value.activeLang, "el idioma guardado manda sobre el primero")
+        assertEquals("es-tr-enwikt", vm.state.value.active?.packId, "y el pack es el mismo")
+    }
+
+    @Test
+    fun alCAMBIAR_DE_IDIOMA_se_guarda_el_IDIOMA_y_no_el_pack() = runTest {
+        var guardado: String? = null
+        val bilingue = FakeDictionary("es-tr-enwikt", "es", langs = listOf("es", "en"))
+        val vm = SearchViewModel(
+            { PackSet.Ready(handle(bilingue), listOf(handle(bilingue))) },
+            saveActiveLanguage = { guardado = it },
+        )
+        advanceUntilIdle()
+        vm.onLanguageChange("en")
+        advanceUntilIdle()
+        assertEquals("en", guardado)
+    }
+
+    @Test
     fun theDemoPackNeverWinsIfThereIsARealDictionary() = runTest {
         // Found by using it: with the demo pack (28 entries) and the real Spanish one (146,194)
         // installed, the app opened the DEMO. Neither the preference nor the watch locale broke
@@ -886,11 +920,13 @@ class SearchViewModelTest {
         val es = FakeDictionary("es-def", "es")
         val en = FakeDictionary("en-def", "en")
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), handle(en))) },
-                                 saveActivePack = { recordado = it })
+                                 saveActiveLanguage = { recordado = it })
         advanceUntilIdle()
         vm.onLanguageChange("en")
         advanceUntilIdle()
-        assertEquals("en-def", recordado)
+        // Lo que se recuerda es el IDIOMA y ya no el `packId`: un pack bidireccional habla dos,
+        // asi que su id no dice en cual se estaba buscando.
+        assertEquals("en", recordado)
     }
 
     @Test

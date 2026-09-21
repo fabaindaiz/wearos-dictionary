@@ -156,11 +156,19 @@ object PackStore {
     }
 
     /** The chosen language, so the watch opens the same dictionary as last time. */
+    /**
+     * Lo que el usuario eligió la última vez: desde D-197 un **idioma**, antes un `packId`.
+     *
+     * ⚠️ **La clave se conserva y el valor cambió de significado**, a propósito: un `packId`
+     * guardado por una versión anterior sigue sirviendo, porque `chooseActive` lo prueba primero
+     * como identidad y sólo después como idioma. Migrar la preferencia habría costado código
+     * para un valor que se reescribe la primera vez que alguien toca un chip.
+     */
     fun preferredPack(context: Context): String? =
         prefs(context).getString(KEY_PACK, null)
 
-    fun rememberPack(context: Context, packId: String) {
-        prefs(context).edit { putString(KEY_PACK, packId) }
+    fun rememberLanguage(context: Context, lang: String) {
+        prefs(context).edit { putString(KEY_PACK, lang) }
     }
 
     private fun packAssets(context: Context): List<String> =

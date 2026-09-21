@@ -230,6 +230,27 @@ dejaría apuntando a la nada cada enlace de cada pack ya construido.
 **Cambiar la tabla de plegado o la regla de puntuación tiene exactamente ese efecto: no se tocan
 sin reconstruir todo lo que tenga enlaces escritos.**
 
+## 6b. El tercer contrato que NO existe, y por qué conviene saberlo
+
+⚠️ **El 2026-09-21 estuvo a punto de haber un tercero, y evitarlo costó una clave de `meta`.**
+
+Desde D-185 `rank` son **dos bandas disjuntas**: `[0, frontera)` sale de la frecuencia real y el
+resto de la riqueza de página. La app necesita saber dónde está el corte —la palabra del día lo
+usa (D-193)— y lo obvio era escribir `500` en Kotlin, que es el valor que `kaikki.py` tiene en
+`FRONTERA_CON_SENAL`.
+
+Eso habría sido **exactamente** un contrato cruzado más: dos copias de una constante, en dos
+lenguajes, que al separarse no dan error. El síntoma habría sido el de siempre — la palabra del
+día volviendo a ser obscura, meses después, sin nada en el stack trace.
+
+**La salida fue que el artefacto lo declare**: `meta.rank_signal_boundary`. Deja de ser algo que
+los dos lados recuerdan y pasa a ser un dato que uno escribe y el otro lee, como `norm_version` o
+`uid_recipe`. Cuesta una clave y **no se puede agregar sin reconstruir el pack**, que es
+justamente por qué entró con D-195 y no después.
+
+**La regla general que deja**: antes de copiar una constante del builder al reloj, preguntar si
+el pack puede declararla. Si puede, el contrato no nace.
+
 ## 7. `:dict-core`'s portability
 
 | | |

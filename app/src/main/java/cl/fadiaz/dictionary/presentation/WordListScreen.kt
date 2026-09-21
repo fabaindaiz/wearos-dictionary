@@ -60,7 +60,7 @@ fun WordListScreen(
     /** Que decir cuando no hay nada. Una lista vacia sin explicacion parece rota. */
     @StringRes empty: Int,
     /**
-     * `packId` -> la etiqueta de idioma o fuente. La arma `resultTags`.
+     * `packId` -> la etiqueta de idioma. La arma `historyTags`.
      *
      * Vacio por defecto para que una pantalla de test que no la cablea siga andando; un `packId`
      * que no este simplemente no recibe etiqueta, igual que en los resultados.

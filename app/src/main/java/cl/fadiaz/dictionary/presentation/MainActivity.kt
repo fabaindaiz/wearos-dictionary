@@ -119,7 +119,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             preferred = {
                                 PackStore.preferredPack(context) ?: Locale.getDefault().language
                             },
-                            saveActivePack = { id -> PackStore.rememberPack(context, id) },
+                            saveActiveLanguage = { lang -> PackStore.rememberLanguage(context, lang) },
                             savedHistory = { PackStore.history(context) },
                             saveHistory = { PackStore.rememberHistory(context, it) },
                             // The date comes in through here instead of a clock inside the

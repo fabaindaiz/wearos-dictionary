@@ -67,7 +67,10 @@ class PlatformAssumptionsTest {
         // El nombre del ARCHIVO sigue siendo toy-es-en.db, y que no coincidan es a proposito
         // (`PackHandle.fileName` lo documenta).
         assertEquals("es-tr-toy", abierto.metadata.packId)
-        assertEquals(28, abierto.metadata.entryCount)
+        // 77 y no 28: el toy es BIDIRECCIONAL desde D-196 -- 28 entradas españolas mas 49
+        // inglesas derivadas de sus traducciones, en el mismo archivo.
+        assertEquals(77, abierto.metadata.entryCount)
+        assertEquals(listOf("es", "en"), abierto.metadata.langs)
         assertTrue("el diccionario de payload llego vacio", abierto.payloadDictionary.isNotEmpty())
     }
 
@@ -151,13 +154,14 @@ class PlatformAssumptionsTest {
             "SELECT COUNT(*) FROM form f JOIN entry e ON e.id = f.entry_id" +
                 " WHERE f.norm = 'corriendo'") > 0)
 
-        // La inversa DEBE deduplicar: el rango matchea varias claves de la misma entrada
-        // ("to", "to run", "to pass") y sin esto sale repetida.
-        // La cota se escribe como la calcula PrefixRange.upperBound: incrementando el ultimo
-        // code point del prefijo ("run" -> "ruo"), no agregandole una letra.
-        assertEquals("la inversa devolvio la entrada repetida", 1, contar(connection,
-            "SELECT COUNT(*) FROM entry e WHERE e.id IN" +
-                " (SELECT entry_id FROM trans WHERE norm >= 'run' AND norm < 'ruo')"))
+        // ⚠️ **La direccion inversa ya no pasa por `trans`, que en un pack bidireccional esta
+        // vacia a proposito (D-196).** `run` es una ENTRADA con su propio `lang`, asi que se
+        // encuentra por el mismo peldaño de prefijo que cualquier lema -- y filtrando por
+        // idioma, que es lo que la app hace desde D-197.
+        assertEquals("`trans` sobra en un pack bidireccional", 0,
+            contar(connection, "SELECT COUNT(*) FROM trans"))
+        assertEquals("'run' tiene que ser un lema ingles", 1, contar(connection,
+            "SELECT COUNT(*) FROM entry WHERE norm = 'run' AND lang = 'en'"))
 
         // "kore" es el prefijo fuzzy de "correr", cuya clave es "korer". La cota es "korf":
         // con "koref" el rango excluye justo "korer", porque 'r' > 'f'.

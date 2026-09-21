@@ -34,6 +34,7 @@ medido sobre los packs reales:
 | irregulares (`went`, `children`) | no llegaban | **`ir, andar` · `hijo, niño`** |
 | rho(`rank`, frecuencia real) | **−0,250** | **−0,787** |
 | filas de `trans` en el bilingüe | 206.727 | **474.849** |
+| ⚠️ *y después*, al volverse bidireccional (D-196) | 474.849 | **0** — las palabras inglesas son **entradas**, no claves |
 
 Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-zipf-v1`.
 
@@ -49,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **97 tests**) y el
-pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **293 JVM
-de `:app`** y **26 checks** de auditoría estructural — **771 tests en total**. Los **44
+pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **296 JVM
+de `:app`** y **26 checks** de auditoría estructural — **774 tests en total**. Los **45
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -59,12 +60,14 @@ invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
 emulador de D-150: **0 fallas**. Es la primera vez que corren en la geometría del reloj — hasta
 entonces el AVD por defecto los corría a 192 dp y en una pantalla cuadrada.
 
-**Los packs, al cerrar el 2026-09-20.** De una fuente por idioma se pasó a cuatro en español:
+**Los packs, reconstruidos el 2026-09-21 con `schema_version` 4** (D-195 a D-198):
 
 | | entradas | tamaño | fuentes |
 |---|---|---|---|
-| `es-def-wikc-tat-wn-wd` | **152.281** | 75,2 MB | Wikcionario · Tatoeba · MCR/WordNet · Wikidata |
-| `en-def-wikt-wn` | **956.150** | 315,5 MB | Wiktionary · Open English WordNet |
+| `es-def-wikc-tat-freq-wn-wd` | **152.281** | 73,6 MiB | Wikcionario · Tatoeba · OpenSubtitles · MCR/WordNet · Wikidata |
+| `en-def-wikt-freq-wn` | **956.150** | 306,8 MiB | Wiktionary · OpenSubtitles · Open English WordNet |
+| **`es-tr-enwikt-freq`** | **209.484** | **63,4 MiB** | Wiktionary en inglés · OpenSubtitles. **Bidireccional**: 123.979 entradas españolas + 85.505 inglesas |
+| `…-core` (×2) | 7.349 y 16.652 | 5,0 y 12,1 MiB | derivados de los completos, declaran `tier=core` |
 
 Cada uno declara **una licencia por fuente** en `meta.sources` (D-138) y la app las muestra todas.
 ⚠️ Los dos están **muy por encima** del presupuesto blando de 50 MB (D-028): ver §O-3 y
@@ -510,7 +513,7 @@ memoria.
 |---|---|---|
 | 4 | Resolver los enlaces en la ficha | El mapa de enlaces tiene que llevar `packId`: toca el límite de D-080 |
 | 5 | Los **10.438 pares** de `en.jsonl` a `trans` del pack inglés | Hace que `perro` encuentre `dog`. No sirven para `T`: **0 `sense_index` de 9.987** |
-| 6 | Índice de flexiones inglesas | **1,84 MB (+3,7 %)**; sube la inversa de 78,1 % a 98,9 % |
+| 6 | ~~Índice de flexiones inglesas~~ **hecho (D-184)**, y desde D-196 vive en el `form` de la entrada inglesa: `went` es flexión de `go` | **1,84 MB (+3,7 %)**; sube la inversa de 78,1 % a 98,9 % |
 | 7 | **Reconstruir los packs reales** | ~1 hora. Decidido: **un solo build al final**. Sus 350 excepciones de direccionabilidad se cierran ahí |
 
 #### Sin decidir — son decisiones, no trabajo
@@ -578,7 +581,7 @@ inglés declara `translations_to = "es"` desde el #5.
 
 #### ⚠️ La oportunidad que esto deja servida, y es justo la próxima pregunta
 
-`meta.translations_to = "en"` es un **canal de lectura**: el pack es `monolingual`, `lang_dst`
+`meta.translations_to = "en"` es un **canal de lectura**: el pack es `monolingual`, declara un solo idioma en `meta.langs`
 sigue vacío y **`trans` sigue pesando 4 KB**, o sea vacía. Escribir `casa → house` también en
 `trans` haría que **el pack de definiciones se busque por palabra inglesa** — `house` encontraría
 `casa` sin que haya un pack bilingüe instalado.
@@ -632,7 +635,7 @@ buscar `build` en el pack MONOLINGÜE  ->  construir, edificar
 ```
 
 ⚠️ **Y eso último es el pedido 2 cerrado**: el pack de definiciones ahora **se busca en inglés**
-sin que haya un pack bilingüe instalado. Sigue declarándose `monolingual` y con `lang_dst` vacío,
+sin que haya un pack bilingüe instalado. Sigue declarándose `monolingual` y con un solo idioma en `meta.langs`,
 porque sus definiciones siguen siendo en español: lo que cambió es por dónde se llega a ellas.
 
 #### ⚠️ Un agujero de seguridad que encontró su propio test
@@ -846,14 +849,17 @@ Filtrar descarta el 35 % de los candidatos **sin mover la cobertura ni una déci
 | `es.jsonl`, traducciones sin índice | 37,7 % | ✅ tag `W` |
 | `es.jsonl` → canal de búsqueda | 3.257 filas en la muestra | ✅ `trans` |
 | **`en.jsonl`, 10.438 pares EN→ES curados** | 100 % con **texto** de acepción, 0 índices | ❌ **sin usar** |
-| **claves de display del pack bilingüe** | `translation_keys` las calcula y las tira | ❌ **sin usar** |
-| **índice de flexiones inglesas** | 1,84 MB · 78,1 % → 98,9 % | ❌ sin construir |
+| ~~**claves de display del pack bilingüe**~~ | `translation_keys` las calculaba y las tiraba | ✅ **cerrado por D-179** |
+| ~~**índice de flexiones inglesas**~~ | 1,84 MB · 78,1 % → 98,9 % | ✅ **cerrado por D-184**, y reubicado por D-196 al `form` de la entrada inglesa |
 
-⚠️ **El pack bilingüe tiene 206.727 filas de `trans` y CERO en `T`/`W`.** Su canal de lectura
-está vacío y **reconstruirlo con el código de hoy no lo llenaría**: `bilingual.py` sólo escribe
-`record.translations`, nunca toca el payload. Abrir `casa` ahí sigue mostrando `house` como
-**glosa**, no como traducción — y las claves limpias que su propio módulo calcula se descartan,
-como dice su docstring: *«the keys are returned raw: PackBuilder normalises them»*.
+> ⚠️ **Todo el bloque de abajo está SUPERADO (2026-09-21).** Se conserva porque explica de qué
+> se partía. Hoy el bilingüe tiene **0 filas de `trans`** —las palabras inglesas son 85.505
+> entradas de verdad (D-196)— y su canal de lectura está lleno: abrir `casa` muestra `house`
+> como **traducción**, no como glosa.
+
+~~El pack bilingüe tiene 206.727 filas de `trans` y CERO en `T`/`W`.~~ Su canal de lectura
+estaba vacío y **reconstruirlo con el código de entonces no lo habría llenado**: `bilingual.py`
+sólo escribía `record.translations`, nunca tocaba el payload.
 
 ⚠️ **El pack inglés no tiene traducciones de ninguna clase**: `trans` en 0 y sin `translations_to`.
 Los 10.438 pares curados de `en.jsonl` no pueden llenar `T` —traen texto de acepción, no índice—
@@ -1112,7 +1118,7 @@ is the honest description and it should be printed as a warning, not a failure.
 #### What this implies, in order
 
 1. **Add the entry-level channel** — a new payload tag, additive, no `CODEC_ID` bump.
-2. **Declare the granularity in `meta`** so the claim exists to be checked, the same way `lang_dst`
+2. **Declare the granularity in `meta`** so the claim exists to be checked, the same way `langs`
    is required of a bilingual pack.
 3. **Add the distinctness check to `verify_pack.py`** as a warning with the 90.5 % baseline in its
    message.
@@ -1188,7 +1194,7 @@ Que un pack de sinónimos y uno de traducciones puedan sumar información **a la
 del pack de definiciones.
 
 **El join key ya está decidido y construido** (D-055, 2026-09-17): `entry.uid`, una columna
-aparte, hash de `(lang_src, NFC(headword), pos, sense_key)`. `entry.id` sigue siendo el rowid
+aparte, hash de `(entry.lang, NFC(headword), pos, sense_key)`. `entry.id` sigue siendo el rowid
 secuencial. La comparación completa y las mediciones están en el changelog de esa fecha.
 
 **Qué hay ya a favor.** El pack base ya escribe `uid`; `verify_pack.py` comprueba unicidad y
@@ -1492,6 +1498,21 @@ rebuilt rather than migrated — an hour of build for the Spanish pack, and the 
 beyond rendering a field it already parses.
 
 
+### ✅ Both directions as a pack feature — CONSTRUIDO 2026-09-21 (D-195 a D-198)
+
+> **Construido, y la medición de abajo es la de ANTES.** El pack es hoy bidireccional por
+> construcción: `meta.langs` declara los dos idiomas **como pares**, cada fila lleva `entry.lang`
+> y las palabras inglesas son **entradas** —85.505 de ellas— en vez de claves de `trans`, que
+> quedó vacía. Se llegó al **nivel 3** de la tabla de abajo, no al 0 ni al 1.
+>
+> Los cuatro bloqueadores que esta sección enumeraba se cerraron: la columna `lang` existe, el
+> `uid` se calcula con el idioma **de la fila**, una entrada sin acepciones vale si trae
+> traducciones, y el canal `W` ya vivía fuera de las acepciones desde D-179.
+>
+> **Medido sobre el pack construido**: 209.484 entradas en 63,4 MiB (**+8,2 MiB**), cobertura
+> inversa **97,0 %** del top 1.000 inglés. El texto siguiente se conserva porque explica por qué
+> se eligió este nivel y qué costaba cada uno.
+
 ### Both directions as a pack feature, and words with no definition — measured 2026-09-21
 
 Asked as a design question, and it deserves the design answer: *can a translation pack hold tables
@@ -1562,9 +1583,9 @@ before treating them as a small change:
 
 | blocker | where | what happens |
 |---|---|---|
-| `entry` has **no `lang` column** | schema | an English row in a pack declaring `lang_src=es` is indistinguishable from a Spanish one |
-| `uid` is recomputed with the **pack's** language | `verify_pack.py:323`, `stable_uid(lang, …)` | every English stub fails uid verification |
-| an entry with zero senses is a failure | `verify_pack.py:348` | *"la entrada X quedó sin acepciones"* |
+| ~~`entry` has **no `lang` column**~~ **cerrado por D-195** | schema | era: una fila inglesa en un pack que declara `es` no se distinguía de una española |
+| ~~`uid` is recomputed with the **pack's** language~~ **cerrado por D-195** | `verify_pack.py` | ahora usa `entry.lang`, que es lo que hace imposible la colisión entre idiomas |
+| ~~an entry with zero senses is a failure~~ **cerrado por D-196** | `verify_pack.py` | vale sin acepciones **si trae traducciones**: un bilingüe contesta *cómo se dice*, no *qué significa* |
 | a `T` before the first `S` is **silently dropped** | `payload.parse`, the `if senses:` guard | entry-level translations have nowhere to live |
 
 So level 2 is a **schema change** — D-001 territory, packs rebuilt rather than migrated — plus a
@@ -1578,7 +1599,10 @@ of level 2 is additive. **The `entry` table half is not.**
 
 #### Declaring it, which is the part that makes it a format feature
 
-Today `kind = bilingual` plus `lang_dst` says the pack **has** a target language. Nothing says
+~~Today `kind = bilingual` plus `lang_dst` says the pack **has** a target language.~~ **Cerrado
+por D-195/D-196**: `meta.langs` declara los dos **como pares** y `verify_pack.py` comprueba que
+haya entradas de ambos, así que la bidireccionalidad dejó de ser un accidente del build y pasó a
+ser una propiedad declarada **y verificada**. Lo que decía antes: nothing says
 whether the reverse direction is **usable** — the current pack's is 78.1 % at top 8,000 and
 returns a different *kind* of answer, and a reader has no way to know that. If bidirectionality is
 to be a declared property rather than an accident of the build, it needs to be stated in `meta`
@@ -1862,6 +1886,9 @@ lo que el usuario ve:
 
 - **Descomprimir los 30 payloads del resultado cuesta 3,1–3,9 ms** sobre los packs reales, y
   **sólo se paga con el filtro encendido**.
+- ⚠️ **Y desde D-196 ese camino ya ni existe en el pack bilingüe**: `trans` quedó vacía porque
+  las palabras del otro idioma son entradas. La alternativa que sigue vigente para un pack
+  **monolingüe** se describe abajo.
 - ⚠️ **La alternativa obvia —consultar la tabla `trans`— es peor por dos motivos medidos.** Es
   más lenta: su PK es `(norm, entry_id)`, así que preguntar por `entry_id` **escanea la tabla
   entera** —21,3 ms para 474.849 filas, 6× el coste del payload— y haría falta un índice nuevo,

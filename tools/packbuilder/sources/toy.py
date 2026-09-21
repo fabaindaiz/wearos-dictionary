@@ -139,7 +139,7 @@ _DATA = [
 METADATA = {
     "pack_id": "es-tr-toy",
     "kind": "bilingual",
-    "name": "Juguete Español → English",
+    "name": "Juguete Español ↔ English",
     "langs": "es,en",
     # La capacidad, aparte de `kind` (D-183). Un pack bilingue la declara igual: `kind` dice en
     # que idioma estan las definiciones, esto dice en cual estan las traducciones.
