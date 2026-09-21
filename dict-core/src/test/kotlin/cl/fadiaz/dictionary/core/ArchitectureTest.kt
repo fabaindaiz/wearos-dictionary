@@ -3,6 +3,7 @@ package cl.fadiaz.dictionary.core
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -147,4 +148,39 @@ class ArchitectureTest {
         assertEquals(header.getValue("unicode_version"), UnicodeRepertoire.UNICODE_VERSION)
         assertEquals(header.getValue("ranges").toInt(), UnicodeRepertoire.RANGE_COUNT)
     }
+    @Test
+    fun `la tabla de case folding generada coincide con su fuente`() {
+        // Mismo mecanismo y mismo motivo que el repertorio: CaseFolding.kt y
+        // tools/unicode/casefold.txt se generan juntos, y si alguien regenera uno solo el
+        // builder y la app pliegan distinto -- o sea que el mismo `sense_code` da dos numeros y
+        // los enlaces entre packs apuntan a la nada, sin excepcion y sin log.
+        val vectorsDir = System.getProperty("vectors.dir")
+            ?: fail("falta la propiedad de sistema vectors.dir")
+        val source = File(File(vectorsDir).parentFile.parentFile, "unicode/casefold.txt")
+        assertTrue(source.isFile, "no se encontro casefold.txt en ${source.absolutePath}")
+
+        val header = source.readLines()
+            .filterNot { it.startsWith("#") || it.isBlank() }
+            .associate { it.substringBefore(' ') to it.substringAfter(' ') }
+
+        assertEquals(
+            header.getValue("sha256"),
+            CaseFolding.DIGEST,
+            "CaseFolding.kt no corresponde a casefold.txt; " +
+                "regenerar con python3 tools/unicode/gen_casefold.py",
+        )
+        assertEquals(header.getValue("unicode_version"), CaseFolding.UNICODE_VERSION)
+        assertEquals(header.getValue("pairs").toInt(), CaseFolding.PAIR_COUNT)
+    }
+
+    @Test
+    fun `el plegado sigue el estandar y no solo lowercase`() {
+        // El caso que el propio estandar usa de ejemplo: «Μάϊος» y «ΜΆΪΟΣ» tienen que casar, y
+        // con `lowercase()` solo NO casan --la sigma final queda distinta. Y el clasico `ß`→`ss`.
+        assertEquals(PayloadCodec.foldGloss("Μάϊος"), PayloadCodec.foldGloss("ΜΆΪΟΣ"))
+        assertEquals(PayloadCodec.foldGloss("ss"), PayloadCodec.foldGloss("ß"))
+        // Y lo que NO hace: los acentos se conservan, porque distinguen palabras.
+        assertNotEquals(PayloadCodec.foldGloss("publico"), PayloadCodec.foldGloss("público"))
+    }
+
 }

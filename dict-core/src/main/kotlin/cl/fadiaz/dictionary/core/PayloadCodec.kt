@@ -125,11 +125,18 @@ object PayloadCodec {
     /**
      * Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
      *
-     * ⚠️ **ESPEJO de `payload.fold_gloss`.** Es una regla NUESTRA y versionada, a diferencia de
-     * NFC que es un estandar: cambiarla invalida todos los enlaces ya escritos.
+     * ⚠️ **ESPEJO de `payload.fold_gloss`.**
      *
-     * Ligero a proposito -- minusculas, espacios colapsados, puntuacion final fuera -- y **no**
-     * saca acentos: `publico` y `público` son palabras distintas.
+     * El plegado de caja **sigue el estandar**: [CaseFolding.fold] implementa `toCaseFold()`, la
+     * regla R4 de la seccion 3.13 del Estandar Unicode, que es la operacion que UAX #31 define
+     * para *caseless matching*. `lowercase()` es la equivocada -- el estandar separa las dos:
+     * case mapping para MOSTRAR, case folding para COMPARAR.
+     *
+     * ⚠️ **Lo que si es una regla NUESTRA y versionada es quitar la puntuacion final**: ningun
+     * estandar lo hace, es una decision de contenido, y cambiarla invalida todos los enlaces ya
+     * escritos.
+     *
+     * Ligero a proposito y **no** saca acentos: `publico` y `público` son palabras distintas.
      *
      * ⚠️ **El espacio se enumera a mano y NO se usa `\s`**: en Python `\s` sobre `str` es
      * Unicode y en Java es ASCII, asi que un espacio duro (U+00A0) se colapsaria de un lado y
@@ -137,7 +144,7 @@ object PayloadCodec {
      * log**.
      */
     fun foldGloss(gloss: String): String =
-        ESPACIO.replace(toNfc(gloss).trim().lowercase(), " ").trim(*CIERRE)
+        ESPACIO.replace(CaseFolding.fold(toNfc(gloss).trim()), " ").trim(*CIERRE)
 
     private val ESPACIO = Regex("[ \t\n\r\u000C\u000B]+")
     private val CIERRE = charArrayOf(' ', '.', ';', ':', ',')

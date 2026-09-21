@@ -24,8 +24,14 @@ nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-119).
 """
 
 import hashlib
+import os
 import re
+import sys
 import unicodedata
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import casefold as _casefold  # noqa: E402
 import zlib
 
 # Sube cuando cambia el formato. Se escribe en meta.payload_codec.
@@ -125,9 +131,20 @@ _ESPACIO = re.compile("[ \t\n\r\f\v]+")
 def fold_gloss(gloss):
     """Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
 
-    ⚠️ **Es una regla NUESTRA y versionada, a diferencia de NFC que es un estandar.** Cambiarla
-    invalida todos los enlaces ya escritos de todos los packs, asi que es un acto deliberado y lo
-    fija un vector en los dos lenguajes.
+    ⚠️ **El plegado de caja SIGUE EL ESTANDAR**: `toCaseFold()`, regla R4 de la seccion 3.13 del
+    Estandar Unicode, que es la operacion que UAX #31 define para *caseless matching*. El estandar
+    separa explicitamente las dos: `toLowerCase()` es **case mapping**, para MOSTRAR texto;
+    `toCaseFold()` es **case folding**, para COMPARARLO. La primera version usaba `lower()`, que es
+    la equivocada -- medido, **242 de 133.730** code points del repertorio fijado difieren
+    (`ß`→`ss`, `ſ`→`s`, `ς`→`σ`), y sobre las glosas reales 8 de 97.337 en español.
+
+    Viene de la tabla fijada de [casefold] y no de `str.casefold()`, porque Java **no tiene**
+    `toCaseFold()` y lo unico que lo ofrece es ICU, que D-003 prohibe.
+
+    ⚠️ **Lo que si es una regla NUESTRA y versionada es quitar la puntuacion final**: ningun
+    estandar lo hace. Es una decision de CONTENIDO --el Wikcionario escribe "Casa." y Wikidata
+    "casa"-- y cambiarla invalida todos los enlaces ya escritos, asi que es un acto deliberado y
+    lo fija un vector en los dos lenguajes.
 
     Decidido con el numero sobre la mesa: entre el Wikcionario y Wikidata sube la coincidencia de
     **34,40 % a 42,21 % (+1.531 acepciones)**. Los fallos que recupera se ven leyendo:
@@ -143,7 +160,7 @@ def fold_gloss(gloss):
     el codigo, dos acepciones que difieren en un punto compartirian codigo sin fusionarse y una
     quedaria **inalcanzable** -- justo la excepcion que el invariante cierra.
     """
-    plegada = unicodedata.normalize("NFC", gloss).strip().lower()
+    plegada = _casefold.fold(unicodedata.normalize("NFC", gloss).strip())
     return _ESPACIO.sub(" ", plegada).strip(_CIERRE)
 
 
