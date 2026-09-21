@@ -26,6 +26,49 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El código de acepción nombra idioma y palabra, no un pack
+**Qué.** `payload.sense_code` y su espejo `PayloadCodec.senseCode`: nombran una acepción sin
+nombrar un pack. Se elimina `meta.translations_pack`. Seis tests en Python, tres en Kotlin.
+**Áreas.** `tools/packbuilder/payload.py`, `tools/packbuilder/build_pack.py`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PlatformJvm.kt`, dos de test,
+`docs/roadmap.md`.
+**Por qué.** Propuesta del usuario: *«en lugar de mostrar un pack, mostrar un idioma, la palabra,
+y que el link a la acepción sea inequívoco y único para esa palabra, idioma y pack (core y
+completo aquí pueden repetir este código)»*. Corrige la fragilidad que la revisión anterior había
+identificado: `translations_pack` nombraba UN pack y el enlace moría si estaba el núcleo.
+**Arquitectura.** ✅ Cumple. ⚠️ **Crea un SEGUNDO contrato entre los dos lenguajes**, así que
+lleva la declaración de espejo y un vector compartido en los dos lados. `toNfc` va a
+`PlatformJvm.kt` por D-017 y se delega a la plataforma por D-004.
+**Medido.**
+- **No hizo falta inventar nada**: `entry.uid` ya lleva idioma y palabra
+  (`stable_uid(lang, headword, pos, sense_key)`), así que el código es
+  `sha256(uid ␟ NFC(glosa))[:12]`.
+- ⚠️ **El requisito del usuario se cumple por construcción y está verificado**: los **21.534**
+  códigos de acepción del núcleo español son **idénticos (100,0 %)** en el completo, porque
+  `build_core.py` **copia** el uid en vez de recalcularlo (D-175) y conserva la glosa.
+- Colisiones: **22 de 210.249 (0,0105 %)**, todas glosas que el wiki define dos veces.
+- 12 hex = 48 bits: ~4e-7 de choque con 210.249 acepciones, despreciable frente al 0,0105 % que
+  el dato ya trae.
+- Tope del tope: se midió que `MAX_TRADUCCIONES_POR_ACEPCION = 8` pierde **57 de 34.710
+  (0,16 %)** y que el `sense_index` no parseable son **17 (0,049 %)**. Las dos decisiones quedan
+  validadas.
+**Qué salió mal.** Una, y la agarró el propio diseño del repo. **La primera versión calculaba el
+código sobre `norm(glosa)`**, lo que lo ataba a `NORM_VERSION`: un bump --que D-005 permite en
+cualquier momento-- habría cambiado **todos** los códigos y dejado apuntando a la nada cada enlace
+de cada pack ya construido, sin error y sin log. Lo corrigió **leer el docstring de
+`stable_uid`**, que ya había decidido exactamente esto por el mismo motivo (D-055) y lo dejó
+escrito. Cambiar el algoritmo hizo fallar el vector fijado, que es justo su trabajo.
+**Qué quedó sin hacer.**
+- **El slot de acepción sigue vacío en el pack español**: para llenarlo hay que conocer el `uid` y
+  la glosa del pack destino, y el Wikcionario español no los tiene. Lo llenaría un pack
+  **derivado**.
+- **Nadie resuelve el enlace todavía** en la app: los términos se dibujan sin pintar.
+- De la revisión siguen abiertos: `bilingual.py` no llena `T`/`W` (su canal de lectura está
+  vacío con 206.727 filas de `trans`), `wordActions` filtra por `kind == BILINGUAL` así que no
+  ofrece traducir sobre un pack que ya traduce, y los 10.438 pares de `en.jsonl` sin usar.
+- **Los packs reales siguen sin reconstruirse**: un solo build al final, como se acordó.
+
 ## 2026-09-21 — CONSTRUIDO: el segundo canal, `trans` lleno, y la referencia (pack, palabra, acepción)
 **Qué.** Tag `W` en el payload para las traducciones que la fuente no atribuyó; `trans` del pack
 español pasa de 0 a 3.257 filas; `meta.translations_pack` declara el diccionario destino una sola

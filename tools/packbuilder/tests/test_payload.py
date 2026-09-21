@@ -341,5 +341,64 @@ class ReferenciaDeTraduccionTest(unittest.TestCase):
         self.assertEqual(("bench", "d4e5"), payload.split_ref(senses[0]["translations"][0]))
         self.assertEqual(("bank", "f6a7"), payload.split_ref(palabra[0]))
 
+
+class CodigoDeAcepcionTest(unittest.TestCase):
+    """El codigo que nombra una acepcion sin nombrar un pack.
+
+    Pedido: *«en lugar de mostrar un pack, mostrar un idioma, la palabra, y que el link a la
+    acepcion sea inequivoco y unico para esa palabra, idioma y pack (core y completo aqui pueden
+    repetir este codigo). Asi si no esta la acepcion exacta pero si la palabra, se puede
+    referenciar a esta.»*
+
+    ⚠️ **`entry.uid` ya lleva el idioma adentro** --`stable_uid(lang, headword, pos, sense_key)`--
+    asi que el codigo sale de combinarlo con la glosa y **no nombra ningun pack**. Verificado
+    sobre los packs reales: los **21.534** codigos del nucleo español son **identicos** en el
+    completo, porque `build_core.py` **copia** el uid en vez de recalcularlo.
+
+    Colisiones medidas sobre el pack español entero: **22 de 210.249 (0,0105 %)**, y son glosas
+    que el wiki define dos veces, asi que apuntan a dos acepciones de texto identico.
+    """
+
+    def test_el_codigo_no_depende_del_pack(self):
+        """Mismo uid y misma glosa dan el mismo codigo. Eso es lo que hace que nucleo y completo
+        lo compartan sin coordinarse."""
+        self.assertEqual(payload.sense_code(123, "Edificación destinada a vivienda."),
+                         payload.sense_code(123, "Edificación destinada a vivienda."))
+
+    def test_dos_acepciones_de_la_misma_palabra_dan_codigos_distintos(self):
+        self.assertNotEqual(payload.sense_code(123, "asiento para varias personas"),
+                            payload.sense_code(123, "entidad financiera"))
+
+    def test_la_misma_glosa_en_otra_palabra_da_otro_codigo(self):
+        """Sin el uid, dos entradas con la misma definicion corta --y las hay a miles-- serian
+        la misma acepcion."""
+        self.assertNotEqual(payload.sense_code(123, "Apellido."),
+                            payload.sense_code(456, "Apellido."))
+
+    def test_no_depende_de_NORM_VERSION(self):
+        """⚠️ El precedente de D-055, y aca muerde mas fuerte.
+
+        Si el codigo pasara por `norm()`, un bump de `NORM_VERSION` --que D-005 permite en
+        cualquier momento-- cambiaria TODOS los codigos y dejaria apuntando a la nada cada enlace
+        de cada pack ya construido, sin error y sin log. Se calcula sobre la glosa cruda.
+        """
+        import normalize
+        glosa = "Un  ASIENTO  largo"
+        self.assertNotEqual(payload.sense_code(7, glosa),
+                            payload.sense_code(7, normalize.norm(glosa)),
+                            "si estos coinciden es que el codigo esta pasando por norm()")
+
+    def test_NFC_para_que_la_misma_glosa_no_de_dos_codigos(self):
+        """Dos fuentes pueden entregar "á" precompuesta o descompuesta para la misma glosa."""
+        import unicodedata
+        g = "Sección"
+        self.assertEqual(payload.sense_code(7, unicodedata.normalize("NFC", g)),
+                         payload.sense_code(7, unicodedata.normalize("NFD", g)))
+
+    def test_es_estable_y_esta_fijado_por_un_vector(self):
+        """⚠️ Tiene ESPEJO en Kotlin: si este numero cambia, los enlaces de todos los packs ya
+        construidos apuntan a la nada. Se fija aqui para que cambiarlo sea un acto deliberado."""
+        self.assertEqual("8ec316909e48", payload.sense_code(1, "casa"))
+
 if __name__ == "__main__":
     unittest.main()

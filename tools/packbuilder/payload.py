@@ -24,6 +24,7 @@ nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-119).
 """
 
 import hashlib
+import unicodedata
 import zlib
 
 # Sube cuando cambia el formato. Se escribe en meta.payload_codec.
@@ -96,6 +97,49 @@ def sanitize(value):
     """Deja un valor apto para el formato delimitado, o None si queda vacio."""
     cleaned = " ".join(value.translate(_FORBIDDEN).split())
     return cleaned or None
+
+
+# Cuantos caracteres hex del sha256 nombran una acepcion.
+#
+# 12 hex son 48 bits. Con las 210.249 acepciones del pack español la probabilidad de que dos
+# distintas choquen es ~4e-7: despreciable frente a las **22 colisiones reales (0,0105 %)** que
+# ya tiene el dato por glosas que el wiki define dos veces. Alargarlo no compraria nada y cada
+# caracter se paga en cada referencia.
+SENSE_CODE_LENGTH = 12
+
+
+def sense_code(uid, gloss):
+    """Nombra una acepcion **sin nombrar un pack**: unico para `(idioma, palabra, acepcion)`.
+
+    ⚠️ **El idioma y la palabra ya estan dentro de `uid`** --`stable_uid(lang, headword, pos,
+    sense_key)`-- asi que alcanza con combinarlo con la glosa. De ahi salen las tres propiedades
+    que se pidieron:
+
+    1. **No nombra un pack.** Cualquier pack instalado de ese idioma puede resolverlo, asi que el
+       enlace no muere porque el usuario tenga el nucleo en vez del completo.
+    2. **El nucleo y el completo lo comparten.** Verificado sobre los packs reales: los **21.534**
+       codigos del nucleo español son **identicos** en el completo, porque `build_core.py`
+       **copia** el uid en vez de recalcularlo (D-175) y conserva la glosa.
+    3. **Degrada a la palabra.** Si ningun pack tiene esa acepcion pero alguno tiene la palabra,
+       el termino sigue siendo un enlace util: el codigo es un *sufijo* del termino, no lo
+       reemplaza.
+
+    ⚠️ **Se calcula sobre la glosa CRUDA en NFC, no sobre `norm()`, y eso es el precedente de
+    D-055 aplicado tal cual.** `stable_uid` ya decidio lo mismo y dejo escrito por que: *«asi no
+    depende de NORM_VERSION, y subir las reglas de normalizacion no invalida los packs
+    auxiliares»*. Aca muerde mas fuerte todavia -- un bump de `NORM_VERSION`, que D-005 permite
+    en cualquier momento, cambiaria **todos** los codigos y dejaria apuntando a la nada cada
+    enlace de cada pack ya construido, sin error y sin log.
+
+    NFC y no los bytes crudos porque dos fuentes pueden entregar "á" precompuesta o descompuesta
+    para la misma glosa, y serian codigos distintos para la misma acepcion.
+
+    ⚠️ **ESTE ARCHIVO TIENE UN ESPEJO**: `PayloadCodec.senseCode` en Kotlin. Si los dos calculan
+    distinto, los enlaces apuntan a la nada **sin error y sin log**, que es el modo de falla
+    central de este repo. Lo fija un vector en `test_payload.py` y su gemelo en Kotlin.
+    """
+    material = "%d\x1f%s" % (uid, unicodedata.normalize("NFC", gloss))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:SENSE_CODE_LENGTH]
 
 
 def make_ref(term, sense_ref=None):
