@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **97 tests**) y el
-pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **768 tests en total**. Los **46
+pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **291 JVM
+de `:app`** y **26 checks** de auditoría estructural — **769 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -134,9 +134,9 @@ son las de ahora.*
 
 | # | Qué | Por qué primero | Bloquea a |
 |---|---|---|---|
-| 1 | **Reconstruir los packs reales** (~1 h) | El formato cambió más el 2026-09-21 que en ningún otro día y **los `.db` en disco son anteriores**: los dos canales de traducción, `trans` lleno, el código de acepción y las flexiones existen en el código y **no en ningún archivo** | Todo lo de §Traducciones, y cualquier cosa que se quiera ver en el reloj |
-| 2 | **Subir APK y packs al reloj** | Nada de lo construido desde el 2026-09-20 se vio en hardware. Y la app **dibuja a ~5 fps con la pantalla quieta**, que es el mayor gasto medido y sigue sin localizarse | O-1, O-4, los 43 instrumentados, la verificación de R8 |
-| 3 | **§Alinear acepciones entre fuentes** | Es el problema abierto más caro: bloquea 20.644 aportes de contenido **y** el espacio de equivalencias entre packs, que es lo único que haría compatibles dos diccionarios del mismo idioma | Composición entre packs · la calidad del pack español · el 65,60 % que el código de acepción no puede puentear |
+| 1 | **Verlo en el reloj** (APK + 5 packs, ~450 MB) | Lo del 2026-09-21 se verificó **en el emulador**, que iguala la geometría y **no el hardware** (D-043). Rendimiento y batería sólo cuentan medidos en la muñeca — y la app **dibuja a ~5 fps con la pantalla quieta**, que es el mayor gasto medido y sigue sin localizar | O-1 entera, el trace de Perfetto, cualquier número de batería |
+| 2 | **§Alinear acepciones entre fuentes** | El problema abierto más caro, con **cuatro caras**: bloquea 20.644 aportes de contenido, el espacio de equivalencias entre packs, y la pregunta de qué se muestra cuando dos packs tienen la misma palabra — hoy **se elige uno y el otro se esconde** | sinónimos/ejemplos por acepción de fuentes externas · composición entre packs |
+| 3 | **El instalador** | Los packs entran por cable con `devpack.py`. Sin catálogo no hay forma de que alguien que no seas vos instale un diccionario, y **el `sha256` del pack entero no existe**: una descarga truncada abre sin error y devuelve menos palabras | distribuir la app a cualquiera |
 
 ---
 
@@ -926,18 +926,21 @@ tabla `trans` (canal de BUSQUEDA)                     : 0 filas
 `comprender` (7), `comenzar` (6), `atrapar` (8). No es cobertura de la fuente: es que **no hay
 canal donde ponerlas**.
 
-| # | pedido | estado |
-|---|---|---|
-| 1 | completar con otras fuentes | ⚠️ barrido hecho, ninguna externa usable — pero se usa el **65 %** de la propia |
-| 2 | cómo se **consulta** e integra | ⚠️ integra sí; **consulta no**: `trans` = 0 filas |
-| 3 | tablas en ambos sentidos | ❌ medido (1,84 MB), sin construir |
-| 4 | mostrar palabras sin definición | ❌ diseñado (0 MB), sin construir |
-| 5 | sección de traducciones en la ficha | ✅ **construido** |
-| 6 | traducciones ↔ acepciones entre idiomas | ✅ dentro de un idioma; entre idiomas medido y descartado |
-| 7 | **dos modos: palabra y acepción** | ❌ sólo el de acepción |
-| 8 | degradar a modo lista | ❌ depende de 7 |
-| 9 | enlace inequívoco palabra+acepción | ❌ diseñado, sin construir |
-| 10 | enforcement | ❌ diseñado, sin construir |
+> ⚠️ **Esta tabla es del 2026-09-20 y está SUPERADA.** Se conserva porque muestra de qué se
+> partía; el estado real se marca en la columna de la derecha.
+
+| # | pedido | estado entonces | estado hoy (2026-09-21) |
+|---|---|---|---|
+| 1 | completar con otras fuentes | ⚠️ barrido hecho, ninguna externa usable | ✅ se usa el **65 %** de la propia |
+| 2 | cómo se **consulta** e integra | ⚠️ integra sí, consulta no | ✅ **las dos**: el otro idioma son entradas (D-196) |
+| 3 | tablas en ambos sentidos | ❌ medido (1,84 MB), sin construir | ✅ **construido** (D-195/D-196) |
+| 4 | mostrar palabras sin definición | ❌ diseñado (0 MB), sin construir | ✅ una entrada inversa **no tiene acepciones** y se muestra igual |
+| 5 | sección de traducciones en la ficha | ✅ construido | ✅ |
+| 6 | traducciones ↔ acepciones entre idiomas | ✅ dentro de un idioma | ✅ sin cambio: entre idiomas sigue medido y descartado |
+| 7 | **dos modos: palabra y acepción** | ❌ sólo el de acepción | ✅ **los dos**: tags `T` y `W` (D-179) |
+| 8 | degradar a modo lista | ❌ depende de 7 | ✅ el canal `W` **es** la lista |
+| 9 | enlace inequívoco palabra+acepción | ❌ diseñado, sin construir | ✅ `sense_code` (D-180 a D-182) |
+| 10 | enforcement | ❌ diseñado, sin construir | ✅ `verify_pack.py` comprueba el formato y las dos direcciones |
 
 **El #7 desbloquea 1, 2, 7 y 8 a la vez**, y su costo está medido: un tag nuevo en el payload
 —aditivo, sin subir `CODEC_ID` por D-119— más **22 llamadores de `parse()` en Python** (19 en
@@ -1259,15 +1262,20 @@ structural, not accidental.** The Spanish side has the `form` table, so every in
 its lemma systematically. The English side has only the derived keys, so an English inflection is
 found **only if some Spanish gloss happens to spell it**:
 
-| | found | | found |
-|---|---|---|---|
-| `dogs` | ✅ | `ran` | ❌ |
-| `running` | ✅ | `went` | ❌ |
-| `houses` | ✅ | `bigger` | ❌ |
-| `children` | ✅ | | |
+| | found | | found (entonces) | (hoy) |
+|---|---|---|---|---|
+| `dogs` | ✅ | `ran` | ❌ | ✅ flexión de `run` |
+| `running` | ✅ | `went` | ❌ | ✅ flexión de `go` |
+| `houses` | ✅ | `bigger` | ❌ | ✅ |
+| `children` | ✅ | | | |
 
 The regulars survive by luck and the irregulars do not — which is the worst shape for a gap,
 because it is invisible until you hit it.
+
+> ✅ **Cerrado por D-184 y reubicado por D-196.** Las flexiones inglesas entran desde el pack
+> inglés ya construido, y desde que el bilingüe es bidireccional viven en el **`form` de la
+> entrada inglesa**: `went` es flexión de `go`, y `go` es un lema. Medido sobre el pack
+> reconstruido: **97,0 %** del top 1.000 inglés, contra el 78,1 % de esta tabla.
 
 ⚠️ **A second asymmetry, and it is the one no amount of coverage fixes**: the two directions do not
 return the same *kind* of answer. ES→EN opens an **entry** with its senses; EN→ES returns a **list

@@ -55,6 +55,26 @@ lógica y **uno que era un defecto real de navegación**.
 - Al quitar `Ver traducción` quedó `translationPack()` sin llamadores y un doc colgando sin
   función. Lo vio el compilador, pero recuerda que borrar una acción es borrar **su cadena, su
   helper y sus tests**, no sólo el botón.
+**Barrido de cierre, a pedido («¿hay alguna regla rota?»).**
+- ⚠️ **Sí había una, y la peor de las posibles: D-200 valía en la pantalla y NO en el tile.** Un
+  pack de traducción no genera palabra del día, pero `cacheWeekForTile` recibía el pack **activo**
+  — y el activo puede ser el bilingüe, porque es el más grande y `chooseActive` lo prefiere. El
+  tile habría mostrado una palabra de un diccionario que no define nada, **en la superficie que
+  nadie abre a propósito**: un error que no se reporta.
+- ⚠️ **Y el test de eso también nació vacuo, por segunda vez en el día.** El `FakeDictionary`
+  tenía `entryCount` realista (209.484) y `summaries` sólo de 1..300, así que `pick` sorteaba ids
+  inexistentes, devolvía null y **el tile no cacheaba nada**: el verde no probaba nada. Lo
+  destapó una sonda `isNotEmpty` puesta a propósito antes de creerle. **Dos tests vacuos en un
+  día es un patrón, no mala suerte**: un test que pasa a la primera sobre un arreglo recién
+  escrito merece una mutación o una sonda antes de contarlo.
+- Los enforcers automáticos estaban todos verdes; las reglas que fallaron son las que **nadie
+  verifica**. Las no enforzadas que sí se comprobaron a mano: D-106 (un tile no abre un pack),
+  D-072 (la lógica de `:app` no importa `android.*`), D-003/D-017 vía `ArchitectureTest`.
+- Roadmap puesto al día: la tabla de los 10 pedidos de traducción estaba en **6 ❌** y hoy son
+  **10 ✅**; la tabla de flexiones inglesas decía que `ran`, `went` y `bigger` no llegaban, y
+  llegan desde D-184. Las tres prioridades se reescribieron: la #1 era reconstruir los packs, que
+  se hizo hoy.
+
 **Qué quedó sin hacer.**
 - El dictado por voz no se pudo probar en el emulador: el `RemoteInputActivity` de SysUI se lleva
   los toques y no hay forma fiable de meter texto. La ruta `ON_STOP` del input está cubierta por

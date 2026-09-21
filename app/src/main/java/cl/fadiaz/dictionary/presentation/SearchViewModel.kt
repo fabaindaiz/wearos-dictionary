@@ -593,8 +593,18 @@ class SearchViewModel(
      * It is not redone if the cache is already from today and from the same pack: that turns it into
      * once-a-day work instead of once-per-launch work.
      */
-    private fun cacheWeekForTile(active: DictionarySource) {
+    private fun cacheWeekForTile(activo: DictionarySource) {
         val today = todayDate() ?: return
+        // ⚠️ **La regla de D-200 también vale acá, y el tile es el peor sitio para que falle.**
+        // Un pack de traducción no genera palabra del día, pero el pack ACTIVO puede serlo --es
+        // el más grande, así que `chooseActive` lo prefiere-- y este método recibía el activo a
+        // secas. El resultado habría sido una palabra del día de un diccionario que no define
+        // nada, **en la superficie que nadie abre a propósito**: un error que no se reporta.
+        //
+        // Si no hay ningún diccionario de definiciones del idioma activo, no se cachea nada y el
+        // tile muestra lo que ya tenía. Es la degradación correcta: mejor sin palabra que con
+        // una que al tocarla no explica nada.
+        val active = elegirParaPalabraDelDia(activo) ?: return
         val packId = active.metadata.packId
         val (since, cacheadas) = savedWeekWords()
         if (since == today && cacheadas.isNotEmpty() && cacheadas.all { it.packId == packId }) return
@@ -621,6 +631,19 @@ class SearchViewModel(
             saveWeekWords(today, week)
             notifyTiles()
         }
+    }
+
+    /**
+     * El diccionario de DEFINICIONES que representa al idioma del pack dado, o null.
+     *
+     * Prefiere el propio pack si ya define, y si no, el más grande de su idioma que sí lo haga —
+     * la misma regla de representante que usa el selector.
+     */
+    private fun elegirParaPalabraDelDia(activo: DictionarySource): DictionarySource? {
+        if (activo.metadata.kind != PackKind.BILINGUAL) return activo
+        return packsToQuery(opened)
+            .filter { it.metadata.kind != PackKind.BILINGUAL && answersFor(it, state.value.activeLang) }
+            .maxByOrNull { it.metadata.entryCount }
     }
 
     private fun refreshWordsOfTheDay(packs: List<DictionarySource>) {
