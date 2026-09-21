@@ -23,8 +23,8 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 *Actualizado: 2026-09-20.*
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **81 tests**) y el
-pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **259 JVM
-de `:app`** y **24 checks** de auditoría estructural — **614 tests en total**. Los **43
+pipeline de packs (`tools/`, **250 tests**) están completos y en el gate, junto con los **263 JVM
+de `:app`** y **25 checks** de auditoría estructural — **619 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -949,16 +949,31 @@ Instalar no es un ETL — es *verificar y renombrar*. Room quedó descartado jus
 se escribe un `.part` y recién al final se renombra, porque **un pack a medio escribir se abre
 sin error y devuelve menos palabras de las que tiene**.
 
-#### El hueco que manda sobre todo lo demás
+#### El hueco que mandaba sobre todo lo demás — **la mitad de mecanismo está cerrada** (D-165)
 
-**Hoy no existe ningún hash del archivo entero.** `meta.payload_dict_sha256` cubre sólo el
-diccionario de compresión de 32 KB (D-008); `PackFile.open` valida `schema_version`,
-`norm_version` y `payload_codec`, todos en las primeras páginas del archivo. Una descarga
-truncada o corrompida más allá de esa zona **abre igual y devuelve menos resultados**, que es
-exactamente el bug que este repo no puede observar.
+El problema era éste: `meta.payload_dict_sha256` cubre sólo el diccionario de compresión de 32 KB
+(D-008), y `PackFile.open` valida `schema_version`, `norm_version` y `payload_codec`, todos en las
+primeras páginas. Una descarga truncada o corrompida más allá de esa zona **abría igual y
+devolvía menos resultados**, que es exactamente el bug que este repo no puede observar.
 
-Así que el catálogo tiene que declarar `sha256` y `bytes` de cada `.db`, y la instalación no
-puede terminar sin comprobarlos. Es el requisito número uno, antes que cualquier optimización.
+✅ **`installAtomically` ahora acepta un `sha256` esperado y lo comprueba en streaming**, mientras
+copia — los bytes ya están pasando, así que no agrega una lectura. Se compara **antes de
+renombrar**: un archivo que no coincide nunca llega a llamarse como el pack.
+
+⚠️ **Lo que sigue faltando es de producto, no de código: el catálogo.** Sin un lugar donde estén
+publicados los `sha256`, el parámetro existe y nadie tiene qué pasarle. Hoy sólo `devpack.py`
+compara hashes, y lo hace desde el lado del escritorio.
+
+#### Los tres momentos de validación, y por qué no usan lo mismo
+
+| Momento | Qué pregunta | Con qué | Estado |
+|---|---|---|---|
+| Instalar o descargar | ¿Llegaron los bytes publicados? | sha256 en streaming | ✅ mecanismo listo, falta el catálogo |
+| Descubrir un pack ajeno | ¿Están bien sus claves? | la muestra de 64 de D-142 | ✅ automático: sin anotación en el memo, se valida entero |
+| Cada arranque | ¿Es el mismo archivo? | huella `(bytes, mtime, NORM_VERSION)` | ✅ D-164 |
+
+⚠️ **Un hash no sirve para el tercero**, y es el error natural: comprobarlo obligaría a releer
+301 MB, mucho peor que las 64 filas que se querían ahorrar.
 
 #### Lo que ya está decidido y no se rediscute
 

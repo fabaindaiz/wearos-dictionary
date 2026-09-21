@@ -555,6 +555,26 @@ def check_attribution_screen(report):
         )
 
 
+def _bloque(texto, apertura):
+    """El cuerpo del bloque que empieza en `apertura`, contando llaves. Vacio si no esta.
+
+    No es un parser de Kotlin y no pretende serlo: alcanza para acotar un chequeo a la seccion
+    que de verdad quiere vigilar, en vez de a todo el archivo.
+    """
+    inicio = texto.find(apertura)
+    if inicio < 0:
+        return ""
+    profundidad = 0
+    for i in range(inicio + len(apertura) - 1, len(texto)):
+        if texto[i] == "{":
+            profundidad += 1
+        elif texto[i] == "}":
+            profundidad -= 1
+            if profundidad == 0:
+                return texto[inicio:i + 1]
+    return texto[inicio:]
+
+
 def check_release_signing(report):
     """Regla: la firma del release no deja secretos en el repo ni usa la clave de debug.
 
@@ -585,7 +605,12 @@ def check_release_signing(report):
     with open(gradle, encoding="utf-8") as handle:
         texto = handle.read()
 
-    if re.search(r'signingConfig\s*=\s*signingConfigs\.getByName\(\s*"debug"', texto):
+    # ⚠️ **Sólo dentro del bloque `release`**, y eso no es un detalle. La regla habla del APK que
+    # sale a la gente; un build type aparte que firma con la clave de debug para poder instalarse
+    # por adb es legítimo y necesario --es como se prueba R8 antes de que exista la keystore, y es
+    # lo que Macrobenchmark exige--. Mirar el archivo entero prohibía eso por accidente.
+    if re.search(r'signingConfig\s*=\s*signingConfigs\.getByName\(\s*"debug"',
+                 _bloque(texto, "release {")):
         report.failure(
             "el release se firma con la clave de debug",
             "app/build.gradle.kts firma el release con la config de debug. Instala y corre, y "
@@ -982,6 +1007,68 @@ def check_r8_keep_rules(report):
             )
 
 
+def check_manifest_hygiene(report):
+    """Regla: el manifest no declara permisos que no se usan, ni pierde lo que la app necesita.
+
+    ⚠️ **«100 % offline» es la primera linea del README y de `CLAUDE.md`, y no tenia enforcer.**
+    Si alguien agrega `INTERNET` --y el instalador de packs lo va a necesitar algun dia (D-029)--
+    la afirmacion central del proyecto deja de ser cierta y **nada lo dice**. Este chequeo no
+    prohibe agregarlo: obliga a venir aca y cambiar la regla a mano, que es la diferencia entre
+    una decision y un descuido.
+
+    Lo segundo que mira es lo contrario: un permiso declarado y **nunca usado**. `WAKE_LOCK`
+    estuvo asi desde el template hasta el 2026-09-20; no rompe nada, pero se lo muestra al
+    usuario al instalar y hay que poder justificarlo.
+
+    Y lo tercero es `localeConfig`, que se genera desde las carpetas `values-*` reales: sin el,
+    la app **no aparece en la lista de idiomas del sistema** (el selector propio si funciona, y
+    por eso el hueco paso desapercibido dos sesiones).
+    """
+    manifest = read(os.path.join("app", "src", "main", "AndroidManifest.xml"))
+    build = read(os.path.join("app", "build.gradle.kts"))
+
+    permisos = set(re.findall(r'uses-permission android:name="android\.permission\.(\w+)"',
+                              manifest))
+    de_red = permisos & {"INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"}
+    if de_red:
+        report.failure(
+            "la app dejo de ser 100 % offline",
+            "AndroidManifest.xml declara %s. Esa frase es la primera linea del README y de "
+            "CLAUDE.md: si la descarga de packs llego (D-029), hay que actualizar los dos "
+            "documentos Y esta regla, en el mismo commit" % ", ".join(sorted(de_red)),
+        )
+
+    # Un permiso declarado tiene que aparecer en el codigo. La heuristica es grosera a proposito:
+    # busca el nombre del permiso o su API mas obvia, y con eso alcanza para el tamano de este
+    # manifest.
+    usos = {
+        "WAKE_LOCK": ("WakeLock", "WAKE_LOCK"),
+        "VIBRATE": ("Vibrator", "vibrate"),
+        "POST_NOTIFICATIONS": ("NotificationManager", "notify("),
+        "BODY_SENSORS": ("SensorManager", "Sensor"),
+    }
+    fuentes = ""
+    for ruta in _kotlin_sources(os.path.join(ROOT, "app", "src", "main")):
+        with open(ruta, encoding="utf-8") as handle:
+            fuentes += handle.read()
+    for permiso in sorted(permisos):
+        senales = usos.get(permiso)
+        if senales and not any(senal in fuentes for senal in senales):
+            report.failure(
+                "un permiso declarado no se usa",
+                "AndroidManifest.xml pide %s y no hay una sola linea de codigo que lo use. Se le "
+                "muestra al usuario al instalar: o se usa, o se saca" % permiso,
+            )
+
+    if "generateLocaleConfig = true" not in build and "localeConfig" not in manifest:
+        report.failure(
+            "la app no declara su lista de idiomas",
+            "sin `localeConfig` la app NO aparece en Ajustes -> Idiomas del sistema. El selector "
+            "propio (D-158) sigue funcionando, que es por lo que el hueco no se nota mirando la "
+            "app",
+        )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -1087,6 +1174,7 @@ CHECKS = [
     check_ui_language_picker,
     check_test_counts,
     check_r8_keep_rules,
+    check_manifest_hygiene,
     check_no_hardcoded_translations,
     check_root_budget,
     check_method_digest,

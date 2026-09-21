@@ -10,6 +10,8 @@ import cl.fadiaz.dictionary.core.TextNormalizer
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.security.DigestInputStream
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -240,18 +242,52 @@ object PackStore {
      * It is `internal` and free of `Context` so it can be tested on the JVM: atomicity is a
      * property of the filesystem, not of Android.
      */
-    internal fun installAtomically(input: InputStream, dir: File, name: String): File {
+    internal fun installAtomically(
+        input: InputStream,
+        dir: File,
+        name: String,
+        /**
+         * El sha256 que el catálogo dice que este pack tiene, si se conoce.
+         *
+         * ⚠️ **Éste es el único momento en que un hash sirve, y acá sale casi gratis**: los bytes
+         * ya están pasando para copiarse, así que digerirlos no agrega una lectura. Comprobarlo
+         * en cada arranque, en cambio, obligaría a releer 301 MB — por eso el chequeo por
+         * arranque es la huella barata de [PackVerification] y no esto. Son dos preguntas
+         * distintas: acá *«¿llegaron los bytes que se publicaron?»*, allá *«¿es el mismo archivo
+         * que ya probé?»*.
+         *
+         * `null` cuando no hay contra qué comparar --el pack de demostración sale de los assets--
+         * y entonces **no se digiere nada**: calcular un hash que nadie mira, sobre cientos de
+         * MB y en un reloj, no es gratis.
+         */
+        expectedSha256: String? = null,
+    ): File {
         val partial = File(dir, "$name.part")
         val target = File(dir, name)
         partial.delete()
+        val digest = expectedSha256?.let { MessageDigest.getInstance("SHA-256") }
         try {
             input.use { from ->
-                partial.outputStream().use { target -> from.copyTo(target, BUFFER) }
+                val source = if (digest == null) from else DigestInputStream(from, digest)
+                partial.outputStream().use { target -> source.copyTo(target, BUFFER) }
             }
         } catch (e: IOException) {
             // If it is not deleted, the next attempt starts on garbage and wastes disk too.
             partial.delete()
             throw e
+        }
+        if (digest != null) {
+            val calculado = digest.digest().joinToString("") { "%02x".format(it) }
+            // ⚠️ **Se compara ANTES de renombrar, y el orden es todo**: renombrar primero dejaría
+            // un diccionario corrupto llamándose como el bueno, y el siguiente arranque lo abre
+            // sin quejarse -- un `.db` truncado o distinto es SQLite válido.
+            if (!calculado.equals(expectedSha256.trim(), ignoreCase = true)) {
+                partial.delete()
+                throw IOException(
+                    "el pack descargado no coincide con lo publicado: se esperaba " +
+                        "${expectedSha256.trim()} y llegó $calculado",
+                )
+            }
         }
         if (!partial.renameTo(target)) {
             partial.delete()

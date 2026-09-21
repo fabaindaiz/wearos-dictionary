@@ -3,6 +3,24 @@ package cl.fadiaz.dictionary.data
 /**
  * Si un pack ya se probó, y si esa prueba sigue valiendo.
  *
+ * ## Los tres momentos, y por qué cada uno usa un método distinto
+ *
+ * | Momento | Qué se pregunta | Con qué |
+ * |---|---|---|
+ * | **Instalar o descargar** | ¿Llegaron los bytes que se publicaron? | **sha256 en streaming**, en `PackStore.installAtomically` |
+ * | **Descubrir un pack** que la app no instaló | ¿Están bien construidas sus claves? | la muestra de 64 de D-142, entera |
+ * | **Cada arranque** | ¿Es el mismo archivo que ya probé? | la huella de acá |
+ *
+ * ⚠️ **Un hash NO sirve para el tercero, y ahí está el matiz que importa.** Comprobarlo obligaría
+ * a releer el archivo entero --301 MB en el pack de inglés-- que es mucho peor que las 64 filas
+ * que se querían evitar. En cambio **sí es lo correcto para el primero**, y ahí sale casi gratis:
+ * los bytes ya están pasando para copiarse.
+ *
+ * ⚠️ **«Descubrir» no necesita mecanismo**: un pack que la app no instaló --uno puesto por
+ * `devpack.py`, o por el instalador cuando exista-- simplemente no tiene entrada en el memo, así
+ * que se valida entero la primera vez que se abre. La ausencia de una anotación *es* el
+ * descubrimiento.
+ *
  * ## Qué problema resuelve, y qué NO deja de hacer
  *
  * Abrir un pack recalcula `norm()` y `fuzzy()` sobre 64 entradas repartidas y las compara con lo

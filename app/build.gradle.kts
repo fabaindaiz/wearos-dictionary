@@ -107,6 +107,35 @@ android {
                 }
             }
         }
+        /**
+         * El release con R8, **instalable por adb hoy**.
+         *
+         * Existe por dos trabajos distintos que piden lo mismo:
+         *
+         * 1. **Probar R8 antes de que exista la keystore.** El release de verdad sale sin firmar
+         *    hasta que haya una (D-086), y un APK sin firmar no se instala. Este se firma con la
+         *    clave de **debug**, que es la salida correcta para un build que no sale a nadie.
+         * 2. **Los baseline profiles.** Macrobenchmark exige un build type minificado y **no
+         *    debuggable** para medir; el `debug` no sirve y el `release` no se puede instalar.
+         *
+         * ⚠️ **NO lleva `applicationIdSuffix`, y es deliberado.** Con sufijo se instalaria al
+         * lado del debug, con otro `filesDir` -- y habria que volver a copiar **300 MB de packs**
+         * para probar. Sin sufijo y con la misma clave de debug, reemplaza al debug en el lugar y
+         * **los packs se quedan donde estan**.
+         *
+         * ⚠️ **`isDebuggable = false` no es cosmetico**: un build debuggable desactiva
+         * optimizaciones del runtime, asi que medir arranque sobre el mediria otra cosa.
+         *
+         * Por que no encender R8 en `debug` a secas, que era la pregunta: porque R8 tarda ~3
+         * minutos y `debug` es la build que se compila veinte veces por dia, y porque dejaria de
+         * ser la build donde se verifica a diario -- seria ya otra cosa.
+         */
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = false
+            matchingFallbacks += listOf("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -138,6 +167,22 @@ android {
         // le pide a alguien cuando reporta algo tiene que salir del APK, no de un literal que
         // se queda atras del que subio la property.
         buildConfig = true
+    }
+    androidResources {
+        /**
+         * Que la app aparezca en la lista de idiomas **del sistema** (API 33+).
+         *
+         * ⚠️ **El selector de D-158 ya funcionaba sin esto**, y esa es la parte que confunde:
+         * `LocaleManager.setApplicationLocales` anda igual. Lo que faltaba es que el usuario
+         * pudiera llegar por Ajustes del reloj -> Idiomas, que es donde la gente lo busca
+         * primero. Sin `android:localeConfig` la app **no figura ahi**.
+         *
+         * Generado y no escrito a mano a proposito: AGP lo arma desde las carpetas `values-*`
+         * reales, asi que **no puede quedarse atras** de una traduccion nueva. Una lista a mano
+         * seria una segunda fuente de verdad del mismo dato, que es justo lo que
+         * `check_ui_language_picker` vigila del otro lado.
+         */
+        generateLocaleConfig = true
     }
     testOptions {
         unitTests {

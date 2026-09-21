@@ -162,4 +162,57 @@ class PackStoreTest {
             return n
         }
     }
+
+    @Test
+    fun theDigestIsCheckedBEFORETheRenameAndAMismatchLeavesNoPack() {
+        // ⚠️ El orden es todo. Un `.db` que no coincide con lo publicado **no puede llegar a
+        // llamarse como el pack**: si se renombra primero y se comprueba después, ya hay un
+        // diccionario corrupto en su lugar y el siguiente arranque lo abre sin quejarse.
+        val bytes = content(300_000)
+        assertFailsWith<IOException> {
+            PackStore.installAtomically(
+                bytes.inputStream(), dir, "es.db",
+                expectedSha256 = "0".repeat(64),
+            )
+        }
+        assertEquals(emptyList(), dir.list()!!.sorted(), "ni el pack ni el .part pueden quedar")
+    }
+
+    @Test
+    fun aDigestThatMatchesInstallsNormally() {
+        val bytes = content(300_000)
+        val target = PackStore.installAtomically(
+            bytes.inputStream(), dir, "es.db",
+            expectedSha256 = sha256(bytes),
+        )
+        assertTrue(bytes.contentEquals(target.readBytes()))
+        assertEquals(listOf("es.db"), dir.list()!!.sorted())
+    }
+
+    @Test
+    fun theDigestComparisonIgnoresCaseAndSpaces() {
+        // El valor va a venir de un catálogo escrito por una persona o por otra herramienta.
+        // Rechazar un sha256 correcto por venir en mayúsculas sería un fallo tonto y difícil de
+        // diagnosticar desde un reloj.
+        val bytes = content(1_000)
+        PackStore.installAtomically(
+            bytes.inputStream(), dir, "es.db",
+            expectedSha256 = "  " + sha256(bytes).uppercase() + "\n",
+        )
+        assertEquals(listOf("es.db"), dir.list()!!.sorted())
+    }
+
+    @Test
+    fun withNoExpectedDigestNothingIsHashed() {
+        // El pack de demostración sale de los assets y no tiene contra qué compararse. Calcular
+        // un digest que nadie mira sería trabajo puro: sobre 300 MB en un reloj no es gratis.
+        val bytes = content(1_000)
+        val target = PackStore.installAtomically(bytes.inputStream(), dir, "demo.db")
+        assertTrue(bytes.contentEquals(target.readBytes()))
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+
 }
