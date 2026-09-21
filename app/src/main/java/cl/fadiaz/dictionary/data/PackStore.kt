@@ -186,6 +186,26 @@ object PackStore {
     }
 
     /**
+     * El historial que el **tile** puede mostrar: ya filtrado a los packs instalados.
+     *
+     * ⚠️ **Clave aparte y no un filtro en el tile**, porque un tile **no puede** saber qué packs
+     * hay sin abrirlos, y abrir un pack en un tile está prohibido (D-106): `onTileRequest` es
+     * `@MainThread` y tiene 10 segundos. Lo que necesita se lo deja escrito la app, que sí tiene
+     * el contexto — el mismo patrón que la semana de palabras del día.
+     *
+     * Si nunca se escribió, cae al historial completo: una app recién actualizada no puede
+     * quedarse con el tile vacío hasta que alguien abra una palabra.
+     */
+    fun tileHistory(context: Context): List<Visit> =
+        prefs(context).getString(KEY_TILE_HISTORY, null)
+            ?.let(::parseVisits)
+            ?: history(context)
+
+    fun rememberTileHistory(context: Context, visits: List<Visit>) {
+        prefs(context).edit { putString(KEY_TILE_HISTORY, serializeVisits(visits)) }
+    }
+
+    /**
      * Deletes a pack from disk. **Irreversible**: putting it back costs ~90 s over adb.
      *
      * It takes the file name and not the `packId` on purpose: they are different things, and
@@ -250,6 +270,7 @@ object PackStore {
 
     private const val KEY_PACK = "pack_activo"
     private const val KEY_HISTORY = "historial"
+    private const val KEY_TILE_HISTORY = "historial_tile"
     private const val KEY_SETTINGS = "ajustes"
     /** Qué packs ya pasaron la muestra de claves de D-142. Ver [PackVerification]. */
     private const val KEY_VERIFIED = "packs_verificados"

@@ -916,6 +916,35 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun loQueSE_PERSISTE_PARA_EL_TILE_no_incluye_packs_desinstalados() = runTest {
+        // ⚠️ **Segunda instancia de la misma clase que el bug del tile**, encontrada barriendo
+        // a propósito en vez de esperar a tropezarla. La app filtra el historial a los packs
+        // instalados (`visibleOnes`) y el tile leía `PackStore.history()` **en crudo**: mostraba
+        // una palabra de un diccionario borrado, que al tocarla no abre nada.
+        //
+        // La clase es *«una regla que vale en una superficie y no en su paralela»*, y las dos
+        // veces el síntoma fue el mismo: el error vive donde nadie lo reporta.
+        var paraElTile: List<Visit> = emptyList()
+        val es = FakeDictionary("es-def", "es")
+        val vm = SearchViewModel(
+            { PackSet.Ready(handle(es), listOf(handle(es))) },
+            savedHistory = {
+                listOf(
+                    Visit("es-def", 1, "casa", "noun"),
+                    Visit("fantasma", 2, "perro", "noun"),
+                )
+            },
+            saveTileHistory = { paraElTile = it },
+        )
+        advanceUntilIdle()
+        assertEquals(
+            listOf("casa"),
+            paraElTile.map { it.headword },
+            "el tile no puede mostrar una palabra de un pack que ya no está: $paraElTile",
+        )
+    }
+
+    @Test
     fun elTILE_tampoco_cachea_palabras_de_un_pack_de_TRADUCCION() = runTest {
         // ⚠️ **La regla de D-200 valía en la pantalla y NO en el tile**, y el tile es el peor
         // sitio para que falle: nadie lo abre a propósito, así que una palabra equivocada ahí no

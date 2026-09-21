@@ -126,6 +126,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             saveActiveLanguage = { lang -> PackStore.rememberLanguage(context, lang) },
                             savedHistory = { PackStore.history(context) },
                             saveHistory = { PackStore.rememberHistory(context, it) },
+                            saveTileHistory = { PackStore.rememberTileHistory(context, it) },
                             // The date comes in through here instead of a clock inside the
                             // ViewModel: that is what lets the word of the day be tested on the
                             // JVM (D-072).

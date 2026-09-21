@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **97 tests**) y el
-pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **291 JVM
-de `:app`** y **26 checks** de auditoría estructural — **769 tests en total**. Los **46
+pipeline de packs (`tools/`, **355 tests**) están completos y en el gate, junto con los **292 JVM
+de `:app`** y **26 checks** de auditoría estructural — **770 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -2754,6 +2754,69 @@ y ninguno es obviamente el correcto:
 
 Toca D-070 y el §Instalador. **No se resuelve construyendo un pack** — se resuelve decidiendo qué
 pregunta tiene que contestar esa clave.
+
+### La superficie glanceable: qué hay, qué se comparte y hacia dónde va — INVESTIGADO 2026-09-21
+
+**Estado.** **Investigado y planificado, no construido** (salvo lo que se marca ✅). Pedido:
+*«que los tiles se basen en los mismos componentes que muestran esas funciones en la app»* y
+*«investigar y planear qué tipos de tiles hay disponibles y qué nuevas funciones podríamos
+aplicar»*. Fuentes primarias, no resúmenes: la guía de diseño de Wear OS, la de migración a Wear
+Widgets y las notas de versión de `glance-wear`.
+
+#### La respuesta corta a «los mismos componentes»: en el render, **no se puede**
+
+⚠️ **Un tile no dibuja con Compose.** ProtoLayout serializa un árbol a protobuf y lo **renderiza
+el sistema**, en otro proceso: no hay recomposición, no hay `@Composable`, no hay estado. Por eso
+`TileRender.kt` construye `LayoutElement` y no `Modifier`. **Compartir componentes de UI entre la
+app y un tile es imposible hoy**, y no por cómo está escrito este repo.
+
+Lo que **sí** se comparte, y ya estaba:
+
+| | cómo |
+|---|---|
+| **Las decisiones de contenido** | `TileContent.kt` es puro, sin Android, y corre en el gate: cuántas filas, qué palabra toca hoy, cuándo mostrar vacío |
+| **Cuántas filas caben** | `rowsThatFit(screenWidthDp)`, la misma función que el inicio, contra `requestParams.deviceConfiguration` |
+| **Las etiquetas** | `posLabel(context, pos)` — la sobrecarga con `Context` existe para esto |
+| ✅ **El detalle de una fila** | `wordDetail(context, …)`. **Nuevo**: el tile de recientes decía sólo `perro` donde el inicio dice `perro · sust.`, y no por densidad sino porque no compartía nada |
+
+⚠️ **Lo que un tile NO puede compartir aunque quiera**: la etiqueta de idioma. Sale del idioma
+activo, que un tile no conoce sin abrir un pack — prohibido por D-106 — y una `Visit` no lo
+guarda. Inventarlo sería afirmar una procedencia que nadie comprobó (familia D-080).
+
+#### Qué tipos de superficie glanceable existen, verificado
+
+| | qué es | estado para este repo |
+|---|---|---|
+| **Tile full-screen** (`androidx.wear.tiles` + `protolayout`) | Lo de hoy. Estructura de tres ranuras: `titleSlot`, `mainSlot`, `bottomSlot`, con *breakpoint* en **225 dp** para revelar más contenido | ✅ **en uso**, con `protolayout-material3` y `primaryLayout` — que es la API vigente |
+| **Wear Widget** (`glance-wear` + RemoteCompose) | Desde Wear OS 7 los tiles full-screen **evolucionan** a widgets: DSL declarativa tipo Compose, altura parcial, dos tamaños (**pequeño 2×1** y **grande 2×2**, alineados con los de móvil) | ⏸️ **sigue postergado (D-024)**, y hoy se verificó por qué: `glance-wear` va por **1.0.0-alpha14** y RemoteCompose por **1.0.0-alpha17** |
+| **Complicación** | Un dato suelto en la esfera | ❌ apagada a propósito (D-108): costaba 24 despertares diarios |
+| ~~`glance-wear-tiles`~~ | — | ❌ **prohibida** (D-025): deprecada, y el nombre confunde — no es la librería de widgets |
+
+⚠️ **No hay fecha de deprecación anunciada para los tiles**, y la guía de migración **recomienda
+mantener los dos servicios** enlazados por el atributo `group`, para que el sistema migre solo la
+ranura del carrusel en Wear OS 7+. O sea: migrar no es tirar lo que hay.
+
+#### Qué se gana y qué se pierde al migrar a widgets, según la guía
+
+**Se gana**: DSL declarativa, actualizaciones de UI **sin ida y vuelta al servicio** (`ValueChange`,
+`rememberMutableRemoteInt`), integración de altura parcial en el carrusel.
+**Se pierde**: el `bottomSlot` fijo —las acciones pegadas al borde hay que rediseñarlas— y la
+densidad: un widget es *glanceable*, no una pantalla llena. La guía dice explícitamente **no
+portar un tile uno a uno**.
+
+#### Mejoras propuestas, ninguna construida
+
+| # | qué | por qué, y qué cuesta |
+|---|---|---|
+| 1 | **Usar el breakpoint de 225 dp** | La guía dice *«nunca mostrar menos información en pantallas más grandes»*. Hoy el tile **se topa en 3 filas y se niega a crecer**, con un motivo honesto escrito en el código: el chrome del renderer **no está medido**. El trabajo es medirlo en el reloj y dejar 4 filas donde entren |
+| 2 | **Un tile de «seguir leyendo»** | La última palabra abierta, no la última visitada: hoy los recientes y el historial son lo mismo. Cuesta una clave de preferencia |
+| 3 | **La palabra del día con su primera acepción** | El `titleCard` ya admite contenido; hoy muestra sólo el tipo. La glosa es lo que la vuelve útil de un vistazo — pero **la caché sólo guarda `Visit`**, que no la trae: costaría guardarla, y `Visit` es un contrato con el disco |
+| 4 | **Atajo a la búsqueda por voz** | Un tile no acepta texto (D-026), pero **sí puede lanzar un intent**. El `bottomSlot` está vacío y es justo donde la guía pone la acción |
+| 5 | **Preparar el salto a widgets** | Servicio dual, enlazado por `group`. ⚠️ **No antes de que `glance-wear` salga de alpha**: D-024 se revisó hoy y sigue valiendo |
+
+⚠️ **El orden no es el de la lista**: el #1 es el único que necesita el reloj, y los demás son
+independientes entre sí. El #3 es el que más cambia lo que el usuario ve y el único que toca un
+formato en disco.
 
 ### Ver los dos tiles funcionando en un reloj
 
