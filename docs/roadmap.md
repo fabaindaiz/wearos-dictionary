@@ -113,7 +113,20 @@ proyecto soporta.
 
 ## Las tres cosas que desbloquean todo lo demás
 
-En orden. Cada una es barata y habilita varias de las de abajo.
+*Actualizado el 2026-09-21: las tres originales están hechas y quedan abajo como historia. Éstas
+son las de ahora.*
+
+| # | Qué | Por qué primero | Bloquea a |
+|---|---|---|---|
+| 1 | **Reconstruir los packs reales** (~1 h) | El formato cambió más el 2026-09-21 que en ningún otro día y **los `.db` en disco son anteriores**: los dos canales de traducción, `trans` lleno, el código de acepción y las flexiones existen en el código y **no en ningún archivo** | Todo lo de §Traducciones, y cualquier cosa que se quiera ver en el reloj |
+| 2 | **Subir APK y packs al reloj** | Nada de lo construido desde el 2026-09-20 se vio en hardware. Y la app **dibuja a ~5 fps con la pantalla quieta**, que es el mayor gasto medido y sigue sin localizarse | O-1, O-4, los 43 instrumentados, la verificación de R8 |
+| 3 | **§Alinear acepciones entre fuentes** | Es el problema abierto más caro: bloquea 20.644 aportes de contenido **y** el espacio de equivalencias entre packs, que es lo único que haría compatibles dos diccionarios del mismo idioma | Composición entre packs · la calidad del pack español · el 65,60 % que el código de acepción no puede puentear |
+
+---
+
+### Las tres originales, hechas
+
+Cada una era barata y habilitaba varias de las de abajo.
 
 | # | Qué | Por qué primero | Bloquea a |
 |---|---|---|---|
@@ -360,38 +373,55 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
-### ✅ Flexiones del idioma destino — CONSTRUIDO 2026-09-21 (#6)
+### Reorientar el esquema a monolingüe
 
-`sources/inflections.py` lee las flexiones del pack **ya construido** del idioma destino y las
-suma a `record.translations`. Se activa con `--flexiones <pack.db>`.
+**Estado.** ✅ **La decisión que faltaba quedó tomada el 2026-09-21, y por medición.**
 
-⚠️ **Se eligió la opción A —expandir `trans`— sobre la B —tabla de indirección— y eso cambia el
-precio que se había cotizado.** El corte decía **1,84 MB**, que es lo que pesa B. A pesa más, pero
-**no toca el esquema ni la cascada de consulta**: son más filas de lo mismo, contra una tabla
-nueva, un peldaño nuevo y dos viajes por búsqueda.
+D-034 fijó que el primer pack es monolingüe con definiciones. Esta sección estaba bloqueada
+esperando decidir **qué pasa con `trans`**, sobre esta premisa:
 
-**Medido sobre dos builds gemelos del mismo dump y la misma muestra (1/40):**
+> *«`trans`, que en un pack monolingüe se definió como "las palabras que aparecen en la glosa" —
+> que es exactamente lo que `fts_def` ya indexa, mejor. En monolingüe esa tabla es espacio
+> gastado dos veces.»*
 
-| | `trans` | tamaño |
-|---|---|---|
-| sin flexiones | 5.688 filas | 1,38 MB |
-| **con flexiones** | **12.792 filas** | **1,48 MB (+7,2 %)** |
+⚠️ **La premisa era correcta para lo que `trans` contenía entonces, y hoy dejó de serlo.** Desde
+que el pack español lee las traducciones del Wikcionario, `trans` no guarda palabras de la glosa:
+guarda **los términos del otro idioma por los que se llega a la entrada**. Medido sobre un pack
+de muestra, pasó de **0 a 3.257 filas**, y buscar `build` en el pack **monolingüe** devuelve
+`construir, edificar`.
 
-Extrapolado al pack completo de 50,2 MB son **~+3,6 MB**, entre las dos opciones medidas y sin
-cambio de formato. **B queda anotada como optimización con su número**, disponible cuando esos
-MB importen.
+**Entonces `trans` no se vuelve opcional ni desaparece: se queda, y cambia de significado.** Es
+el **canal de búsqueda entre idiomas**, y es lo que permite que un pack monolingüe se busque en
+el idioma del lector sin instalar nada más. `fts_def` no lo duplica — indexa el texto de la
+definición, que está en español.
 
-**Y los irregulares llegan, que era el punto**: `ran`, `went` y `eaten` alcanzan entradas en el
-pack construido — antes no llegaban nunca, porque sólo se encontraban si alguna glosa los
-escribía.
+**Lo que sigue pendiente de esta sección es sólo mecanismo**: que el código refleje que un pack
+monolingüe es el caso normal. Y sigue en pie que **hay que conservar un toy bilingüe mínimo**, o
+la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
 
-⚠️ **La fuente es un pack y no un dump**, por el mismo razonamiento de D-175: las flexiones ya
-están construidas y podadas dentro de `en-def-wikt.db`, y volver al dump de 3,2 GB sería otra hora
-de build y una segunda poda que puede divergir de la primera.
+---
 
-⚠️ **El filtro no es opcional** y lo descubrió leer filas: el 38,7 % de `form` del pack inglés
-contiene un espacio, y `no table tags` (577) y `glossary` (575) son artefactos de wiktextract.
-Filtrar descarta el 35 % de los candidatos **sin mover la cobertura ni una décima**.
+## Traducciones
+
+*Todo lo de traducciones vive acá. Antes estaba partido en dos bloques distantes del documento y
+cada uno en orden cronológico inverso, así que se leía al revés de como se entiende.*
+
+**Lo construido el 2026-09-21** (decisiones D-178 a D-184): las traducciones entran al payload por
+**dos canales** —`T` por acepción, `W` de la palabra—, toda acepción es direccionable por
+`(idioma, palabra, acepción)` con un código que **no nombra un pack**, `trans` deja de estar vacía
+en los packs monolingües, y las flexiones del idioma destino cierran la dirección inversa.
+
+⚠️ **Nada de eso se ve todavía**: los `.db` en disco son builds anteriores. Lo destraba el build
+completo, que es el único punto del corte que falta.
+
+| | |
+|---|---|
+| **Qué falta** | §Lo que falta para cerrar el punto |
+| **Qué se construyó y con qué número** | las cinco secciones ✅ |
+| **Qué se decidió y qué quedó abierto** | §Revisión de las decisiones · §Qué falta del pack de idiomas |
+| **Diseño sin construir** | §Naming a sense · §Enforcing the contract |
+| **Las mediciones que fundamentan todo lo anterior** | las cinco últimas |
+
 
 ### 📋 Lo que falta para cerrar el punto de traducciones — corte 2026-09-21
 
@@ -430,6 +460,186 @@ el Wikcionario español no los tiene. Sólo lo puede llenar un pack **derivado**
 — la misma razón por la que `build_core.py` deriva en vez de reconstruir (D-175). **El mecanismo
 quedó listo antes que el dato que lo va a usar**, y eso es correcto: al revés habría que adivinar
 el formato.
+
+
+### ✅ Traducciones por acepción en el pack español — CONSTRUIDO 2026-09-21
+
+Lo que las secciones de abajo midieron, construido. `kaikki.py` lee la tabla de traducciones que
+el dump siempre trajo y el pipeline nunca leyó, y la emite al tag `T` **por acepción**;
+`SenseBlock` la dibuja como cuarta `TermList`.
+
+**Verificado leyendo un pack real** (muestra 1/12, 12.158 entradas), no contando filas:
+
+```
+echar   1. Impulsar o empujar algo hacia algún lugar     ->  throw, cast
+        3. Meter o poner algo en un lugar                ->  pour
+        4. Expulsar algo o a alguien violentamente       ->  kick out, let out
+        5. Remover a alguien de su posición              ->  boot
+sentir  1. Percibir por cualquiera de los sentidos       ->  feel
+        3. Percibir por medio del oído                   ->  hear
+        5. Mostrar congoja o arrepentimiento             ->  be sorry, regret
+```
+
+Las acepciones sin traducción atribuida muestran **nada**, que es la regla de D-117 funcionando.
+
+| medición | |
+|---|---|
+| entradas con traducción, en la muestra | **1.052 de 12.158 — 8,7 %** (coincide con el 16,6 % con traducción × 51 % atribuible medido sobre el dump) |
+| items emitidos | 1.921 |
+| **costo en bytes** | **+36 KB sobre 6,16 MB — +0,60 %**, contra un build gemelo del mismo dump y la misma muestra sin la función |
+| `verify_pack.py` | pasa entero |
+
+**Tres decisiones que el código fija, y cada una tiene su motivo escrito en el archivo:**
+
+- ⚠️ **Se filtra por idioma.** El dump trae la tabla entera: `en` son **34.710 de 281.022** items.
+  Sin filtro una entrada española mostraría su traducción al polaco.
+- ⚠️ **Se expanden los rangos** (`1-2`, `1, 4`), que valen **+13,2 puntos** de cobertura. Tocar
+  `_by_sense_index`, que es compartido, era el riesgo — **medido y nulo**: sinónimos y antónimos
+  son **100 % índices simples**, 0 compuestos de 86.418 y 7.542.
+- ⚠️ **Lo que no trae índice se descarta** (el 37,7 % de las traducciones). Es dato real y su
+  lugar honesto es el canal de nivel de entrada que todavía no existe.
+
+**Y una puerta que parecía cerrada con un número, y se reabrió el mismo día:** acá decía que el
+pack inglés **no podía** declarar `translations_to`, porque sus traducciones al español traen el
+**texto** de la acepción pero **0 `sense_index`** de 9.987.
+
+⚠️ **El número es correcto y la conclusión era demasiado fuerte.** Eso cierra el canal `T`, que
+exige atribución por acepción — **no el canal `W`, que existe justamente para lo no atribuible**.
+Cuando `W` se construyó, esas 9.987 encontraron dónde vivir, y de paso llenan `trans`. El pack
+inglés declara `translations_to = "es"` desde el #5.
+
+#### ⚠️ La oportunidad que esto deja servida, y es justo la próxima pregunta
+
+`meta.translations_to = "en"` es un **canal de lectura**: el pack es `monolingual`, `lang_dst`
+sigue vacío y **`trans` sigue pesando 4 KB**, o sea vacía. Escribir `casa → house` también en
+`trans` haría que **el pack de definiciones se busque por palabra inglesa** — `house` encontraría
+`casa` sin que haya un pack bilingüe instalado.
+
+Eso es exactamente el puente que necesita la búsqueda multipack entre idiomas, y no está hecho.
+Lo que hay que decidir antes: si un pack que se busca en dos idiomas sigue siendo `monolingual`,
+y qué le pasa al peldaño `byTranslation` cuando **varios** packs lo contestan.
+
+
+### ✅ El segundo canal y la referencia `(pack, palabra, acepción)` — CONSTRUIDO 2026-09-21
+
+Cierra los pedidos **1, 2, 7 y 8** de la auditoría de abajo, y deja definido el mecanismo de
+enlace para conversar alternativas.
+
+#### El reparto de la referencia, que es el diseño entero
+
+| parte | dónde vive | por qué |
+|---|---|---|
+| **pack** | `meta.translations_pack = "en-def-wikt"` — **una vez** | Es constante para todas las traducciones. Por item costaría ~280 KB de una sola cadena. Se nombra por **`pack_id` y no por archivo**: es la identidad del diccionario (D-138) y sobrevive a los rebuilds, que es lo que `data_version` no hace |
+| **palabra** | el valor del item (`T` o `W`) | Ya estaba ahí: es el término que se muestra |
+| **acepción** | sufijo opcional del item, `término\x1fref` | Sólo existe cuando la fuente la supo |
+
+⚠️ **De ese reparto sale la propiedad que importa: una traducción sin acepción YA es un enlace a
+la palabra, y no cuesta un solo byte extra.** El caso común es el gratis. Y sin
+`translations_pack` declarado no hay a dónde ir, así que el término se muestra **sin pintar** —
+que es D-084 y lo que se pidió.
+
+#### Los dos canales
+
+- **`T`**, dentro de una acepción: lo que la fuente atribuyó.
+- **`W`**, de la entrada: lo que no pudo atribuir — **el 37,7 % del dato**, que hasta hoy se
+  tiraba porque no tenía dónde vivir.
+
+Aditivo: **no sube `CODEC_ID`** (D-119). Un lector viejo cae `W` por su `else` y muestra la
+entrada sin la lista.
+
+#### Medido sobre un pack real (muestra 1/12)
+
+| | antes | ahora |
+|---|---|---|
+| items de traducción | 1.921 | **2.921** (+52 %) |
+| entradas con algo que mostrar | 1.052 | **1.893** |
+| tabla `trans` (búsqueda) | **0 filas** | **3.257 filas** |
+
+```
+construir   ->  build, construct, install, establish, implement, set, act, do   (antes: nada)
+comprender  ->  understand, comprehend, realize, appreciate, apprehend, catch, see
+atrapar     ->  capture, catch, grapple, captivate, grab, seize, trap, apprehend
+
+buscar `build` en el pack MONOLINGÜE  ->  construir, edificar
+```
+
+⚠️ **Y eso último es el pedido 2 cerrado**: el pack de definiciones ahora **se busca en inglés**
+sin que haya un pack bilingüe instalado. Sigue declarándose `monolingual` y con `lang_dst` vacío,
+porque sus definiciones siguen siendo en español: lo que cambió es por dónde se llega a ellas.
+
+#### ⚠️ Un agujero de seguridad que encontró su propio test
+
+La primera versión juntaba la referencia en una cadena y dejaba que `render` **adivinara**
+partiéndola por el separador. Con eso, un término de la fuente que **contuviera** el separador
+—`ho\x1fuse`— se leía como el término `ho` apuntando a la acepción `use`: **la fuente podía
+forjar una referencia a otra acepción.**
+
+Arreglado haciéndolo explícito por tipo: `make_ref` devuelve una **tupla**, una cadena es siempre
+un término y se limpia entera, y una referencia sólo la puede construir quien llama. No hay nada
+que adivinar.
+
+#### Lo que queda para conversar
+
+- **La acepción todavía no se llena**: el slot está definido y sin usar, porque el Wikcionario
+  español no nombra acepciones del pack inglés. Llenarlo pide el digest de glosa, y eso pide un
+  pack **derivado** (ver §Naming a sense from another pack).
+- **Nadie resuelve el enlace todavía**: `EntryScreen` dibuja los términos sin pintar. Resolverlos
+  pide que el mapa de enlaces lleve `packId`, que es tocar el límite de D-080.
+
+
+### ✅ El código de acepción: idioma y palabra, sin nombrar un pack — CONSTRUIDO 2026-09-21
+
+Propuesta del usuario, y corrige la parte frágil del diseño anterior:
+
+> *«en lugar de mostrar un pack, se debería mostrar un idioma, la palabra, y que el link a la
+> acepción sea inequívoco y único para esa palabra, idioma y pack (core y completo aquí pueden
+> repetir este código). Así si no está la acepción exacta pero sí la palabra, se puede
+> referenciar a esta.»*
+
+#### Por qué no hizo falta inventar nada
+
+⚠️ **`entry.uid` ya lleva el idioma y la palabra adentro** — `stable_uid(lang, headword, pos,
+sense_key)`. Así que el código es `sha256(uid ␟ NFC(glosa))[:12]` y **no nombra ningún pack**.
+
+Las tres propiedades pedidas, verificadas:
+
+| propiedad | verificación |
+|---|---|
+| **No nombra un pack** | por construcción: sólo entra `uid` y la glosa |
+| **Núcleo y completo lo repiten** | **21.534 de 21.534 — 100,0 %** de los códigos del núcleo español son idénticos en el completo, porque `build_core.py` **copia** el uid (D-175) y conserva la glosa |
+| **Degrada a la palabra** | el código es un **sufijo** del término, no lo reemplaza: sin acepción encontrada, el término sigue siendo un enlace |
+
+Colisiones medidas sobre el pack entero: **22 de 210.249 (0,0105 %)**, y son glosas que el wiki
+define dos veces — apuntan a dos acepciones de texto idéntico.
+
+#### ⚠️ Sobre la glosa plegada, NO sobre `norm()`
+
+> **Actualizado el mismo día**: acá decía *«sobre la glosa CRUDA en NFC»*. Sigue siendo cierto
+> lo esencial —no pasa por `norm()`— pero desde la decisión #8 pasa por `fold_gloss`, que es un
+> plegado ligero y propio. Ver §El plegado de glosa.
+
+Es el precedente de D-055 aplicado tal cual — `stable_uid` ya lo decidió: *«así no depende de
+NORM_VERSION, y subir las reglas de normalización no invalida los packs auxiliares»*. **Acá muerde
+más fuerte**: un bump de `NORM_VERSION`, que D-005 permite en cualquier momento, cambiaría
+**todos** los códigos y dejaría apuntando a la nada cada enlace de cada pack ya construido, sin
+error y sin log. El primer intento sí pasaba por `norm()`; lo corrigió leer el docstring de
+`stable_uid`.
+
+#### `translations_pack` se elimina
+
+Declaraba `en-def-wikt`. Con el núcleo inglés instalado y no el completo, **el enlace moría aunque
+hubiera un diccionario inglés capaz de resolverlo**. Ahora sólo se declara `translations_to = "en"`
+—el idioma— y lo resuelve cualquier pack instalado de ese idioma.
+
+#### Es un segundo contrato entre los dos lenguajes, y tiene su guardrail
+
+`payload.sense_code` ↔ `PayloadCodec.senseCode`. Si se separan, **los enlaces apuntan a la nada sin
+excepción y sin log**, que es el modo de falla central del repo. Lo fija el mismo vector en los dos
+lados —`sense_code(1, "casa")` = `8ec316909e48`— y el vector ya hizo su trabajo una vez: detectó el
+cambio de `norm()` a NFC.
+
+`toNfc` vive en `PlatformJvm.kt` por D-017, delegado a la plataforma como NFD por D-004.
+
 
 ### ✅ «Toda acepción direccionable, sin excepciones» — INVARIANTE CONSTRUIDO 2026-09-21
 
@@ -523,58 +733,40 @@ que ya se sabe escribir y resolver. Lo que no existe es **quién las declara**: 
 entre fuentes es §Alinear acepciones entre fuentes, que sigue siendo el problema abierto más caro
 del repo.
 
-### ✅ El código de acepción: idioma y palabra, sin nombrar un pack — CONSTRUIDO 2026-09-21
 
-Propuesta del usuario, y corrige la parte frágil del diseño anterior:
+### ✅ Flexiones del idioma destino — CONSTRUIDO 2026-09-21 (#6)
 
-> *«en lugar de mostrar un pack, se debería mostrar un idioma, la palabra, y que el link a la
-> acepción sea inequívoco y único para esa palabra, idioma y pack (core y completo aquí pueden
-> repetir este código). Así si no está la acepción exacta pero sí la palabra, se puede
-> referenciar a esta.»*
+`sources/inflections.py` lee las flexiones del pack **ya construido** del idioma destino y las
+suma a `record.translations`. Se activa con `--flexiones <pack.db>`.
 
-#### Por qué no hizo falta inventar nada
+⚠️ **Se eligió la opción A —expandir `trans`— sobre la B —tabla de indirección— y eso cambia el
+precio que se había cotizado.** El corte decía **1,84 MB**, que es lo que pesa B. A pesa más, pero
+**no toca el esquema ni la cascada de consulta**: son más filas de lo mismo, contra una tabla
+nueva, un peldaño nuevo y dos viajes por búsqueda.
 
-⚠️ **`entry.uid` ya lleva el idioma y la palabra adentro** — `stable_uid(lang, headword, pos,
-sense_key)`. Así que el código es `sha256(uid ␟ NFC(glosa))[:12]` y **no nombra ningún pack**.
+**Medido sobre dos builds gemelos del mismo dump y la misma muestra (1/40):**
 
-Las tres propiedades pedidas, verificadas:
+| | `trans` | tamaño |
+|---|---|---|
+| sin flexiones | 5.688 filas | 1,38 MB |
+| **con flexiones** | **12.792 filas** | **1,48 MB (+7,2 %)** |
 
-| propiedad | verificación |
-|---|---|
-| **No nombra un pack** | por construcción: sólo entra `uid` y la glosa |
-| **Núcleo y completo lo repiten** | **21.534 de 21.534 — 100,0 %** de los códigos del núcleo español son idénticos en el completo, porque `build_core.py` **copia** el uid (D-175) y conserva la glosa |
-| **Degrada a la palabra** | el código es un **sufijo** del término, no lo reemplaza: sin acepción encontrada, el término sigue siendo un enlace |
+Extrapolado al pack completo de 50,2 MB son **~+3,6 MB**, entre las dos opciones medidas y sin
+cambio de formato. **B queda anotada como optimización con su número**, disponible cuando esos
+MB importen.
 
-Colisiones medidas sobre el pack entero: **22 de 210.249 (0,0105 %)**, y son glosas que el wiki
-define dos veces — apuntan a dos acepciones de texto idéntico.
+**Y los irregulares llegan, que era el punto**: `ran`, `went` y `eaten` alcanzan entradas en el
+pack construido — antes no llegaban nunca, porque sólo se encontraban si alguna glosa los
+escribía.
 
-#### ⚠️ Sobre la glosa plegada, NO sobre `norm()`
+⚠️ **La fuente es un pack y no un dump**, por el mismo razonamiento de D-175: las flexiones ya
+están construidas y podadas dentro de `en-def-wikt.db`, y volver al dump de 3,2 GB sería otra hora
+de build y una segunda poda que puede divergir de la primera.
 
-> **Actualizado el mismo día**: acá decía *«sobre la glosa CRUDA en NFC»*. Sigue siendo cierto
-> lo esencial —no pasa por `norm()`— pero desde la decisión #8 pasa por `fold_gloss`, que es un
-> plegado ligero y propio. Ver §El plegado de glosa.
+⚠️ **El filtro no es opcional** y lo descubrió leer filas: el 38,7 % de `form` del pack inglés
+contiene un espacio, y `no table tags` (577) y `glossary` (575) son artefactos de wiktextract.
+Filtrar descarta el 35 % de los candidatos **sin mover la cobertura ni una décima**.
 
-Es el precedente de D-055 aplicado tal cual — `stable_uid` ya lo decidió: *«así no depende de
-NORM_VERSION, y subir las reglas de normalización no invalida los packs auxiliares»*. **Acá muerde
-más fuerte**: un bump de `NORM_VERSION`, que D-005 permite en cualquier momento, cambiaría
-**todos** los códigos y dejaría apuntando a la nada cada enlace de cada pack ya construido, sin
-error y sin log. El primer intento sí pasaba por `norm()`; lo corrigió leer el docstring de
-`stable_uid`.
-
-#### `translations_pack` se elimina
-
-Declaraba `en-def-wikt`. Con el núcleo inglés instalado y no el completo, **el enlace moría aunque
-hubiera un diccionario inglés capaz de resolverlo**. Ahora sólo se declara `translations_to = "en"`
-—el idioma— y lo resuelve cualquier pack instalado de ese idioma.
-
-#### Es un segundo contrato entre los dos lenguajes, y tiene su guardrail
-
-`payload.sense_code` ↔ `PayloadCodec.senseCode`. Si se separan, **los enlaces apuntan a la nada sin
-excepción y sin log**, que es el modo de falla central del repo. Lo fija el mismo vector en los dos
-lados —`sense_code(1, "casa")` = `8ec316909e48`— y el vector ya hizo su trabajo una vez: detectó el
-cambio de `norm()` a NFC.
-
-`toNfc` vive en `PlatformJvm.kt` por D-017, delegado a la plataforma como NFD por D-004.
 
 ### Revisión de las decisiones de traducción — 2026-09-21
 
@@ -642,71 +834,6 @@ acción además **desaparece cuando la ficha ya muestra las traducciones propias
 canal de búsqueda y el de lectura **no está declarado en ningún lado**. Va a `formato-pack.md` o
 a `verify_pack.py` como invariante.
 
-### ✅ El segundo canal y la referencia `(pack, palabra, acepción)` — CONSTRUIDO 2026-09-21
-
-Cierra los pedidos **1, 2, 7 y 8** de la auditoría de abajo, y deja definido el mecanismo de
-enlace para conversar alternativas.
-
-#### El reparto de la referencia, que es el diseño entero
-
-| parte | dónde vive | por qué |
-|---|---|---|
-| **pack** | `meta.translations_pack = "en-def-wikt"` — **una vez** | Es constante para todas las traducciones. Por item costaría ~280 KB de una sola cadena. Se nombra por **`pack_id` y no por archivo**: es la identidad del diccionario (D-138) y sobrevive a los rebuilds, que es lo que `data_version` no hace |
-| **palabra** | el valor del item (`T` o `W`) | Ya estaba ahí: es el término que se muestra |
-| **acepción** | sufijo opcional del item, `término\x1fref` | Sólo existe cuando la fuente la supo |
-
-⚠️ **De ese reparto sale la propiedad que importa: una traducción sin acepción YA es un enlace a
-la palabra, y no cuesta un solo byte extra.** El caso común es el gratis. Y sin
-`translations_pack` declarado no hay a dónde ir, así que el término se muestra **sin pintar** —
-que es D-084 y lo que se pidió.
-
-#### Los dos canales
-
-- **`T`**, dentro de una acepción: lo que la fuente atribuyó.
-- **`W`**, de la entrada: lo que no pudo atribuir — **el 37,7 % del dato**, que hasta hoy se
-  tiraba porque no tenía dónde vivir.
-
-Aditivo: **no sube `CODEC_ID`** (D-119). Un lector viejo cae `W` por su `else` y muestra la
-entrada sin la lista.
-
-#### Medido sobre un pack real (muestra 1/12)
-
-| | antes | ahora |
-|---|---|---|
-| items de traducción | 1.921 | **2.921** (+52 %) |
-| entradas con algo que mostrar | 1.052 | **1.893** |
-| tabla `trans` (búsqueda) | **0 filas** | **3.257 filas** |
-
-```
-construir   ->  build, construct, install, establish, implement, set, act, do   (antes: nada)
-comprender  ->  understand, comprehend, realize, appreciate, apprehend, catch, see
-atrapar     ->  capture, catch, grapple, captivate, grab, seize, trap, apprehend
-
-buscar `build` en el pack MONOLINGÜE  ->  construir, edificar
-```
-
-⚠️ **Y eso último es el pedido 2 cerrado**: el pack de definiciones ahora **se busca en inglés**
-sin que haya un pack bilingüe instalado. Sigue declarándose `monolingual` y con `lang_dst` vacío,
-porque sus definiciones siguen siendo en español: lo que cambió es por dónde se llega a ellas.
-
-#### ⚠️ Un agujero de seguridad que encontró su propio test
-
-La primera versión juntaba la referencia en una cadena y dejaba que `render` **adivinara**
-partiéndola por el separador. Con eso, un término de la fuente que **contuviera** el separador
-—`ho\x1fuse`— se leía como el término `ho` apuntando a la acepción `use`: **la fuente podía
-forjar una referencia a otra acepción.**
-
-Arreglado haciéndolo explícito por tipo: `make_ref` devuelve una **tupla**, una cadena es siempre
-un término y se limpia entera, y una referencia sólo la puede construir quien llama. No hay nada
-que adivinar.
-
-#### Lo que queda para conversar
-
-- **La acepción todavía no se llena**: el slot está definido y sin usar, porque el Wikcionario
-  español no nombra acepciones del pack inglés. Llenarlo pide el digest de glosa, y eso pide un
-  pack **derivado** (ver §Naming a sense from another pack).
-- **Nadie resuelve el enlace todavía**: `EntryScreen` dibuja los términos sin pintar. Resolverlos
-  pide que el mapa de enlaces lleve `packId`, que es tocar el límite de D-080.
 
 ### Qué falta del pack de idiomas — auditado 2026-09-21
 
@@ -742,62 +869,6 @@ canal donde ponerlas**.
 —aditivo, sin subir `CODEC_ID` por D-119— más **22 llamadores de `parse()` en Python** (19 en
 tests) y el `Body` de Kotlin, que gana un campo con default.
 
-### ✅ Traducciones por acepción en el pack español — CONSTRUIDO 2026-09-21
-
-Lo que las secciones de abajo midieron, construido. `kaikki.py` lee la tabla de traducciones que
-el dump siempre trajo y el pipeline nunca leyó, y la emite al tag `T` **por acepción**;
-`SenseBlock` la dibuja como cuarta `TermList`.
-
-**Verificado leyendo un pack real** (muestra 1/12, 12.158 entradas), no contando filas:
-
-```
-echar   1. Impulsar o empujar algo hacia algún lugar     ->  throw, cast
-        3. Meter o poner algo en un lugar                ->  pour
-        4. Expulsar algo o a alguien violentamente       ->  kick out, let out
-        5. Remover a alguien de su posición              ->  boot
-sentir  1. Percibir por cualquiera de los sentidos       ->  feel
-        3. Percibir por medio del oído                   ->  hear
-        5. Mostrar congoja o arrepentimiento             ->  be sorry, regret
-```
-
-Las acepciones sin traducción atribuida muestran **nada**, que es la regla de D-117 funcionando.
-
-| medición | |
-|---|---|
-| entradas con traducción, en la muestra | **1.052 de 12.158 — 8,7 %** (coincide con el 16,6 % con traducción × 51 % atribuible medido sobre el dump) |
-| items emitidos | 1.921 |
-| **costo en bytes** | **+36 KB sobre 6,16 MB — +0,60 %**, contra un build gemelo del mismo dump y la misma muestra sin la función |
-| `verify_pack.py` | pasa entero |
-
-**Tres decisiones que el código fija, y cada una tiene su motivo escrito en el archivo:**
-
-- ⚠️ **Se filtra por idioma.** El dump trae la tabla entera: `en` son **34.710 de 281.022** items.
-  Sin filtro una entrada española mostraría su traducción al polaco.
-- ⚠️ **Se expanden los rangos** (`1-2`, `1, 4`), que valen **+13,2 puntos** de cobertura. Tocar
-  `_by_sense_index`, que es compartido, era el riesgo — **medido y nulo**: sinónimos y antónimos
-  son **100 % índices simples**, 0 compuestos de 86.418 y 7.542.
-- ⚠️ **Lo que no trae índice se descarta** (el 37,7 % de las traducciones). Es dato real y su
-  lugar honesto es el canal de nivel de entrada que todavía no existe.
-
-**Y una puerta que parecía cerrada con un número, y se reabrió el mismo día:** acá decía que el
-pack inglés **no podía** declarar `translations_to`, porque sus traducciones al español traen el
-**texto** de la acepción pero **0 `sense_index`** de 9.987.
-
-⚠️ **El número es correcto y la conclusión era demasiado fuerte.** Eso cierra el canal `T`, que
-exige atribución por acepción — **no el canal `W`, que existe justamente para lo no atribuible**.
-Cuando `W` se construyó, esas 9.987 encontraron dónde vivir, y de paso llenan `trans`. El pack
-inglés declara `translations_to = "es"` desde el #5.
-
-#### ⚠️ La oportunidad que esto deja servida, y es justo la próxima pregunta
-
-`meta.translations_to = "en"` es un **canal de lectura**: el pack es `monolingual`, `lang_dst`
-sigue vacío y **`trans` sigue pesando 4 KB**, o sea vacía. Escribir `casa → house` también en
-`trans` haría que **el pack de definiciones se busque por palabra inglesa** — `house` encontraría
-`casa` sin que haya un pack bilingüe instalado.
-
-Eso es exactamente el puente que necesita la búsqueda multipack entre idiomas, y no está hecho.
-Lo que hay que decidir antes: si un pack que se busca en dos idiomas sigue siendo `monolingual`,
-y qué le pasa al peldaño `byTranslation` cuando **varios** packs lo contestan.
 
 ### Naming a sense from another pack: the reference, and the two modes — designed 2026-09-21
 
@@ -896,6 +967,7 @@ would have all of them hidden.
 
 The exact wording is a product decision and is not taken here. What the measurement settles is
 that it needs to be **two** strings, and that the cost is one extra line on 3 % of entries.
+
 
 ### Enforcing the contract on a pack somebody else built — designed 2026-09-21
 
@@ -1063,33 +1135,627 @@ así que la capa de resultados distingue el origen.
   en la tabla de decisiones abiertas.
 - El vocabulario de `pos` tiene que normalizarse igual en el base y en los auxiliares.
 
-### Reorientar el esquema a monolingüe
 
-**Estado.** ✅ **La decisión que faltaba quedó tomada el 2026-09-21, y por medición.**
+### An English–Spanish translation pack: one pack or two?
 
-D-034 fijó que el primer pack es monolingüe con definiciones. Esta sección estaba bloqueada
-esperando decidir **qué pasa con `trans`**, sobre esta premisa:
+**Status.** ✅ **Built 2026-09-21 (D-177).** The question was whether one pack serves both
+directions; the first measurement said no and was measuring the wrong thing.
 
-> *«`trans`, que en un pack monolingüe se definió como "las palabras que aparecen en la glosa" —
-> que es exactamente lo que `fts_def` ya indexa, mejor. En monolingüe esa tabla es espacio
-> gastado dos veces.»*
+**Structurally, one pack does serve both.** The schema already has `trans` — `norm, entry_id` —
+which is exactly a reverse index: an entry can be reached by a word in the *other* language, and
+`MatchKind.TRANSLATION` is rung 3 of the cascade. A pack of Spanish entries with English glosses,
+plus `trans` rows keyed by English, answers `perro` directly and `dog` through `trans`.
 
-⚠️ **La premisa era correcta para lo que `trans` contenía entonces, y hoy dejó de serlo.** Desde
-que el pack español lee las traducciones del Wikcionario, `trans` no guarda palabras de la glosa:
-guarda **los términos del otro idioma por los que se llega a la entrada**. Medido sobre un pack
-de muestra, pasó de **0 a 3.257 filas**, y buscar `build` en el pack **monolingüe** devuelve
-`construir, edificar`.
+⚠️ **But the data does not come that way, and that is what settles it.** The dump already
+downloaded — `es-en-wikt.jsonl`, 989 MB, the English Wiktionary's Spanish section — has **no
+`translations` field at all**: it gives Spanish words with English *glosses*. To make the reverse
+direction work, `trans` would have to be derived from those glosses. Measured over **141,166
+senses**:
 
-**Entonces `trans` no se vuelve opcional ni desaparece: se queda, y cambia de significado.** Es
-el **canal de búsqueda entre idiomas**, y es lo que permite que un pack monolingüe se busque en
-el idioma del lector sin instalar nada más. `fts_def` no lo duplica — indexa el texto de la
-definición, que está en español.
+| | |
+|---|---|
+| Glosses that **are** a translation (terms of ≤ 2 words) | **16,532 — 11.7 %** |
+| Glosses that are a paraphrase | **124,634 — 88.3 %** |
 
-**Lo que sigue pendiente de esta sección es sólo mecanismo**: que el código refleje que un pack
-monolingüe es el caso normal. Y sigue en pie que **hay que conservar un toy bilingüe mínimo**, o
-la búsqueda inversa y el tope `TRANS_MAX_PER_KEY` quedan sin test.
+Examples of each: `gratis → free, without charge` against `pie → foot (a part of the body)` and
+`pies → second-person singular voseo present subjunctive`.
 
----
+⚠️ **That number was the wrong one, and building it showed why.** 11.7 % counts *senses whose
+whole gloss* is a clean translation. What the reverse index needs is far weaker: **one usable term
+from any sense of an entry**. Measured again over the records the builder actually emits:
+**87.6 % of entries get at least one translation key**, 2.3 keys each.
+
+So the recommendation flipped, and **one pack does serve both directions** — see D-177, built.
+Spot-checked against the real pack: `hammer → martillo`, `pepper → ají, pimentón, pimiento`,
+`scaffold → andamio, cadalso`.
+
+#### How complete it is, and which direction the build favours
+
+Measured 2026-09-21 against the real pack, using the most-used words of each language as the test
+set — the same Tatoeba frequency signal that chose the core vocabularies.
+
+| Words tested | **ES→EN** (headword or inflected form) | **EN→ES** (through `trans`) |
+|---|---|---|
+| top 1,000 | **100.0 %** | 92.7 % |
+| top 3,000 | **99.9 %** | 85.9 % |
+| top 8,000 | **99.8 %** | 78.1 % |
+
+⚠️ **Forward is effectively complete; reverse is good and clearly behind — and the gap is
+structural, not accidental.** The Spanish side has the `form` table, so every inflection reaches
+its lemma systematically. The English side has only the derived keys, so an English inflection is
+found **only if some Spanish gloss happens to spell it**:
+
+| | found | | found |
+|---|---|---|---|
+| `dogs` | ✅ | `ran` | ❌ |
+| `running` | ✅ | `went` | ❌ |
+| `houses` | ✅ | `bigger` | ❌ |
+| `children` | ✅ | | |
+
+The regulars survive by luck and the irregulars do not — which is the worst shape for a gap,
+because it is invisible until you hit it.
+
+⚠️ **A second asymmetry, and it is the one no amount of coverage fixes**: the two directions do not
+return the same *kind* of answer. ES→EN opens an **entry** with its senses; EN→ES returns a **list
+of Spanish lemmas** (2.3 per key on average) and there is no English entry to open, because the
+pack contains none. It answers *"which Spanish words mean this"*, never *"what does this English
+word mean"*.
+
+**And against the monolingual pack, the entries themselves are thinner** — same 4,000 best-ranked
+entries of each:
+
+| | entries | senses/entry | only one sense | senses with an example |
+|---|---|---|---|---|
+| bilingual ES→EN | 123,979 | **2.49** | **31.6 %** | 22.0 % |
+| monolingual ES | 152,281 | **3.63** | 8.7 % | 21.6 % |
+
+That is the source, not the build: the English Wiktionary describes Spanish words more briefly than
+the Spanish Wiktionary does. **It is a translation dictionary, not a Spanish dictionary**, and the
+numbers say to keep both rather than treat this one as a replacement.
+
+#### Closing the reverse gap: measured, 2026-09-21
+
+The question was whether a translation pack can carry its index **in both directions** and what
+that weighs. It was measured rather than argued, and the answer is that it is cheap — but only in
+one of the two shapes, and only after the source is filtered.
+
+**The source is the English monolingual pack's own `form` table**, which is already built and
+already downloaded. Of the 89,049 English keys in `trans`, **70,504 (79.2 %) are a lemma there**,
+and their inflections are exactly the rows the reverse direction is missing.
+
+**What it buys** — the same top-N test as the table above, so the numbers are comparable:
+
+| Words tested | EN→ES today | with the inflection index |
+|---|---|---|
+| top 1,000 | 92.7 % | **99.4 %** |
+| top 3,000 | 85.9 % | **99.6 %** |
+| top 8,000 | 78.1 % | **98.9 %** |
+
+⚠️ **The residue is not vocabulary, it is the tokenizer.** What still misses at top 8,000 is
+led by `didn`, `doesn`, `wasn`, `shouldn`, `hasn`, `hadn` — the halves of contractions that
+`tatoeba.frequencies` splits on the apostrophe — plus `cannot` and `any`. Real misses
+(`ambitious`, `amid`, `tend`, `altogether`) are a handful. **The gap this closes is essentially
+all of the gap there was**, and the measurement of what remains is worth more than the coverage
+number: it says the next thing to fix is the frequency tokenizer, not the pack.
+
+##### ⚠️ Two storage shapes, and the expensive one is the obvious one
+
+Both were built and weighed, not estimated:
+
+| | rows | size | query cost |
+|---|---|---|---|
+| **A — expand into `trans`** `(norm, entry_id)` | 379,000 | **5.88 MB** | none: the `byTranslation` rung is unchanged |
+| **B — an indirection table** `(norm, lemma)` | 84,319 | **1.84 MB** | one extra lookup before the rung |
+
+**A costs 3.2× more for the same answers**, and the reason is worth stating because it is not
+obvious from the row counts: an English key maps to **2.3 Spanish entries** on average — `dog` is
+a key of *can, perro, chucha, choco, hotdog* — so expanding `dogs` writes that fanout **again**,
+once per inflection. B stores each inflection **once** and pays the fanout at query time, where it
+is already being paid.
+
+On a 50.2 MB pack that is **+3.7 % against +11.7 %**. B is the recommendation; its cost is a new
+table, which is a **schema change** and therefore D-001 territory: the pack is rejected and rebuilt
+rather than migrated, which for a pack that is not published yet costs nothing.
+
+##### ⚠️ The filter is not optional, and it was found by reading rows
+
+A blind sample of 20 candidate rows — the discipline in root `CLAUDE.md`, *look at the output, not
+just the numbers* — showed the raw source is dirty, and the dirt is in the **English monolingual
+pack itself**:
+
+- `no table tags` (577 rows) and `glossary` (575 rows) are **wiktextract parse artifacts** sitting
+  in `form` as if they were inflections.
+- **38.7 % of the English `form` table's 985,992 rows contain a space**: `big fat hairy deals`,
+  `ate breathed and slept`, `1 000 000 questions`. The Spanish pack is clean by comparison — its
+  most repeated form appears 16 times, and it is `unas`.
+
+Keeping one word, alphabetic, non-artifact drops the candidates from 130,378 to **84,319 — 35 %
+was junk — and the coverage numbers above do not move by a tenth of a point.** That is the
+measurement that matters: the filter is free.
+
+**This is a defect in `en-def-wikt.db` regardless of this feature**, and it is filed under §Pack
+de inglés: those phrase rows are dead weight in the inflection rung of the English pack too, where
+nothing filters them.
+
+##### The other direction, priced and discarded
+
+The alternative reading of *"tables in both directions"* is a pack **authored** EN→ES, with English
+headwords and English senses — the thing that would answer *"what does this English word mean"*
+rather than *"which Spanish words mean this"*. The English Wiktionary does carry a real
+`translations` field for its **English** entries, unlike the Spanish section which has none at all.
+
+⚠️ **It was counted over the full 3.2 GB dump and the data is not there**: of **1,492,836** English
+entries, **9,221 (0.6 %)** have any `translations` and **5,080 (0.3 %)** have a Spanish one, for
+**10,438** EN→ES pairs total. Against the **206,727** rows already derived from the glosses, a pack
+built that way would be **twenty times smaller** than the reverse index it is meant to replace.
+
+The curated pairs are good — `dictionary → diccionario, tumbaburros, mataburros`, sense-tagged —
+so they are worth **folding in as extra keys**, which is cheap. They are not worth a pack.
+
+
+### Completing the translations, and where they belong in an entry — measured 2026-09-21
+
+Two questions, asked together: **complete the translation pack from other sources**, and work out
+**how that information is queried and integrated into the entry structure that already exists**.
+The second turned out to be almost entirely answered already, and the first has a source nobody
+had looked at.
+
+#### ⚠️ The structure already has the field, and it is empty in all three packs
+
+`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag `T`, `PayloadCodec`
+reads it, and the entry screen can render it. **Nothing fills it.** Read from the real packs:
+
+```
+BILINGUAL es-tr-enwikt      casa (noun) — 1 sense
+   S: house                 related: hogar, lar
+   trans table -> house
+
+MONOLINGUAL es-def-wikc     casa (noun) — 15 senses
+   S: Edificación destinada a vivienda.
+   S: Domicilio.            synonyms: domicilio, hogar, lar, morada
+   trans table -> (empty)
+```
+
+So the two halves each hold what the other needs and neither carries a translation in the field
+meant for one. The bilingual pack puts the English **in the gloss** (`S: house`), which is why it
+reads as a dictionary whose definitions happen to be English words; the monolingual pack has the
+15 real senses and no English at all.
+
+**This is why `wordActions` says the translate action shows up "today: never"** — it is not
+waiting on a mechanism, it is waiting on data.
+
+#### The source that was never looked at: the Wikcionario already has translation tables
+
+⚠️ **`es.jsonl` — the very dump that builds `es-def-wikc` — carries a `translations` field**, and
+nothing in the pipeline reads it. Measured over the whole dump:
+
+| | |
+|---|---|
+| Spanish entries | 854,460 |
+| with `translations` | 32,453 (3.8 %) |
+| with an **English** translation | 25,328 (3.0 %) |
+| ES→EN pairs | **34,710** over 22,520 lemmas |
+| **of those, carrying `sense_index`** | **55 % of lemmas** |
+
+That last row is the one that matters, and it is worth more than the coverage: **`sense_index` is
+the same field D-117 and D-124 already use to attach wiki synonyms to the right sense.** The
+alignment problem that blocks WordNet, Wikidata and the enwiktionary examples —§Alinear acepciones
+entre fuentes, 20,644 contributions currently thrown away— **does not apply here**. Same dump,
+same entry, same numbering, so the `uid` matches by construction and the sense is stated by the
+source.
+
+```
+casa   -> home, house              idx=1
+libro  -> book                     idx=1
+       -> omasum, psalterium, third stomach   idx=6
+```
+
+`libro` is the whole argument in three lines: senses 1 and 6 get different English, and the source
+says which is which.
+
+#### Coverage: what fraction of entries would actually show a translation
+
+Over the Spanish frequency list, asking *"the entry the user opens — does it carry an English
+translation?"*, with inflections resolved through `form` the way the reverse-index numbers were:
+
+| Words tested | Wikcionario `translations` | via `uid` join to the bilingual pack | **both** |
+|---|---|---|---|
+| top 1,000 | 94.5 % | 86.5 % | **98.3 %** |
+| top 3,000 | 90.0 % | 84.0 % | **96.8 %** |
+| top 8,000 | 84.2 % | 81.6 % | **94.8 %** |
+
+The two sources are **complementary rather than redundant** — neither alone reaches what the pair
+does — and the cheap one is also the better one: it needs no join, no new pack and no new rung.
+
+#### ⚠️ The `uid` join is not the bottleneck, and that kills the obvious next idea
+
+The natural reaction to 31 % is to blame the join key and loosen it. Measured, between the
+monolingual and bilingual Spanish packs:
+
+| key | in common | % of the monolingual pack |
+|---|---|---|
+| `uid` | 47,646 | 31.3 % |
+| `(norm, pos)` | 50,882 | 34.6 % |
+| `norm` alone | 52,552 | 37.9 % |
+
+**Going all the way down to bare headword buys 6.6 points** and gives up everything D-055 bought.
+What does not overlap is the **vocabulary**: the English Wiktionary's Spanish section and the
+Spanish Wiktionary describe different words. No key recovers that, and the fix is a second source,
+which is exactly what the row above is.
+
+#### ⚠️ WordNet as a translation bridge is a trap, and the trap is silent
+
+The tempting idea: `wn-data-spa.tab` gives Spanish lemmas per synset, OEWN gives English lemmas
+per synset, a synset **is** one sense — so joining them would give translations aligned by sense
+for free, solving §Alinear acepciones outright. `wordnet.py` already reads both files.
+
+**It does not work, and the failure is the dangerous kind.** Of the 78,417 Spanish synset ids,
+only **435 (0.6 %)** exist in OEWN 2024: the `.tab` carries Princeton WordNet 3.0 offsets and OEWN
+renumbered. Worse, the 435 are not a usable subset — they split by offset magnitude:
+
+| offset | count | what they are |
+|---|---|---|
+| 4–6 digits | 93 | **real matches**: `apto, capaz, competente ↔ able` · `ente, entidad ↔ entity` · `cosa ↔ thing` |
+| 7–8 digits | **342** | **collisions**: `soñador ↔ diner` · `jefa, jefe ↔ girl` · `epidemiólogo ↔ easterner` · `lama ↔ joiner` · `hedonista ↔ groundskeeper` |
+
+**Four out of five pairs are wrong and none of them looks wrong** — `hedonista ↔ groundskeeper`
+reads as a bad dictionary, not as a bug, which is the failure mode this repo treats as
+unacceptable. Bridging the two would need the **ILI** (OEWN declares `ili="i1"` per synset) plus a
+PWN-3.0 → ILI map, which is not downloaded. Until that exists, **the MCR is usable within Spanish
+and must not cross languages.** `wordnet.py` already refuses to transfer antonymy across
+languages for a different reason (it is a lexical relation); this is a second, stronger reason
+that applies to everything.
+
+#### What this adds up to
+
+In order, cheapest first, none of it built:
+
+1. **Read `translations` from `es.jsonl` in `kaikki.py` and write tag `T` per sense**, gated on
+   `sense_index` exactly as synonyms are. No schema change, no new table, no join, no alignment
+   risk — `trans` and the `T` tag already exist and `verify_pack.py` already checks them. Gets
+   **94.5 % of the top 1,000**.
+2. **The same for `en.jsonl`**, which carries 10,438 curated EN→ES pairs (see above) — it makes the
+   English monolingual pack translate too.
+3. **Only then** the `uid` join to the bilingual pack for the remaining 3.8 points, which is the
+   part that needs `SearchRepository` to compose across packs and is entry-level, not sense-level.
+
+⚠️ **Step 1 changes what a pack contains, not how it is read**, so under D-001 the packs are
+rebuilt rather than migrated — an hour of build for the Spanish pack, and the app needs no change
+beyond rendering a field it already parses.
+
+
+### Both directions as a pack feature, and words with no definition — measured 2026-09-21
+
+Asked as a design question, and it deserves the design answer: *can a translation pack hold tables
+in both directions, as a **feature of the pack format** rather than a build trick — and can a word
+be shown even when no definition for it is available?*
+
+**Yes to both, and the second one costs nothing today**, because the data is already there and
+already indexed. What throws it away is one line of SQL.
+
+#### ⚠️ The reverse direction is already a table, already prefix-indexed, and the query discards it
+
+`trans` is `(norm, entry_id)` `WITHOUT ROWID`, so **the table is the index** (D-010) and a prefix
+range over English keys is a primary-key seek — verified, not assumed:
+
+```
+EXPLAIN QUERY PLAN SELECT norm, entry_id FROM trans WHERE norm >= 'hou' AND norm < 'hov'
+  -> SEARCH trans USING PRIMARY KEY (norm>? AND norm<?)
+```
+
+And the content it reaches is good:
+
+```
+hound        -> can, sabueso, lebrel, podenco ibicenco
+hour         -> hora, cuarto, horario, happy hour, hora pico
+hourglass    -> ampolleta, reloj de arena, cintura de avispa
+houndstooth  -> pata de gallo
+```
+
+⚠️ **But `byTranslation` keeps the entries and drops the key:**
+
+```sql
+SELECT e.id, e.headword, e.pos FROM entry e WHERE e.id IN
+    (SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?)   -- 'hour' is lost here
+ORDER BY e.rank LIMIT ?
+```
+
+So typing `hou` returns `ampolleta, sabueso, hora, …` — a flat list of Spanish words with **no
+indication of which English word each one answers**, and ordered by a `rank` that is page richness
+(which is the `house → solar` bug in §Result ordering). The English word the reader typed is
+matched, used, and then thrown away.
+
+**Keeping it is the whole feature**: `hour` becomes a row, and opening it shows the Spanish words
+it maps to. The pack does not change by one byte, and a word with no definition becomes
+displayable — which is exactly the second half of the request.
+
+#### The three levels, priced
+
+| | what it delivers | cost |
+|---|---|---|
+| **0 — keep the key** | `hour` shows as a row and opens, listing its Spanish entries. Words with no definition become displayable | **0 MB** — `:app` and `:dict-data` only, no pack change |
+| **1 — inflection index** (see above) | `hours`, `ran`, `went` reach it too: 78.1 % → 98.9 % | **1.84 MB** (+3.7 %) |
+| **2 — stub entries in `entry`** | `hour` gets a `uid`, a `rank`, a fuzzy key: favouritable, in history, typo-tolerant, orderable | **7.84–11.00 MB** (+15.6 % to +21.9 %) |
+
+Level 2 was built and weighed over the real 89,049 English keys, not estimated. ⚠️ **Its cost is
+almost entirely structure, not content**: the payloads compress to **1.70 MB (20 bytes per
+entry)** and the other 6–9 MB are the `entry` row itself plus its indexes — `idx_entry_fuzzy`
+alone is 1.88 MB and the covering `idx_entry_norm` 3.18 MB. Dropping the fuzzy index and making
+`idx_entry_norm` non-covering takes 11.00 MB down to 7.84, at the price of no typo tolerance on
+English input.
+
+**Level 0 first, and possibly only.** It delivers the visible feature; levels 1 and 2 buy reach
+and identity, and can be decided separately once level 0 shows what is actually missing.
+
+#### ⚠️ What level 2 collides with — three enforcers and a missing column
+
+Stub entries are not merely absent today, they are **actively rejected**, and that is worth knowing
+before treating them as a small change:
+
+| blocker | where | what happens |
+|---|---|---|
+| `entry` has **no `lang` column** | schema | an English row in a pack declaring `lang_src=es` is indistinguishable from a Spanish one |
+| `uid` is recomputed with the **pack's** language | `verify_pack.py:323`, `stable_uid(lang, …)` | every English stub fails uid verification |
+| an entry with zero senses is a failure | `verify_pack.py:348` | *"la entrada X quedó sin acepciones"* |
+| a `T` before the first `S` is **silently dropped** | `payload.parse`, the `if senses:` guard | entry-level translations have nowhere to live |
+
+So level 2 is a **schema change** — D-001 territory, packs rebuilt rather than migrated — plus a
+`uid` recipe that takes the entry's own language, which means bumping `UID_RECIPE` and therefore
+invalidating every cross-pack join that exists.
+
+⚠️ **The one door that is already open**: `payload.parse` ends with *«los tags desconocidos se
+ignoran a propósito: un builder más nuevo puede agregar campos sin romper un lector viejo»*. A new
+entry-level tag would be ignored by today's readers rather than breaking them, so the payload half
+of level 2 is additive. **The `entry` table half is not.**
+
+#### Declaring it, which is the part that makes it a format feature
+
+Today `kind = bilingual` plus `lang_dst` says the pack **has** a target language. Nothing says
+whether the reverse direction is **usable** — the current pack's is 78.1 % at top 8,000 and
+returns a different *kind* of answer, and a reader has no way to know that. If bidirectionality is
+to be a declared property rather than an accident of the build, it needs to be stated in `meta`
+and checked by `verify_pack.py`, the same way `sources` must carry a licence per source (D-138).
+
+That is a decision, not a measurement, and it is not taken here.
+
+
+### A translations section inside the entry — designed 2026-09-21
+
+The product shape, stated: *translation mode is **complementary** to the structure the app already
+has. Search a word, it appears in the results list as it does now; open it, and alongside the
+definitions section (when there is one) there is a **translations section**, fed from the
+translations DB, presented the way this repo is organised.*
+
+The screen already knows how to do this. What is missing is the data, and the reason it is missing
+is sharper than "nobody built it".
+
+#### The shape is already written: a fourth `TermList`
+
+`SenseBlock` renders, per sense: the gloss, the examples, then **three identical lists** built by
+the same helper — `TermList(title, terms, links, onOpenWord)` — for synonyms, antonyms and related
+(D-126, D-132, D-159). A translations section is **the fourth call**, in the same place, with the
+same two-line cost and the same rule that the category word is never optional because the lists
+look alike.
+
+And its data has a home: **`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag
+`T`, `PayloadCodec` parses it — and `SenseBlock` does not render it.** The field is empty in all
+three real packs, so today the call would draw nothing.
+
+⚠️ **That is the whole feature: one `TermList` call and a build that fills `T`.** No new screen,
+no new navigation, no new module.
+
+#### ⚠️ Why it cannot be read from the bilingual pack as it stands
+
+The obvious implementation — join by `uid` and show what the translations DB has — was tried
+against real entries, and **both of its two possible sources are the wrong shape for display**.
+
+**Its glosses are definitions, not terms.** In a bilingual pack the gloss *is* the English, so it
+looks like a translation list until you read one:
+
+```
+tiempo -> time · a while · period of time · tense ·
+          weather (the short-term state of the atmosphere at a specific time and place,
+          including the temperature, relative humidity, cloud cover, precipitation, wind, etc)
+```
+
+**Its `trans` table is a search index, not a reading list.** `bilingual.translation_keys` already
+does the cleaning — that is what the module is for — but then D-014 tokenizes every key into its
+words so that searching `run` finds `to run`, and `PackBuilder` stores the result of `norm()`:
+
+```
+tiempo -> cloud, cloud cover, cover, humidity, long, long time, precipitation,
+          relative, relative humidity, tense, time, wind
+```
+
+`cover`, `relative` and `long` are tokenizer artifacts of `cloud cover` and `relative humidity`,
+correct as search keys and wrong as a list someone reads. And the form is normalised: `U-turn` is
+stored `u turn`, `Úbeda` is `ubeda`.
+
+⚠️ **The pack has translations for searching and a place for translations for reading, and only
+the first is filled.** `bilingual.py` says it outright — *"the keys are returned raw: `PackBuilder`
+normalises them"* — so **the display form exists at build time and is discarded**. Filling `T` with
+the raw keys, before tokenization and before `norm()`, is the fix, and it is a build change on a
+field that already exists.
+
+#### ⚠️ And the `uid` join is weaker than its headline number
+
+Even with the display form solved, sourcing the section from another pack runs into this, measured
+over the **3,000 best-ranked entries of the Spanish pack** — the ones actually opened:
+
+| | |
+|---|---|
+| have a `uid` twin in the bilingual pack | **1,635 of 3,000 (54.5 %)** |
+| terms per entry when they do | median **4**, p90 **10**, max **53** |
+
+`casa`, `perro`, `libro` and `tiempo` have a twin. **`correr` and `mano` do not** — two of the
+commonest words in the language. A section that is absent on half the entries a reader opens, with
+no pattern they can learn, reads as broken rather than as partial.
+
+#### The order this implies
+
+1. **Render `Sense.translations` as a fourth `TermList`.** Pure `:app`, covered by the gate under
+   Robolectric like the other screens (D-110). Draws nothing until step 2, which is why it is
+   cheap to land first.
+2. **Fill `T` in the monolingual pack from `es.jsonl`'s own `translations` field** — the source
+   measured above: **94.5 % of the top 1,000**, 55 % of lemmas carrying `sense_index`, so the terms
+   attach to the **right sense** and the `uid` matches by construction. This is what makes the
+   section appear, with **one pack installed and no join at all**.
+3. **Fill `T` in the bilingual pack** with `translation_keys`' raw output, so that pack also reads
+   well on its own.
+4. **Only then** the cross-pack `uid` join, for the entries step 2 misses — and priced against the
+   54.5 % above, not against the 86.5 % headline.
+
+⚠️ **One thing steps 1–3 do not give: tappable translations.** `EntryScreen` resolves links with
+`resolveIn: suspend (Set<String>) -> Map<String, Long>`, which is **one pack's** `norm → entryId`,
+and `onOpenWord` navigates inside that same pack — deliberately, because sending it elsewhere is
+the D-080 bug. An English term cannot resolve against a Spanish pack, so translations render as
+**plain text** unless the link map grows a `packId`, which is a real change to a boundary that
+exists for a reason. Painting them as links without it would be a word painted tappable that
+navigates nowhere, which D-084 and `TermList`'s own docstring both forbid.
+
+Also note `MAX_PALABRAS_POR_CONSULTA = 64`: the link resolution already runs as **two** queries to
+stay under it, and terms are the second. Translations would join that query and push it toward the
+cap, where it **truncates silently**.
+
+
+### Can translations be attached to the right sense, across languages? — measured 2026-09-21
+
+Asked as *«is this very complex to achieve?»*, which deserves a measurement rather than a
+judgement — §Alinear acepciones entre fuentes lists three possible paths and says of all of them
+**«ninguno medido»**. Two of them are measured here.
+
+**The short answer: within a language it is not complex at all — the source already labels both
+sides and the machinery already exists. Across languages it is not complex either; it is empty.**
+
+#### ⚠️ Within a language: the source declares it, and D-117 already built the reader
+
+The suspicion that started this was that `sense_index` looked broken: `alemán` has **2 senses** in
+its record and translations at `[1]`, `[2]` and **`[4]`**. It is not broken — **the index numbers
+the wiki page, and kaikki splits a page into one record per part of speech**:
+
+```
+alemán (adj)    sense_index '1'   Originario, relativo a, o propio de Alemania.
+alemán (noun)   sense_index '2'   Persona originaria de Alemania.
+                sense_index '3'   Persona de piel clara, cabellos rubios…
+alemán (noun)   sense_index '4'   Idioma de la familia germánica occidental…
+
+translations (repeated on every record of the page):  German[1], German[2], German[4]
+```
+
+⚠️ **Each sense carries its own label, so the join is a key match and never arithmetic** — which
+is exactly what `_by_sense_index` already does for synonyms, and exactly the trap D-117 spells
+out: *«la clave es el `sense_index` que declara la fuente, NUNCA la posición»*. The full page's
+translation table is attached to every record, and the indices that belong to another record
+**simply fail to join**, which is the correct outcome rather than a bug. Sense `'3'` gets nothing,
+because the wiki declares no translation for it.
+
+Measured over the whole dump:
+
+| | |
+|---|---|
+| Spanish senses in entries that have translations | 51,911 |
+| **that declare a `sense_index`** | **51,850 — 99.9 %** |
+| that receive a translation, exact string match | 11,961 — **23.0 %** |
+| that receive one **once index ranges are expanded** | 18,817 — **36.2 %** |
+
+**The one piece of real work is the ranges**: 18.8 % of pairs are written `1-2`, `1, 4` rather
+than `3`, and `_by_sense_index` compares strings, so today a sense labelled `'1'` would not match
+a translation labelled `'1-2'`. Expanding them is worth **+13.2 points**, and what remains
+unparseable is a rounding error — `'1b'` (3 occurrences), `'1 y 2'` (2), `'2 (en el aire)'` (1) —
+which is dropped, exactly as D-117 drops a synonym with no index rather than inventing an
+attribution.
+
+**And it works where it matters, which is polysemy:**
+
+```
+planta  ->  plant    (Forma de vida vegetal…)        vela  ->  candle  (Cilindro de cera…)
+planta  ->  floor    (conjunto de habitaciones…)     vela  ->  sail    (Tela resistente…)
+banco   ->  bank     ·  pila -> basin  ·  muñeca -> wrist  ·  copa -> cocktail, drink
+```
+
+That is the feature working: the same headword, a different English word per sense, with the
+source stating the attribution rather than anybody guessing it.
+
+#### Across languages, sense to sense: it works and there is almost none of it
+
+The stronger reading — linking Spanish sense *k* to English sense *m*, not merely to the English
+word — has a real mechanism, because the two dumps label from opposite ends:
+
+- `es.jsonl` gives a translation **plus the index of OUR sense**.
+- `en.jsonl` gives a translation **plus the text of THEIR sense** (`pound → libra`, *"unit of
+  currency"*). Measured: **10,410 EN→ES pairs, and 100 % of them carry that sense text.**
+
+Where both exist for the same word pair, the two halves form a bridge. Measured: **1,461 pairs**,
+and they are good — the mechanism distinguishes senses correctly:
+
+```
+libra  <->  pound   [unit of mass (16 ounces avoirdupois)]
+libra  <->  pound   [unit of currency]
+gato   <->  cat     [domestic species]      castaño <-> brown  [colour]
+día    <->  day     [period of 24 hours]    palabra <-> word   [unit of language]
+```
+
+⚠️ **So the obstacle is not difficulty, it is quantity — and that changes what to do about it.**
+1,461 pairs against 152,281 Spanish entries is not a feature; it is a curiosity. And the English
+side is **prose, not an index**: reaching an actual sense of the English pack needs that text
+matched against its glosses, a second fuzzy step with its own error rate, on top of a base of
+1,461.
+
+**Compare with what the within-language path already yields, free, from a field the pipeline does
+not read**: 18,817 senses with a correctly attributed translation, no matching, no threshold, no
+silent-error risk.
+
+#### What this says to do
+
+1. **Read `translations` in `kaikki.py` exactly as `_by_sense_index` reads synonyms**, and emit
+   them into tag `T` per sense. Same function, same discard rule, same test shape.
+2. **Expand numeric ranges in the index** — a small generalisation of `_by_sense_index`, worth
+   +13.2 points, and it benefits synonyms and antonyms at the same time since they share the
+   reader.
+3. **Leave sense-to-sense across languages alone.** It is measured, it works, and at 1,461 pairs
+   it does not pay for the machinery. Revisit only if a source with real coverage appears —
+   which is what the ILI bridge would have been, had the offsets lined up (see above).
+
+⚠️ **Note what this does NOT unblock.** §Alinear acepciones entre fuentes stays open: its 20,644
+discarded contributions come from sources that state no sense at all (WordNet, Wikidata, the
+enwiktionary examples). This path works precisely because the Wikcionario **declares** the
+attribution, and that is the property the other sources lack.
+
+#### ⚠️ The bilingual pack made an ordering bug impossible to ignore
+
+Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
+number is blunt: searching **`house` returns `solar, alojar, albergar, domiciliar` and `casa` is
+nowhere near the top**. `dog` puts `perro` fourth, behind `encalzar` and `uña de gato`.
+
+It is **not** a coverage bug — `casa` does carry `house` as a key. It is `rank`: 993 for `casa`
+against **911 for `solar`**, and lower means more common. `rank` measures **page richness in the
+dump** (D-063), and in the English Wiktionary's Spanish section `solar` has a longer page than
+`casa`.
+
+The forward direction hides this, because the coverage band puts the word you typed on top
+(D-142). The reverse direction has no such anchor: every candidate for `house` is an exact hit on
+the key, so **`rank` decides alone** and it is deciding badly.
+
+⚠️ **And the signal that would fix it already exists and is already measured**: `tatoeba.frequencies`
+ranks Spanish words by real usage — it is what chose the core packs' vocabulary, where `casa` is in
+the top and `solar` is not. Wiring it into `rank` is a change to D-063 and needs its own
+measurement, which is why it is written here and not done.
+
+**A second pack is still worth considering, but for a different reason than coverage**: what
+ES→EN cannot give is an English *entry*. Searching `dog` finds the Spanish words that mean it; it
+never shows you an English headword with its own senses. Whether that matters is a product
+question, and D-136 lets both coexist whenever it is answered.
+
+**Two things to settle before building either:**
+
+1. ⚠️ **Prune the inflection notes.** A large share of that 88.3 % are entries like *"plural of
+   pie"* or *"second-person singular voseo…"*, which the monolingual pack already covers through
+   the `form` table. A bilingual pack that keeps them is mostly grammar notes by weight.
+2. **Ask whether it is still needed.** Since D-168 the cross-language fallback already finds `dog`
+   with Spanish active and shows its English entry. That is lookup across languages, not
+   translation — it tells you what `dog` means, not that it is `perro`. Worth confirming that the
+   second thing is the one wanted before spending the MB.
+
 
 ## Aplicación
 
@@ -2146,622 +2812,6 @@ ordinal and immune to a badly calibrated pack — and it lives in a comment insi
    coverage, and whether `rank` across two packs from different dumps is comparable at all — the
    ordering's own comment says it is not, and nothing acts on that.
 
-### An English–Spanish translation pack: one pack or two?
-
-**Status.** ✅ **Built 2026-09-21 (D-177).** The question was whether one pack serves both
-directions; the first measurement said no and was measuring the wrong thing.
-
-**Structurally, one pack does serve both.** The schema already has `trans` — `norm, entry_id` —
-which is exactly a reverse index: an entry can be reached by a word in the *other* language, and
-`MatchKind.TRANSLATION` is rung 3 of the cascade. A pack of Spanish entries with English glosses,
-plus `trans` rows keyed by English, answers `perro` directly and `dog` through `trans`.
-
-⚠️ **But the data does not come that way, and that is what settles it.** The dump already
-downloaded — `es-en-wikt.jsonl`, 989 MB, the English Wiktionary's Spanish section — has **no
-`translations` field at all**: it gives Spanish words with English *glosses*. To make the reverse
-direction work, `trans` would have to be derived from those glosses. Measured over **141,166
-senses**:
-
-| | |
-|---|---|
-| Glosses that **are** a translation (terms of ≤ 2 words) | **16,532 — 11.7 %** |
-| Glosses that are a paraphrase | **124,634 — 88.3 %** |
-
-Examples of each: `gratis → free, without charge` against `pie → foot (a part of the body)` and
-`pies → second-person singular voseo present subjunctive`.
-
-⚠️ **That number was the wrong one, and building it showed why.** 11.7 % counts *senses whose
-whole gloss* is a clean translation. What the reverse index needs is far weaker: **one usable term
-from any sense of an entry**. Measured again over the records the builder actually emits:
-**87.6 % of entries get at least one translation key**, 2.3 keys each.
-
-So the recommendation flipped, and **one pack does serve both directions** — see D-177, built.
-Spot-checked against the real pack: `hammer → martillo`, `pepper → ají, pimentón, pimiento`,
-`scaffold → andamio, cadalso`.
-
-#### How complete it is, and which direction the build favours
-
-Measured 2026-09-21 against the real pack, using the most-used words of each language as the test
-set — the same Tatoeba frequency signal that chose the core vocabularies.
-
-| Words tested | **ES→EN** (headword or inflected form) | **EN→ES** (through `trans`) |
-|---|---|---|
-| top 1,000 | **100.0 %** | 92.7 % |
-| top 3,000 | **99.9 %** | 85.9 % |
-| top 8,000 | **99.8 %** | 78.1 % |
-
-⚠️ **Forward is effectively complete; reverse is good and clearly behind — and the gap is
-structural, not accidental.** The Spanish side has the `form` table, so every inflection reaches
-its lemma systematically. The English side has only the derived keys, so an English inflection is
-found **only if some Spanish gloss happens to spell it**:
-
-| | found | | found |
-|---|---|---|---|
-| `dogs` | ✅ | `ran` | ❌ |
-| `running` | ✅ | `went` | ❌ |
-| `houses` | ✅ | `bigger` | ❌ |
-| `children` | ✅ | | |
-
-The regulars survive by luck and the irregulars do not — which is the worst shape for a gap,
-because it is invisible until you hit it.
-
-⚠️ **A second asymmetry, and it is the one no amount of coverage fixes**: the two directions do not
-return the same *kind* of answer. ES→EN opens an **entry** with its senses; EN→ES returns a **list
-of Spanish lemmas** (2.3 per key on average) and there is no English entry to open, because the
-pack contains none. It answers *"which Spanish words mean this"*, never *"what does this English
-word mean"*.
-
-**And against the monolingual pack, the entries themselves are thinner** — same 4,000 best-ranked
-entries of each:
-
-| | entries | senses/entry | only one sense | senses with an example |
-|---|---|---|---|---|
-| bilingual ES→EN | 123,979 | **2.49** | **31.6 %** | 22.0 % |
-| monolingual ES | 152,281 | **3.63** | 8.7 % | 21.6 % |
-
-That is the source, not the build: the English Wiktionary describes Spanish words more briefly than
-the Spanish Wiktionary does. **It is a translation dictionary, not a Spanish dictionary**, and the
-numbers say to keep both rather than treat this one as a replacement.
-
-#### Closing the reverse gap: measured, 2026-09-21
-
-The question was whether a translation pack can carry its index **in both directions** and what
-that weighs. It was measured rather than argued, and the answer is that it is cheap — but only in
-one of the two shapes, and only after the source is filtered.
-
-**The source is the English monolingual pack's own `form` table**, which is already built and
-already downloaded. Of the 89,049 English keys in `trans`, **70,504 (79.2 %) are a lemma there**,
-and their inflections are exactly the rows the reverse direction is missing.
-
-**What it buys** — the same top-N test as the table above, so the numbers are comparable:
-
-| Words tested | EN→ES today | with the inflection index |
-|---|---|---|
-| top 1,000 | 92.7 % | **99.4 %** |
-| top 3,000 | 85.9 % | **99.6 %** |
-| top 8,000 | 78.1 % | **98.9 %** |
-
-⚠️ **The residue is not vocabulary, it is the tokenizer.** What still misses at top 8,000 is
-led by `didn`, `doesn`, `wasn`, `shouldn`, `hasn`, `hadn` — the halves of contractions that
-`tatoeba.frequencies` splits on the apostrophe — plus `cannot` and `any`. Real misses
-(`ambitious`, `amid`, `tend`, `altogether`) are a handful. **The gap this closes is essentially
-all of the gap there was**, and the measurement of what remains is worth more than the coverage
-number: it says the next thing to fix is the frequency tokenizer, not the pack.
-
-##### ⚠️ Two storage shapes, and the expensive one is the obvious one
-
-Both were built and weighed, not estimated:
-
-| | rows | size | query cost |
-|---|---|---|---|
-| **A — expand into `trans`** `(norm, entry_id)` | 379,000 | **5.88 MB** | none: the `byTranslation` rung is unchanged |
-| **B — an indirection table** `(norm, lemma)` | 84,319 | **1.84 MB** | one extra lookup before the rung |
-
-**A costs 3.2× more for the same answers**, and the reason is worth stating because it is not
-obvious from the row counts: an English key maps to **2.3 Spanish entries** on average — `dog` is
-a key of *can, perro, chucha, choco, hotdog* — so expanding `dogs` writes that fanout **again**,
-once per inflection. B stores each inflection **once** and pays the fanout at query time, where it
-is already being paid.
-
-On a 50.2 MB pack that is **+3.7 % against +11.7 %**. B is the recommendation; its cost is a new
-table, which is a **schema change** and therefore D-001 territory: the pack is rejected and rebuilt
-rather than migrated, which for a pack that is not published yet costs nothing.
-
-##### ⚠️ The filter is not optional, and it was found by reading rows
-
-A blind sample of 20 candidate rows — the discipline in root `CLAUDE.md`, *look at the output, not
-just the numbers* — showed the raw source is dirty, and the dirt is in the **English monolingual
-pack itself**:
-
-- `no table tags` (577 rows) and `glossary` (575 rows) are **wiktextract parse artifacts** sitting
-  in `form` as if they were inflections.
-- **38.7 % of the English `form` table's 985,992 rows contain a space**: `big fat hairy deals`,
-  `ate breathed and slept`, `1 000 000 questions`. The Spanish pack is clean by comparison — its
-  most repeated form appears 16 times, and it is `unas`.
-
-Keeping one word, alphabetic, non-artifact drops the candidates from 130,378 to **84,319 — 35 %
-was junk — and the coverage numbers above do not move by a tenth of a point.** That is the
-measurement that matters: the filter is free.
-
-**This is a defect in `en-def-wikt.db` regardless of this feature**, and it is filed under §Pack
-de inglés: those phrase rows are dead weight in the inflection rung of the English pack too, where
-nothing filters them.
-
-##### The other direction, priced and discarded
-
-The alternative reading of *"tables in both directions"* is a pack **authored** EN→ES, with English
-headwords and English senses — the thing that would answer *"what does this English word mean"*
-rather than *"which Spanish words mean this"*. The English Wiktionary does carry a real
-`translations` field for its **English** entries, unlike the Spanish section which has none at all.
-
-⚠️ **It was counted over the full 3.2 GB dump and the data is not there**: of **1,492,836** English
-entries, **9,221 (0.6 %)** have any `translations` and **5,080 (0.3 %)** have a Spanish one, for
-**10,438** EN→ES pairs total. Against the **206,727** rows already derived from the glosses, a pack
-built that way would be **twenty times smaller** than the reverse index it is meant to replace.
-
-The curated pairs are good — `dictionary → diccionario, tumbaburros, mataburros`, sense-tagged —
-so they are worth **folding in as extra keys**, which is cheap. They are not worth a pack.
-
-### Completing the translations, and where they belong in an entry — measured 2026-09-21
-
-Two questions, asked together: **complete the translation pack from other sources**, and work out
-**how that information is queried and integrated into the entry structure that already exists**.
-The second turned out to be almost entirely answered already, and the first has a source nobody
-had looked at.
-
-#### ⚠️ The structure already has the field, and it is empty in all three packs
-
-`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag `T`, `PayloadCodec`
-reads it, and the entry screen can render it. **Nothing fills it.** Read from the real packs:
-
-```
-BILINGUAL es-tr-enwikt      casa (noun) — 1 sense
-   S: house                 related: hogar, lar
-   trans table -> house
-
-MONOLINGUAL es-def-wikc     casa (noun) — 15 senses
-   S: Edificación destinada a vivienda.
-   S: Domicilio.            synonyms: domicilio, hogar, lar, morada
-   trans table -> (empty)
-```
-
-So the two halves each hold what the other needs and neither carries a translation in the field
-meant for one. The bilingual pack puts the English **in the gloss** (`S: house`), which is why it
-reads as a dictionary whose definitions happen to be English words; the monolingual pack has the
-15 real senses and no English at all.
-
-**This is why `wordActions` says the translate action shows up "today: never"** — it is not
-waiting on a mechanism, it is waiting on data.
-
-#### The source that was never looked at: the Wikcionario already has translation tables
-
-⚠️ **`es.jsonl` — the very dump that builds `es-def-wikc` — carries a `translations` field**, and
-nothing in the pipeline reads it. Measured over the whole dump:
-
-| | |
-|---|---|
-| Spanish entries | 854,460 |
-| with `translations` | 32,453 (3.8 %) |
-| with an **English** translation | 25,328 (3.0 %) |
-| ES→EN pairs | **34,710** over 22,520 lemmas |
-| **of those, carrying `sense_index`** | **55 % of lemmas** |
-
-That last row is the one that matters, and it is worth more than the coverage: **`sense_index` is
-the same field D-117 and D-124 already use to attach wiki synonyms to the right sense.** The
-alignment problem that blocks WordNet, Wikidata and the enwiktionary examples —§Alinear acepciones
-entre fuentes, 20,644 contributions currently thrown away— **does not apply here**. Same dump,
-same entry, same numbering, so the `uid` matches by construction and the sense is stated by the
-source.
-
-```
-casa   -> home, house              idx=1
-libro  -> book                     idx=1
-       -> omasum, psalterium, third stomach   idx=6
-```
-
-`libro` is the whole argument in three lines: senses 1 and 6 get different English, and the source
-says which is which.
-
-#### Coverage: what fraction of entries would actually show a translation
-
-Over the Spanish frequency list, asking *"the entry the user opens — does it carry an English
-translation?"*, with inflections resolved through `form` the way the reverse-index numbers were:
-
-| Words tested | Wikcionario `translations` | via `uid` join to the bilingual pack | **both** |
-|---|---|---|---|
-| top 1,000 | 94.5 % | 86.5 % | **98.3 %** |
-| top 3,000 | 90.0 % | 84.0 % | **96.8 %** |
-| top 8,000 | 84.2 % | 81.6 % | **94.8 %** |
-
-The two sources are **complementary rather than redundant** — neither alone reaches what the pair
-does — and the cheap one is also the better one: it needs no join, no new pack and no new rung.
-
-#### ⚠️ The `uid` join is not the bottleneck, and that kills the obvious next idea
-
-The natural reaction to 31 % is to blame the join key and loosen it. Measured, between the
-monolingual and bilingual Spanish packs:
-
-| key | in common | % of the monolingual pack |
-|---|---|---|
-| `uid` | 47,646 | 31.3 % |
-| `(norm, pos)` | 50,882 | 34.6 % |
-| `norm` alone | 52,552 | 37.9 % |
-
-**Going all the way down to bare headword buys 6.6 points** and gives up everything D-055 bought.
-What does not overlap is the **vocabulary**: the English Wiktionary's Spanish section and the
-Spanish Wiktionary describe different words. No key recovers that, and the fix is a second source,
-which is exactly what the row above is.
-
-#### ⚠️ WordNet as a translation bridge is a trap, and the trap is silent
-
-The tempting idea: `wn-data-spa.tab` gives Spanish lemmas per synset, OEWN gives English lemmas
-per synset, a synset **is** one sense — so joining them would give translations aligned by sense
-for free, solving §Alinear acepciones outright. `wordnet.py` already reads both files.
-
-**It does not work, and the failure is the dangerous kind.** Of the 78,417 Spanish synset ids,
-only **435 (0.6 %)** exist in OEWN 2024: the `.tab` carries Princeton WordNet 3.0 offsets and OEWN
-renumbered. Worse, the 435 are not a usable subset — they split by offset magnitude:
-
-| offset | count | what they are |
-|---|---|---|
-| 4–6 digits | 93 | **real matches**: `apto, capaz, competente ↔ able` · `ente, entidad ↔ entity` · `cosa ↔ thing` |
-| 7–8 digits | **342** | **collisions**: `soñador ↔ diner` · `jefa, jefe ↔ girl` · `epidemiólogo ↔ easterner` · `lama ↔ joiner` · `hedonista ↔ groundskeeper` |
-
-**Four out of five pairs are wrong and none of them looks wrong** — `hedonista ↔ groundskeeper`
-reads as a bad dictionary, not as a bug, which is the failure mode this repo treats as
-unacceptable. Bridging the two would need the **ILI** (OEWN declares `ili="i1"` per synset) plus a
-PWN-3.0 → ILI map, which is not downloaded. Until that exists, **the MCR is usable within Spanish
-and must not cross languages.** `wordnet.py` already refuses to transfer antonymy across
-languages for a different reason (it is a lexical relation); this is a second, stronger reason
-that applies to everything.
-
-#### What this adds up to
-
-In order, cheapest first, none of it built:
-
-1. **Read `translations` from `es.jsonl` in `kaikki.py` and write tag `T` per sense**, gated on
-   `sense_index` exactly as synonyms are. No schema change, no new table, no join, no alignment
-   risk — `trans` and the `T` tag already exist and `verify_pack.py` already checks them. Gets
-   **94.5 % of the top 1,000**.
-2. **The same for `en.jsonl`**, which carries 10,438 curated EN→ES pairs (see above) — it makes the
-   English monolingual pack translate too.
-3. **Only then** the `uid` join to the bilingual pack for the remaining 3.8 points, which is the
-   part that needs `SearchRepository` to compose across packs and is entry-level, not sense-level.
-
-⚠️ **Step 1 changes what a pack contains, not how it is read**, so under D-001 the packs are
-rebuilt rather than migrated — an hour of build for the Spanish pack, and the app needs no change
-beyond rendering a field it already parses.
-
-### Both directions as a pack feature, and words with no definition — measured 2026-09-21
-
-Asked as a design question, and it deserves the design answer: *can a translation pack hold tables
-in both directions, as a **feature of the pack format** rather than a build trick — and can a word
-be shown even when no definition for it is available?*
-
-**Yes to both, and the second one costs nothing today**, because the data is already there and
-already indexed. What throws it away is one line of SQL.
-
-#### ⚠️ The reverse direction is already a table, already prefix-indexed, and the query discards it
-
-`trans` is `(norm, entry_id)` `WITHOUT ROWID`, so **the table is the index** (D-010) and a prefix
-range over English keys is a primary-key seek — verified, not assumed:
-
-```
-EXPLAIN QUERY PLAN SELECT norm, entry_id FROM trans WHERE norm >= 'hou' AND norm < 'hov'
-  -> SEARCH trans USING PRIMARY KEY (norm>? AND norm<?)
-```
-
-And the content it reaches is good:
-
-```
-hound        -> can, sabueso, lebrel, podenco ibicenco
-hour         -> hora, cuarto, horario, happy hour, hora pico
-hourglass    -> ampolleta, reloj de arena, cintura de avispa
-houndstooth  -> pata de gallo
-```
-
-⚠️ **But `byTranslation` keeps the entries and drops the key:**
-
-```sql
-SELECT e.id, e.headword, e.pos FROM entry e WHERE e.id IN
-    (SELECT entry_id FROM trans WHERE norm >= ? AND norm < ?)   -- 'hour' is lost here
-ORDER BY e.rank LIMIT ?
-```
-
-So typing `hou` returns `ampolleta, sabueso, hora, …` — a flat list of Spanish words with **no
-indication of which English word each one answers**, and ordered by a `rank` that is page richness
-(which is the `house → solar` bug in §Result ordering). The English word the reader typed is
-matched, used, and then thrown away.
-
-**Keeping it is the whole feature**: `hour` becomes a row, and opening it shows the Spanish words
-it maps to. The pack does not change by one byte, and a word with no definition becomes
-displayable — which is exactly the second half of the request.
-
-#### The three levels, priced
-
-| | what it delivers | cost |
-|---|---|---|
-| **0 — keep the key** | `hour` shows as a row and opens, listing its Spanish entries. Words with no definition become displayable | **0 MB** — `:app` and `:dict-data` only, no pack change |
-| **1 — inflection index** (see above) | `hours`, `ran`, `went` reach it too: 78.1 % → 98.9 % | **1.84 MB** (+3.7 %) |
-| **2 — stub entries in `entry`** | `hour` gets a `uid`, a `rank`, a fuzzy key: favouritable, in history, typo-tolerant, orderable | **7.84–11.00 MB** (+15.6 % to +21.9 %) |
-
-Level 2 was built and weighed over the real 89,049 English keys, not estimated. ⚠️ **Its cost is
-almost entirely structure, not content**: the payloads compress to **1.70 MB (20 bytes per
-entry)** and the other 6–9 MB are the `entry` row itself plus its indexes — `idx_entry_fuzzy`
-alone is 1.88 MB and the covering `idx_entry_norm` 3.18 MB. Dropping the fuzzy index and making
-`idx_entry_norm` non-covering takes 11.00 MB down to 7.84, at the price of no typo tolerance on
-English input.
-
-**Level 0 first, and possibly only.** It delivers the visible feature; levels 1 and 2 buy reach
-and identity, and can be decided separately once level 0 shows what is actually missing.
-
-#### ⚠️ What level 2 collides with — three enforcers and a missing column
-
-Stub entries are not merely absent today, they are **actively rejected**, and that is worth knowing
-before treating them as a small change:
-
-| blocker | where | what happens |
-|---|---|---|
-| `entry` has **no `lang` column** | schema | an English row in a pack declaring `lang_src=es` is indistinguishable from a Spanish one |
-| `uid` is recomputed with the **pack's** language | `verify_pack.py:323`, `stable_uid(lang, …)` | every English stub fails uid verification |
-| an entry with zero senses is a failure | `verify_pack.py:348` | *"la entrada X quedó sin acepciones"* |
-| a `T` before the first `S` is **silently dropped** | `payload.parse`, the `if senses:` guard | entry-level translations have nowhere to live |
-
-So level 2 is a **schema change** — D-001 territory, packs rebuilt rather than migrated — plus a
-`uid` recipe that takes the entry's own language, which means bumping `UID_RECIPE` and therefore
-invalidating every cross-pack join that exists.
-
-⚠️ **The one door that is already open**: `payload.parse` ends with *«los tags desconocidos se
-ignoran a propósito: un builder más nuevo puede agregar campos sin romper un lector viejo»*. A new
-entry-level tag would be ignored by today's readers rather than breaking them, so the payload half
-of level 2 is additive. **The `entry` table half is not.**
-
-#### Declaring it, which is the part that makes it a format feature
-
-Today `kind = bilingual` plus `lang_dst` says the pack **has** a target language. Nothing says
-whether the reverse direction is **usable** — the current pack's is 78.1 % at top 8,000 and
-returns a different *kind* of answer, and a reader has no way to know that. If bidirectionality is
-to be a declared property rather than an accident of the build, it needs to be stated in `meta`
-and checked by `verify_pack.py`, the same way `sources` must carry a licence per source (D-138).
-
-That is a decision, not a measurement, and it is not taken here.
-
-### A translations section inside the entry — designed 2026-09-21
-
-The product shape, stated: *translation mode is **complementary** to the structure the app already
-has. Search a word, it appears in the results list as it does now; open it, and alongside the
-definitions section (when there is one) there is a **translations section**, fed from the
-translations DB, presented the way this repo is organised.*
-
-The screen already knows how to do this. What is missing is the data, and the reason it is missing
-is sharper than "nobody built it".
-
-#### The shape is already written: a fourth `TermList`
-
-`SenseBlock` renders, per sense: the gloss, the examples, then **three identical lists** built by
-the same helper — `TermList(title, terms, links, onOpenWord)` — for synonyms, antonyms and related
-(D-126, D-132, D-159). A translations section is **the fourth call**, in the same place, with the
-same two-line cost and the same rule that the category word is never optional because the lists
-look alike.
-
-And its data has a home: **`Sense.translations` exists in `Model.kt`, `payload.py` writes it as tag
-`T`, `PayloadCodec` parses it — and `SenseBlock` does not render it.** The field is empty in all
-three real packs, so today the call would draw nothing.
-
-⚠️ **That is the whole feature: one `TermList` call and a build that fills `T`.** No new screen,
-no new navigation, no new module.
-
-#### ⚠️ Why it cannot be read from the bilingual pack as it stands
-
-The obvious implementation — join by `uid` and show what the translations DB has — was tried
-against real entries, and **both of its two possible sources are the wrong shape for display**.
-
-**Its glosses are definitions, not terms.** In a bilingual pack the gloss *is* the English, so it
-looks like a translation list until you read one:
-
-```
-tiempo -> time · a while · period of time · tense ·
-          weather (the short-term state of the atmosphere at a specific time and place,
-          including the temperature, relative humidity, cloud cover, precipitation, wind, etc)
-```
-
-**Its `trans` table is a search index, not a reading list.** `bilingual.translation_keys` already
-does the cleaning — that is what the module is for — but then D-014 tokenizes every key into its
-words so that searching `run` finds `to run`, and `PackBuilder` stores the result of `norm()`:
-
-```
-tiempo -> cloud, cloud cover, cover, humidity, long, long time, precipitation,
-          relative, relative humidity, tense, time, wind
-```
-
-`cover`, `relative` and `long` are tokenizer artifacts of `cloud cover` and `relative humidity`,
-correct as search keys and wrong as a list someone reads. And the form is normalised: `U-turn` is
-stored `u turn`, `Úbeda` is `ubeda`.
-
-⚠️ **The pack has translations for searching and a place for translations for reading, and only
-the first is filled.** `bilingual.py` says it outright — *"the keys are returned raw: `PackBuilder`
-normalises them"* — so **the display form exists at build time and is discarded**. Filling `T` with
-the raw keys, before tokenization and before `norm()`, is the fix, and it is a build change on a
-field that already exists.
-
-#### ⚠️ And the `uid` join is weaker than its headline number
-
-Even with the display form solved, sourcing the section from another pack runs into this, measured
-over the **3,000 best-ranked entries of the Spanish pack** — the ones actually opened:
-
-| | |
-|---|---|
-| have a `uid` twin in the bilingual pack | **1,635 of 3,000 (54.5 %)** |
-| terms per entry when they do | median **4**, p90 **10**, max **53** |
-
-`casa`, `perro`, `libro` and `tiempo` have a twin. **`correr` and `mano` do not** — two of the
-commonest words in the language. A section that is absent on half the entries a reader opens, with
-no pattern they can learn, reads as broken rather than as partial.
-
-#### The order this implies
-
-1. **Render `Sense.translations` as a fourth `TermList`.** Pure `:app`, covered by the gate under
-   Robolectric like the other screens (D-110). Draws nothing until step 2, which is why it is
-   cheap to land first.
-2. **Fill `T` in the monolingual pack from `es.jsonl`'s own `translations` field** — the source
-   measured above: **94.5 % of the top 1,000**, 55 % of lemmas carrying `sense_index`, so the terms
-   attach to the **right sense** and the `uid` matches by construction. This is what makes the
-   section appear, with **one pack installed and no join at all**.
-3. **Fill `T` in the bilingual pack** with `translation_keys`' raw output, so that pack also reads
-   well on its own.
-4. **Only then** the cross-pack `uid` join, for the entries step 2 misses — and priced against the
-   54.5 % above, not against the 86.5 % headline.
-
-⚠️ **One thing steps 1–3 do not give: tappable translations.** `EntryScreen` resolves links with
-`resolveIn: suspend (Set<String>) -> Map<String, Long>`, which is **one pack's** `norm → entryId`,
-and `onOpenWord` navigates inside that same pack — deliberately, because sending it elsewhere is
-the D-080 bug. An English term cannot resolve against a Spanish pack, so translations render as
-**plain text** unless the link map grows a `packId`, which is a real change to a boundary that
-exists for a reason. Painting them as links without it would be a word painted tappable that
-navigates nowhere, which D-084 and `TermList`'s own docstring both forbid.
-
-Also note `MAX_PALABRAS_POR_CONSULTA = 64`: the link resolution already runs as **two** queries to
-stay under it, and terms are the second. Translations would join that query and push it toward the
-cap, where it **truncates silently**.
-
-### Can translations be attached to the right sense, across languages? — measured 2026-09-21
-
-Asked as *«is this very complex to achieve?»*, which deserves a measurement rather than a
-judgement — §Alinear acepciones entre fuentes lists three possible paths and says of all of them
-**«ninguno medido»**. Two of them are measured here.
-
-**The short answer: within a language it is not complex at all — the source already labels both
-sides and the machinery already exists. Across languages it is not complex either; it is empty.**
-
-#### ⚠️ Within a language: the source declares it, and D-117 already built the reader
-
-The suspicion that started this was that `sense_index` looked broken: `alemán` has **2 senses** in
-its record and translations at `[1]`, `[2]` and **`[4]`**. It is not broken — **the index numbers
-the wiki page, and kaikki splits a page into one record per part of speech**:
-
-```
-alemán (adj)    sense_index '1'   Originario, relativo a, o propio de Alemania.
-alemán (noun)   sense_index '2'   Persona originaria de Alemania.
-                sense_index '3'   Persona de piel clara, cabellos rubios…
-alemán (noun)   sense_index '4'   Idioma de la familia germánica occidental…
-
-translations (repeated on every record of the page):  German[1], German[2], German[4]
-```
-
-⚠️ **Each sense carries its own label, so the join is a key match and never arithmetic** — which
-is exactly what `_by_sense_index` already does for synonyms, and exactly the trap D-117 spells
-out: *«la clave es el `sense_index` que declara la fuente, NUNCA la posición»*. The full page's
-translation table is attached to every record, and the indices that belong to another record
-**simply fail to join**, which is the correct outcome rather than a bug. Sense `'3'` gets nothing,
-because the wiki declares no translation for it.
-
-Measured over the whole dump:
-
-| | |
-|---|---|
-| Spanish senses in entries that have translations | 51,911 |
-| **that declare a `sense_index`** | **51,850 — 99.9 %** |
-| that receive a translation, exact string match | 11,961 — **23.0 %** |
-| that receive one **once index ranges are expanded** | 18,817 — **36.2 %** |
-
-**The one piece of real work is the ranges**: 18.8 % of pairs are written `1-2`, `1, 4` rather
-than `3`, and `_by_sense_index` compares strings, so today a sense labelled `'1'` would not match
-a translation labelled `'1-2'`. Expanding them is worth **+13.2 points**, and what remains
-unparseable is a rounding error — `'1b'` (3 occurrences), `'1 y 2'` (2), `'2 (en el aire)'` (1) —
-which is dropped, exactly as D-117 drops a synonym with no index rather than inventing an
-attribution.
-
-**And it works where it matters, which is polysemy:**
-
-```
-planta  ->  plant    (Forma de vida vegetal…)        vela  ->  candle  (Cilindro de cera…)
-planta  ->  floor    (conjunto de habitaciones…)     vela  ->  sail    (Tela resistente…)
-banco   ->  bank     ·  pila -> basin  ·  muñeca -> wrist  ·  copa -> cocktail, drink
-```
-
-That is the feature working: the same headword, a different English word per sense, with the
-source stating the attribution rather than anybody guessing it.
-
-#### Across languages, sense to sense: it works and there is almost none of it
-
-The stronger reading — linking Spanish sense *k* to English sense *m*, not merely to the English
-word — has a real mechanism, because the two dumps label from opposite ends:
-
-- `es.jsonl` gives a translation **plus the index of OUR sense**.
-- `en.jsonl` gives a translation **plus the text of THEIR sense** (`pound → libra`, *"unit of
-  currency"*). Measured: **10,410 EN→ES pairs, and 100 % of them carry that sense text.**
-
-Where both exist for the same word pair, the two halves form a bridge. Measured: **1,461 pairs**,
-and they are good — the mechanism distinguishes senses correctly:
-
-```
-libra  <->  pound   [unit of mass (16 ounces avoirdupois)]
-libra  <->  pound   [unit of currency]
-gato   <->  cat     [domestic species]      castaño <-> brown  [colour]
-día    <->  day     [period of 24 hours]    palabra <-> word   [unit of language]
-```
-
-⚠️ **So the obstacle is not difficulty, it is quantity — and that changes what to do about it.**
-1,461 pairs against 152,281 Spanish entries is not a feature; it is a curiosity. And the English
-side is **prose, not an index**: reaching an actual sense of the English pack needs that text
-matched against its glosses, a second fuzzy step with its own error rate, on top of a base of
-1,461.
-
-**Compare with what the within-language path already yields, free, from a field the pipeline does
-not read**: 18,817 senses with a correctly attributed translation, no matching, no threshold, no
-silent-error risk.
-
-#### What this says to do
-
-1. **Read `translations` in `kaikki.py` exactly as `_by_sense_index` reads synonyms**, and emit
-   them into tag `T` per sense. Same function, same discard rule, same test shape.
-2. **Expand numeric ranges in the index** — a small generalisation of `_by_sense_index`, worth
-   +13.2 points, and it benefits synonyms and antonyms at the same time since they share the
-   reader.
-3. **Leave sense-to-sense across languages alone.** It is measured, it works, and at 1,461 pairs
-   it does not pay for the machinery. Revisit only if a source with real coverage appears —
-   which is what the ILI bridge would have been, had the offsets lined up (see above).
-
-⚠️ **Note what this does NOT unblock.** §Alinear acepciones entre fuentes stays open: its 20,644
-discarded contributions come from sources that state no sense at all (WordNet, Wikidata, the
-enwiktionary examples). This path works precisely because the Wikcionario **declares** the
-attribution, and that is the property the other sources lack.
-
-#### ⚠️ The bilingual pack made an ordering bug impossible to ignore
-
-Building it surfaced the sharpest example this repo has of the problem in §Result ordering, and the
-number is blunt: searching **`house` returns `solar, alojar, albergar, domiciliar` and `casa` is
-nowhere near the top**. `dog` puts `perro` fourth, behind `encalzar` and `uña de gato`.
-
-It is **not** a coverage bug — `casa` does carry `house` as a key. It is `rank`: 993 for `casa`
-against **911 for `solar`**, and lower means more common. `rank` measures **page richness in the
-dump** (D-063), and in the English Wiktionary's Spanish section `solar` has a longer page than
-`casa`.
-
-The forward direction hides this, because the coverage band puts the word you typed on top
-(D-142). The reverse direction has no such anchor: every candidate for `house` is an exact hit on
-the key, so **`rank` decides alone** and it is deciding badly.
-
-⚠️ **And the signal that would fix it already exists and is already measured**: `tatoeba.frequencies`
-ranks Spanish words by real usage — it is what chose the core packs' vocabulary, where `casa` is in
-the top and `solar` is not. Wiring it into `rank` is a change to D-063 and needs its own
-measurement, which is why it is written here and not done.
-
-**A second pack is still worth considering, but for a different reason than coverage**: what
-ES→EN cannot give is an English *entry*. Searching `dog` finds the Spanish words that mean it; it
-never shows you an English headword with its own senses. Whether that matters is a product
-question, and D-136 lets both coexist whenever it is answered.
-
-**Two things to settle before building either:**
-
-1. ⚠️ **Prune the inflection notes.** A large share of that 88.3 % are entries like *"plural of
-   pie"* or *"second-person singular voseo…"*, which the monolingual pack already covers through
-   the `form` table. A bilingual pack that keeps them is mostly grammar notes by weight.
-2. **Ask whether it is still needed.** Since D-168 the cross-language fallback already finds `dog`
-   with Spanish active and shows its English entry. That is lookup across languages, not
-   translation — it tells you what `dog` means, not that it is `perro`. Worth confirming that the
-   second thing is the one wanted before spending the MB.
-
 ## Publicar: qué falta para una build de producción
 
 **Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
@@ -3325,6 +3375,13 @@ Retirado con el número, para que siga retirado.
 | Room para leer packs | `createFromFile()` copia el archivo: decenas de MB duplicados (D-039) |
 | OkHttp para descargas | `HttpURLConnection` hace `Range` y progreso con cero bytes extra (D-040) |
 | KMP | Wear Compose es solo Android: la UI no se comparte con ningún segundo destino (D-018) |
+| **PanLex** como fuente de traducciones | **CC BY-NC-SA 4.0**, no CC0 como la resume el buscador: `NonCommercial` la bloquea para un pack que se distribuye. Leída en la fuente primaria (2026-09-21) |
+| **FreeDict `eng-spa`** (64.258 lemas EN→ES) | **GPL**, viral sobre el dato y en conflicto con el CC BY-SA del pack. Duele: es justo la dirección débil. Apertium, igual |
+| **DBnary** para el par ES↔EN | **Pierde contra su propia fuente**: 30.723 pares y sólo **9.169 (29,8 %) ligados a acepción**, contra 34.710 / 18.817 leyendo `es.jsonl` directo. Su valor son las otras 25 ediciones |
+| **WordNet como puente de traducción** | Sólo **435 de 78.417** synsets españoles (0,6 %) existen en OEWN 2024, y **342 de esos 435 son colisiones**: `soñador ↔ diner`, `hedonista ↔ groundskeeper`. Cuatro de cada cinco mal y ninguno se ve mal |
+| **Wikidata `P5137`** como puente | Real y CC0 sobre el 30,3 % de las acepciones españolas, pero **las etiquetas viven en el dump de ítems de +100 GB**, no en el de lexemas que ya tenemos |
+| **Un pack autorado EN→ES** | Sobre los 3,2 GB del dump inglés completo: **10.438 pares**, contra las 206.727 filas ya derivadas de las glosas. Veinte veces más chico que lo que vendría a reemplazar |
+| **Plegar más que minúsculas/espacios/puntuación** en el código de acepción | Cada carácter extra que se pliega funde acepciones distintas en silencio. El plegado ligero ya da 42,21 % entre diccionarios, y el 57,79 % restante **no lo arregla ningún hash**: pide declarar equivalencias (D-181) |
 
 ---
 
