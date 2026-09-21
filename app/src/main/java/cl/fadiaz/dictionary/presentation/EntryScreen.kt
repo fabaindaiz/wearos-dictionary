@@ -65,12 +65,24 @@ import cl.fadiaz.dictionary.core.TextNormalizer
  */
 private const val VISIBLE_SENSES = 3
 
+/**
+ * A dónde lleva un enlace: **qué pack y qué entrada**.
+ *
+ * ⚠️ **El `packId` no es decorativo y lo obligó la traducción.** Antes un enlace era un `Long`
+ * suelto y `onOpenWord` lo abría en el MISMO pack, deliberadamente: mandar un `entryId` a otro
+ * pack abre **otra palabra, sin error** (D-080). Mientras todos los enlaces eran palabras de la
+ * misma glosa eso alcanzaba. Una traducción va necesariamente a otro diccionario, así que el
+ * destino tiene que decir a cuál — y el caso de siempre pasa a ser el mismo tipo con el pack
+ * propio, no una excepción.
+ */
+data class WordLink(val packId: String, val entryId: Long)
+
 @Composable
 fun EntryScreen(
     entryId: Long,
     // No default: a word painted as tappable that navigates nowhere is worse than not painting
     // it, and it is indistinguishable from one that works (same rule as D-084).
-    onOpenWord: (Long) -> Unit,
+    onOpenWord: (WordLink) -> Unit,
     onBackToSearch: () -> Unit = {},
     /**
      * The menu actions, built from the already loaded entry.
@@ -80,14 +92,14 @@ fun EntryScreen(
      * the same as offering an empty menu.
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
-    resolveIn: suspend (Set<String>) -> Map<String, Long> = { emptyMap() },
+    resolveIn: suspend (Set<String>) -> Map<String, WordLink> = { emptyMap() },
     // It goes last so it stays the trailing lambda: that is how the screens and tests call it.
     cargar: suspend (Long) -> Entry?,
 ) {
     var entry by remember(entryId) { mutableStateOf<Entry?>(null) }
     var failure by remember(entryId) { mutableStateOf(false) }
     var expanded by remember(entryId) { mutableStateOf(false) }
-    var links by remember(entryId) { mutableStateOf(emptyMap<String, Long>()) }
+    var links by remember(entryId) { mutableStateOf(emptyMap<String, WordLink>()) }
     var menuOpen by remember(entryId) { mutableStateOf(false) }
     val actionsFor = entry?.let(actions).orEmpty()
 
@@ -115,15 +127,16 @@ fun EntryScreen(
         val deLaGlosa = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
             .map { it.norm }
             .toSet()
-        val deLosTerminos = loaded.senses
-            .flatMap { it.synonyms + it.antonyms + it.related }
+        val deLosTerminos = (loaded.senses
+            .flatMap { it.synonyms + it.antonyms + it.related + it.translations } +
+            loaded.wordTranslations)
             .map { TextNormalizer.norm(it) }
             .filterNot { it.isEmpty() }
             .toSet()
         links = runCatching { resolveIn(deLaGlosa) + resolveIn(deLosTerminos) }
             .getOrDefault(emptyMap())
             // Un enlace a la entrada que ya estás leyendo no lleva a ningún lado.
-            .filterValues { it != entryId }
+            .filterValues { it.entryId != entryId }
     }
 
     // Anchored at 1 and not 0: item 0 is the shortcut to the search, and the screen has to open
@@ -235,13 +248,10 @@ fun EntryScreen(
             if (wordTranslations.isNotEmpty()) {
                 item(key = "traducciones-palabra") {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        // Mapa vacío como en `SenseBlock`: son del otro idioma y `links` resuelve
-                        // contra ESTE pack, así que nunca resolverían. Pintarlas sería una palabra
-                        // tocable que no lleva a ningún lado (D-084).
                         TermList(
                             R.string.entry_word_translations_title,
                             wordTranslations,
-                            emptyMap(),
+                            links,
                             onOpenWord,
                         )
                     }
@@ -364,8 +374,8 @@ private fun IconPill(
 private fun SenseBlock(
     number: Int,
     sense: Sense,
-    links: Map<String, Long>,
-    onOpenWord: (Long) -> Unit,
+    links: Map<String, WordLink>,
+    onOpenWord: (WordLink) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Text(
@@ -394,11 +404,12 @@ private fun SenseBlock(
         // Su lugar honesto es un canal de nivel de entrada que todavía no existe (roadmap
         // §Naming a sense from another pack).
         //
-        // ⚠️ **No se pinta como enlace y no es un olvido**: `links` resuelve contra ESTE pack, y
-        // estos términos son del otro idioma, así que nunca resolverían. Pintarlos sería una
-        // palabra tocable que no lleva a ningún lado (D-084). Por eso se pasa el mapa vacío en
-        // vez de `links`: expresa la decisión en vez de depender de que el lookup falle.
-        TermList(R.string.entry_translations_title, sense.translations, emptyMap(), onOpenWord)
+        // ⚠️ **Sí se resuelven, y por eso un enlace lleva `packId`.** Antes iban con el mapa
+        // vacío porque `links` sólo sabía de ESTE pack y un término del otro idioma nunca
+        // resolvía. Ahora el destino dice a qué diccionario va, así que `house` puede llevar a
+        // la entrada del pack inglés — y si ese pack no está instalado, no resuelve y se muestra
+        // sin pintar, que es la misma promesa de siempre (D-084).
+        TermList(R.string.entry_translations_title, sense.translations, links, onOpenWord)
         TermList(R.string.entry_synonyms_title, sense.synonyms, links, onOpenWord)
         // Los antónimos, debajo y con el mismo peso visual (D-126). ⚠️ **La categoría no es
         // opcional**: las tres listas se ven idénticas, y lo único que separa "otra forma de
@@ -431,8 +442,8 @@ private fun SenseBlock(
 private fun TermList(
     @StringRes title: Int,
     terms: List<String>,
-    links: Map<String, Long>,
-    onOpenWord: (Long) -> Unit,
+    links: Map<String, WordLink>,
+    onOpenWord: (WordLink) -> Unit,
 ) {
     if (terms.isEmpty()) return
     Text(
@@ -453,8 +464,8 @@ private fun TermList(
 @Composable
 private fun linkedTerms(
     terms: List<String>,
-    links: Map<String, Long>,
-    onOpenWord: (Long) -> Unit,
+    links: Map<String, WordLink>,
+    onOpenWord: (WordLink) -> Unit,
 ): AnnotatedString {
     val separator = stringResource(R.string.entry_list_separator)
     val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
@@ -467,7 +478,8 @@ private fun linkedTerms(
                     append(term)
                 } else {
                     withLink(
-                        LinkAnnotation.Clickable("termino:$target", style) { onOpenWord(target) },
+                        LinkAnnotation.Clickable("termino:${target.packId}:${target.entryId}", style)
+                            { onOpenWord(target) },
                     ) {
                         append(term)
                     }
@@ -489,8 +501,8 @@ private fun linkedTerms(
 private fun annotatedGloss(
     prefijo: String,
     gloss: String,
-    links: Map<String, Long>,
-    onOpenWord: (Long) -> Unit,
+    links: Map<String, WordLink>,
+    onOpenWord: (WordLink) -> Unit,
 ): AnnotatedString {
     val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
     return remember(prefijo, gloss, links, style) {
@@ -501,7 +513,7 @@ private fun annotatedGloss(
                 val target = links[word.norm] ?: continue
                 if (word.start > cursor) append(gloss.substring(cursor, word.start))
                 withLink(
-                    LinkAnnotation.Clickable("palabra:$target", style) { onOpenWord(target) },
+                    LinkAnnotation.Clickable("palabra:${target.packId}:${target.entryId}", style) { onOpenWord(target) },
                 ) {
                     append(gloss.substring(word.start, word.end))
                 }

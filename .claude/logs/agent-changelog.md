@@ -26,6 +26,37 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Un enlace ahora dice a qué pack va (#4 y #5 del corte)
+**Qué.** `WordLink(packId, entryId)` reemplaza al `Long` suelto en toda la ficha, y los enlaces se
+resuelven **también en el idioma destino**. El pack inglés declara `translations_to`.
+**Áreas.** `app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/MainActivity.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/SearchViewModel.kt`,
+`tools/packbuilder/build_pack.py`, dos de test.
+**Arquitectura.** ✅ Cumple, y **refuerza D-080** en vez de relajarlo: antes el `entryId` viajaba
+solo y sólo era seguro porque quien navegaba usaba el pack de la pantalla. Ahora el destino lo
+dice, así que el caso de siempre pasa a ser el mismo tipo con el pack propio, no una excepción.
+**Medido.**
+- ⚠️ **`resolveInLanguage` busca por IDIOMA y no por `pack_id`**, que es la decisión que evita que
+  el enlace muera: nombrar el pack destino haría que un usuario con el **núcleo** inglés y no el
+  completo pierda todos los enlaces teniendo un diccionario capaz de resolverlos.
+- El orden es **primero el pack propio**: una palabra del propio diccionario gana siempre, y sólo
+  lo que no resuelve ahí se busca en el otro idioma.
+- Sin pack del idioma destino instalado, no resuelve y el término se muestra **sin pintar** — la
+  promesa de D-084 intacta.
+- **#5**: el pack inglés declara `translations_to = "es"`. Sus 9.987 traducciones sin índice
+  entran por el canal `W` y llenan `trans`.
+**Qué salió mal.** Nada de diseño; tres tropiezos mecánicos, todos de compilador o test:
+`WordLink` tenía que ser público porque `EntryScreen` lo es; dos tests seguían devolviendo
+`Map<String, Long>`; y `assertNull` de JUnit lleva el mensaje **primero**, no como kotlin.test.
+**Qué quedó sin hacer.**
+- **#6**, el índice de flexiones inglesas: es tabla nueva (cambio de esquema bajo D-001) y además
+  necesita el pack inglés **como entrada del build del bilingüe**, que es una dependencia entre
+  packs que hoy no existe.
+- **#7**, reconstruir los packs reales: acordado para el final.
+- ⚠️ **Nada de esto se vio en la ficha todavía**: los `.db` en disco son builds viejos, así que
+  la traducción tocable existe en el código y no en la pantalla hasta el rebuild.
+
 ## 2026-09-21 — La app pregunta por la capacidad, y el bilingüe por fin muestra lo que sabe
 **Qué.** Puntos **#1 y #2** del corte. `PackMetadata` gana `translationsTo` y `PackFile` la lee;
 `wordActions` deja de filtrar por `kind`. `bilingual.py` llena el tag `T` por acepción. Seis tests

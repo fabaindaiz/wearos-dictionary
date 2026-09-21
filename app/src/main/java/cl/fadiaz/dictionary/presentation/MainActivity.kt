@@ -261,11 +261,17 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         // The word is resolved and opened in THE SAME pack as the entry that
                         // contains it. Sending it to the active pack would be the D-080 bug all
                         // over again: it would open another word, with no error.
-                        onOpenWord = { id ->
+                        onOpenWord = { destino ->
                             // Saltar de una palabra a otra tambien es abrirla. Solo se tiene el
                             // id, asi que el ViewModel lee la cabecera para anotarla.
-                            viewModel.recordVisit(packId, id)
-                            navController.navigate("$ROUTE_ENTRY/${Uri.encode(packId)}/$id")
+                            //
+                            // ⚠️ **Se navega al pack que dice el enlace, no al de esta pantalla.**
+                            // Para una palabra de la glosa son el mismo; para una traducción no,
+                            // y usar el de la pantalla abriría otra palabra sin error (D-080).
+                            viewModel.recordVisit(destino.packId, destino.entryId)
+                            navController.navigate(
+                                "$ROUTE_ENTRY/${Uri.encode(destino.packId)}/${destino.entryId}",
+                            )
                         },
                         // Tapping words stacks entries on top of entries. Going back one at a
                         // time is the usual swipe; this is the shortcut to the start, and it is
@@ -276,7 +282,20 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             viewModel.clearQuery()
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
-                        resolveIn = { norms -> viewModel.resolveIn(packId, norms) },
+                        resolveIn = { norms ->
+                            // Primero este pack; lo que no resuelva acá se busca en el idioma
+                            // que el pack declara como destino de sus traducciones. El orden
+                            // importa: una palabra del propio diccionario gana siempre.
+                            val propias = viewModel.resolveIn(packId, norms)
+                                .mapValues { (_, id) -> WordLink(packId, id) }
+                            val idioma = state.available.filterIsInstance<PackHandle.Open>()
+                                .firstOrNull { it.packId == packId }?.metadata?.translationsTo
+                            val ajenas = if (idioma == null) emptyMap() else {
+                                viewModel.resolveInLanguage(idioma, norms - propias.keys)
+                                    .mapValues { (_, par) -> WordLink(par.first, par.second) }
+                            }
+                            ajenas + propias
+                        },
                         actions = { entry ->
                             wordActions(
                                 // Del STATE recolectado y no de `viewModel.isFavorite`: ese
