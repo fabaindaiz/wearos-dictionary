@@ -26,6 +26,42 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Las decisiones de hoy, escritas donde se explican; y el roadmap reordenado
+**Qué.** Segunda parte del cierre. **D-178 a D-184** en `docs/decisions.md`; el formato nuevo en
+`docs/formato-pack.md`; el **segundo contrato cruzado** en `docs/contratos-cruzados.md`; la
+obligación de espejo ampliada en `tools/CLAUDE.md`. Y una reestructuración del roadmap.
+**Áreas.** `docs/decisions.md`, `docs/formato-pack.md`, `docs/contratos-cruzados.md`,
+`tools/CLAUDE.md`, `docs/roadmap.md`.
+**Por qué.** *«quiero que todo esto quede explícito en algún lugar que lo explique, además
+revisemos completo el roadmap»*.
+**Arquitectura.** ✅ Cumple.
+**Medido / encontrado.**
+- ⚠️ **Siete decisiones de arquitectura tomadas hoy y CERO filas en `decisions.md`**, que es
+  donde `CLAUDE.md` dice que viven. Es la omisión más grande de la sesión y no la detecté hasta
+  ir a buscar dónde documentar lo demás.
+- ⚠️ **`formato-pack.md` tenía 0 coincidencias** de `W`, `sense_code`, `fold_gloss` o
+  `translations_to`: el documento que contesta *«¿cómo se ve el .db por dentro?»* no sabía nada
+  del día. Ahí quedó además el pendiente que estaba abierto de la revisión — que el canal de
+  búsqueda y el de lectura **no llevan lo mismo**, y que contar `trans` esperando que cuadre con
+  la ficha no cuadra **y es correcto que no cuadre**.
+- ⚠️ **El roadmap tenía la historia de traducciones partida en DOS bloques distantes** —uno bajo
+  `## Datos`, otro al final de `## Aplicación`— y cada uno en **orden cronológico inverso**,
+  porque las fui anteponiendo a un ancla fijo. Se leía al revés de como se entiende. Ahora hay un
+  `## Traducciones` con índice, ordenado de lo construido a lo abierto. **Verificado que no se
+  perdió una sola sección** comparando los títulos `###` antes y después.
+- La cabecera *«Las tres cosas que desbloquean todo»* estaba **entera tachada**: era un museo, no
+  una guía. Las tres originales pasan a subsección histórica y arriba van las de ahora — el
+  rebuild, subir al reloj, y §Alinear acepciones.
+- **Siete ideas cerradas con número** pasaron a §Cerrado por medición: PanLex (NC), FreeDict y
+  Apertium (GPL), DBnary (pierde contra su fuente), WordNet como puente (0,6 % y 4/5 mal),
+  Wikidata `P5137` (etiquetas en 100 GB), el pack autorado EN→ES (10.438 pares) y plegar más.
+**Qué salió mal.** Nada roto. Pero la lección de proceso es la misma de la entrada anterior y ya
+van dos: **una sesión larga no sólo se contradice, también desordena**. Insertar siempre antes del
+mismo ancla produjo un documento que crece al revés, y eso no lo detecta ningún check.
+**Qué quedó sin hacer.**
+- **El build completo**, que sigue siendo lo único del corte.
+- Todo lo demás está en §Traducciones y en la cabecera nueva.
+
 ## 2026-09-21 — CIERRE DE SESIÓN: qué quedó, y qué tendría que re-derivar quien venga
 **Qué.** Entrada de cierre. **34 commits**, gate verde, árbol limpio: 26 checks · 328 Python ·
 91 `:dict-core` · 290 `:app` · **735 en total**.
