@@ -53,7 +53,7 @@ class SearchRepositoryTest {
             return definitions.take(limit)
         }
         override suspend fun entry(entryId: Long): Entry? = null
-        override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> = emptyMap()
+        override suspend fun resolveHeadwords(norms: Set<String>, lang: String?): Map<String, Long> = emptyMap()
         override suspend fun summary(entryId: Long): EntrySummary? = null
         override fun close() = Unit
         override fun toString() = id

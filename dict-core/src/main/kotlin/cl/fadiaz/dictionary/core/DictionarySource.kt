@@ -62,10 +62,20 @@ interface DictionarySource {
      * distintas-- devuelve la de **mejor rank**, que es la misma regla con la que la lista de
      * resultados elige que mostrar primero (D-068).
      *
+     * ⚠️ **`lang` no es opcional en la practica, y olvidarlo produjo un bug real.** Elegir por
+     * mejor rank era correcto mientras un pack tuviera un solo idioma; en uno bidireccional
+     * `pie` es **las dos cosas** --español, parte del cuerpo; ingles, pastel-- asi que tocar la
+     * traduccion `pie` de `foot` abria el `pie` INGLES: una traduccion que devuelve al idioma
+     * del que uno venia. Medido sobre el pack real: **8,30 %** de las traducciones de entradas
+     * inglesas resolvian al idioma equivocado.
+     *
+     * `null` = cualquier idioma, que es lo que hace un pack monolingue y lo que hacia todo el
+     * mundo antes.
+     *
      * Sin default a proposito: una implementacion que lo olvide dejaria la glosa sin links y eso
      * no se distingue de una glosa sin palabras conocidas.
      */
-    suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long>
+    suspend fun resolveHeadwords(norms: Set<String>, lang: String? = null): Map<String, Long>
 
     /**
      * La cabecera de una entrada por su id, sin descomprimir el payload.

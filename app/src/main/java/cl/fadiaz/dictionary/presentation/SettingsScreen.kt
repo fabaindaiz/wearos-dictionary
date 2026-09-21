@@ -11,7 +11,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -190,19 +189,11 @@ fun SettingsScreen(
             // push the settings somebody actually changes off the screen.
             item(key = "cabecera-acerca") { ListHeader { Text(stringResource(R.string.settings_about)) } }
             item(key = "version") { Diagnostic(stringResource(R.string.settings_version, appVersion)) }
-            items(count = opened.size, key = { "pack-diag:$it" }) { index ->
-                val pack = opened[index]
-                Diagnostic(
-                    // Plural y no `stringResource`: un pack de una sola entrada --el de
-                    // demostracion casi lo es-- diria "1 entradas".
-                    pluralStringResource(
-                        R.plurals.settings_pack_entries,
-                        pack.metadata.entryCount,
-                        pack.metadata.name,
-                        pack.metadata.entryCount,
-                    ),
-                )
-            }
+            // ⚠️ **La cuenta de entradas por diccionario se quitó a pedido.** Era un dato de
+            // diagnóstico que nadie usa para decidir nada: cuántos lemas trae un pack no dice si
+            // funciona, y ocupaba una fila por diccionario en la pantalla más larga de la app.
+            // Lo que sí sirve para decidir --el tamaño en disco-- vive en gestión de
+            // diccionarios, que es donde se borra.
         }
     }
 }

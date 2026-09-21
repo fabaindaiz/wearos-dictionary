@@ -352,20 +352,27 @@ class SqlitePackSource(
         }
     }
 
-    override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
+    override suspend fun resolveHeadwords(
+        norms: Set<String>,
+        lang: String?,
+    ): Map<String, Long> {
         if (norms.isEmpty()) return emptyMap()
         val claves = norms.take(MAX_PALABRAS_POR_CONSULTA)
         return withContext(dispatcher) {
             val huecos = claves.joinToString(",") { "?" }
+            // Un pack de un solo idioma no filtra: el WHERE sobraria.
+            val filtro = lang?.takeIf { pack.metadata.langs.size > 1 }
+            val porIdioma = if (filtro != null) " AND lang = ?" else ""
             // SIN `ORDER BY rank`, y es deliberado: ordenar globalmente sobre un `IN` obliga a
             // SQLite a un TEMP B-TREE y la consulta deja de servirse del covering index (D-012,
             // y es el mismo efecto que midio D-063). El mejor rank se elige aca abajo, sobre las
             // pocas filas que devuelve una glosa: con dos entradas por clave no hay nada que
             // ordenar que valga una tabla temporal.
             pack.connection().prepare(
-                "SELECT norm, id, rank FROM entry WHERE norm IN ($huecos)",
+                "SELECT norm, id, rank FROM entry WHERE norm IN ($huecos)$porIdioma",
             ).use { statement ->
                 claves.forEachIndexed { indice, clave -> statement.bindText(indice + 1, clave) }
+                if (filtro != null) statement.bindText(claves.size + 1, filtro)
                 val context: CoroutineContext = currentCoroutineContext()
                 val mejorPorClave = HashMap<String, Pair<Long, Int>>()
                 while (statement.step()) {

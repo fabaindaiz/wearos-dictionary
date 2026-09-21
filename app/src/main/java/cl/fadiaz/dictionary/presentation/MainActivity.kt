@@ -28,6 +28,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -146,6 +150,27 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
 
+            // ⚠️ **Al salir de la app se vuelve al inicio limpio** (ver `onLeftApp`). Un reloj no
+            // se cierra, se baja la muñeca: volver tres horas después a la ficha de otro momento
+            // no es retomar nada.
+            //
+            // ⚠️ **Se engancha a `ON_STOP` y NO a `ON_PAUSE`**, y la diferencia importa: el
+            // input del sistema --`ACTION_REMOTE_INPUT`, que es una Activity a pantalla completa
+            // de SysUI-- pausa la nuestra, y resetear ahí borraría la palabra justo mientras se
+            // la dicta. `ON_STOP` llega igual en ese caso, así que además se guarda cuál fue la
+            // última vez que lanzamos el input y se ignora el primer stop posterior.
+            val owner = LocalLifecycleOwner.current
+            DisposableEffect(owner, navController) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event != Lifecycle.Event.ON_STOP) return@LifecycleEventObserver
+                    if (viewModel.consumeSystemInputPause()) return@LifecycleEventObserver
+                    viewModel.onLeftApp()
+                    navController.popBackStack(ROUTE_SEARCH, inclusive = false)
+                }
+                owner.lifecycle.addObserver(observer)
+                onDispose { owner.lifecycle.removeObserver(observer) }
+            }
+
             // The text setting MULTIPLIES on top of the system fontScale, it never replaces it:
             // WO-V1 of the Wear OS quality list asks to respect the size the user configured on
             // the watch, and someone who already raised it has to keep seeing it raised.
@@ -194,6 +219,7 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                         onQueryChange = viewModel::onQueryChange,
                         onTypingChanged = viewModel::onTypingChanged,
                         onLanguageChange = viewModel::onLanguageChange,
+                        onSystemInputOpening = viewModel::onSystemInputOpening,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
                         // The packId travels with the entry: without it, with two packs open it
                         // would be resolved against the active one and would show another word.
@@ -282,24 +308,34 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                             viewModel.clearQuery()
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
-                        // El idioma del pack de ESTA entrada, no el activo: saltando de una
-                        // traduccion se llega a una ficha de otro idioma, y es justo ahi donde
-                        // la etiqueta tiene que decir la verdad. Del mismo mapa que etiqueta las
-                        // filas, para que las dos pantallas no puedan discrepar.
-                        resolveIn = { norms ->
-                            // Primero este pack; lo que no resuelva acá se busca en el idioma
-                            // que el pack declara como destino de sus traducciones. El orden
-                            // importa: una palabra del propio diccionario gana siempre.
-                            val propias = viewModel.resolveIn(packId, norms)
+                        resolveIn = { norms, idiomaEntrada, origen ->
+                            val meta = state.available.filterIsInstance<PackHandle.Open>()
+                                .firstOrNull { it.packId == packId }?.metadata
+                            // ⚠️ **En qué idioma buscar el término, que es lo que arregla el
+                            // bug de `pie`.** Una palabra de la glosa está en el idioma de la
+                            // entrada; un término de traducción, en el OTRO — que en un pack
+                            // bidireccional vive en este mismo archivo, y si no, en el idioma
+                            // que el pack declara como destino.
+                            val destino = when (origen) {
+                                TermSource.GLOSS -> idiomaEntrada
+                                TermSource.TRANSLATION ->
+                                    meta?.langs?.firstOrNull { it != idiomaEntrada }
+                                        ?: meta?.translationsTo
+                            }
+                            // Primero este pack; lo que no resuelva acá se busca en otro del
+                            // mismo idioma destino. El orden importa: una palabra del propio
+                            // diccionario gana siempre.
+                            val propias = viewModel.resolveIn(packId, norms, destino)
                                 .mapValues { (_, id) -> WordLink(packId, id) }
-                            val idioma = state.available.filterIsInstance<PackHandle.Open>()
-                                .firstOrNull { it.packId == packId }?.metadata?.translationsTo
-                            val ajenas = if (idioma == null) emptyMap() else {
-                                viewModel.resolveInLanguage(idioma, norms - propias.keys)
+                            val ajenas = if (destino == null) emptyMap() else {
+                                viewModel.resolveInLanguage(destino, norms - propias.keys)
                                     .mapValues { (_, par) -> WordLink(par.first, par.second) }
                             }
                             ajenas + propias
                         },
+                        // El mismo ajuste que Ajustes, desde donde se lee (ver EntryScreen).
+                        textScale = state.settings.textScale,
+                        onTextScaleChange = viewModel::onTextScaleChange,
                         actions = { entry ->
                             wordActions(
                                 // Del STATE recolectado y no de `viewModel.isFavorite`: ese
@@ -312,30 +348,6 @@ fun DictionaryApp(entradaInicial: Visit? = null) {
                                     viewModel.toggleFavorite(
                                         Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
                                     )
-                                },
-                                translationPack = translationPack(
-                                    state.available,
-                                    packId,
-                                    // La ficha ya las dibuja: si esta entrada trae las suyas, la
-                                    // acción mandaría a otra pantalla por lo que ya se ve.
-                                    entryHasTranslations = entry.senses.any { it.translations.isNotEmpty() } ||
-                                        entry.wordTranslations.isNotEmpty(),
-                                ),
-                                onViewTranslation = { other ->
-                                    // The same word in the other dictionary: resolved through
-                                    // `norm`, which is the key it was indexed by, and opened IN
-                                    // ITS pack -- opening it in the active one would be D-080
-                                    // all over again.
-                                    scope.launch {
-                                        val key = TextNormalizer.norm(entry.headword)
-                                        val target = viewModel
-                                            .resolveIn(other.packId, setOf(key))[key]
-                                        if (target != null) {
-                                            navController.navigate(
-                                                "$ROUTE_ENTRY/${Uri.encode(other.packId)}/$target",
-                                            )
-                                        }
-                                    }
                                 },
                                 onCopy = {
                                     // ClipboardManager is android.*, so it comes in through here

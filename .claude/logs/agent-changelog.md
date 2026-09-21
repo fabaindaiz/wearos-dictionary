@@ -26,6 +26,42 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Nueve pedidos de uso, y el que era un bug resultó ser sistémico
+**Qué.** Nueve cambios pedidos después de usar la app: siete de recorte e interfaz, uno de
+lógica y **uno que era un defecto real de navegación**.
+**Áreas.** `DictionarySource.kt`, `SqlitePackSource.kt`, `EntryScreen.kt`, `WordActions.kt`,
+`SearchScreen.kt`, `SettingsScreen.kt`, `PacksScreen.kt`, `MainActivity.kt`,
+`SearchViewModel.kt`, `PackStore.kt`, `sources/toy.py`, `strings.xml` ×2, seis de test.
+**Por qué.** Cada uno cita el pedido en su decisión (D-199 a D-202).
+**Arquitectura.** ✅ Cumple.
+**Medido.**
+- ⚠️ **El bug de «adiós me lleva a otra palabra en inglés» es sistémico: 8,30 %.** 7.757 de
+  93.473 traducciones de entradas inglesas resolvían al **idioma equivocado**. `pie` es español
+  —parte del cuerpo— e inglés —pastel—, y `resolveHeadwords` elegía por mejor `rank` sin mirar
+  el idioma. **No existía antes de hoy**: mientras un pack tuvo un solo idioma, «resolver en el
+  mismo pack» implicaba «en el mismo idioma». El pack bidireccional rompió esa equivalencia en
+  silencio.
+- El toy gana un **homógrafo cruzado** (`pie` español + `pie` inglés) que es el único fixture que
+  distingue las dos resoluciones. 82 entradas, 39 tests instrumentados.
+- **Gate**: 26 checks · 767 tests JVM · 39 instrumentados en el emulador.
+**Qué salió mal.**
+- ⚠️ **Dos reglas correctas por separado borraron la palabra del día entera**, y sólo se vio en
+  el emulador. Un pack de traducción no genera una (pedido), pero el representante de cada idioma
+  es el **más grande** y el bilingüe pasó a serlo de los dos: la pantalla pedía la palabra de un
+  pack que correctamente no genera ninguna. Se filtra antes de elegir representante.
+- ⚠️ **El primer test de eso era vacuo** y lo agarró la mutación: con el pack de definiciones
+  activo el fallo no aparece, porque `representativePacks` respeta al activo. Reescrito con el
+  activo bilingüe, que es el caso real.
+- Al quitar `Ver traducción` quedó `translationPack()` sin llamadores y un doc colgando sin
+  función. Lo vio el compilador, pero recuerda que borrar una acción es borrar **su cadena, su
+  helper y sus tests**, no sólo el botón.
+**Qué quedó sin hacer.**
+- El dictado por voz no se pudo probar en el emulador: el `RemoteInputActivity` de SysUI se lleva
+  los toques y no hay forma fiable de meter texto. La ruta `ON_STOP` del input está cubierta por
+  código y razonada, **no probada en pantalla**.
+- `Visit` sigue sin guardar el idioma, así que en el historial un pack bidireccional no lleva
+  etiqueta.
+
 ## 2026-09-21 — El pack bilingüe pasa a ser BIDIRECCIONAL por construcción (`schema_version` 4)
 **Qué.** Un pack declara `meta.langs` **como pares** y cada entrada lleva `entry.lang`. El
 bilingüe gana **164.249 entradas inglesas** derivadas de sus propias claves, `trans` se vacía, y

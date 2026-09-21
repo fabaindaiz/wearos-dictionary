@@ -9,6 +9,7 @@ import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.speaks
 import cl.fadiaz.dictionary.data.answersFor
 import cl.fadiaz.dictionary.data.packsToQuery
@@ -434,6 +435,51 @@ class SearchViewModel(
      */
     fun clearQuery() = onQueryChange("")
 
+    /**
+     * El usuario dejó la app: guardar lo pendiente y volver al inicio limpio.
+     *
+     * ⚠️ **Existe porque un reloj no se "cierra", se baja la muñeca**, y volver tres horas
+     * después a la ficha de `esdrújula` con `esdrú` escrito no es retomar nada: es encontrarse
+     * con la pantalla de otro momento. Pedido: *«que no quede en segundo plano sino que se
+     * cierre y guarde todo para que la siguiente vez te lleve a la pantalla de inicio limpia»*.
+     *
+     * ⚠️ **No se mata el proceso, y eso es deliberado.** Terminar la Activity obligaría a
+     * reabrir los packs --medido: 500 ms en frío contra 278 tibio con 372,6 MB abiertos-- para
+     * ahorrar una memoria que el sistema ya sabe reclamar solo. Lo que se tira es el **estado de
+     * pantalla**, que es lo que molesta; lo que se conserva son los descriptores, que es lo que
+     * cuesta.
+     *
+     * El historial y las guardadas ya se persisten en cada cambio, así que acá no hay nada más
+     * que escribir: se nombra igual para que el día que aparezca algo diferido tenga dónde ir.
+     */
+    /**
+     * Marca que el input del sistema está por tapar la app, para no confundirlo con salir.
+     *
+     * `ACTION_REMOTE_INPUT` abre una Activity de SysUI a pantalla completa, así que la nuestra
+     * recibe `ON_STOP` exactamente igual que cuando el usuario se va. Sin esta marca, dictar una
+     * palabra borraría la pantalla a la que se vuelve con el resultado.
+     */
+    fun onSystemInputOpening() {
+        systemInputPending = true
+    }
+
+    /** ¿Este `ON_STOP` lo causó el input del sistema? Se consume: sólo vale para el primero. */
+    fun consumeSystemInputPause(): Boolean {
+        val era = systemInputPending
+        systemInputPending = false
+        return era
+    }
+
+    private var systemInputPending = false
+
+    fun onLeftApp() {
+        definitionMode?.cancel()
+        _state.update {
+            it.copy(query = "", submitted = "", results = emptyList(), mode = SearchState.Mode.NORMAL)
+        }
+        queries.value = ""
+    }
+
     fun onSearchDefinitions() {
         val pack = source.value ?: return
         val text = _state.value.query
@@ -579,7 +625,12 @@ class SearchViewModel(
 
     private fun refreshWordsOfTheDay(packs: List<DictionarySource>) {
         val date = todayDate() ?: return
-        for (pack in packs) {
+        // ⚠️ **Un pack de traducción no da palabra del día.** Pedido: *«esto queda solo para los
+        // diccionarios de definiciones»*, y la razón se ve al abrirla: la entrada inversa de un
+        // bilingüe no tiene acepciones (D-196), así que la palabra del día abriría una ficha que
+        // dice *«se dice `perro`»* y nada más. Una palabra del día existe para **aprender algo**,
+        // y sin definición no hay nada que aprender.
+        for (pack in packs.filter { it.metadata.kind != PackKind.BILINGUAL }) {
             viewModelScope.launch {
                 val picked = runCatching {
                     WordOfTheDay.pick(
@@ -699,7 +750,7 @@ class SearchViewModel(
             null
         } else {
             val key = TextNormalizer.norm(visit.headword)
-            source.resolveHeadwords(setOf(key))[key]
+            source.resolveHeadwords(setOf(key), null)[key]
         }
         return when (val target = visitTarget(visit, atId, relocated)) {
             is VisitTarget.Direct -> target.entryId
@@ -737,9 +788,13 @@ class SearchViewModel(
      * active one. Falling back would paint as tappable a word that opens a different one, which is
      * exactly the bug D-080 fixed, but mute.
      */
-    suspend fun resolveIn(packId: String, norms: Set<String>): Map<String, Long> =
+    suspend fun resolveIn(
+        packId: String,
+        norms: Set<String>,
+        lang: String? = null,
+    ): Map<String, Long> =
         opened.firstOrNull { it.metadata.packId == packId }
-            ?.resolveHeadwords(norms)
+            ?.resolveHeadwords(norms, lang)
             .orEmpty()
 
     /**
@@ -756,7 +811,7 @@ class SearchViewModel(
      */
     suspend fun resolveInLanguage(lang: String, norms: Set<String>): Map<String, Pair<String, Long>> {
         val destino = opened.firstOrNull { it.metadata.speaks(lang) } ?: return emptyMap()
-        return destino.resolveHeadwords(norms)
+        return destino.resolveHeadwords(norms, lang)
             .mapValues { (_, id) -> destino.metadata.packId to id }
     }
 

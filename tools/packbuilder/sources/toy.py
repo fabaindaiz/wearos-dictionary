@@ -42,6 +42,19 @@ _DATA = [
     ("corto", "adjective", 60, [
         ("de poca longitud o duracion", [], ["short", "brief"]),
     ], ["corta", "cortos", "cortas"]),
+    # ⚠️ **Trampa de IDIOMA, y es la que faltaba.** "sol" existe como lema español (el astro) y
+    # "sole" en ingles; peor: "pie" es español (parte del cuerpo) e ingles (pastel). Sin un
+    # homografo entre idiomas, resolver una traduccion sin mirar el idioma pasa los tests --y
+    # sobre el pack real falla el 8,30 % de las veces, mandando `foot -> pie` al `pie` ingles.
+    ("pie", "noun", 25, [
+        ("parte del cuerpo sobre la que se apoya", [], ["foot"]),
+    ], ["pies"]),
+    # Y su companero: "pastel" traduce a "pie", asi que "pie" existe TAMBIEN como lema ingles.
+    # Con rank 26 --peor que el "pie" español, 25-- la resolucion por mejor rank acierta por
+    # casualidad; lo que la hace acertar de verdad es mirar el idioma.
+    ("pastel", "noun", 26, [
+        ("masa horneada con relleno dulce", [], ["pie", "cake"]),
+    ], []),
     ("cosa", "noun", 30, [
         ("todo lo que tiene existencia", [], ["thing"]),
     ], ["cosas"]),

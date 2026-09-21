@@ -400,7 +400,7 @@ class ScreensTest {
             EntryScreen(
                 1,
                 onOpenWord = { abierta = it },
-                resolveIn = { norms ->
+                resolveIn = { norms, _, _ ->
                     norms.filter { it == "house" }
                         .associateWith { WordLink("en-def-wikt", 42L) }
                 },
@@ -675,7 +675,7 @@ class ScreensTest {
         // The colour is a promise: if something that leads nowhere is painted as tappable, the
         // user learns not to trust the colour and the feature stops being useful.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { emptyMap() }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { _, _, _ -> emptyMap() }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
@@ -692,7 +692,7 @@ class ScreensTest {
     fun theWordPointingAtThisSameEntryIsNotPainted() {
         // Resolving returns the open entry: a link to where we already are leads nowhere.
         compose.setContent {
-            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { mapOf("cera" to WordLink("es-def", 1L)) }) {
+            EntryScreen(entryId = 1, onOpenWord = {}, resolveIn = { _, _, _ -> mapOf("cera" to WordLink("es-def", 1L)) }) {
                 entry().copy(senses = listOf(Sense("cilindro de cera con mecha")))
             }
         }
@@ -833,8 +833,14 @@ class ScreensTest {
         // Size and language together: the pack's name comes from inside the .db and does not
         // always say which language it is.
         compose.onNodeWithText("72,2 MB", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("· ES", substring = true).assertExists()
-        compose.onNodeWithText("· EN", substring = true).assertExists()
+        // ⚠️ **Sin la clave de idioma**: el NOMBRE del pack ya lo dice --«Español»,
+        // «Español ↔ English»-- así que la sigla repetía en abreviado la línea de arriba, y era
+        // la tercera cosa que competía por un ancho que ya se cortaba.
+        assertEquals(
+            "la sigla de idioma ya no aparece en la fila",
+            0,
+            compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size,
+        )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB", substring = true))
         // ⚠️ **Y NINGUNA fila marca cuál está en uso.** Esto invierte lo que este mismo test
         // exigía hasta hoy --«sólo el activo lleva check»--. Pedido: *«quitando completamente el
@@ -1384,6 +1390,35 @@ class ScreensTest {
     // --- The language selector ----------------------------------------------------------------
 
     @Test
+    fun laPALABRA_DEL_DIA_sale_de_un_pack_de_DEFINICIONES_aunque_el_bilingue_sea_MAYOR() {
+        // ⚠️ **Dos reglas que por separado están bien y juntas borraron la palabra del día.**
+        // Un pack de traducción no genera una --pedido: *«esto queda solo para los diccionarios
+        // de definiciones»*, y la razón se ve al abrirla: una entrada inversa no tiene
+        // acepciones, así que diría «se dice `perro`» y nada más--. Pero el representante de
+        // cada idioma es el pack **más grande**, y el bilingüe pasó a serlo de los dos: 209.484
+        // contra 152.281 del español y 16.652 del núcleo inglés.
+        //
+        // Resultado en el emulador: la sección desapareció entera. La pantalla pedía la palabra
+        // de un pack que, correctamente, no genera ninguna.
+        val bi = meta("es-tr-enwikt", "es", "Español ↔ English", entries = 209_484,
+                      langs = listOf("es", "en"))
+        val defs = meta("es-def-wikc", "es", "Español", entries = 152_281)
+        showSearch(
+            readyState().copy(
+                query = "", submitted = "",
+                // ⚠️ **El ACTIVO es el bilingüe**, que es el caso real: `chooseActive` toma
+                // el pack más grande, y el bilingüe lo es. Con el de definiciones activo el
+                // fallo no aparece --`representativePacks` respeta al activo-- y por eso la
+                // primera versión de este test era vacua: mutando el arreglo seguía pasando.
+                active = bi, activeLang = "es",
+                available = listOf(handle(bi), handle(defs)),
+                wordsOfTheDay = mapOf("es-def-wikc" to resumen("futuro")),
+            ),
+        )
+        compose.onNodeWithText("futuro").assertExists()
+    }
+
+    @Test
     fun conUN_SOLO_PACK_BIDIRECCIONAL_el_selector_IGUAL_aparece() {
         // ⚠️ **Encontrado en el emulador, y es el caso que el pack bidireccional existe para
         // servir.** El selector se dibujaba con `state.available.size > 1` --contaba ARCHIVOS--
@@ -1612,7 +1647,7 @@ class ScreensTest {
         // sinónimo que el pack no tiene **se sigue mostrando** --la fuente lo dice y esconderlo
         // sería perder información-- pero sin pintar.
         compose.setContent {
-            EntryScreen(1, onOpenWord = {}, resolveIn = { mapOf("bobo" to WordLink("es-def", 42L)) }) {
+            EntryScreen(1, onOpenWord = {}, resolveIn = { _, _, _ -> mapOf("bobo" to WordLink("es-def", 42L)) }) {
                 entry().copy(
                     senses = listOf(Sense("de poco entendimiento",
                         synonyms = listOf("bobo", "zonzo"))),
@@ -1732,7 +1767,7 @@ class ScreensTest {
 
     @Test
     @Config(qualifiers = "+w234dp-h1600dp")
-    fun theDiagnosticsNameEveryPackAndSitBelowEverythingElse() {
+    fun elDIAGNOSTICO_es_SOLO_LA_VERSION_y_va_al_fondo() {
         // The user asked for them at the bottom: they are looked up once, when something is
         // wrong, and they must not push the settings anybody actually changes off the screen.
         // The 1600 dp qualifier is not a claim about any watch: it is the only way both ends of
@@ -1745,8 +1780,15 @@ class ScreensTest {
             ),
         )
         compose.onNodeWithText("App 9.9.9").assertIsDisplayed()
-        compose.onNodeWithText("Español · 114619 entradas").assertIsDisplayed()
-        compose.onNodeWithText("English · 794355 entradas").assertIsDisplayed()
+        // ⚠️ **La cuenta de entradas por diccionario se quitó a pedido.** Era diagnóstico que no
+        // sirve para decidir nada --cuántos lemas trae un pack no dice si funciona-- y costaba
+        // una fila por diccionario en la pantalla más larga de la app. El dato que sí decide,
+        // el tamaño en disco, vive en gestión de diccionarios, que es donde se borra.
+        assertEquals(
+            "ya no se nombra ningún diccionario en el diagnóstico",
+            0,
+            compose.onAllNodesWithText("entradas", substring = true).fetchSemanticsNodes().size,
+        )
 
         val historial = compose.onNodeWithText("Borrar el historial").getBoundsInRoot()
         val version = compose.onNodeWithText("App 9.9.9").getBoundsInRoot()
@@ -1764,7 +1806,7 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun suggest(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
-    override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
+    override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
     override fun close() = Unit
 }
