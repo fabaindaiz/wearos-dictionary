@@ -66,9 +66,20 @@ emulator's because `h192dp` is *available* height and discounts decor — so do 
 on-device counts. **What the pair fixes is the relationship**: 22 % more screen buys exactly one
 more row, and a change that helps the project's watch while hurting a generic one now fails.
 
+⚠️ **Functional probes go on the EMULATOR, not on the watch.** Searching words, result order,
+opening entries, navigation: all of it on `tools/avd_como_el_reloj.py`, which has the watch's
+geometry (D-150). **The watch is for debug data and short experiments only** — performance,
+battery, Perfetto, `dumpsys`. That is not a preference: it is measured cost. The watch dropped
+mid-run on 2026-09-21, `connectedAndroidTest` had already uninstalled the app, and **the five
+packs went with it** — ~450 MB to push again. The watch's IME also reorders the keystrokes of
+`adb shell input text` and discards them on BACK, so every on-screen probe costs several tries.
+
+⚠️ **And a `connectedAndroidTest` whose device disappears mid-run reports `BUILD SUCCESSFUL` with
+ZERO tests.** An empty green. Read the **count**, never the colour.
+
 ```sh
-./gradlew :app:testDebugUnitTest         # 292 JVM tests, screens included
-./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device
+./gradlew :app:testDebugUnitTest         # 294 JVM tests, screens included
+./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device -- UNINSTALLS the app
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
 ```

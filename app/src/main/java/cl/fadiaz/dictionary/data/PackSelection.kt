@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.PackKind
 
 /**
  * De todos los packs instalados, a cuáles se les pregunta.
@@ -84,4 +85,34 @@ internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): Pack
     val vivos = opened.filter { it.source in consultables }
     val candidatos = vivos.filterNot { it.isBundled }.ifEmpty { vivos }
     return candidatos.firstOrNull { it.packId == preferred } ?: candidatos.firstOrNull()
+}
+
+/**
+ * Si este pack tiene algo que decir cuando el idioma activo es [idioma].
+ *
+ * ⚠️ **Un pack bilingüe contesta por SUS DOS idiomas, y no hacerlo fue una regresión real.** Los
+ * packs se elegían por `langSource` a secas, y `es-tr-enwikt` declara `es`: con **inglés activo**
+ * caía en "otros idiomas", que hasta D-189 contestaban como respaldo y desde D-189 no contestan
+ * nunca. Resultado: **el único pack con traducciones quedaba invisible con inglés activo**, así
+ * que `dog` dejó de devolver `perro` y la dirección `en → es` desapareció de la app.
+ *
+ * ⚠️ **Los datos siempre estuvieron ahí, y en un solo archivo.** `es-tr-enwikt` lleva 123.979
+ * entradas españolas con glosa inglesa —dirección `es → en`— y 474.849 filas en `trans` que
+ * mapean términos ingleses a esas entradas —dirección `en → es`—, que cubren el **98,4 % de las
+ * 1.000 palabras inglesas más frecuentes** y el 91,0 % del top 8.000 crudo (de los 721 que
+ * faltan ahí, casi todos son ruido de subtítulos: `didn`, `gonna`, `ooh`, y nombres de pila).
+ * El pack ya era bidireccional; lo que no lo era es **a quién se le preguntaba**.
+ *
+ * ⚠️ **Mira [PackKind] y no `translationsTo`, y la diferencia no es cosmética.** El pack español
+ * monolingüe también declara `translations_to = en` —es una **capacidad**: trae traducciones por
+ * acepción— pero sus lemas son españoles. Incluirlo con inglés activo llenaría de palabras
+ * españolas una lista que el usuario acaba de filtrar a inglés, que es justo lo que D-189
+ * eliminó.
+ *
+ * Puro y sin Android, para que el gate lo cubra en la JVM (D-072).
+ */
+internal fun answersFor(pack: DictionarySource, idioma: String?): Boolean {
+    val meta = pack.metadata
+    if (meta.langSource == idioma) return true
+    return meta.kind == PackKind.BILINGUAL && meta.langTarget == idioma
 }
