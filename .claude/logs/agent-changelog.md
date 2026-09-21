@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El prior de orden: de riqueza de página a frecuencia de uso
+**Qué.** Estudio completo del orden de resultados, con investigación de fuentes, y el arreglo
+construido. `sources/frequency.py` nuevo, `_rank` en dos bandas, flag `--frecuencias`, 14 tests.
+**Áreas.** `tools/packbuilder/sources/frequency.py` (nuevo), `sources/kaikki.py`,
+`sources/bilingual.py`, `build_pack.py`, dos archivos de test, `docs/roadmap.md`,
+`docs/decisions.md` (D-185, D-186).
+**Por qué.** *«quiero hacer un estudio completo investigando fuentes que se han enfrentado al
+mismo problema, considerar todas las opciones y costos, y finalmente implementarlo»*.
+**Arquitectura.** ✅ Cumple. **No se tocó `orderFor`, `coverageBand` ni la cascada**: la
+investigación converge en dos fases —prior de popularidad, después calidad del match— y el repo
+ya tenía las dos. La arquitectura era correcta; el prior estaba mal calculado.
+**Medido.**
+- **El defecto**: Spearman entre `rank` y frecuencia real = **−0,250** (se esperaría −1), porque
+  `_rank` cuenta formas y un verbo español trae hasta 222.
+- ⚠️ **No estaba donde parecía**: `coverageBand` (D-142) ya defiende `PREFIX`. Simulando el orden
+  real de la app, el prefijo estaba aceptable y los peldaños **sin banda** estaban crudos —
+  `house → solar, alojar, albergar`, `water → gastar, regar`, `book → reservar, fichar`.
+- **Gemelos, misma muestra, sólo cambia el flag**: rho **−0,169 → −0,678**, **0 bytes**
+  (6,03 MB los dos), porque `rank` es una columna que ya existía.
+- Cobertura de la señal: **17,4 %** de los lemas. Por eso son dos bandas y no una escala.
+**Qué salió mal.** Tres, y las tres valen más que el cambio.
+1. ⚠️ **Comparé el pack real (152.281 entradas) contra una muestra 1/12 (12.158) y saqué
+   conclusiones.** El «después» se veía peor —`cas → casada, cáscara`— hasta que verifiqué que
+   **`casa`, `sol`, `agua`, `libro`, `perro` y `tener` no están en la muestra**. La comparación
+   medía un pack que no contiene las palabras sonda. Se rehizo con gemelos de la misma muestra.
+2. ⚠️ **El acento: un defecto que sólo se vio en el pack construido.** Con clave `norm()`,
+   `háber` heredaba la frecuencia de `haber` y salía **rank 97** contra 237 de `hábil`. Se
+   descubrió mirando una regresión aparente (`lib → líbero, liberal`) en vez de descartarla.
+3. ⚠️ **La métrica mentía a favor del bug**: `rho` se mide contra `tatoeba.frequencies`, que usa
+   claves `norm()`, así que la versión con el acento plegado puntúa **mejor** (−0,735 vs −0,678)
+   por acertar contra una verdad igualmente plegada. **Se eligió el número peor por ser el
+   correcto**, y queda escrito porque la próxima sesión vería el −0,735 y lo tomaría por mejor.
+4. Dos tropiezos mecánicos: `mapa_frecuencias` definido después de su uso, y `frases` (el dict de
+   oraciones) confundido con `dump_frases` (la ruta del corpus).
+**Qué quedó sin hacer.**
+- ⚠️ **La verificación visible pide el pack completo**: la sonda `cas → casa` no se puede correr
+  sobre la muestra. Va con el build.
+- `sources/oewn.py` y `sources/wikidata.py` tienen su propia fórmula de rank y quedan fuera.
+- La herramienta permanente para diffear el orden sigue sin existir; la sonda de hoy fue
+  descartable, como el repo documenta.
+
 ## 2026-09-21 — Barrido de cabos sueltos: tres reales, uno peligroso
 **Qué.** Un barrido después de haber dicho *«queda sólo el build»* — frase que sobrepasaba lo que
 podía afirmar. Encontró **tres cabos sueltos de la propia sesión**.

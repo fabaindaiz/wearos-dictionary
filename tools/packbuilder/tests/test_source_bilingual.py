@@ -144,6 +144,30 @@ class CanalDeLecturaTest(unittest.TestCase):
         ])
         self.assertEqual([], record.senses[0]["translations"])
 
+    def test_el_prior_de_frecuencia_TAMBIEN_llega_al_bilingue(self):
+        """⚠️ Es el pack donde el defecto de orden era PEOR y casi se queda sin el arreglo.
+
+        `orderFor` aplica la banda de cobertura de D-142 solo a `MatchKind.PREFIX`; el peldaño
+        `TRANSLATION` ordena por `rank` puro. Medido sobre el pack real: `house` devolvia
+        `solar, alojar, albergar` y nunca `casa`. Si `bilingual.records` no encadenara las
+        frecuencias, ese peldaño seguiria roto con todo lo demas arreglado.
+        """
+        import tempfile, json as _json
+        handle = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
+        with handle:
+            for palabra in ("casa", "solar"):
+                handle.write(_json.dumps({
+                    "word": palabra, "pos": "noun", "lang_code": "es", "lang": "Spanish",
+                    "pos_title": "Noun",
+                    "senses": [{"glosses": ["house"], "sense_index": "1"}]}) + "\n")
+        try:
+            got = {r.headword: r.rank for r in bilingual.records(
+                handle.name, lang="es", frequencies={"casa": 5.5, "solar": 2.0})}
+        finally:
+            os.unlink(handle.name)
+        self.assertLess(got["casa"], got["solar"], "la palabra comun tiene que ganar")
+
     def test_nada_cae_en_el_canal_de_nivel_de_entrada(self):
         """Todo termino viene de una acepcion concreta, asi que `W` queda vacio por construccion."""
         record = _bilingue("casa", [{"glosses": ["house"], "sense_index": "1"}])

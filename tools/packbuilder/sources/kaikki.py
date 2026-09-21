@@ -53,7 +53,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import normalize  # noqa: E402
 from build import Record  # noqa: E402
+from sources import frequency as _frequency  # noqa: E402
 
 # Cuantos ejemplos de uso se guardan por acepcion.
 #
@@ -148,6 +150,22 @@ CASTIGO_NOMBRE_PROPIO = 1000
 # Techo del rank. La columna es "menor es mas comun" (schema.sql), asi que el rank se calcula
 # restando: una pagina rica queda cerca de 0, una pobre cerca del techo.
 RANK_BASE = 1000
+
+# La frontera entre las dos bandas del prior de orden.
+#
+# ⚠️ **Son dos bandas disjuntas y no una escala mezclada, y eso es el diseño.** Solo el **17,4 %**
+# de los lemas del pack tiene señal de frecuencia (24.132 de 138.490): mezclar riqueza y frecuencia
+# en un mismo numero exigiria calibrar cuanta riqueza *vale* un punto de Zipf, que es una decision
+# que nadie midio. Con bandas, quien tiene señal se ordena por ella --el dato honesto-- y quien no
+# queda debajo **en bloque**, conservando entre pares el orden de riqueza de siempre.
+#
+# No aparecer en 50.000 palabras de subtitulos **ya es evidencia de rareza**, asi que la banda de
+# abajo no es un castigo arbitrario: es lo que el silencio de la fuente significa.
+FRONTERA_CON_SENAL = 500
+
+# Cuanto vale un punto de Zipf en la banda con señal. Con Zipf ~7,2 para la palabra mas comun del
+# español, 70 reparte el vocabulario frecuente sobre casi toda la banda sin desbordarla.
+ESCALA_ZIPF = 70
 
 class Perfil:
     """Las constantes del proxy de `rank`, que **se miden por idioma y no se heredan**.
@@ -491,20 +509,39 @@ def _forms(raw, headword, inbound):
     return tuple(seen)
 
 
-def _rank(raw, senses, forms, perfil, es_nombre_propio=False):
-    """Proxy de frecuencia. Menor es mas comun. Ver `Perfil` y D-063.
+def _rank(raw, senses, forms, perfil, es_nombre_propio=False, zipf=None):
+    """El prior con el que se ordenan los resultados. Menor es mas comun.
 
-    `es_nombre_propio` aplica [CASTIGO_NOMBRE_PROPIO]: el que entro por una politica permisiva
-    queda **debajo de cualquier palabra comun**, no un poco mas abajo. Ver ahi.
+    ⚠️ **`zipf` es frecuencia de uso REAL y manda sobre la riqueza de pagina.** La riqueza era el
+    unico proxy que habia y resulto malo: medido sobre el pack español, correlaciona **-0,250**
+    con la frecuencia real donde se esperaria -1, porque cuenta formas flexionadas y un verbo trae
+    hasta 222. Donde la banda de cobertura de D-142 no llega --los peldaños `INFLECTED_FORM` y
+    `TRANSLATION`, que ordenan por `rank` puro-- eso se veia crudo: `house` devolvia
+    `solar, alojar, albergar` y nunca `casa`.
+
+    Dos bandas disjuntas, ver [FRONTERA_CON_SENAL]:
+
+    - **con señal** -> `[0, FRONTERA_CON_SENAL)`, del Zipf;
+    - **sin señal** -> `[FRONTERA_CON_SENAL, RANK_BASE]`, de la riqueza de siempre, comprimida a
+      la mitad del rango. Se conserva el orden entre pares: entre palabras raras, la riqueza sigue
+      siendo la mejor pista que hay.
+
+    `es_nombre_propio` aplica [CASTIGO_NOMBRE_PROPIO] **encima de todo lo anterior**: el que entro
+    por una politica permisiva queda debajo de cualquier palabra comun, no un poco mas abajo. Se
+    suma al final a proposito -- si la frecuencia se aplicara despues, `Madrid`, que es frecuente,
+    entraria por debajo del piso que `verify_pack.py` exige y el pack fallaria la verificacion.
     """
-    score = (
-        perfil.w_sense * len(senses)
-        + perfil.w_example * sum(len(s["examples"]) for s in senses)
-        + perfil.w_form * min(len(forms), perfil.forms_cap)
-        + perfil.w_translation * len(raw.get("translations") or [])
-        + (perfil.w_etymology if raw.get("etymology_texts") else 0)
-    )
-    base = max(0, RANK_BASE - int(score))
+    if zipf is not None:
+        base = max(0, FRONTERA_CON_SENAL - 1 - int(round(zipf * ESCALA_ZIPF)))
+    else:
+        score = (
+            perfil.w_sense * len(senses)
+            + perfil.w_example * sum(len(s["examples"]) for s in senses)
+            + perfil.w_form * min(len(forms), perfil.forms_cap)
+            + perfil.w_translation * len(raw.get("translations") or [])
+            + (perfil.w_etymology if raw.get("etymology_texts") else 0)
+        )
+        base = FRONTERA_CON_SENAL + max(0, RANK_BASE - int(score)) // 2
     return base + CASTIGO_NOMBRE_PROPIO if es_nombre_propio else base
 
 
@@ -562,7 +599,7 @@ def _entra_el_nombre_propio(raw, perfil, politica):
     return _senal_lexica(raw) >= SENAL_LEXICA_MINIMA
 
 
-def _emit(group, inbound, perfil, politica, translations_to=None):
+def _emit(group, inbound, perfil, politica, translations_to=None, frequencies=None):
     """Convierte un grupo de registros del mismo `word` en Records."""
     prepared = []
     for raw in group:
@@ -592,7 +629,10 @@ def _emit(group, inbound, perfil, politica, translations_to=None):
             headword=headword,
             senses=senses,
             part_of_speech=pos,
-            rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name")),
+            rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name"),
+                       # ⚠️ `frequency.key` y NO `norm()`: plegar el acento le da a
+                       # `háber` la frecuencia de `haber`. Ver `sources/frequency.py`.
+                       zipf=(frequencies or {}).get(_frequency.key(headword))),
             forms=forms,
             # ⚠️ **El canal de BUSQUEDA lleva las dos**, atribuidas y sueltas: para encontrar
             # `casa` escribiendo `house` da igual si la fuente supo a que acepcion pertenece.
@@ -632,7 +672,8 @@ def _inbound_forms(path):
     return inbound
 
 
-def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None):
+def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None,
+            frequencies=None):
     """Itera el JSONL y entrega Records. Los del mismo `word` se agrupan para los homografos.
 
     **Los nombres propios NO salen por defecto** (`pos = "name"`: apellidos, toponimos, nombres
@@ -668,12 +709,13 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, politica, translations_to):
+                for record in _emit(group, inbound, perfil, politica, translations_to,
+                                    frequencies):
                     yield record
                 group = []
                 current = word
             group.append(raw)
     # ⚠️ El ultimo grupo del archivo sale por aca y NO por el bucle: si este olvida un
     # parametro, la ultima palabra del dump pierde ese dato en silencio.
-    for record in _emit(group, inbound, perfil, politica, translations_to):
+    for record in _emit(group, inbound, perfil, politica, translations_to, frequencies):
         yield record

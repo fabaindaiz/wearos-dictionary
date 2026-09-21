@@ -36,8 +36,8 @@ que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
-pipeline de packs (`tools/`, **328 tests**) están completos y en el gate, junto con los **290 JVM
-de `:app`** y **26 checks** de auditoría estructural — **735 tests en total**. Los **43
+pipeline de packs (`tools/`, **342 tests**) están completos y en el gate, junto con los **290 JVM
+de `:app`** y **26 checks** de auditoría estructural — **749 tests en total**. Los **43
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -2823,6 +2823,90 @@ sin verificar teniendo el dispositivo en la mano.
 ⚠️ **Y la restricción que ordena el diseño**: nada de esto puede quedar en el APK de release. Un
 receiver exportado o un log verboso en producción son superficie de ataque y batería. El build
 `benchmark` (D-166) es el lugar natural: ya existe, ya es instalable, y ya no es el release.
+
+### ✅ El prior de orden pasa a ser frecuencia de uso — CONSTRUIDO 2026-09-21
+
+`rank` era **riqueza de página del dump** y eso premia verbos: el perfil `es` cuenta formas
+flexionadas con tope 80, y un verbo español trae hasta 222. Medido: la correlación de Spearman
+entre `rank` y la frecuencia real de uso era **−0,250**, donde se esperaría −1.
+
+#### ⚠️ El defecto no estaba donde parecía, y eso acotó el alcance
+
+`coverageBand` (D-142) ya defiende el peldaño de prefijo **sin confiar en el pack**, así que ahí
+el daño estaba contenido. `orderFor` aplica la banda **sólo a `MatchKind.PREFIX`**; los peldaños
+`INFLECTED_FORM` y `TRANSLATION` ordenan por `rank` puro y no tienen defensa:
+
+```
+house → solar, alojar, albergar, domiciliar    ← «casa» no aparecía
+water → gastar, regar, resbalar                ← «agua» no aparecía
+book  → reservar, fichar, multar               ← «libro» no aparecía
+```
+
+**Arreglar el prior era lo único que alcanza a los tres peldaños.** No se tocó `orderFor`, ni
+`coverageBand`, ni la cascada: la investigación de autocompletado converge en *dos fases* —prior
+estático de popularidad, después calidad del match— y este repo **ya tenía las dos**. La
+arquitectura era correcta; el prior estaba mal calculado.
+
+#### Dos fuentes, combinadas en escala Zipf
+
+| Fuente | Licencia | Rol |
+|---|---|---|
+| **OpenSubtitles** vía FrequencyWords (`es_50k`, `en_50k`) | **CC BY-SA 4.0**, igual que el pack | señal principal |
+| **Tatoeba** *(ya en disco, ya declarada)* | CC BY 2.0 FR | rellena lo que aquella no cubre |
+
+**Por qué subtítulos**: la literatura de SUBTLEX es consistente en 6+ idiomas — predicen el
+reconocimiento de palabras mejor que los corpus de libros, porque se parecen al habla. Es el
+registro de alguien buscando en un reloj.
+
+**Por qué Zipf**: la distribución es de ley de potencias —`de` aparece 14.459.520 veces y la
+palabra 50.000 aparece 185—. Sin logaritmo la primera aplasta todo. Cada lema toma su valor de
+**una** fuente: promediar ocurrencias contra frases-que-la-contienen sería calibrar una escala
+contra otra sin medirlo.
+
+⚠️ **`wordfreq` como librería quedó descartado**: es dependencia pip y `tools/CLAUDE.md` fija
+*stdlib only* como propiedad deliberada. Se usó la idea, no el paquete.
+
+#### Dos bandas disjuntas, porque el 82,6 % no tiene señal
+
+Sólo el **17,4 %** de los lemas tiene frecuencia conocida. Quien la tiene se ordena por ella;
+quien no, cae **en bloque** debajo y conserva entre pares el orden de riqueza de siempre. No
+aparecer en 50.000 palabras de subtítulos ya es evidencia de rareza.
+
+#### Medido sobre gemelos: misma muestra, mismo dump, sólo cambia el flag
+
+| | rho(`rank`, frecuencia real) | tamaño |
+|---|---|---|
+| sin señal | **−0,169** | 6,03 MB |
+| **con señal** | **−0,678** | **6,03 MB** |
+
+**Cuatro veces mejor y cero bytes**, porque `rank` es una columna que ya existía.
+
+#### ⚠️ Un defecto que sólo se vio en el pack construido: el acento
+
+La primera versión usaba `norm()` como clave de búsqueda, que **pliega acentos** — y en español
+el acento **distingue palabras**. Resultado: una palabra oscura heredaba la frecuencia de su
+homógrafo común.
+
+```
+háber   (una unidad oscura)   rank= 97    ← se llevaba la de «haber», el verbo (puesto 210)
+hábil                         rank=237
+líbero                        rank=240    ← sumaba «libero» + «liberó»
+liberal                       rank=248
+```
+
+Con la clave que conserva el acento (`frequency.key`), `háber` y `líbero` caen a 995 y 994 — la
+banda sin señal, que es la respuesta correcta: nadie midió su frecuencia.
+
+⚠️ **Y la métrica mintió a favor del bug**: `rho` se calcula contra `tatoeba.frequencies`, que
+también usa claves `norm()`, así que la versión con el acento plegado **puntúa mejor** (−0,735)
+por acertar contra una verdad igualmente plegada. Se eligió el número peor por ser el correcto.
+
+#### Lo que queda
+
+- **La verificación visible pide el pack completo.** La muestra 1/12 no contiene `casa`, `sol`,
+  `agua` ni `libro`, así que la sonda `cas → casa` sólo se puede correr después del build real.
+- `sources/oewn.py` y `sources/wikidata.py` tienen su **propia** fórmula de rank y quedan fuera:
+  se anota, no se toca.
 
 ### Result ordering: document it, then improve it
 
