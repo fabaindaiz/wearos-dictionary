@@ -37,6 +37,8 @@ class FakeDictionary(
      * test watching for it failed because of the fake, not the code.
      */
     private val entryCount: Int = 1,
+    /** `BILINGUAL` para probar la rama de los packs de traducción. */
+    private val kind: PackKind = PackKind.MONOLINGUAL,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
@@ -53,7 +55,7 @@ class FakeDictionary(
         packId = packId,
         schemaVersion = 3,
         normVersion = 1,
-        kind = PackKind.MONOLINGUAL,
+        kind = kind,
         name = "Diccionario $packId",
         // null: exercises the path of a pack older than D-125, which does not carry the key.
         description = null,

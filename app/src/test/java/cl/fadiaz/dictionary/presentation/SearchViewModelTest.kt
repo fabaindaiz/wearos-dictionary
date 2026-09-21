@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackSet
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -912,6 +913,42 @@ class SearchViewModelTest {
         assertEquals(listOf("per"), en.queries, "la query tiene que repetirse en el pack nuevo")
         assertEquals("per", vm.state.value.query)
         assertEquals("en-def", vm.state.value.active?.packId)
+    }
+
+    @Test
+    fun elTILE_tampoco_cachea_palabras_de_un_pack_de_TRADUCCION() = runTest {
+        // ⚠️ **La regla de D-200 valía en la pantalla y NO en el tile**, y el tile es el peor
+        // sitio para que falle: nadie lo abre a propósito, así que una palabra equivocada ahí no
+        // la reporta nadie — lo dice el propio comentario de `onLanguageChange`.
+        //
+        // `cacheWeekForTile` recibía el pack ACTIVO, y el activo puede ser el bilingüe: es el
+        // más grande (209.484 contra 152.281), así que `chooseActive` lo prefiere.
+        var cacheado: List<Visit> = emptyList()
+        val bi = FakeDictionary("es-tr-enwikt", "es", langs = listOf("es", "en"),
+                                kind = PackKind.BILINGUAL, entryCount = 300)
+        val defs = FakeDictionary("es-def-wikc", "es", entryCount = 200)
+        // ⚠️ **Los `entryCount` son chicos y los `summaries` los cubren enteros.** Con los
+        // valores reales --209.484 y 152.281-- `pick` sortea ids que el fake no tiene, devuelve
+        // null y el tile no cachea NADA: el test pasaba sin probar nada. Lo encontró una sonda
+        // `isNotEmpty` puesta a propósito antes de creerle al verde.
+        bi.summaries = (1L..300L).associateWith {
+            EntrySummary(it, "bilingue$it", "noun", 100)
+        }
+        defs.summaries = (1L..300L).associateWith {
+            EntrySummary(it, "definido$it", "noun", 100)
+        }
+        SearchViewModel(
+            { PackSet.Ready(handle(bi), listOf(handle(bi), handle(defs))) },
+            todayDate = { "2026-10-01" },
+            saveWeekWords = { _, week -> cacheado = week },
+        )
+        advanceUntilIdle()
+        assertTrue(cacheado.isNotEmpty(), "el tile tiene que cachear algo, del pack correcto")
+        assertEquals(
+            0,
+            cacheado.count { it.packId == "es-tr-enwikt" },
+            "el tile no puede cachear del pack de traducción: $cacheado",
+        )
     }
 
     @Test
