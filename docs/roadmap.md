@@ -2714,12 +2714,30 @@ en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de
 
 ### Reportado usando la app en el reloj (2026-09-21)
 
-Cuatro cosas que salieron de tener la app puesta, no de razonar sobre ella. **Ninguna está
-construida.**
+Cuatro cosas que salieron de tener la app puesta, no de razonar sobre ella. **La primera está
+cerrada; las otras tres no.**
 
-#### 🔴 El pack de demostración del reloj quedó incompatible y nunca se reemplaza
+#### ✅ ~~El pack de demostración del reloj quedó incompatible y nunca se reemplaza~~ — cerrado dos veces
 
-**Es un bug, no una mejora, y está diagnosticado.** La app muestra la advertencia de que
+**Cerrado el 2026-09-21, y por dos vías independientes**, lo que conviene distinguir porque sólo
+una arregla la causa:
+
+1. **La causa**: `assetsToExtract` re-extrae los assets cuando cambia el `versionCode` (D-176), en
+   vez de sólo cuando el archivo falta. Cubierto por cuatro casos en `PackStoreTest`. **Esto es lo
+   que importa**: vale para cualquier pack incluido, no sólo para el demo.
+2. **El síntoma**: el pack de demostración **se eliminó**. `bundlePacks` ya no tiene respaldo —
+   empaqueta los núcleos reales o nada — así que no hay ningún `demo-es-en.db` que pueda quedar
+   incompatible.
+
+⚠️ **Y la lección de D-119 sigue en pie**, que es lo que no hay que perder al tachar esto: subir
+`CODEC_ID` tira la tolerancia a tags desconocidos, porque `PackFile.open` compara con `!=`. Se
+aceptó *«porque hoy el costo es cero»* y dejó de serlo. **Con el núcleo real adentro el costo sería
+un diccionario viejo, no una molestia.**
+
+<details>
+<summary>El diagnóstico original, conservado</summary>
+
+La app mostraba la advertencia de que
 `demo-es-en.db` no es compatible: fue construido con `deflate-v1` y la app de hoy lee `deflate-v2`.
 
 **La causa exacta:** `PackStore.missingFromDisk` extrae un asset del APK **sólo si el nombre falta
@@ -2738,6 +2756,8 @@ de sólo cuando el archivo falta. Una clave de preferencia con el `versionCode` 
 
 ⚠️ **Y gana importancia con el núcleo**: si el pack incluido pasa a ser el diccionario de verdad,
 que no se actualice con la app deja de ser una molestia y pasa a ser un diccionario viejo.
+
+</details>
 
 #### El selector de idioma principal no se explica
 
