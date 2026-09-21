@@ -62,7 +62,7 @@ import hashlib
 import os
 import sys
 
-from sources import enwikt_examples, kaikki, oewn, tatoeba, wikidata, wordnet
+from sources import bilingual, enwikt_examples, kaikki, oewn, tatoeba, wikidata, wordnet
 
 from build import PackBuilder
 
@@ -109,6 +109,18 @@ FUENTES = {
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
         "prosa": ("Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección "
                   "Spanish, licencia CC BY-SA 4.0."),
+    },
+    # El MISMO volcado que "enwikt-ej", con otro rol: alla aporta ejemplos a un pack espanol,
+    # aca aporta las definiciones enteras -- y en ingles, que es lo que lo vuelve bilingue.
+    "enwikt": {
+        "codigo": "enwikt",
+        "rol": "definitions",
+        "nombre": "Wiktionary en inglés, sección Spanish",
+        "url": "https://kaikki.org/dictionary/Spanish/",
+        "licencia": "CC BY-SA 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "prosa": ("Definiciones en inglés de palabras españolas, del Wiktionary en inglés "
+                  "(en.wiktionary.org), sección Spanish, licencia CC BY-SA 4.0."),
     },
     "tatoeba": {
         "codigo": "tat",
@@ -236,6 +248,30 @@ PACKS = {
         "source_url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
         "proper_nouns": "included",
     },
+    # El tercer pack: BILINGUE, y el unico que llena `trans`.
+    #
+    # ⚠️ **Un solo pack sirve para las dos direcciones, y la clave es `trans`**: las entradas son
+    # palabras espanolas con glosas en ingles, asi que buscar "perro" la encuentra por prefijo y
+    # buscar "dog" la encuentra por el indice inverso (peldano 3 de la cascada). Lo que NO da es
+    # la calidad de un pack escrito en la otra direccion: `trans` se deriva de las glosas, no
+    # viene en el volcado. Ver sources/bilingual.py.
+    "es-en": {
+        "pack_id": "es-tr-enwikt",
+        "kind": "bilingual",
+        "name": "Español → English",
+        "description": (
+            "Palabras en español definidas en inglés, del Wiktionary en inglés. "
+            "Se puede buscar en los dos idiomas."
+        ),
+        "lang_src": "es",
+        "lang_dst": "en",
+        "fuzzy_profile": "es",
+        "source_date": "20260915",
+        "license": "CC-BY-SA-4.0",
+        "fuente_base": "enwikt",
+        "source_url": "https://kaikki.org/dictionary/Spanish/",
+        "proper_nouns": "included",
+    },
     "en": {
         "pack_id": "en-def-wikt",
         "kind": "monolingual",
@@ -276,7 +312,8 @@ PACKS = {
 
 # De que modulo sale cada pack. Dos lineas en vez de un build_spike_oewn.py aparte, que
 # duplicaria el manejo de --sample, de la metadata y de PackBuilder.
-READERS = {"es": kaikki, "en": kaikki, "en-core": oewn, "es-wd": wikidata}
+READERS = {"es": kaikki, "en": kaikki, "en-core": oewn, "es-wd": wikidata,
+           "es-en": bilingual}
 
 
 def _keep(headword, sample):
@@ -413,7 +450,14 @@ def main(argv):
 
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
         reader = READERS[lang]
-        argumentos = (source, lang) if reader is oewn else (source, lang, politica)
+        # El lector bilingue recibe el idioma de ORIGEN y no la clave del CLI: "es-en"
+        # nombra al pack, pero el perfil de normalizacion y los `PERFILES` de kaikki son los
+        # del espanol.
+        argumentos = (
+            (source, lang) if reader is oewn
+            else (source, PACKS[lang]["lang_src"], politica) if reader is bilingual
+            else (source, lang, politica)
+        )
         vistos = set()
         for record in reader.records(*argumentos):
             if not _keep(record.headword, sample):

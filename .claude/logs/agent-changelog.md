@@ -26,6 +26,65 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — The third pack: bilingual ES→EN, and it works in both directions
+
+**What.** D-177: a bilingual pack, 123,979 entries in 50.2 MB, the first one that fills `trans`.
+Plus `sources/bilingual.py` and its tests.
+
+**Areas.** `sources/bilingual.py` (new) + `tests/test_source_bilingual.py` (new) ·
+`build_pack.py` (the `es-en` pack and the `enwikt` source) · `docs/roadmap.md`,
+`docs/decisions.md`, `README.md`, `tools/CLAUDE.md`.
+
+**Why.** *«Comenzá a construir el pack de traducciones como un tercer pack para instalar.»*
+
+**Architecture.** ✅ Complies, and the important part is what was NOT written: `kaikki.records`
+already prunes inflection pages into `form`, groups homographs and applies the proper-noun policy.
+Only the reverse index is new.
+
+**Measured.**
+
+- **123,979 entries, 50.2 MB, 206,727 rows in `trans`.** All `verify_pack.py` invariants pass.
+- Reverse lookup, spot-checked on the real pack: `hammer → martillo`, `admiral → almirante`,
+  `pepper → ají, pimentón, pimiento`, `scaffold → andamio, cadalso`.
+- **87.6 % of entries get at least one translation key**, 2.3 keys each.
+
+**What the measurement corrected, and it is the entry's point.**
+
+⚠️ **I told the user one pack could not serve both directions, and I had measured the wrong
+thing.** The first number was *senses whose whole gloss is a clean translation* — **11.7 %** — and
+from it I concluded the reverse direction would be "a lottery" and recommended two packs. What the
+reverse index actually needs is far weaker: **one usable term from any sense of an entry**. That is
+**87.6 %**. The conclusion flipped when it was built, and the roadmap section now says so instead
+of being quietly replaced.
+
+**What went wrong.**
+
+- ⚠️ **Two leaks were found by READING the output, not by reasoning**: `CAT scan")` and
+  `or cultures)`. And they are caught by **different rules**, which is the part worth keeping: the
+  first is a good term with junk glued on, so stripping the borders suffices; the second survives
+  stripping and is only given away by starting with a conjunction. That is why `or` and `and` are
+  descriptors and `of` is **not** — *of course* is a translation.
+- **My test was right for the wrong reason.** I wrote that the unbalanced parenthesis was what
+  disqualified `or cultures)`; it is not, and finding that out is what produced the conjunction
+  rule.
+
+**What is left undone.**
+
+- ⚠️ **An ordering bug the bilingual pack makes impossible to ignore.** Searching `house` returns
+  `solar, alojar, albergar, domiciliar` — `casa` is not near the top, and `dog` puts `perro`
+  fourth. **It is not coverage**: `casa` carries `house` as a key, but its `rank` is 993 against
+  **911 for `solar`**, and lower means more common. `rank` is page richness (D-063), and the
+  forward direction hides this because the coverage band anchors the word you typed; the reverse
+  direction has no such anchor, so `rank` decides alone. **The signal that fixes it already
+  exists** — `tatoeba.frequencies` is what chose the core vocabulary — but wiring it into `rank`
+  changes D-063 and needs its own measurement.
+- **The pack is not on the watch**: it disconnected earlier. It is at
+  `../wearos-dictionary-data/es-tr-enwikt.db`.
+- **The reverse direction has no English headwords.** `dog` finds the Spanish words that mean it;
+  it never shows an English entry with its own senses. Whether that matters is a product question.
+
+---
+
 ## 2026-09-21 — Los núcleos de ES y EN viajan en el APK, derivados del pack completo
 
 **Qué.** D-175 (el APK lleva los dos núcleos) y D-176 (una versión nueva re-extrae sus packs).
