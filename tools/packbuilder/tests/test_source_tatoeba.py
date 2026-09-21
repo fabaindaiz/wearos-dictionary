@@ -142,3 +142,85 @@ class TatoebaTest(unittest.TestCase):
         got = self.mapa(("spa", "Compró 25 naranjas frescas."))
         self.assertNotIn("25", got)
         self.assertIn("naranjas", got)
+
+
+class FrecuenciasTest(unittest.TestCase):
+    """La señal de **uso** que elige el vocabulario de un pack núcleo.
+
+    ⚠️ **Existe porque `rank` no sirve para esto y eso está medido.** `rank` es riqueza de página
+    del diccionario, no frecuencia de habla: un núcleo elegido por `rank` se lleva **el 91 % de la
+    tabla de flexiones** del pack español, porque las páginas más ricas son los verbos y un verbo
+    español tiene 33 formas. Ver docs/roadmap.md §Dividir los packs grandes.
+    """
+
+    def _corpus(self, *frases):
+        h = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", encoding="utf-8", delete=False)
+        with h:
+            for i, texto in enumerate(frases):
+                h.write("%d\tspa\t%s\n" % (i + 1, texto))
+        return h.name
+
+    def test_cuenta_por_clave_normalizada(self):
+        # La clave es `norm()`, la misma que indexa el pack: cualquier otra cosa seria una segunda
+        # definicion de la igualdad de palabras.
+        path = self._corpus("el árbol es alto", "un arbol pequeño", "otro ÁRBOL")
+        frec = tatoeba.frequencies(path)
+        self.assertEqual(3, frec["arbol"])
+
+    def test_cuenta_sobre_TODAS_las_frases_no_solo_las_que_sirven_de_ejemplo(self):
+        # ⚠️ `_frases` filtra por largo (15-80) porque sirve para EJEMPLOS, donde el renglon del
+        # reloj es el limite. Contar frecuencia con ese filtro sesgaria la cuenta hacia las frases
+        # de largo medio, que no tienen por que usar las palabras mas comunes.
+        corta = "pan"                       # 3 caracteres: debajo del piso de los ejemplos
+        larga = "x" * 200 + " zumbido"       # 208: por encima del techo
+        path = self._corpus(corta, larga, "hola")
+        frec = tatoeba.frequencies(path)
+        self.assertEqual(1, frec.get("zumbido"), "una frase larga cuenta igual")
+        self.assertEqual(1, frec.get("pan"), "una frase corta tambien")
+
+    def test_un_nombre_propio_que_CASI_nunca_va_en_minuscula_tampoco_cuenta(self):
+        # ⚠️ **"Vista en minuscula ALGUNA VEZ" no alcanza acá, y se midió por qué.** En 442.135
+        # frases casi cualquier palabra aparece en minuscula una vez --un tipeo, un guion-- y
+        # "tom" pasaba el filtro con **1 de 36.749 apariciones** (0,0 %), quedando en el puesto 11
+        # del español. Para elegir un ejemplo ese ruido es barato; para elegir el vocabulario de
+        # un pack, no.
+        #
+        # La separacion medida es enorme y limpia: `tom` 0,0 %, `maria` 0,3 %, `john` 0,0 %
+        # contra `agua` 99,4 %, `water` 98,1 %, `enero` 89,2 %. El umbral va en el medio.
+        frases = ["Tom come pan"] * 9 + ["a tom le gusta"]   # 10 % en minuscula
+        path = self._corpus(*frases)
+        self.assertNotIn("tom", tatoeba.frequencies(path))
+
+    def test_un_nombre_propio_que_NUNCA_va_en_minuscula_no_cuenta(self):
+        # ⚠️ **Medido sobre el corpus real: "Tom" esta en 36.694 de 442.135 frases, el 8,3 %.**
+        # Sin este filtro seria una de las palabras mas frecuentes del español y entraria al
+        # nucleo antes que "agua". Es el mismo hecho del corpus que salvo a "nadal".
+        path = self._corpus("Tom come pan", "Tom bebe agua", "el pan es agua")
+        frec = tatoeba.frequencies(path)
+        self.assertNotIn("tom", frec)
+        self.assertEqual(2, frec["pan"])
+
+    def test_pero_una_palabra_que_SI_aparece_en_minuscula_cuenta_aunque_empiece_frases(self):
+        # El control: toda frase empieza en mayuscula, asi que el filtro no puede ser posicional.
+        path = self._corpus("Agua por favor", "quiero agua")
+        self.assertEqual(2, tatoeba.frequencies(path)["agua"])
+
+    def test_los_digitos_no_son_palabras(self):
+        path = self._corpus("tengo 25 años", "covid19 existe")
+        frec = tatoeba.frequencies(path)
+        self.assertNotIn("25", frec)
+        self.assertNotIn("covid19", frec)
+
+    def test_el_resultado_no_depende_del_orden_del_archivo(self):
+        # Dos builds del mismo dump tienen que dar el mismo pack.
+        a = tatoeba.frequencies(self._corpus("agua fria", "pan duro", "agua"))
+        b = tatoeba.frequencies(self._corpus("pan duro", "agua", "agua fria"))
+        self.assertEqual(a, b)
+
+    def test_el_idioma_se_puede_pedir(self):
+        # El corpus CC0 es multilingue: la columna 2 decide.
+        h = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", encoding="utf-8", delete=False)
+        with h:
+            h.write("1\tspa\tagua clara\n2\teng\twater clear\n")
+        self.assertIn("water", tatoeba.frequencies(h.name, lang="eng"))
+        self.assertNotIn("agua", tatoeba.frequencies(h.name, lang="eng"))

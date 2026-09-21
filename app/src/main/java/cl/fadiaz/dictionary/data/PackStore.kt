@@ -56,7 +56,26 @@ object PackStore {
      *  - a `.db` pushed by hand with `adb push` is left alone, which is how the real packs get
      *    here today.
      */
-    internal fun missingFromDisk(assets: List<String>, installed: List<String>): List<String> {
+    /**
+     * Qué packs del APK hay que copiar a disco.
+     *
+     * ⚠️ **Antes miraba sólo si el NOMBRE faltaba, y por eso un pack incluido se extraía una vez
+     * y no se actualizaba jamás.** Visto en el reloj: la app avisaba que `demo-es-en.db` no era
+     * compatible —se extrajo con `deflate-v1` y la app pasó a `deflate-v2` (D-119)— mientras el
+     * APK traía uno bueno que nunca se copiaba. Es el costo que D-119 aceptó *«porque hoy es
+     * cero»*, y dejó de serlo.
+     *
+     * La regla ahora: **una versión nueva de la app re-extrae sus packs**, porque son suyos y
+     * vienen con ella. Los que el usuario instaló **no se tocan nunca** — son 372 MB que nadie
+     * quiere volver a copiar por adb.
+     */
+    internal fun assetsToExtract(
+        assets: List<String>,
+        installed: List<String>,
+        last: Int,
+        current: Int,
+    ): List<String> {
+        if (last != current) return assets.sorted()
         val alreadyOnDisk = installed.toSet()
         return assets.filterNot { it in alreadyOnDisk }.sorted()
     }
@@ -75,13 +94,22 @@ object PackStore {
         val dir = packsDir(context)
         dir.mkdirs()
 
-        val missing = missingFromDisk(packAssets(context), installedPacks(dir).map { it.name })
+        val instaladaAntes = prefs(context).getInt(KEY_EXTRACTED_BY, 0)
+        val missing = assetsToExtract(
+            packAssets(context),
+            installedPacks(dir).map { it.name },
+            last = instaladaAntes,
+            current = versionCode(context),
+        )
         if (missing.isNotEmpty()) {
             onExtracting()
             for (asset in missing) {
                 runCatching { installAtomically(context.assets.open(asset), dir, asset) }
             }
         }
+        // Se anota DESPUÉS de copiar: si la extracción falla a medias, el próximo arranque la
+        // vuelve a intentar en vez de darla por hecha.
+        prefs(context).edit { putInt(KEY_EXTRACTED_BY, versionCode(context)) }
 
         val installed = installedPacks(dir)
         if (installed.isEmpty()) return@withContext PackSet.NoPack
@@ -205,6 +233,10 @@ object PackStore {
         prefs(context).edit { putString(KEY_SETTINGS, serializeSettings(settings)) }
     }
 
+    /** El `versionCode` del APK que está corriendo. */
+    private fun versionCode(context: Context): Int =
+        context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+
     private fun prefs(context: Context) =
         context.getSharedPreferences("dictionary", Context.MODE_PRIVATE)
 
@@ -213,6 +245,8 @@ object PackStore {
     private const val KEY_SETTINGS = "ajustes"
     /** Qué packs ya pasaron la muestra de claves de D-142. Ver [PackVerification]. */
     private const val KEY_VERIFIED = "packs_verificados"
+    /** Con qué versión de la app se extrajeron por última vez los packs del APK. */
+    private const val KEY_EXTRACTED_BY = "packs_extraidos_por"
     private const val KEY_FAVORITES = "favoritos"
     private const val KEY_WEEK_WORDS = "palabras_semana"
     private const val KEY_WEEK_SINCE = "palabras_desde"

@@ -79,6 +79,91 @@ def shortest_by_norm(path, lang=LANG):
     return out
 
 
+def frequencies(path, lang=LANG):
+    """Mapa `norm(palabra) -> cuantas frases la usan`. La senal de **uso** de un pack nucleo.
+
+    ⚠️ **Existe porque `rank` no sirve para elegir vocabulario, y eso esta medido.** `rank` es
+    riqueza de pagina del diccionario, no frecuencia de habla. Un nucleo de 14.388 entradas
+    elegido por `rank` se lleva **1.366.667 de las 1.499.895 formas flexionadas** del pack
+    espanol --el 91 % de la tabla, que es la mas grande del archivo-- porque las paginas mas ricas
+    son los verbos y un verbo espanol tiene 33 formas. Elegido por uso, no.
+
+    ⚠️ **Cuenta sobre TODAS las frases del idioma, no sobre la ventana de [shortest_by_norm].**
+    Ese filtro de largo existe porque un ejemplo tiene que entrar en dos renglones de reloj;
+    aplicarlo aca sesgaria la cuenta hacia las frases de largo medio, que no tienen por que usar
+    las palabras mas comunes.
+
+    ⚠️ **Y descarta lo que el corpus nunca escribe en minuscula**, por el mismo hecho que salvo a
+    "nadal" (ver [_vistas_en_minuscula]) y con un motivo medido propio: **"Tom" aparece en 36.694
+    de las 442.135 frases espanolas, el 8,3 %**. Sin el filtro seria una de las palabras mas
+    frecuentes del idioma y entraria al nucleo antes que "agua".
+
+    Cuenta **frases que la contienen** y no apariciones: una frase que repite una palabra no la
+    hace mas comun, la hace mas enfatica.
+    """
+    # ⚠️ **Sobre TODAS las frases tambien para este filtro, y no sobre la ventana de ejemplos.**
+    # "una palabra escrita en minuscula alguna vez" es un hecho del CORPUS; restringir la
+    # evidencia a las frases de 15 a 80 caracteres lo vuelve menos cierto, y con un corpus chico
+    # --el ingles tiene 41.512 frases contra 442.135 del espanol-- deja fuera palabras comunes de
+    # verdad. `shortest_by_norm` se queda con la ventana porque su trabajo SI es elegir ejemplos.
+    comunes = _mayormente_en_minuscula(path, lang)
+    out = {}
+    for texto in _todas_las_frases(path, lang):
+        for clave in {normalize.norm(p) for p in _PALABRA.findall(texto)}:
+            if not clave or clave not in comunes:
+                continue
+            out[clave] = out.get(clave, 0) + 1
+    return out
+
+
+# Que proporcion de sus apariciones tiene que ir en minuscula para contar como palabra comun.
+#
+# ⚠️ **Medido, y la separacion es enorme**: `tom` 0,0 % (1 de 36.749), `maria` 0,3 %, `juan` y
+# `john` 0,0 %, contra `agua` 99,4 %, `water` 98,1 % y `enero` 89,2 %. Cualquier numero entre 5 y
+# 85 separa igual de bien; 50 % se lee como "el corpus la escribe en minuscula mas veces que no".
+UMBRAL_MINUSCULA = 0.5
+
+
+def _mayormente_en_minuscula(path, lang):
+    """Las claves que el corpus escribe en minuscula **la mayoria de las veces**.
+
+    ⚠️ **"Alguna vez" no alcanza para elegir vocabulario, y eso se midio.** Es la regla que usa
+    [_vistas_en_minuscula] y sirve para lo suyo --elegir un ejemplo-- pero en 442.135 frases casi
+    cualquier palabra aparece en minuscula una vez, y **"tom" pasaba con 1 de 36.749 apariciones**,
+    quedando en el puesto 11 de las palabras mas frecuentes del espanol.
+
+    El costo de equivocarse es distinto en cada caso y por eso son dos reglas: un ejemplo mal
+    elegido es una frase rara en una ficha; un vocabulario mal elegido es un pack nucleo lleno de
+    nombres propios.
+
+    ⚠️ **Y tiene una consecuencia conocida en ingles**: los dias y los meses se escriben siempre
+    en mayuscula --`monday` 0,0 %-- asi que quedan fuera del nucleo. En espanol no pasa, porque
+    `enero` va en minuscula el 89,2 % de las veces. El pack completo los tiene igual.
+    """
+    minusculas, total = {}, {}
+    for texto in _todas_las_frases(path, lang):
+        for palabra in _PALABRA.findall(texto):
+            clave = normalize.norm(palabra)
+            if not clave:
+                continue
+            total[clave] = total.get(clave, 0) + 1
+            if palabra[:1] == palabra[:1].lower():
+                minusculas[clave] = minusculas.get(clave, 0) + 1
+    return {c for c, n in total.items() if minusculas.get(c, 0) / n >= UMBRAL_MINUSCULA}
+
+
+def _todas_las_frases(path, lang):
+    """Todas las frases del idioma, sin la ventana de largo. Una pasada, sin cargar nada."""
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            partes = line.rstrip("\n").split("\t")
+            if len(partes) < 3 or partes[1] != lang:
+                continue
+            texto = partes[2].strip()
+            if texto:
+                yield texto
+
+
 def _frases(path, lang):
     """Las frases del idioma pedido que entran en una pantalla. Una pasada, sin cargar nada."""
     with open(path, encoding="utf-8") as handle:
@@ -91,7 +176,7 @@ def _frases(path, lang):
                 yield texto
 
 
-def _vistas_en_minuscula(path, lang):
+def _vistas_en_minuscula(path, lang, frases=None):
     """Las claves que el corpus escribe en minuscula **alguna vez**: las palabras comunes.
 
     ⚠️ **Existe por un error que ningun test veia y que aparecio leyendo el pack construido.**
@@ -114,7 +199,7 @@ def _vistas_en_minuscula(path, lang):
     extra que no fuera a hacer falta igual.
     """
     vistas = set()
-    for texto in _frases(path, lang):
+    for texto in (frases or _frases)(path, lang):
         for palabra in _PALABRA.findall(texto):
             if palabra[:1] == palabra[:1].lower():
                 clave = normalize.norm(palabra)

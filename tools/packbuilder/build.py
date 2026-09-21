@@ -107,6 +107,7 @@ class Record:
         "forms",
         "translations",
         "sense_key",
+        "uid",
     )
 
     def __init__(
@@ -118,6 +119,7 @@ class Record:
         forms=(),
         translations=(),
         sense_key=None,
+        uid=None,
     ):
         self.headword = headword
         self.senses = senses
@@ -126,6 +128,7 @@ class Record:
         self.forms = forms
         self.translations = translations
         self.sense_key = sense_key
+        self.uid = uid
 
 
 def data_version(ahora=None):
@@ -254,7 +257,12 @@ class PackBuilder:
             "INSERT INTO staging (uid, headword, norm, fuzzy, pos, rank, body, fts_body)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                stable_uid(
+                # ⚠️ **Un `uid` ya calculado se COPIA, no se recalcula**, y eso sólo lo usa
+                # `build_core`. Derivar un pack de otro tiene que conservar la identidad logica:
+                # `sense_key` se decide contando los homografos del pack FINAL (D-145), y un
+                # subconjunto tiene menos homografos, asi que recalcularlo le daria otra
+                # identidad a la misma palabra y rompería el join entre packs (D-055).
+                record.uid if record.uid is not None else stable_uid(
                     self.metadata["lang_src"],
                     record.headword,
                     record.part_of_speech,
