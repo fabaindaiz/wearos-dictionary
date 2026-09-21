@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Los dos modos de traducción son el enforcement, no una comodidad
+**Qué.** Nada de código. Se diseñó cómo **enforzar** el contrato en un pack construido por otro, y
+se midió una línea de base para el chequeo. Documentado en `docs/roadmap.md` §Enforcing the
+contract; `docs/fuentes.md` gana la fila que faltaba en la tabla de riesgos de packs ajenos.
+**Áreas.** `docs/roadmap.md`, `docs/fuentes.md`.
+**Por qué.** El pedido: *«¿hay alguna forma de enforzar esto? Por ejemplo, que las traducciones
+tengan dos modos, uno asociado sólo a la palabra y uno asociado directamente a la acepción»*.
+**Arquitectura.** ✅ Cumple. Nada construido. El canal nuevo es un tag aditivo y **no sube
+`CODEC_ID`**, por el precedente explícito de D-119 y D-126.
+**Medido.**
+- **Línea de base del detector**, sobre las 40.000 entradas de mejor rank del pack español real,
+  usando los sinónimos que ya entran por `sense_index` (D-117): de **5.109** entradas con varias
+  acepciones y sinónimos en dos o más, **4.626 (90,5 %) tienen listas DISTINTAS** entre acepciones
+  y 483 (9,5 %) idénticas. Más **6.010** entradas con sinónimos en **una sola** acepción, que
+  también es firma de atribución.
+- O sea: el dato honesto vive cerca del **90 % distinto**; un pack que embadurna dato de entrada
+  por todas las acepciones viviría cerca del **0 %**. ⚠️ El 9,5 % obliga a que el umbral sea
+  flojo —dos acepciones pueden compartir sinónimos de verdad—, así que esto es **un olor con un
+  número, no una prueba**, y va como warning y no como failure.
+- **Clasificación de las garantías de hoy en tres niveles**: *probadas* (recomputables:
+  `norm`, `fuzzy`, `uid`, `fts_def.rowid`, huérfanos, planes de consulta, `payload_dict_sha256`);
+  *seguras porque mentir se autoperjudica* (⚠️ `subset_of` saca **al que lo declara**, nunca al que
+  nombra, así que una declaración falsa te borra a vos de la búsqueda; y `rank` sólo reordena
+  dentro de una banda que se calcula sin mirar el pack); y *declaradas y sin chequear*, que es
+  **una sola cosa: la atribución del contenido**.
+**Qué salió mal.** Nada esta vez. Pero vale anotar el razonamiento que cambió la forma de la
+respuesta: arranqué pensando que los dos modos eran una mejora de expresividad, y al mirar
+`payload.parse` se ve que **hoy hay un solo canal** —un `T` antes del primer `S` se descarta en
+silencio—, así que un builder con dato no atribuible sólo puede tirarlo o embadurnarlo. **El
+formato con un canal hace que la opción deshonesta sea la barata**, y por eso el segundo modo es
+el enforcement y no una comodidad.
+**Qué quedó sin hacer.**
+- **Nada implementado.** Orden: (1) tag de nivel de entrada, (2) declarar la granularidad en
+  `meta`, (3) el chequeo de distinción en `verify_pack.py` con el 90,5 % en el mensaje, (4)
+  renderizar los dos modos en lugares distintos.
+- ⚠️ **El punto 4 no es cosmético**: si el formato los distingue y la pantalla los vuelve a
+  juntar, la mentira reaparece en el último paso.
+- **Sin decidir**: el umbral concreto del warning. Hace falta ver un pack embadurnado de verdad
+  para calibrarlo, y no hay ninguno.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — «Compatibles por construcción» son tres cosas y sólo una lo es
 **Qué.** Nada de código. Se verificó sobre los seis `.db` reales qué significa que los packs sean
 compatibles, y se separó en tres niveles con su medición. Documentado en `docs/roadmap.md`

@@ -347,6 +347,91 @@ Lo que sigue bloqueando es la **granularidad**: `uid` es por entrada y un sinón
 misma en todos los packs**. El pack de Wikidata usaba el id del lexema —una identidad mejor que la
 de kaikki— y con eso los `uid` **no unían con nada**. `verify_pack.py` lo agarró.
 
+### Enforcing the contract on a pack somebody else built — designed 2026-09-21
+
+Asked as: *«mientras yo tenga el control de los packs puedo verificar que alguien externo no rompa
+la compatibilidad o las funcionalidades más frágiles, pero ¿hay alguna forma de enforzar esto? Por
+ejemplo, que las traducciones tengan dos modos, uno asociado sólo a la palabra y otro asociado
+directamente a la acepción»*.
+
+The example is the right one, and it is sharper than it looks: **the missing second mode is what
+creates the incentive to lie.**
+
+#### The pattern this repo already has a name for
+
+D-142 is the precedent: `norm_version` used to be **a number a pack writes about itself**, and the
+64-entry sample turned it into **a proof**, because the keys can be recomputed from the pack's own
+bytes and compared. That is the whole rule:
+
+> **A pack can be trusted only for what can be recomputed from its own bytes.** Everything else is
+> a declaration, and a declaration from a stranger is a wish.
+
+Sorting today's guarantees by that rule gives three tiers, and the third is the risk surface:
+
+| tier | what | examples |
+|---|---|---|
+| **Proved** — recomputable, `verify_pack.py` fails on a mismatch | keys and structure | `entry.norm == norm(headword)`, `entry.fuzzy == fuzzy(...)`, `entry.uid == stable_uid(...)`, `fts_def.rowid == entry.id`, no orphan `entry_id`, the prefix query does not scan, `payload_dict_sha256` |
+| **Safe because lying hurts only the liar** | selection | ⚠️ `subset_of`: `packsToQuery` removes **the pack that declares it**, never the one it names, so a false claim deletes yourself from the search. `rank`: the coverage band is computed from the query and the headword **without reading pack data** (D-142), so `rank` only reorders *within* a band |
+| **Declared and unchecked** — the surface | **content attribution** | whether a synonym, antonym or translation really belongs to the sense it is sitting in. Nothing states it, so nothing can check it |
+
+#### ⚠️ Why the two modes are not a convenience but the fix
+
+Today the payload has **one channel**: `T` (and `Y`, `A`, `R`) live *inside* a sense, and
+`payload.parse` **silently drops** any of them appearing before the first `S` — the `if senses:`
+guard. There is no entry-level channel at all.
+
+So a builder holding translations that are **not** attributable to a sense has exactly two moves:
+
+1. **Drop them** — which is what D-132 does for entry-level `related` when the entry has several
+   senses, and it costs real content.
+2. **Smear them across every sense** — which is free, invisible, passes `verify_pack.py`, and is
+   the exact error D-117 exists to prevent: *«`bizarro` acepción 2 con los sinónimos de la 1 se lee
+   perfectamente plausible»*.
+
+**A format with one channel makes the dishonest option the cheap one.** Two channels —
+`T` = *this sense*, and a new entry-level tag = *this word, sense unknown* — give a builder a
+truthful place to put weak data, and that is what makes the claim checkable: once there is
+somewhere else to put it, putting it inside a sense **means something**.
+
+⚠️ **And it is additive.** D-119 and D-126 already established that a new tag does **not** bump
+`CODEC_ID`, because `payload.parse` ends with *«los tags desconocidos se ignoran a propósito: un
+builder más nuevo puede agregar campos sin romper un lector viejo»*. An old reader shows the entry
+without the entry-level list, which is correct degradation.
+
+#### The check, with a measured baseline
+
+Two channels do not make lying impossible — nothing does, the pack is just bytes. They make it
+**detectable**, the same way D-142 makes wrong keys detectable rather than impossible. The
+signature of smeared data is that **every sense carries the identical list**, and honest data does
+not look like that. Measured over the 40,000 best-ranked entries of the real Spanish pack, using
+the synonyms that already enter by `sense_index`:
+
+| multi-sense entries with synonyms in ≥ 2 senses | 5,109 |
+|---|---|
+| **lists differ between senses** | **4,626 — 90.5 %** ← the signature of attributed data |
+| lists identical in all of them | 483 — 9.5 % |
+
+plus **6,010 entries carry synonyms in exactly one sense**, which is attribution too — smeared
+data would have filled them all.
+
+So a pack whose multi-sense entries sit near **0 % distinct** is claiming a granularity it does not
+have, and `verify_pack.py` can say so. The 9.5 % says the threshold must be loose — two senses of
+a word genuinely can share synonyms — which makes this a **smell with a number**, not a proof. That
+is the honest description and it should be printed as a warning, not a failure.
+
+#### What this implies, in order
+
+1. **Add the entry-level channel** — a new payload tag, additive, no `CODEC_ID` bump.
+2. **Declare the granularity in `meta`** so the claim exists to be checked, the same way `lang_dst`
+   is required of a bilingual pack.
+3. **Add the distinctness check to `verify_pack.py`** as a warning with the 90.5 % baseline in its
+   message.
+4. ⚠️ **Render the two modes in different places.** A translation drawn *under a sense* **asserts**
+   it belongs to that sense — that is what D-126 says about the category word, and the same logic
+   applies here. The entry-level list goes at entry level, below the headword or after the senses,
+   never inside `SenseBlock`. Otherwise the format distinguishes them and the screen re-merges them,
+   and the lie comes back at the last step.
+
 #### ⚠️ «Compatibles por construcción» son TRES cosas, y sólo una lo es — medido 2026-09-21
 
 Pregunta directa: *«¿entonces por construcción mis 3 packs son compatibles entre sí, lo que
