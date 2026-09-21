@@ -26,6 +26,54 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — CIERRE FINAL: 42 commits, y lo que la sesión aprendió sobre sí misma
+**Qué.** Cierre de la jornada más larga del repo. **42 commits hoy**, 53 por subir contando los
+de sesiones previas. Gate verde: 26 checks · 342 Python · 93 `:dict-core` · 290 `:app` ·
+**751 en total**. Árbol limpio.
+
+**En qué quedó el día, en una línea cada cosa.**
+- **Traducciones**: dos canales en el payload (`T` por acepción, `W` de la palabra), `trans` lleno
+  en los monolingües, el pack inglés y el bilingüe traduciendo, flexiones del idioma destino.
+- **Direccionabilidad**: toda acepción alcanzable por `(idioma, palabra, acepción)` con un código
+  que no nombra un pack, exigido por `verify_pack.py`.
+- **Orden**: `rank` deja de ser riqueza de página y pasa a ser frecuencia de uso real.
+  Spearman **−0,169 → −0,678** por **0 bytes**.
+- **Multiidioma**: `meta.rank_basis` — la pieza que no se puede agregar sin reconstruir.
+- **Formato**: D-178 a D-187 en `docs/decisions.md`, el formato nuevo en `formato-pack.md`, el
+  segundo contrato cruzado en `contratos-cruzados.md`.
+- **Eliminado**: el pack de demostración y su respaldo.
+
+**Los cinco errores que más enseñaron, y ninguno lo agarró un check.**
+1. ⚠️ **Comparé poblaciones distintas y saqué conclusiones**: el pack real (152.281 entradas)
+   contra una muestra 1/12 (12.158). El «después» se veía peor hasta verificar que `casa`, `sol`,
+   `agua` y `libro` **no están en la muestra**.
+2. ⚠️ **Dos tests nuevos eran vacuos** y pasaban por el desempate alfabético. Lo destapó **mutar
+   el código**: quité la línea que probaban y siguieron verdes.
+3. ⚠️ **Una métrica mintió a favor de un bug**: `rho` se mide contra claves `norm()`, así que la
+   versión con el acento plegado puntúa **mejor** por acertar contra una verdad igualmente
+   plegada. Se eligió el número peor por ser el correcto.
+4. ⚠️ **Contar en vez de leer**, tres veces: glosas que parecían traducciones y eran definiciones,
+   `trans` que parecía lista y era índice tokenizado, y una línea suelta del `build.gradle.kts`
+   que me hizo dar por pendiente algo ya hecho.
+5. ⚠️ **Dos commits salieron con el gate en rojo** por encadenar `check && commit`: el `&&`
+   protege del build roto, no de no leer la salida.
+
+**Lo que la próxima sesión tendría que re-derivar si nadie lo hubiera escrito.** Nada de las
+mediciones —están todas con su número— pero sí tres advertencias que sólo existen como tales:
+`\s` significa cosas distintas en Python y en Java; buscar y mostrar quieren **formas distintas
+del mismo término**; y un canal sin fixture se rompe sin que nada avise.
+
+**Lo que sigue, en orden.**
+1. **El build completo de los packs reales** (~1 h). Es lo único que falta del corte, y **hasta
+   que corra nada de hoy se ve**: los `.db` en disco son builds previos.
+2. Subir APK y packs al reloj. Nada de lo construido desde el 2026-09-20 se vio en hardware.
+3. §Alinear acepciones entre fuentes — el problema abierto más caro, y ahora bloquea también el
+   espacio de equivalencias entre packs.
+
+⚠️ **Y un recordatorio que vale la hora que cuesta**: el bilingüe **necesita** `--flexiones` y el
+español `--frecuencias`. Sin esos flags los packs salen bien formados, pasan `verify_pack.py` y
+son peores, sin un solo error. La tabla está en `tools/CLAUDE.md`.
+
 ## 2026-09-21 — Orden multiidioma: el defecto era otro, y la pieza que había que decidir hoy
 **Qué.** `RankBasis` + `meta.rank_basis`: el pack declara **qué significa su `rank`**, y a igual
 posición manda el mejor calibrado. Dos tests, verificados por mutación.
