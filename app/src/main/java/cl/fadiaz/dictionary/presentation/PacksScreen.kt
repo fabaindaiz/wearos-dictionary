@@ -89,13 +89,17 @@ fun PacksScreen(
                     // borrar —volvería sola al reiniciar— pero la fila no lo decía, y un botón
                     // que falta sin explicación se lee como un bug. El tamaño es justo el dato
                     // que sobra ahí: sólo sirve para decidir si conviene borrarlo.
+                    // ⚠️ **Sin la clave de idioma, y tipo y tamaño en UNA línea.** Pedido:
+                    // *«no deben aparecer las claves de idioma ES, EN, etc. Y quiero que el tipo
+                    // y tamaño estén en solo una línea»*. El idioma sobraba: el **nombre** del
+                    // pack ya lo dice --«Español», «Español ↔ English»-- así que la sigla
+                    // repetía en abreviado lo que la línea de arriba dice entero, y era la
+                    // tercera cosa que competía por un ancho que ya se cortaba.
                     detail = if (pack.isBundled) {
                         "${packTypeLabel(pack.metadata.kind)} · " +
-                            "${stringResource(R.string.packs_bundled)} · " +
-                            pack.metadata.langs.joinToString("\u2194") { it.uppercase() }
+                            stringResource(R.string.packs_bundled)
                     } else {
-                        "${packTypeLabel(pack.metadata.kind)} · " +
-                            "${asHumanSize(pack.bytes)} · ${pack.metadata.langs.joinToString("\u2194") { it.uppercase() }}"
+                        "${packTypeLabel(pack.metadata.kind)} · ${asHumanSize(pack.bytes)}"
                     },
                     // El incluido no se puede borrar: volvería sola al reiniciar.
                     onDelete = if (pack.isBundled) null else { { pendingDelete = pack } },
@@ -213,12 +217,11 @@ private fun PackRow(
                     text = detail,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    // ⚠️ **DOS lineas, y los 26 dp de arriba no alcanzaban solos.** Se veia
-                    // `definiciones · 315,9` con el `MB · EN` cortado, y el tamaño es justo el
-                    // dato por el que alguien entra a esta pantalla. Con una sola linea el corte
-                    // vuelve en cuanto el texto crece: la escala de texto es ajustable (hasta
-                    // 1,15) y la traduccion mas larga de `kind` no es la de hoy.
-                    maxLines = 2,
+                    // ⚠️ **UNA línea, y ahora sí entra.** Llevaba dos porque se veía
+                    // `definiciones · 315,9` con el `MB · EN` cortado; quitar la sigla de idioma
+                    // liberó lo que faltaba, y el pedido es explícito: *«que el tipo y tamaño
+                    // estén en solo una línea (la segunda línea)»*.
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

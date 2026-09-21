@@ -31,6 +31,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import cl.fadiaz.dictionary.data.TextScale
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,6 +79,26 @@ private const val VISIBLE_SENSES = 3
  */
 data class WordLink(val packId: String, val entryId: Long)
 
+/**
+ * De dónde salió un término que se va a resolver, que es lo que decide **en qué idioma** buscarlo.
+ *
+ * ⚠️ **La distinción no existía y produjo un bug que el usuario reportó.** Hasta que un pack tuvo
+ * los dos idiomas en un archivo, «resolver en el mismo pack» implicaba «en el mismo idioma»; al
+ * volverlo bidireccional esa equivalencia se rompió en silencio. `pie` es español —parte del
+ * cuerpo— **e** inglés —pastel—, así que tocar la traducción `pie` de `foot` abría el `pie`
+ * inglés: una traducción que devuelve al idioma del que uno venía.
+ *
+ * Medido sobre el pack real: **8,30 %** de las traducciones de entradas inglesas (7.757 de
+ * 93.473) resolvían al idioma equivocado.
+ */
+enum class TermSource {
+    /** Una palabra de la glosa: está en el idioma **de la entrada**. */
+    GLOSS,
+
+    /** Un término de la lista de traducciones: está en **el otro** idioma. */
+    TRANSLATION,
+}
+
 @Composable
 fun EntryScreen(
     entryId: Long,
@@ -93,7 +114,26 @@ fun EntryScreen(
      * the same as offering an empty menu.
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
-    resolveIn: suspend (Set<String>) -> Map<String, WordLink> = { emptyMap() },
+    /**
+     * El tamaño de texto actual, o `null` para no ofrecer el selector.
+     *
+     * ⚠️ **Vive en el menú de la ficha y no sólo en Ajustes, y el motivo es cuándo se nota.**
+     * Que la letra sea chica se descubre **leyendo una definición**, no navegando ajustes: pedir
+     * que el lector salga de la palabra, cruce dos pantallas y vuelva es exactamente la clase de
+     * viaje que la guía de Wear OS pide evitar. Acá cuesta un toque y se ve el efecto en el
+     * texto que está debajo del diálogo.
+     */
+    textScale: TextScale? = null,
+    onTextScaleChange: (TextScale) -> Unit = {},
+    /**
+     * Qué términos de esta pantalla son lemas, y a qué entrada llevan.
+     *
+     * El segundo argumento es el idioma **de la entrada abierta** y el tercero dice si el término
+     * está en ese idioma o en el otro. Ver [TermSource]: sin eso, una traducción puede resolver a
+     * una palabra del idioma del que uno venía.
+     */
+    resolveIn: suspend (Set<String>, String?, TermSource) -> Map<String, WordLink> =
+        { _, _, _ -> emptyMap() },
     // It goes last so it stays the trailing lambda: that is how the screens and tests call it.
     cargar: suspend (Long) -> Entry?,
 ) {
@@ -128,13 +168,32 @@ fun EntryScreen(
         val deLaGlosa = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
             .map { it.norm }
             .toSet()
-        val deLosTerminos = (loaded.senses
-            .flatMap { it.synonyms + it.antonyms + it.related + it.translations } +
+        // ⚠️ **Sinónimos, antónimos y relacionadas van con la GLOSA, no con las traducciones.**
+        // Están en el idioma de la entrada --un sinónimo de `casa` es español-- y meterlos en la
+        // bolsa de traducciones los habría resuelto en el idioma equivocado, que es el mismo bug
+        // al revés.
+        val propios = loaded.senses
+            .flatMap { it.synonyms + it.antonyms + it.related }
+            .map { TextNormalizer.norm(it) }
+            .filterNot { it.isEmpty() }
+            .toSet()
+        val deLasTraducciones = (loaded.senses.flatMap { it.translations } +
             loaded.wordTranslations)
             .map { TextNormalizer.norm(it) }
             .filterNot { it.isEmpty() }
             .toSet()
-        links = runCatching { resolveIn(deLaGlosa) + resolveIn(deLosTerminos) }
+        // ⚠️ **Dos llamadas con idiomas DISTINTOS, y eso es la mitad del arreglo.** Las palabras
+        // de la glosa están en el idioma de la entrada; los términos de las listas de traducción,
+        // en el otro. Resolverlos todos igual es lo que mandaba `pie` al `pie` inglés.
+        // ⚠️ **Tres consultas y no dos**, y el motivo es el mismo tope duro de antes:
+        // `MAX_PALABRAS_POR_CONSULTA` es 64 y las glosas ya promedian 39,9 claves en español y
+        // 58,8 en inglés, así que juntarlas desbordaría y **recortaría en silencio**. Cada una
+        // costó 0,18 ms medidos.
+        links = runCatching {
+            resolveIn(deLaGlosa, loaded.lang, TermSource.GLOSS) +
+                resolveIn(propios, loaded.lang, TermSource.GLOSS) +
+                resolveIn(deLasTraducciones, loaded.lang, TermSource.TRANSLATION)
+        }
             .getOrDefault(emptyMap())
             // Un enlace a la entrada que ya estás leyendo no lleva a ningún lado.
             .filterValues { it.entryId != entryId }
@@ -302,6 +361,50 @@ fun EntryScreen(
         onDismissRequest = { menuOpen = false },
         title = { Text(stringResource(R.string.entry_options)) },
     ) {
+        if (textScale != null) {
+            item {
+                // ⚠️ **Los botones MUESTRAN el tamaño que aplican en vez de nombrarlo**, que es
+                // lo que pidió el usuario: *«un selector de 3 botones con distintos tamaños de
+                // letra para representar este selector»*. Una `A` chica, una mediana y una
+                // grande se entienden sin leer, que en un reloj vale más que una etiqueta — y
+                // además no hay que traducirlas.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextScale.entries.forEach { opcion ->
+                        val elegida = opcion == textScale
+                        Text(
+                            text = stringResource(R.string.settings_scale_sample),
+                            // El tamaño del botón ES la escala que representa, aplicada sobre el
+                            // cuerpo de la ficha: lo que se ve es lo que se va a obtener.
+                            fontSize = MaterialTheme.typography.bodyMedium.fontSize * opcion.factor,
+                            fontWeight = if (elegida) FontWeight.Bold else FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            color = if (elegida) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PILL_SHAPE)
+                                .background(
+                                    if (elegida) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainer
+                                    },
+                                )
+                                .clickable { onTextScaleChange(opcion) }
+                                .heightIn(min = TOUCH_TARGET)
+                                .padding(vertical = 12.dp),
+                        )
+                    }
+                }
+            }
+        }
         items(actionsFor.size) { index ->
             val action = actionsFor[index]
             Pill(

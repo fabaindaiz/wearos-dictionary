@@ -46,91 +46,22 @@ class WordActionsTest {
         ),
     )
 
-    private fun actions(translation: PackHandle.Open?) = wordActions(
+    private fun actions() = wordActions(
         isFavorite = false,
         onToggleFavorite = {},
-        translationPack = translation,
-        onViewTranslation = {},
         onCopy = {},
     ).map { it.label }
 
-    @Test
-    fun withNoTranslationPackTranslateIsNotOffered() {
-        assertEquals(listOf(R.string.action_save, R.string.action_copy), actions(null))
-    }
 
-    @Test
-    fun withABilingualPackItIsOffered() {
-        assertEquals(
-            listOf(R.string.action_save, R.string.action_translate, R.string.action_copy),
-            actions(pack("es-en", PackKind.BILINGUAL)),
-        )
-    }
 
-    @Test
-    fun aBilingualPackStillCountsEvenIfItPredatesTheKey() {
-        // ⚠️ **La regresion que esto cierra fue real y la destapo el pack construido.** Al pasar
-        // de `kind` a `translationsTo` (D-183), el pack BILINGUE --cuyo proposito entero es
-        // traducir-- dejaba de ofrecerse, porque su tabla de configuracion no declaraba la clave
-        // nueva. Hoy la declara; esto fija que un pack anterior tambien funcione, porque un
-        // bilingue traduce por definicion: sus glosas ya estan en el idioma destino.
-        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
-                            pack("es-en", PackKind.BILINGUAL))
-        assertEquals("es-en", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
-    }
 
-    @Test
-    fun aMonolingualPackThatDeclaresTranslationsIsOne() {
-        // ⚠️ El pack español ahora **traduce** --lee la tabla del Wikcionario y llena `T`/`W`--
-        // pero sigue siendo `monolingual`, porque sus DEFINICIONES son en español. Filtrar por
-        // `kind` dejaba la acción sin ofrecer nunca sobre un pack que sí traduce: `kind`
-        // contesta en qué idioma están las definiciones, no qué sabe hacer el pack.
-        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
-                            pack("es-otro", PackKind.MONOLINGUAL, translationsTo = "en"))
-        assertEquals("es-otro", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
-    }
 
-    @Test
-    fun theActionDisappearsWhenTheEntryAlreadyShowsItsOwn() {
-        // La acción existía para ir a buscar la palabra a OTRO pack. Ahora las traducciones se
-        // muestran dentro de la ficha, así que ofrecerla además sería mandar al lector a otra
-        // pantalla por lo que ya está viendo.
-        val opened = listOf(pack("es-def", PackKind.MONOLINGUAL),
-                            pack("es-en", PackKind.BILINGUAL))
-        assertNull(translationPack(opened, "es-def", entryHasTranslations = true))
-    }
 
-    @Test
-    fun anotherMONOLINGUALDictionaryIsNotATranslationPack() {
-        // This is today's real case: Spanish and English, both monolingual. Looking "house" up
-        // in the Spanish dictionary returns no translation, it returns nothing.
-        val opened = listOf(
-            pack("es-def", PackKind.MONOLINGUAL),
-            pack("en-def", PackKind.MONOLINGUAL),
-        )
-        assertNull(translationPack(opened, packOfTheEntry = "es-def", entryHasTranslations = false))
-    }
 
-    @Test
-    fun theTranslationPackIsBilingualAndNotTheOneBeingRead() {
-        val opened = listOf(
-            pack("es-def", PackKind.MONOLINGUAL),
-            pack("es-en", PackKind.BILINGUAL),
-        )
-        assertEquals("es-en", translationPack(opened, "es-def", entryHasTranslations = false)?.packId)
-        // While reading the bilingual one, translating to itself is not offered.
-        assertNull(translationPack(opened, "es-en", entryHasTranslations = false))
-    }
 
     @Test
     fun saveChangesItsLabelDependingOnWhetherItIsSaved() {
-        val saved = wordActions(
-            isFavorite = true,
-            onToggleFavorite = {},
-            translationPack = null,
-            onViewTranslation = {},
-            onCopy = {},
-        )
+        val saved = wordActions(isFavorite = true, onToggleFavorite = {}, onCopy = {})
         assertTrue(saved.first().label == R.string.action_unsave)
     }
 }
@@ -140,7 +71,7 @@ private class EmptySource(override val metadata: PackMetadata) : DictionarySourc
     override suspend fun suggest(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun entry(entryId: Long): Entry? = null
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
-    override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
+    override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
     override fun close() = Unit
 }

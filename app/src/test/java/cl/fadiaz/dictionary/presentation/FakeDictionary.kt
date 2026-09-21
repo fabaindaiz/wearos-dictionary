@@ -103,7 +103,7 @@ class FakeDictionary(
     /** What this fake can resolve: the words named by `knownHeadwords`. */
     var knownHeadwords: Map<String, Long> = emptyMap()
 
-    override suspend fun resolveHeadwords(norms: Set<String>): Map<String, Long> {
+    override suspend fun resolveHeadwords(norms: Set<String>, lang: String?): Map<String, Long> {
         resueltas += norms
         return knownHeadwords.filterKeys { it in norms }
     }

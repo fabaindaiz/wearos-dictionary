@@ -67,9 +67,9 @@ class PlatformAssumptionsTest {
         // El nombre del ARCHIVO sigue siendo toy-es-en.db, y que no coincidan es a proposito
         // (`PackHandle.fileName` lo documenta).
         assertEquals("es-tr-toy", abierto.metadata.packId)
-        // 77 y no 28: el toy es BIDIRECCIONAL desde D-196 -- 28 entradas españolas mas 49
+        // 82 y no 28: el toy es BIDIRECCIONAL desde D-196 -- 30 entradas españolas mas 52
         // inglesas derivadas de sus traducciones, en el mismo archivo.
-        assertEquals(77, abierto.metadata.entryCount)
+        assertEquals(82, abierto.metadata.entryCount)
         assertEquals(listOf("es", "en"), abierto.metadata.langs)
         assertTrue("el diccionario de payload llego vacio", abierto.payloadDictionary.isNotEmpty())
     }

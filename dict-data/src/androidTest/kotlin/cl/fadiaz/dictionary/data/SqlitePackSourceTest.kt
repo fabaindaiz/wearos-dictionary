@@ -83,6 +83,28 @@ class SqlitePackSourceTest {
     }
 
     @Test
+    fun resolverUNA_TRADUCCION_mira_el_IDIOMA_y_no_solo_el_rank() = runTest {
+        // ⚠️ **El bug que esto cierra lo reportó el usuario y es sistémico.** `resolveHeadwords`
+        // elegía por mejor `rank` sin mirar el idioma, lo que era correcto mientras un pack
+        // tuviera uno solo. En un pack bidireccional `pie` es **las dos cosas** --español, parte
+        // del cuerpo; inglés, pastel-- así que tocar la traducción `pie` de `foot` podía abrir
+        // el `pie` INGLÉS: una traducción que te devuelve al idioma del que venías.
+        //
+        // Medido sobre el pack real antes de arreglarlo: **8,30 %** de las traducciones de
+        // entradas inglesas (7.757 de 93.473) resolvían al idioma equivocado.
+        val enEspanol = source.resolveHeadwords(setOf("pie"), lang = "es")
+        val enIngles = source.resolveHeadwords(setOf("pie"), lang = "en")
+        assertNotNull("'pie' existe en español", enEspanol["pie"])
+        assertNotNull("'pie' existe en inglés", enIngles["pie"])
+        assertTrue(
+            "cada idioma tiene que dar SU entrada, no la de mejor rank",
+            enEspanol["pie"] != enIngles["pie"],
+        )
+        assertEquals("es", source.entry(enEspanol.getValue("pie"))?.lang)
+        assertEquals("en", source.entry(enIngles.getValue("pie"))?.lang)
+    }
+
+    @Test
     fun elFiltroDeIDIOMA_deja_fuera_al_otro() = runTest {
         // ⚠️ La mitad de D-197: en un pack bidireccional `casa` y `house` conviven, y una lista
         // que el usuario filtro a español no puede traer lemas ingleses.

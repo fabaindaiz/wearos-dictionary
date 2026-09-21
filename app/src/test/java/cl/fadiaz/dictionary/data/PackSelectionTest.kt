@@ -218,7 +218,7 @@ private class SoloMetadata(override val metadata: PackMetadata) :
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) =
         emptyList<cl.fadiaz.dictionary.core.Suggestion>()
     override suspend fun entry(entryId: Long): cl.fadiaz.dictionary.core.Entry? = null
-    override suspend fun resolveHeadwords(norms: Set<String>) = emptyMap<String, Long>()
+    override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): cl.fadiaz.dictionary.core.EntrySummary? = null
     override fun close() = Unit
 }

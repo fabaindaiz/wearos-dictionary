@@ -50,6 +50,7 @@ import androidx.wear.input.RemoteInputIntentHelper
 import androidx.wear.input.wearableExtender
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.Suggestion
@@ -86,6 +87,8 @@ fun SearchScreen(
     // no lo cablea sigue comportandose como antes.
     onTypingChanged: (Boolean) -> Unit = {},
     onLanguageChange: (String) -> Unit = {},
+    /** Avisa que el input del sistema va a tapar la app. Ver `SearchViewModel.onLeftApp`. */
+    onSystemInputOpening: () -> Unit = {},
     // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
     // hatch, indistinguishable from one that works.
     onSearchDefinitions: () -> Unit,
@@ -113,8 +116,16 @@ fun SearchScreen(
     // Las palabras del día que se van a mostrar: **una por idioma, no una por pack** (D-151),
     // el activo primero. Se calcula acá y no dentro del lambda de la lista porque ahí no hay
     // `remember` --no es un scope de composición-- y se rehacía en cada recomposición.
+    // ⚠️ **El representante se elige entre los DICCIONARIOS DE DEFINICIONES**, y saltarse ese
+    // filtro hizo desaparecer la palabra del día entera. `representativePacks` elige el pack más
+    // grande de cada idioma, y el bilingüe pasó a ser el más grande de los DOS --209.484 contra
+    // 152.281 del español y 16.652 del núcleo inglés-- así que la pantalla pedía la palabra de un
+    // pack que no genera ninguna. Filtrar antes y no después es lo que lo arregla.
     val ofTheDay = remember(state.available, state.active?.packId, state.wordsOfTheDay) {
-        representativePacks(state.available, state.active?.packId)
+        val conDefiniciones = state.available.filter {
+            it !is PackHandle.Open || it.metadata.kind != PackKind.BILINGUAL
+        }
+        representativePacks(conDefiniciones, state.active?.packId)
             .mapNotNull { handle -> state.wordsOfTheDay[handle.packId]?.let { handle to it } }
             .sortedByDescending { it.first.packId == state.active?.packId }
     }
@@ -204,6 +215,9 @@ fun SearchScreen(
                     // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
                         SearchBar(state.query, onQueryChange, onTypingChanged) {
+                            // Avisa antes de lanzar: el input del sistema tapa la app y su
+                            // `ON_STOP` no puede confundirse con salir. Ver `onLeftApp`.
+                            onSystemInputOpening()
                             voice.launch(nativeInputIntent(voiceLabel))
                         }
                     }

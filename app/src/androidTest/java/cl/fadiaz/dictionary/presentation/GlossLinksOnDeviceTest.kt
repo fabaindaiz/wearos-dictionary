@@ -47,7 +47,7 @@ class GlossLinksOnDeviceTest {
             EntryScreen(
                 entryId = 1,
                 onOpenWord = { abierta = it },
-                resolveIn = { mapOf("cera" to WordLink("test", 77L)) },
+                resolveIn = { _, _, _ -> mapOf("cera" to WordLink("test", 77L)) },
             ) { entry("cilindro de cera con mecha") }
         }
         compose.waitForIdle()
