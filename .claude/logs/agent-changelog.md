@@ -26,6 +26,92 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-20 — Revisión completa: los dos linters estaban apagados y los documentos mentían
+
+**Qué.** D-160 (las herramientas de calidad son gates o se pudren), D-161 (un número que un
+documento afirma tiene enforcer) y D-162 (lo que no es la pantalla sale de `SearchScreen`). Más
+los reportes del compilador de Compose detrás de una property, y el término de UI agregado a
+`docs/bateria.md`. **Ningún cambio de comportamiento de la app.**
+
+**Áreas.** `app/build.gradle.kts` (bloque `lint`, `composeCompiler`, `jvmTarget`, core-ktx) ·
+`pyproject.toml` (linter separado del formateador, SIM115) · `tools/audit_dictionary.py`
+(`check_test_counts`, paridad de plurales, E741) · `presentation/Labels.kt` y
+`presentation/PackGrouping.kt` (nuevos) · `SearchScreen.kt`, `SettingsScreen.kt`, `PackStore.kt` ·
+`values/` y `values-es/strings.xml` · las dos previews de tiles · 9 archivos de `tools/` ·
+`docs/bateria.md`, `docs/decisions.md`, `docs/roadmap.md`, `README.md`, `tools/CLAUDE.md`,
+`dict-data/CLAUDE.md`.
+
+**Por qué.** Pedido: *«revisión completa del repositorio, el estado de su documentación y del
+código, respecto de buenas prácticas y posibles refactorizaciones y optimizaciones, aplicando
+todos los cambios razonables y considerando también el tema de la batería»*.
+
+**Arquitectura.** ✅ Cumple. Lo que **no** se hizo importa más que lo que sí: (a) no se tocó
+`:dict-core` para arreglar la estabilidad de Compose, que habría metido `compose-runtime` en el
+módulo que D-017 y D-018 mantienen portable — y además la medición dijo que no hacía falta; (b) no
+se metió ruff en el gate, porque el gate corre con `python3` pelado a propósito (D-046) y ruff es
+un tercero; (c) no se corrió `ruff format`, que son 2.359 líneas y es una adopción de estilo, no
+una revisión.
+
+**Medido.**
+
+- **Android lint: 17 advertencias**, de las cuales **5 reales** — dos cadenas muertas, un contador
+  sin plural, cinco `edit()` sin KTX y dos vectores sobredimensionados. Ahora `warningsAsErrors`.
+- **ruff: 26 violaciones** en 14 archivos. Reales: 5 nombres `l` ambiguos, 3 variables de bucle
+  sin usar, 1 local asignada y nunca leída. Falsas: 7 de `SIM115`.
+- **`ruff format --check`: 2.359 líneas en 28 de 36 archivos.** Ese número es el que explica por
+  qué nadie corría el comando.
+- **Compose: los 21 composables de `:app` son restartable Y skippable**, con strong skipping
+  activo. 10 clases figuran inestables y **no importa**.
+- **`SearchScreen.kt`: 861 → 686 líneas.**
+- **Conteos reales**: 81 `:dict-core` · 251 `:app` JVM · 250 Python · 23 checks · 41
+  instrumentados. Cuatro documentos decían otra cosa.
+
+**Qué salió mal.**
+
+- ⚠️ **Deshice con `git checkout` un archivo que tenía trabajo sin commitear.** Estaba probando
+  que `check_test_counts` fallara y muté `values/strings.xml`; para restaurarlo usé
+  `git checkout <archivo>`, que lo devolvió a HEAD y **se llevó también las ediciones de esta
+  sesión** —las dos cadenas muertas borradas y el bloque de plurales—. Lo agarré porque volví a
+  correr el audit. **La forma correcta de probar un chequeo destructivo es copiar el archivo
+  antes**, que es lo que hice en la segunda prueba. El riesgo real es que en un archivo que no
+  vuelvo a mirar, esto se pierde en silencio.
+- **Repetí un error que el repo ya tenía escrito**: metí `--` dentro de un comentario XML y las
+  dos previews dejaron de compilar. D-149 ya había pisado exactamente eso.
+- **El primer patrón de `check_test_counts` no matcheaba las frases partidas en dos líneas** del
+  roadmap; se arreglaron con `\n?` en el patrón, pero es la fragilidad inherente de vigilar prosa
+  y por eso el chequeo falla —en vez de callarse— cuando un patrón deja de matchear.
+- **Casi escribo una optimización que no servía**: iba a proponer una stability configuration file
+  para Compose. El reporte del compilador dijo que con strong skipping no compraba nada. Razonar
+  sobre estabilidad me llevaba derecho al trabajo inútil.
+- ⚠️ **El commit de documentación salió ROJO y sólo lo vio el worktree, y detrás había un bug
+  del chequeo.** `docs/bateria.md` nombraba el directorio de reportes de Compose, que existe
+  únicamente en el árbol donde alguien corrió el reporte: en mi máquina `check_doc_paths` pasaba
+  y en un clone limpio no. Al arreglarlo apareció **un segundo caso, preexistente**: una entrada
+  vieja del changelog nombra el pack de juguete, que `build_toy.py` genera y que D-020 decidió no
+  commitear. **O sea que el chequeo venía fallando en cualquier clone limpio desde hacía
+  sesiones, y pasando en el de quien escribía.** La causa es que miraba `os.path.exists`, que
+  responde por la máquina y no por el repo. Ahora consulta `.gitignore`: si git lo ignora, no es
+  un archivo del repo y un documento puede nombrarlo. Comprobado en las dos direcciones — una
+  ruta inventada sigue fallando, el pack de juguete ya no. **La única razón de haber visto nada
+  de esto es que `CLAUDE.md` obliga a verificar cada commit con `git worktree`**; costó cuatro
+  corridas del gate de ~1 minuto y encontró un agujero de varias sesiones.
+
+**Qué quedó sin hacer.**
+
+- **`ruff format` sigue sin correr**: 2.359 líneas esperando una decisión que es de estilo de casa
+  y no mía. `hatch run lint:format-apply` lo hace en un commit propio cuando se quiera.
+- **Ruff no está en el gate y no puede estarlo** sin romper D-046. Hoy depende de que alguien
+  corra `hatch run lint:check`. **Es fricción de proceso, primera vez**: si vuelve a derivar, la
+  línea va al roadmap §Proceso con la aritmética, y el mecanismo natural es un hook o CI, no el
+  gate.
+- **Nada de esto se vio en el reloj**, y ahora son 16 decisiones de atraso (D-147 a D-162).
+- **El comentario `@Suppress("TooGenericExceptionCaught", "SwallowedException")` de
+  `SearchRepository` nombra reglas de detekt, que este repo no tiene configurado.** No molesta
+  —Kotlin ignora nombres desconocidos— pero hace creer que hay un linter vigilando ahí. Lo dejo
+  anotado en vez de tocarlo: sacarlo es trivial, decidir si conviene *agregar* detekt no lo es.
+
+---
+
 ## 2026-09-20 — El primer dato de batería, y lo que la medición desmintió
 
 **Qué.** `docs/bateria.md` (nuevo) y `tools/measure_query_cost.py` (nuevo). §O-4 del roadmap se

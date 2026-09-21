@@ -64,6 +64,37 @@ B-tree lookup is logarithmic, so the pack being huge is a *storage* problem (§O
 one. The one place size does show is the gloss query, 0.18 → 0.86 ms, because English glosses are
 longer and hit the 64-key cap far more often (58.8 keys against 39.9).
 
+### The UI term, which the first version of this document did not price
+
+⚠️ **The cost model above covers the SQL and nothing else, and on a watch the CPU hog is usually
+Compose, not SQLite.** That gap is now closed by measurement rather than by argument.
+
+`./gradlew :app:assembleDebug -Pdictionary.composeReports` writes the Compose compiler's own
+report into the module's `build/compose_compiler/` directory — a build output, so it is not
+in the repo and there is nothing to read until you ask for it. Measured on 2026-09-20:
+
+| | |
+|---|---|
+| Composables declared in `:app` | **21** |
+| Of those, restartable **and skippable** | **21** |
+| Strong skipping | **on** |
+
+**Every composable in the app can skip.** That is the whole answer: a recomposition that changes
+nothing gets skipped instead of re-running.
+
+⚠️ **And it killed the fix I was about to propose.** Ten classes report as unstable —
+`SearchState`, `PackHandle.Open`, `PackSet.Ready` — because they carry `List<T>` and types from
+`:dict-core`. The textbook response is a Compose *stability configuration file*, which would have
+been the architecturally correct way to do it here (annotating `:dict-core` would drag
+`compose-runtime` into the module that D-017 and D-018 keep portable). **With strong skipping on,
+it would have bought nothing**, because unstable parameters are already compared by instance. The
+report is what said so; reasoning about stability would have led straight into the work.
+
+What the review did fix in this area is smaller and is **not** a battery item: three pure
+functions — `resultTags`, `languageChips` and the word-of-the-day grouping — were being recomputed
+on every recomposition instead of being `remember`ed. It is microseconds against minutes of
+screen. It was fixed because it costs one line, not because it shows up anywhere.
+
 ### A belief this killed
 
 `SqlitePackSource` says, in a comment, *"Prefijo del lema: el 95% del uso."* **Measured, on
@@ -193,7 +224,8 @@ the only lever that matters at this ratio.
 
 ### If it is the CPU — measure before believing it
 
-In rough order of what the cost model says is biggest:
+**The UI half of this is already measured and clean** (see above): all 21 composables skip. What
+is left is the query side, in rough order of what the cost model says is biggest:
 
 1. **The tolerant rung (`byFuzzy`) is the only expensive operation in the app**: up to 200
    candidates scored with Damerau-Levenshtein. It runs only when the previous rungs returned fewer
@@ -231,3 +263,6 @@ In rough order of what the cost model says is biggest:
 - **The cost model is a replica, not an instrument.** `tools/measure_query_cost.py` re-implements
   the cascade's SQL in Python. If `SqlitePackSource` changes its constants and the script does
   not, the script reports the wrong rung in silence. It says so in its own docstring.
+- **Nothing here measures drawing.** The Compose report says a composable *can* skip; it does not
+  say how expensive the frames that do run are. That needs a trace on the watch, same as
+  everything else in the protocol above.
