@@ -26,6 +26,47 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — Traducciones por acepción: la fuente lo declara y D-117 ya escribió el lector
+**Qué.** Nada de código. Se midieron **dos de los tres caminos** que §Alinear acepciones tenía
+como *«ninguno medido»*: atribuir traducciones a la acepción correcta dentro de un idioma, y unir
+acepción española con acepción inglesa. Documentado en `docs/roadmap.md`.
+**Áreas.** `docs/roadmap.md` (§Can translations be attached to the right sense).
+**Por qué.** El pedido: *«¿hay alguna forma de integrar las traducciones con las acepciones de las
+definiciones en los distintos idiomas o esto es algo muy complejo de lograr?»*.
+**Arquitectura.** ✅ Cumple. Nada construido. El camino 1 reusa `_by_sense_index` de D-117 sin
+inventar mecanismo nuevo.
+**Medido.**
+- **Dentro de un idioma no es complejo: la fuente etiqueta los dos lados.** De 51.911 acepciones
+  españolas en entradas con traducciones, **51.850 (99,9 %) declaran `sense_index`**.
+- Acepciones que **reciben** traducción: **23,0 %** con match exacto de string, **36,2 %**
+  expandiendo rangos. El trabajo real es ese: **18,8 % de los pares vienen como `1-2` o `1, 4`**
+  y `_by_sense_index` compara strings. Vale **+13,2 puntos**. Lo que queda sin parsear es residuo
+  (`'1b'` 3 veces, `'1 y 2'` 2, `'2 (en el aire)'` 1).
+- **Funciona en polisemia, que es donde importa**: `planta → plant` / `planta → floor`;
+  `vela → candle` / `vela → sail`; `banco → bank`, `pila → basin`, `muñeca → wrist`.
+- **Entre idiomas funciona y está casi vacío.** `en.jsonl` da **10.410** pares EN→ES y el
+  **100 %** traen el texto de SU acepción; cruzados con el `sense_index` del lado español dan
+  **1.461 pares**. Buenos —`libra ↔ pound [unit of mass]` y `libra ↔ pound [unit of currency]`
+  como pares distintos— pero 1.461 contra 152.281 entradas no paga la maquinaria. Y el lado
+  inglés es **prosa, no índice**: llegar a una acepción real del pack inglés pide un segundo
+  match difuso encima de esa base.
+**Qué salió mal.** Una hipótesis equivocada que costó dos mediciones y que conviene dejar escrita
+porque es contraintuitiva: al ver `alemán` con **2 acepciones** y traducciones en `[1] [2] [4]`
+concluí que `sense_index` estaba roto, y medí *posicionalmente* si los índices caían en rango
+(90,7 % dentro del registro, 99,2 % numerando la página). **Las dos mediciones eran de la pregunta
+equivocada**: la acepción **declara su propia etiqueta**, así que el join es de claves y nunca
+aritmético —que es literalmente lo que D-117 advierte— y la tabla de traducciones de la página se
+repite en cada registro, de modo que los índices ajenos **no unen, y eso es correcto**. Lo destapó
+imprimir las acepciones con su `sense_index` al lado, no otro conteo.
+**Qué quedó sin hacer.**
+- **Nada implementado.** Pasos: (1) leer `translations` en `kaikki.py` con `_by_sense_index`, (2)
+  expandir rangos numéricos —beneficia también a sinónimos y antónimos, que comparten lector—,
+  (3) dejar quieto el puente entre idiomas.
+- ⚠️ **Esto NO desbloquea §Alinear acepciones entre fuentes.** Sus 20.644 aportes descartados
+  vienen de fuentes que **no declaran** acepción (WordNet, Wikidata, ejemplos de enwiktionary).
+  Este camino funciona justo porque el Wikcionario sí la declara.
+- Sigue pendiente: APK y packs al reloj, trace de Perfetto, ~3.000 líneas en español.
+
 ## 2026-09-21 — La sección de traducciones: la pantalla ya sabe, el pack guarda la forma equivocada
 **Qué.** Nada de código. Se diseñó la sección de traducciones dentro de la ficha —complementaria a
 las definiciones, no un modo aparte— contra el código real de `EntryScreen`. Documentado en
