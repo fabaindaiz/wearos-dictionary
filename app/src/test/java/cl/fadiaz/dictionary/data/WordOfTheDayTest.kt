@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.EntrySummary
+import cl.fadiaz.dictionary.core.RankBasis
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +34,8 @@ class WordOfTheDayTest {
         entryCount: Int = 1000,
         read: suspend (Long) -> EntrySummary? = pack(),
         candidates: Int = WordOfTheDay.CANDIDATES,
-    ) = WordOfTheDay.pick(date, packId, entryCount, read, candidates)
+        rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
+    ) = WordOfTheDay.pick(date, packId, entryCount, read, candidates, rankBasis)
 
     @Test
     fun theSameDateAlwaysGivesTheSameWord() = runTest {
@@ -112,6 +114,11 @@ class WordOfTheDayTest {
 
     @Test
     fun theDayDecidesTheCategorySoTheyAreNotAllAlike() = runTest {
+        // ⚠️ **Sigue valiendo, pero SOLO para packs de riqueza de pagina** --el basis por
+        // defecto de este helper--. Un pack no se actualiza cuando la app se actualiza, asi que
+        // el reloj puede tener uno anterior a D-185; ahi el sesgo de verbos es real y la
+        // rotacion es la unica defensa. Ver el test de `RankBasis.FREQUENCY` mas abajo.
+        //
         // The bug this fixes was MEASURED on the real pack: 28 consecutive days gave 28 verbs,
         // because in Spanish the verb pages are the richest and `rank` measures richness
         // (D-067). Rotating the target category per day, the same sample gives noun 12, verb 8,
@@ -128,6 +135,39 @@ class WordOfTheDayTest {
             )?.partOfSpeech
         }.toSet()
         assertTrue(partsOfSpeech.size >= 3, "salieron casi siempre de la misma categoria: $partsOfSpeech")
+    }
+
+    @Test
+    fun conRANK_DE_FRECUENCIA_la_categoria_del_dia_NO_pisa_a_la_palabra_comun() = runTest {
+        // ⚠️ **La rotacion de categorias se apaga cuando el `rank` es frecuencia real, y eso
+        // deshace una regla que este archivo defendia.** Existia porque `rank` media riqueza de
+        // pagina y en español las paginas de verbo son las mas ricas: 28 dias daban 28 verbos.
+        // D-185 cambio el prior, asi que **ese sesgo ya no existe** -- y la rotacion paso de
+        // arreglar algo a romperlo: fuerza la mejor palabra DE LA CATEGORIA DEL DIA por encima
+        // de una mucho mas comun de otra.
+        //
+        // Medido sobre los packs reales, 112 dias: con rotacion, **79 % (es) y 49 % (en)** de
+        // los dias caen en la banda con señal; sin ella, **99 % y 82 %**. Y el sesgo no vuelve:
+        // 58 sustantivos / 20 adjetivos / 18 verbos / 7 adverbios en español.
+        //
+        // Aca: los sustantivos son comunes (rank 100, banda con señal) y todo lo demas es raro
+        // (rank 900, banda sin señal). Con frecuencia real tiene que ganar el comun **siempre**,
+        // sea o no el dia de su categoria.
+        val categorias = (1..28).map { day ->
+            pick(
+                date = "2026-10-%02d".format(day),
+                read = pack(
+                    pos = { id -> listOf("noun", "verb", "adj", "adv")[(id % 4L).toInt()] },
+                    rank = { id -> if (id % 4L == 0L) 100 else 900 },
+                ),
+                rankBasis = RankBasis.FREQUENCY,
+            )?.partOfSpeech
+        }
+        assertEquals(
+            List(28) { "noun" },
+            categorias,
+            "con rank de frecuencia manda la palabra comun, no la categoria del dia",
+        )
     }
 
     @Test

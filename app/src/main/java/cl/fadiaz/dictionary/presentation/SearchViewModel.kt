@@ -520,6 +520,7 @@ class SearchViewModel(
                         packId = packId,
                         entryCount = active.metadata.entryCount,
                         read = { id -> active.summary(id) },
+                        rankBasis = active.metadata.rankBasis,
                     )
                 }.getOrNull() ?: return@launch
                 week += Visit(
@@ -544,6 +545,7 @@ class SearchViewModel(
                         packId = pack.metadata.packId,
                         entryCount = pack.metadata.entryCount,
                         read = { id -> pack.summary(id) },
+                        rankBasis = pack.metadata.rankBasis,
                     )
                 }.getOrNull() ?: return@launch
                 _state.update {
