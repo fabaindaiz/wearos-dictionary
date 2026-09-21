@@ -505,6 +505,52 @@ class SinonimosTest(unittest.TestCase):
 
 
 
+class UltimaPalabraDelDumpTest(unittest.TestCase):
+    """La ultima palabra del archivo recibe las mismas opciones que todas las demas.
+
+    ⚠️ **El bug que esto fija ya ocurrio y ningun test lo agarraba.** Los registros se agrupan por
+    `word` y el grupo se vacia al ver uno distinto; el **ultimo grupo** sale por una llamada a
+    `_emit` **fuera del bucle**. Mientras las opciones se encadenaban a mano, olvidar esa segunda
+    llamada hacia que la ultima palabra del dump perdiera ese dato **en silencio** -- sin error,
+    sin log, y con el pack entero pasando `verify_pack.py`.
+
+    Ningun test existente podia verlo porque ninguno tenia dos palabras donde la segunda fuera la
+    ultima. `Opciones` cerro la puerta; esto fija que siga cerrada.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def test_la_ultima_palabra_recibe_traducciones_igual_que_la_primera(self):
+        path = _jsonl(
+            _raw("casa", "noun", [_sense("edificacion", sense_index="1")],
+                 translations=[{"word": "house", "code": "en", "sense_index": "1"}]),
+            _raw("zumo", "noun", [_sense("liquido de una fruta", sense_index="1")],
+                 translations=[{"word": "juice", "code": "en", "sense_index": "1"}]),
+        )
+        self.paths.append(path)
+        got = {r.headword: r for r in kaikki.records(path, lang="es", translations_to="en")}
+        self.assertEqual(["house"], got["casa"].senses[0]["translations"])
+        self.assertEqual(["juice"], got["zumo"].senses[0]["translations"],
+                         "la ULTIMA palabra del archivo perdio sus traducciones")
+
+    def test_la_ultima_palabra_recibe_el_prior_de_frecuencia_igual(self):
+        path = _jsonl(
+            _raw("casa", "noun", [_sense("edificacion")]),
+            _raw("zumo", "noun", [_sense("liquido de una fruta")]),
+        )
+        self.paths.append(path)
+        got = {r.headword: r.rank
+               for r in kaikki.records(path, lang="es", frequencies={"casa": 5.5, "zumo": 5.5})}
+        self.assertEqual(got["casa"], got["zumo"],
+                         "la ULTIMA palabra del archivo no uso la señal de frecuencia")
+        self.assertLess(got["zumo"], kaikki.FRONTERA_CON_SENAL)
+
+
 class RankPorFrecuenciaTest(unittest.TestCase):
     """El prior de orden sale de la frecuencia de uso, y la riqueza queda de respaldo.
 

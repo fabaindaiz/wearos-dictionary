@@ -53,7 +53,6 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import normalize  # noqa: E402
 from build import Record  # noqa: E402
 from sources import frequency as _frequency  # noqa: E402
 
@@ -599,13 +598,46 @@ def _entra_el_nombre_propio(raw, perfil, politica):
     return _senal_lexica(raw) >= SENAL_LEXICA_MINIMA
 
 
-def _emit(group, inbound, perfil, politica, translations_to=None, frequencies=None):
+class Opciones:
+    """Lo que el build le pide al lector y que **no cambia entre registros**.
+
+    ⚠️ **Existe porque encadenar las opciones una por una ya costo un bug.** Cada opcion nueva
+    --`translations_to`, `frequencies`-- habia que sumarla a `records`, a `_emit` y a **los dos**
+    sitios donde `_emit` se llama, porque el ultimo grupo del archivo sale por una llamada aparte
+    fuera del bucle. Olvidar esa segunda llamada hace que **la ultima palabra del dump pierda ese
+    dato en silencio**, y paso: ningun test lo agarro, porque ninguno tiene dos palabras donde la
+    segunda sea la ultima.
+
+    Con esto, agregar una opcion es agregar un campo. Los sitios de llamada no se tocan.
+    """
+
+    __slots__ = ("perfil", "politica", "translations_to", "frequencies")
+
+    def __init__(self, perfil, politica, translations_to=None, frequencies=None):
+        self.perfil = perfil
+        self.politica = politica
+        self.translations_to = translations_to
+        self.frequencies = frequencies
+
+    def zipf(self, headword):
+        """La frecuencia de un lema, o None si no hay señal.
+
+        ⚠️ Usa `frequency.key` y **no** `norm()`: plegar el acento le da a `háber` la frecuencia
+        de `haber` --el verbo, puesto 210-- y lo manda a rank 97 contra 237 de `hábil`.
+        """
+        if not self.frequencies:
+            return None
+        return self.frequencies.get(_frequency.key(headword))
+
+
+def _emit(group, inbound, opciones):
     """Convierte un grupo de registros del mismo `word` en Records."""
+    perfil, politica = opciones.perfil, opciones.politica
     prepared = []
     for raw in group:
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             continue
-        senses = _senses(raw, translations_to)
+        senses = _senses(raw, opciones.translations_to)
         if not senses:
             continue
         prepared.append((raw, senses))
@@ -624,15 +656,13 @@ def _emit(group, inbound, perfil, politica, translations_to=None, frequencies=No
         headword = raw["word"]
         forms = _forms(raw, headword, inbound.get(headword, ()))
         por_acepcion = [t for s in senses for t in s["translations"]]
-        sueltas = _word_translations(raw, headword, translations_to, set(por_acepcion))
+        sueltas = _word_translations(raw, headword, opciones.translations_to, set(por_acepcion))
         yield Record(
             headword=headword,
             senses=senses,
             part_of_speech=pos,
             rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name"),
-                       # ⚠️ `frequency.key` y NO `norm()`: plegar el acento le da a
-                       # `háber` la frecuencia de `haber`. Ver `sources/frequency.py`.
-                       zipf=(frequencies or {}).get(_frequency.key(headword))),
+                       zipf=opciones.zipf(headword)),
             forms=forms,
             # ⚠️ **El canal de BUSQUEDA lleva las dos**, atribuidas y sueltas: para encontrar
             # `casa` escribiendo `house` da igual si la fuente supo a que acepcion pertenece.
@@ -696,7 +726,7 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
     if politica not in POLITICAS_DE_NOMBRES:
         raise ValueError("politica de nombres propios desconocida: %r (son %s)"
                          % (politica, ", ".join(POLITICAS_DE_NOMBRES)))
-    perfil = PERFILES[lang]
+    opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies)
     inbound = _inbound_forms(path)
     group = []
     current = None
@@ -709,13 +739,12 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
             if not word:
                 continue
             if word != current:
-                for record in _emit(group, inbound, perfil, politica, translations_to,
-                                    frequencies):
+                for record in _emit(group, inbound, opciones):
                     yield record
                 group = []
                 current = word
             group.append(raw)
-    # ⚠️ El ultimo grupo del archivo sale por aca y NO por el bucle: si este olvida un
-    # parametro, la ultima palabra del dump pierde ese dato en silencio.
-    for record in _emit(group, inbound, perfil, politica, translations_to, frequencies):
+    # El ultimo grupo del archivo sale por aca y no por el bucle. Con [Opciones] ya no
+    # hay nada que olvidar, que es justo lo que este refactor vino a cerrar.
+    for record in _emit(group, inbound, opciones):
         yield record

@@ -148,6 +148,37 @@ class SqlitePackSourceTest {
     }
 
     @Test
+    fun losDosCanalesDeTraduccionLleganSeparadosDesdeElPack() = runTest {
+        // ⚠️ **El canal `W` no lo ejercitaba ningun pack, y por eso este test existe.** El
+        // segundo canal (D-179) lleva las traducciones que la fuente NO pudo atribuir a una
+        // acepcion, y existe para que embadurnarlas por todas deje de ser gratis. Estaba
+        // construido de punta a punta --builder, payload, codec, modelo, pantalla-- y **ninguna
+        // fixture lo tenia**, asi que nada habria avisado si se rompia.
+        //
+        // `corriente` lo trae a proposito en el pack de juguete: `draught` a nivel de entrada,
+        // mas `current`/`stream` dentro de su primera acepcion.
+        val sugerencia = source.suggest("corriente").first { it.headword == "corriente" }
+        val entrada = source.entry(sugerencia.entryId)
+
+        assertNotNull("no se pudo abrir la entrada", entrada)
+        assertTrue(
+            "la acepcion perdio sus traducciones propias (tag T)",
+            entrada!!.senses[0].translations.contains("current"),
+        )
+        assertEquals(
+            "la traduccion de nivel de entrada (tag W) no llego",
+            listOf("draught"),
+            entrada.wordTranslations,
+        )
+        // ⚠️ Y **separadas**: colgar lo no atribuido de una acepcion es el error de D-117, que se
+        // lee plausible y no lo agarra nadie.
+        assertTrue(
+            "una traduccion de la palabra se colo dentro de una acepcion",
+            entrada.senses.none { it.translations.contains("draught") },
+        )
+    }
+
+    @Test
     fun laEntradaTraeSuIdentidadLogicaYNoEsElRowid() = runTest {
         // D-055. El uid es lo que un pack auxiliar va a usar para sumarle informacion a esta
         // misma entrada; si llegara en cero o igual al rowid, la composicion apuntaria mal y
