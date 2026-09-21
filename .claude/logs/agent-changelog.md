@@ -26,6 +26,54 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-21 — El índice inverso del pack bilingüe, pesado en vez de discutido
+**Qué.** Nada de código. Se midió si el pack de traducciones puede llevar el índice **en los dos
+sentidos**, cuánto pesa cada forma de guardarlo, y se descartó con números la alternativa de un
+pack autorado EN→ES. Se documentó en `docs/roadmap.md`. De rebote se encontró y fichó un defecto
+del pack inglés.
+**Áreas.** `docs/roadmap.md` (§An English–Spanish translation pack, §Pack de inglés).
+**Por qué.** El pedido: *«¿no puedo hacer mejor que un diccionario de traducción tenga las tablas
+en ambos sentidos, aumenta demasiado el peso esto?»*. La sesión anterior había dejado escrito que
+una tabla de flexiones inglesas cerraría la brecha, **sin pesarla** — o sea una recomendación sin
+precio, que es exactamente lo que este repo no acepta.
+**Arquitectura.** ✅ Cumple. Nada se construyó: la forma recomendada agrega una tabla, y eso es un
+cambio de esquema bajo D-001 (el pack se rechaza y se reconstruye, no se migra). Se deja decidido
+y sin implementar a propósito — el usuario dijo tener ideas propias.
+**Medido.**
+- Cobertura EN→ES con el índice: **92,7 → 99,4 %** (top 1.000), **85,9 → 99,6 %** (3.000),
+  **78,1 → 98,9 %** (8.000).
+- Dos formas construidas y pesadas, no estimadas: expandir dentro de `trans` = 379.000 filas,
+  **5,88 MB**; tabla de indirección `(norm, lemma)` = 84.319 filas, **1,84 MB**. **3,2× de
+  diferencia**, porque una clave inglesa apunta a 2,3 entradas españolas y expandir repite ese
+  abanico por cada flexión.
+- El pack autorado EN→ES **no tiene de dónde salir**: sobre los 3,2 GB del dump inglés completo,
+  de **1.492.836** entradas inglesas sólo **9.221 (0,6 %)** traen `translations` y **5.080
+  (0,3 %)** una al español — **10.438 pares**, contra las 206.727 filas ya derivadas de las
+  glosas.
+- Defecto del pack inglés: **38,7 %** de sus 985.992 filas de `form` contienen un espacio, más
+  `no table tags` (577) y `glossary` (575), que son artefactos de wiktextract. El español, en
+  comparación, tiene como forma más repetida `unas`, 16 veces.
+**Qué salió mal.** Dos veces, y las dos por contar en vez de mirar.
+1. La **primera estimación de peso dio 3,2 MB y estaba mal**: se calculó escalando el tamaño de
+   `trans` por el número de flexiones, ignorando que cada flexión hereda el abanico de 2,3
+   entradas del lema. Construir las dos tablas de verdad dio 5,88 MB. La lección es la de
+   `CLAUDE.md`: el número que no se construyó no es una medición.
+2. La muestra ciega de 20 filas —hecha sólo porque `CLAUDE.md` obliga a *leer entradas, no contar
+   filas*— destapó que el candidato crudo venía **35 % basura** (`glossary`, `no table tags`,
+   `1 000 000 questions`). Sin ese paso se habrían escrito 130.378 pares en vez de 84.319, y el
+   defecto del pack inglés seguiría sin fichar. **El filtro salió gratis**: la cobertura no se
+   movió ni una décima.
+**Qué quedó sin hacer.**
+- **No se implementó nada.** Queda decidida la forma (B, indirección) y sin construir.
+- El residuo que el índice no cierra **no es vocabulario sino el tokenizador**: `didn`, `doesn`,
+  `wasn`, `shouldn`, `hasn`, `hadn` son mitades de contracciones que `tatoeba.frequencies` parte
+  por el apóstrofo. Eso afecta también a `build_core.py`, que elige vocabulario con esa misma
+  función — o sea que **el núcleo inglés tiene contracciones partidas entre sus 8.000 palabras**.
+  No está fichado aparte todavía.
+- Los 10.438 pares curados del dump inglés valen como claves extra y no se usaron.
+- Sigue pendiente todo lo de la sesión anterior: instalar el APK y el pack en el reloj, el trace
+  de Perfetto, y las ~3.000 líneas en español.
+
 ## 2026-09-21 — The third pack: bilingual ES→EN, and it works in both directions
 
 **What.** D-177: a bilingual pack, 123,979 entries in 50.2 MB, the first one that fills `trans`.
