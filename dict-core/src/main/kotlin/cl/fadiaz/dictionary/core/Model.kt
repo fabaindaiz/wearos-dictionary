@@ -51,7 +51,19 @@ data class PackMetadata(
     val langTarget: String?,
     val fuzzyProfile: FuzzyProfile,
     val entryCount: Int,
-    val dataVersion: Int,
+    /**
+     * Que build del pack es esto: `AAAAMMDDHHMM`, del reloj del build.
+     *
+     * ⚠️ **`Long` y no `Int`, y no es un detalle de estilo**: `202609211432` pasa el tope de un
+     * `Int` de 32 bits, asi que con `Int` el pack revienta al ABRIR en el reloj con un
+     * NumberFormatException que no nombra la clave (D-070). Hay un test del builder que lo fija
+     * desde el otro lado.
+     *
+     * **No es la fecha del dump**, que es `meta.source_date` y es informativa. Esto ordena: un
+     * instalador compara dos numeros para saber cual pack es mas nuevo, y dos builds del mismo
+     * dump tienen que dar numeros distintos o un pack mejor no se propaga.
+     */
+    val dataVersion: Long,
     val license: String,
     val attribution: String,
     /**

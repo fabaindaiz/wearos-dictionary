@@ -50,6 +50,7 @@ import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.GlossTokenizer
 import cl.fadiaz.dictionary.core.Sense
+import cl.fadiaz.dictionary.core.TextNormalizer
 
 /**
  * The body of an entry. It is the only screen that decompresses a payload: the list is served
@@ -99,17 +100,29 @@ fun EntryScreen(
         failure = entry == null
     }
 
-    // Which words in the glosses are headwords of the pack, in ONE query for the whole screen
-    // and not one per word. Only the ones that exist get painted, so the colour promises upfront
-    // that it leads somewhere. It lives in its own effect because it depends on the loaded entry.
+    // Qué palabras de la pantalla son lemas del pack, **en dos consultas para toda la ficha** y
+    // no una por palabra. Sólo se pintan las que existen, así que el color promete de antemano
+    // que lleva a algún lado. Vive en su propio efecto porque depende de la entrada cargada.
+    //
+    // ⚠️ **Dos consultas y no una, y el motivo es un tope duro**: `MAX_PALABRAS_POR_CONSULTA` es
+    // 64 porque cada clave es un parámetro enlazado de SQLite. Las glosas ya promedian 39,9
+    // claves en español y 58,8 en inglés, así que meter además los sinónimos, antónimos y
+    // relacionadas de cada acepción desbordaría el tope y **recortaría en silencio** -- y lo
+    // recortado serían justo los términos, que son los que más valen como enlace. Separadas,
+    // cada una tiene su propio tope. Medido: 0,18 ms cada una en español.
     LaunchedEffect(entry) {
         val loaded = entry ?: return@LaunchedEffect
-        val keys = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
+        val deLaGlosa = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
             .map { it.norm }
             .toSet()
-        links = runCatching { resolveIn(keys) }
+        val deLosTerminos = loaded.senses
+            .flatMap { it.synonyms + it.antonyms + it.related }
+            .map { TextNormalizer.norm(it) }
+            .filterNot { it.isEmpty() }
+            .toSet()
+        links = runCatching { resolveIn(deLaGlosa) + resolveIn(deLosTerminos) }
             .getOrDefault(emptyMap())
-            // A link to the entry we are already reading leads nowhere.
+            // Un enlace a la entrada que ya estás leyendo no lleva a ningún lado.
             .filterValues { it != entryId }
     }
 
@@ -337,42 +350,84 @@ private fun SenseBlock(
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
         }
-        // The synonyms go on a single line and after the example: they are a help, not the
-        // definition. The cap of four already comes from the payload (MAX_SYNONYMS_PER_SENSE),
-        // so nothing needs to be trimmed here.
-        if (sense.synonyms.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.entry_synonyms_prefix) + " " +
-                    sense.synonyms.joinToString(stringResource(R.string.entry_list_separator)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
-            )
-        }
-        // The antonyms, below and at the same visual weight (D-126). The prefix is NOT optional
-        // and cannot look like "sin.": the two lists look identical and the only difference
-        // between "another way to say it" and "the opposite" is those four letters.
-        if (sense.antonyms.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.entry_antonyms_prefix) + " " +
-                    sense.antonyms.joinToString(stringResource(R.string.entry_list_separator)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
-            )
-        }
-        // The related words, last, because they are the weakest claim of the three: not another
-        // way to say it and not the opposite, just a neighbour. They only exist for the THIN
-        // entries --one sense, no example-- which are 70,4 % of the Spanish pack, so in practice
-        // this line is the only thing under the gloss (D-132).
-        if (sense.related.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.entry_related_prefix) + " " +
-                    sense.related.joinToString(stringResource(R.string.entry_list_separator)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 10.dp),
-            )
+        // Las tres listas, con su categoría arriba y las palabras abajo. La categoría iba antes
+        // como prefijo --`sin.`, `ant.`, `rel.`-- y ahora va escrita entera, que es la misma
+        // regla de D-159: en una fila se abrevia porque el lema necesita el ancho; acá no
+        // compite con nada.
+        TermList(R.string.entry_synonyms_title, sense.synonyms, links, onOpenWord)
+        // Los antónimos, debajo y con el mismo peso visual (D-126). ⚠️ **La categoría no es
+        // opcional**: las tres listas se ven idénticas, y lo único que separa "otra forma de
+        // decirlo" de "lo contrario" es esa palabra.
+        TermList(R.string.entry_antonyms_title, sense.antonyms, links, onOpenWord)
+        // Las relacionadas, últimas, porque son la afirmación más débil de las tres: ni otra
+        // forma de decirlo ni lo contrario, sólo una vecina. Existen sobre todo para las
+        // entradas FLACAS --una acepción, sin ejemplo-- que son el 70,4 % del pack español, así
+        // que en la práctica esta lista es lo único que hay bajo la glosa (D-132).
+        TermList(R.string.entry_related_title, sense.related, links, onOpenWord)
+    }
+}
+
+/**
+ * Una de las tres listas de la acepción: la categoría arriba, las palabras abajo y **tocables**.
+ *
+ * Pedido: *«mejorar la vista de sinónimos y antónimos, primero mostrando la categoría y abajo las
+ * palabras pudiendo hacerles click para ir a ellas»*.
+ *
+ * ⚠️ **Cuesta una línea más por lista, y en 234 dp eso se paga.** Se acepta porque la línea que
+ * agrega es la que dice de qué lista estás leyendo, que es la información que D-126 y D-132
+ * dicen que no puede faltar; y se abarata con `labelSmall` y sin padding vertical entre el
+ * título y sus palabras, así que las dos líneas juntas ocupan menos que una fila de lista.
+ *
+ * ⚠️ **Sólo se pinta como enlace lo que existe en el pack**, igual que en la glosa: el color es
+ * la promesa de que lleva a algún lado, y una palabra pintada que no navega es peor que una sin
+ * pintar.
+ */
+@Composable
+private fun TermList(
+    @StringRes title: Int,
+    terms: List<String>,
+    links: Map<String, Long>,
+    onOpenWord: (Long) -> Unit,
+) {
+    if (terms.isEmpty()) return
+    Text(
+        text = stringResource(title),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 6.dp, start = 10.dp),
+    )
+    Text(
+        text = linkedTerms(terms, links, onOpenWord),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 10.dp),
+    )
+}
+
+/** Los términos separados por el separador de siempre, con los conocidos como enlace. */
+@Composable
+private fun linkedTerms(
+    terms: List<String>,
+    links: Map<String, Long>,
+    onOpenWord: (Long) -> Unit,
+): AnnotatedString {
+    val separator = stringResource(R.string.entry_list_separator)
+    val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
+    return remember(terms, links, separator, style) {
+        buildAnnotatedString {
+            terms.forEachIndexed { index, term ->
+                if (index > 0) append(separator)
+                val target = links[TextNormalizer.norm(term)]
+                if (target == null) {
+                    append(term)
+                } else {
+                    withLink(
+                        LinkAnnotation.Clickable("termino:$target", style) { onOpenWord(target) },
+                    ) {
+                        append(term)
+                    }
+                }
+            }
         }
     }
 }

@@ -93,11 +93,12 @@ class EnglishLocaleTest {
                 )
             }
         }
-        // Los tres prefijos de lista, que son lo único que separa "otra forma de decirlo" de "lo
-        // contrario" y de "un vecino" (D-126, D-132).
-        compose.onNodeWithText("syn. huanaco", substring = true).assertExists()
-        compose.onNodeWithText("ant. none", substring = true).assertExists()
-        compose.onNodeWithText("rel. vicuña", substring = true).assertExists()
+        // Las tres categorías de lista, que son lo único que separa "otra forma de decirlo" de
+        // "lo contrario" y de "un vecino" (D-126, D-132). Desde que son títulos y no prefijos de
+        // cuatro letras, son además tres cadenas nuevas que pueden faltar en un idioma.
+        compose.onNodeWithText("Synonyms").assertExists()
+        compose.onNodeWithText("Antonyms").assertExists()
+        compose.onNodeWithText("Related").assertExists()
     }
 
     @Test

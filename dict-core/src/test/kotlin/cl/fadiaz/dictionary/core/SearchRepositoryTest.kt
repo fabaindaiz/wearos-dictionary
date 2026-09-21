@@ -29,14 +29,20 @@ class SearchRepositoryTest {
         private val rows: List<Suggestion> = emptyList(),
         private val definitions: List<Suggestion> = emptyList(),
         private val fails: Boolean = false,
+        /** El idioma, para los tests del respaldo. El resto de la suite es toda `es`. */
+        private val lang: String = "es",
     ) : DictionarySource {
+        /** Cuantas veces se consulto. El respaldo se mide por lo que NO pregunta. */
+        var consultas = 0
+            private set
         override val metadata = PackMetadata(
             packId = id, schemaVersion = 3, normVersion = 2, kind = PackKind.MONOLINGUAL,
-            name = id, description = null, langSource = "es", langTarget = null,
+            name = id, description = null, langSource = lang, langTarget = null,
             fuzzyProfile = FuzzyProfile.SPANISH, entryCount = rows.size, dataVersion = 1,
             license = "CC-BY-SA-4.0", attribution = id,
         )
         override suspend fun suggest(query: String, limit: Int): List<Suggestion> {
+            consultas++
             if (fails) throw IllegalStateException("este pack esta roto")
             return rows.take(limit)
         }
@@ -285,4 +291,73 @@ class SearchRepositoryTest {
     fun `sin packs no lanza y devuelve vacio`() = runTest {
         assertTrue(SearchRepository(emptyList()).suggest("casa").isEmpty())
     }
+
+    // ---------------------------------------------------------------- respaldo entre idiomas
+
+    @Test
+    fun `con una buena respuesta en el idioma activo NO se consulta a los demas`() = runTest {
+        // ⚠️ **Lo que se mide es lo que NO pregunta.** El punto medio pedido era *«que no se
+        // sobrecargue la busqueda en varios packs innecesariamente»*: el caso normal no puede
+        // pagar nada por una funcion que existe para el caso raro.
+        //
+        // Medido sobre el pack real antes de escribir esto: de **400 lemas españoles comunes,
+        // 0 disparan el respaldo**.
+        val ingles = FakePack("en", listOf(row("en", "house")), lang = "en")
+        val repo = SearchRepository(
+            listOf(FakePack("es", listOf(row("es", "casa")))),
+            otherLanguages = listOf(ingles),
+        )
+        assertEquals(listOf("casa"), repo.suggest("casa").map { it.headword })
+        assertEquals(0, ingles.consultas, "el pack del otro idioma ni se toco")
+    }
+
+    @Test
+    fun `sin nada parecido en el idioma activo, contestan los otros`() = runTest {
+        // El caso que existe para resolver: escribiste una palabra inglesa con español activo.
+        // Medido: **321 de 400 lemas ingleses comunes** llegan aca.
+        val repo = SearchRepository(
+            listOf(FakePack("es", listOf(row("es", "guardarropa")))),
+            otherLanguages = listOf(FakePack("en", listOf(row("en", "wardrobe")), lang = "en")),
+        )
+        val got = repo.suggest("wardrobe").map { it.headword }
+        assertTrue("wardrobe" in got, "la respuesta correcta tiene que aparecer: $got")
+    }
+
+    @Test
+    fun `una respuesta exacta de otro idioma le gana a la basura del activo`() = runTest {
+        // ⚠️ **Y por eso el respaldo NO va simplemente "despues".** Si el idioma activo devolvio
+        // diez resultados por parecido fonetico, poner la respuesta correcta abajo de todos la
+        // deja fuera de pantalla -- que es lo mismo que no haberla buscado.
+        val repo = SearchRepository(
+            listOf(FakePack("es", listOf(row("es", "guardarropa", kind = MatchKind.FUZZY)))),
+            otherLanguages = listOf(FakePack("en", listOf(row("en", "wardrobe")), lang = "en")),
+        )
+        assertEquals("wardrobe", repo.suggest("wardrobe").first().headword)
+    }
+
+    @Test
+    fun `a igualdad de calidad manda el idioma que elegiste`() = runTest {
+        // El desempate va DESPUES de la calidad, no antes: el idioma activo es una preferencia,
+        // no una razon para mostrar algo peor.
+        val repo = SearchRepository(
+            listOf(FakePack("es", listOf(row("es", "faro", score = 100)))),
+            otherLanguages = listOf(FakePack("en", listOf(row("en", "farol", score = 100)),
+                lang = "en")),
+        )
+        assertEquals("faro", repo.suggest("far").first().headword)
+    }
+
+    @Test
+    fun `la busqueda por definicion NO hace respaldo`() = runTest {
+        // Ahi lo escrito es una palabra de la definicion, no un prefijo del lema, asi que la
+        // cobertura no significa nada y el umbral no se puede calcular (ver coverageBand).
+        val ingles = FakePack("en", definitions = listOf(row("en", "house")), lang = "en")
+        val repo = SearchRepository(
+            listOf(FakePack("es", definitions = listOf(row("es", "casa")))),
+            otherLanguages = listOf(ingles),
+        )
+        repo.searchDefinitions("vivienda")
+        assertEquals(0, ingles.consultas)
+    }
+
 }

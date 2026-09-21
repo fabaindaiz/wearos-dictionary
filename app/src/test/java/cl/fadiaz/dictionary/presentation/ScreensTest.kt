@@ -294,8 +294,13 @@ class ScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("sin. ardiente", substring = true).assertExists()
-        compose.onNodeWithText("ant. gélido", substring = true).assertExists()
+        // La categoría va escrita entera y arriba, no como prefijo: es la misma regla de D-159
+        // --en una fila se abrevia porque el lema necesita el ancho, en la ficha no compite con
+        // nada-- y lo que se fija sigue siendo que las dos listas se distingan.
+        compose.onNodeWithText("Sinónimos").assertExists()
+        compose.onNodeWithText("ardiente", substring = true).assertExists()
+        compose.onNodeWithText("Antónimos").assertExists()
+        compose.onNodeWithText("gélido", substring = true).assertExists()
     }
 
     @Test
@@ -315,7 +320,7 @@ class ScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("rel. marino · limnico").assertExists()
+        compose.onNodeWithText("marino · limnico").assertExists()
     }
 
     @Test
@@ -336,8 +341,14 @@ class ScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("sin. huanaco", substring = true).assertExists()
-        compose.onNodeWithText("rel. camélido", substring = true).assertExists()
+        compose.onNodeWithText("Sinónimos").assertExists()
+        compose.onNodeWithText("huanaco").assertExists()
+        compose.onNodeWithText("Relacionadas").assertExists()
+        // La línea entera y no `substring`: "camélido" también está EN LA GLOSA, así que buscarla
+        // como subcadena encuentra dos nodos. Que la palabra aparezca en los dos lugares es
+        // correcto --uno es la definición y el otro la lista-- y el test tiene que mirar el que
+        // le importa.
+        compose.onNodeWithText("camélido · vicuña").assertExists()
         compose.onNodeWithText("vicuña", substring = true).assertExists()
     }
 
@@ -1379,6 +1390,61 @@ class ScreensTest {
         // "sustantivo" le come el ancho al lema, que es lo único que ahí importa.
         showSearch(readyState("perro"))
         compose.onNodeWithText("sust.", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun theThreeTermListsEachCarryTheirOwnHeading() {
+        // Pedido: «primero mostrando la categoría y abajo las palabras». Las tres listas se ven
+        // idénticas --mismo estilo, misma posición, mismo separador-- así que la categoría es lo
+        // único que dice cuál estás leyendo. Antes era un prefijo de cuatro letras.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(
+                        Sense(
+                            "de temperatura alta",
+                            synonyms = listOf("ardiente"),
+                            antonyms = listOf("gélido"),
+                            related = listOf("calor"),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("Sinónimos").assertIsDisplayed()
+        compose.onNodeWithText("Antónimos").assertIsDisplayed()
+        compose.onNodeWithText("Relacionadas").assertIsDisplayed()
+    }
+
+    @Test
+    fun aHeadingWithNothingUnderItIsNotDrawn() {
+        // Una acepción sin antónimos no puede mostrar «Antónimos» y nada debajo: en un reloj eso
+        // se lee como que la lista está vacía por un error.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(senses = listOf(Sense("de poco entendimiento",
+                    synonyms = listOf("bobo"))))
+            }
+        }
+        compose.onNodeWithText("Sinónimos").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("Antónimos").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Relacionadas").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun aTermThatIsNotInThePackIsStillShownJustNotAsALink() {
+        // ⚠️ La misma regla que la glosa: el color es la promesa de que lleva a algún lado. Un
+        // sinónimo que el pack no tiene **se sigue mostrando** --la fuente lo dice y esconderlo
+        // sería perder información-- pero sin pintar.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}, resolveIn = { mapOf("bobo" to 42L) }) {
+                entry().copy(
+                    senses = listOf(Sense("de poco entendimiento",
+                        synonyms = listOf("bobo", "zonzo"))),
+                )
+            }
+        }
+        compose.onNodeWithText("bobo · zonzo").assertIsDisplayed()
     }
 
     /** Settings is a function of its state too: nothing here reads a system service. */

@@ -28,7 +28,7 @@ META = {
     "name": "Test",
     "lang_src": "es",
     "fuzzy_profile": "es",
-    "data_version": "20260101",
+    "source_date": "20260101",
     "license": "CC0-1.0",
     "attribution": "test",
     "source_url": "https://example.org/",

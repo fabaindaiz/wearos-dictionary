@@ -128,6 +128,28 @@ class Record:
         self.sense_key = sense_key
 
 
+def data_version(ahora=None):
+    """La version del pack: AAAAMMDDHHMM, como entero en un string.
+
+    Tres cosas a la vez, y ninguna se puede sacrificar:
+
+    - **Ordena.** Un instalador tiene que poder decir cual de dos packs es mas nuevo comparando
+      numeros, sin parsear fechas.
+    - **Se lee.** `202609211432` es "21 de septiembre de 2026, 14:32" sin convertidor. Un epoch
+      tambien ordenaria y nadie podria leerlo de un vistazo, que era justo lo pedido.
+    - **Distingue dos builds del mismo dump.** Al minuto, que es de sobra: un build tarda
+      minutos, asi que dos no caen nunca en el mismo.
+
+    ⚠️ **No entra en un Int de 32 bits** (202609211432 > 2.147.483.647). La app lo parsea como
+    `Long`; si alguien lo vuelve `Int`, el pack revienta al ABRIR en el reloj con un
+    NumberFormatException que no nombra la clave. Hay un test que lo fija.
+    """
+    if ahora is None:
+        t = time.gmtime()
+        ahora = (t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min)
+    return "%04d%02d%02d%02d%02d" % ahora
+
+
 class PackBuilder:
     def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
                  thesaurus=None):
@@ -153,6 +175,11 @@ class PackBuilder:
             "entry_count",
             "built_at",
             "uid_recipe",
+            # ⚠️ **Derivado, y por eso reservado.** Era la fecha del dump escrita a mano, asi que
+            # reconstruir el MISMO dump con otro builder daba el mismo numero y `devpack.py` --y
+            # el instalador-- lo leian como "es el mismo pack": un pack mejor no se propagaba.
+            # Lo que el valor escrito significaba se declara ahora en `source_date`.
+            "data_version",
         }
         conflicts = reserved & set(metadata)
         if conflicts:
@@ -516,6 +543,7 @@ class PackBuilder:
                 "uid_recipe": UID_RECIPE,
                 "entry_count": str(self.count),
                 "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "data_version": data_version(),
                 # Para ver, con datos reales, cuanto esta recortando TRANS_MAX_PER_KEY.
                 "trans_dropped": str(dropped_translations),
             }

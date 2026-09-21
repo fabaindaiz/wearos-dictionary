@@ -193,9 +193,11 @@ def _declarar(metadata, clave):
 # vida lexica --los meses, los paises, los idiomas-- se conserva. Ver SENAL_LEXICA_MINIMA en
 # sources/kaikki.py.
 #
-# `data_version` es la fecha del dump en AAAAMMDD, **entero**: la app le hace `.toInt()` al abrir
-# y un string revienta en el reloj (D-070). Ademas asi ordena, que es lo que un instalador
-# necesita para saber cual de dos packs es mas nuevo.
+# `source_date` es la fecha del DUMP en AAAAMMDD, y es informativa: dice de que volcado sale el
+# contenido. **No es la version del pack.** Esa la deriva el builder del reloj del build
+# (`build.data_version`), porque reconstruir el mismo dump con otro builder tiene que dar un
+# numero distinto -- si no, `devpack.py` y el instalador leen "es el mismo pack" y un pack mejor
+# no se propaga nunca.
 PACKS = {
     "es": {
         "pack_id": "es-def-wikc",
@@ -207,7 +209,7 @@ PACKS = {
         ),
         "lang_src": "es",
         "fuzzy_profile": "es",
-        "data_version": "20260915",
+        "source_date": "20260915",
         "license": "CC-BY-SA-4.0",
         # La atribucion NO se escribe aca: se deriva de FUENTES[fuente_base] (D-138), para
         # que sumar contenido y sumar credito sean el mismo acto.
@@ -228,7 +230,7 @@ PACKS = {
         ),
         "lang_src": "es",
         "fuzzy_profile": "es",
-        "data_version": "20260920",
+        "source_date": "20260920",
         "license": "CC0-1.0",
         "fuente_base": "wd",
         "source_url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
@@ -244,7 +246,7 @@ PACKS = {
         ),
         "lang_src": "en",
         "fuzzy_profile": "en",
-        "data_version": "20260909",
+        "source_date": "20260909",
         "license": "CC-BY-SA-4.0",
         "fuente_base": "wikt",
         "source_url": "https://kaikki.org/dictionary/English/",
@@ -262,7 +264,7 @@ PACKS = {
         # dos fuentes si algun dia se quieren cruzar.
         "lang_src": "en",
         "fuzzy_profile": "en",
-        "data_version": "20251231",
+        "source_date": "20251231",
         "license": "CC-BY-4.0",
         "fuente_base": "oewn",
         "source_url": "https://en-word.net/",

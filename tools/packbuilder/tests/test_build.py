@@ -31,7 +31,7 @@ BASE_META = {
     "lang_src": "es",
     "lang_dst": "en",
     "fuzzy_profile": "es",
-    "data_version": "1",
+    "source_date": "1",
     "license": "CC0-1.0",
     "attribution": "test",
     "sources": ("definitions\tFuente de prueba\thttps://example.invalid/test\t"
@@ -656,18 +656,21 @@ class FailureModeTest(BuilderTestCase):
         self.assertEqual(0, codigo, "un pack correcto no puede fallar por una glosa repetida:\n%s"
                          % salida.getvalue())
 
-    def test_un_data_version_no_entero_se_rechaza(self):
-        """`PackFile.parseMetadata` hace `data_version.toInt()`: un string revienta al ABRIR.
+    def test_verify_pack_rechaza_un_entero_de_meta_que_no_lo_es(self):
+        """`PackFile.parseMetadata` parsea tres claves de meta como numeros: un string revienta
+        al ABRIR, en el reloj, con un NumberFormatException que no nombra la clave.
 
         Es la clase de bug que este repo existe para no tener: el builder lo escribe, el
-        validador lo deja pasar y el error aparece recien en el reloj. Paso de verdad -- el
+        validador lo deja pasar y el error aparece recien en el dispositivo. Paso de verdad --el
         primer pack real se construyo con `data_version = "2026-09-15"` y `verify_pack.py` dio
-        verde-- asi que la comprobacion vive ahora del lado que lo produce.
+        verde--, y **esa causa concreta ya no existe**: desde que `data_version` lo deriva el
+        builder no hay forma de escribirlo mal. Lo que se fija aca es que el validador siga
+        mirando, porque las otras dos claves se escriben igual.
         """
-        metadata = dict(BASE_META)
-        metadata["data_version"] = "2026-09-15"
-        with build.PackBuilder(self.path, metadata) as builder:
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
+        with sqlite3.connect(self.path) as db:
+            db.execute("UPDATE meta SET value = '2026-09-15' WHERE key = 'data_version'")
         salida = io.StringIO()
         with contextlib.redirect_stdout(salida):
             codigo = verify_pack.verify(self.path)
@@ -813,3 +816,59 @@ class DeterminismTest(BuilderTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class DataVersionTest(unittest.TestCase):
+    """`data_version` distingue dos builds del MISMO dump.
+
+    ⚠️ **El bug que esto cierra**: era la fecha del dump escrita a mano, asi que reconstruir el
+    mismo dump con otro builder --otra poda, otra fuente sumada, otro `rank`-- daba **el mismo
+    numero**, y `devpack.py` y el instalador lo leian como "es el mismo pack". Un pack mejor no
+    se propagaba nunca.
+    """
+
+    def test_es_un_entero_de_doce_digitos_legible_como_fecha(self):
+        # AAAAMMDDHHMM: un humano lo lee sin convertidor, que era la mitad del pedido. La otra
+        # mitad es que ordene, y un numero con esta forma ordena igual que el tiempo.
+        valor = build.data_version((2026, 9, 21, 14, 32))
+        self.assertEqual("202609211432", valor)
+        self.assertRegex(build.data_version(), r"^20\d{10}$")
+
+    def test_dos_builds_del_mismo_dump_dan_numeros_distintos_y_ordenados(self):
+        uno = build.data_version((2026, 9, 21, 14, 32))
+        dos = build.data_version((2026, 9, 21, 14, 33))
+        self.assertLess(int(uno), int(dos),
+                        "el mas nuevo tiene que ser el mayor: de eso vive el instalador")
+
+    def test_entra_en_un_Long_y_NO_en_un_Int(self):
+        # ⚠️ La app lo parsea, y por eso este test existe: 202609211432 **no entra en un Int de
+        # 32 bits**. Si alguien vuelve `dataVersion` a Int, el pack revienta al abrir en el reloj
+        # con un NumberFormatException que no nombra la clave (D-070).
+        valor = int(build.data_version((2026, 9, 21, 14, 32)))
+        self.assertGreater(valor, 2 ** 31 - 1)
+        self.assertLess(valor, 2 ** 63 - 1)
+
+    def test_escribirlo_a_mano_es_un_error(self):
+        # Si se puede escribir a mano, alguien se va a olvidar de subirlo: es exactamente lo que
+        # paso durante meses.
+        with self.assertRaises(ValueError):
+            build.PackBuilder(self.path, dict(BASE_META, data_version="20260915"))
+
+    def test_la_fecha_del_dump_no_se_pierde(self):
+        # Lo que el valor escrito a mano SIGNIFICABA --de que volcado sale el contenido-- sigue
+        # siendo informacion util, asi que se declara aparte en vez de desaparecer.
+        self.path = os.path.join(self.dir, "fecha.db")
+        constructor = build.PackBuilder(self.path, dict(BASE_META, source_date="20260915"))
+        constructor.add(record("casa"))
+        constructor.finish()
+        with sqlite3.connect(self.path) as db:
+            meta = dict(db.execute("SELECT key, value FROM meta"))
+        self.assertEqual("20260915", meta["source_date"])
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "dv.db")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
