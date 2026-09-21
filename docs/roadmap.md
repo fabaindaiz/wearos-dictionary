@@ -20,7 +20,20 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 ## Dónde estamos
 
-*Actualizado: 2026-09-20.*
+*Actualizado: 2026-09-21.*
+
+⚠️ **El 2026-09-21 el formato del pack cambió más que en ningún otro día, y los `.db` en disco
+todavía no lo reflejan.** Todo lo de abajo describe packs construidos **antes** de esa sesión. Lo
+que cambió, y que sólo se verá tras el rebuild pendiente (§📋 Lo que falta):
+
+- Las traducciones entran al payload por **dos canales**: `T` por acepción y `W` de la palabra.
+  Antes ninguno se llenaba.
+- `trans` deja de estar vacía en los packs monolingües: **se busca en el otro idioma** sin pack
+  bilingüe instalado.
+- Toda acepción es direccionable por `(idioma, palabra, acepción)` con un código que **no nombra
+  un pack**, y `verify_pack.py` lo exige.
+- El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
+- Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **91 tests**) y el
 pipeline de packs (`tools/`, **328 tests**) están completos y en el gate, junto con los **290 JVM
@@ -535,7 +548,11 @@ Las tres propiedades pedidas, verificadas:
 Colisiones medidas sobre el pack entero: **22 de 210.249 (0,0105 %)**, y son glosas que el wiki
 define dos veces — apuntan a dos acepciones de texto idéntico.
 
-#### ⚠️ Sobre la glosa CRUDA en NFC, no sobre `norm()`
+#### ⚠️ Sobre la glosa plegada, NO sobre `norm()`
+
+> **Actualizado el mismo día**: acá decía *«sobre la glosa CRUDA en NFC»*. Sigue siendo cierto
+> lo esencial —no pasa por `norm()`— pero desde la decisión #8 pasa por `fold_gloss`, que es un
+> plegado ligero y propio. Ver §El plegado de glosa.
 
 Es el precedente de D-055 aplicado tal cual — `stable_uid` ya lo decidió: *«así no depende de
 NORM_VERSION, y subir las reglas de normalización no invalida los packs auxiliares»*. **Acá muerde
@@ -597,12 +614,10 @@ Validadas por medición, sin deuda:
 
 ⚠️ **Tres que sí conviene discutir, porque tienen un supuesto adentro:**
 
-**1. `translations_pack` nombra UN pack, y eso es frágil.** Hoy declara `en-def-wikt`. Si el
-usuario tiene instalado `en-def-wikt-core` y no el completo, **el enlace muere aunque haya un
-diccionario inglés perfectamente capaz de resolverlo**. La alternativa es nombrar el **idioma**
-—que ya está en `translations_to`— y dejar que la app elija cualquier pack instalado de ese
-idioma, con `translations_pack` como *preferencia* y no como requisito. Cuesta cero bytes y
-sobrevive a que el usuario instale el núcleo en vez del completo.
+**1. ~~`translations_pack` nombra UN pack, y eso es frágil.~~** ✅ **Resuelto el mismo día**: la
+clave **se eliminó** y el destino se nombra por **idioma** (`translations_to`), que es lo que esta
+fila proponía. `SearchViewModel.resolveInLanguage` resuelve en el primer pack instalado de ese
+idioma, así que un usuario con el núcleo inglés y no el completo **conserva los enlaces**.
 
 **2. El canal de búsqueda y el de lectura se reparten distinto, y no está declarado.** `trans`
 lleva **todas** las traducciones (atribuidas y sueltas) porque para buscar da igual; `T` y `W`
@@ -610,22 +625,22 @@ las reparten por atribución. Es correcto, pero **un lector no tiene cómo saber
 cuenta `trans` esperando que coincida con lo que se muestra, no va a cuadrar. O se documenta en
 `formato-pack.md`, o `verify_pack.py` lo afirma como invariante.
 
-**3. `kind = monolingual` ya no describe lo que el pack hace.** Es buscable en inglés y muestra
-traducciones, pero `wordActions.translationPack` filtra por `kind == BILINGUAL`, así que **la app
-sigue sin ofrecer «ver traducción» sobre un pack que ahora sí traduce**. Las opciones: agregar un
-tercer `kind`, o —mejor— dejar que `kind` describa **las definiciones** y que las capacidades se
-lean de `translations_to`/`translations_pack`, que es lo que ya hacen. Eso implica cambiar el
-filtro de `wordActions`, no el formato.
+**3. ~~`kind = monolingual` ya no describe lo que el pack hace.~~** ✅ **Resuelto el mismo día**
+por la vía que esta fila recomendaba: `kind` describe **las definiciones** y la capacidad se lee
+de `translations_to`, que `PackMetadata` ahora expone. `wordActions` dejó de mirar `kind`, y la
+acción además **desaparece cuando la ficha ya muestra las traducciones propias**.
 
-#### Lo que yo cerraría primero
+#### Lo que yo cerraría primero — ✅ **los cuatro, cerrados el mismo día**
 
-1. **`bilingual.py` llena `T`/`W`** con sus claves crudas: es el pack que más traducciones tiene
-   y el único cuyo canal de lectura está vacío. No cuesta fuente nueva, sólo dejar de tirar lo
-   que ya calcula.
-2. **`wordActions` deja de mirar `kind`** y mira si el pack declara traducciones. Es el bug más
-   visible: hay traducciones y la acción no aparece.
-3. **`translations_pack` pasa a ser preferencia sobre un idioma**, no requisito sobre un pack.
-4. Los 10.438 pares de `en.jsonl` a `trans` del pack inglés.
+1. ~~`bilingual.py` llena `T`/`W`~~ — hecho, con `for_search` separando las dos formas del término.
+2. ~~`wordActions` deja de mirar `kind`~~ — hecho.
+3. ~~`translations_pack` pasa a ser preferencia sobre un idioma~~ — hecho, y más fuerte: la clave
+   se eliminó y el destino es el idioma.
+4. ~~Los 10.438 pares de `en.jsonl`~~ — hecho, por el canal `W`.
+
+**Lo único que sigue abierto de esta revisión es la fila 2**: que el reparto distinto entre el
+canal de búsqueda y el de lectura **no está declarado en ningún lado**. Va a `formato-pack.md` o
+a `verify_pack.py` como invariante.
 
 ### ✅ El segundo canal y la referencia `(pack, palabra, acepción)` — CONSTRUIDO 2026-09-21
 
@@ -764,10 +779,14 @@ Las acepciones sin traducción atribuida muestran **nada**, que es la regla de D
 - ⚠️ **Lo que no trae índice se descarta** (el 37,7 % de las traducciones). Es dato real y su
   lugar honesto es el canal de nivel de entrada que todavía no existe.
 
-**Y una puerta que se cerró con un número:** el pack inglés **no puede** declarar
-`translations_to`. Sus traducciones al español traen el **texto** de la acepción pero
-**0 `sense_index`** de 9.987 — mismo espejo que D-117/D-124, sólo que esta vez la forma inglesa
-**no** es atribución estructural, así que emitir algo sería inventarla.
+**Y una puerta que parecía cerrada con un número, y se reabrió el mismo día:** acá decía que el
+pack inglés **no podía** declarar `translations_to`, porque sus traducciones al español traen el
+**texto** de la acepción pero **0 `sense_index`** de 9.987.
+
+⚠️ **El número es correcto y la conclusión era demasiado fuerte.** Eso cierra el canal `T`, que
+exige atribución por acepción — **no el canal `W`, que existe justamente para lo no atribuible**.
+Cuando `W` se construyó, esas 9.987 encontraron dónde vivir, y de paso llenan `trans`. El pack
+inglés declara `translations_to = "es"` desde el #5.
 
 #### ⚠️ La oportunidad que esto deja servida, y es justo la próxima pregunta
 
