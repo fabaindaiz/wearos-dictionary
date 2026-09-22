@@ -75,10 +75,46 @@ object PackStore {
         installed: List<String>,
         last: Int,
         current: Int,
+        /**
+         * Los packs del APK que el usuario **reemplazo desde el catalogo**.
+         *
+         * ⚠️ **Es un tercer caso que la descarga creo, y sin el hay un downgrade silencioso.**
+         * `es-core.db` viene en el APK; actualizarlo desde el catalogo reescribe ese mismo
+         * archivo, y hasta aqui la regla era *"una version nueva de la app re-extrae sus packs"*
+         * --lo que pisaria el pack nuevo con el viejo sin un error, porque el viejo abre igual de
+         * bien--.
+         *
+         * La regla que lo resuelve: **el catalogo gana sobre el APK**. Lo incluido existe para
+         * arrancar de cero, no para mandar sobre lo que el usuario instalo despues.
+         */
+        downloaded: Set<String> = emptySet(),
     ): List<String> {
-        if (last != current) return assets.sorted()
+        if (last != current) return assets.filterNot { it in downloaded }.sorted()
         val alreadyOnDisk = installed.toSet()
-        return assets.filterNot { it in alreadyOnDisk }.sorted()
+        return assets.filterNot { it in alreadyOnDisk || it in downloaded }.sorted()
+    }
+
+    /** Qué packs del APK fueron reemplazados desde el catálogo. Ver [assetsToExtract]. */
+    fun downloadedPacks(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_DOWNLOADED, emptySet()).orEmpty()
+
+    /** Anota que [fileName] vino del catálogo y ya no debe re-extraerse del APK. */
+    fun rememberDownloaded(context: Context, fileName: String) {
+        prefs(context).edit {
+            putStringSet(KEY_DOWNLOADED, downloadedPacks(context) + fileName)
+        }
+    }
+
+    /**
+     * Olvida la marca al borrar un pack.
+     *
+     * Sin esto, borrar un núcleo actualizado lo dejaría **sin volver nunca**: la marca seguiría
+     * diciendo "no lo re-extraigas" sobre un archivo que ya no existe.
+     */
+    private fun forgetDownloaded(context: Context, fileName: String) {
+        prefs(context).edit {
+            putStringSet(KEY_DOWNLOADED, downloadedPacks(context) - fileName)
+        }
     }
 
     /**
@@ -101,6 +137,7 @@ object PackStore {
             installedPacks(dir).map { it.name },
             last = instaladaAntes,
             current = versionCode(context),
+            downloaded = downloadedPacks(context),
         )
         if (missing.isNotEmpty()) {
             onExtracting()
@@ -253,6 +290,7 @@ object PackStore {
      * user sees a deletion and no space freed, which is worse than not being able to delete.
      */
     fun deletePack(context: Context, fileName: String): Boolean {
+        forgetDownloaded(context, fileName)
         val target = File(packsDir(context), fileName)
         return target.isFile && target.delete()
     }
@@ -308,6 +346,9 @@ object PackStore {
     private const val KEY_HISTORY = "historial"
     private const val KEY_TILE_HISTORY = "historial_tile"
     private const val KEY_SETTINGS = "ajustes"
+    /** Packs del APK que el usuario reemplazó desde el catálogo. Ver [assetsToExtract]. */
+    private const val KEY_DOWNLOADED = "packs_del_catalogo"
+
     /** Qué packs ya pasaron la muestra de claves de D-142. Ver [PackVerification]. */
     private const val KEY_VERIFIED = "packs_verificados"
     /** Con qué versión de la app se extrajeron por última vez los packs del APK. */

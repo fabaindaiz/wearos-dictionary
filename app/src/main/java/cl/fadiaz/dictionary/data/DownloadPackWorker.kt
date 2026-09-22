@@ -61,6 +61,11 @@ class DownloadPackWorker(
         }
         return when (resultado) {
             is DownloadResult.Installed -> {
+                // ⚠️ Se anota que este archivo vino del catalogo, y sin esto hay un downgrade
+                // silencioso: si el pack tambien viene en el APK --los nucleos-- la proxima
+                // version de la app lo re-extraeria y pisaria el recien bajado con el viejo.
+                // Ver `PackStore.assetsToExtract`.
+                PackStore.rememberDownloaded(applicationContext, resultado.file.name)
                 DictLog.i { "worker: $packId instalado" }
                 Result.success(workDataOf(KEY_PACK_ID to packId))
             }

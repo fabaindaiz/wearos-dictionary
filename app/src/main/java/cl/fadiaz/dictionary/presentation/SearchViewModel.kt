@@ -466,19 +466,55 @@ class SearchViewModel(
      */
     private fun seguirDescargas() {
         viewModelScope.launch {
+            // ⚠️ **WorkManager CONSERVA los trabajos terminados**, asi que la primera emision de
+            // cada arranque trae los DONE y FAILED de sesiones anteriores. Eso causo dos defectos
+            // distintos, vistos en el emulador el 2026-09-22:
+            //
+            //  1. Se leian como "acaba de terminar una descarga" y republicaban el catalogo
+            //     estando vacio: la pantalla decia "Nada nuevo" sin que nadie hubiera preguntado.
+            //  2. Se mostraban como estado actual, asi que la fila de ese pack decia "Instalado"
+            //     y **dejaba de ser pulsable** -- aunque el pack se hubiera borrado y el catalogo
+            //     lo estuviera ofreciendo. No habia forma de volver a bajarlo.
+            //
+            // Por eso la primera emision se separa: lo que ya venia terminado es **historia**.
+            var historia: Set<String>? = null
             var terminadas = emptySet<String>()
             downloadStates.collect { lista ->
-                _state.update { it.copy(downloads = lista.associateBy { d -> d.packId }) }
-                val nuevas = lista.filter { it.phase == DownloadPhase.DONE }.map { it.packId }.toSet()
-                if ((nuevas - terminadas).isNotEmpty()) {
-                    DictLog.i { "descarga terminada: ${(nuevas - terminadas).joinToString()}" }
-                    terminadas = nuevas
-                    loadPacks()
-                    publicar(opened.map { it.metadata })
+                if (historia == null) {
+                    historia = lista.filter { it.phase in FINALES }.map { it.packId }.toSet()
+                    terminadas = lista.filter { it.phase == DownloadPhase.DONE }.map { it.packId }.toSet()
                 }
+                // ⚠️ **Un pack sale de AMBOS registros en cuanto vuelve a moverse.** Sin esto,
+                // uno que ya se habia bajado en otra sesion quedaba marcado para siempre y su
+                // descarga NUEVA no contaba al terminar: el pack quedaba en disco y la app sin
+                // verlo hasta el proximo arranque.
+                //
+                // ⚠️ Y son DOS registros, no uno: el primer intento de arreglo solo limpio
+                // `historia` --lo que se ESCONDE-- y dejo `terminadas` --lo que ya se CONTO--,
+                // asi que la fase se veia bien en pantalla y aun asi no se recargaba nada. Lo
+                // delato el emulador, no un test: el sintoma era la ausencia de una linea de log.
+                val moviendose = lista.filterNot { it.phase in FINALES }.map { it.packId }.toSet()
+                historia = historia.orEmpty() - moviendose
+                terminadas = terminadas - moviendose
+                val viejas = historia.orEmpty()
+                val enCurso = lista.filterNot { it.packId in viejas && it.phase in FINALES }
+                _state.update { it.copy(downloads = enCurso.associateBy { d -> d.packId }) }
+
+                val nuevas = enCurso.filter { it.phase == DownloadPhase.DONE }.map { it.packId }.toSet()
+                val recien = nuevas - terminadas
+                if (recien.isEmpty()) return@collect
+                DictLog.i { "descarga terminada: ${recien.joinToString()}" }
+                terminadas = nuevas
+                loadPacks()
+                // ⚠️ Solo si el usuario YA consulto. Reclasificar sobre un catalogo que nunca se
+                // trajo publica una lista vacia, que se lee como "no hay nada nuevo".
+                if (_state.value.catalog is CatalogState.Ready) publicar(opened.map { it.metadata })
             }
         }
     }
+
+    /** Las fases en que un trabajo ya no avanza. WorkManager las conserva entre sesiones. */
+    private val FINALES = setOf(DownloadPhase.DONE, DownloadPhase.FAILED)
 
     /** Clasifica lo ultimo que se trajo contra lo que hay instalado AHORA. */
     private fun publicar(instalados: List<PackMetadata>) {
