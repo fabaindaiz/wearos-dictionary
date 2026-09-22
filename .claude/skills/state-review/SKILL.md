@@ -1,6 +1,6 @@
 ---
 name: state-review
-description: Revisión periódica de la salud del sistema de instrucciones del repo. Usar cuando se pida "revisá el estado del repo", "¿está actualizada la documentación?", "state review", o al empezar a trabajar después de un tiempo sin tocar el proyecto.
+description: Estado del sistema de instrucciones y **qué prompt del método corresponde correr**. Usar SIEMPRE antes de configurar, actualizar o ejecutar cualquier prompt de `.agents/method/` —update, bootstrap, evaluate, harvest, merge, sync— y cuando se pida "revisá el estado del repo", "¿está actualizada la documentación?", "state review", "actualizá el método", "aplicá el bundle", "¿queda algo por aplicar?", o al empezar a trabajar después de un tiempo sin tocar el proyecto.
 allowed-tools: Bash, Read, Grep
 ---
 
@@ -10,6 +10,43 @@ allowed-tools: Bash, Read, Grep
 
 Bootstrapping is not the end: the system rots without a ritual. These questions, with evidence,
 not from memory.
+
+## 0. Which prompt does this actually want? — run this FIRST
+
+**Before configuring, updating or executing any prompt in `.agents/method/`.** A prompt run in the
+wrong situation does not fail; it does the wrong work and leaves a header saying it succeeded. So
+the state is established first, and then the routing table decides — never the dates, never which
+copy looks newer.
+
+```bash
+grep -h '^version:\|^digest:\|^adopted:\|^lineage:' .agents/method/prompt-update.md
+sed -n '/^adapted:/,/^---$/p' .agents/README.md | head -20      # empty = the record is not kept
+ls .agents/incoming/                                            # only README.md = no triage pending
+python3 tools/audit_dictionary.py | grep -E 'digest|bundle'     # silence = the three check out
+```
+
+Then answer, in one line each, and **report before doing anything**:
+
+| What you found | What it means | Run |
+|---|---|---|
+| `incoming/` holds more than its own `README.md` | the last triage never finished, and that is this session's first finding | finish it: `prompt-update.md` |
+| a digest does not match its content | the header is a claim, not a fact | stop; compare content directly and tell the lineage owner |
+| our `version` < the incoming one, ancestry a prefix | one side is ahead | `prompt-update.md` |
+| ancestries share a prefix and then diverge | both moved; neither is newer | `prompt-merge.md` |
+| same version, and this repo learned something | the repo is ahead of the method | `prompt-harvest.md` — and it may write **only** `.agents/tracking/` |
+| header present, artifacts it names missing | the files were copied without the work | `prompt-bootstrap.md`, repair mode |
+| nothing above, and the ask was "update the method" | there is nothing to update; say so | sections 1–8 below |
+
+**And say what is still pending from the last one.** An update is finished when: the three
+repository fields are carried, every accepted delta is a real edit, the prune ran, `incoming/` is
+empty, a decisions row exists for anything now settled, and there is one changelog entry. Anything
+on that list not done is what the user probably meant, whatever they asked for.
+
+⚠️ **A carrier may not add or edit a method document.** `prompt-harvest.md` §*What the local step
+must never do* is explicit: not a note, not an index row, **not a method document**, not a header,
+not a version, not a digest. What this repo finds missing in the method goes as one line in
+`.agents/tracking/candidates.md`, and the release decides. Editing the method here **is forking**
+(D-059), with a new opaque lineage id and a recomputed digest.
 
 ## 1. Does every document on the map exist, and is it still true?
 
@@ -65,8 +102,8 @@ The ones in `docs/decisions.md` with `—` in *Enforced in*. In this repo, the k
 ## 7. Is the method still the one we say we follow?
 
 ```sh
-grep -h "^version:\|^digest:\|^adopted:" docs/agents/prompt-update.md
-python3 tools/audit_dictionary.py | grep metodo   # silence = the digest checks out
+grep -h "^version:\|^digest:\|^adopted:" .agents/method/prompt-update.md
+python3 tools/audit_dictionary.py | grep -E "digest|bundle"   # silence = the three check out
 ```
 
 `adapted` and `declined` **empty** after an update is the sign the header is not being maintained,

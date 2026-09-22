@@ -100,13 +100,10 @@ tests** via `:tools:pythonTest`.
 After touching `norm()`, `fuzzy()` or the pack format, additionally:
 `python3 tools/packbuilder/build_toy.py && python3 tools/packbuilder/verify_pack.py dict-data/src/androidTest/assets/toy-es-en.db`
 
-**A claim needs a measurement.** Do not write a number into a document without saying how it was
-obtained, and if the measurement kills a belief, that is the most valuable entry in the changelog.
-
-**The test comes first.** An agent that writes the code and then the test writes **the test the
-code passes**, and the bug gets ratified as expected behaviour. Write the expectation first —a row
-in `normalization-vectors.tsv`, a case in `test_build.py`— and **watch it fail for the reason you
-expected**. The exceptions (a spike, a characterization test) are named as such.
+**A claim needs a measurement**, carrying its date and its environment, and **a retraction is
+written everywhere the claim was**. **The test comes first**, and if it was already green, a
+targeted mutation proves it bites. **The uncommitted diff is the work**: no `checkout`, `restore`,
+`stash`, `reset` or `clean` over files you did not write. The four in full: the `verify` skill.
 
 **The emulator and the watch do not measure the same thing** (D-043): the emulator closes
 correctness —normalization, FTS5, query plans— because it ships the ICU and SQLite of its API
@@ -150,7 +147,7 @@ another agent with no memory of this one, what would it have to re-derive?*
 
 ## Commits
 
-They are offered when the work is finished, never on your own initiative mid-task. They are split
+They are offered when the work is finished, never on your own initiative mid-task — the `commit` skill. They are split
 **by dependency, not by size**: every commit has to be green on its own, so the history is
 bisectable. Verify it with `git worktree` before assuming it is.
 
@@ -187,7 +184,7 @@ successes is bookkeeping: what warns the next session are the mistakes and the d
 | Question | Document |
 |---|---|
 | Why is this decided this way? Can I change it? | `docs/decisions.md` |
-| A word is missing / duplicates show up / the pack will not open | `docs/contratos-cruzados.md` |
+| A word is missing / duplicates show up / the pack will not open | the `troubleshoot-diccionario` skill, `docs/contratos-cruzados.md` |
 | What does the `.db` look like inside? Which query do I use? | `docs/formato-pack.md` |
 | Where does a new file go? What are the layers? | `docs/architecture.md` |
 | What is next? What does what I want to do collide with? | `docs/roadmap.md` |
@@ -196,5 +193,6 @@ successes is bookkeeping: what warns the next session are the mistakes and the d
 | Did we already research this? What does the official source say? | `docs/references.md` |
 | What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
 | What is this project? (for an outsider) | `README.md` |
-| How is this repo worked with an agent? Where do these rules come from? | `docs/agents/prompt-context.md` |
-| Is the instruction system healthy? Does the method need updating? | `docs/agents/prompt-evaluate.md`, `prompt-update.md` |
+| How is this repo worked with an agent? Where do these rules come from? | `.agents/method/prompt-context.md` |
+| Which prompt do I run —evaluate, update, harvest, merge, sync? | `.agents/method/prompt-context.md` §*Which document to run* |
+| Is the instruction system healthy? Is the bundle stale? | `.agents/method/prompt-evaluate.md`, the `state-review` skill |
