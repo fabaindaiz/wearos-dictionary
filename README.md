@@ -30,7 +30,7 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 ```
 
 ```sh
-./gradlew check                                   # el gate: compila, lint, 943 tests y la auditoría
+./gradlew check                                   # el gate: compila, lint, 951 tests y la auditoría
 ./gradlew :dict-core:test                         # solo el núcleo de búsqueda (rápido)
 python3 tools/packbuilder/build_toy.py            # pack de juguete para los tests instrumentados
 python3 tools/packbuilder/verify_pack.py <pack>   # invariantes de un pack real

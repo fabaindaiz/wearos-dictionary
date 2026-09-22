@@ -1119,6 +1119,122 @@ class RankTest(unittest.TestCase):
         self.assertGreaterEqual(got["zzz"].rank, 0)
 
 
+class CitaEnEspanolTest(unittest.TestCase):
+    """El Wikcionario sirve el `ref` con OTRA forma, y por eso el separador vive en el `Perfil`.
+
+    | | ingles | español |
+    |---|---|---|
+    | forma | `1897, Richard Marsh, The Beetle:` | `Miguel Nicolau. Iniciacion a la Teologia. Pagina 85. 1984.` |
+    | orden | año primero | **autor primero, año ultimo** |
+    | separador | coma | **punto** |
+    | ejemplos con `ref` | 75,5 % | **68,4 %** |
+    | `ref` completo | 119 B | **92 B** |
+
+    ⚠️ **Y trae un problema que el ingles no tiene: las INICIALES.** `J. R. R. Tolkien` son cuatro
+    campos si se parte por punto a secas, y los dos primeros serian `J` y `R`. Por eso el perfil
+    declara **dos** cosas: con que se parte, y si hay que fusionar iniciales.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _cita(self, ref):
+        path = _jsonl(_raw("casa", "noun", [
+            _sense("Edificio.", examples=[{"text": "la casa de la esquina", "ref": ref}]),
+        ]))
+        self.paths.append(path)
+        got = list(kaikki.records(path, lang="es"))
+        return got[0].senses[0]["examples"][0]
+
+    def test_se_recorta_a_autor_y_obra(self):
+        # El `ref` real del dump, medido.
+        self.assertEqual(
+            {"text": "la casa de la esquina", "ref": "Miguel Nicolau. Iniciación a la Teología"},
+            self._cita("Miguel Nicolau. Iniciación a la Teología. Página 85. "
+                       "Editorial: I.T. San Ildefonso. 1984. ISBN: 9788439818250."),
+        )
+
+    def test_las_INICIALES_no_cuentan_como_campo(self):
+        # ⚠️ El caso que obliga a la segunda regla. Sin fusionar, los dos primeros campos de
+        # `J. R. R. Tolkien. El Señor de los Anillos.` son `J` y `R`.
+        self.assertEqual(
+            "J. R. R. Tolkien. El Señor de los Anillos",
+            self._cita("J. R. R. Tolkien. El Señor de los Anillos. Página 12. 1954.")["ref"],
+        )
+
+    def test_un_ref_que_empieza_con_puntuacion_no_la_arrastra(self):
+        # Visto en el dump: hay `ref` con el campo de autor vacio, que empiezan con `. `.
+        self.assertEqual(
+            "Anónimo. Ordinación dada a la ciudad de Zaragoza",
+            self._cita(". Anónimo. Ordinación dada a la ciudad de Zaragoza. Página 3. 1414.")["ref"],
+        )
+
+    def test_un_ejemplo_sin_ref_sigue_siendo_una_cadena_pelada(self):
+        path = _jsonl(_raw("casa", "noun", [
+            _sense("Edificio.", examples=[{"text": "la casa"}]),
+        ]))
+        self.paths.append(path)
+        got = list(kaikki.records(path, lang="es"))
+        self.assertEqual(["la casa"], got[0].senses[0]["examples"])
+
+    def test_el_separador_INGLES_no_parte_una_cita_espanola(self):
+        # La cita española no tiene comas de nivel superior: si el perfil se equivocara de
+        # separador, saldria entera en vez de recortada. Es la degradacion segura, y este caso
+        # fija que el perfil español declara el punto.
+        cita = self._cita("Emilio Castelar. Discursos politicos y literarios. Página 372. 1861.")
+        self.assertEqual("Emilio Castelar. Discursos politicos y literarios", cita["ref"])
+
+
+class SubindicesDeReferenciaTest(unittest.TestCase):
+    """Los subindices de referencia cruzada se sacan de la glosa **solo en español**.
+
+    ⚠️ **La medicion que define el alcance, y sin ella el arreglo "barato" rompe contenido.**
+    El roadmap lo describia como *"un `str.translate` en `_gloss()`"*, que es compartido por los
+    dos idiomas. Medido sobre los packs de hoy:
+
+    | | con subindice | que son |
+    |---|---|---|
+    | español | ~1.890 | **referencias cruzadas**: `mudanza₁`, `ejercito₂`, `abdicar₁` (62 de 69) |
+    | ingles | ~4.584 | **formulas quimicas**: `C₇H₅NO₃S`, `FeO₂²⁻`, `MnO₂` (23 de 26, y las otras 3 tambien) |
+
+    Aplicarlo a los dos convierte la sacarina en algo que no es una formula, en un lugar donde
+    nadie mira. Es la misma leccion de D-121, donde un patron mas ancho habria destruido el
+    superindice matematico ingles.
+
+    ⚠️ **Y pierde informacion aun en español**: el subindice dice **que acepcion** de la palabra
+    referida. Se acepta a sabiendas -- en un reloj, `ejercito₂` se lee como un error de
+    codificacion, y la acepcion exacta no es recuperable desde la ficha de todas formas.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _glosa(self, texto, lang="es"):
+        path = _jsonl(_raw("x", "noun", [_sense(texto)]))
+        self.paths.append(path)
+        return list(kaikki.records(path, lang=lang))[0].senses[0]["gloss"]
+
+    def test_el_subindice_se_saca_de_la_glosa_espanola(self):
+        self.assertEqual("En particular, ejército terrestre.",
+                         self._glosa("En particular, ejército₂ terrestre."))
+
+    def test_el_INGLES_conserva_sus_formulas(self):
+        # ⚠️ El contra-caso, y es la mitad que define el alcance.
+        formula = "A white powder, C₇H₅NO₃S, used as a sweetener."
+        self.assertEqual(formula, self._glosa(formula, lang="en"))
+
+    def test_una_glosa_sin_subindices_no_se_toca(self):
+        self.assertEqual("Edificio para habitar.", self._glosa("Edificio para habitar."))
+
+
 class LavadoDeFrecuenciaTest(unittest.TestCase):
     """Una palabra con mayuscula no cobra la frecuencia de su homografo en minuscula.
 
@@ -1312,18 +1428,26 @@ class CitaDelEjemploTest(unittest.TestCase):
         ]))
         self.assertEqual(["the dog barks"], got[0].senses[0]["examples"])
 
-    def test_el_espanol_todavia_NO_trae_cita(self):
-        # ⚠️ **Fijado a proposito, y no es un olvido.** El dump del Wikcionario sirve sus `ref`
-        # con OTRA forma --puntos en vez de comas, autor primero y año ultimo: «Miguel Nicolau.
-        # Iniciacion a la Teologia. Pagina 85. 1984.»-- asi que aplicarle el separador ingles
-        # produciria basura. El perfil español no declara separador hasta que esa forma se mida
-        # y se fije con sus propios casos; el numero ya esta en docs/fuentes.md.
+    def test_cada_idioma_recorta_con_SU_separador(self):
+        """⚠️ Lo que este caso protege es que el separador NO sea global.
+
+        Los dos dumps sirven el `ref` con formas distintas --el ingles pone el año primero y
+        separa por coma; el Wikcionario pone el autor primero y separa por punto-- asi que un
+        separador compartido produce basura en uno de los dos. Vive en el `Perfil`, junto a los
+        pesos del rank y por la misma razon que ellos (D-076).
+
+        El español entro despues que el ingles, y este caso es el que fija que los dos convivan.
+        """
         path = _jsonl(_raw("casa", "noun", [
-            _sense("Edificio.", examples=[{"text": "la casa", "ref": "Miguel Nicolau. Obra. 1984."}]),
+            _sense("Edificio.", examples=[{"text": "la casa",
+                                           "ref": "Miguel Nicolau. Obra citada. 1984."}]),
         ]))
         self.paths.append(path)
         got = list(kaikki.records(path, lang="es"))
-        self.assertEqual(["la casa"], got[0].senses[0]["examples"])
+        self.assertEqual(
+            [{"text": "la casa", "ref": "Miguel Nicolau. Obra citada"}],
+            got[0].senses[0]["examples"],
+        )
 
 
 if __name__ == "__main__":
