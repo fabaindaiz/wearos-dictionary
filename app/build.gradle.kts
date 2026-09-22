@@ -28,8 +28,12 @@ val debugConR8: Boolean = providers.gradleProperty("debugR8").isPresent
  * ⚠️ **El default era `10.0.2.2` --el alias del host para un emulador-- y FALLA, medido el
  * 2026-09-22 en el emulador del proyecto**: `SocketTimeoutException: failed to connect to
  * /10.0.2.2 (port 8765) from /10.0.2.15 after 8000ms`, con el servidor comprobadamente vivo y
- * respondiendo 200 al mismo curl desde el host. El cortafuegos de macOS no deja entrar al
- * proceso de Python.
+ * respondiendo 200 al mismo curl desde el host, por loopback y por la IP de la LAN.
+ *
+ * ⚠️ **La causa no esta probada, y conviene que quede dicho asi**: el cortafuegos de macOS esta
+ * encendido (`socketfilterfw --getglobalstate` = 1) y Python no esta en su lista de permitidos,
+ * lo que es COHERENTE con el timeout, pero no se midio el bloqueo en si. Lo que si es un hecho es
+ * que `10.0.2.2` no llego y `adb reverse` si.
  *
  * `adb reverse` evita el problema entero y tiene dos ventajas mas: **no hay que descubrir ninguna
  * IP** --que cambia de red en red-- y **vale igual en un reloj de verdad** por depuracion

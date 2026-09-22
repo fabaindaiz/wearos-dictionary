@@ -77,7 +77,12 @@ python3 tools/packserver.py ../wearos-dictionary-data --index-only   # just prin
 to be `10.0.2.2` — the host alias an emulator normally has — and **it does not work**: verified on
 this project's emulator on 2026-09-22, `SocketTimeoutException: failed to connect to /10.0.2.2
 (port 8765) from /10.0.2.15 after 8000ms`, while the same server answered 200 to curl from the host
-on both loopback and the LAN address. macOS's firewall does not let the Python process accept it.
+on both loopback and the LAN address.
+
+⚠️ **The cause is not proven, and saying so is part of the record**: macOS's firewall is enabled
+(`socketfilterfw --getglobalstate` returns 1) and Python is not in its allow list, which is
+*consistent* with the timeout — but the block itself was not measured. What is a fact is that
+`10.0.2.2` did not arrive and `adb reverse` did.
 
 `adb reverse tcp:8765 tcp:8765` tunnels the device's own `localhost:8765` to this machine over adb,
 which sidesteps the firewall, **needs no IP discovery** (that changes network to network), and
