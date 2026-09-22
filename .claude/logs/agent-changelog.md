@@ -115,7 +115,10 @@ categorías.
    rechazaba todo. La de ahora sí es portante.
 2. ⚠️ **El default `10.0.2.2` no funciona**, y el servidor estaba vivo: `SocketTimeoutException
    after 8000ms` mientras el mismo servidor contestaba 200 a curl desde el host por loopback **y**
-   por la IP de la LAN. Es el cortafuegos de macOS. El default pasa a `localhost` por
+   por la IP de la LAN. ⚠️ **La causa no está probada**: el cortafuegos de macOS está encendido
+   (`socketfilterfw --getglobalstate` = 1) y Python no está en su lista de permitidos, lo que es
+   *coherente* con el timeout, pero el bloqueo en sí no se midió. El hecho es que `10.0.2.2` no
+   llegó y `adb reverse` sí. El default pasa a `localhost` por
    `adb reverse tcp:8765 tcp:8765`, que además **no necesita descubrir ninguna IP** y **vale igual
    en un reloj de verdad**, donde `10.0.2.2` no significa nada.
 
