@@ -132,6 +132,23 @@ def gzip_if_stale(db_path: str, gz_path: str) -> bool:
     return True
 
 
+def es_publicable(meta):
+    """¿Este pack es un producto final, o un paso intermedio del merge?
+
+    ⚠️ **El filtro es SEMANTICO y no por nombre**, y eso importa: se vio `es-def-wd` en el catalogo
+    del emulador, y no es un pack descargable -- es una **entrada** del merge, que el pack espanol
+    lleva fundido dentro. Publicarlo ofrece un diccionario de una sola fuente, que es justo el
+    modelo que se descarto.
+
+    Un pack publicable **declara su nivel** (`tier`, D-215). Un intermedio no declara ninguno, asi
+    que se cae solo y **renombrar el archivo no lo cuela**.
+
+    ⚠️ **El bilingue es la excepcion, y esta escrita en vez de adivinada**: no tiene niveles porque
+    su proposito no es un tamano del mismo diccionario. Se reconoce por `kind`, que el pack declara.
+    """
+    return bool(meta.get("tier")) or meta.get("kind") == "bilingual"
+
+
 def catalog_entry(db_path: str, gz_path: str) -> dict:
     """Una fila del indice: lo que dice el pack, mas lo que miden los dos archivos."""
     entry = pack_metadata(db_path)
@@ -162,6 +179,9 @@ def build_catalog(directory: str, compress: bool = True) -> dict:
         if not is_pack(name):
             continue
         db_path = os.path.join(directory, name)
+        if not es_publicable(pack_metadata(db_path)):
+            print("  %s: intermedio, no se publica (no declara tier)" % name, file=sys.stderr)
+            continue
         gz_path = db_path + ".gz"
         if compress:
             gzip_if_stale(db_path, gz_path)
