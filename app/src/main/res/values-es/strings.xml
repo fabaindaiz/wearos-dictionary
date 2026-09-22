@@ -144,4 +144,15 @@
     <string name="match_translation">traducción</string>
     <string name="match_fuzzy">parecida</string>
     <string name="match_definition">definición</string>
+    <!-- Catalogo de descarga (D-213). El boton LISTA; instalar sigue siendo por cable. -->
+    <string name="packs_catalog_check">Consultar el catálogo</string>
+    <string name="packs_catalog_recheck">Consultar de nuevo</string>
+    <string name="packs_catalog_checking">Consultando\u2026</string>
+    <string name="packs_catalog_failed">No se pudo consultar el catálogo: %1$s</string>
+    <string name="packs_catalog_nothing">Nada nuevo. Lo instalado está al día.</string>
+    <string name="packs_catalog_update">Hay actualización</string>
+    <string name="packs_catalog_download">Se puede descargar</string>
+    <string name="packs_catalog_incompatible">Esta versión no lo abre</string>
+    <string name="packs_catalog_newer">v%1$s, tienes la v%2$s</string>
+    <string name="packs_catalog_install_note">Por ahora sólo se listan: instalar sigue siendo por cable.</string>
 </resources>

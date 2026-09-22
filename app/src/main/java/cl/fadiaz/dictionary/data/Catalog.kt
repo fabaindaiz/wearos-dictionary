@@ -58,6 +58,27 @@ enum class CatalogStatus {
     INCOMPATIBLE,
 }
 
+/**
+ * En que punto esta la consulta al catalogo, para la pantalla de gestion.
+ *
+ * ⚠️ **Arranca en [Idle] y se queda ahi hasta que el usuario aprieta el boton.** Entrar a la
+ * pantalla no consulta nada: fue el pedido explicito y coincide con D-029, porque la guia oficial
+ * de Wear OS pone el acceso a red por encima de encender la pantalla.
+ */
+sealed interface CatalogState {
+    /** Nadie pregunto todavia. */
+    data object Idle : CatalogState
+
+    /** Se esta preguntando. La pantalla muestra que algo pasa. */
+    data object Checking : CatalogState
+
+    /** Llego una respuesta. [offers] puede estar vacia: un catalogo sin nada que ofrecer. */
+    data class Ready(val offers: List<CatalogOffer>) : CatalogState
+
+    /** No se pudo. [reason] se muestra tal cual: en desarrollo es lo unico que orienta. */
+    data class Failed(val reason: String) : CatalogState
+}
+
 /** Un pack del catalogo con su veredicto y, si estaba, la version que ya hay en disco. */
 data class CatalogOffer(
     val pack: CatalogPack,

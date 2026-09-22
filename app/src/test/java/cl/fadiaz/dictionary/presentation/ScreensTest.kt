@@ -35,6 +35,10 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.PackSource
+import cl.fadiaz.dictionary.data.CatalogOffer
+import cl.fadiaz.dictionary.data.CatalogPack
+import cl.fadiaz.dictionary.data.CatalogState
+import cl.fadiaz.dictionary.data.CatalogStatus
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.core.MatchKind
@@ -816,6 +820,152 @@ class ScreensTest {
             fileName = "$id.db",
             bytes = bytes,
         )
+
+    private fun oferta(
+        id: String,
+        estado: CatalogStatus,
+        bytes: Long = 37_000_000,
+        instalada: Long? = null,
+    ) = CatalogOffer(
+        pack = CatalogPack(
+            packId = id, name = id, description = null, langs = listOf("es"), entryCount = 1,
+            dataVersion = 300L, schemaVersion = 4, normVersion = 2, license = null,
+            url = "packs/$id.db.gz", bytes = bytes, sha256 = "a", dbBytes = bytes * 2,
+            dbSha256 = "b",
+        ),
+        status = estado,
+        installedVersion = instalada,
+    )
+
+    @Test
+    fun entrarALaPantallaNoConsultaElCatalogo() {
+        // ⚠️ El aserto que fija la decision: la red se toca cuando el usuario aprieta, y nunca
+        // al montar la pantalla. La guia oficial pone el acceso a red por encima de encender la
+        // pantalla (D-029), asi que un sondeo al entrar seria el gasto mas caro de la app.
+        var consultas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(openPack("es-def", "Español", 72_212_480)),
+                onDelete = {},
+                onCheckCatalog = { consultas++ },
+            )
+        }
+        assertEquals("montar la pantalla no puede consultar el catalogo", 0, consultas)
+        compose.onNodeWithText("Consultar el catálogo").assertIsDisplayed()
+    }
+
+    @Test
+    fun elBotonEsLoQueConsulta() {
+        var consultas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                onCheckCatalog = { consultas++ },
+            )
+        }
+        compose.onNodeWithText("Consultar el catálogo").performClick()
+        assertEquals(1, consultas)
+    }
+
+    @Test
+    fun mientrasConsultaElBotonNoDisparaUnaSegundaVez() {
+        var consultas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Checking,
+                onCheckCatalog = { consultas++ },
+            )
+        }
+        compose.onNodeWithText("Consultando…").performClick()
+        assertEquals("un segundo toque no puede lanzar otra consulta", 0, consultas)
+    }
+
+    @Test
+    // ⚠️ Pantalla alta a proposito: `TransformingLazyColumn` solo compone lo VISIBLE, y en 234 dp
+    // la tercera cabecera queda fuera y el test mide dos. Es el mismo recurso que ya usa el test
+    // de la lista larga mas abajo, no un apano nuevo.
+    @Config(qualifiers = "+w234dp-h1600dp")
+    fun lasCategoriasSalenEnOrdenFIJO_actualizar_descargar_incompatible() {
+        // A proposito en el orden INVERSO al esperado: el orden de la pantalla no puede depender
+        // del orden del JSON que manda el servidor.
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    listOf(
+                        oferta("malo", CatalogStatus.INCOMPATIBLE),
+                        oferta("nuevo", CatalogStatus.DOWNLOAD),
+                        oferta("viejo", CatalogStatus.UPDATE, instalada = 200L),
+                    ),
+                ),
+            )
+        }
+        val enPantalla = compose.onAllNodes(hasText("Hay actualización")).fetchSemanticsNodes().size +
+            compose.onAllNodes(hasText("Se puede descargar")).fetchSemanticsNodes().size +
+            compose.onAllNodes(hasText("Esta versión no lo abre")).fetchSemanticsNodes().size
+        assertEquals("las tres cabeceras tienen que estar", 3, enPantalla)
+        // El orden vertical: actualizar primero. Es lo que el usuario vino a buscar.
+        val y = { texto: String ->
+            compose.onNodeWithText(texto).fetchSemanticsNode().positionInRoot.y
+        }
+        assertTrue(
+            "actualizar tiene que ir antes que descargar",
+            y("Hay actualización") < y("Se puede descargar"),
+        )
+        assertTrue(
+            "incompatible va al final",
+            y("Se puede descargar") < y("Esta versión no lo abre"),
+        )
+    }
+
+    @Test
+    fun unaActualizacionDiceDeQueVersionAQueVersion() {
+        // "Hay actualizacion" sin decir de que a que no deja decidir nada.
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    listOf(oferta("es-def", CatalogStatus.UPDATE, instalada = 200L)),
+                ),
+            )
+        }
+        compose.onNodeWithText("v300", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("200", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun unCatalogoSinNadaQueOfrecerLoDICE() {
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    // Un pack instalado y al dia NO es una oferta: no se muestra aca.
+                    listOf(oferta("es-def", CatalogStatus.INSTALLED, instalada = 300L)),
+                ),
+            )
+        }
+        compose.onNodeWithText("Nada nuevo", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun unFalloDeRedSeMuestraYNoTumbaLaPantalla() {
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Failed("Connection refused"),
+            )
+        }
+        compose.onNodeWithText("Connection refused", substring = true).assertIsDisplayed()
+        // Y se puede reintentar.
+        compose.onNodeWithText("Consultar de nuevo").assertIsDisplayed()
+    }
 
     @Test
     fun eachDictionaryShowsItsSizeAndWhichOneIsInUse() {

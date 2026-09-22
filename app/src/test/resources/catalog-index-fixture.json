@@ -1,0 +1,43 @@
+{
+ "catalog_version": 1,
+ "packs": [
+  {
+   "pack_id": "es-def-wd",
+   "name": "Español (Wikidata)",
+   "description": "Definiciones en español de Wikidata Lexemes. Segundo diccionario de español: aporta gentilicios regionales y locuciones que el Wikcionario cubre peor.",
+   "kind": "monolingual",
+   "entry_count": 15269,
+   "data_version": 20260920,
+   "schema_version": 3,
+   "norm_version": 2,
+   "license": "CC0-1.0",
+   "url": "packs/es-def-wd.db.gz",
+   "bytes": 2196654,
+   "sha256": "608e85fb6e09dd479382f5f909061d0a012c2c48b43c66c7d7b7f1804b0a106d",
+   "db_url": "packs/es-def-wd.db",
+   "db_bytes": 4358144,
+   "db_sha256": "df397d8d73e59452c3a3c7b38358b33eadb9f65193d0904c184421f00fa2b63d"
+  },
+  {
+   "pack_id": "es-def-wikc-tat-freq-wn-wd-core",
+   "name": "Español (núcleo)",
+   "description": "Definiciones en español del Wikcionario, sin nombres propios. Incluye sinónimos, antónimos y palabras relacionadas por acepción. Con frases de uso del corpus Tatoeba. Resultados ordenados por frecuencia de uso real. Con sinónimos de WordNet. Con vocabulario de una fuente adicional.",
+   "langs": [
+    "es"
+   ],
+   "kind": "monolingual",
+   "tier": "core",
+   "entry_count": 7349,
+   "data_version": 202609211911,
+   "schema_version": 4,
+   "norm_version": 2,
+   "license": "CC-BY-SA-4.0",
+   "url": "packs/es-core.db.gz",
+   "bytes": 3015926,
+   "sha256": "5733220dc3f138d9c4e9babcad60e304e4de023ba1c417b35f8125b95bd8ce8a",
+   "db_url": "packs/es-core.db",
+   "db_bytes": 5206016,
+   "db_sha256": "a617f02c0f84a4a8862502cf9c4e8b3278cb0cd3c36252c6c73e4ed226a5f939"
+  }
+ ]
+}

@@ -40,6 +40,9 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.data.CatalogOffer
+import cl.fadiaz.dictionary.data.CatalogState
+import cl.fadiaz.dictionary.data.CatalogStatus
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.asHumanSize
 
@@ -59,6 +62,14 @@ import cl.fadiaz.dictionary.data.asHumanSize
 fun PacksScreen(
     packs: List<PackHandle>,
     onDelete: (String) -> Unit,
+    /**
+     * El catalogo de descarga. **[CatalogState.Idle] mientras nadie apriete el boton.**
+     *
+     * ⚠️ Entrar a esta pantalla **no** consulta nada. Fue el pedido explicito, y coincide con
+     * D-029: la guia oficial de Wear OS pone el acceso a red por encima de encender la pantalla.
+     */
+    catalog: CatalogState = CatalogState.Idle,
+    onCheckCatalog: () -> Unit = {},
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -107,16 +118,60 @@ fun PacksScreen(
             }
 
             item(key = "cabecera-descargar") { ListHeader { Text(stringResource(R.string.packs_to_download)) } }
-            item(key = "wip") {
-                Text(
-                    // It says what is missing and what it will do. A bare "coming soon" helps
-                    // nobody; this also explains why dictionaries arrive over a cable today.
-                    text = stringResource(R.string.packs_wip),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+
+            // El boton. `Pill` con `onClick = null` es "presente pero no pulsable", que es
+            // exactamente el estado "consultando": la pildora se queda donde esta --la lista no
+            // salta-- y un segundo toque no dispara una segunda consulta.
+            item(key = "consultar") {
+                val consultando = catalog is CatalogState.Checking
+                Pill(
+                    text = when {
+                        consultando -> stringResource(R.string.packs_catalog_checking)
+                        catalog is CatalogState.Idle -> stringResource(R.string.packs_catalog_check)
+                        else -> stringResource(R.string.packs_catalog_recheck)
+                    },
+                    onClick = if (consultando) null else onCheckCatalog,
                 )
+            }
+
+            when (catalog) {
+                // Se mantiene la explicacion del cable: un "proximamente" a secas no ayuda a
+                // nadie, y hasta que el usuario pregunte esto es lo unico que hay que decir.
+                CatalogState.Idle, CatalogState.Checking -> item(key = "wip") { Aviso(stringResource(R.string.packs_wip)) }
+
+                is CatalogState.Failed -> item(key = "fallo") {
+                    Aviso(stringResource(R.string.packs_catalog_failed, catalog.reason))
+                }
+
+                is CatalogState.Ready -> {
+                    val porEstado = catalog.offers.groupBy { it.status }
+                    val hayAlgo = CATEGORIAS.any { !porEstado[it.first].isNullOrEmpty() }
+                    if (!hayAlgo) {
+                        item(key = "nada") { Aviso(stringResource(R.string.packs_catalog_nothing)) }
+                    } else {
+                        // ⚠️ Las categorias en un orden FIJO y no el del mapa: actualizar antes
+                        // que descargar antes que incompatible. Lo que ya se tiene y se puede
+                        // mejorar es lo que el usuario vino a buscar.
+                        for ((estado, titulo) in CATEGORIAS) {
+                            val ofertas = porEstado[estado].orEmpty()
+                            if (ofertas.isEmpty()) continue
+                            item(key = "cabecera-$estado") { ListHeader { Text(stringResource(titulo)) } }
+                            items(count = ofertas.size, key = { "oferta:$estado:${ofertas[it].pack.packId}" }) { i ->
+                                val oferta = ofertas[i]
+                                PackRow(
+                                    name = oferta.pack.name,
+                                    detail = detalleDeOferta(oferta),
+                                    // No hay boton: descargar todavia no existe. Ofrecer uno que
+                                    // no hace nada es peor que no ofrecerlo.
+                                    onDelete = null,
+                                )
+                            }
+                        }
+                        item(key = "nota-instalar") {
+                            Aviso(stringResource(R.string.packs_catalog_install_note))
+                        }
+                    }
+                }
             }
         }
     }
@@ -245,5 +300,64 @@ private fun PackRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * Las categorias del catalogo, **en orden fijo**.
+ *
+ * Y fijo a proposito: lo que ya se tiene y se puede mejorar es lo que el usuario vino a buscar,
+ * asi que va primero. Tomar el orden de `groupBy` dejaria que el orden de la pantalla dependa del
+ * orden del JSON del servidor, que nadie controla.
+ *
+ * ⚠️ `INSTALLED` **no esta**: un pack al dia no es una oferta. Aparece arriba, en la lista de lo
+ * que hay en el reloj, que es donde el usuario lo busca.
+ */
+private val CATEGORIAS = listOf(
+    CatalogStatus.UPDATE to R.string.packs_catalog_update,
+    CatalogStatus.DOWNLOAD to R.string.packs_catalog_download,
+    CatalogStatus.INCOMPATIBLE to R.string.packs_catalog_incompatible,
+)
+
+/**
+ * Un texto explicativo centrado, del ancho de la pantalla.
+ *
+ * Existe porque el mismo bloque se repetia cuatro veces --el aviso del cable, el fallo, el "nada
+ * nuevo" y la nota de instalar-- y cuatro copias del mismo `Text` con los mismos cinco parametros
+ * es como dejan de parecerse entre si.
+ */
+@Composable
+private fun Aviso(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+    )
+}
+
+/**
+ * La segunda linea de una fila del catalogo: **el tamano de lo que se va a descargar**.
+ *
+ * ⚠️ Se muestra [CatalogOffer.pack] `bytes`, que es el `.gz` que viaja, y no `dbBytes`: lo que el
+ * usuario decide aca es si quiere pagar esa descarga. El tamano en disco importa despues, y la
+ * fila de arriba --la de los instalados-- ya lo dice.
+ *
+ * Para una actualizacion se agregan las dos versiones, porque *"hay actualizacion"* sin decir de
+ * que a que no deja decidir nada.
+ */
+@Composable
+private fun detalleDeOferta(oferta: CatalogOffer): String {
+    val tamano = asHumanSize(oferta.pack.bytes)
+    val instalada = oferta.installedVersion
+    return if (oferta.status == CatalogStatus.UPDATE && instalada != null) {
+        tamano + " · " + stringResource(
+            R.string.packs_catalog_newer,
+            oferta.pack.dataVersion.toString(),
+            instalada.toString(),
+        )
+    } else {
+        tamano
     }
 }

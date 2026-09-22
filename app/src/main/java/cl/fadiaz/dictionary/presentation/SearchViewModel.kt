@@ -7,6 +7,9 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
+import cl.fadiaz.dictionary.data.Catalog
+import cl.fadiaz.dictionary.data.CatalogFetch
+import cl.fadiaz.dictionary.data.CatalogState
 import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.LogSearchTrace
 import cl.fadiaz.dictionary.core.TextNormalizer
@@ -63,6 +66,14 @@ data class SearchState(
      * `house`. El chip elige esto; el pack se deriva.
      */
     val activeLang: String? = null,
+    /**
+     * El catalogo de descarga. **[CatalogState.Idle] hasta que el usuario aprieta el boton.**
+     *
+     * Vive en el estado y no en la pantalla para que sobreviva a navegar y volver: consultar
+     * cuesta red, y perder el resultado por entrar a una ficha haria que el usuario pague dos
+     * veces por la misma respuesta.
+     */
+    val catalog: CatalogState = CatalogState.Idle,
     /** Every pack the app knows about, extracted or not. It is what the selector draws. */
     val available: List<PackHandle> = emptyList(),
     /** Packs that were there and did not open. Shown on the attribution screen, not the search. */
@@ -181,6 +192,14 @@ class SearchViewModel(
      * was installed.
      */
     private val notifyTiles: () -> Unit = {},
+    /**
+     * Le pregunta al catalogo por el indice, pasandole el `ETag` que se tenga.
+     *
+     * Llega como parametro y no se llama a [CatalogClient] directo para que los tests puedan
+     * ejercitar la pantalla **sin red**: el doble devuelve un [CatalogFetch] y ya. Mismo patron
+     * que `openPacks`.
+     */
+    private val fetchCatalog: suspend (etag: String?) -> CatalogFetch = { CatalogFetch.NotModified },
 ) : ViewModel() {
 
     /**
@@ -389,6 +408,53 @@ class SearchViewModel(
             trace = LogSearchTrace,
         )
     }
+
+    /**
+     * Consulta el catalogo. **Solo desde el boton de la pantalla de gestion.**
+     *
+     * ⚠️ **No se llama al entrar a la pantalla**, y eso es la decision, no una omision: la guia
+     * oficial de Wear OS clasifica el acceso a red como *very high impact*, por encima de encender
+     * la pantalla (D-029, `docs/bateria.md`). Un sondeo automatico seria el gasto mas caro que
+     * tiene la app, y el usuario no lo pidio.
+     *
+     * Un `304` reusa los packs que ya se trajeron pero **vuelve a clasificar**: entre las dos
+     * consultas el usuario pudo borrar un diccionario, y entonces lo que era "instalado" pasa a
+     * ser "descargar" sin que el catalogo haya cambiado una coma.
+     */
+    fun onCheckCatalog() {
+        if (_state.value.catalog is CatalogState.Checking) return
+        _state.update { it.copy(catalog = CatalogState.Checking) }
+        viewModelScope.launch {
+            val instalados = opened.map { it.metadata }
+            when (val r = fetchCatalog(catalogEtag)) {
+                is CatalogFetch.Fresh -> {
+                    catalogPacks = r.packs
+                    catalogEtag = r.etag
+                    publicar(instalados)
+                }
+                CatalogFetch.NotModified -> publicar(instalados)
+                is CatalogFetch.Failed ->
+                    _state.update { it.copy(catalog = CatalogState.Failed(r.reason)) }
+            }
+        }
+    }
+
+    /** Clasifica lo ultimo que se trajo contra lo que hay instalado AHORA. */
+    private fun publicar(instalados: List<PackMetadata>) {
+        val ofertas = Catalog.classify(catalogPacks, instalados)
+        DictLog.i {
+            val porEstado = ofertas.groupingBy { it.status }.eachCount()
+            "catalogo: " + (porEstado.entries.joinToString(" ") { "${it.key}=${it.value}" }
+                .ifEmpty { "nada que ofrecer" })
+        }
+        _state.update { it.copy(catalog = CatalogState.Ready(ofertas)) }
+    }
+
+    /** Lo ultimo que dijo el catalogo, para poder reclasificarlo tras un 304. */
+    private var catalogPacks: List<cl.fadiaz.dictionary.data.CatalogPack> = emptyList()
+
+    /** El `ETag` de la ultima respuesta. Es lo que hace barato apretar el boton dos veces. */
+    private var catalogEtag: String? = null
 
     /**
      * Cambia el IDIOMA en el que se busca, y deriva el pack que lo representa.

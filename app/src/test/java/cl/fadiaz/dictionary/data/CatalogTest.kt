@@ -125,6 +125,48 @@ class CatalogTest {
     }
 
     @Test
+    fun `parsea el indice REAL que produce packserver punto py`() {
+        // ⚠️ **El contrato cruzado del catalogo, y es el mismo patron que los vectores de
+        // normalizacion.** El indice lo escribe Python y lo lee Kotlin, y nada mas comprobaba que
+        // los dos hablaran del mismo formato: renombrar un campo en `packserver.py` dejaria este
+        // lado devolviendo una lista vacia, sin excepcion y sin log, y la pantalla diria
+        // "nada nuevo" para siempre.
+        //
+        // El fixture se regenera con:
+        //   python3 tools/packserver.py <dir> --index-only > app/src/test/resources/catalog-index-fixture.json
+        val json = javaClass.classLoader!!
+            .getResourceAsStream("catalog-index-fixture.json")!!
+            .use { it.readBytes().decodeToString() }
+        val packs = Catalog.parse(json)
+        assertTrue(packs.isNotEmpty(), "el indice real tiene que parsear a algo")
+
+        // Los campos que deciden algo, no todos: si uno de estos llega en cero, la pantalla
+        // miente o la app descarga de mas.
+        for (p in packs) {
+            assertTrue(p.packId.isNotEmpty(), "pack_id vacio")
+            assertTrue(p.url.isNotEmpty(), "url vacia en ${p.packId}")
+            assertEquals(64, p.sha256.length, "sha256 del .gz en ${p.packId}")
+            assertEquals(64, p.dbSha256.length, "sha256 del .db en ${p.packId}")
+            assertTrue(p.bytes > 0, "bytes del .gz en ${p.packId}")
+            assertTrue(p.dbBytes > p.bytes, "el .gz tendria que ser menor que el .db en ${p.packId}")
+            assertTrue(p.dataVersion > 0, "data_version en ${p.packId}")
+            assertTrue(p.schemaVersion > 0, "schema_version en ${p.packId}")
+            assertTrue(p.normVersion > 0, "norm_version en ${p.packId}")
+            assertTrue(p.entryCount > 0, "entry_count en ${p.packId}")
+        }
+
+        // ⚠️ Y el fixture incluye un pack de esquema VIEJO a proposito: el directorio real tiene
+        // `es-def-wd` en schema 3. Tiene que clasificarse como INCOMPATIBLE, que es lo que evita
+        // descargar 192 MB para tirarlos.
+        val ofertas = Catalog.classify(packs, installed = emptyList())
+        assertTrue(
+            ofertas.any { it.status == CatalogStatus.INCOMPATIBLE },
+            "el fixture tendria que traer al menos un pack incompatible: " +
+                ofertas.map { it.pack.packId to it.status },
+        )
+    }
+
+    @Test
     fun `una entrada rota se SALTA y las buenas sobreviven`() {
         // Un catalogo de seis packs con uno mal escrito tiene que ofrecer los cinco buenos.
         val json = """
