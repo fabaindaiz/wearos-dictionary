@@ -42,6 +42,9 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.BuildConfig
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
+import androidx.work.WorkManager
+import cl.fadiaz.dictionary.data.DownloadPackWorker
+import kotlinx.coroutines.flow.map
 import cl.fadiaz.dictionary.data.CatalogClient
 import cl.fadiaz.dictionary.data.PackStore
 import cl.fadiaz.dictionary.data.Visit
@@ -162,6 +165,19 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             fetchCatalog = { etag ->
                                 CatalogClient.fetchIndex(BuildConfig.CATALOG_URL, etag)
                             },
+                            startDownload = { pack ->
+                                DownloadPackWorker.enqueue(context, BuildConfig.CATALOG_URL, pack)
+                            },
+                            // Lo que WorkManager reporta, traducido. Es un Flow y no una lectura
+                            // puntual porque el estado cambia SOLO --al conectar el cargador, por
+                            // ejemplo-- y la pantalla tiene que enterarse sin que nadie pregunte.
+                            downloadStates = WorkManager.getInstance(context)
+                                .getWorkInfosByTagFlow(DownloadPackWorker.TAG)
+                                .map { infos ->
+                                    infos.mapNotNull {
+                                        DownloadPackWorker.toPackDownload(it.tags, it.state, it.progress)
+                                    }
+                                },
                         )
                     }
                 },
@@ -449,6 +465,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         onDelete = viewModel::deletePack,
                         catalog = state.catalog,
                         onCheckCatalog = viewModel::onCheckCatalog,
+                        downloads = state.downloads,
+                        onDownload = viewModel::onDownload,
                     )
                 }
                 composable(ROUTE_SETTINGS) {

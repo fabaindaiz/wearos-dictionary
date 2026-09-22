@@ -39,6 +39,8 @@ import cl.fadiaz.dictionary.data.CatalogOffer
 import cl.fadiaz.dictionary.data.CatalogPack
 import cl.fadiaz.dictionary.data.CatalogState
 import cl.fadiaz.dictionary.data.CatalogStatus
+import cl.fadiaz.dictionary.data.DownloadPhase
+import cl.fadiaz.dictionary.data.PackDownload
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.core.MatchKind
@@ -1088,8 +1090,11 @@ class ScreensTest {
     }
 
     @Test
-    fun theDownloadSectionSaysNotYetAndHowToInstallToday() {
-        // A bare "coming soon" leaves the user with no idea how to install a dictionary.
+    fun laSeccionDeDescargaYaNoHablaDeUnCABLE() {
+        // ⚠️ Este test decia lo contrario hasta el 2026-09-22: afirmaba que la seccion explica que
+        // hoy se instala por cable. **Descargar ya funciona**, asi que esa frase paso a ser falsa,
+        // y una pantalla que le dice al usuario que algo no existe cuando existe es peor que una
+        // sin texto. Lo que corresponde decir ahora es COMO empieza: tocando el boton.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
@@ -1097,7 +1102,68 @@ class ScreensTest {
             )
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Para descargar"))
-        compose.onNodeWithText("cable", substring = true).assertExists()
+        assertEquals(
+            "ya no se instala por cable: la seccion no puede seguir diciendolo",
+            0,
+            compose.onAllNodes(hasText("cable", substring = true)).fetchSemanticsNodes().size,
+        )
+        compose.onNodeWithText("Toca", substring = true).assertExists()
+    }
+
+    @Test
+    fun mientrasESPERA_carga_la_fila_lo_DICE() {
+        // ⚠️ D-029 difiere la descarga a cargando + Wi-Fi, asi que tocar descargar con el reloj
+        // desconectado no descarga nada TODAVIA. Un progreso que no se mueve sin explicacion se
+        // lee como una app rota; por eso la espera tiene texto propio.
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(listOf(oferta("nuevo", CatalogStatus.DOWNLOAD))),
+                downloads = mapOf("nuevo" to PackDownload("nuevo", DownloadPhase.WAITING)),
+            )
+        }
+        compose.onNodeWithText("En espera", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun mientras_BAJA_la_fila_muestra_el_progreso_y_NO_se_puede_reencolar() {
+        var pedidas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(listOf(oferta("nuevo", CatalogStatus.DOWNLOAD))),
+                downloads = mapOf(
+                    "nuevo" to PackDownload("nuevo", DownloadPhase.RUNNING, done = 5_000_000, total = 10_000_000),
+                ),
+                onDownload = { pedidas++ },
+            )
+        }
+        compose.onNodeWithText("5,0 MB", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("5,0 MB", substring = true).performClick()
+        assertEquals("tocar mientras baja no puede reencolar la descarga", 0, pedidas)
+    }
+
+    @Test
+    fun un_pack_INCOMPATIBLE_no_se_puede_tocar() {
+        // Esta app no lo abre, asi que ofrecer la descarga seria cobrarla para nada.
+        var pedidas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(listOf(oferta("malo", CatalogStatus.INCOMPATIBLE))),
+                onDownload = { pedidas++ },
+            )
+        }
+        compose.onNodeWithText("malo").performClick()
+        assertEquals("un pack incompatible no se descarga", 0, pedidas)
+        assertEquals(
+            "y tampoco invita a tocarlo",
+            0,
+            compose.onAllNodes(hasText("toca para descargar", substring = true)).fetchSemanticsNodes().size,
+        )
     }
 
     @Test

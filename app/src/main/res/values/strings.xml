@@ -90,7 +90,7 @@
     <!-- Dictionary management -->
     <string name="packs_on_watch">On the watch</string>
     <string name="packs_to_download">To download</string>
-    <string name="packs_wip">Not yet. Today dictionaries are installed over a cable, from the computer. The catalogue to download them from the watch will appear here.</string>
+    <string name="packs_wip">Tap to see which dictionaries are available to download.</string>
     <string name="packs_bundled">Included in the app</string>
     <string name="packs_delete_question">Delete %1$s?</string>
     <string name="packs_delete_cost">It takes %1$s. To get it back you have to install it again from the computer.</string>
@@ -156,5 +156,11 @@
     <string name="packs_catalog_update">Update available</string>
     <string name="packs_catalog_download">Available to download</string>
     <string name="packs_catalog_incompatible">Not usable by this version</string>
-    <string name="packs_catalog_install_note">Listing only, for now: installing still happens over a cable.</string>
+    <string name="packs_catalog_install_note">Downloads run when the watch is charging, on Wi-Fi.</string>
+    <!-- Descarga de packs (D-029: cargando + Wi-Fi). -->
+    <string name="packs_dl_waiting">Waiting: plug in the watch, on Wi-Fi</string>
+    <string name="packs_dl_running">%1$s of %2$s</string>
+    <string name="packs_dl_done">Installed</string>
+    <string name="packs_dl_failed">Failed \u2014 it will retry</string>
+    <string name="packs_dl_tap">%1$s \u00b7 tap to download</string>
 </resources>

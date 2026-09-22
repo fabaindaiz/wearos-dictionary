@@ -10,6 +10,9 @@ import cl.fadiaz.dictionary.core.SearchRepository
 import cl.fadiaz.dictionary.data.Catalog
 import cl.fadiaz.dictionary.data.CatalogFetch
 import cl.fadiaz.dictionary.data.CatalogState
+import cl.fadiaz.dictionary.data.CatalogPack
+import cl.fadiaz.dictionary.data.DownloadPhase
+import cl.fadiaz.dictionary.data.PackDownload
 import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.LogSearchTrace
 import cl.fadiaz.dictionary.core.TextNormalizer
@@ -31,6 +34,8 @@ import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.data.visitTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -74,6 +79,8 @@ data class SearchState(
      * veces por la misma respuesta.
      */
     val catalog: CatalogState = CatalogState.Idle,
+    /** Descargas en curso por `packId`. Vacio cuando no hay ninguna. */
+    val downloads: Map<String, PackDownload> = emptyMap(),
     /** Every pack the app knows about, extracted or not. It is what the selector draws. */
     val available: List<PackHandle> = emptyList(),
     /** Packs that were there and did not open. Shown on the attribution screen, not the search. */
@@ -200,6 +207,10 @@ class SearchViewModel(
      * que `openPacks`.
      */
     private val fetchCatalog: suspend (etag: String?) -> CatalogFetch = { CatalogFetch.NotModified },
+    /** Encola la descarga de un pack. La hace WorkManager con las restricciones de D-029. */
+    private val startDownload: (CatalogPack) -> Unit = {},
+    /** Lo que WorkManager va diciendo de las descargas en curso. */
+    private val downloadStates: Flow<List<PackDownload>> = flowOf(emptyList()),
 ) : ViewModel() {
 
     /**
@@ -271,6 +282,7 @@ class SearchViewModel(
                     "(historial=${visits.size})"
             }
         }
+        seguirDescargas()
 
         viewModelScope.launch {
             combine(
@@ -435,6 +447,35 @@ class SearchViewModel(
                 CatalogFetch.NotModified -> publicar(instalados)
                 is CatalogFetch.Failed ->
                     _state.update { it.copy(catalog = CatalogState.Failed(r.reason)) }
+            }
+        }
+    }
+
+    /** Encola la descarga de un pack del catalogo. */
+    fun onDownload(pack: CatalogPack) {
+        DictLog.i { "descarga pedida: ${pack.packId} (${pack.bytes / 1_048_576} MB)" }
+        startDownload(pack)
+    }
+
+    /**
+     * Sigue lo que WorkManager dice, y **recarga los packs cuando uno termina**.
+     *
+     * ⚠️ Sin esa recarga el pack estaria en disco y la app no lo veria hasta el proximo arranque:
+     * el escaneo es una sola vez, en este mismo `init`. Y despues se vuelve a clasificar, para que
+     * la fila pase de "descargar" a estar arriba, entre lo instalado.
+     */
+    private fun seguirDescargas() {
+        viewModelScope.launch {
+            var terminadas = emptySet<String>()
+            downloadStates.collect { lista ->
+                _state.update { it.copy(downloads = lista.associateBy { d -> d.packId }) }
+                val nuevas = lista.filter { it.phase == DownloadPhase.DONE }.map { it.packId }.toSet()
+                if ((nuevas - terminadas).isNotEmpty()) {
+                    DictLog.i { "descarga terminada: ${(nuevas - terminadas).joinToString()}" }
+                    terminadas = nuevas
+                    loadPacks()
+                    publicar(opened.map { it.metadata })
+                }
             }
         }
     }

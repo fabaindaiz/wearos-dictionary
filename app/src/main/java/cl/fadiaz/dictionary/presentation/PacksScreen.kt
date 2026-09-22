@@ -44,6 +44,9 @@ import cl.fadiaz.dictionary.data.Catalog
 import cl.fadiaz.dictionary.data.CatalogOffer
 import cl.fadiaz.dictionary.data.CatalogState
 import cl.fadiaz.dictionary.data.CatalogStatus
+import cl.fadiaz.dictionary.data.CatalogPack
+import cl.fadiaz.dictionary.data.DownloadPhase
+import cl.fadiaz.dictionary.data.PackDownload
 import cl.fadiaz.dictionary.data.PackHandle
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -73,6 +76,9 @@ fun PacksScreen(
      */
     catalog: CatalogState = CatalogState.Idle,
     onCheckCatalog: () -> Unit = {},
+    /** Lo que WorkManager dice de cada descarga, por `packId`. */
+    downloads: Map<String, PackDownload> = emptyMap(),
+    onDownload: (CatalogPack) -> Unit = {},
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -161,12 +167,19 @@ fun PacksScreen(
                             item(key = "cabecera-$estado") { ListHeader { Text(stringResource(titulo)) } }
                             items(count = ofertas.size, key = { "oferta:$estado:${ofertas[it].pack.packId}" }) { i ->
                                 val oferta = ofertas[i]
+                                val bajando = downloads[oferta.pack.packId]
                                 PackRow(
                                     name = oferta.pack.name,
-                                    detail = detalleDeOferta(oferta),
-                                    // No hay boton: descargar todavia no existe. Ofrecer uno que
-                                    // no hace nada es peor que no ofrecerlo.
+                                    detail = detalleDeOferta(oferta, bajando),
                                     onDelete = null,
+                                    // ⚠️ Un pack incompatible NO se puede tocar: esta app no lo
+                                    // abre, asi que ofrecer la descarga seria cobrarla para nada.
+                                    // Y mientras baja tampoco, para no reencolar sobre si misma.
+                                    onClick = if (estado == CatalogStatus.INCOMPATIBLE || bajando != null) {
+                                        null
+                                    } else {
+                                        { onDownload(oferta.pack) }
+                                    },
                                 )
                             }
                         }
@@ -233,6 +246,14 @@ private fun PackRow(
     name: String,
     detail: String,
     onDelete: (() -> Unit)?,
+    /**
+     * Que hace tocar la fila, o `null` si no hace nada.
+     *
+     * Lo usa el catalogo: una oferta se descarga tocandola. Las filas de lo instalado siguen sin
+     * ser pulsables, porque elegir el diccionario en uso vive en el selector del inicio (D-111) y
+     * tenerlo tambien aca seria una segunda puerta a lo mismo.
+     */
+    onClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -244,6 +265,7 @@ private fun PackRow(
                 .weight(1f)
                 .clip(CARD_SHAPE)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
+                .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
                 .heightIn(min = TOUCH_TARGET)
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -355,9 +377,26 @@ private fun Aviso(text: String) {
  * queda con el tamano, que es el dato que nunca falta.
  */
 @Composable
-private fun detalleDeOferta(oferta: CatalogOffer): String {
+private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): String {
     val tamano = asHumanSize(oferta.pack.bytes)
+    // Mientras baja, el estado de la descarga REEMPLAZA a la fecha: lo que el usuario quiere
+    // saber en ese momento es si esta pasando algo, no de cuando es el pack.
+    when (bajando?.phase) {
+        DownloadPhase.WAITING -> return stringResource(R.string.packs_dl_waiting)
+        DownloadPhase.RUNNING -> return stringResource(
+            R.string.packs_dl_running,
+            asHumanSize(bajando.done),
+            asHumanSize(if (bajando.total > 0) bajando.total else oferta.pack.bytes),
+        )
+        DownloadPhase.DONE -> return stringResource(R.string.packs_dl_done)
+        DownloadPhase.FAILED -> return stringResource(R.string.packs_dl_failed)
+        null -> Unit
+    }
     val fecha = Catalog.dataVersionDate(oferta.pack.dataVersion)
         ?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-    return if (fecha != null) "$tamano · $fecha" else tamano
+    val base = if (fecha != null) "$tamano · $fecha" else tamano
+    // ⚠️ Se dice que la fila se toca. Una fila pulsable que no lo parece es una funcion que nadie
+    // encuentra, y en un reloj no hay hover ni cursor que lo insinue.
+    return if (oferta.status == CatalogStatus.INCOMPATIBLE) base
+    else stringResource(R.string.packs_dl_tap, base)
 }
