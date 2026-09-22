@@ -155,7 +155,7 @@
     <string name="packs_catalog_nothing">Nothing new. Everything installed is up to date.</string>
     <string name="packs_catalog_update">Update available</string>
     <string name="packs_catalog_download">Available to download</string>
-    <string name="packs_catalog_incompatible">Not usable by this version</string>
+    <string name="packs_catalog_app_outdated">Some dictionaries need a newer version of the app.</string>
     <string name="packs_catalog_install_note">Downloads run when the watch is charging, on Wi-Fi.</string>
     <!-- Descarga de packs (D-029: cargando + Wi-Fi). -->
     <string name="packs_dl_waiting">Waiting: plug in the watch, on Wi-Fi</string>

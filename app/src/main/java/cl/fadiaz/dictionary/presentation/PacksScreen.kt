@@ -155,6 +155,14 @@ fun PacksScreen(
                 is CatalogState.Ready -> {
                     val porEstado = catalog.offers.groupBy { it.status }
                     val hayAlgo = CATEGORIAS.any { !porEstado[it.first].isNullOrEmpty() }
+                    // ⚠️ **Se dice una vez, no pack por pack.** Los packs que esta version no abre
+                    // ni siquiera estan en la lista; lo unico util que se puede decir del hueco es
+                    // que hay una app mas nueva, y eso es una frase, no una seccion.
+                    if (catalog.needsAppUpdate) {
+                        item(key = "app-vieja") {
+                            Aviso(stringResource(R.string.packs_catalog_app_outdated))
+                        }
+                    }
                     if (!hayAlgo) {
                         item(key = "nada") { Aviso(stringResource(R.string.packs_catalog_nothing)) }
                     } else {
@@ -172,14 +180,10 @@ fun PacksScreen(
                                     name = oferta.pack.name,
                                     detail = detalleDeOferta(oferta, bajando),
                                     onDelete = null,
-                                    // ⚠️ Un pack incompatible NO se puede tocar: esta app no lo
-                                    // abre, asi que ofrecer la descarga seria cobrarla para nada.
-                                    // Y mientras baja tampoco, para no reencolar sobre si misma.
-                                    onClick = if (estado == CatalogStatus.INCOMPATIBLE || bajando != null) {
-                                        null
-                                    } else {
-                                        { onDownload(oferta.pack) }
-                                    },
+                                    // Mientras baja no se puede tocar, para no reencolar sobre
+                                    // si misma. Lo incompatible ya no llega hasta aqui: se filtra
+                                    // en `Catalog.classify` y no se lista.
+                                    onClick = if (bajando != null) null else { { onDownload(oferta.pack) } },
                                 )
                             }
                         }
@@ -341,7 +345,6 @@ private fun PackRow(
 private val CATEGORIAS = listOf(
     CatalogStatus.UPDATE to R.string.packs_catalog_update,
     CatalogStatus.DOWNLOAD to R.string.packs_catalog_download,
-    CatalogStatus.INCOMPATIBLE to R.string.packs_catalog_incompatible,
 )
 
 /**
@@ -397,6 +400,5 @@ private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): Strin
     val base = if (fecha != null) "$tamano · $fecha" else tamano
     // ⚠️ Se dice que la fila se toca. Una fila pulsable que no lo parece es una funcion que nadie
     // encuentra, y en un reloj no hay hover ni cursor que lo insinue.
-    return if (oferta.status == CatalogStatus.INCOMPATIBLE) base
-    else stringResource(R.string.packs_dl_tap, base)
+    return stringResource(R.string.packs_dl_tap, base)
 }

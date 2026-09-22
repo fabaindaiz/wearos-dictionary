@@ -8,13 +8,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
  * El catalogo de descarga: repartir lo publicado contra lo instalado.
  *
- * ⚠️ El aserto que paga el archivo es el de **INCOMPATIBLE por igualdad**. `PackFile.open` rechaza
+ * ⚠️ El aserto que paga el archivo es el de **la comparacion por igualdad**. `PackFile.open` rechaza
  * un `schema_version` distinto --mayor o menor-- y si aca se comparara con `>=` la pantalla
  * ofreceria packs que la app no abre, despues de que el usuario pague 192 MB de Wi-Fi.
  *
@@ -42,11 +43,32 @@ class CatalogTest {
     )
 
     @Test
+    fun `un pack incompatible NO se lista, y se avisa que hay que actualizar la app`() {
+        // ⚠️ Pedido: *«que los packs solo esten disponibles para la ultima version, no quiero
+        // listar packs no disponibles. En su lugar solo deberia aclarar que se debe actualizar la
+        // aplicacion»*. Un pack que esta app no abre no es una oferta: mostrarlo es ofrecer algo
+        // que no se puede tener, y el usuario no tiene forma de saber por que.
+        val r = Catalog.classify(
+            listOf(ofrecido("viejo", schema = 3), ofrecido("bueno")),
+            installed = emptyList(),
+        )
+        assertEquals(listOf("bueno"), r.offers.map { it.pack.packId })
+        assertTrue(r.needsAppUpdate, "hubo packs descartados: hay que decir que se actualice")
+    }
+
+    @Test
+    fun `sin packs incompatibles no se pide actualizar nada`() {
+        val r = Catalog.classify(listOf(ofrecido("bueno")), installed = emptyList())
+        assertFalse(r.needsAppUpdate)
+        assertEquals(1, r.offers.size)
+    }
+
+    @Test
     fun `lo que no esta instalado se ofrece para DESCARGAR`() {
         val r = Catalog.classify(listOf(ofrecido("es-def")), installed = emptyList())
-        assertEquals(1, r.size)
-        assertEquals(CatalogStatus.DOWNLOAD, r.single().status)
-        assertNull(r.single().installedVersion, "no hay version local que reportar")
+        assertEquals(1, r.offers.size)
+        assertEquals(CatalogStatus.DOWNLOAD, r.offers.single().status)
+        assertNull(r.offers.single().installedVersion, "no hay version local que reportar")
     }
 
     @Test
@@ -55,8 +77,8 @@ class CatalogTest {
             listOf(ofrecido("es-def", version = 300L)),
             installed = listOf(instalado("es-def", 200L)),
         )
-        assertEquals(CatalogStatus.UPDATE, r.single().status)
-        assertEquals(200L, r.single().installedVersion)
+        assertEquals(CatalogStatus.UPDATE, r.offers.single().status)
+        assertEquals(200L, r.offers.single().installedVersion)
     }
 
     @Test
@@ -65,7 +87,7 @@ class CatalogTest {
             listOf(ofrecido("es-def", version = 200L)),
             installed = listOf(instalado("es-def", 200L)),
         )
-        assertEquals(CatalogStatus.INSTALLED, r.single().status)
+        assertEquals(CatalogStatus.INSTALLED, r.offers.single().status)
     }
 
     @Test
@@ -76,35 +98,37 @@ class CatalogTest {
             listOf(ofrecido("es-def", version = 100L)),
             installed = listOf(instalado("es-def", 999L)),
         )
-        assertEquals(CatalogStatus.INSTALLED, r.single().status)
+        assertEquals(CatalogStatus.INSTALLED, r.offers.single().status)
     }
 
     @Test
-    fun `un schema distinto es INCOMPATIBLE, por IGUALDAD y no por mayor-o-igual`() {
+    fun `un schema distinto se descarta, por IGUALDAD y no por mayor-o-igual`() {
         val viejo = Catalog.classify(listOf(ofrecido("v", schema = 3)), emptyList())
         val nuevo = Catalog.classify(listOf(ofrecido("n", schema = 5)), emptyList())
-        assertEquals(CatalogStatus.INCOMPATIBLE, viejo.single().status)
-        assertEquals(
-            CatalogStatus.INCOMPATIBLE,
-            nuevo.single().status,
+        assertTrue(viejo.offers.isEmpty() && viejo.needsAppUpdate)
+        assertTrue(
+            nuevo.offers.isEmpty() && nuevo.needsAppUpdate,
             "un schema MAYOR tampoco se abre: PackFile.open compara por igualdad",
         )
     }
 
     @Test
-    fun `un norm_version distinto tambien es INCOMPATIBLE`() {
+    fun `un norm_version distinto tambien se descarta`() {
         val r = Catalog.classify(listOf(ofrecido("x", norm = 1)), emptyList())
-        assertEquals(CatalogStatus.INCOMPATIBLE, r.single().status)
+        assertTrue(r.offers.isEmpty() && r.needsAppUpdate)
     }
 
     @Test
-    fun `INCOMPATIBLE gana sobre ACTUALIZAR`() {
+    fun `un pack instalado cuya version nueva cambio de schema tampoco se lista`() {
         // Un pack instalado cuya version nueva cambio de schema: no se puede ofrecer.
         val r = Catalog.classify(
             listOf(ofrecido("es-def", version = 300L, schema = 5)),
             installed = listOf(instalado("es-def", 200L)),
         )
-        assertEquals(CatalogStatus.INCOMPATIBLE, r.single().status)
+        assertTrue(
+            r.offers.isEmpty() && r.needsAppUpdate,
+            "no se puede ofrecer una actualizacion que la app no abriria",
+        )
     }
 
     @Test
@@ -184,11 +208,15 @@ class CatalogTest {
         // ⚠️ Y el fixture incluye un pack de esquema VIEJO a proposito: el directorio real tiene
         // `es-def-wd` en schema 3. Tiene que clasificarse como INCOMPATIBLE, que es lo que evita
         // descargar 192 MB para tirarlos.
-        val ofertas = Catalog.classify(packs, installed = emptyList())
+        val listado = Catalog.classify(packs, installed = emptyList())
         assertTrue(
-            ofertas.any { it.status == CatalogStatus.INCOMPATIBLE },
-            "el fixture tendria que traer al menos un pack incompatible: " +
-                ofertas.map { it.pack.packId to it.status },
+            listado.needsAppUpdate,
+            "el fixture trae un pack de otra version: tendria que pedir actualizar la app",
+        )
+        assertTrue(
+            listado.offers.none { it.pack.schemaVersion != 4 },
+            "no puede colarse un pack de otro schema: " +
+                listado.offers.map { it.pack.packId to it.pack.schemaVersion },
         )
     }
 
@@ -214,6 +242,6 @@ class CatalogTest {
         """.trimIndent()
         val p = Catalog.parse(json).single()
         assertTrue(p.langs.isEmpty())
-        assertEquals(CatalogStatus.INCOMPATIBLE, Catalog.classify(listOf(p), emptyList()).single().status)
+        assertTrue(Catalog.classify(listOf(p), emptyList()).offers.isEmpty())
     }
 }
