@@ -49,15 +49,23 @@ enum class CatalogStatus {
 
     /** Esta instalado y al dia. Se muestra, pero no se ofrece. */
     INSTALLED,
-
-    /**
-     * El pack declara un `schema_version` o `norm_version` que esta app no abre.
-     *
-     * ⚠️ **Se muestra en vez de esconderse**, y es a proposito: un pack que existe y no se puede
-     * usar es una pregunta que el usuario se va a hacer, y "no aparece" es la peor respuesta.
-     */
-    INCOMPATIBLE,
 }
+
+/**
+ * El catalogo ya comparado con lo que hay instalado.
+ *
+ * ⚠️ **Los packs que esta app no abre NO estan en [offers]**, y eso revierte una decision anterior.
+ * Antes se mostraban en una seccion propia, con el razonamiento de que *«un pack que existe y no
+ * se puede usar es una pregunta que el usuario se va a hacer»*. Pedido explicito: *«no quiero
+ * listar packs no disponibles; en su lugar solo deberia aclarar que se debe actualizar la
+ * aplicacion»*. Y es mejor: la lista solo deberia tener cosas que se pueden tener, y la respuesta
+ * util no es *"este pack no sirve"* sino **"actualiza la app"**, que es accionable.
+ */
+data class CatalogListing(
+    val offers: List<CatalogOffer>,
+    /** Hubo packs descartados por version. La pantalla lo dice una vez, no pack por pack. */
+    val needsAppUpdate: Boolean,
+)
 
 /** En que punto esta la descarga de UN pack. */
 enum class DownloadPhase {
@@ -100,7 +108,11 @@ sealed interface CatalogState {
     data object Checking : CatalogState
 
     /** Llego una respuesta. [offers] puede estar vacia: un catalogo sin nada que ofrecer. */
-    data class Ready(val offers: List<CatalogOffer>) : CatalogState
+    data class Ready(
+        val offers: List<CatalogOffer>,
+        /** Hubo packs que esta version no abre. Se dice una vez, no pack por pack. */
+        val needsAppUpdate: Boolean = false,
+    ) : CatalogState
 
     /** No se pudo. [reason] se muestra tal cual: en desarrollo es lo unico que orienta. */
     data class Failed(val reason: String) : CatalogState
@@ -135,20 +147,21 @@ object Catalog {
         installed: List<PackMetadata>,
         schemaVersion: Int = PackFile.SUPPORTED_SCHEMA_VERSION,
         normVersion: Int = TextNormalizer.NORM_VERSION,
-    ): List<CatalogOffer> {
+    ): CatalogListing {
         // Por `packId` y nunca por nombre de archivo: el pack del nucleo espanol vive en
         // `es-core.db` y se llama `es-def-wikc-tat-freq-wn-wd-core`. La identidad es la que el
         // artefacto DECLARA (D-138); confundirla con la ubicacion haria que renombrar un archivo
         // se vea como un pack nuevo.
         val localPorId = installed.associate { it.packId to it.dataVersion }
-        return catalog.map { pack ->
+        // ⚠️ **Se comparan por IGUALDAD y no por `>=`**, porque es lo que hace `PackFile.open`: un
+        // `schema_version` distinto se rechaza, mayor o menor. Con `>=` se ofreceria un pack que
+        // la app despues no abre, y el usuario ya habria pagado la descarga.
+        val (abribles, rechazados) = catalog.partition {
+            it.schemaVersion == schemaVersion && it.normVersion == normVersion
+        }
+        val offers = abribles.map { pack ->
             val local = localPorId[pack.packId]
             val status = when {
-                // Primero, y gana sobre todo lo demas: si no se puede abrir, da igual si hay algo
-                // instalado. Ofrecer una actualizacion que la app va a rechazar al abrirla cobra
-                // la descarga y no entrega nada.
-                pack.schemaVersion != schemaVersion || pack.normVersion != normVersion ->
-                    CatalogStatus.INCOMPATIBLE
                 local == null -> CatalogStatus.DOWNLOAD
                 // Estrictamente mayor. En desarrollo pasa a diario tener un pack local mas nuevo
                 // que el que sirve el servidor, y ofrecer "actualizar" ahi seria un downgrade.
@@ -157,6 +170,7 @@ object Catalog {
             }
             CatalogOffer(pack, status, local)
         }
+        return CatalogListing(offers, needsAppUpdate = rechazados.isNotEmpty())
     }
 
     /**

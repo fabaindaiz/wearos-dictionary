@@ -888,10 +888,9 @@ class ScreensTest {
 
     @Test
     // ⚠️ Pantalla alta a proposito: `TransformingLazyColumn` solo compone lo VISIBLE, y en 234 dp
-    // la tercera cabecera queda fuera y el test mide dos. Es el mismo recurso que ya usa el test
-    // de la lista larga mas abajo, no un apano nuevo.
+    // la ultima cabecera queda fuera. Es el mismo recurso que ya usa el test de la lista larga.
     @Config(qualifiers = "+w234dp-h1600dp")
-    fun lasCategoriasSalenEnOrdenFIJO_actualizar_descargar_incompatible() {
+    fun lasCategoriasSalenEnOrdenFIJO_actualizar_antes_que_descargar() {
         // A proposito en el orden INVERSO al esperado: el orden de la pantalla no puede depender
         // del orden del JSON que manda el servidor.
         compose.setContent {
@@ -900,7 +899,6 @@ class ScreensTest {
                 onDelete = {},
                 catalog = CatalogState.Ready(
                     listOf(
-                        oferta("malo", CatalogStatus.INCOMPATIBLE),
                         oferta("nuevo", CatalogStatus.DOWNLOAD),
                         oferta("viejo", CatalogStatus.UPDATE, instalada = 200L),
                     ),
@@ -908,9 +906,8 @@ class ScreensTest {
             )
         }
         val enPantalla = compose.onAllNodes(hasText("Hay actualización")).fetchSemanticsNodes().size +
-            compose.onAllNodes(hasText("Se puede descargar")).fetchSemanticsNodes().size +
-            compose.onAllNodes(hasText("Esta versión no lo abre")).fetchSemanticsNodes().size
-        assertEquals("las tres cabeceras tienen que estar", 3, enPantalla)
+            compose.onAllNodes(hasText("Se puede descargar")).fetchSemanticsNodes().size
+        assertEquals("las dos cabeceras tienen que estar", 2, enPantalla)
         // El orden vertical: actualizar primero. Es lo que el usuario vino a buscar.
         val y = { texto: String ->
             compose.onNodeWithText(texto).fetchSemanticsNode().positionInRoot.y
@@ -919,10 +916,7 @@ class ScreensTest {
             "actualizar tiene que ir antes que descargar",
             y("Hay actualización") < y("Se puede descargar"),
         )
-        assertTrue(
-            "incompatible va al final",
-            y("Se puede descargar") < y("Esta versión no lo abre"),
-        )
+
     }
 
     @Test
@@ -1146,23 +1140,23 @@ class ScreensTest {
     }
 
     @Test
-    fun un_pack_INCOMPATIBLE_no_se_puede_tocar() {
-        // Esta app no lo abre, asi que ofrecer la descarga seria cobrarla para nada.
-        var pedidas = 0
+    fun un_pack_de_otra_version_NO_SE_LISTA_y_se_pide_actualizar_la_app() {
+        // ⚠️ Esto revierte una decision anterior, que le daba seccion propia. Pedido: *«no quiero
+        // listar packs no disponibles; en su lugar solo deberia aclarar que se debe actualizar la
+        // aplicacion»*. La lista solo lleva cosas que se pueden tener, y la respuesta util no es
+        // "este pack no sirve" sino "actualiza la app", que si es accionable.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
                 onDelete = {},
-                catalog = CatalogState.Ready(listOf(oferta("malo", CatalogStatus.INCOMPATIBLE))),
-                onDownload = { pedidas++ },
+                catalog = CatalogState.Ready(emptyList(), needsAppUpdate = true),
             )
         }
-        compose.onNodeWithText("malo").performClick()
-        assertEquals("un pack incompatible no se descarga", 0, pedidas)
+        compose.onNodeWithText("versión más nueva", substring = true).assertIsDisplayed()
         assertEquals(
-            "y tampoco invita a tocarlo",
+            "no puede quedar ninguna seccion de packs incompatibles",
             0,
-            compose.onAllNodes(hasText("toca para descargar", substring = true)).fetchSemanticsNodes().size,
+            compose.onAllNodes(hasText("no lo abre", substring = true)).fetchSemanticsNodes().size,
         )
     }
 

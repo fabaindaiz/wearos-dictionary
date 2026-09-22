@@ -152,7 +152,7 @@
     <string name="packs_catalog_nothing">Nada nuevo. Lo instalado está al día.</string>
     <string name="packs_catalog_update">Hay actualización</string>
     <string name="packs_catalog_download">Se puede descargar</string>
-    <string name="packs_catalog_incompatible">Esta versión no lo abre</string>
+    <string name="packs_catalog_app_outdated">Algunos diccionarios necesitan una versión más nueva de la app.</string>
     <string name="packs_catalog_install_note">Las descargas corren cuando el reloj está cargando, con Wi-Fi.</string>
     <!-- Descarga de packs (D-029: cargando + Wi-Fi). -->
     <string name="packs_dl_waiting">En espera: conecta el reloj, con Wi-Fi</string>

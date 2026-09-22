@@ -518,13 +518,18 @@ class SearchViewModel(
 
     /** Clasifica lo ultimo que se trajo contra lo que hay instalado AHORA. */
     private fun publicar(instalados: List<PackMetadata>) {
-        val ofertas = Catalog.classify(catalogPacks, instalados)
+        val listado = Catalog.classify(catalogPacks, instalados)
         DictLog.i {
-            val porEstado = ofertas.groupingBy { it.status }.eachCount()
-            "catalogo: " + (porEstado.entries.joinToString(" ") { "${it.key}=${it.value}" }
-                .ifEmpty { "nada que ofrecer" })
+            val porEstado = listado.offers.groupingBy { it.status }.eachCount()
+            "catalogo: " + porEstado.entries.joinToString(" ") { "${it.key}=${it.value}" }
+                .ifEmpty { "nada que ofrecer" } +
+                // Los descartados no se listan, pero SI se cuentan en el log: sin esto, un
+                // catalogo entero rechazado por version se ve igual que uno vacio.
+                if (listado.needsAppUpdate) " (hay packs para una version mas nueva de la app)" else ""
         }
-        _state.update { it.copy(catalog = CatalogState.Ready(ofertas)) }
+        _state.update {
+            it.copy(catalog = CatalogState.Ready(listado.offers, listado.needsAppUpdate))
+        }
     }
 
     /** Lo ultimo que dijo el catalogo, para poder reclasificarlo tras un 304. */
