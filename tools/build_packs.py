@@ -17,7 +17,19 @@ cubre `/*.db`.
 
 ## La estructura que espera
 
-    <raiz>/dumps/   las entradas: los .jsonl de kaikki, los corpus, WordNet, dbnary
+    <raiz>/dumps/   las entradas: los .jsonl de kaikki, los corpus, WordNet, Wikidata
+
+⚠️ **Cada paso tiene que recibir el dump que SU lector sabe leer, y no es obvio**: los
+cuatro son formatos distintos y tres de ellos vienen comprimidos. `sources/wikidata` hace
+`json.loads` por linea sobre el bz2 de lexemas; `wordnet.spanish` abre el `.tab` de OMW
+como TEXTO PLANO y parte por tabs; `wordnet.english` lee WN-LMF comprimido. Pasarle a
+cualquiera de ellos el archivo de otro **revienta en la primera linea**, que es la suerte
+de este caso: la version anterior le pasaba los volcados de DBnary a los dos primeros.
+
+⚠️ **Y DBnary no era una alternativa razonable, era un descuido**: esta en
+`docs/fuentes.md` como **rechazada y medida** --misma fuente que el Wikcionario, la mitad
+del rendimiento--, y sus `.ttl` estan en el directorio porque se bajaron para medirla.
+Lo fija `test_build_packs`, que ahora comprueba los nombres ademas del orden.
     <raiz>/build/   los INTERMEDIOS: packs que son entrada de un merge y no se distribuyen
     <raiz>/dist/    lo que se publica, y lo unico que `packserver.py` debe servir
 
@@ -107,7 +119,7 @@ def plan(raiz, solo=None, tamanos=None):
             "nombre": "es-wd (intermedio)",
             "salida": _ruta(raiz, BUILD, "es-def-wd.db"),
             "comando": [sys.executable, BUILD_PACK, "es-wd",
-                        _ruta(raiz, DUMPS, "es_dbnary_ontolex.ttl.bz2"),
+                        _ruta(raiz, DUMPS, "wikidata-lexemes.json.bz2"),
                         _ruta(raiz, BUILD, "es-def-wd.db")],
             "verifica": False,
         })
@@ -118,7 +130,7 @@ def plan(raiz, solo=None, tamanos=None):
                         _ruta(raiz, DUMPS, "es.jsonl"),
                         _ruta(raiz, DIST, "es-full.db"),
                         "--frases", _ruta(raiz, DUMPS, "tatoeba-spa.tsv"),
-                        "--tesauro", _ruta(raiz, DUMPS, "es_dbnary_enhancement.ttl.bz2"),
+                        "--tesauro", _ruta(raiz, DUMPS, "wn-data-spa.tab"),
                         "--frecuencias", _ruta(raiz, DUMPS, "freq-es-opensubs.txt"),
                         "--sumar", "es-wd", _ruta(raiz, BUILD, "es-def-wd.db")],
             "verifica": True,

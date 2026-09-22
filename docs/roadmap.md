@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **440 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **964 tests en total**. Los **46
+pipeline de packs (`tools/`, **443 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **28 checks** de auditoría estructural — **967 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -151,6 +151,80 @@ Cada una era barata y habilitaba varias de las de abajo.
 | 3 | ~~**Construir el pack real y pesarlo**~~ **HECHO 2026-09-17** | Se midió: **146.194 entradas, 72,2 MB**, un 44 % por encima del presupuesto blando de D-028. Y leerlo destapó el problema de orden de abajo | ~~O-3 y el alcance del producto~~ desbloqueados; O-2 y O-4 siguen esperando el reloj |
 
 ---
+
+## 🔁 Reconstruir los packs — TAREA PERMANENTE, nunca se cierra
+
+**Estado.** **Siempre abierta, y a propósito.** No es un ítem que se termina: es la pregunta que
+toda sesión que toque el builder tiene que volver a contestar — *¿lo que acabo de cambiar llega al
+reloj sin reconstruir?* Si la respuesta es no, la deuda se anota **acá abajo** y no se olvida.
+
+⚠️ **Existe porque el desfase es invisible.** Un pack viejo abre, busca y funciona; lo único que
+pasa es que le falta lo que se construyó después. No hay error, no hay log, y `verify_pack.py` lo
+da por bueno mientras sus invariantes se cumplan. La única forma de saberlo es comparar lo que el
+builder hace **hoy** contra lo que los `.db` publicados dicen que son.
+
+### Cómo se contesta, en dos comandos
+
+```sh
+python3 tools/build_packs.py <raíz-de-datos> --dry-run     # qué se construiría, en orden
+python3 tools/packbuilder/verify_pack.py --como-la-app <raíz>/dist/*.db
+```
+
+⚠️ **El `--dry-run` sobre-reporta a propósito y hay que saberlo**: lista `es-main` aunque el
+español completo (73,6 MB) esté por debajo del presupuesto de `main` (130 MB) y la corrida real lo
+salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía no
+existe**. El plan que se lee no es exactamente el plan que corre.
+
+### La deuda de hoy — actualizado 2026-09-22
+
+Los cinco packs de `dist/` se construyeron el **2026-09-21 entre las 18:56 y las 19:37**
+(`data_version` 2026092118xx–19xx). Desde entonces el builder cambió en **seis commits**, y esto
+es lo que no llegó:
+
+| Qué | De dónde | Por qué importa |
+|---|---|---|
+| **La identidad `<idioma>-<nivel>`** | D-215 | Los publicados dicen `es-def-wikc-tat-freq-wn-wd`; el builder de hoy produce `es-full`. **Son packs distintos para el catálogo y para el instalador** |
+| **Los tres tamaños por idioma** | D-215 | `main` no existe todavía como artefacto |
+| **La cita del ejemplo** | D-216 | 86,5 % de los ejemplos ingleses son citas de un texto y hoy salen sin decir de dónde |
+| **El deduplicado de listas** | D-218 | `inglés` muestra `English, Englishman, English` |
+
+⚠️ **Y `dist/` ya NO pasa `verify_pack.py` completo**, por lo último: la invariante de repetidos
+los agarra. Sí pasa `--como-la-app`, o sea que la app los abre sin problema. **No hay urgencia,
+hay desfase.**
+
+### ✅ Lo que había que arreglar antes de reconstruir — HECHO el 2026-09-22
+
+**`build_packs.py` le pasaba a dos lectores un dump que no saben leer**, y el pipeline no se
+había corrido nunca de punta a punta. Corregido, y ahora lo fija `test_build_packs`, que
+comprueba **los nombres además del orden**: cada paso recibe el archivo que su lector parsea, y
+ningún paso puede pasar un Turtle ni nada que se llame `dbnary`.
+
+Verificado ejecutando los dos lectores contra los dumps corregidos: `wordnet.spanish` devuelve
+**48.402 lemas con sinónimos** en 1,1 s, y `wikidata.records` entrega `Record`s en streaming.
+
+Lo que estaba mal:
+
+| Paso | Le pasa | El lector espera | Qué hace |
+|---|---|---|---|
+| `es-wd` | `es_dbnary_ontolex.ttl.bz2` | `wikidata-lexemes.json.bz2` (`json.loads` por línea) | `JSONDecodeError` en la primera línea |
+| `es-full --tesauro` | `es_dbnary_enhancement.ttl.bz2` | `wn-data-spa.tab` (OMW, tres columnas, **sin bz2**) | `UnicodeDecodeError` |
+
+Los dos dumps correctos **están bajados** (`wikidata-lexemes.json.bz2`, `wn-data-spa.tab`), así
+que son dos rutas. DBnary está en `docs/fuentes.md` como **rechazada y medida** —misma fuente,
+la mitad del rendimiento—, así que esto no es un cambio de fuente: es un descuido al escribir el
+pipeline, que **nunca se corrió de punta a punta** (su propio changelog lo dice: `plan()` entra al
+gate, correrlo necesita los dumps).
+
+Falla ruidosa, no silenciosa — lo cual fue una suerte: el rebuild se habría cortado en el paso 2
+en vez de publicar un pack peor. La lección que queda es la otra: `test_build_packs.py` fijaba la
+**forma** del plan —el orden, que es lo que «no da error» al saltárselo— y no sus **nombres**, así
+que el orden correcto sobre los archivos equivocados pasaba el gate.
+
+### Qué la vuelve a abrir
+
+Cualquier cosa que toque: `payload.py`, `sources/*.py`, `build.py`, `build_pack.py`,
+`build_core.py`, o una decisión que cambie qué entra al pack. Si tocaste uno de esos, **esta
+sección se actualiza en el mismo commit**.
 
 ## Datos
 

@@ -96,6 +96,86 @@ class PlanTest(unittest.TestCase):
             origen = paso["comando"][2]
             self.assertTrue(origen.endswith("-full.db"), "%s deriva de %s" % (paso["nombre"], origen))
 
+    # ---------------------------------------------------------------------------------------
+    # Los DUMPS: que cada paso le pase a su lector un archivo que ese lector sepa leer.
+    # ---------------------------------------------------------------------------------------
+    #
+    # ⚠️ **Esto faltaba, y el pipeline estaba mal desde que se escribio.** Los tests de arriba
+    # fijan el ORDEN, que es lo que "no da error" al saltarselo; pero el orden correcto sobre los
+    # archivos equivocados no construye nada. Medido el 2026-09-22: `es-wd` recibia
+    # `es_dbnary_ontolex.ttl.bz2` --y `sources/wikidata` hace `json.loads` por linea-- y
+    # `--tesauro` del español recibia `es_dbnary_enhancement.ttl.bz2` --y `wordnet.spanish` abre
+    # el archivo como TEXTO y parte por tabs--. Los dos revientan en la primera linea.
+    #
+    # Que reviente es una suerte: el modo de falla que este repo teme es el otro. Pero el
+    # pipeline **nunca se corrio de punta a punta** --su propio docstring lo dice-- asi que nada
+    # lo habia notado.
+
+    #: Que archivo espera cada paso, y por que ese y no otro.
+    DUMPS_ESPERADOS = {
+        # kaikki: JSONL de lineas, una por pagina del wiki.
+        "en-full": ["en.jsonl"],
+        "es-full": ["es.jsonl"],
+        "es-en (bilingue)": ["es-en-wikt.jsonl"],
+        # Wikidata Lexemes (D-139): `json.loads` por linea, bz2.
+        "es-wd (intermedio)": ["wikidata-lexemes.json.bz2"],
+    }
+
+    #: Que archivo espera cada bandera. El lector esta entre parentesis.
+    DUMPS_POR_BANDERA = {
+        # wordnet.english: WN-LMF comprimido. wordnet.spanish: OMW `.tab`, texto plano.
+        "--tesauro": ["oewn-2024.xml.gz", "wn-data-spa.tab"],
+        # tatoeba: TSV de oraciones.
+        "--frases": ["tatoeba-spa.tsv"],
+        # frequency: lista `palabra<espacio>cuenta`.
+        "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
+        # build_core lee un pack ya construido, no un dump.
+        "--flexiones": ["en-full.db"],
+    }
+
+    def test_cada_paso_recibe_el_dump_que_su_lector_sabe_leer(self):
+        for paso in _pasos():
+            esperados = self.DUMPS_ESPERADOS.get(paso["nombre"])
+            if not esperados:
+                continue
+            # El dump es el segundo argumento posicional de build_pack.py: script, lang, dump.
+            posicionales = [a for a in paso["comando"][1:] if not a.startswith("--")]
+            dump = os.path.basename(posicionales[2])
+            self.assertIn(
+                dump, esperados,
+                "%s recibe %r; su lector espera %s" % (paso["nombre"], dump, esperados),
+            )
+
+    def test_cada_bandera_recibe_el_dump_que_su_lector_sabe_leer(self):
+        for paso in _pasos():
+            comando = paso["comando"]
+            for bandera, esperados in self.DUMPS_POR_BANDERA.items():
+                if bandera not in comando:
+                    continue
+                valor = os.path.basename(comando[comando.index(bandera) + 1])
+                self.assertIn(
+                    valor, esperados,
+                    "%s pasa %s %r; ese lector espera %s"
+                    % (paso["nombre"], bandera, valor, esperados),
+                )
+
+    def test_el_plan_no_usa_ninguna_fuente_RECHAZADA(self):
+        """⚠️ DBnary esta en `docs/fuentes.md` como rechazada **y medida**: misma fuente que el
+        Wikcionario, la mitad del rendimiento. Un `.ttl` en el plan no es un cambio de fuente
+        --que seria una decision con su fila en `decisions.md`-- es un descuido.
+        """
+        for paso in _pasos():
+            for argumento in paso["comando"]:
+                self.assertNotIn(
+                    "dbnary", os.path.basename(argumento).lower(),
+                    "%s usa una fuente rechazada: %s" % (paso["nombre"], argumento),
+                )
+                self.assertFalse(
+                    os.path.basename(argumento).endswith((".ttl", ".ttl.bz2")),
+                    "%s pasa un Turtle, que ningun lector de este repo parsea: %s"
+                    % (paso["nombre"], argumento),
+                )
+
     def test_solo_un_idioma_no_arrastra_al_otro_ni_al_bilingue(self):
         nombres = _nombres(_pasos(solo="es"))
         self.assertTrue(all(not n.startswith("en") for n in nombres), nombres)
