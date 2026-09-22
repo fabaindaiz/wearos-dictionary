@@ -26,6 +26,88 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — Un pack roto ahora dice por qué, se recuerda que lo está, y no se carga de ninguna forma
+**Qué.** La verificación al abrir pasa de 4 invariantes a 14, el motivo del rechazo pasa de ser
+una cadena de log a un tipo traducible (`PackRejection`), el memo recuerda también los **rechazos**
+—así un `.db` incompatible no se vuelve a abrir en cada arranque— y un pack rechazado aparece en
+la pantalla de diccionarios con su motivo en una línea y su botón de borrar, en vez de como una
+nota al pie en la de créditos.
+
+**Áreas.** `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PackIntegrity.kt` (nuevo),
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`,
+`dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackVerification.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackStore.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackSet.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/data/PackLoad.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/PacksScreen.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/AttributionScreen.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/Labels.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/SearchViewModel.kt`,
+`app/src/main/res/values/strings.xml` y su par en `values-es/`,
+`tools/packbuilder/payload.py`, `docs/decisions.md`.
+
+**Por qué.** Pedido, y el argumento es del usuario: *«si es que ahora solo verifico una vez cada
+pack dentro de la app, me interesa que los checkeos sean más completos»*. Es exacto — desde que el
+memo existe, la verificación corre **una vez por archivo** y no por arranque, así que sumar
+comprobaciones se paga una vez.
+
+**Arquitectura.** ✅ Cumple. ⚠️ **Dos desviaciones deliberadas, las dos con el costo en la mano.**
+(1) **Todas las invariantes rechazan**, también las que sólo degradan —falta un índice y la
+búsqueda escanea—: propuse separarlas y el usuario eligió la regla simple, *«cualquier invariante
+rota rechaza»*. Costo: un diccionario legible al que le falta un índice desaparece de la lista.
+(2) **`meta.sources` pasa a ser obligatoria**, revirtiendo la tolerancia que D-138 le puso a los
+packs anteriores. Costo: un pack construido antes de D-138 deja de abrir; hoy no existe ninguno.
+
+**Medido.** Sobre el pack inglés real de 306,8 MB y 956.150 entradas:
+- Las siete comprobaciones nuevas cuestan **5,7 ms** contra los **14,7 ms** que la muestra de
+  claves ya costaba: `entry_count` 4,2 ms, `fts_def` 1,4 ms, y claves de meta, licencia, índices,
+  staging y `norm` vacío a 0,0 ms.
+- Lo que se dejó afuera, y por qué: `uid` único **377 ms**, huérfanos completos **672 ms**.
+- **Los 5 packs de `dist/` pasan la verificación nueva**; los 7 de `build/` no, y todos por
+  `schema_version` 3.
+- Barriendo los packs construidos: **3,1 %** de las entradas con traducciones de palabra del
+  bilingüe repetían un término, y **88 de 407** en el español.
+
+**Qué salió mal.** Cinco, y cuatro las encontró correr contra datos reales en vez de contra tests.
+1. ⚠️ **El ORDEN de las comprobaciones estaba mal, y lo dijeron los packs viejos.** Los siete
+   `.db` de `schema_version` 3 se rechazaban como *«metadatos incompletos»* —no traen `langs` ni
+   `fuzzy_profiles`, que nacieron con el esquema 4— en vez de *«otra versión del formato»*. Los
+   dos rechazan, así que ningún test fallaba: lo que cambiaba era la única línea que el usuario
+   lee. La causa es de dependencia: **`schema_version` es la clave que dice qué otras claves
+   tienen que existir**. Arreglarlo movió toda esa cadena a `:dict-core`, donde el gate sí la
+   cubre — `:dict-data` se prueba en dispositivo.
+2. ⚠️ **La línea del motivo se cortaba en el reloj, dos veces.** Primero `4,4 MB · Built for a…`
+   —con el tamaño de prefijo no entraba nada—, y después `Another format ve…` aun con el motivo
+   solo. Acabó en: sin tamaño (el diálogo de borrado ya lo muestra) y **dos líneas** para esa
+   fila. Las 14 cadenas se reescribieron de oración a sintagma. Nada de esto se ve sin mirar la
+   pantalla.
+3. ⚠️ **Barrer los packs encontró un defecto de contenido que ningún test veía**: listas de
+   traducción con el mismo término repetido (D-218). El barrido además tuvo **dos defectos
+   propios** que hubo que separar de los del pack — una muestra que salía vacía cuando el paso
+   era 1, y un `more at ` que daba falso positivo dentro de *«two or more at the same time»*.
+4. ⚠️ **`--` dentro de un comentario XML, otra vez.** Es la tercera: el changelog del 2026-09-22
+   ya lo registra dos veces. `mergeDebugResources` falla con *"The string `--` is not permitted
+   within comments"*. **No hay enforcer, y van tres.**
+5. Lo que parecía el hallazgo más grave del barrido no lo era: el **40,8 %** de las entradas del
+   pack bilingüe sin ninguna glosa son las **entradas inversas en inglés** (D-196), y las 2.086
+   muestreadas traen traducciones de palabra. Comprobarlo antes de alarmar costó una consulta.
+
+**Qué quedó sin hacer.**
+- **Los packs de `dist/` no se reconstruyeron**, así que no traen la cita de D-216 ni la
+  deduplicación de D-218: las dos necesitan un rebuild de ~1 h por el inglés.
+- ⚠️ **El memo de rechazos no se probó contra un cambio de reglas de verdad.** Los tests fijan que
+  la huella cambia; lo que nadie ejerció es el ciclo completo *rechazar → subir `CHECKS_VERSION`
+  → volver a aceptar* sobre un dispositivo.
+- La muestra de huérfanos son **64 filas de `form` y de `trans`, las primeras**, no repartidas
+  como las de D-142. Un pack con las huérfanas al final pasa.
+- ⚠️ **El emulador quedó con dos packs míos instalados**: `en-full.db` (el piloto 1/20) y
+  `es-def-wd.db` (esquema 3, para ver la fila incompatible). Se sacan con
+  `python3 tools/devpack.py rm en-full` y `rm es-def-wd`.
+
+---
+
 ## 2026-09-22 — El ejemplo dice de dónde se citó, y el rank mayúsculo queda medido sin decidir
 **Qué.** Tag `C` en el payload con la fuente del ejemplo, recortada a año y autor (D-216), en los
 **tres** lados del contrato: `payload.py`, `PayloadCodec.kt` y `verify_pack.py`. `Sense.examples`
