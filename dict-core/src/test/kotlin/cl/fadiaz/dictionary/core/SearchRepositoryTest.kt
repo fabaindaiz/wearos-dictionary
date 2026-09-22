@@ -59,6 +59,26 @@ class SearchRepositoryTest {
         override fun toString() = id
     }
 
+    /** Una traza que sólo apunta lo que le llega. Ver [SearchTrace]. */
+    private class TrazaDePrueba(override val enabled: Boolean = true) : SearchTrace {
+        val fallos = mutableListOf<Pair<String, String>>()
+        val busquedas = mutableListOf<Map<MatchKind, Int>>()
+        var respaldos = 0
+            private set
+        override fun packFailed(packId: String, error: String) {
+            fallos += packId to error
+        }
+        override fun searched(
+            query: String,
+            byKind: Map<MatchKind, Int>,
+            fallback: Boolean,
+            returned: Int,
+        ) {
+            busquedas += byKind
+            if (fallback) respaldos++
+        }
+    }
+
     private fun row(
         pack: String,
         headword: String,
@@ -311,6 +331,60 @@ class SearchRepositoryTest {
             FakePack("sano", listOf(row("sano", "casa"))),
         ))
         assertEquals(listOf("casa"), repo.suggest("cas").map { it.headword })
+    }
+
+    @Test
+    fun `un pack que falla queda REGISTRADO, no solo omitido`() = runTest {
+        // ⚠️ Esto es lo que no se podia ver. `recolectar` se traga la excepcion a proposito, y el
+        // comentario decia que un pack que nunca devuelve nada "es visible". Lo es en la
+        // pantalla; en `adb logcat` un pack que revienta en cada consulta parecia uno vacio.
+        val traza = TrazaDePrueba()
+        val repo = SearchRepository(
+            listOf(
+                FakePack("roto", fails = true),
+                FakePack("sano", listOf(row("sano", "casa"))),
+            ),
+            trace = traza,
+        )
+        repo.suggest("cas")
+        assertEquals(listOf("roto"), traza.fallos.map { it.first })
+        assertTrue(
+            traza.fallos.single().second.contains("este pack esta roto"),
+            "la traza tiene que llevar el motivo, no solo el pack: ${traza.fallos}",
+        )
+    }
+
+    @Test
+    fun `la traza cuenta cuantas filas puso cada peldano`() = runTest {
+        val traza = TrazaDePrueba()
+        val repo = SearchRepository(
+            listOf(
+                FakePack(
+                    "a",
+                    listOf(
+                        row("a", "casa"),
+                        row("a", "casar"),
+                        row("a", "corriendo", kind = MatchKind.INFLECTED_FORM),
+                    ),
+                ),
+            ),
+            trace = traza,
+        )
+        repo.suggest("cas")
+        assertEquals(
+            mapOf(MatchKind.PREFIX to 2, MatchKind.INFLECTED_FORM to 1),
+            traza.busquedas.single(),
+        )
+    }
+
+    @Test
+    fun `con la traza apagada no se arma el reporte`() = runTest {
+        // El contrato de [SearchTrace.enabled]: recorrer los resultados para agruparlos cuesta, y
+        // en produccion sin `setprop` no debe pagarse. Se verifica por lo que NO llega.
+        val traza = TrazaDePrueba(enabled = false)
+        val repo = SearchRepository(listOf(FakePack("a", listOf(row("a", "casa")))), trace = traza)
+        repo.suggest("cas")
+        assertTrue(traza.busquedas.isEmpty(), "no deberia haber reportado nada")
     }
 
     @Test
