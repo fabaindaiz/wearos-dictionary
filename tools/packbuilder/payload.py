@@ -326,11 +326,44 @@ def merge_duplicate_senses(senses):
     return salida
 
 
+def _sin_repetir(valores):
+    """Los items, sin los que ya aparecieron, **conservando el orden de la primera aparicion**.
+
+    ⚠️ **El orden es informacion y por eso no se ordena ni se usa un set**: la fuente pone
+    primero lo que mas se usa, y con topes de 4 y de 8 el orden decide QUE SE VE.
+
+    ⚠️ **Lo encontro barrer los packs construidos, no un test.** Medido sobre los reales: el
+    **3,1 %** de las entradas con traducciones de palabra del pack bilingue repetian un termino
+    --`where` traia `donde, donde` y `do, do`; `Brazil` traia `carioca` dos veces-- y en el pack
+    español eran **88 de 407** de las que traen traducciones por acepcion. En una fila de reloj
+    eso es la misma palabra dos veces, ocupando un ancho que ya se corta.
+
+    Se compara el item **entero y exacto**: `donde` y `dónde` son palabras distintas y las dos
+    se quedan.
+    """
+    vistos = set()
+    salida = []
+    for valor in valores:
+        # La clave es el item tal como se emite -- una tupla de traduccion con su acepcion es
+        # distinta de la misma palabra sin acepcion, y las dos tienen sentido.
+        clave = valor if isinstance(valor, (str, tuple)) else repr(valor)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append(valor)
+    return salida
+
+
 def render(part_of_speech, senses, word_translations=()):
     """Serializa a texto. `senses` es una lista de dicts con gloss/examples/translations.
 
     Los valores se sanean aca: un tab perdido en una glosa de Wiktionary corromperia la
     entrada entera y el sintoma apareceria recien en el reloj.
+
+    ⚠️ **Y se deduplican las listas, aca y no en cada fuente.** Mismo argumento que
+    `merge_duplicate_senses`: `render` es el **unico** paso por el que pasan todos los packs, asi
+    que puesto en `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual` y la
+    propiedad seria cierta solo en los packs cuyo autor se acordo. Ver [_sin_repetir].
     """
     lines = []
     if part_of_speech:
@@ -338,7 +371,7 @@ def render(part_of_speech, senses, word_translations=()):
         if pos:
             lines.append(TAG_PART_OF_SPEECH + "\t" + pos)
     senses = merge_duplicate_senses(senses)
-    for translation in word_translations:
+    for translation in _sin_repetir(word_translations):
         value = _sanitize_item(translation)
         if value:
             lines.append(TAG_WORD_TRANSLATION + "\t" + value)
@@ -348,7 +381,7 @@ def render(part_of_speech, senses, word_translations=()):
             # Una acepcion sin glosa no aporta nada y descolgaria sus ejemplos.
             continue
         lines.append(TAG_SENSE + "\t" + gloss)
-        for example in sense.get("examples", ()):
+        for example in _sin_repetir(sense.get("examples", ())):
             texto, cita = _example_parts(example)
             value = sanitize(texto)
             if not value:
@@ -359,19 +392,19 @@ def render(part_of_speech, senses, word_translations=()):
             atribucion = sanitize(cita) if cita else None
             if atribucion:
                 lines.append(TAG_CITATION + "\t" + atribucion)
-        for translation in sense.get("translations", ()):
+        for translation in _sin_repetir(sense.get("translations", ())):
             value = _sanitize_item(translation)
             if value:
                 lines.append(TAG_TRANSLATION + "\t" + value)
-        for synonym in sense.get("synonyms", ()):
+        for synonym in _sin_repetir(sense.get("synonyms", ())):
             value = sanitize(synonym)
             if value:
                 lines.append(TAG_SYNONYM + "\t" + value)
-        for antonym in sense.get("antonyms", ()):
+        for antonym in _sin_repetir(sense.get("antonyms", ())):
             value = sanitize(antonym)
             if value:
                 lines.append(TAG_ANTONYM + "\t" + value)
-        for related in sense.get("related", ()):
+        for related in _sin_repetir(sense.get("related", ())):
             value = sanitize(related)
             if value:
                 lines.append(TAG_RELATED + "\t" + value)
