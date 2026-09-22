@@ -26,6 +26,50 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El pipeline entra al repo, los packs se separan en tres directorios
+**Qué.** `tools/build_packs.py` (nuevo): construye todos los packs **en orden** y separa lo
+intermedio de lo que se publica. El directorio de datos pasa de plano a `dumps/`, `build/` y
+`dist/`. Y `packserver.py` gana un filtro **semántico**: publica sólo lo que declara un nivel.
+
+**Áreas.** `tools/build_packs.py` (nuevo), `tools/packserver.py`, `tools/CLAUDE.md`, y el
+directorio de datos, que está **fuera del repo**.
+
+**Por qué.** Pedido: *«que el server sólo publique los packs finales, quizás deja los intermedios
+y los finales en directorios distintos»* y *«que los scripts que construyen estos packs estén en
+el repo pero los packs no, porque son muy pesados»*.
+
+**Arquitectura.** ✅ Cumple. Los packs ya estaban fuera del repo y cubiertos por `.gitignore`; lo
+que faltaba era el **pipeline**.
+
+**Medido.**
+- **El directorio de datos, reordenado**: 26 archivos, `dumps/` 5,9 GB (14), `build/` 0,5 GB (7),
+  `dist/` 0,5 GB (5). Cero sueltos en la raíz.
+- **El filtro, comprobado sobre los artefactos reales**: los 5 de `dist/` publican; `es-def-wd` en
+  `build/` sale como intermedio, y los 6 respaldos `.OLD` los filtra el nombre.
+- **Dos defensas y no una**: `es-def-wd` sería rechazado **aunque alguien lo moviera a `dist/``,
+  porque el filtro mira lo que el pack DECLARA y no cómo se llama el archivo.
+
+**Qué salió mal.**
+1. ⚠️ **Casi escribo otro test vacuo.** El fixture de `test_packserver` construye un pack
+   **bilingüe por defecto**, que es exactamente la excepción del filtro nuevo — así que el test del
+   intermedio pasaba sin probar nada. Hubo que poner `kind` explícito en los dos casos.
+2. ⚠️ Dos ediciones por anclaje de texto fallaron en silencio (`s.count(v) != 1`) y no escribieron
+   nada; la segunda vez hubo que editar por líneas. Cuando una edición aborta a mitad de un script,
+   **hay que mirar si escribió algo** antes de volver a correr los tests.
+
+**Qué quedó sin hacer.**
+- **Los packs de `dist/` son los VIEJOS**: siguen con el `pack_id` atado a las fuentes
+  (`es-def-wikc-tat-freq-wn-wd`) y sin los nombres con nivel. Se arreglan reconstruyendo con
+  `build_packs.py`, que es ~1 hora de dumps.
+- ⚠️ **El bilingüe declara `tier=full`, y desde D-215 no debería declarar ninguno.** Es un
+  artefacto del build anterior; `build_pack.py` ya no se lo pone. Se corrige al reconstruir.
+- `build_packs.py` **nunca se ha corrido de verdad**, sólo en seco: el plan tiene tests, la
+  ejecución necesita los 5,9 GB de dumps.
+- Sigue sin poder cancelarse una descarga, y el español sigue sin explicar en pantalla por qué no
+  tiene `main`.
+
+---
+
 ## 2026-09-22 — Tres tamaños por idioma, y la lista deja de mostrar lo que no se puede tener
 **Qué.** Dos cambios de modelo pedidos. **(1)** Un pack que esta versión no abre **ya no se lista**:
 en su lugar, una frase que dice que hay que actualizar la app. **(2)** Tres tamaños por idioma
