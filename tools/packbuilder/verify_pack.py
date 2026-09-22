@@ -345,6 +345,9 @@ def verify(path):
             report.note("meta.corpus_coverage = %.2f %% (declarado; sin --frecuencias no se "
                         "comprueba)" % declarada)
 
+    print("\n[cobertura de vocabulario]")
+    _verify_vocabulary(db, meta, report)
+
     print("\n[integridad referencial]")
     # SQLite no aplica claves foraneas aca (las tablas no las declaran, para no pagar el
     # chequeo en cada insert del builder), asi que se verifica explicitamente.
@@ -598,6 +601,76 @@ def _citas_huerfanas(text):
             huerfanas += 1
         anterior = line[0]
     return huerfanas
+
+
+
+#: Donde viven las listas de palabras que un pack TIENE que encontrar.
+VECTORES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors")
+
+
+def lista_de_cobertura(lang):
+    """Las palabras que `lang` exige, o None si ese idioma no declara ninguna."""
+    ruta = os.path.join(VECTORES, "cobertura-%s.txt" % lang)
+    if not os.path.exists(ruta):
+        return None
+    palabras = []
+    with open(ruta, encoding="utf-8") as handle:
+        for linea in handle:
+            linea = linea.strip()
+            if linea and not linea.startswith("#"):
+                palabras.append(linea)
+    return palabras
+
+
+def _verify_vocabulary(db, meta, report):
+    """Que las palabras que el idioma exige se puedan encontrar.
+
+    ⚠️ **Es lo unico que pregunta si el CONTENIDO sirve**, y por eso existe. Todo lo demas de
+    este archivo comprueba invariantes: que los indices esten, que `fts_def.rowid` sea
+    `entry.id`, que `norm` coincida. Nada de eso sabe **que palabras deberia tener un
+    diccionario**, y por eso dos fallas reales pasaron con el gate en verde, `verify_pack.py` en
+    verde y los tests en verde: el 39,6 % de las entradas del pack español no definia nada, y la
+    poda por `pos = name` borraba **6 de los 12 meses en ingles**.
+
+    ⚠️ **Se corre solo si existe la lista del idioma, y eso es a proposito**: una bandera se
+    olvida justo la vez que importa. Un idioma sin lista se reporta como tal en vez de pasar en
+    silencio, porque "no hay lista" y "la lista pasa" no son lo mismo.
+
+    ⚠️ **Una palabra cuenta si es lema O forma flexionada.** `fui` llega a `ir` por la tabla
+    `form`, y eso es exactamente lo que el usuario experimenta al buscarla: exigir que sea lema
+    convertiria el chequeo en uno sobre la lematizacion de la fuente, que es otra cosa.
+    """
+    idiomas = [x.strip() for x in (meta.get("langs") or "").split(",") if x.strip()]
+    for lang in idiomas:
+        palabras = lista_de_cobertura(lang)
+        if palabras is None:
+            report.note("no hay vectors/cobertura-%s.txt: el contenido de ese idioma no se "
+                        "comprueba" % lang)
+            continue
+        # ⚠️ **Un pack con menos entradas que palabras tiene la lista no es un diccionario**, es
+        # un fixture -- el de juguete tiene 82 entradas--, y sobre el este chequeo mediria tamaño
+        # y no cobertura. La regla se escala sola con la lista en vez de fijar un numero.
+        entradas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+        if entradas < len(palabras):
+            report.note("%s: %d entradas para una lista de %d palabras; es un fixture, no se "
+                        "comprueba la cobertura" % (lang, entradas, len(palabras)))
+            continue
+        faltan = []
+        for palabra in palabras:
+            clave = normalize.norm(palabra)
+            hay = db.execute(
+                "SELECT 1 FROM entry WHERE norm = ? UNION ALL"
+                " SELECT 1 FROM form WHERE norm = ? LIMIT 1", (clave, clave)
+            ).fetchone()
+            if not hay:
+                faltan.append(palabra)
+        report.check(
+            not faltan,
+            "las %d palabras que exige %s estan en el pack%s" % (
+                len(palabras), lang,
+                "" if not faltan else " (faltan %d: %s)" % (
+                    len(faltan), ", ".join(faltan[:12]) + (" ..." if len(faltan) > 12 else ""))),
+        )
 
 
 def _verify_query_plans(db, report):

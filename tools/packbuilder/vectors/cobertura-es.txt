@@ -1,0 +1,157 @@
+# Palabras que un diccionario de español TIENE que poder encontrar.
+#
+# Es el mismo patrón que `normalization-vectors.tsv`: el archivo de expectativas ES el
+# mecanismo. `verify_pack.py` lo corre solo cuando el pack declara `es`, y falla nombrando las
+# que faltan.
+#
+# ⚠️ **Lo que esto NO resuelve, y hay que decirlo.** Una lista escrita a mano tiene el mismo
+# sesgo que mirar a mano: no sabe lo que nadie pensó en poner. Sirve contra **regresiones** —una
+# poda que se lleva medio calendario, un filtro que vacía el 39,6 % de las entradas— y no contra
+# huecos desconocidos. Para eso no hay atajo.
+#
+# ⚠️ **Agregar una palabra acá es documentar una decisión de producto**, no engordar un test:
+# afirma que este diccionario, sin ella, está roto. Por eso van agrupadas y por eso cada grupo
+# dice qué defiende.
+#
+# Una palabra cuenta como encontrada si es un lema del pack **o** una de sus formas flexionadas:
+# `fui` llega a `ir`, y eso es exactamente lo que el usuario experimenta al buscarla.
+
+# Los meses. Defiende el caso medido: podar por `pos = name` se llevó 6 de los 12 meses en
+# inglés, y el gate, verify_pack.py y los tests dieron verde los tres (D-116).
+enero
+febrero
+marzo
+abril
+mayo
+junio
+julio
+agosto
+septiembre
+octubre
+noviembre
+diciembre
+
+# Los días. Mismo riesgo que los meses: son nombres propios para la fuente.
+lunes
+martes
+miércoles
+jueves
+viernes
+sábado
+domingo
+
+# Números. Los primeros son las palabras más usadas del idioma; si faltan, algo grave pasó.
+uno
+dos
+tres
+cuatro
+cinco
+diez
+cien
+mil
+millón
+
+# Verbos que sostienen la lengua. Defiende el otro caso medido: el 39,6 % de las entradas no
+# definía nada y todo estaba en verde.
+ser
+estar
+haber
+tener
+hacer
+decir
+ir
+ver
+dar
+saber
+querer
+poder
+poner
+venir
+salir
+llegar
+pasar
+deber
+seguir
+encontrar
+llevar
+dejar
+hablar
+comer
+beber
+dormir
+vivir
+morir
+
+# Vocabulario cotidiano: lo que alguien busca en un reloj.
+casa
+agua
+perro
+gato
+niño
+mujer
+hombre
+madre
+padre
+hijo
+hermano
+amigo
+comida
+pan
+leche
+carne
+fruta
+árbol
+flor
+sol
+luna
+cielo
+tierra
+mar
+río
+montaña
+calle
+ciudad
+país
+tiempo
+día
+noche
+año
+mano
+ojo
+boca
+cabeza
+corazón
+cuerpo
+libro
+mesa
+silla
+puerta
+ventana
+
+# Colores.
+rojo
+azul
+verde
+amarillo
+negro
+blanco
+gris
+
+# Chilenismos y americanismos. Defiende que el pack sirva a quien lo usa: un diccionario de
+# español peninsular deja estas afuera y nadie lo nota hasta buscarlas.
+palta
+guagua
+pololo
+cachar
+fome
+micro
+luca
+poto
+choclo
+frutilla
+papa
+computadora
+celular
+departamento
+manejar
+plata
