@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **427 tests**) están completos y en el gate, junto con los **362 JVM
-de `:app`** y **26 checks** de auditoría estructural — **937 tests en total**. Los **46
+pipeline de packs (`tools/`, **427 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **26 checks** de auditoría estructural — **949 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3953,6 +3953,33 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 ---
 
 ## Proceso y herramientas
+
+### El `--` dentro de un comentario XML rompe el build, y van tres
+
+**Estado.** **Planificado.** Tercer golpe, así que sube acá con la aritmética (§Proceso).
+
+Un comentario XML no puede contener `--`: es el cierre del delimitador. AGP lo reporta como
+
+```
+ERROR: .../strings.xml:24:28: Resource and asset merger: The string "--" is not permitted within comments.
+```
+
+seguido de treinta líneas de stack trace de Xerces que no nombran el archivo hasta la primera.
+El síntoma es `mergeDebugResources FAILED`, que se lee como un problema de recursos y no de
+puntuación.
+
+**Las tres veces.** Dos el 2026-09-22 en `AndroidManifest.xml` —ya están en el changelog de esa
+sesión— y una en `values/strings.xml` el mismo día. En este repo el riesgo es estructural y no
+casual: **el estilo de comentario que la casa usa lleva `--` todo el tiempo** («el nombre mentía
+--y lo decidió una medición--»), porque es el guión de inciso que se escribe sin tecla de raya.
+En `.kt` y en `.py` es correcto; en XML rompe el build.
+
+**Lo que costaría cerrarlo.** Un chequeo en `tools/audit_dictionary.py`: leer los `.xml` de
+`app/src/main/res/` y de `AndroidManifest.xml`, y fallar si algún comentario contiene `--`. Son
+~10 líneas y entra al gate, que es donde el error cuesta segundos en vez de una corrida de
+Gradle. La alternativa —acordarse de escribir `—`— ya falló tres veces.
+
+⚠️ **No se construyó**: las mejoras de proceso se proponen, no se ejecutan (CLAUDE.md).
 
 La forma de trabajar está bajo las mismas reglas que el código: tiene fricción, la fricción se
 mide, y casi siempre es lo más barato de arreglar del proyecto. **Se rankea acá, contra las

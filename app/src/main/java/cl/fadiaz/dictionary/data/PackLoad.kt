@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.PackRejection
 
 /**
  * The result of trying to open a pack.
@@ -21,11 +22,19 @@ sealed interface PackLoad {
     data object NoPack : PackLoad
 
     /**
-     * There is a file and it is no good. The message goes to the screen, in Spanish.
+     * There is a file and it is no good.
      *
      * Keeping it separate from [NoPack] matters: a pack from another `schema_version` or another
      * `norm_version` would return FEWER results than it holds, with no error at all (D-001,
      * D-006). Opening it anyway would be worse than not opening it.
+     *
+     * ⚠️ **[rejection] is the reason as DATA, and it used to be a Spanish sentence.** That is
+     * what lets the dictionaries screen write one translated line (D-127) and lets the memo
+     * remember the verdict without carrying prose. [detail] keeps the concrete values --what it
+     * declared, what was expected-- and stays **for `logcat`, not for the user**.
      */
-    data class Unusable(val reason: String) : PackLoad
+    data class Unusable(
+        val rejection: PackRejection,
+        val detail: String = "",
+    ) : PackLoad
 }

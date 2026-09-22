@@ -19,8 +19,20 @@
 
     <!-- Abrir un pack -->
     <string name="pack_none_opened">Ningún diccionario se pudo abrir.</string>
-    <string name="pack_incompatible">El diccionario no es compatible con esta versión. %1$s</string>
-    <string name="pack_damaged">El diccionario está dañado o incompleto. %1$s</string>
+    <string name="pack_reason_metadata">Metadatos incompletos.</string>
+    <string name="pack_reason_schema">Otra versión del formato.</string>
+    <string name="pack_reason_norm">Otras reglas de búsqueda.</string>
+    <string name="pack_reason_codec">Compresión desconocida.</string>
+    <string name="pack_reason_license">Sin licencia declarada.</string>
+    <string name="pack_reason_index">Sin índices de búsqueda.</string>
+    <string name="pack_reason_half_built">Construido a medias.</string>
+    <string name="pack_reason_count">Le faltan entradas.</string>
+    <string name="pack_reason_fts">Índice descuadrado.</string>
+    <string name="pack_reason_empty_key">Entradas inalcanzables.</string>
+    <string name="pack_reason_orphan">Formas sin entrada.</string>
+    <string name="pack_reason_keys">Claves con otras reglas.</string>
+    <string name="pack_reason_dictionary">El texto saldría corrupto.</string>
+    <string name="pack_reason_damaged">Dañado, o no es un diccionario.</string>
     <string name="pack_none_installed">No hay ningún diccionario instalado.</string>
     <string name="pack_installing">Instalando el diccionario.\nSolo pasa la primera vez.</string>
     <string name="pack_opening">Abriendo el diccionario…</string>

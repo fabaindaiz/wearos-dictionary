@@ -67,6 +67,14 @@ import cl.fadiaz.dictionary.data.asHumanSize
 @Composable
 fun PacksScreen(
     packs: List<PackHandle>,
+    /**
+     * Los `.db` que están en el disco y **no se cargan**.
+     *
+     * ⚠️ **Es la única pantalla que los muestra, y ése es el punto.** Antes iban a la de
+     * atribución —la de los créditos— donde acreditaban contenido que nadie estaba leyendo.
+     * Acá hay algo que hacer con ellos: ocupan lugar y se pueden borrar.
+     */
+    rejected: List<PackHandle.Incompatible> = emptyList(),
     onDelete: (String) -> Unit,
     /**
      * El catalogo de descarga. **[CatalogState.Idle] mientras nadie apriete el boton.**
@@ -82,7 +90,11 @@ fun PacksScreen(
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
-    var pendingDelete by remember { mutableStateOf<PackHandle.Open?>(null) }
+    // ⚠️ **Un candidato y no un `PackHandle`, porque ahora hay DOS clases de fila que se
+    // borran** y sólo una tiene `metadata`. Un `PackHandle` obligaría al diálogo a preguntar de
+    // qué clase es para saber cómo llamarlo, que es justo lo que `PackHandle.Incompatible` no
+    // puede contestar: su nombre bonito vive dentro del pack y leerlo sería cargarlo.
+    var pendingDelete by remember { mutableStateOf<Borrable?>(null) }
 
     val installed = packs.filterIsInstance<PackHandle.Open>()
 
@@ -122,7 +134,39 @@ fun PacksScreen(
                         "${packTypeLabel(pack.metadata.kind)} · ${asHumanSize(pack.bytes)}"
                     },
                     // El incluido no se puede borrar: volvería sola al reiniciar.
-                    onDelete = if (pack.isBundled) null else { { pendingDelete = pack } },
+                    onDelete = if (pack.isBundled) {
+                        null
+                    } else {
+                        { pendingDelete = Borrable(pack.packId, pack.metadata.name, pack.bytes) }
+                    },
+                )
+            }
+
+            // Los incompatibles van DESPUÉS de los que sirven y antes del catálogo: es el orden
+            // en que importan. Sin cabecera propia: la fila ya dice que es incompatible, y una
+            // cabecera para lo que en el caso normal son cero filas es una línea desperdiciada
+            // en una pantalla que se mide en dp.
+            items(count = rejected.size, key = { "roto:${rejected[it].fileName}" }) { index ->
+                val pack = rejected[index]
+                PackRow(
+                    // ⚠️ **El NOMBRE DEL ARCHIVO, y no hay alternativa**: el nombre bonito vive
+                    // dentro del pack, y leerlo sería cargarlo —justo lo que no se puede hacer—.
+                    // Es además lo que el usuario necesita para saber cuál de los suyos es.
+                    name = pack.fileName,
+                    // ⚠️ **El motivo SOLO, sin el tamaño, y eso se decidió mirando el reloj.**
+                    // Con el prefijo `4,4 MB · ` el motivo se cortaba a la tercera palabra
+                    // —`4,4 MB · Another f…`— y el motivo es justamente el dato por el que esta
+                    // fila existe: sin él, un diccionario que no carga se lee como un bug.
+                    //
+                    // El tamaño no se pierde: el diálogo de borrado lo muestra, que es el
+                    // momento en que sirve —cuánto espacio se recupera—. En la fila sólo
+                    // competía por un ancho que ya no alcanzaba.
+                    detail = stringResource(packRejectionLabelRes(pack.rejection)),
+                    incompatible = true,
+                    // Se puede borrar: es la única acción posible sobre un pack que no carga.
+                    onDelete = {
+                        pendingDelete = Borrable(pack.fileName, pack.fileName, pack.bytes)
+                    },
                 )
             }
 
@@ -200,7 +244,7 @@ fun PacksScreen(
     AlertDialog(
         visible = candidate != null,
         onDismissRequest = { pendingDelete = null },
-        title = { Text(stringResource(R.string.packs_delete_question, candidate?.metadata?.name.orEmpty())) },
+        title = { Text(stringResource(R.string.packs_delete_question, candidate?.label.orEmpty())) },
     ) {
         item {
             Text(
@@ -220,7 +264,7 @@ fun PacksScreen(
                 ink = MaterialTheme.colorScheme.onError,
                 margin = 8.dp,
                 onClick = {
-                    candidate?.let { onDelete(it.packId) }
+                    candidate?.let { onDelete(it.id) }
                     pendingDelete = null
                 },
             )
@@ -250,6 +294,19 @@ private fun PackRow(
     name: String,
     detail: String,
     onDelete: (() -> Unit)?,
+    /**
+     * Si esta fila es un diccionario que **no se carga**.
+     *
+     * Lo único que cambia es el color de la segunda línea, que pasa a `error`. ⚠️ **Y el color
+     * es lo único que cambia a propósito**: la fila conserva su forma, su altura y su botón de
+     * borrar, porque lo que el usuario tiene que poder hacer es exactamente lo mismo. Un
+     * tratamiento visual aparte —un ícono, un borde— costaría ancho en la línea que ya se corta
+     * y no agregaría nada que el texto no diga.
+     *
+     * ⚠️ **El color no es la única señal**, y eso importa en un reloj que se mira al sol: el
+     * motivo va escrito en la misma línea. Quien no distinga el rojo lee igual por qué.
+     */
+    incompatible: Boolean = false,
     /**
      * Que hace tocar la fila, o `null` si no hace nada.
      *
@@ -300,12 +357,21 @@ private fun PackRow(
                 Text(
                     text = detail,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (incompatible) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    // ⚠️ **DOS líneas cuando el motivo es lo que hay que leer.** El resto de
+                    // las filas van a una —tipo y tamaño entran de sobra— pero el motivo de un
+                    // rechazo no: a ~140 dp se cortaba en `Another format ve…`, visto en el
+                    // emulador. La fila crece ~14 dp en un caso que normalmente son cero filas,
+                    // y a cambio la única información que esa fila tiene se lee entera.
+                    maxLines = if (incompatible) 2 else 1,
                     // ⚠️ **UNA línea, y ahora sí entra.** Llevaba dos porque se veía
                     // `definiciones · 315,9` con el `MB · EN` cortado; quitar la sigla de idioma
                     // liberó lo que faltaba, y el pedido es explícito: *«que el tipo y tamaño
                     // estén en solo una línea (la segunda línea)»*.
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -402,3 +468,12 @@ private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): Strin
     // encuentra, y en un reloj no hay hover ni cursor que lo insinue.
     return stringResource(R.string.packs_dl_tap, base)
 }
+
+/**
+ * Lo que el diálogo de borrado necesita saber, para las dos clases de fila que se pueden borrar.
+ *
+ * [id] es lo que se le pasa a `onDelete`: el `packId` de un diccionario abierto y el nombre del
+ * archivo de uno incompatible. Los dos resuelven al mismo archivo del otro lado, y quién resuelve
+ * es el ViewModel, que es el único que tiene las dos listas.
+ */
+private data class Borrable(val id: String, val label: String, val bytes: Long)

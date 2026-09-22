@@ -31,8 +31,21 @@ that never finished does not compete with the new one.
 ## The file to copy
 
 `SqlitePackSource.kt` for a new query: each one documents **why** it has the shape it has, which
-is where the knowledge that gets lost lives. `PackFile.kt` for anything that validates a pack: its
-four checks cover failures that would otherwise be silent.
+is where the knowledge that gets lost lives. `PackFile.kt` for anything that validates a pack.
+
+⚠️ **Its checks are 14 and every one of them rejects** (D-217). They split in three tiers by cost,
+and the tier decides where the code lives:
+
+| tier | what | where | cost on the 306.8 MB English pack |
+|---|---|---|---|
+| `meta` only | schema, required keys, `norm_version`, codec, licence | `PackIntegrity` in `:dict-core`, **so the gate covers it** | 0.0 ms |
+| the file's schema | the two indexes, no staging table | `checkStructure` | 0.0 ms |
+| the content | `entry_count` vs real rows, `fts_def` 1:1, empty `norm`, orphans, the 64-key sample | `checkContentAgainstMetadata` + `checkKeysAgainstASample` | 5.7 + 14.7 ms |
+
+Only the third tier is skipped when the memo says this same file already passed: the pack is immutable (D-001). ⚠️ **The order matters even though they all reject**, because it decides the
+one line the user reads: `schema_version` is the key that says which other keys should exist,
+so it is checked first. Getting that wrong made seven real schema-3 packs report *"incomplete
+metadata"* instead of *"another format version"*.
 
 ## Two things AGP 9 and Gradle 9 will not let you do
 

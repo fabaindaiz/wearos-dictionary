@@ -8,7 +8,9 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.fuzzyProfileFor
+import cl.fadiaz.dictionary.core.PackIntegrity
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.RankBasis
 import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.core.PayloadCodec
@@ -37,27 +39,46 @@ class PackFile private constructor(
         connection.close()
     }
 
-    /** Un pack que no se puede usar, y por que. El mensaje es para un log, no para el usuario. */
-    class IncompatibleException(message: String) : Exception(message)
+    /**
+     * Un pack que no se puede usar, y por que.
+     *
+     * ⚠️ **Lleva DOS cosas y no una, y esa es la diferencia con la version anterior.**
+     * [rejection] es el motivo como dato: lo lee la pantalla de diccionarios para escribir una
+     * linea traducida, y el memo para no volver a probar el archivo. `message` sigue siendo la
+     * prosa con los valores concretos --que declaraba, que se esperaba-- y sigue siendo **para
+     * `logcat`, no para el usuario**: es lo que se necesita para depurar y lo que nadie quiere
+     * leer en un reloj.
+     */
+    class IncompatibleException(
+        val rejection: PackRejection,
+        message: String,
+    ) : Exception(message)
 
     companion object {
         /** Version de esquema que esta app entiende. Otra distinta se rechaza. */
         const val SUPPORTED_SCHEMA_VERSION: Int = 4
 
         /**
-         * Abre y valida un pack.
+         * Abre un pack, o lanza [IncompatibleException] diciendo por que no.
          *
-         * Las tres validaciones no son defensivas de mas: cada una cubre una falla que de otro
-         * modo seria SILENCIOSA.
+         * ⚠️ **Cada comprobacion cubre una falla que de otro modo seria SILENCIOSA**, y esa es
+         * la vara para agregar una nueva: no "esto podria estar mal" sino "si esto esta mal, el
+         * usuario ve resultados incorrectos o incompletos y nada se lo dice".
          *
-         * - `schema_version` distinta: las consultas apuntarian a columnas que cambiaron.
-         * - `norm_version` distinta: el pack esta indexado con otras reglas de normalizacion, y
-         *   devolveria MENOS resultados de los que tiene, sin ningun error (D-006).
-         * - `payload_dict_sha256`: deflate NO detecta un diccionario precargado equivocado.
-         *   Descomprime sin lanzar nada y devuelve texto corrupto (D-008).
-         * - **Y una MUESTRA de las claves recalculada** (D-142): las tres de arriba son
-         *   declaraciones, y un pack de la comunidad puede declararlas bien y tener las claves
-         *   mal. Ver [checkKeysAgainstASample].
+         * En tres tandas, de mas barata a mas cara:
+         *
+         * 1. **Solo `meta`** (0 ms): esquema, claves obligatorias, `norm_version`, codec y que
+         *    el pack se pueda acreditar. Vive en [PackIntegrity], que el gate si cubre.
+         * 2. **El esquema del archivo** (0 ms, [checkStructure]): los dos indices y que no haya
+         *    quedado la tabla de staging.
+         * 3. **El contenido** ([checkContentAgainstMetadata] y [checkKeysAgainstASample]): que
+         *    las filas sean las que `meta` promete y que las claves esten bien calculadas. Es lo
+         *    unico que se saltea cuando el memo dice que este mismo archivo ya paso, porque el
+         *    pack es inmutable (D-001). Medido sobre el pack ingles: 5,7 ms + 14,7 ms.
+         *
+         * ⚠️ **Todas rechazan**, tambien las que solo degradan --un indice faltante hace que la
+         * busqueda escanee-- y eso fue una decision de producto tomada contra la recomendacion.
+         * Ver [PackRejection] y D-217.
          */
         fun open(
             path: String,
@@ -88,33 +109,46 @@ class PackFile private constructor(
                 connection.execSQL("PRAGMA temp_store = MEMORY")
 
                 val meta = readMeta(connection)
-                val metadata = parseMetadata(meta)
+                // ⚠️ **Todo lo que se decide mirando solo `meta` vive en `PackIntegrity`, y el
+                // ORDEN es parte de lo que vive ahi.** Aca estaba antes, y estaba mal: exigia
+                // las claves obligatorias del esquema 4 **antes** de mirar `schema_version`, asi
+                // que un pack del esquema 3 --que no trae `langs` ni `fuzzy_profiles` porque
+                // nacieron despues-- se rechazaba como "metadatos incompletos" en vez de "hecho
+                // para otra version de la app". Los dos rechazan; el segundo es el que sirve.
+                //
+                // Mudarlo ademas lo puso bajo el gate: `:dict-data` se prueba en dispositivo y
+                // `:dict-core` en la JVM (D-072).
+                PackIntegrity.checkMeta(
+                    meta,
+                    supportedSchema = SUPPORTED_SCHEMA_VERSION,
+                    normVersion = TextNormalizer.NORM_VERSION,
+                    codecId = PayloadCodec.CODEC_ID,
+                )?.let { throw IncompatibleException(it.rejection, it.detail) }
 
-                if (metadata.schemaVersion != SUPPORTED_SCHEMA_VERSION) {
+                val metadata = try {
+                    parseMetadata(meta)
+                } catch (error: Exception) {
+                    // Red de seguridad: `checkMeta` ya comprobo lo que `parseMetadata` exige, asi
+                    // que llegar aca significa que los dos se desincronizaron. Se reporta como
+                    // metadata invalida --que es lo que es-- y no como archivo dañado.
                     throw IncompatibleException(
-                        "schema_version ${metadata.schemaVersion}, esta app entiende " +
-                            "$SUPPORTED_SCHEMA_VERSION",
-                    )
-                }
-                if (metadata.normVersion != TextNormalizer.NORM_VERSION) {
-                    throw IncompatibleException(
-                        "norm_version ${metadata.normVersion} != ${TextNormalizer.NORM_VERSION}: " +
-                            "el pack esta indexado con otras reglas y devolveria menos resultados",
-                    )
-                }
-                if (meta["payload_codec"] != PayloadCodec.CODEC_ID) {
-                    throw IncompatibleException(
-                        "payload_codec '${meta["payload_codec"]}', esta app lee " +
-                            "'${PayloadCodec.CODEC_ID}'",
+                        PackRejection.METADATA,
+                        "meta no se pudo interpretar: ${error.message}",
                     )
                 }
 
-                if (verifyKeys) checkKeysAgainstASample(connection, metadata)
+                checkStructure(connection)
+
+                if (verifyKeys) {
+                    checkContentAgainstMetadata(connection, metadata)
+                    checkKeysAgainstASample(connection, metadata)
+                }
 
                 val dictionary = hexToBytes(meta.getValue("payload_dict"))
                 val declared = meta.getValue("payload_dict_sha256")
                 if (PayloadCodec.dictionaryDigest(dictionary) != declared) {
                     throw IncompatibleException(
+                        PackRejection.PAYLOAD_DICTIONARY,
                         "payload_dict_sha256 no corresponde al diccionario guardado: deflate no " +
                             "avisaria y las entradas saldrian corruptas",
                     )
@@ -126,6 +160,112 @@ class PackFile private constructor(
                 throw error
             }
         }
+
+        /**
+         * Lo que se puede preguntarle al esquema sin tocar una sola fila. Medido: **0,0 ms**
+         * sobre el pack ingles de 306,8 MB, asi que corre **siempre**, tambien cuando el memo
+         * dice que este archivo ya paso.
+         *
+         * - **Los dos indices.** Sin `idx_entry_norm` la busqueda por prefijo escanea 956.150
+         *   filas en vez de recorrer un rango del indice de cobertura (D-012). No da un
+         *   resultado equivocado: da el mismo tarde, y en un reloj eso es bateria.
+         * - **La tabla de staging.** `PackBuilder` escribe ahi durante la primera pasada y la
+         *   borra al terminar; que siga existiendo significa que el build se corto a la mitad, y
+         *   un pack a medias **abre sin error y devuelve menos palabras de las que tiene**.
+         */
+        private fun checkStructure(connection: SQLiteConnection) {
+            val objetos = mutableSetOf<String>()
+            connection.prepare(
+                "SELECT name FROM sqlite_master WHERE name IN " +
+                    "('idx_entry_norm', 'idx_entry_fuzzy', 'staging')",
+            ).use { statement ->
+                while (statement.step()) objetos += statement.getText(0)
+            }
+            if ("staging" in objetos) {
+                throw IncompatibleException(
+                    PackRejection.HALF_BUILT,
+                    "quedo la tabla de staging: el pack se construyo a medias",
+                )
+            }
+            val faltan = listOf("idx_entry_norm", "idx_entry_fuzzy").filterNot { it in objetos }
+            if (faltan.isNotEmpty()) {
+                throw IncompatibleException(
+                    PackRejection.MISSING_INDEX,
+                    "faltan indices: ${faltan.joinToString()}; la busqueda escanearia la tabla",
+                )
+            }
+        }
+
+        /**
+         * Que el contenido sea el que `meta` promete. Corre **una vez por archivo**, junto a la
+         * muestra de claves, porque el pack es inmutable (D-001).
+         *
+         * Medido sobre el pack ingles real (956.150 entradas, 306,8 MB): **5,7 ms en total**,
+         * contra los 14,7 ms que ya costaban las 64 lecturas de la muestra. Lo caro se quedo en
+         * `verify_pack.py`, donde corre al construir y no en el reloj: `uid` unico son **377 ms**
+         * y los huerfanos completos **672 ms**.
+         *
+         * - **`entry_count` contra las filas reales** (4,2 ms). Es lo que agarra un archivo
+         *   truncado: se abre sin error y devuelve menos palabras de las que dice tener.
+         * - **`fts_def` una fila por entrada** (1,4 ms). Su `rowid` **es** `entry.id` (D-011).
+         *   Desalineados, buscar por definicion no devuelve menos resultados: devuelve **otros**,
+         *   que es peor, porque se leen como correctos.
+         * - **`norm` vacio** (0,0 ms, lo contesta el indice). Una entrada con la clave vacia no
+         *   se alcanza por prefijo ni por el nivel tolerante: esta en el archivo y no existe.
+         * - **Huerfanos de `form` y `trans`** (0,1 ms sobre 64 filas). Una flexion que apunta a
+         *   una entrada que no esta es una busqueda que no encuentra nada. Se mira una muestra y
+         *   no la tabla entera porque completa cuesta 672 ms; acota el daño, no lo elimina, que
+         *   es el mismo trato que D-142 hizo con las claves.
+         */
+        private fun checkContentAgainstMetadata(
+            connection: SQLiteConnection,
+            metadata: PackMetadata,
+        ) {
+            val filas = countOf(connection, "SELECT COUNT(*) FROM entry")
+            if (filas != metadata.entryCount.toLong()) {
+                throw IncompatibleException(
+                    PackRejection.ENTRY_COUNT,
+                    "meta.entry_count dice ${metadata.entryCount} y hay $filas filas: el archivo " +
+                        "esta truncado o se construyo a medias",
+                )
+            }
+            val indexadas = countOf(connection, "SELECT COUNT(*) FROM fts_def_docsize")
+            if (indexadas != filas) {
+                throw IncompatibleException(
+                    PackRejection.FTS_MISALIGNED,
+                    "fts_def tiene $indexadas filas para $filas entradas: la busqueda por " +
+                        "definicion apuntaria a otras entradas (D-011)",
+                )
+            }
+            val sinClave = countOf(connection, "SELECT COUNT(*) FROM entry WHERE norm = ''")
+            if (sinClave > 0) {
+                throw IncompatibleException(
+                    PackRejection.EMPTY_KEY,
+                    "$sinClave entradas con norm vacio: estan en el archivo y no se alcanzan",
+                )
+            }
+            for (tabla in listOf("form", "trans")) {
+                val huerfanas = countOf(
+                    connection,
+                    "SELECT COUNT(*) FROM (SELECT entry_id FROM $tabla LIMIT $ORPHAN_SAMPLE_SIZE) t" +
+                        " WHERE NOT EXISTS (SELECT 1 FROM entry e WHERE e.id = t.entry_id)",
+                )
+                if (huerfanas > 0) {
+                    throw IncompatibleException(
+                        PackRejection.ORPHAN_ROW,
+                        "$huerfanas filas de $tabla apuntan a entradas que no existen",
+                    )
+                }
+            }
+        }
+
+        /** Cuantas filas de `$tabla` se miran para buscar huerfanas. Ver [checkContentAgainstMetadata]. */
+        private const val ORPHAN_SAMPLE_SIZE = 64
+
+        private fun countOf(connection: SQLiteConnection, sql: String): Long =
+            connection.prepare(sql).use { statement ->
+                if (statement.step()) statement.getLong(0) else 0L
+            }
 
         /**
          * Cuantas entradas se recalculan al abrir. 64 lecturas por rowid, no un scan.
@@ -175,6 +315,7 @@ class PackFile private constructor(
                         val expectedNorm = TextNormalizer.norm(headword)
                         if (storedNorm != expectedNorm) {
                             throw IncompatibleException(
+                                PackRejection.KEYS,
                                 "entry.norm no coincide con norm() en '$headword': el pack dice " +
                                     "'$storedNorm' y esta app calcula '$expectedNorm'. " +
                                     "Faltarian palabras en los resultados sin ningun error",
@@ -188,6 +329,7 @@ class PackFile private constructor(
                                 headword, metadata.fuzzyProfileFor(statement.getText(3)))
                             if (storedFuzzy != expectedFuzzy) {
                                 throw IncompatibleException(
+                                    PackRejection.KEYS,
                                     "entry.fuzzy no coincide con fuzzy() en '$headword': el pack " +
                                         "dice '$storedFuzzy' y esta app calcula '$expectedFuzzy'",
                                 )

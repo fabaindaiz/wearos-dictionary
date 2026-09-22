@@ -2,14 +2,16 @@ package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.PackRejection
 
 /**
- * An open, queryable pack.
+ * A `.db` in `filesDir/packs`: either open and queryable, or rejected and named as such.
  *
- * It is a sealed interface with a single case **on purpose**: there was a second one,
- * `Available`, for the packs that shipped inside the APK without being extracted. It left with
- * them. Once the installer exists something like it will be needed again --a catalogue pack that
- * has not been downloaded yet-- and it gets added then, with the use case in hand and not before.
+ * ⚠️ **La segunda variante existe porque un pack rechazado tiene que poder VERSE.** Antes era
+ * una cadena suelta en `PackSet.problems` que sólo llegaba a la pantalla de atribución --el peor
+ * lugar posible: es la de los créditos, y un pack que no se carga no acredita nada--. Ahora es
+ * una fila más de la pantalla de diccionarios, con su motivo en una línea y su botón de borrar,
+ * que es la única acción que alguien puede tomar al respecto.
  */
 sealed interface PackHandle {
     val packId: String
@@ -45,6 +47,27 @@ sealed interface PackHandle {
         override val packId: String get() = source.metadata.packId
         val metadata: PackMetadata get() = source.metadata
     }
+
+    /**
+     * Un `.db` que está en el disco y **no se carga**, con el motivo como dato.
+     *
+     * ⚠️ **No tiene `metadata`, y eso es la garantía y no una carencia.** El pedido era que un
+     * pack incompatible *«no se cargue de ninguna forma, por ejemplo que no se muestre en los
+     * créditos»*. La manera de cumplirlo no es acordarse de filtrarlo en cada pantalla —eso se
+     * olvida en la siguiente— sino que **no exista nada que mostrar**: sin `PackMetadata` no hay
+     * nombre, ni licencia, ni fuentes, ni idioma, así que ninguna pantalla puede incluirlo
+     * aunque quiera. El compilador lo impone, no la disciplina.
+     *
+     * [packId] es el **nombre del archivo** por la misma razón: el `pack_id` vive dentro del
+     * pack y leerlo ya sería cargarlo.
+     */
+    data class Incompatible(
+        val fileName: String,
+        val bytes: Long,
+        val rejection: PackRejection,
+    ) : PackHandle {
+        override val packId: String get() = fileName
+    }
 }
 
 /**
@@ -61,14 +84,14 @@ sealed interface PackSet {
     /**
      * There is at least one usable pack. [active] is the one being searched.
      *
-     * [problems] are the packs that were there and did **not** open. It exists so a rejected pack
-     * does not vanish from the list in silence: they are shown on the attribution screen, which
-     * costs the search not a single dp.
+     * ⚠️ **Los rechazados viajan en [all] como [PackHandle.Incompatible]**, y ya no en una lista
+     * aparte de cadenas. Así un pack que no se carga sigue siendo visible --no desaparece en
+     * silencio, que es lo que esa lista protegía-- pero ahora aparece **donde se puede hacer
+     * algo con él**: la pantalla de diccionarios, con su motivo y su botón de borrar.
      */
     data class Ready(
         val active: PackHandle.Open,
         val all: List<PackHandle>,
-        val problems: List<String> = emptyList(),
     ) : PackSet
 
     /** No `.db` in `filesDir/packs/`. The APK ships none: one has to be installed. */

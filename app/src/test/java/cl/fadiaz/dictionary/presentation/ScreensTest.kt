@@ -34,6 +34,7 @@ import cl.fadiaz.dictionary.core.Example
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.PackSource
 import cl.fadiaz.dictionary.data.CatalogOffer
@@ -883,6 +884,41 @@ class ScreensTest {
         status = estado,
         installedVersion = instalada,
     )
+
+    @Test
+    fun unPackIncompatibleSeMuestraConSuMotivoEnUnaLinea() {
+        // ⚠️ **Es el pedido entero en una pantalla.** Un `.db` que no carga desaparecía de la
+        // lista: ocupaba disco y no había nada que dijera por qué ni cómo sacarlo. Ahora es una
+        // fila, con su tamaño, su motivo en una línea y su botón de borrar --que es la única
+        // acción posible sobre un pack que no se puede abrir--.
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(openPack("es-def", "Español", 72_212_480)),
+                rejected = listOf(
+                    PackHandle.Incompatible("viejo-en.db", 12_500_992L, PackRejection.NORM_VERSION),
+                ),
+                onDelete = {},
+            )
+        }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("viejo-en.db", substring = true))
+        compose.onNodeWithText("viejo-en.db", substring = true).assertIsDisplayed()
+        // El nombre del ARCHIVO y no uno bonito: el bonito vive dentro del pack y leerlo sería
+        // cargarlo. Y el motivo, que es lo que convierte "desapareció" en "no sirve, y por esto".
+        compose.onNodeWithText("Otras reglas de búsqueda", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun sinPacksIncompatiblesNoHayFilasDeMas() {
+        // El caso normal es cero: la lista no puede ganar una cabecera ni un hueco por una
+        // sección que casi siempre está vacía, en una pantalla que se mide en dp.
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(openPack("es-def", "Español", 72_212_480)),
+                onDelete = {},
+            )
+        }
+        assertEquals(0, compose.onAllNodesWithText(".db", substring = true).fetchSemanticsNodes().size)
+    }
 
     @Test
     fun entrarALaPantallaNoConsultaElCatalogo() {
@@ -1763,16 +1799,32 @@ class ScreensTest {
     fun theAttributionShowsBothPacks() {
         // D-031 with two sources: showing one license alone breaches the other one's terms.
         compose.setContent {
-            AttributionScreen(
-                packs = listOf(handle(meta()), handle(meta("en-def", "en", "English"))),
-                problems = listOf("de-def: dañado"),
-            )
+            AttributionScreen(packs = listOf(handle(meta()), handle(meta("en-def", "en", "English"))))
         }
         compose.onNodeWithText("Español", substring = true).assertExists()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("English", substring = true))
         compose.onNodeWithText("English", substring = true).assertExists()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("dañado", substring = true))
-        compose.onNodeWithText("dañado", substring = true).assertExists()
+    }
+
+    @Test
+    fun aRejectedPackIsNotCredited() {
+        // ⚠️ **El pedido, literal: que un pack incompatible no se cargue de ninguna forma, «por
+        // ejemplo que no se muestre en los créditos».** Esta pantalla acredita a las fuentes del
+        // contenido que la app está usando; un pack que no se carga no aporta contenido, así que
+        // nombrarlo acá acredita algo que nadie está leyendo.
+        compose.setContent {
+            AttributionScreen(
+                packs = listOf(
+                    handle(meta()),
+                    PackHandle.Incompatible("de-def.db", 1_000L, PackRejection.NORM_VERSION),
+                ),
+            )
+        }
+        compose.onNodeWithText("Español", substring = true).assertExists()
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("de-def", substring = true).fetchSemanticsNodes().size,
+        )
     }
 
     // --- The history -------------------------------------------------------------------------

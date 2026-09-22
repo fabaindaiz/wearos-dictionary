@@ -1,25 +1,44 @@
 package cl.fadiaz.dictionary.data
 
+import cl.fadiaz.dictionary.core.PackRejection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Lo que decide si hay que volver a probar un pack.
  *
- * ⚠️ **Estos tests son el guardrail, no el ahorro.** Saltarse la muestra de claves de D-142
- * cuando NO corresponde reintroduce el modo de falla central del repo: faltan palabras, sin
- * excepción y sin log. Cada caso de acá es una forma de que la huella deje de cambiar cuando
- * debería.
+ * ⚠️ **Estos tests son el guardrail, no el ahorro.** Saltarse la verificación cuando NO
+ * corresponde reintroduce el modo de falla central del repo: faltan palabras, sin excepción y
+ * sin log. Cada caso de acá es una forma de que la huella deje de cambiar cuando debería.
+ *
+ * ⚠️ **Y desde que el memo guarda también los RECHAZOS, la mitad de estos casos cambió de
+ * signo.** Un sí cacheado de más cuesta que un pack malo se use; un **no** cacheado de más
+ * cuesta que un pack perfectamente bueno **desaparezca para siempre**, sin que nada lo vuelva a
+ * mirar. Por eso la huella lleva las reglas enteras y no sólo `NORM_VERSION`.
  */
 class PackVerificationTest {
+
+    private fun reglas(
+        normVersion: Int = 3,
+        schemaVersion: Int = 4,
+        codecId: String = "deflate-v2",
+    ) = PackVerification.rules(normVersion, schemaVersion, codecId)
 
     private fun huella(
         bytes: Long = 75_161_600L,
         modifiedAt: Long = 1_700_000_000_000L,
-        normVersion: Int = 3,
-    ) = PackVerification.fingerprint(bytes, modifiedAt, normVersion)
+        rules: String = reglas(),
+    ) = PackVerification.fingerprint(bytes, modifiedAt, rules)
+
+    private fun memoCon(
+        name: String = "es-def.db",
+        fingerprint: String = huella(),
+        rejection: PackRejection? = null,
+        stored: String = "",
+    ) = PackVerification.remember(stored, name, fingerprint, rejection)
 
     @Test
     fun aDifferentFileIsADifferentFingerprint() {
@@ -34,29 +53,84 @@ class PackVerificationTest {
         // ⚠️ El caso que no se puede fallar. Si `norm()` cambia, TODO pack ya verificado tiene
         // que volver a probarse: sus claves se calcularon con otras reglas. Un caché que
         // sobreviviera a esto haría exactamente el daño que D-142 existe para evitar.
-        assertTrue(huella(normVersion = 3) != huella(normVersion = 4))
+        assertTrue(huella(rules = reglas(normVersion = 3)) != huella(rules = reglas(normVersion = 4)))
     }
 
     @Test
-    fun anUnknownPackIsNotVerified() {
-        assertFalse(PackVerification.isVerified(stored = "", "es-def.db", huella()))
-        assertFalse(PackVerification.isVerified(stored = null, "es-def.db", huella()))
+    fun supportingANewSchemaInvalidatesEveryRejection() {
+        // ⚠️ **El caso que el memo de rechazos introduce, y es el peligroso.** Un pack de
+        // `schema_version` 5 se rechaza hoy; si mañana la app entiende 5, ese rechazo cacheado
+        // lo dejaría escondido **para siempre** -- el archivo no cambió, así que `bytes` y
+        // `modifiedAt` tampoco. Lo único que lo puede invalidar es que las reglas entren en la
+        // huella.
+        assertTrue(huella(rules = reglas(schemaVersion = 4)) != huella(rules = reglas(schemaVersion = 5)))
     }
 
     @Test
-    fun aPackIsVerifiedOnlyWithItsOwnFingerprint() {
-        val memo = PackVerification.remember("", "es-def.db", huella())
-        assertTrue(PackVerification.isVerified(memo, "es-def.db", huella()))
+    fun readingANewCodecInvalidatesEveryRejection() {
+        // Mismo caso que el anterior por el otro eje: un pack con un códec que esta versión no
+        // lee se rechaza, y la versión que sí lo lea tiene que volver a mirarlo.
+        assertTrue(huella(rules = reglas(codecId = "deflate-v2")) != huella(rules = reglas(codecId = "deflate-v3")))
+    }
+
+    @Test
+    fun changingTheChecksInvalidatesEveryVerdict() {
+        // ⚠️ La tercera vía, y la más fácil de olvidar: las reglas no cambian sólo cuando cambia
+        // una CONSTANTE del formato, sino cuando cambia **qué se comprueba**. Agregar una
+        // invariante sin bumpear esto deja pasar como verificados los packs que la nueva
+        // comprobación habría rechazado.
+        assertTrue(PackVerification.CHECKS_VERSION > 0)
+        assertTrue(reglas().contains(PackVerification.CHECKS_VERSION.toString()))
+    }
+
+    @Test
+    fun anUnknownPackHasNoVerdict() {
+        assertNull(PackVerification.verdict(stored = "", "es-def.db", huella()))
+        assertNull(PackVerification.verdict(stored = null, "es-def.db", huella()))
+    }
+
+    @Test
+    fun aPassedPackIsRememberedAsPassed() {
+        val memo = memoCon()
+        assertEquals(PackVerification.Verdict.Passed, PackVerification.verdict(memo, "es-def.db", huella()))
+    }
+
+    @Test
+    fun aRejectedPackIsRememberedWithItsReason() {
+        // Es el pedido entero: un pack rechazado no se vuelve a escanear, y la pantalla de
+        // diccionarios puede decir POR QUÉ sin volver a abrirlo.
+        val memo = memoCon(rejection = PackRejection.FTS_MISALIGNED)
+        assertEquals(
+            PackVerification.Verdict.Rejected(PackRejection.FTS_MISALIGNED),
+            PackVerification.verdict(memo, "es-def.db", huella()),
+        )
+    }
+
+    @Test
+    fun aVerdictOnlyCountsWithItsOwnFingerprint() {
+        val memo = memoCon(rejection = PackRejection.KEYS)
         // El mismo archivo con otra huella: no vale.
-        assertFalse(PackVerification.isVerified(memo, "es-def.db", huella(bytes = 1L)))
+        assertNull(PackVerification.verdict(memo, "es-def.db", huella(bytes = 1L)))
         // Otro archivo con la huella de éste: tampoco.
-        assertFalse(PackVerification.isVerified(memo, "en-def.db", huella()))
+        assertNull(PackVerification.verdict(memo, "en-def.db", huella()))
+    }
+
+    @Test
+    fun anUnknownReasonInTheMemoMakesThePackWorthLookingAtAgain() {
+        // ⚠️ El memo lo pudo escribir otra versión de la app, con un motivo que ésta no conoce.
+        // Lo seguro es volver a abrir el pack, nunca esconderlo por un código ilegible: eso es
+        // lo que `PackRejection.fromId` garantiza al degradar a DAMAGED en vez de lanzar.
+        val memo = "es-def.db\t${huella()}\tun-motivo-del-futuro"
+        assertEquals(
+            PackVerification.Verdict.Rejected(PackRejection.DAMAGED),
+            PackVerification.verdict(memo, "es-def.db", huella()),
+        )
     }
 
     @Test
     fun rememberingTheSamePackTwiceDoesNotGrowTheMemo() {
-        var memo = PackVerification.remember("", "es-def.db", huella())
-        memo = PackVerification.remember(memo, "es-def.db", huella())
+        var memo = memoCon()
+        memo = PackVerification.remember(memo, "es-def.db", huella(), null)
         assertEquals(1, memo.lines().count { it.isNotBlank() })
     }
 
@@ -64,28 +138,55 @@ class PackVerificationTest {
     fun reinstallingReplacesTheEntryInsteadOfStackingIt() {
         // Sin esto el memo crece sin techo: un .db que se reinstala cada semana deja una línea
         // muerta por vez, y las muertas no caducan solas.
-        var memo = PackVerification.remember("", "es-def.db", huella())
-        memo = PackVerification.remember(memo, "es-def.db", huella(bytes = 999L))
+        var memo = memoCon()
+        memo = PackVerification.remember(memo, "es-def.db", huella(bytes = 999L), null)
         assertEquals(1, memo.lines().count { it.isNotBlank() })
-        assertTrue(PackVerification.isVerified(memo, "es-def.db", huella(bytes = 999L)))
-        assertFalse(PackVerification.isVerified(memo, "es-def.db", huella()))
+        assertEquals(
+            PackVerification.Verdict.Passed,
+            PackVerification.verdict(memo, "es-def.db", huella(bytes = 999L)),
+        )
+        assertNull(PackVerification.verdict(memo, "es-def.db", huella()))
     }
 
     @Test
-    fun aMemoWithGarbageInItDoesNotVerifyAnything() {
+    fun aRejectedPackThatIsReinstalledGetsAnotherChance() {
+        // ⚠️ La otra mitad de que un rechazo no sea para siempre: el archivo cambió, así que el
+        // veredicto viejo no dice nada de éste. Sin esto, reinstalar el pack corregido no
+        // serviría de nada.
+        var memo = memoCon(rejection = PackRejection.ENTRY_COUNT)
+        assertNull(PackVerification.verdict(memo, "es-def.db", huella(modifiedAt = 99L)))
+        memo = PackVerification.remember(memo, "es-def.db", huella(modifiedAt = 99L), null)
+        assertEquals(
+            PackVerification.Verdict.Passed,
+            PackVerification.verdict(memo, "es-def.db", huella(modifiedAt = 99L)),
+        )
+    }
+
+    @Test
+    fun aMemoWithGarbageInItVerifiesNothing() {
         // El memo vive en SharedPreferences y lo puede haber escrito otra versión de la app.
-        // Ante cualquier duda tiene que decir "no verificado": el costo es volver a probar, que
-        // es exactamente lo que hacíamos antes.
-        assertFalse(PackVerification.isVerified("basura sin tabs", "es-def.db", huella()))
-        assertFalse(PackVerification.isVerified("es-def.db", "es-def.db", huella()))
+        // Ante cualquier duda tiene que decir "no sé": el costo es volver a probar, que es
+        // exactamente lo que hacíamos antes.
+        assertNull(PackVerification.verdict("basura sin tabs", "es-def.db", huella()))
+        assertNull(PackVerification.verdict("es-def.db", "es-def.db", huella()))
+        assertNull(PackVerification.verdict("es-def.db\t", "es-def.db", huella()))
     }
 
     @Test
     fun packsThatAreGoneLeaveTheMemo() {
-        var memo = PackVerification.remember("", "es-def.db", huella())
-        memo = PackVerification.remember(memo, "en-def.db", huella(bytes = 300L))
+        var memo = memoCon()
+        memo = PackVerification.remember(memo, "en-def.db", huella(bytes = 300L), PackRejection.LICENSE)
         val podado = PackVerification.prune(memo, setOf("es-def.db"))
-        assertTrue(PackVerification.isVerified(podado, "es-def.db", huella()))
-        assertFalse(PackVerification.isVerified(podado, "en-def.db", huella(bytes = 300L)))
+        assertEquals(PackVerification.Verdict.Passed, PackVerification.verdict(podado, "es-def.db", huella()))
+        assertNull(PackVerification.verdict(podado, "en-def.db", huella(bytes = 300L)))
+    }
+
+    @Test
+    fun theSeparatorCannotComeFromAFileName() {
+        // El memo es texto delimitado y el nombre del archivo lo elige quien instala el pack.
+        // Un tab ahí adentro partiría la línea en otro lado y haría pasar por verificado a un
+        // pack que no lo está.
+        val memo = memoCon(name = "raro\tnombre.db")
+        assertFalse(memo.lines().first().count { it == '\t' } > 2)
     }
 }
