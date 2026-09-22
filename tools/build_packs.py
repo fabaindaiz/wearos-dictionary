@@ -55,12 +55,27 @@ VERIFY = os.path.join(AQUI, "packbuilder", "verify_pack.py")
 
 DUMPS, BUILD, DIST = "dumps", "build", "dist"
 
-#: Los presupuestos de cada nivel, en MB (D-215).
+#: El rango de cada nivel, en MB: `(minimo, maximo)` que el ARCHIVO tiene que cumplir (D-215,
+#: D-220).
 #:
-#: ⚠️ **Un idioma cuyo `full` ya cabe en el presupuesto de `main` NO genera `main`**: el espanol
-#: completo son 73,6 MB, por debajo de los 130, asi que un `main` espanol seria un segundo pack con
-#: el mismo contenido. Eso lo decide [_niveles], no una lista escrita a mano.
-PRESUPUESTO = {"core": 40, "main": 130}
+#: ⚠️ **Es un rango y no un numero porque un numero no se puede cumplir.** El tamaño del derivado
+#: se estima escalando los payloads por la proporcion del pack de ORIGEN, y el derivado tiene otra
+#: --se lleva las formas de sus lemas y no las de los demas--: pedir 25 MB dio **17,7 MB**. El
+#: rango se cumple midiendo el archivo y volviendo a derivar, que es lo que hace
+#: `build_core.derivar_en_rango`.
+#:
+#: ⚠️ **Cada numero sale de una medicion, y la que los ata esta en D-220.** En una linea:
+#: **30** es el codo de la curva cobertura/tamaño del idioma **mas exigente** (el ingles: +10 MB
+#: compran ahi menos de 0,5 puntos); **x1,5 de ancho** porque la razon archivo/presupuesto se
+#: mueve entre 0,60 y 1,26 y un rango mas angosto que esa dispersion no converge; **x2 de salto**
+#: entre `maximo(core)` y `minimo(main)` para que los dos rangos no puedan solaparse.
+#:
+#: ⚠️ **Los MAXIMOS no los valida ninguna metrica de contenido, y eso se dice.** La cobertura
+#: satura (96,63 % en 45,2 MB, el valor del pack completo) y `lemma_coverage` es **convexa** --
+#: acelera: 0,168, 0,248, 0,301 y 0,388 puntos por MB--, asi que por esa vara siempre conviene
+#: gastar mas. El maximo es una decision de producto sobre cuanto se le pide al reloj; lo unico
+#: medido es el ANCHO.
+RANGO = {"core": (30, 50), "main": (100, 150)}
 
 #: La lista de frecuencias de cada idioma. Es la misma con la que se construyo el `full`, y usar
 #: la misma importa: el corte de un nivel y el `rank` del pack tienen que hablar del mismo corpus.
@@ -76,8 +91,9 @@ def _niveles(raiz, idioma, tamano_full_mb):
     pasos = []
     full = _ruta(raiz, DIST, "%s-full.db" % idioma)
     for nivel in ("core", "main"):
-        presupuesto = PRESUPUESTO[nivel]
-        if nivel == "main" and tamano_full_mb is not None and tamano_full_mb <= presupuesto:
+        minimo, maximo = RANGO[nivel]
+        # ⚠️ Un `full` que ya cabe entero en el rango de `main` haria de `main` una copia suya.
+        if nivel == "main" and tamano_full_mb is not None and tamano_full_mb <= maximo:
             continue
         pasos.append({
             "nombre": "%s-%s" % (idioma, nivel),
@@ -87,7 +103,7 @@ def _niveles(raiz, idioma, tamano_full_mb):
             # del corpus, con menos lemas adentro. `build_core` avisa por stderr si falta.
             "comando": [sys.executable, BUILD_CORE, full,
                         _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
-                        "--budget-mb", str(presupuesto), "--tier", nivel,
+                        "--rango-mb", str(minimo), str(maximo), "--tier", nivel,
                         "--frecuencias", _ruta(raiz, DUMPS, LISTAS_DE_FRECUENCIA[idioma])],
             "verifica": True,
         })

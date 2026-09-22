@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **463 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **987 tests en total**. Los **46
+pipeline de packs (`tools/`, **469 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **28 checks** de auditoría estructural — **993 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -171,9 +171,9 @@ python3 tools/packbuilder/verify_pack.py --como-la-app <raíz>/dist/*.db
 ```
 
 ⚠️ **El `--dry-run` sobre-reporta a propósito y hay que saberlo**: lista `es-main` aunque el
-español completo (73,6 MB) esté por debajo del presupuesto de `main` (130 MB) y la corrida real lo
-salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía no
-existe**. El plan que se lee no es exactamente el plan que corre.
+español completo (73,6 MB) esté por debajo del máximo del rango de `main` (150 MB) y la corrida
+real lo salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía
+no existe**. El plan que se lee no es exactamente el plan que corre.
 
 ### La deuda de hoy — actualizado 2026-09-22
 
@@ -185,6 +185,8 @@ es lo que no llegó:
 |---|---|---|
 | **La identidad `<idioma>-<nivel>`** | D-215 | Los publicados dicen `es-def-wikc-tat-freq-wn-wd`; el builder de hoy produce `es-full`. **Son packs distintos para el catálogo y para el instalador** |
 | **Los tres tamaños por idioma** | D-215 | `main` no existe todavía como artefacto |
+| **El rango, y sus extremos medidos** | D-220 | Los niveles se pedían con `--budget-mb`, que es un techo **estimado**: pedir 25 MB daba 17,7. Y el mínimo de `core` estaba 1,1 puntos por debajo del codo inglés |
+| **El calendario inglés** | D-116 | ⚠️ **`dist/en-core.db` no tiene 11 de los 12 meses ni ningún día de la semana** — 0 entradas para `january`…`sunday`. El núcleo nuevo, ordenado por frecuencia, trae 14. Lo encontró la lista de cobertura, no un test |
 | **La cita del ejemplo** | D-216 | 86,5 % de los ejemplos ingleses son citas de un texto y hoy salen sin decir de dónde |
 | **El deduplicado de listas** | D-218 | `inglés` muestra `English, Englishman, English` |
 
