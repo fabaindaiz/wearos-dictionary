@@ -103,6 +103,39 @@ class TestCatalogo(unittest.TestCase):
         self.assertFalse(packserver.is_pack("es-def-wikc.db.gz"))
         self.assertFalse(packserver.is_pack("notas.txt"))
 
+    def test_un_INTERMEDIO_del_merge_no_se_publica(self):
+        """⚠️ Visto en el catalogo del emulador: `es-def-wd` aparecia como un pack descargable.
+
+        No lo es. Es una **entrada** del merge --el pack espanol lo lleva fundido dentro-- y
+        publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que se
+        descarto. El filtro es **semantico y no por nombre**: un pack publicable DECLARA su nivel
+        (D-215), y un intermedio no declara ninguno. Renombrar el archivo no lo cuela.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            un_pack(os.path.join(d, "final.db"), tier="full", kind="monolingual")
+            intermedio = os.path.join(d, "intermedio.db")
+            # ⚠️ `kind` explicito: el fixture por defecto es bilingue, que es JUSTO la excepcion
+            # del filtro -- y con el por defecto este test pasaba sin probar nada.
+            un_pack(intermedio, kind="monolingual")
+            conn = sqlite3.connect(intermedio)
+            conn.execute("DELETE FROM meta WHERE key = 'tier'")
+            conn.commit()
+            conn.close()
+            ids = [p["pack_id"] for p in packserver.build_catalog(d)["packs"]]
+            self.assertEqual(1, len(ids), "solo el que declara nivel: %s" % ids)
+
+    def test_el_BILINGUE_si_se_publica_aunque_no_tenga_nivel(self):
+        """Su proposito no es un tamano del mismo diccionario, asi que no lleva `tier` (D-215)."""
+        with tempfile.TemporaryDirectory() as d:
+            biling = os.path.join(d, "es-en.db")
+            un_pack(biling, kind="bilingual")  # explicito aunque sea el default del fixture
+            conn = sqlite3.connect(biling)
+            conn.execute("DELETE FROM meta WHERE key = 'tier'")
+            conn.commit()
+            conn.close()
+            ids = [p["pack_id"] for p in packserver.build_catalog(d)["packs"]]
+            self.assertEqual(1, len(ids), "el bilingue tiene que publicarse: %s" % ids)
+
     def test_meta_se_lee_con_los_tipos_y_sin_el_payload_dict(self):
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "es-test.db")
