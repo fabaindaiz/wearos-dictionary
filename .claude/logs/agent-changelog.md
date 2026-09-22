@@ -26,6 +26,64 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El verificador gana un modo espejo de la app, y el espejo nace con enforcer
+**Qué.** `verify_pack.py --como-la-app` corre sobre un pack exactamente lo que `PackFile.open`
+rechaza, en el mismo orden, e imprime el `PackRejection` que el usuario leería. Acepta varios
+packs. Y el modo normal gana tres invariantes: las claves de `form`/`trans` son claves de `norm()`
+válidas, ninguna lista del payload repite un item (D-218), y ningún tag del payload es
+desconocido. La auditoría gana dos chequeos: el espejo de motivos y el `--` en comentarios XML.
+
+**Áreas.** `tools/packbuilder/verify_pack.py`, `tools/audit_dictionary.py`,
+`tools/packbuilder/tests/test_build.py`, `CLAUDE.md`, `tools/CLAUDE.md`,
+`.claude/skills/verify/SKILL.md`, `docs/decisions.md`.
+
+**Por qué.** Pedido: *«me interesa que verify_pack tenga comprobaciones más exhaustivas y un modo
+same comparation que copie la lógica de verificación de lo implementado por la app»*. La segunda
+mitad tiene una trampa que la sesión anterior ya había señalado: **un modo que copia la lógica de
+la app es un cuarto espejo**, y este repo tiene tres y los tres se separaron antes de ganar
+enforcer. Así que no se copió a mano: los motivos son una tabla declarativa y la auditoría la
+compara contra el enum `PackRejection`, **con su orden**.
+
+**Arquitectura.** ✅ Cumple. El modo espejo **no** reemplaza a `verify()` y eso está escrito donde
+se lee: aquél recalcula todas las claves, cruza `uid` y mira planes de consulta porque corre al
+construir; éste contesta una sola pregunta, la de antes de sideloadear.
+
+**Medido.**
+- Idempotencia de las claves de `form`: **7,6 s** sobre las 1.309.880 claves distintas del pack
+  español y **4,3 s** sobre las 801.758 del inglés. **0 malas hoy**: es un guardrail de
+  regresión, no un cazador de bugs — y decirlo importa, porque un check que nunca encontró nada
+  se borra en la primera limpieza si nadie escribió para qué está.
+- La invariante de repetidos **encontró casos en packs publicados**: `inglés` en `es-def-wikc`
+  trae `English, Englishman, English`, y en el bilingüe `hallelujah`, `alcoholic`, `Pashtun`,
+  `Austrasian` y `Samothracian` repiten traducciones de palabra.
+- Los 5 packs de `dist/` pasan `--como-la-app`; los 7 de `build/` salen por `schema`.
+
+**Qué salió mal.**
+1. ⚠️ **La muestra de payloads eran las primeras 200 filas por id, no repartidas** — justo lo que
+   D-142 argumenta que no sirve, en el mismo archivo que lo argumenta. Y en un pack
+   **bidireccional** era peor: las entradas inversas viven en la segunda mitad de la tabla
+   (D-196), así que la muestra vieja **no miraba ni una**. Repartirla destapó las cinco entradas
+   inglesas con traducciones repetidas que la vieja no podía ver.
+2. Cuatro de los tests nuevos pasaron el `assertEqual` y fallaron el `assertIn` porque les pasé
+   el `StringIO` en vez de su contenido: un error mío, no del código. Se vio porque los cuatro
+   fallaban con el mismo mensaje.
+3. La primera versión del chequeo de markup del barrido daba falso positivo con `more at ` dentro
+   de *«two or more at the same time»*. El barrido es del scratchpad, pero la lección no: un
+   detector nuevo se prueba contra el corpus antes de creerle lo que reporta.
+
+**Qué quedó sin hacer.**
+- ⚠️ **Los packs de `dist/` ya NO pasan `verify_pack.py` completo**, y es correcto: la invariante
+  de repetidos los agarra porque son anteriores a D-218. Necesitan un rebuild (~1 h por el
+  inglés), que además les daría la cita de D-216.
+- La idempotencia de `form` detecta una clave plegada con otras reglas; **no** detecta una clave
+  que sea el `norm()` correcto de otra palabra. La tabla no guarda la forma original, así que eso
+  no es comprobable desde el artefacto.
+- El modo espejo comprueba lo que la app **rechaza**, no lo que la app **muestra**: un pack puede
+  pasarlo y aun así tener contenido malo. Para eso está el modo normal, y para el contenido que
+  ningún check ve sigue estando leer el pack.
+
+---
+
 ## 2026-09-22 — Un pack roto ahora dice por qué, se recuerda que lo está, y no se carga de ninguna forma
 **Qué.** La verificación al abrir pasa de 4 invariantes a 14, el motivo del rechazo pasa de ser
 una cadena de log a un tipo traducible (`PackRejection`), el memo recuerda también los **rechazos**
