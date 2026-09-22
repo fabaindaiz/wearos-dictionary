@@ -76,6 +76,8 @@ class SearchRepository(
      * sale del mismo indice de cobertura y no cuesta una fila de mas.
      */
     private val lang: String? = null,
+    /** Donde se reporta lo que hizo la cascada. Ver [SearchTrace]. */
+    private val trace: SearchTrace = SearchTrace.None,
 ) {
 
     /** Los ids del idioma activo, para el desempate de [orderFor]. */
@@ -106,7 +108,26 @@ class SearchRepository(
         } else {
             emptyList()
         }
-        return ordenar(propias + ajenas, limit, query)
+        val resultado = ordenar(propias + ajenas, limit, query)
+        reportar(query, resultado, respaldo = ajenas.isNotEmpty())
+        return resultado
+    }
+
+    /**
+     * Le cuenta a [trace] como quedo una busqueda, **solo si hay quien escuche**.
+     *
+     * Agrupa lo que **quedo en el resultado**, no lo que se recolecto: es lo que el usuario ve, y
+     * es contra eso que se depura un orden raro. Lo que se descarto por el limite o por el
+     * `distinctBy` no esta en la pantalla y no explica lo que el usuario reporta.
+     */
+    private fun reportar(query: String, resultado: List<Suggestion>, respaldo: Boolean) {
+        if (!trace.enabled) return
+        trace.searched(
+            query = query,
+            byKind = resultado.groupingBy { it.matchKind }.eachCount(),
+            fallback = respaldo,
+            returned = resultado.size,
+        )
     }
 
     /**
@@ -141,6 +162,7 @@ class SearchRepository(
         // se calcula con esa cobertura, y sin ella no hay forma de decidir cuándo el idioma
         // activo "no tuvo nada" sin inventar un criterio.
         ordenar(recolectar(packs) { it.searchDefinitions(query, limit, lang) }, limit, query = null)
+            .also { reportar(query, it, respaldo = false) }
 
     private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> =
         todas
@@ -159,10 +181,16 @@ class SearchRepository(
             // cannot leave the user with no dictionary at all. Same criterion the word of the
             // day already applies. The failure is not swallowed into a wrong answer -- the
             // other packs still answer, and a pack that never returns anything is visible.
-            @Suppress("TooGenericExceptionCaught", "SwallowedException")
+            @Suppress("TooGenericExceptionCaught")
             val suyas = try {
                 consultar(pack)
             } catch (e: Exception) {
+                // Se sigue sin el, pero **queda registrado**: sin esto un pack que revienta en
+                // cada consulta es indistinguible de uno vacio. Ver [SearchTrace.packFailed].
+                trace.packFailed(
+                    pack.metadata.packId,
+                    e.message ?: e::class.simpleName ?: "excepcion sin mensaje",
+                )
                 continue
             }
             todas.addAll(suyas)
