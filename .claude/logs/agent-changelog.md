@@ -26,6 +26,106 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El ejemplo dice de dónde se citó, y el rank mayúsculo queda medido sin decidir
+**Qué.** Tag `C` en el payload con la fuente del ejemplo, recortada a año y autor (D-216), en los
+**tres** lados del contrato: `payload.py`, `PayloadCodec.kt` y `verify_pack.py`. `Sense.examples`
+pasa de `List<String>` a `List<Example>`. `kaikki` lee el `ref` que venía tirando y lo recorta con
+un separador **por idioma**, declarado en `Perfil`. La cita se dibuja bajo el ejemplo, a dos
+líneas. Y el entregable 2: el lavado de frecuencia **medido y no arreglado**.
+
+**Áreas.** `tools/packbuilder/payload.py`, `tools/packbuilder/verify_pack.py`,
+`tools/packbuilder/build.py`, `tools/packbuilder/build_pack.py`,
+`tools/packbuilder/sources/kaikki.py`, `tools/packbuilder/sources/toy.py`,
+`tools/packbuilder/gen_payload_fixture.py` + el fixture regenerado,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt`,
+`dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt`,
+`app/src/main/java/cl/fadiaz/dictionary/presentation/EntryScreen.kt`,
+`app/src/main/res/values/strings.xml` y su par en `values-es/`,
+`docs/decisions.md`, `docs/formato-pack.md`, `docs/fuentes.md`, `docs/roadmap.md`,
+`tools/CLAUDE.md`.
+
+**Por qué.** Reportado desde el reloj: `Thomas` mostraba *«An infidel or doubter.»* con una frase
+de una novela del XIX y **nada que dijera de dónde salía**; hubo que ir a Wiktionary a mano. El
+pedido llegó como *«filtrar la fuente en inglés»* — y **la poda pedida no habría tocado esa
+entrada**, porque su `pos` es `noun` y la política sólo mira `name`.
+
+**Arquitectura.** ✅ Cumple. Tag aditivo, `CODEC_ID` **no sube** (D-119). ⚠️ **Una tensión
+nombrada**: `kaikki.py:6-8` prohíbe heurísticas sobre la prosa y el recorte se le acerca; entra
+porque no decide **presencia** —su peor caso es un corte feo, no una palabra que desaparece— y el
+comentario lo deja escrito para que la próxima sesión no lo borre por parecerse ni lo copie a
+donde sí decide presencia. ⚠️ **Y una línea de `tools/CLAUDE.md` quedó obsoleta a propósito**:
+§Adding a source decía que las fuentes descartan *citations*. Medir la movió.
+
+**Medido.**
+- Dump inglés entero: **622.680 ejemplos `type: quotation` contra 97.288 `example`** — el
+  **86,5 %** de lo que el pack muestra como ejemplo es una cita de un texto publicado.
+- De lo que el builder guarda, **75,5 %** trae `ref`. `ref` completo **119 B**, recortado **31 B**
+  (p50 24 · p90 50 · p99 142 · máx 430).
+- **Costo real, dos packs del mismo dump con los mismos flags, 47.718 entradas cada uno:
+  +2,52 % (+421.888 B)** → el pack inglés pasaría de 306,8 a **314,5 MB (+7,7 MB)**.
+- `fts_def_data`: **delta 0 bytes**. La cita está fuera del índice, comprobado y no supuesto.
+- Reordenar para preferir el ejemplo redactado rendiría poco: sólo el **7,3 %** de las acepciones
+  con ejemplo tiene los dos tipos.
+- Entregable 2: **6.462** entradas con mayúscula y `pos != name` están en la banda de frecuencia
+  `[0,500)`, que tiene 55.903 → **11,5 % de la banda «más frecuente»**. Tres clases: 4.246 con
+  homógrafo en minúscula (siglas: `TO`, `IS`, `ME`, `HE`), 1.333 con hermano `name`, 883 ninguna.
+
+**Qué salió mal.** Seis cosas, y cuatro son de método.
+1. ⚠️ **La estimación del costo estaba mal por 58 % y la medición la mató.** Estimé **+1,6 %**
+   suponiendo que las citas comprimirían como el resto del payload (1,71×). Comprimen a **1,23×**:
+   son nombres propios y dígitos que el diccionario precargado de 32 KB no contiene y que una
+   entrada de ~600 bytes no le da a deflate espacio para aprender. Medido: **+2,52 %**. La
+   aritmética por ejemplo —31 B, 75,5 %— dio exacta; lo que no se puede estimar es la compresión.
+2. ⚠️ **Una sonda de mutación mintió, y perdí ~15 minutos buscando el bug en la lógica.** En esta
+   máquina `python3` es el 3.9 del sistema con
+   `sys.pycache_prefix = ~/Library/Caches/com.apple.python`: **el bytecode NO vive en
+   `__pycache__` dentro del repo**. La mutación cambiaba `+= 1` por `+= 0` —mismo ancho— y el
+   restore cayó en el mismo segundo, así que la clave `(mtime, tamaño)` coincidió y quedó el
+   `.pyc` mutado. El archivo en disco era correcto, `inspect.getsource` mostraba el código
+   correcto, y la función se comportaba como la mutada. **Las sondas van con `python3 -B`.** Lo
+   que lo destrabó fue comparar `f.__code__.co_code` contra un `exec(inspect.getsource(f))`.
+3. ⚠️ **Leer el pack construido encontró DOS defectos que los tests no veían** — que es el paso 4
+   de `docs/fuentes.md`, y es la segunda vez que ese paso paga. `captive` salía como
+   `1850, [Alfred`: el Wiktionary encierra el nombre editorial del autor entre corchetes y esa
+   coma es interna (**369 citas, 1,3 %**, todas desbalanceadas). Y otras **184 (0,64 %)** traen el
+   `ref` entero envuelto, donde el par no cierra nunca. Ninguno de los dos lo habría encontrado
+   un test escrito desde el código.
+4. ⚠️ **El primer arreglo del segundo defecto rompía dos casos, y también se vio midiendo.**
+   Sacar el delimitador inicial siempre convertía `[1877], Anna Sewell` en `1877], Anna Sewell`.
+   Con la guarda *desenvolver sólo si el corte quedó desbalanceado*, las citas con un par sin
+   cerrar pasan de 184 a **1 de 14.062** en el pack construido — y esa una es larga, no incorrecta.
+5. **El directorio de datos se reorganizó bajo mis pies, a mitad de sesión** (12:11, la sesión
+   paralela de `build_packs.py`): dos builds fallaron con `FileNotFoundError` sobre rutas que
+   existían al abrir el brief. El `git status` del brief vence en minutos; **las rutas fuera del
+   repo también**.
+6. Un test mío estaba mal, no el código: usé `assertCountEquals` y `assertEquals(a, b, mensaje)`,
+   que en este módulo resuelve a la sobrecarga de JUnit con el mensaje **primero**.
+
+**Qué quedó sin hacer.**
+- ⚠️ **La cita no se vio renderizada en el emulador**, y no por falta de intento. El pack completo
+  se sideloadeó (14.062 citas) pero **la app elige el pack activo sola** y eligió el núcleo, que
+  no tiene citas; la pantalla de diccionarios sólo permite **borrar**, y los otros dos packs
+  ingleses del emulador son de otra sesión, así que no los toqué. El IME confirmó lo que dice
+  `app/CLAUDE.md`: `input text` entra pero **se descarta al volver**. Lo que sí cierra el hueco es
+  un test de pantalla nuevo (`theExampleShowsWhereItWasQuotedFrom`), verificado por mutación.
+  Falta el ojo: **la tipografía de la cita no la vio nadie**.
+- **El rank no se tocó**, por decisión explícita del usuario (*«medir antes de decidir»*). La
+  primera clase —4.246 siglas con homógrafo en minúscula— **tiene regla limpia** y es el 66 % del
+  problema; las otras dos no la tienen con los datos en disco. Está en el roadmap.
+- **El español no trae cita**: medido (68,4 % con `ref`, 92 B → 50 B recortado, separador de
+  puntos con fusión de iniciales) y a **una línea** de su `Perfil`. No se construyó.
+- ⚠️ **Una idea muerta por medición, escrita para que nadie la reintente**: el truco de D-137
+  —*una palabra escrita en minúscula alguna vez en el corpus es común*— **no transfiere al
+  inglés**. Sobre 41.512 frases inglesas de Tatoeba: `american` 361 apariciones / **0 en
+  minúscula**, `british` 91/0, `christmas` 44/0, `ok` 52/0. El inglés capitaliza gentilicios,
+  feriados y siglas por regla.
+- Queda **1 cita desbalanceada de 14.062**: un `(` que abre y no cierra dentro de los dos primeros
+  campos, en un `ref` que no empieza con delimitador. Sale larga, nunca incorrecta.
+- El pack inglés **real** no se reconstruyó: todas las cifras salen de un muestreo 1/20 del mismo
+  dump. El porcentaje es lo que se proyecta, no los bytes absolutos.
+
+---
+
 ## 2026-09-22 — El pipeline entra al repo, los packs se separan en tres directorios
 **Qué.** `tools/build_packs.py` (nuevo): construye todos los packs **en orden** y separa lo
 intermedio de lo que se publica. El directorio de datos pasa de plano a `dumps/`, `build/` y
