@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **443 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **967 tests en total**. Los **46
+pipeline de packs (`tools/`, **447 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **28 checks** de auditoría estructural — **971 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -310,9 +310,9 @@ cobró, y lo que queda —recalibrar el proxy, o cruzar un corpus de frecuencias
 ahora lo que más separa al diccionario de ser bueno. Sigue esperando el número de O-1 para saber
 cuánto presupuesto de latencia hay para gastar.
 
-### El rank mayúsculo: la lista de frecuencia lava los nombres propios — MEDIDO, sin decidir
+### El rank mayúsculo: la lista de frecuencia lava los nombres propios — UNA CLASE HECHA
 
-**Estado.** **Medido 2026-09-22, sin decidir.** Es lo que disparó D-216 y **no** lo que D-216
+**Estado.** **La clase con regla, construida el 2026-09-22; las otras dos, medidas y abiertas.** Es lo que disparó D-216 y **no** lo que D-216
 arregla: la cita hace legible a la entrada, no la baja de posición.
 
 **El caso.** `Thomas` son dos entradas y la que molesta no es nombre propio:
@@ -345,12 +345,33 @@ inglés**. Sobre las 41.512 frases inglesas de Tatoeba CC0: `american` 361 apari
 minúscula**; `british` 91/0; `chinese` 78/0; `christmas` 44/0; `ok` 52/0. El inglés capitaliza
 gentilicios, feriados y siglas **por regla**, así que la señal es constante y no separa nada.
 
-**Lo que se recomienda, y lo que no.** La primera clase tiene regla y es el 66 % del problema:
-*un lema con mayúscula cuyo homógrafo en minúscula también es entrada del pack no toma la
-frecuencia de ese homógrafo*. Las otras dos **no tienen regla disponible hoy** con los datos en
-disco, y D-141 dice que equivocarse en una decisión de contenido no deja rastro. El TSV con las
-6.462 filas —rank, pos, acepciones, hermano `name`, homógrafo, primera glosa— se genera con una
-consulta sobre el pack; está en el registro de la sesión del 2026-09-22.
+✅ **Construida la primera clase** (2026-09-22): *un lema con mayúscula cuyo homógrafo en minúscula
+también es entrada del pack no toma la frecuencia de ese homógrafo*. Son las **4.246**, el 66 %
+del problema, y la regla es inequívoca — esa frecuencia es del lema en minúscula, que ya tiene su
+propia entrada para reclamarla. La señal sale de la pasada 1, que ya recorre el dump entero.
+
+⚠️ **Un homógrafo que sólo existe como página `form-of` NO cuenta**, y esa mitad también está
+fijada por un test: no es una entrada (D-065), así que `RAN` no debe perder su frecuencia por
+`ran`, que es flexión de `run`.
+
+⚠️ **Y eso deja un sub-caso afuera, que lo encontró leer el pack construido.** `CATS` (rank 201)
+y `FIRES` (213) siguen en la banda: sus minúsculas existen **sólo como páginas de forma** —plural
+de `cat`, de `fire`— así que la regla no las toca, y sin embargo es el mismo lavado. El argumento
+que las excluye tiene su contra: la frecuencia de `cats` **sí** tiene dueño en minúscula, sólo
+que es el lema `cat` y no esa grafía.
+
+Medido sobre la muestra 1/20: de las 76 que siguen en la banda, **5** son este caso (`CATS`,
+`FIRES`, `LAS`, `Lionesses`, `MODS`) — unas **100 en el pack completo**, contra las 4.246 ya
+corregidas. Las otras 71 no tienen minúscula de ninguna forma y son la clase irreducible
+(`Alaskan`, `Augustine`, `Baldwin`). **No se cambió**: extenderlo es revertir una decisión
+documentada y con test, por un 2 % más de cobertura.
+
+❌ **Las otras dos clases siguen abiertas, y a propósito.** No tienen regla disponible con los
+datos en disco: mezclan `Thomas` 179 y `Richard` 168 con `Christmas` 150, `American` 153 y
+`British` 177, y D-141 dice que equivocarse en una decisión de contenido no deja rastro. Lo que
+las desbloquearía es una señal que hoy no existe — un corpus inglés que distinga mayúsculas.
+El TSV con las 6.462 filas se genera con una consulta sobre el pack; está en el registro de la
+sesión del 2026-09-22.
 
 ### El orden de las acepciones dentro de una ficha — VERIFICADO 2026-09-21, y **bloqueado por falta de evidencia**
 
@@ -528,9 +549,12 @@ que queda ya no es contenido sino tamaño.
 | WordNet / MCR | **+3.801** entradas ganan sinónimos | ✅ `--tesauro` (D-144) |
 | enwiktionary §Spanish | 307 entradas ganan ejemplo | ✅ `--ejemplos` (D-135), rinde 21× menos |
 
-El pack quedó en **146.193 entradas y 73,6 MB**, con **21,0 %** de entradas con sinónimos. ⚠️ **Y
-ahí está la tensión nueva**: el presupuesto blando de D-028 son 50 MB. No filtrar (D-141) y sumar
-fuentes empujan en la dirección contraria. Ver §O-3.
+⚠️ **Los números de este párrafo estaban viejos y se corrigieron el 2026-09-22.** El pack real es
+hoy **152.281 entradas y 73,6 MB** —lo medido sobre `dist/es-def-wikc.db`—, no las 114.619 que
+esta sección declaraba: la diferencia son D-141 (ninguna fuente pierde palabras) y D-145 (la
+fusión de Wikidata). Y **la tensión que aquí se describía ya no existe**: el presupuesto blando
+de 50 MB lo retiró D-207, porque se usaba sólo para declararse roto y porque medía lo
+equivocado — el reloj reporta 9,0 GiB libres. Lo que sí se vigila está en §O-3.
 
 **Lo que ya se hizo, para no repetirlo.** Salieron los nombres propios (22,1 % de las entradas,
 26.265 de ellas definiendo sólo *"Apellido."*), entraron 71.609 sinónimos por acepción en
@@ -538,7 +562,8 @@ fuentes empujan en la dirección contraria. Ver §O-3.
 del wiki. En 2026-09-20 entraron las **palabras relacionadas** (D-132): hiperónimos, hipónimos y
 `related`, que eran el último campo aprovechable que la fuente traía y el builder tiraba —
 **5.395 entradas en español (4,7 %) y 90.310 en inglés (11,4 %)**, por +112 KB y +1,4 MB. El pack
-quedó en **114.619 entradas y 68,3 MB**.
+quedó entonces en **114.619 entradas y 68,3 MB** — *entonces*, porque D-141 y D-145 lo llevaron
+después a las 152.281 de hoy.
 
 ⚠️ **Y quedó medido que esta fuente ya no tiene mucho más que dar.** Las entradas flacas —una
 acepción, sin ejemplo— son 80.744, el 70,4 % del pack. Barriendo 174.395 registros vivos, sólo el

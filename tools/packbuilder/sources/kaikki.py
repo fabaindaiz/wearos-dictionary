@@ -732,21 +732,49 @@ class Opciones:
     Con esto, agregar una opcion es agregar un campo. Los sitios de llamada no se tocan.
     """
 
-    __slots__ = ("perfil", "politica", "translations_to", "frequencies")
+    __slots__ = ("perfil", "politica", "translations_to", "frequencies",
+                 "lemas_en_minuscula")
 
-    def __init__(self, perfil, politica, translations_to=None, frequencies=None):
+    def __init__(self, perfil, politica, translations_to=None, frequencies=None,
+                 lemas_en_minuscula=()):
         self.perfil = perfil
         self.politica = politica
         self.translations_to = translations_to
         self.frequencies = frequencies
+        self.lemas_en_minuscula = frozenset(lemas_en_minuscula)
 
     def zipf(self, headword):
         """La frecuencia de un lema, o None si no hay señal.
 
         ⚠️ Usa `frequency.key` y **no** `norm()`: plegar el acento le da a `háber` la frecuencia
         de `haber` --el verbo, puesto 210-- y lo manda a rank 97 contra 237 de `hábil`.
+
+        ⚠️ **Y una palabra con mayuscula NO cobra la frecuencia de su homografo en minuscula.**
+        `frequency.key` baja a minusculas --correcto, D-186-- y la lista de OpenSubtitles **ya
+        viene toda en minusculas**, asi que las dos comparten clave. Medido sobre el pack ingles:
+        **6.462 entradas** con mayuscula y `pos != name` estaban en la banda de frecuencia real
+        `[0,500)`, que tiene 55.903 -- el **11,6 %** de la banda "mas frecuente" era esto.
+
+        Lo que se corrige es solo la clase que tiene regla: las **4.246** cuyo homografo en
+        minuscula **tambien es entrada del pack**, que son siglas y formas honorificas --`TO`,
+        `OF`, `IS`, `WE`, `ME`, `HE`, `NO`, `ARE`, `BE`, `CAN`--. Ahi el argumento es inequivoco:
+        esa frecuencia es del lema en minuscula, que ya tiene su propia entrada para reclamarla.
+
+        ⚠️ **Las otras dos clases NO se tocan, y es deliberado.** 1.333 tienen hermano `pos=name`
+        y 883 no tienen ninguna de las dos señales, y las dos mezclan la basura con el vocabulario
+        legitimo: `Thomas` 179 y `Richard` 168 conviven con `Christmas` 150, `American` 153 y
+        `British` 177. No hay dato en disco que las separe -- el truco de D-137 (*una palabra
+        escrita en minuscula alguna vez en el corpus es comun*) se midio contra las 41.512 frases
+        inglesas de Tatoeba y **no transfiere**: `american` aparece 361 veces y **0 en minuscula**,
+        porque el ingles capitaliza gentilicios por regla.
+
+        Lo que queda sin frecuencia cae a la banda de riqueza de pagina, que es la respuesta
+        correcta: nadie midio la frecuencia de ESA grafia.
         """
         if not self.frequencies:
+            return None
+        minuscula = headword.lower()
+        if headword != minuscula and minuscula in self.lemas_en_minuscula:
             return None
         return self.frequencies.get(_frequency.key(headword))
 
@@ -807,20 +835,31 @@ def _inbound_forms(path):
     una clave por lema (~150.000) en vez de una por forma (~700.000).
     """
     inbound = {}
+    # Los lemas que YA estan escritos en minuscula y serian una entrada del pack. Sale gratis
+    # aca: esta pasada ya recorre el archivo entero. Ver `Opciones.zipf`.
+    lemas_en_minuscula = set()
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             raw = json.loads(line)
             word = raw.get("word")
-            if not word or not _is_form_page(raw):
+            if not word:
+                continue
+            if not _is_form_page(raw):
+                # ⚠️ **Una pagina `form-of` NO cuenta**, y la distincion importa: no es una
+                # entrada, se invierte como forma de su lema (D-065). Si contara, `RAN` perderia
+                # su frecuencia por `ran` --que es flexion de `run`-- sin que exista ninguna
+                # entrada en minuscula que la reclame.
+                if word == word.lower():
+                    lemas_en_minuscula.add(word)
                 continue
             for sense in raw["senses"]:
                 for target in sense.get("form_of") or []:
                     lemma = target.get("word")
                     if lemma and lemma != word:
                         inbound.setdefault(lemma, set()).add(word)
-    return inbound
+    return inbound, lemas_en_minuscula
 
 
 def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None,
@@ -847,8 +886,10 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
     if politica not in POLITICAS_DE_NOMBRES:
         raise ValueError("politica de nombres propios desconocida: %r (son %s)"
                          % (politica, ", ".join(POLITICAS_DE_NOMBRES)))
-    opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies)
-    inbound = _inbound_forms(path)
+    # La pasada 1 PRIMERO: de ahi sale `lemas_en_minuscula`, que `Opciones` necesita.
+    inbound, lemas_en_minuscula = _inbound_forms(path)
+    opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies,
+                        lemas_en_minuscula)
     group = []
     current = None
     with open(path, encoding="utf-8") as handle:
