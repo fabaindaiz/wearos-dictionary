@@ -180,10 +180,12 @@ class Perfil:
     """
 
     __slots__ = ("w_sense", "w_example", "w_form", "w_translation", "w_etymology", "forms_cap",
-                 "categorias_de_registro", "separador_de_cita")
+                 "categorias_de_registro", "separador_de_cita", "fusiona_iniciales",
+                 "quita_subindices")
 
     def __init__(self, w_sense, w_example, w_form, w_translation, w_etymology, forms_cap,
-                 categorias_de_registro=(), separador_de_cita=None):
+                 categorias_de_registro=(), separador_de_cita=None, fusiona_iniciales=False,
+                 quita_subindices=False):
         self.w_sense = w_sense
         self.w_example = w_example
         self.w_form = w_form
@@ -207,6 +209,18 @@ class Perfil:
         # clase de error que aquella regla existe para impedir. Queda escrito para que la
         # proxima sesion no la borre por parecerse ni la copie a donde si decide presencia.
         self.separador_de_cita = separador_de_cita
+        # Si un campo de una letra o dos es una INICIAL y no un campo. Solo tiene sentido cuando
+        # el separador es el punto: `J. R. R. Tolkien` son cuatro campos partiendo a secas, y los
+        # dos primeros serian `J` y `R`. El ingles parte por coma y no lo necesita.
+        self.fusiona_iniciales = fusiona_iniciales
+        # Si se sacan los subindices de referencia cruzada de la glosa.
+        #
+        # ⚠️ **Es por idioma porque los subindices significan COSAS DISTINTAS en cada dump**, y
+        # aplicarlo a los dos rompe contenido. Medido sobre los packs de hoy: en español ~1.890
+        # glosas los usan como referencia cruzada --`mudanza\u2081`, `ejercito\u2082`, 62 de 69
+        # muestreadas-- y en ingles ~4.584 son **formulas quimicas** --`C\u2087H\u2085NO\u2083S`,
+        # `MnO\u2082`, 23 de 26 y las otras 3 tambien--. Es la misma trampa de D-121.
+        self.quita_subindices = quita_subindices
 
 
 PERFILES = {
@@ -214,6 +228,12 @@ PERFILES = {
     # perro, y "perro" subio de la posicion 619 a la 5 (D-067).
     "es": Perfil(w_sense=3, w_example=2, w_form=1, w_translation=0.5, w_etymology=5,
                  forms_cap=80,
+                 # Medido sobre el dump del 2026-09-15: el 68,4 % de los ejemplos trae `ref`, con
+                 # los campos separados por PUNTO y el autor primero. Recortado a autor y obra
+                 # pasa de 92 a 50 bytes.
+                 separador_de_cita=".", fusiona_iniciales=True,
+                 # ~1.890 glosas con subindice de referencia cruzada. Ver [Perfil].
+                 quita_subindices=True,
                  # Medido sobre el dump del 2026-09-15: 26.708 acepciones en la primera y 2.398
                  # repartidas en las otras tres. Entre las cuatro cubren los 28.314 nombres
                  # propios que solo dicen su categoria.
@@ -269,7 +289,7 @@ _APERTURAS_DE_CITA = frozenset(abre for abre, _ in _PARES_DE_CITA)
 _CIERRE_DE_CITA = " :,;"
 
 
-def _recorte_de_cita(ref, separador):
+def _recorte_de_cita(ref, perfil):
     """Los dos primeros campos de nivel superior de un `ref`, o None si no hay nada que decir.
 
     "Nivel superior" quiere decir fuera de los pares de [_PARES_DE_CITA]: el separador que cae
@@ -278,12 +298,16 @@ def _recorte_de_cita(ref, separador):
     Devuelve None y no "" para que el llamador no tenga que distinguir dos formas del mismo
     caso -- el ejemplo sin fuente conocida, que es el 24,5 % de ellos.
     """
+    separador = perfil.separador_de_cita if perfil else None
     if not separador:
         return None
-    texto = (ref or "").strip()
+    # ⚠️ Un `ref` con el campo de autor vacio empieza con el separador: visto en el dump español
+    # --`. Anonimo. Ordinacion dada a la ciudad...`--. Sin esto el primer campo sale vacio y el
+    # recorte se lleva uno menos de los que deberia.
+    texto = (ref or "").strip().lstrip(separador + " ").strip()
     if not texto:
         return None
-    cortado = _corta_en_nivel_superior(texto, separador)
+    cortado = _corta_en_nivel_superior(texto, separador, perfil.fusiona_iniciales)
     # ⚠️ **El Wiktionary tambien encierra la cita ENTERA entre corchetes** cuando la fuente es
     # indirecta: `[1755 April 15, Samuel Johnson, "Lexico'grapher", in A Dictionary…`. Ese
     # corchete no cierra dentro de los dos primeros campos, asi que la profundidad nunca vuelve
@@ -296,14 +320,21 @@ def _recorte_de_cita(ref, separador):
     # ahi el par **si** cierra y el corte ya era correcto. Con la guarda, las citas con un par
     # sin cerrar pasan de 184 a **0 de 28.744**, y el promedio baja de 31,8 a 30,8 bytes.
     if _desbalanceada(cortado) and texto[0] in _APERTURAS_DE_CITA:
-        alternativa = _corta_en_nivel_superior(texto[1:].strip(), separador)
+        alternativa = _corta_en_nivel_superior(texto[1:].strip(), separador,
+                                               perfil.fusiona_iniciales)
         if not _desbalanceada(alternativa):
             cortado = alternativa
     return cortado or None
 
 
-def _corta_en_nivel_superior(texto, separador):
-    """Los dos primeros campos, sin partir dentro de un par de [_PARES_DE_CITA]."""
+def _corta_en_nivel_superior(texto, separador, fusiona_iniciales=False):
+    """Los dos primeros campos, sin partir dentro de un par de [_PARES_DE_CITA].
+
+    ⚠️ **`fusiona_iniciales` existe por el español y no es cosmetico.** Ahi el separador es el
+    punto, y `J. R. R. Tolkien. El Señor de los Anillos` tiene **cinco** campos partiendo a
+    secas: los dos primeros serian `J` y `R`. Un campo de una letra o dos no es un campo, es una
+    inicial, y se pega al siguiente.
+    """
     campos = []
     actual = []
     profundidad = 0
@@ -316,7 +347,14 @@ def _corta_en_nivel_superior(texto, separador):
                 profundidad = max(0, profundidad - 1)
                 break
         if ch == separador and profundidad == 0:
-            campos.append("".join(actual))
+            pieza = "".join(actual)
+            if fusiona_iniciales and _es_inicial(pieza):
+                # ⚠️ **La inicial NO cierra el campo: se lo lleva consigo.** `J. R. R. Tolkien`
+                # es UN autor, no cuatro campos, y el apellido viene despues -- asi que lo que
+                # hay que hacer es seguir acumulando, no pegarse al campo anterior.
+                actual.append(ch)
+                continue
+            campos.append(pieza)
             actual = []
             if len(campos) == CAMPOS_DE_CITA:
                 break
@@ -326,6 +364,17 @@ def _corta_en_nivel_superior(texto, separador):
         campos.append("".join(actual))
     juntos = (separador + " ").join(c.strip() for c in campos if c.strip())
     return juntos.rstrip(_CIERRE_DE_CITA)
+
+
+def _es_inicial(pieza):
+    """Si lo acumulado termina en una inicial --`J`, `R`, `Ch`-- y no en un campo completo.
+
+    Se mira el ULTIMO token y no la pieza entera: al llegar al punto de `J. R. R. Tolkien` lo
+    acumulado ya es `J. R. R`, y lo que decide si el campo cierra es que la siguiente palabra
+    sea un apellido y no otra inicial.
+    """
+    tokens = pieza.strip().split()
+    return bool(tokens) and len(tokens[-1].rstrip(".")) <= 2
 
 
 def _desbalanceada(cita):
@@ -349,17 +398,37 @@ def _desbalanceada(cita):
 _MARKUP_EDITORIAL = re.compile(r"\s*\^\(\[[^\]]*\]\)\.?")
 
 
-def _gloss(sense):
+# Los subindices de referencia cruzada del Wikcionario: `ejercito\u2082 terrestre`.
+#
+# ⚠️ **Se quitan SOLO en los idiomas que lo declaran, y esa restriccion es la decision.** Medido
+# sobre los packs de hoy: en español ~1.890 glosas los usan como referencia cruzada (62 de 69
+# muestreadas) y en ingles ~4.584 son **formulas quimicas** --`C\u2087H\u2085NO\u2083S`,
+# `FeO\u2082\u00b2\u207b`, `MnO\u2082`; 23 de 26, y las otras 3 tambien son quimica--. Un
+# `str.translate` en este mismo lugar, aplicado a los dos, convierte la sacarina en algo que no
+# es una formula, en un lugar donde nadie mira. Es la misma trampa que D-121 documento con el
+# superindice matematico.
+_SUBINDICES = str.maketrans("", "", "\u2080\u2081\u2082\u2083\u2084\u2085\u2086\u2087\u2088\u2089")
+
+
+def _gloss(sense, perfil=None):
     """La glosa de una acepcion.
 
     `glosses` puede traer varios niveles (la general primero, la especifica despues). Se toma
     **la ultima**: es la que define de verdad. Unir todas repetiria el texto del padre en cada
     hija, que es peso pagado dos veces en el payload y en el indice.
+
+    ⚠️ **Pierde informacion en español, y se acepta a sabiendas**: el subindice dice **que
+    acepcion** de la palabra referida, y eso no es recuperable. Lo que se gana es que
+    `ejercito\u2082` deje de leerse como un error de codificacion en una pantalla de reloj, donde
+    la acepcion exacta no se puede consultar de todas formas. Ver [_SUBINDICES].
     """
     glosses = [g.strip() for g in (sense.get("glosses") or []) if g and g.strip()]
     if not glosses:
         return ""
-    return _MARKUP_EDITORIAL.sub("", glosses[-1]).strip()
+    limpia = _MARKUP_EDITORIAL.sub("", glosses[-1]).strip()
+    if perfil is not None and perfil.quita_subindices:
+        limpia = limpia.translate(_SUBINDICES)
+    return limpia
 
 
 def _senal_lexica(raw):
@@ -560,7 +629,7 @@ def _senses(raw, translations_to=None, perfil=None):
     for sense in raw.get("senses") or []:
         if _is_form_of(sense):
             continue
-        gloss = _gloss(sense)
+        gloss = _gloss(sense, perfil)
         if not gloss:
             continue
         examples = []
@@ -571,9 +640,7 @@ def _senses(raw, translations_to=None, perfil=None):
             # ⚠️ **La cita se descarta si no hay ejemplo, no al reves.** Sin texto no hay de que
             # colgarla, y guardarla igual la dejaria nombrando al ejemplo de la acepcion
             # siguiente. Ver la regla estricta de `payload.parse`.
-            cita = _recorte_de_cita(
-                example.get("ref"), perfil.separador_de_cita if perfil else None
-            )
+            cita = _recorte_de_cita(example.get("ref"), perfil)
             examples.append({"text": text, "ref": cita} if cita else text)
         index = (sense.get("sense_index") or "").strip()
         # Las dos formas en que la fuente sirve sinonimos. Ningun dump usa las dos, asi que esto

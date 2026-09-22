@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **447 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **971 tests en total**. Los **46
+pipeline de packs (`tools/`, **455 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **28 checks** de auditoría estructural — **979 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -2993,7 +2993,7 @@ relacionadas (`R`) cumplen —nunca entraron a `fts_def` (D-132)—; los sinóni
 
 ### Un pack reconstruido no se distingue del viejo: `data_version` es la fecha del DUMP
 
-**Estado.** **La mitad resuelta; la otra sigue abierta** (actualizado 2026-09-21).
+**Estado.** ✅ **Cerrado** (2026-09-22): la primera mitad por `data_version`, la segunda por D-215.
 
 ✅ **Resuelto: `data_version` ya NO es la fecha del dump.** Se tomó el primer camino de los tres de
 abajo —la fecha del **build**, `AAAAMMDDHHMM`— y se pagó su objeción con una clave nueva:
@@ -3002,11 +3002,21 @@ abajo —la fecha del **build**, `AAAAMMDDHHMM`— y se pagó su objeción con u
 `es-def-wikc.db` viejo todavía muestra `20260915` porque es anterior al cambio, y **el rebuild lo
 corrige solo**.
 
-⚠️ **Sigue abierto el segundo síntoma, que es una pregunta de producto**: qué cuenta como *«el
-mismo diccionario»*. D-138 sufija el `pack_id` por variante —`es-def-wikc-tat-wn`— así que dos
-variantes son dos `pack_id` distintos y **conviven**, mientras el usuario espera que la nueva
-reemplace a la vieja. `packsToQuery` deduplica por `pack_id` (D-171), lo que **no alcanza acá**
-porque los ids difieren. Toca D-138, D-070 y el §Instalador.
+✅ **Y el segundo síntoma lo cerró D-215, sin que esta sección se enterara** (visto el
+2026-09-22 revisando el roadmap). La pregunta era *«qué cuenta como el mismo diccionario»*: D-138
+sufijaba el `pack_id` por variante —`es-def-wikc-tat-wn`— así que dos variantes eran dos ids
+distintos y **convivían** en vez de reemplazarse, y `packsToQuery` deduplica por `pack_id` (D-171)
+pero ahí los ids difieren.
+
+**D-215 ataca justamente eso**: la identidad pasa a ser `<idioma>-<nivel>` —`es-full`, `es-core`—
+y **deja de cambiar al sumar una fuente**, que era la causa. Las fuentes siguen declaradas en
+`meta.sources`, que es donde se consultan. Lo que queda no es diseño sino artefacto: los cinco
+packs publicados todavía llevan la identidad vieja, y eso lo cierra el rebuild — está anotado en
+§🔁 Reconstruir los packs.
+
+⚠️ **Es la segunda sección del roadmap que se encuentra desfasada en dos sesiones**, después de
+§La calidad del contenido del pack español. El patrón es el mismo: una decisión resuelve el
+síntoma de otra sección y nadie vuelve a la que lo describía.
 
 **Estado anterior.** **Encontrado construyendo, sin decidir** (2026-09-20).
 
