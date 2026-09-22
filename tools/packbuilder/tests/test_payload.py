@@ -565,6 +565,48 @@ class AcepcionDireccionableTest(unittest.TestCase):
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual([{"text": "uno", "ref": "1897, Richard Marsh"}], senses[0]["examples"])
 
+    def test_una_lista_no_repite_el_mismo_item(self):
+        """Lo encontro barrer los packs construidos, no un test.
+
+        Medido sobre los packs reales: el **3,1 %** de las entradas con traducciones de palabra
+        del pack bilingue repetian un termino --`where` traia `donde, donde` y `do, do`, `Brazil`
+        traia `carioca` dos veces-- y en el pack español eran **88 de 407** con traducciones por
+        acepcion. En el reloj eso es la misma palabra dos veces en una fila que ya se corta.
+
+        ⚠️ **Se deduplica en `render` y no en cada fuente**, por el mismo motivo que
+        `merge_duplicate_senses`: es el unico paso por el que pasan TODOS los packs. Puesto en
+        `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual`, y la propiedad seria
+        cierta solo en los packs cuyo autor se acordo.
+        """
+        texto = payload.render("noun", [
+            {"gloss": "g",
+             "translations": ["donde", "donde", "do", "do"],
+             "synonyms": ["a", "b", "a"],
+             "antonyms": ["x", "x"],
+             "related": ["r", "r"],
+             "examples": ["uno", "uno"]},
+        ], word_translations=["gratis", "gratis", "libre"])
+        _pos, senses, palabra = payload.parse(texto)
+        self.assertEqual(["donde", "do"], senses[0]["translations"])
+        self.assertEqual(["a", "b"], senses[0]["synonyms"])
+        self.assertEqual(["x"], senses[0]["antonyms"])
+        self.assertEqual(["r"], senses[0]["related"])
+        self.assertEqual(["uno"], senses[0]["examples"])
+        self.assertEqual(["gratis", "libre"], palabra)
+
+    def test_deduplicar_conserva_el_ORDEN_de_la_primera_aparicion(self):
+        # El orden es informacion: la fuente pone primero lo que mas se usa, y con tope 4 o 8 el
+        # orden decide que se ve.
+        texto = payload.render(None, [{"gloss": "g", "synonyms": ["c", "a", "c", "b"]}])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(["c", "a", "b"], senses[0]["synonyms"])
+
+    def test_dos_ejemplos_distintos_no_se_pisan(self):
+        # Deduplicar no puede comerse contenido distinto: se comparan los items enteros.
+        texto = payload.render(None, [{"gloss": "g", "examples": ["uno", "dos"]}])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(["uno", "dos"], senses[0]["examples"])
+
     def test_la_fusion_conserva_el_ORDEN_de_la_primera(self):
         """La primera acepcion es la que la fuente puso primero, y el orden es informacion."""
         texto = payload.render(None, [
