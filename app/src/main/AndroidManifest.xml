@@ -4,6 +4,16 @@
     <uses-feature android:name="android.hardware.type.watch" />
 
     <!--
+      INTERNET, y recien ahora. D-167 decidio que el manifest no pide permisos que no usa, y
+      hasta que existio el catalogo de descarga este no se usaba: los packs entraban por cable
+      con devpack.py. Es un permiso de instalacion, no pide dialogo.
+
+      ⚠️ Lo que NO se declara: `ACCESS_NETWORK_STATE`. Las restricciones de D-029 —cargando y
+      Wi-Fi— las impone WorkManager, que no necesita que la app mire el estado de la red.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
       roundIcon se declara a proposito: sin el, un reloj REDONDO recorta el icono cuadrado.
       El recurso estaba en res/ desde el template y nadie lo declaraba.
     -->

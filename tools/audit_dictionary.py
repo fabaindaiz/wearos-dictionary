@@ -1057,14 +1057,40 @@ def check_manifest_hygiene(report):
 
     permisos = set(re.findall(r'uses-permission android:name="android\.permission\.(\w+)"',
                               manifest))
-    de_red = permisos & {"INTERNET", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"}
-    if de_red:
+    # ⚠️ Esta regla CAMBIO el 2026-09-22, cuando llego el catalogo de descarga (D-213), y el
+    # cambio es el punto: antes prohibia INTERNET porque nada lo usaba, y ahora vigila que la
+    # promesa que queda siga escrita. La propiedad que se defiende nunca fue "no hay red" sino
+    # **"buscar no usa red"**, y esa distincion se pierde en un commit si nadie la comprueba.
+    inspeccion = permisos & {"ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"}
+    if inspeccion:
         report.failure(
-            "la app dejo de ser 100 % offline",
-            "AndroidManifest.xml declara %s. Esa frase es la primera linea del README y de "
-            "CLAUDE.md: si la descarga de packs llego (D-029), hay que actualizar los dos "
-            "documentos Y esta regla, en el mismo commit" % ", ".join(sorted(de_red)),
+            "la app inspecciona la red por su cuenta",
+            "AndroidManifest.xml declara %s, y no hace falta: las restricciones de D-029 "
+            "--cargando y Wi-Fi-- las impone WorkManager. Un permiso que existe para mirar el "
+            "estado de la red es una invitacion a decidir cuando descargar desde la app, que es "
+            "exactamente lo que D-029 saco de ahi" % ", ".join(sorted(inspeccion)),
         )
+
+    # INTERNET si esta permitido, pero solo mientras los dos documentos sigan diciendo QUE es lo
+    # unico que lo usa. Si alguien borra esa frase, la promesa se vuelve indefendible en silencio.
+    if "INTERNET" in permisos:
+        promesas = {
+            "README.md": "descargar un diccionario es lo unico",
+            "CLAUDE.md": "downloading one is the only thing that uses the internet",
+        }
+        for documento, frase in promesas.items():
+            ruta = os.path.join(ROOT, documento)
+            with open(ruta, encoding="utf-8") as handle:
+                texto = handle.read()
+            if frase.lower() not in texto.lower():
+                report.failure(
+                    "la promesa de que solo la descarga usa la red no esta escrita",
+                    "%s declara INTERNET, asi que %s tiene que decir explicitamente que la "
+                    "descarga es lo unico que la usa. No se encontro %r. La propiedad que este "
+                    "proyecto vende no es 'no hay red', es 'buscar no usa red', y sin la frase "
+                    "nadie puede distinguirlas dentro de un ano"
+                    % ("AndroidManifest.xml", documento, frase),
+                )
 
     # Un permiso declarado tiene que aparecer en el codigo. La heuristica es grosera a proposito:
     # busca el nombre del permiso o su API mas obvia, y con eso alcanza para el tamano de este

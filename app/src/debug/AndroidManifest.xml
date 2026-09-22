@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTP en claro, SOLO en debug.
+
+  `targetSdk` es 37, y desde API 28 —y minSdk aca es 33— Android bloquea el trafico en claro por defecto: un servidor
+  de desarrollo en `http://192.168.x.x:8765` (tools/packserver.py) falla con
+  `java.io.IOException: Cleartext HTTP traffic to ... not permitted`.
+
+  ⚠️ **Va en el source set `debug` y no en `main` a proposito.** En `main` esto viajaria al APK de
+  release y degradaria la seguridad de la app publicada para siempre, por una comodidad de
+  desarrollo. Aca solo afecta a la build que nunca sale de esta maquina.
+
+  ⚠️ **Y por lo mismo NO aplica a `benchmark`**, que hereda de `release`: ese build type no puede
+  hablar con un servidor `http://`. Es deliberado —es la build con la que se mide, y tiene que
+  parecerse a release— pero cuesta una tarde si pilla por sorpresa. Si hiciera falta, se arregla
+  con una linea en `build.gradle.kts`:
+  `sourceSets.getByName("benchmark") { manifest.srcFile("src/debug/AndroidManifest.xml") }`.
+
+  El catalogo de produccion sera HTTPS y entonces esto no hace falta para nada.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:usesCleartextTraffic="true" />
+</manifest>
