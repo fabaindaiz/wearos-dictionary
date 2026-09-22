@@ -273,6 +273,95 @@ enum class PackTier(val id: String) {
 }
 
 /**
+ * Por que un pack **no se carga**, como dato y no como cadena de log.
+ *
+ * ⚠️ **Existe porque el motivo llego a la pantalla.** Hasta aca un rechazo era el `message` de
+ * una excepcion, escrito para `logcat` y en un solo idioma: util para depurar y **imposible de
+ * mostrarle a alguien** que solo ve que le falta un diccionario. Un tipo se traduce (D-127), se
+ * guarda en el memo de verificacion sin arrastrar prosa, y **no compila** hasta que alguien le
+ * da un texto -- la misma regla que D-125 le puso a `PackKind`.
+ *
+ * ⚠️ **Todas rechazan, y eso fue una decision de producto tomada contra la recomendacion.** Se
+ * propuso separar las que MIENTEN --claves mal calculadas, `fts_def` desalineada, un pack
+ * truncado-- de las que solo DEGRADAN --falta un indice, y la busqueda pasa a escanear--, y
+ * rechazar solo las primeras. Se eligio la regla simple: *cualquier invariante rota rechaza*,
+ * porque una segunda categoria se llena de excepciones y deja de ser honesta. **El costo
+ * aceptado**: un diccionario perfectamente legible al que le falta un indice desaparece de la
+ * lista, y lo unico que el usuario lee es una linea diciendo por que. Ver D-217.
+ *
+ * El orden de declaracion es el de comprobacion, de mas barato a mas caro, y eso importa: un
+ * pack con el esquema equivocado se rechaza **antes** de contar sus filas.
+ */
+enum class PackRejection(val id: String) {
+    /** `meta` no trae alguna clave sin la cual no se puede ni saber que es el archivo. */
+    METADATA("metadata"),
+
+    /** `schema_version` distinta: las consultas apuntarian a columnas que cambiaron (D-001). */
+    SCHEMA_VERSION("schema"),
+
+    /** `norm_version` distinta: indexado con otras reglas, devolveria menos palabras (D-006). */
+    NORM_VERSION("norm"),
+
+    /** `payload_codec` que esta app no sabe leer. */
+    PAYLOAD_CODEC("codec"),
+
+    /**
+     * No declara de donde sale su contenido, o alguna fuente no declara licencia.
+     *
+     * ⚠️ **Rechaza, y con eso se resuelve solo el pedido de que un pack incompatible no aparezca
+     * en los creditos**: no hay que acordarse de excluirlo de la pantalla de atribucion, porque
+     * no llega a existir para el resto de la app. D-031 dice que esa pantalla no es opcional, y
+     * un pack que no se puede acreditar la vuelve imposible de cumplir.
+     */
+    LICENSE("license"),
+
+    /** Falta `idx_entry_norm` o `idx_entry_fuzzy`: la busqueda escanearia la tabla entera. */
+    MISSING_INDEX("index"),
+
+    /** Quedo la tabla de staging del builder: el pack se construyo a medias. */
+    HALF_BUILT("staging"),
+
+    /** `meta.entry_count` no coincide con las filas reales: el archivo esta truncado. */
+    ENTRY_COUNT("count"),
+
+    /**
+     * `fts_def` no tiene una fila por entrada.
+     *
+     * Su `rowid` **es** `entry.id` (D-011). Si se desalinean, buscar por definicion devuelve
+     * **otras** entradas -- no menos, sino equivocadas, que es peor.
+     */
+    FTS_MISALIGNED("fts"),
+
+    /** Alguna entrada tiene `norm` vacio: no se llega a ella por ningun camino de busqueda. */
+    EMPTY_KEY("emptykey"),
+
+    /** Una forma flexionada o una traduccion apunta a una entrada que no existe. */
+    ORPHAN_ROW("orphan"),
+
+    /** Las claves recalculadas no coinciden con las que el pack trae (D-142). */
+    KEYS("keys"),
+
+    /** El diccionario de compresion no es el que el pack declara: el texto saldria corrupto. */
+    PAYLOAD_DICTIONARY("dict"),
+
+    /** Cualquier otra cosa: el archivo no es un pack, o SQLite no pudo abrirlo. */
+    DAMAGED("damaged"),
+    ;
+
+    companion object {
+        /**
+         * El motivo con este id, o [DAMAGED] si no se reconoce.
+         *
+         * ⚠️ **No lanza a proposito**: el id viene del memo en `SharedPreferences`, que lo pudo
+         * escribir otra version de la app. Un id desconocido significa *"habia un motivo y esta
+         * version no sabe cual"*, y tratarlo como dañado hace que el pack se vuelva a probar --
+         * que es la degradacion correcta, no esconderlo para siempre.
+         */
+        fun fromId(id: String?): PackRejection = entries.firstOrNull { it.id == id } ?: DAMAGED
+    }
+}
+
+/**
  * El perfil de plegado del idioma dado, o el del primero si el pack no lo conoce.
  *
  * ⚠️ **Nunca lanza, y esa es la decision.** Un idioma que el pack no declara es un bug del
