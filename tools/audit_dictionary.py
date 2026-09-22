@@ -19,6 +19,11 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BUNDLE = ".agents"
+
+#: Documentos que nombran rutas legítimamente inexistentes: el roadmap las planifica, el
+#: changelog las recuerda. Ver check_doc_paths.
+EXENTOS_DE_RUTAS = ("docs/roadmap.md", ".claude/logs/agent-changelog.md")
 
 # Directorios de primer nivel cuyos paths se consideran referencias reales al repo.
 REPO_DIRS = ("dict-core/", "tools/", "app/", "docs/", ".claude/", "gradle/", "dict-data/")
@@ -252,12 +257,19 @@ def check_doc_paths(report):
 
     La exencion sale de `.gitignore` y no de una lista aparte: si git lo ignora, no es un
     archivo del repo y un documento puede nombrarlo.
+
+    ⚠️ **Y el changelog queda exento por la misma razon que el roadmap, pero al reves en el
+    tiempo**: es un registro y nombra rutas que existian cuando se escribio la entrada. La carpeta
+    docs/agents/ se retiro en D-221 y cinco entradas viejas la mencionan correctamente. El
+    grandfathering por numero de linea que usa D-020 **no sirve aca**: el changelog se escribe de
+    arriba, asi que cada sesion desplaza todos los numeros. El costo es real y se nombra: el
+    documento mas largo del repo no tiene chequeo de rutas.
     """
     ignorados = _patrones_ignorados()
     token = re.compile(r"`([^`\n]+)`")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
-        if relative == "docs/roadmap.md" or relative.startswith(("docs/agents/", ".agents/")):
+        if relative in EXENTOS_DE_RUTAS or relative.startswith(BUNDLE + "/"):
             continue
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
@@ -281,7 +293,7 @@ def check_markdown_links(report):
     link = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
-        if relative.startswith(("docs/agents/", ".agents/")):
+        if relative.startswith(BUNDLE + "/"):
             continue
         base = os.path.dirname(path)
         with open(path, encoding="utf-8") as handle:
@@ -1183,13 +1195,69 @@ def check_root_budget(report):
         report.advisory("CLAUDE.md cerca del limite", "%d de 200 lineas" % lines)
 
 
+def check_skills_reachable(report):
+    """Regla: una regla que sale de CLAUDE.md sigue siendo alcanzable. (D-222)
+
+    CLAUDE.md se paga en cada request y vive bajo 200 lineas, asi que las reglas menos
+    especificas se mudan a una skill. El problema es que una skill **no se carga sola**: se
+    carga cuando su `description` matchea lo que el usuario dijo. Entonces mudar una regla y
+    dejar el puntero no alcanza --la regla deja de leerse justo en la situacion que gobierna.
+
+    Dos mitades:
+
+    1. **Toda skill que CLAUDE.md nombra existe.** Un puntero roto es una regla perdida.
+    2. **Toda skill existente esta nombrada** en CLAUDE.md o en otra skill. Una skill a la que
+       nadie apunta es contenido que se saco de la vista y nadie va a volver a leer.
+
+    No comprueba que la `description` dispare --eso no es decidible-- y por eso la segunda
+    mitad es lo que queda: si algo se muda, el mapa tiene que nombrarlo.
+    """
+    folder = os.path.join(ROOT, ".claude/skills")
+    if not os.path.isdir(folder):
+        return
+    existentes = {
+        n for n in os.listdir(folder)
+        if os.path.isfile(os.path.join(folder, n, "SKILL.md"))
+    }
+
+    raiz = read("CLAUDE.md")
+    nombradas_en_raiz = {n for n in existentes if "`%s`" % n in raiz}
+
+    faltan = sorted(n for n in re.findall(r"`([a-z][a-z0-9-]+)` skill", raiz) if n not in existentes)
+    if faltan:
+        report.failure(
+            "CLAUDE.md apunta a una skill que no existe",
+            "%s. El puntero es lo unico que queda de la regla que se mudo" % ", ".join(faltan),
+        )
+
+    nombradas = set(nombradas_en_raiz)
+    for n in existentes:
+        otras = read(os.path.join(".claude/skills", n, "SKILL.md"))
+        nombradas |= {o for o in existentes if o != n and "`%s`" % o in otras}
+
+    huerfanas = sorted(existentes - nombradas)
+    if huerfanas:
+        report.failure(
+            "una skill no esta nombrada en ningun lado",
+            "%s. Nadie la va a encontrar: o se nombra en CLAUDE.md o su contenido vuelve"
+            % ", ".join(huerfanas),
+        )
+
+
 def check_rules_without_enforcer(report):
     """Aviso: cuantas decisiones se pueden romper en silencio. (docs/decisions.md)
 
     Es aviso y no falla porque una decision sin enforcer esta permitida: lo que no esta
     permitido es que sea invisible. Que este numero suba es la senal.
+
+    ⚠️ **Las descartadas NO cuentan, y por eso la seccion se excluye.** Esa tabla tiene tres
+    columnas --numero, que se descarto, por que-- asi que la "ultima columna" que ve el regex es
+    el POR QUE, que nunca empieza con raya: las 7 filas se contaban como reglas CON enforcer y
+    engordaban el denominador (19 de 221 donde son 19 de 214). Una alternativa descartada no es
+    una regla y no tiene nada que hacer cumplir.
     """
-    rows = re.findall(r"^\| (D-\d+) \|.*\|([^|]*)\|\s*$", read("docs/decisions.md"), re.M)
+    texto = read("docs/decisions.md").split("## Decisiones descartadas")[0]
+    rows = re.findall(r"^\| (D-\d+) \|.*\|([^|]*)\|\s*$", texto, re.M)
     without = [d for d, enforcer in rows if enforcer.strip().startswith("—")]
     report.advisory(
         "decisiones sin enforcer",
@@ -1198,61 +1266,101 @@ def check_rules_without_enforcer(report):
     )
 
 
-def check_method_digest(report):
-    """Regla: el set del metodo no se edita en el lugar; cambiarlo es forkear. (D-059)
+def _bundle_body(relative):
+    """El cuerpo de un documento del bundle: todo menos su frontmatter."""
+    lines = read(relative).splitlines(True)
+    if not lines or lines[0].rstrip("\n") != "---":
+        return None, lines
+    for i in range(1, len(lines)):
+        if lines[i].rstrip("\n") == "---":
+            return "".join(lines[1:i]), lines[i + 1:]
+    return None, lines
 
-    El header de docs/agents/prompt-*.md declara un digest: el sha256 del set concatenado en
-    orden de nombre, con los bloques yaml del propio header sacados, cortado a 12 hex. Si el
-    contenido no da ese numero, alguien edito el metodo sin forkear ni recalcular, y la proxima
-    comparacion entre dos copias va a concluir "identicas" descartando un lado en silencio.
 
-    Degrada seguro: si la carpeta no esta, no hay nada que comprobar.
-    """
-    folder = os.path.join(ROOT, "docs/agents")
-    if not os.path.isdir(folder):
-        return
-    names = sorted(n for n in os.listdir(folder) if n.startswith("prompt-") and n.endswith(".md"))
-    if not names:
-        return
+def _declared(front, field="digest"):
+    match = re.search(r'^\s*%s:\s*"([0-9a-f]+)"' % field, front or "", re.M)
+    return match.group(1) if match else None
 
-    declared = set()
+
+def _digest(relatives):
     body = []
-    for name in names:
-        text = read(os.path.join("docs/agents", name))
-        inside = False
-        for line in text.splitlines(True):
-            stripped = line.rstrip("\n")
-            if not inside and stripped == "```yaml":
-                inside = True
-                continue
-            if inside:
-                if stripped == "```":
-                    inside = False
-                    continue
-                match = re.match(r'\s*digest:\s*"([0-9a-f]+)"', stripped)
-                if match:
-                    declared.add(match.group(1))
-                continue
-            body.append(line)
+    for relative in relatives:
+        body.extend(_bundle_body(relative)[1])
+    return hashlib.sha256("".join(body).encode("utf-8")).hexdigest()[:12]
 
-    if not declared:
-        report.failure("el set del metodo no declara digest", ", ".join(names))
-        return
-    if len(declared) > 1:
+
+def _bundle_md(subfolder):
+    """Los .md bajo .agents/<subfolder>, en orden de byte de la ruta relativa al bundle."""
+    found = []
+    base = os.path.join(ROOT, BUNDLE, subfolder)
+    for folder, _, names in os.walk(base):
+        for name in names:
+            if name.endswith(".md"):
+                full = os.path.join(folder, name)
+                found.append(os.path.relpath(full, os.path.join(ROOT, BUNDLE)))
+    return sorted(found)
+
+
+def check_bundle_digests(report):
+    """Regla: el bundle de agentes no se edita en el lugar; cambiarlo es forkear. (D-059, D-221)
+
+    Tres headers declaran un digest sobre su propio contenido, y los tres se comprueban:
+    el del metodo (`.agents/method/prompt-*.md`), el de la base de conocimiento
+    (`.agents/knowledge/notes/*.md`) y el del bundle entero (`method/` + `knowledge/` +
+    `layout.md`). Cada uno es el sha256 de los cuerpos concatenados en orden de nombre, con
+    el frontmatter sacado --por eso escribir el digest en el header no cambia el digest--,
+    cortado a 12 hex.
+
+    Si el contenido no da ese numero, alguien edito el bundle sin forkear ni recalcular, y la
+    proxima comparacion entre dos copias va a concluir "identicas" descartando un lado en
+    silencio.
+
+    ⚠️ **Antes vivia en `docs/agents/` y cubria cuatro archivos; ahora son 65.** La version
+    vieja tambien hacia `return` si la carpeta no estaba, y eso ES el modo de falla que este
+    repo no puede ver: por eso ahora la ausencia del bundle FALLA en vez de callarse.
+    """
+    if not os.path.isdir(os.path.join(ROOT, BUNDLE)):
         report.failure(
-            "los headers del set no coinciden",
-            "digests distintos entre archivos: %s" % ", ".join(sorted(declared)),
+            "el bundle de agentes no esta",
+            "%s/ es donde vive el metodo (D-221). Sin el, este chequeo no comprueba nada" % BUNDLE,
         )
         return
 
-    actual = hashlib.sha256("".join(body).encode("utf-8")).hexdigest()[:12]
-    expected = declared.pop()
-    if actual != expected:
-        report.failure(
-            "el set del metodo no corresponde a su digest",
-            "declara %s y el contenido da %s. Editar el metodo es forkear (D-059): "
-            "nueva id opaca en ancestry, forked_at, y recalcular el digest" % (expected, actual),
-        )
+    method = _bundle_md("method")
+    sets = [
+        ("metodo", method, method),
+        ("conocimiento", [os.path.join(BUNDLE, "knowledge/README.md")], _bundle_md("knowledge/notes")),
+        ("bundle", [os.path.join(BUNDLE, "README.md")],
+         _bundle_md("method") + _bundle_md("knowledge") + ["layout.md"]),
+    ]
+
+    for label, headers, content in sets:
+        declared = set()
+        for relative in headers:
+            where = relative if relative.startswith(BUNDLE) else os.path.join(BUNDLE, relative)
+            front = _bundle_body(where)[0]
+            value = _declared(front)
+            if value:
+                declared.add(value)
+        if not declared:
+            report.failure("el set %s no declara digest" % label, ", ".join(headers))
+            continue
+        if len(declared) > 1:
+            report.failure(
+                "los headers del set %s no coinciden" % label,
+                "digests distintos entre archivos: %s" % ", ".join(sorted(declared)),
+            )
+            continue
+
+        paths = [c if c.startswith(BUNDLE) else os.path.join(BUNDLE, c) for c in sorted(content)]
+        actual = _digest(paths)
+        expected = declared.pop()
+        if actual != expected:
+            report.failure(
+                "el set %s no corresponde a su digest" % label,
+                "declara %s y el contenido da %s. Editar el bundle es forkear (D-059): "
+                "nueva id opaca en ancestry, forked_at, y recalcular el digest" % (expected, actual),
+            )
 
 
 def check_rejection_mirror(report):
@@ -1375,8 +1483,9 @@ CHECKS = [
     check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
-    check_method_digest,
+    check_bundle_digests,
     check_rules_without_enforcer,
+    check_skills_reachable,
 ]
 
 

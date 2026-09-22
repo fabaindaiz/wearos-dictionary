@@ -20,7 +20,15 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 ## Dónde estamos
 
-*Actualizado: 2026-09-21.*
+*Actualizado: 2026-09-22.*
+
+✅ **El sistema de instrucciones pasó de v7 a v21 el 2026-09-22.** El método vive en `.agents/`
+como bundle —7 prompts, 45 notas de conocimiento, `tracking/`, `bundle.py`— y `docs/agents/` se
+retiró (D-221). Lo que hay que saber para trabajar: **antes de configurar, actualizar o correr
+cualquier prompt de `.agents/method/`, se corre la skill `state-review` §0**, que verifica el
+estado y dice qué prompt corresponde —o si lo que falta es terminar el anterior. Y **este repo no
+puede editar el método**: lo que le falta va como una línea en `.agents/tracking/candidates.md`.
+El triage quedó **a medias** y lo que falta está en §Proceso y herramientas.
 
 ✅ **Los packs se reconstruyeron el 2026-09-22 y ya lo reflejan todo.** Lo que el rebuild trajo,
 medido sobre los packs reales:
@@ -51,7 +59,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
 pipeline de packs (`tools/`, **475 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **999 tests en total**. Los **46
+de `:app`** y **29 checks** de auditoría estructural — **1000 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -4100,6 +4108,57 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 ---
 
 ## Proceso y herramientas
+
+### El triage v8→v16 del método quedó a medias, y v17–v21 no se puede hacer
+
+**Estado.** ⚠️ **Parcial, 2026-09-22.** El bundle está en v21 y los deltas con casa en los
+artefactos se aplicaron (D-221 a D-224). **Lo que falta, por nombre**: principio 7 segunda mitad
+—observar después de shippear, un readout por falla silenciosa—, principio 15 —el contenido que
+escribió el dueño no es del agente para completar—, principio 17 —el formatter que sólo escribe
+copias que conservaron cada comentario—, la regla de la escalera —*una regla que el agente tenía
+cargada y rompió igual es la señal para subirle el rung*—, los tres pasos del session loop (sondas
+halladas por el audit; un cambio que no debe cambiar nada se prueba por su invariante; cada commit
+se ofrece cuando su pieza pasa) y los estándares de ingeniería (un comentario describe el código,
+nunca el cambio; un documento durable no cita artefactos de sesión).
+
+⚠️ **Y v17 a v21 está bloqueado, no pendiente.** El header declara `version: 21` y el *Method
+changelog* del bundle llega hasta la **16**: cinco versiones sin una línea que diga qué cambia para
+quien lee. El método dice explícitamente que la lista de deltas **no es un diff de la prosa**, así
+que no hay con qué triagearlas. Reportado en `.agents/tracking/candidates.md`; se destraba cuando
+el dueño de la lineage escriba esas filas.
+
+**Lo que costaría cerrar la primera parte.** Una sesión por bloque, con la skill `state-review`
+§0 como punto de entrada —que ya rutea— y `CLAUDE.md` en 198 de 200 líneas, así que cada regla que
+entre tiene que salir a una skill con su puntero y su disparador (D-222).
+
+### `set -- $x` en fish no separa campos, y van dos
+
+**Estado.** **Planificado.** Segundo golpe, así que sube acá con la aritmética (§Proceso).
+
+El shell de las sesiones es fish, no bash. `set -- $pair` no hace *positional splitting*: en fish
+`set` asigna a una variable y `--` es el fin de opciones, así que `$1` y `$2` quedan vacíos y el
+comando sigue con argumentos faltantes. Falla **sin error**: el bucle corre y produce basura.
+
+**Las dos veces.** Una el 2026-09-22 derivando presupuestos —las tres derivaciones salieron con
+`--rango-mb 30 --tier` y reventaron con un `ValueError` crudo— y otra el mismo día comparando dos
+versiones del método, donde `ugrep` avisó *«No such file or directory: docs/... v7»* porque el par
+entero llegó como un solo argumento.
+
+**Lo que costaría cerrarlo.** Nada de código: es una regla de una línea —en fish se itera con
+`for x in ...; set -l a (string split ' ' $x)` o se escribe el bucle en Python— y el lugar es
+`CLAUDE.md` §Commands o la skill `verify`. Se propone, no se ejecuta.
+
+### Un `Write` fresco sobre los archivos generados no lo bloquea nada
+
+**Estado.** **Planificado**, derivado de D-223.
+
+Las reglas `Write(ruta)` de `permissions.deny` se aceptan pero **nunca se consultan**, así que se
+sacaron. Los cuatro archivos generados siguen protegidos contra `Edit`, que es el caso real —un
+agente los modifica, no los recrea—, pero crear uno de cero desde vacío no lo para nada.
+
+**Lo que costaría cerrarlo.** Un hook `PreToolUse` con matcher `Write` que compare el `file_path`
+contra las cuatro rutas y salga **2**. Son ~10 líneas y el repo ya tiene el patrón: el hook
+`PostToolUse` de los vectores. ⚠️ **No se construyó**: las mejoras de proceso se proponen.
 
 ### El `--` dentro de un comentario XML rompe el build, y van tres
 

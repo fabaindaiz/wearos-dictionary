@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Corre el gate de este proyecto y reporta con honestidad qué pasó y qué no. Usar antes de commitear, después de tocar normalización o el formato de pack, y cuando se pida "verificá", "corré el gate", "chequeá", "¿está listo?" o "¿esto funciona?".
+description: Corre el gate y define **cómo se escribe una medición, cómo se confirma que un test sirve y qué no se toca del árbol**. Usar antes de commitear, después de tocar normalización o el formato de pack, **antes de escribir un número en un documento**, **cuando un test pasó a la primera**, **antes de descartar o restaurar archivos** (`checkout`, `restore`, `stash`, `reset`, `clean`), al corregir algo que ya se afirmó, y cuando se pida "verificá", "corré el gate", "chequeá", "¿está listo?" o "¿esto funciona?".
 allowed-tools: Bash, Read
 ---
 
@@ -20,7 +20,7 @@ months later. The gate is the only thing that catches them before that happens.
 
 It runs compilation, Android Lint, the **77 of `:dict-core`**, the **233 JVM of `:app`** (screens
 included, under Robolectric), the **250 of the Python builder** and the structural audit
-(**21 checks**). **Measured: ~1m07s cold.**
+(**28 checks**). **Measured: ~1m07s cold.**
 
 ## If you touched `norm()`, `fuzzy()` or the Unicode repertoire
 
@@ -47,6 +47,30 @@ python3 tools/packbuilder/verify_pack.py --como-la-app <dir>/dist/*.db
 On top of the above, `verify_pack.py` over any real pack there is. Look specifically at the
 `[planes de consulta]` section: if the prefix stops using `COVERING INDEX`, the incremental search
 stops meeting its latency budget and **nothing else would notice**.
+
+## How a measurement is written, and how a test is trusted
+
+**A number carries its date and its environment, not only its method.** The same commands on the
+same commit answer differently in two environments —a stale virtualenv earlier on `PATH`, another
+interpreter, an unpinned stub— and a number written without saying where it came from becomes
+somebody else's baseline. So: say how and where; **never bump a date without re-running**; and when
+a measurement disagrees with the written one, establish *which binary produced each* before
+anything else. That one check has turned three separately recorded anomalies into one fact.
+
+**A retraction is written everywhere the claim was.** When a finding turns out false, correct it in
+the docstring, the document and the report, saying what it was and why it was wrong, and add a new
+changelog entry rather than editing the old one. A finding corrected in one of three places is
+still being believed in the other two.
+
+**If the red step could not be watched, prove the test bites.** A test written after the code, or
+one that was green the first time it ran, has not been shown to detect anything. Mutate its target
+—narrow the range, flip the comparison, delete the branch— and watch that same test fail. Restore
+by rewriting the file, not with `git checkout`.
+
+**The uncommitted diff is the work.** No `checkout`, `restore`, `stash`, `reset` or `clean` over
+files this session did not write: a parallel session's work is in that diff and it is not yours.
+Probe on a copy under the scratchpad, or in a `git worktree`, which is also the only place a
+split commit can be proved green on its own.
 
 ## Reporting
 
