@@ -1,30 +1,97 @@
 # Changelog de sesiones
 
-**Cada sesión escribe su entrada acá, arriba de todo, antes de ofrecer commits.**
+**Cada sesión escribe su entrada inmediatamente debajo de la línea `---` de abajo, encima de
+la entrada más reciente, antes de ofrecer commits.** La referencia de formato está **al final
+del archivo**, y eso es estructural, no estético: ver *Por qué el formato vive al final*.
 
 Existe porque **dos sesiones en paralelo no se ven entre sí**. Son baratas de correr al mismo
 tiempo, ninguna sabe de la otra, y el conflicto se descubre al compilar — o peor, al revisar.
 Con un agente vale más que con un equipo: las personas se cruzan en un pasillo, las sesiones no.
 
-Formato:
-
-```
-## AAAA-MM-DD — <título de una línea>
-**Qué.** Concretamente qué cambió.
-**Áreas.** Archivos o carpetas.
-**Por qué.** El motivo, incluyendo el pedido que lo originó.
-**Arquitectura.** ✅ Cumple · ⚠️ Desviación · REVISAR — y por qué.
-**Medido.** El número, si se afirmó algo.
-**Qué salió mal.** Qué erró el primer intento y qué lo agarró. Se omite solo si no erró nada.
-**Qué quedó sin hacer.** La deuda que este cambio creó o esquivó, nombrada.
-```
-
-**Los tres últimos campos son los que pagan el archivo.** Un log de éxitos es contabilidad; uno
-que dice *"el primer intento dejó `CLAUDE.md` en 204 líneas y lo agarró el propio check"* es el
-único mecanismo por el que una sesión le avisa a otra. Los errores se escriben con la misma voz
-que los aciertos: una entrada que esconde un desvío manda a la sesión siguiente por ese desvío.
+**Los cinco últimos campos del formato son los que pagan el archivo.** Un log de éxitos es
+contabilidad; uno que dice *"el primer intento dejó `CLAUDE.md` en 204 líneas y lo agarró el
+propio check"* es el único mecanismo por el que una sesión le avisa a otra. Los errores se
+escriben con la misma voz que los aciertos: una entrada que esconde un desvío manda a la sesión
+siguiente por ese desvío.
 
 ---
+
+## 2026-09-22 — El método pasa de v7 a v21, y dos enforcers que no enforceaban
+**Qué.** El bundle `.agents/` (65 archivos: 7 prompts, 45 notas, `tracking/`, `bundle.py`) queda
+como el set vivo con **el registro de este repo adentro**, y `docs/agents/` se retira con sus cinco
+referencias re-apuntadas. Aplicados los deltas de artefactos v8→v16 que tenían casa acá. Y tres
+chequeos nuevos o corregidos en `tools/audit_dictionary.py`.
+
+**Áreas.** `.agents/` (headers de los 8 documentos, `tracking/candidates.md`), `docs/agents/`
+(borrado), `tools/audit_dictionary.py`, `CLAUDE.md`, `.claude/settings.json`,
+`.claude/logs/agent-changelog.md` (estructura), `.claude/skills/{verify,state-review}/SKILL.md`,
+`docs/decisions.md` (D-059 reescrita, D-221 a D-224).
+
+**Por qué.** Pedido: *«actualiza todos los documentos, formatos y archivos de IA en base al .agents
+actualizado»*, y después *«nada se debe perder […] debo asegurar que se lean»* y *«configurar,
+actualizar o ejecutar un prompt […] verifique el estado y sugiera si hay cambios que faltan aplicar
+o es otro prompt el que realmente quería ejecutar»*.
+
+**Arquitectura.** ⚠️ **Desviación, declarada.** El alcance *«todo v8→v16»* y el marcado retroactivo
+de las 221 filas se eligieron contra el precio que puse. El primero **quedó a medias y está
+nombrado abajo**; el segundo se cerró como `declined` con su razón, porque medido no había nada que
+aplicar. Lo demás ✅ cumple.
+
+**Medido.**
+- **Pérdida del set viejo, antes de borrarlo**: 174 secciones en v7 contra 207 en v21, **ninguna
+  sin contraparte**; 19 principios y 10 artefactos en los dos. La única candidata era un comentario
+  dentro de un fence que el regex leyó como título.
+- **El artefacto de decisiones NO cambió** entre v7 y v21: la especificación es la misma prosa, las
+  mismas cuatro columnas. De la sección de artefactos entera cambiaron **27 líneas y se quitaron 2**.
+- **`check_method_digest` cubría 4 archivos donde viajan 65**, y arrancaba con
+  `if not os.path.isdir(folder): return` sobre `docs/agents/`. Borrar esa carpeta lo habría dejado
+  en **0 fallas comprobando cero**. Reescrito como `check_bundle_digests`: tres digests y la
+  ausencia **falla**. Sondeado: tocar un prompt mueve `metodo`+`bundle`, tocar una nota mueve
+  `conocimiento`+`bundle`, tocar `layout.md` mueve sólo `bundle`. Los tres números coinciden con
+  `bundle.py`, que es otra implementación.
+- **La mitad de `permissions.deny` no se consultaba**: 4 reglas `Write(ruta)` sobre 8. Los archivos
+  siguen protegidos por sus `Edit(...)`. (D-223)
+- **El aviso de decisiones sin enforcer decía 19 de 221 y son 19 de 214**: las 7 filas de la sección
+  de descartadas tienen 3 columnas, así que el regex leía el *por qué* como enforcer. (D-224)
+- **`check_skills_reachable` encontró dos huérfanas en su primera corrida**: `commit` y
+  `troubleshoot-diccionario` no estaban nombradas en ningún documento. (D-222)
+- El changelog tenía el defecto estructural de v13: fence abierto en la línea 11, entre el título y
+  la primera entrada, con `CLAUDE.md` mandando escribir *«arriba de todo»*. La referencia de formato
+  se fue al final. Verificado: 98 entradas antes y 98 después, ninguna perdida.
+
+**Desviación del plan.** El alcance aprobado fue *«todo v8→v16»*. Se aplicó lo que tiene casa en los
+artefactos; **los deltas de principios 7, 15 y 17, los tres pasos del session loop y los estándares
+de ingeniería no se tocaron**. Eran varias sesiones y se prefirió dejar seis cosas bien a quince a
+medias. Está nombrado en el roadmap.
+
+**Sin verificar.** Que un `deny` con `Write(ruta)` no se consulte sale del método (v8), no de una
+fuente primaria comprobada acá; marcado **ASSUNCIÓN** en D-223. Y `bundle.py` necesita Python 3.11+
+por `tomllib`, así que el gate —que corre 3.9— **no puede usarlo**: el audit reimplementa las tres
+recetas, y que las dos implementaciones coincidan se comprobó a mano, no en el gate.
+
+**Qué salió mal.**
+- ⚠️ **Usé `git checkout --` sobre archivos que no escribí**, para restaurar sondas, mientras
+  adoptaba la regla v12 que dice exactamente que no. El árbol tenía trabajo de otra sesión. No hubo
+  daño porque los archivos eran míos, pero el reflejo es el equivocado y por eso la regla entró a
+  `CLAUDE.md` y a la skill `verify`.
+- **Leí el gate a través de un pipe**: `python3 audit.py | tail` imprimió 8 fallas y `exit=0`,
+  porque `$?` es el de `tail`. Es la nota que ya tenía guardada y volvió a morder.
+- **Afirmé «el 19 real es 12» antes de leer la función.** El chequeo usa `startswith("—")`, no
+  vacío. El número correcto es 214 de denominador, no 12 de numerador.
+- `set -- $pair` en fish no separó los campos —**segundo golpe**, sube al roadmap— y el regex con
+  que comparé secciones tomó un comentario dentro de un bloque `bash` como si fuera un título.
+- Un párrafo de docstring aterrizó **fuera** del docstring: `SyntaxError` con un `⚠️` como carácter
+  inválido. Lo agarró `ast.parse`, no la lectura.
+
+**Qué quedó sin hacer.**
+- **El triage v8→v16 está incompleto**, detallado arriba y en el roadmap.
+- **v17 a v21 no se pueden triagear**: el header declara `version: 21` y el *Method changelog* llega
+  hasta la **16**. Cinco versiones sin una línea que diga qué cambia para quien lee. Reportado como
+  candidato al dueño de la lineage.
+- **El hook `PreToolUse`** que bloquearía un `Write` fresco sobre los cuatro archivos generados:
+  propuesto, no construido (las mejoras de proceso se proponen).
+- **Este repo no está registrado como carrier**; su id derivado es `r-a2f271` y no figura en
+  `.agents/tracking/carriers.md`.
 
 ## 2026-09-22 — El rebuild corrió de punta a punta, y encontró tres cosas que el gate no ve
 **Qué.** Los seis packs de `dist/` reconstruidos con el builder de hoy. Para llegar ahí hubo que
@@ -5590,3 +5657,33 @@ llevó a revisar el caso propio, donde el problema **ya existía sin KMP de por 
 - **0 diferencias** en NFD y en `lowercase()` sobre los 133.730 code points del repertorio: es
   la medición que permite seguir delegando esas dos operaciones en la plataforma.
 - La tabla son 1.010 rangos, 6,2 KB.
+
+---
+
+## Formato de una entrada
+
+Va al final a propósito. **«Arriba de todo» es una instrucción *relativa***: le dice a quien
+escribe *dónde respecto de algo*, así que lo que esté justo debajo del título es donde aterriza
+la próxima entrada. Cuando eso era el fence que abre este ejemplo, la entrada caía **dentro** del
+bloque de código, que entonces no cerraba nunca, y todas las entradas de abajo pasaban a
+renderizarse como código fuente. **El diff no lo muestra**, así que no lo agarra ni quien escribe
+ni quien revisa. Se observó dos veces en cinco días en un repositorio, por dos sesiones distintas,
+mientras su par no podía reproducirlo porque su referencia estaba abajo de casualidad.
+
+Vale para cualquier documento que los agentes editen por inserción: **el punto de inserción tiene
+que ser inequívoco por estructura**, porque la instrucción se lee rápido.
+
+```
+## AAAA-MM-DD — <título de una línea>
+**Qué.** Concretamente qué cambió.
+**Áreas.** Archivos o carpetas.
+**Por qué.** El motivo, incluyendo el pedido que lo originó.
+**Arquitectura.** ✅ Cumple · ⚠️ Desviación · REVISAR — y por qué.
+**Medido.** El número, si se afirmó algo, con su fecha y el entorno donde se midió.
+**Desviación del plan.** En qué se apartó lo construido de lo que el humano aprobó, y la
+medición que lo decidió. Se omite si no hubo.
+**Sin verificar.** Qué no se pudo comprobar en este entorno, y dónde queda esperando la
+pregunta. Se omite si se verificó todo.
+**Qué salió mal.** Qué erró el primer intento y qué lo agarró. Se omite solo si no erró nada.
+**Qué quedó sin hacer.** La deuda que este cambio creó o esquivó, nombrada.
+```
