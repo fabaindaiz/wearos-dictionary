@@ -232,7 +232,7 @@ class PayloadCodecTest {
         assertEquals("verb", body.partOfSpeech)
         assertEquals(2, body.senses.size)
         assertEquals("moverse rapidamente de un lugar a otro", body.senses[0].gloss)
-        assertEquals(listOf("corrio hasta la esquina"), body.senses[0].examples)
+        assertEquals(listOf(Example("corrio hasta la esquina")), body.senses[0].examples)
         assertEquals(listOf("to run"), body.senses[0].translations)
         assertEquals(emptyList(), body.senses[1].examples)
         assertEquals(listOf("to pass", "to elapse"), body.senses[1].translations)
@@ -279,12 +279,108 @@ class PayloadCodecTest {
         val body = PayloadCodec.Body(
             partOfSpeech = "verb",
             senses = listOf(
-                Sense("primera acepcion", listOf("un ejemplo"), listOf("first")),
+                Sense("primera acepcion", listOf(Example("un ejemplo")), listOf("first")),
                 Sense("segunda", emptyList(), listOf("second", "other")),
             ),
         )
         val encoded = PayloadCodec.encode(body, fixture.dictionary)
         assertEquals(body, PayloadCodec.decode(encoded, fixture.dictionary))
+    }
+
+    @Test
+    fun `la cita se cuelga del ejemplo que tiene encima`() {
+        val parsed = PayloadCodec.parse("S\tuna glosa\nE\tun ejemplo\nC\t1897, Richard Marsh\n")
+        assertEquals(
+            listOf(Example("un ejemplo", "1897, Richard Marsh")),
+            parsed.senses[0].examples,
+        )
+    }
+
+    @Test
+    fun `un ejemplo sin cita queda sin atribucion`() {
+        val parsed = PayloadCodec.parse("S\tuna glosa\nE\tun ejemplo\n")
+        assertEquals(listOf(Example("un ejemplo")), parsed.senses[0].examples)
+        assertEquals(null, parsed.senses[0].examples[0].citation)
+    }
+
+    @Test
+    fun `una cita sin ejemplo se descarta`() {
+        // Mismo modo de falla que el sinonimo huerfano y peor consecuencia: elegirle un ejemplo
+        // produce una atribucion inventada, que se lee como correcta.
+        val parsed = PayloadCodec.parse("S\tuna glosa\nC\t1897, Richard Marsh\n")
+        assertEquals(emptyList(), parsed.senses[0].examples)
+    }
+
+    @Test
+    fun `la cita no cruza a la acepcion siguiente`() {
+        val parsed = PayloadCodec.parse("S\tuna\nE\te1\nC\tc1\nS\totra\nE\te2\nC\tc2\n")
+        assertEquals(listOf(Example("e1", "c1")), parsed.senses[0].examples)
+        assertEquals(listOf(Example("e2", "c2")), parsed.senses[1].examples)
+    }
+
+    @Test
+    fun `una cita que no viene pegada a su ejemplo se descarta`() {
+        // ⚠️ La regla estricta, y el espejo exacto de la del lado Python. Si los dos lados no
+        // la aplicaran igual, el MISMO pack mostraria atribuciones distintas segun quien lo
+        // lea, que es la clase de divergencia que este repo no puede observar.
+        val parsed = PayloadCodec.parse("S\tuna\nE\te1\nY\tsin\nC\tc1\n")
+        assertEquals(listOf(Example("e1")), parsed.senses[0].examples)
+        assertEquals(listOf("sin"), parsed.senses[0].synonyms)
+    }
+
+    @Test
+    fun `render escribe la cita justo debajo de su ejemplo`() {
+        val body = PayloadCodec.Body(
+            partOfSpeech = "noun",
+            senses = listOf(
+                Sense(
+                    "una glosa",
+                    listOf(Example("un ejemplo", "1897, Richard Marsh")),
+                    synonyms = listOf("otra"),
+                ),
+            ),
+        )
+        assertEquals(
+            "P\tnoun\nS\tuna glosa\nE\tun ejemplo\nC\t1897, Richard Marsh\nY\totra\n",
+            PayloadCodec.render(body),
+        )
+    }
+
+    @Test
+    fun `la cita sobrevive el ida y vuelta comprimido`() {
+        val fixture = loadFixture()
+        val body = PayloadCodec.Body(
+            partOfSpeech = "noun",
+            senses = listOf(
+                Sense("citada", listOf(Example("un ejemplo", "1897, Richard Marsh"))),
+                Sense("sin citar", listOf(Example("otro ejemplo"))),
+            ),
+        )
+        val encoded = PayloadCodec.encode(body, fixture.dictionary)
+        assertEquals(body, PayloadCodec.decode(encoded, fixture.dictionary))
+    }
+
+    @Test
+    fun `la cita del fixture es la misma que emitio Python`() {
+        // ⚠️ El contrato cruzado del tag nuevo. Que los dos lados lo lean igual no se deduce de
+        // que los dos tengan el codigo: lo fija este caso, comprimido por Python.
+        val fixture = loadFixture()
+        val case = fixture.cases.first { it.description.startsWith("ejemplo con cita") }
+        val body = PayloadCodec.decode(case.compressed, fixture.dictionary)
+        assertEquals(
+            listOf(Example("corrio hasta la esquina", "1897, Richard Marsh")),
+            body.senses[0].examples,
+        )
+        assertEquals(listOf(Example("sin fuente conocida")), body.senses[1].examples)
+    }
+
+    @Test
+    fun `el tag de cita NO sube el CODEC_ID`() {
+        // ⚠️ D-119: es aditivo y un lector viejo lo ignora, asi que forzar a redescargar 300 MB
+        // por un campo que no puede ver tiraria a la basura esa propiedad. Esta asercion existe
+        // para que alguien lea D-119 antes de tocar la constante.
+        assertEquals("deflate-v2", PayloadCodec.CODEC_ID)
+        assertEquals(2, PayloadCodec.PAYLOAD_VERSION)
     }
 
     @Test

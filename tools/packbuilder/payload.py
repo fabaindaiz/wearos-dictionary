@@ -58,6 +58,24 @@ TAG_ANTONYM = "A"
 # para entradas de una sola acepcion -- ver `sources/kaikki._relacionadas`.
 TAG_RELATED = "R"
 
+# Where the example above it was quoted from: year and author, already trimmed by the source
+# reader. Additive like [TAG_ANTONYM] and [TAG_RELATED], so it **does not bump [CODEC_ID]**
+# either -- an old reader ignores it and shows the example with no attribution, which is correct
+# degradation.
+#
+# ⚠️ **A tag and not a [REF_SEPARATOR] suffix on `E`, and the difference is not cosmetic.** The
+# suffix mechanism is right there and translations use it, but it is only additive on a tag that
+# is *born* with it: bolting it onto `E` would make an old reader paint the raw `\x1f` byte in
+# the middle of the example. A new tag degrades to nothing; a new suffix degrades to garbage.
+#
+# ⚠️ **It only ever names the example written immediately above it.** Measured on the English
+# dump, 86,5 % of the examples are `type: quotation` -- lines lifted from a published text -- so
+# an example with no provenance is the common case, not the exception: without the citation the
+# reader sees a sentence from an 1897 novel and cannot tell it from a definition. See the
+# strictness in [parse]: a `C` that does not directly follow its `E` is DROPPED, because
+# choosing an example for it would be the invented attribution of D-179.
+TAG_CITATION = "C"
+
 # Traducciones de la PALABRA, sin acepcion atribuida.
 #
 # ⚠️ **Es el segundo canal, y existe para que la opcion deshonesta deje de ser la barata.** Con
@@ -234,6 +252,34 @@ def _sanitize_item(value):
     return limpio + REF_SEPARATOR + apunta if apunta else limpio
 
 
+def _example_parts(item):
+    """`(text, ref)` of one example. A bare string is an example with no known source.
+
+    ⚠️ **Both shapes are accepted on purpose, and the bare string is the canonical one.** Five
+    sources emit examples today -- `oewn`, `wikidata`, `bilingual`, `toy`, `enwikt_examples` --
+    plus the Tatoeba sentence that `build.py` appends to an already rendered body, and none of
+    them has a citation to give: Tatoeba is credited once per pack in `meta.sources`, not per
+    sentence. Widening the type instead of migrating them is what keeps that true without
+    touching any of the five.
+
+    [parse] returns the same two shapes, so a round trip is stable in both directions: an
+    example with no citation goes out a string and comes back a string.
+    """
+    if isinstance(item, dict):
+        return item.get("text", ""), item.get("ref")
+    return item, None
+
+
+def example_text(item):
+    """Solo el texto de un ejemplo, sea cual sea su forma. Ver [_example_parts].
+
+    Existe para `build._fts_body`, que indexa el ejemplo y **no** su cita: publicarla como
+    funcion en vez de dejar que cada llamador haga su propio `isinstance` es lo que evita que
+    dentro de un mes haya dos ideas distintas de que es un ejemplo.
+    """
+    return _example_parts(item)[0]
+
+
 # Los campos de una acepcion que son listas, en el orden en que se escriben.
 _LISTAS = ("examples", "translations", "synonyms", "antonyms", "related")
 
@@ -303,9 +349,16 @@ def render(part_of_speech, senses, word_translations=()):
             continue
         lines.append(TAG_SENSE + "\t" + gloss)
         for example in sense.get("examples", ()):
-            value = sanitize(example)
-            if value:
-                lines.append(TAG_EXAMPLE + "\t" + value)
+            texto, cita = _example_parts(example)
+            value = sanitize(texto)
+            if not value:
+                # Sin ejemplo no hay de que colgar la cita, y una cita suelta nombraria al
+                # ejemplo que venga despues. Se caen las dos juntas.
+                continue
+            lines.append(TAG_EXAMPLE + "\t" + value)
+            atribucion = sanitize(cita) if cita else None
+            if atribucion:
+                lines.append(TAG_CITATION + "\t" + atribucion)
         for translation in sense.get("translations", ()):
             value = _sanitize_item(translation)
             if value:
@@ -333,12 +386,23 @@ def parse(text):
     part_of_speech = None
     senses = []
     word_translations = []
+    # La acepcion cuyo ULTIMO ejemplo todavia puede recibir una cita, o None. Se pone al emitir
+    # un `E` y lo borra cualquier otra linea: un `C` que no venga pegado a su `E` se descarta en
+    # vez de elegirle un ejemplo. Ver [TAG_CITATION].
+    citable = None
     for line in text.split("\n"):
         if not line or len(line) < 2 or line[1] != "\t":
             continue
         tag, value = line[0], line[2:]
         if not value:
             continue
+        if tag == TAG_CITATION:
+            if citable is not None:
+                texto = citable["examples"][-1]
+                citable["examples"][-1] = {"text": texto, "ref": value}
+            citable = None
+            continue
+        citable = None
         if tag == TAG_PART_OF_SPEECH:
             if part_of_speech is None:
                 part_of_speech = value
@@ -358,6 +422,7 @@ def parse(text):
         elif tag == TAG_EXAMPLE:
             if senses:
                 senses[-1]["examples"].append(value)
+                citable = senses[-1]
         # noqa de SIM102 a proposito: las tres ramas con guarda (P, E, T) tienen la misma
         # forma. Aplanar solo esta la volveria asimetrica respecto de las otras dos, que ruff
         # no marca, y el paralelismo es lo que hace legible la cadena.

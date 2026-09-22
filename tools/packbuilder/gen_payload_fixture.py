@@ -76,6 +76,22 @@ CASES = [
          "examples": ["es un pollerudo"],
          "synonyms": ["pollerudo", "calzonazos"]},
     ]),
+    # La cita del ejemplo, tag `C`. Las DOS acepciones estan a proposito: una con cita y otra
+    # sin ella, porque el caso comun --medido, el 24,5 % de los ejemplos del dump ingles-- es el
+    # ejemplo sin fuente, y un lector que devolviera una cita vacia en vez de ninguna pasaria un
+    # fixture que solo trajera el caso citado.
+    #
+    # La tercera acepcion trae un `Y` entre el ejemplo y lo que sigue: fija que la cita se
+    # escribe PEGADA a su ejemplo y no al final del bloque.
+    ("ejemplo con cita", "noun", [
+        {"gloss": "moverse rapidamente de un lugar a otro",
+         "examples": [{"text": "corrio hasta la esquina", "ref": "1897, Richard Marsh"}]},
+        {"gloss": "dicho del tiempo: transcurrir",
+         "examples": [{"text": "sin fuente conocida"}]},
+        {"gloss": "fluir un liquido",
+         "examples": [{"text": "el agua corre", "ref": "1876, Mark Twain"}],
+         "synonyms": ["fluir"]},
+    ]),
 ]
 
 

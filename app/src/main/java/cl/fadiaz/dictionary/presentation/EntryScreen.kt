@@ -35,6 +35,7 @@ import cl.fadiaz.dictionary.data.TextScale
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
@@ -492,6 +493,13 @@ private fun IconPill(
  * The example is secondary and smaller for a measured reason: the median is 64 characters but the
  * maximum is **917** --sixteenth-century chronicles the Wiktionary cites as usage-- and at the
  * same visual weight as the gloss, a single one buries the next sense.
+ *
+ * **The citation is tertiary, and it is what makes those chronicles legible.** Measured on the
+ * English dump, **86,5 %** of the examples are quotations lifted from a published text, so
+ * without it the reader gets a sentence out of an 1897 novel with nothing saying so -- which is
+ * exactly what sent a user to Wiktionary by hand to find out. It is trimmed to year and author
+ * in the builder (average 31 bytes), and capped at two lines here because the p99 is 147 bytes
+ * and the maximum 352: the pack keeps the data, the screen decides how much of it fits.
  */
 @Composable
 private fun SenseBlock(
@@ -507,11 +515,21 @@ private fun SenseBlock(
         )
         sense.examples.forEach { ejemplo ->
             Text(
-                text = ejemplo,
+                text = ejemplo.text,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = 10.dp),
             )
+            ejemplo.citation?.let { cita ->
+                Text(
+                    text = stringResource(R.string.entry_example_citation, cita),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 10.dp),
+                )
+            }
         }
         // Las tres listas, con su categoría arriba y las palabras abajo. La categoría iba antes
         // como prefijo --`sin.`, `ant.`, `rel.`-- y ahora va escrita entera, que es la misma

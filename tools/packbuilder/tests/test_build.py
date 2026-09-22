@@ -337,6 +337,51 @@ class SinonimosEnElIndiceTest(BuilderTestCase):
         self.assertEqual(entry_id, filas[0][0], "fts_def.rowid tiene que ser entry.id (D-011)")
 
 
+class CitaHuerfanaTest(BuilderTestCase):
+    """`verify_pack.py` rechaza una cita que no cuelgue de un ejemplo.
+
+    ⚠️ **Se comprueba sobre los BYTES y no sobre la estructura parseada, y esa es la diferencia
+    que hace util al chequeo.** `payload.parse` ya descarta la cita huerfana en silencio, que es
+    la degradacion correcta para el lector; pero un pack construido por otro --o por una version
+    futura del builder con un bug-- la llevaria adentro, y el usuario veria una entrada a la que
+    le falta la atribucion que el pack decia traer. Es, ademas, el unico chequeo de CONTENIDO
+    del payload que este validador tiene: hasta ahora solo miraba invariantes estructurales.
+    """
+
+    def _pack_con_cuerpo(self, cuerpo):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        diccionario = bytes.fromhex(db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.execute("UPDATE entry SET payload = ?",
+                   (payload_codec.compress(cuerpo, diccionario),))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        return codigo, salida.getvalue()
+
+    def test_una_cita_sin_ejemplo_hace_fallar_la_verificacion(self):
+        codigo, salida = self._pack_con_cuerpo("P\tverb\nS\tuna glosa\nC\t1897, Richard Marsh\n")
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("cita", salida)
+
+    def test_una_cita_separada_de_su_ejemplo_tambien_falla(self):
+        # El caso peligroso de verdad: hay un ejemplo, asi que la cita "parece" tener de que
+        # colgar -- pero el tag del medio la desplaza y quien la lea le asignaria un ejemplo que
+        # la fuente nunca le atribuyo.
+        codigo, salida = self._pack_con_cuerpo(
+            "P\tverb\nS\tuna glosa\nE\tun ejemplo\nY\tsinonimo\nC\t1897, Richard Marsh\n")
+        self.assertEqual(1, codigo, salida)
+
+    def test_la_cita_pegada_a_su_ejemplo_pasa(self):
+        codigo, salida = self._pack_con_cuerpo(
+            "P\tverb\nS\tuna glosa\nE\tun ejemplo\nC\t1897, Richard Marsh\n")
+        self.assertEqual(0, codigo, salida)
+
+
 class AntonimosFueraDelIndiceTest(BuilderTestCase):
     """Los antonimos van al payload y NO a `fts_def` (D-126).
 
@@ -363,6 +408,35 @@ class AntonimosFueraDelIndiceTest(BuilderTestCase):
         db.close()
         self.assertEqual(1, sinonimo, "el sinonimo SI tiene que estar en el indice (D-118)")
         self.assertEqual(0, antonimo, "el antonimo NO tiene que estar en el indice (D-126)")
+
+    def test_la_cita_del_ejemplo_tampoco_entra_al_indice(self):
+        """El ejemplo SI se indexa (D-118) y su cita NO, y la asimetria es el punto.
+
+        Una cita es procedencia, no significado: buscar "Richard Marsh" tiene que devolver nada,
+        no la entrada `Thomas`. Ademas seria el tercer caso del mismo error -- D-117 midio que
+        los sinonimos costaron **tres veces** lo estimado justamente porque `fts_def` los indexa
+        ademas del payload, y las citas del pack ingles pesan casi tanto como ellos.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            entrada = record("thomas")
+            entrada.senses[0]["examples"] = [
+                {"text": "prove them Thomases", "ref": "1897, Richard Marsh"},
+            ]
+            builder.add(entrada)
+        db = sqlite3.connect(self.path)
+        ejemplo = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'Thomases'").fetchone()[0]
+        cita = db.execute(
+            "SELECT COUNT(*) FROM fts_def WHERE fts_def MATCH 'Marsh'").fetchone()[0]
+        cuerpo = payload_codec.decompress(
+            db.execute("SELECT payload FROM entry").fetchone()[0],
+            bytes.fromhex(db.execute(
+                "SELECT value FROM meta WHERE key = 'payload_dict'").fetchone()[0]),
+        )
+        db.close()
+        self.assertEqual(1, ejemplo, "el ejemplo SI tiene que estar en el indice (D-118)")
+        self.assertEqual(0, cita, "la cita NO tiene que estar en el indice")
+        self.assertIn("C\t1897, Richard Marsh", cuerpo, "pero si tiene que estar en el payload")
 
     def test_una_relacionada_tampoco_se_puede_buscar_por_texto_libre(self):
         """Mismo criterio que el antonimo, y es exactamente el descuido que el docstring anuncia.

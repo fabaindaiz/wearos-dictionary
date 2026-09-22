@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 393 tests
+hatch run test              # the 424 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -250,8 +250,16 @@ poda que puede divergir de la primera — el mismo razonamiento de D-175.
 It goes in `sources/`, and it hands back `Record` — the builder knows nothing about formats. What
 the source has to solve:
 
-- **Pruning.** This is where the pack's size is decided. Keep `word`, `pos`, glosses, forms and
-  translations; drop etymologies, pronunciations, categories and citations.
+- **Pruning.** This is where the pack's size is decided. Keep `word`, `pos`, glosses, forms,
+  translations and **the citation of the example** (D-216); drop etymologies, pronunciations and
+  categories.
+
+  ⚠️ The citation used to be on the drop list, and measuring is what moved it: **86.5 %** of the
+  English dump's examples are quotations lifted from a published text, so an example with no
+  attribution reads as a definition that does not add up. It is trimmed to year and author in
+  the source reader — **119 bytes become 31** — and the trimming separator is per-language, in
+  `Perfil`: the Spanish dump writes its `ref` with periods and the author first, so the English
+  rule would produce garbage there.
 - **Streaming.** Never load the whole file.
 - **Which edition and section it comes from.** The Spanish Wiktionary and the English Wiktionary are
   different datasets: the first gives Spanish glosses, the second English glosses about Spanish

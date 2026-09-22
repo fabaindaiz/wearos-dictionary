@@ -305,10 +305,25 @@ data class EntrySummary(
     val rank: Int,
 )
 
+/**
+ * A usage example, and where it was quoted from when the source said so.
+ *
+ * ⚠️ **The citation is a field of the example and not a parallel list, and that is the whole
+ * design.** Two lists that have to stay aligned by index drift silently -- one example dropped
+ * anywhere upstream and every citation below it names the wrong sentence. This repo already has
+ * that failure mode named: D-122 calls it *content that is wrong and looks right*, and rates it
+ * worse than a missing word.
+ *
+ * [citation] is null far more often than not, and that is the source and not a gap: only 75,5 %
+ * of the examples the English dump carries declare a `ref`, and the Tatoeba sentences carry none
+ * by design -- that corpus is credited once per pack in `meta.sources`, never per sentence.
+ */
+data class Example(val text: String, val citation: String? = null)
+
 /** Una acepcion de una entrada. */
 data class Sense(
     val gloss: String,
-    val examples: List<String> = emptyList(),
+    val examples: List<Example> = emptyList(),
     val translations: List<String> = emptyList(),
     /**
      * Sinonimos de ESTA acepcion, no de la entrada (D-117).

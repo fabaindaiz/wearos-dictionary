@@ -24,7 +24,12 @@ from build import Record  # noqa: E402
 # (headword, pos, rank, [(gloss, [ejemplos], [traducciones])], [formas])
 _DATA = [
     ("correr", "verb", 10, [
-        ("moverse rapidamente de un lugar a otro", ["corrio hasta la esquina"], ["to run"]),
+        # ⚠️ El UNICO ejemplo del pack de juguete que lleva cita, y va con dos hermanos sin
+        # ella a proposito: el caso comun es el ejemplo sin fuente --el 24,5 % del dump ingles
+        # la declara-- y un fixture donde todos la tuvieran no distinguiria un lector que
+        # inventa la atribucion de uno que la lee.
+        ("moverse rapidamente de un lugar a otro",
+         [{"text": "corrio hasta la esquina", "ref": "1897, Richard Marsh"}], ["to run"]),
         ("dicho del tiempo: transcurrir", [], ["to pass", "to elapse"]),
     ], ["corriendo", "corri", "corre", "corremos", "corrio"]),
     # ⚠️ **La unica entrada con traducciones de NIVEL DE ENTRADA (tag `W`), y esta a proposito.**

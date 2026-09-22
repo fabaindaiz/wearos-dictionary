@@ -54,6 +54,7 @@
     <string name="entry_antonyms_title">Antónimos</string>
     <string name="entry_related_title">Relacionadas</string>
     <string name="entry_list_separator">" · "</string>
+    <string name="entry_example_citation">— %1$s</string>
 
     <!-- El menú de una palabra -->
     <string name="action_save">Guardar</string>

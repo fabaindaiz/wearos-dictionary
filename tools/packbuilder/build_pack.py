@@ -213,6 +213,13 @@ def _declarar(metadata, clave):
 # `proper_nouns` declara la politica de contenido del pack (D-116). Se escribe en `meta` el
 # valor EFECTIVO, no el declarado: meta tiene que decir que paso, no que se pretendia.
 #
+# ⚠️ **Y `description` tiene la misma obligacion, que se estaba incumpliendo.** Los dos packs
+# decian "proper nouns pruned" / "sin nombres propios" mientras `proper_nouns` decia
+# `included` y el ingles llevaba 163.470 nombres propios adentro. No es un comentario: es el
+# texto que el usuario lee en la pantalla de atribucion, afirmando lo contrario de lo que el
+# pack es. Una `description` que describe una politica **se desactualiza sola** cuando la
+# politica cambia -- asi que ahora no la nombra, y quien quiera saberla lee `proper_nouns`.
+#
 # "lexical-only" y no "excluded" porque la poda tiene una excepcion medida: el nombre propio con
 # vida lexica --los meses, los paises, los idiomas-- se conserva. Ver SENAL_LEXICA_MINIMA en
 # sources/kaikki.py.
@@ -250,8 +257,8 @@ PACKS = {
         "kind": "monolingual",
         "name": "Español",
         "description": (
-            "Definiciones en español del Wikcionario, sin nombres propios. "
-            "Incluye sinónimos, antónimos y palabras relacionadas por acepción."
+            "Definiciones en español del Wikcionario. Incluye sinónimos, antónimos "
+            "y palabras relacionadas por acepción."
         ),
         "langs": "es",
         # ⚠️ **El idioma en que estan las traducciones del payload, y es una DECLARACION que el
@@ -338,8 +345,8 @@ PACKS = {
         "kind": "monolingual",
         "name": "English",
         "description": (
-            "English definitions from Wiktionary, proper nouns pruned. "
-            "Includes synonyms, antonyms and related words per sense."
+            "English definitions from Wiktionary. Includes synonyms, antonyms, "
+            "related words and the source of each quoted example."
         ),
         # ⚠️ **El ingles SI traduce, por el canal de la palabra.** Se habia concluido que no
         # podia, midiendo que sus 9.987 traducciones al español traen **0 `sense_index`** -- pero

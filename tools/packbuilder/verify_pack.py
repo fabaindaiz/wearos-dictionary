@@ -416,6 +416,17 @@ def verify(path):
             # contra ella lleva a la otra, sin error y sin log. `payload.merge_duplicate_senses`
             # lo impide al construir; esto lo comprueba sobre los bytes, que es lo unico que vale
             # para un pack que no construimos nosotros.
+            # ⚠️ **Sobre los BYTES y no sobre `senses`, y ahi esta el valor.** `payload.parse`
+            # ya descarta la cita huerfana --degradacion correcta para el lector-- asi que
+            # mirar la estructura parseada no puede ver el problema nunca. Un pack construido
+            # por otro con la cita desplazada mostraria un ejemplo sin la atribucion que el pack
+            # dice traer, o peor, se la colgaria al ejemplo equivocado si alguien relaja la
+            # regla. Es el primer chequeo de CONTENIDO del payload que este validador tiene.
+            huerfanas = _citas_huerfanas(text)
+            if huerfanas:
+                report.check(False,
+                             "la entrada %s tiene %d cita(s) que no siguen a un ejemplo"
+                             % (row["headword"], huerfanas))
             codigos = {payload_codec.sense_code(row["uid"], s["gloss"]) for s in senses}
             if len(codigos) != len(senses):
                 report.check(False,
@@ -449,6 +460,24 @@ def verify(path):
         return 1
     print("todas las comprobaciones pasaron")
     return 0
+
+
+def _citas_huerfanas(text):
+    """Cuantas lineas `C` del cuerpo no vienen inmediatamente despues de su `E`.
+
+    Espejo exacto de la regla de `payload.parse` y de `PayloadCodec.parse`. Si los tres se
+    separaran, el mismo pack mostraria atribuciones distintas segun quien lo lea, y este
+    validador diria que esta bien.
+    """
+    huerfanas = 0
+    anterior = None
+    for line in text.split("\n"):
+        if len(line) < 2 or line[1] != "\t":
+            continue
+        if line[0] == payload_codec.TAG_CITATION and anterior != payload_codec.TAG_EXAMPLE:
+            huerfanas += 1
+        anterior = line[0]
+    return huerfanas
 
 
 def _verify_query_plans(db, report):
