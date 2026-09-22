@@ -16,6 +16,21 @@ plugins {
 val debugConR8: Boolean = providers.gradleProperty("debugR8").isPresent
 
 /**
+ * De donde sale el catalogo de packs. **Es una url de DESARROLLO y se cambia sin tocar Kotlin.**
+ *
+ *     ./gradlew :app:installDebug -PcatalogUrl=http://192.168.1.42:8765
+ *
+ * El valor por defecto es `10.0.2.2`, que es **como el emulador ve a esta maquina**. Desde un
+ * reloj de verdad hay que pasar la IP de la LAN, que `tools/packserver.py` imprime al arrancar:
+ * `localhost` no sirve, el reloj esta en la otra punta del Wi-Fi.
+ *
+ * ⚠️ Solo `debug` puede hablar por `http://` (ver `src/debug/AndroidManifest.xml`). El catalogo
+ * de produccion sera HTTPS y entonces esto pasa a ser un default y no un apaño.
+ */
+val catalogUrl: String =
+    providers.gradleProperty("catalogUrl").getOrElse("http://10.0.2.2:8765")
+
+/**
  * Los datos de firma del release, o null si no hay ninguno configurado.
  *
  * Cascada variable de entorno -> local.properties, la misma que usan `:dict-data:devicePrecheck`
@@ -53,6 +68,9 @@ android {
     }
 
     defaultConfig {
+        // Ver [catalogUrl] arriba: se sobreescribe con -PcatalogUrl=...
+        buildConfigField("String", "CATALOG_URL", "\"$catalogUrl\"")
+
         applicationId = "cl.fadiaz.dictionary"
         minSdk = 33
         targetSdk = 37

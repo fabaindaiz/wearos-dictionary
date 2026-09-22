@@ -1,7 +1,8 @@
 # wearos-dictionary
 
-Diccionario **100% offline** para Wear OS. Los idiomas se instalan como *packs*: archivos
-SQLite de solo lectura que se descargan por separado y se consultan en el reloj sin red.
+Diccionario para Wear OS donde **toda consulta funciona sin red, siempre**. Los idiomas se
+instalan como *packs*: archivos SQLite de solo lectura, y **descargar un diccionario es lo unico
+que usa la red** --nada de lo que hace la app despues la vuelve a tocar--.
 
 > **Estado:** la app funciona y corre en un reloj físico. Busca por voz y por teclado, muestra
 > la entrada con sus acepciones, deja saltar de una palabra a otra tocándola, guarda favoritas,
@@ -29,7 +30,7 @@ echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 ```
 
 ```sh
-./gradlew check                                   # el gate: compila, lint, 784 tests y la auditoría
+./gradlew check                                   # el gate: compila, lint, 798 tests y la auditoría
 ./gradlew :dict-core:test                         # solo el núcleo de búsqueda (rápido)
 python3 tools/packbuilder/build_toy.py            # pack de juguete para los tests instrumentados
 python3 tools/packbuilder/verify_pack.py <pack>   # invariantes de un pack real

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-A **100% offline** dictionary for Wear OS. Languages install as *packs*: read-only SQLite files,
-downloaded separately and queried on the watch with no network. The unusual part: **the search
+A dictionary for Wear OS where **every search runs with no network, ever**. Languages install as
+*packs* of read-only SQLite; downloading one is the only thing that uses the internet. The unusual
 keys are computed twice, in two languages, and have to produce the same string** — the Python
 builder writes them into the pack, the watch recomputes them in Kotlin over what the user types.
 

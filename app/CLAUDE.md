@@ -78,7 +78,7 @@ packs went with it** — ~450 MB to push again. The watch's IME also reorders th
 ZERO tests.** An empty green. Read the **count**, never the colour.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 304 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 318 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device -- UNINSTALLS the app
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
