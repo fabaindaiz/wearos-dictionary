@@ -826,10 +826,11 @@ class ScreensTest {
         estado: CatalogStatus,
         bytes: Long = 37_000_000,
         instalada: Long? = null,
+        version: Long = 202609211912L,
     ) = CatalogOffer(
         pack = CatalogPack(
             packId = id, name = id, description = null, langs = listOf("es"), entryCount = 1,
-            dataVersion = 300L, schemaVersion = 4, normVersion = 2, license = null,
+            dataVersion = version, schemaVersion = 4, normVersion = 2, license = null,
             url = "packs/$id.db.gz", bytes = bytes, sha256 = "a", dbBytes = bytes * 2,
             dbSha256 = "b",
         ),
@@ -923,19 +924,47 @@ class ScreensTest {
     }
 
     @Test
-    fun unaActualizacionDiceDeQueVersionAQueVersion() {
-        // "Hay actualizacion" sin decir de que a que no deja decidir nada.
+    fun laFilaDiceLaFECHA_yNoElNumeroCrudoDeVersion() {
+        // ⚠️ Esto reemplaza un aserto anterior que exigia los DOS numeros de version. Visto en el
+        // emulador, la fila decia `3,0 MB · v202609211912, you have v202609211911`: doce digitos
+        // que difieren en el ultimo, y 390 px de los ~459 utiles a esa altura.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
                 onDelete = {},
                 catalog = CatalogState.Ready(
-                    listOf(oferta("es-def", CatalogStatus.UPDATE, instalada = 200L)),
+                    listOf(
+                        oferta("es-def", CatalogStatus.UPDATE, version = 202609211912L, instalada = 202609211911L),
+                    ),
                 ),
             )
         }
-        compose.onNodeWithText("v300", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("200", substring = true).assertIsDisplayed()
+        assertEquals(
+            "no deberia quedar ningun numero de version crudo en pantalla",
+            0,
+            compose.onAllNodes(hasText("202609211912", substring = true)).fetchSemanticsNodes().size,
+        )
+        // Y si dice de cuando es, en el formato del locale.
+        compose.onNodeWithText("2026", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun siLaVersionNoEsUnaFechaLaFilaSeQuedaConElTAMANO() {
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    listOf(oferta("raro", CatalogStatus.DOWNLOAD, version = 7L)),
+                ),
+            )
+        }
+        compose.onNodeWithText("MB", substring = true).assertIsDisplayed()
+        assertEquals(
+            "un 7 no es una fecha y no se puede inventar una",
+            0,
+            compose.onAllNodes(hasText("1970", substring = true)).fetchSemanticsNodes().size,
+        )
     }
 
     @Test

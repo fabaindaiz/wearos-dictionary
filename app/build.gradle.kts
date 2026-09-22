@@ -18,17 +18,31 @@ val debugConR8: Boolean = providers.gradleProperty("debugR8").isPresent
 /**
  * De donde sale el catalogo de packs. **Es una url de DESARROLLO y se cambia sin tocar Kotlin.**
  *
- *     ./gradlew :app:installDebug -PcatalogUrl=http://192.168.1.42:8765
+ * El default es `localhost`, y funciona porque el dispositivo tunela ese puerto al de esta
+ * maquina por adb:
  *
- * El valor por defecto es `10.0.2.2`, que es **como el emulador ve a esta maquina**. Desde un
- * reloj de verdad hay que pasar la IP de la LAN, que `tools/packserver.py` imprime al arrancar:
- * `localhost` no sirve, el reloj esta en la otra punta del Wi-Fi.
+ *     adb reverse tcp:8765 tcp:8765
+ *     python3 tools/packserver.py ../wearos-dictionary-data --port 8765
+ *     ./gradlew :app:installDebug
+ *
+ * ⚠️ **El default era `10.0.2.2` --el alias del host para un emulador-- y FALLA, medido el
+ * 2026-09-22 en el emulador del proyecto**: `SocketTimeoutException: failed to connect to
+ * /10.0.2.2 (port 8765) from /10.0.2.15 after 8000ms`, con el servidor comprobadamente vivo y
+ * respondiendo 200 al mismo curl desde el host. El cortafuegos de macOS no deja entrar al
+ * proceso de Python.
+ *
+ * `adb reverse` evita el problema entero y tiene dos ventajas mas: **no hay que descubrir ninguna
+ * IP** --que cambia de red en red-- y **vale igual en un reloj de verdad** por depuracion
+ * inalambrica, donde `10.0.2.2` no significa nada. Para servir por la LAN de todos modos,
+ * `packserver.py` imprime la IP al arrancar:
+ *
+ *     ./gradlew :app:installDebug -PcatalogUrl=http://192.168.1.42:8765
  *
  * ⚠️ Solo `debug` puede hablar por `http://` (ver `src/debug/AndroidManifest.xml`). El catalogo
  * de produccion sera HTTPS y entonces esto pasa a ser un default y no un apaño.
  */
 val catalogUrl: String =
-    providers.gradleProperty("catalogUrl").getOrElse("http://10.0.2.2:8765")
+    providers.gradleProperty("catalogUrl").getOrElse("http://localhost:8765")
 
 /**
  * Los datos de firma del release, o null si no hay ninguno configurado.

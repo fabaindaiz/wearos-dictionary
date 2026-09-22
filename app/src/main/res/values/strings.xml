@@ -156,6 +156,5 @@
     <string name="packs_catalog_update">Update available</string>
     <string name="packs_catalog_download">Available to download</string>
     <string name="packs_catalog_incompatible">Not usable by this version</string>
-    <string name="packs_catalog_newer">v%1$s, you have v%2$s</string>
     <string name="packs_catalog_install_note">Listing only, for now: installing still happens over a cable.</string>
 </resources>
