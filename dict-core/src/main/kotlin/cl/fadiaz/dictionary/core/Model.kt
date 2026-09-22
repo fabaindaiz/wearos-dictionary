@@ -251,7 +251,19 @@ data class Suggestion(
  * que es trabajo, no un resultado equivocado.
  */
 enum class PackTier(val id: String) {
+    /** Todo el diccionario, sin filtrar. Es el pack construido, no uno derivado. */
     FULL("full"),
+
+    /**
+     * Un filtro menos estricto que [CORE]: ante la duda sobre una palabra, se queda.
+     *
+     * ⚠️ **Un idioma cuyo `full` ya cabe en el presupuesto de `main` NO tiene `main`**, y eso es
+     * deliberado: el espanol completo son 73,6 MB, por debajo del presupuesto, asi que un `main`
+     * espanol seria un segundo pack con el mismo contenido. El catalogo lista lo que existe.
+     */
+    MAIN("main"),
+
+    /** Las palabras importantes y de uso general. El mas chico. */
     CORE("core"),
     ;
 
