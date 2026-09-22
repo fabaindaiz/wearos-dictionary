@@ -7,6 +7,7 @@ import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.PackStore
 import cl.fadiaz.dictionary.presentation.rowsThatFit
 import com.google.common.util.concurrent.Futures
@@ -30,6 +31,7 @@ class HistoryTileService : TileService() {
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
+        val desde = System.nanoTime()
         // Read from SharedPreferences and nothing else: no pack is opened. See TileRender.kt.
         //
         // Cuantas filas, contra la pantalla REAL. Un tile no scrollea, asi que aca el tamaño si
@@ -52,6 +54,18 @@ class HistoryTileService : TileService() {
                     getString(R.string.tile_history_empty),
                 )
             }
+        }
+        // ⚠️ El unico rastro de que un tile corrio. `onTileRequest` es `@MainThread` con diez
+        // segundos (D-106) y *"nobody opens a tile on purpose"*: si tarda o se rinde, no hay
+        // pantalla donde verlo. Ademas deja escrito el ancho real, que es el numero que falta
+        // para cerrar el breakpoint de 225 dp.
+        DictLog.i {
+            val que = when (content) {
+                is TileContent.ListRows -> "${content.visits.size} visitas"
+                else -> "vacio"
+            }
+            "tile historial: pantalla=${requestParams.deviceConfiguration.screenWidthDp}dp " +
+                "filas=$rows contenido=$que en ${(System.nanoTime() - desde) / 1_000_000} ms"
         }
         return Futures.immediateFuture(
             TileBuilders.Tile.Builder()
