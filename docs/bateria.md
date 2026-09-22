@@ -486,9 +486,18 @@ Measured on 2026-09-20 against the real packs and a real release build.
 
 ### What the app pays on every process start
 
-The app has no rescan: the pack scan is one-shot in the ViewModel's `init`. So **every time the
-process starts, every installed pack is opened and fully validated** — metadata, a 32 KB dictionary
-hashed, and 64 rows read by rowid with `norm()` recomputed over each (D-142).
+The app has no rescan: the pack scan is one-shot in the ViewModel's `init`.
+
+⚠️ **This table predates D-164 and the paragraph that introduced it was wrong after it.** It used
+to say every pack is *fully validated* on every process start. It is not: `PackStore.openFile`
+calls `PackFile.open(verifyKeys = !yaVerificado)`, and the 64-key sample — **36 of the 42 ms
+below** — runs once per file and never again, because the pack is immutable (D-001) and the
+fingerprint carries `NORM_VERSION`. What every start still pays is the first two columns:
+**~6 ms for two packs**.
+
+The table is kept because it is what makes the 36 ms visible, and because it is the measurement
+D-164 was decided on — metadata, a 32 KB dictionary hashed, and 64 rows read by rowid with
+`norm()` recomputed over each (D-142).
 
 | Pack | Size | open + meta | sha256 | 64 keys | total |
 |---|---|---|---|---|---|
@@ -498,6 +507,11 @@ hashed, and 64 rows read by rowid with `norm()` recomputed over each (D-142).
 
 Desktop milliseconds; a watch is far slower. **This is not a battery item — it is a
 seconds-of-screen item**, which on this app is the same thing as a battery item.
+
+⚠️ **And it is no longer where startup time goes.** Measured on the watch on 2026-09-21: the dex
+costs **802 ms** per launch on its own (`run-from-apk` → `verify`), against **~6 ms** of pack
+opening. A ratio of about 130 : 1. The data layer is not the startup cost; **the dex is** — 29.5 MB
+unshrunk, which R8 takes to 2.7 MB. See the next section.
 
 ### What a release build actually contains
 
