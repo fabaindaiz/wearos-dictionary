@@ -30,6 +30,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.core.Example
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
@@ -285,6 +286,49 @@ class ScreensTest {
         }
         compose.onNodeWithText("bobo", substring = true).assertExists()
         compose.onNodeWithText("zonzo", substring = true).assertExists()
+    }
+
+    @Test
+    fun theExampleShowsWhereItWasQuotedFrom() {
+        // 86.5 % of the English dump's examples are quotations lifted from a published text, so
+        // without this line the reader gets a sentence out of an 1897 novel with nothing saying
+        // so -- which is what sent a user to Wiktionary by hand to find out (D-216).
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(
+                        Sense(
+                            "An infidel or doubter.",
+                            examples = listOf(
+                                Example("prove them Thomases", "1897, Richard Marsh"),
+                            ),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("prove them Thomases", substring = true).assertExists()
+        compose.onNodeWithText("1897, Richard Marsh", substring = true).assertExists()
+    }
+
+    @Test
+    fun anExampleWithNoKnownSourceShowsNoCitationLine() {
+        // The common case -- 24.9 % of the examples the builder keeps declare no `ref`, and the
+        // Tatoeba sentences none at all. What this pins is that the em dash does not appear on
+        // its own: a lone "—" under an example reads as a citation that failed to load.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(Sense("A mammal.", examples = listOf(Example("the dog barks")))),
+                )
+            }
+        }
+        compose.onNodeWithText("the dog barks", substring = true).assertExists()
+        // Un guion suelto bajo el ejemplo se leeria como una cita que no cargo.
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("—", substring = true).fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -587,7 +631,7 @@ class ScreensTest {
         val muchas = (1..47).map { number ->
             Sense(
                 gloss = "acepcion numero $number",
-                examples = if (number == 1) listOf(longExample) else emptyList(),
+                examples = if (number == 1) listOf(Example(longExample)) else emptyList(),
             )
         }
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry().copy(senses = muchas) } }

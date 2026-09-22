@@ -180,10 +180,10 @@ class Perfil:
     """
 
     __slots__ = ("w_sense", "w_example", "w_form", "w_translation", "w_etymology", "forms_cap",
-                 "categorias_de_registro")
+                 "categorias_de_registro", "separador_de_cita")
 
     def __init__(self, w_sense, w_example, w_form, w_translation, w_etymology, forms_cap,
-                 categorias_de_registro=()):
+                 categorias_de_registro=(), separador_de_cita=None):
         self.w_sense = w_sense
         self.w_example = w_example
         self.w_form = w_form
@@ -193,6 +193,20 @@ class Perfil:
         # Las categorias del wiki que significan "esta pagina REGISTRA un nombre, no lo define".
         # Solo las usa la politica "definitions-only". Ver `_es_registro_de_nombres`.
         self.categorias_de_registro = tuple(categorias_de_registro)
+        # Con que caracter separa los campos de un `ref` ESTE dump, o None para no traer cita.
+        #
+        # ⚠️ **Es una calibracion por idioma y por eso vive aca**, junto a los pesos del rank y
+        # por la misma razon que ellos (D-076): se midio sobre un dump concreto y no se hereda.
+        # El ingles sirve `"1897, Richard Marsh, The Beetle:"` y el Wikcionario
+        # `"Miguel Nicolau. Iniciacion a la Teologia. Pagina 85. 1984."` -- autor primero, año
+        # ultimo, puntos en vez de comas. Aplicarle el separador del otro produce basura.
+        #
+        # ⚠️ **El punto 4 del docstring del modulo prohibe heuristicas sobre la prosa, y esto se
+        # le acerca.** Entra igual porque no decide **presencia**: su peor caso es un corte feo
+        # en una linea secundaria, no una palabra que desaparece sin dejar rastro, que es la
+        # clase de error que aquella regla existe para impedir. Queda escrito para que la
+        # proxima sesion no la borre por parecerse ni la copie a donde si decide presencia.
+        self.separador_de_cita = separador_de_cita
 
 
 PERFILES = {
@@ -215,8 +229,108 @@ PERFILES = {
     # que es justo lo que hace al pack ingles el mas pesado. Ahi la politica util sigue siendo
     # "lexical-only".
     "en": Perfil(w_sense=3, w_example=2, w_form=4, w_translation=0.5, w_etymology=5,
-                 forms_cap=12),
+                 forms_cap=12,
+                 # Medido sobre el dump del 2026-09-09: el 75,5 % de los ejemplos que el builder
+                 # guarda trae `ref`, y sus campos van separados por coma con el año primero.
+                 separador_de_cita=","),
 }
+
+# Cuantos campos del `ref` se conservan.
+#
+# Dos es "año, autor" en el ingles --`"1897, Richard Marsh, The Beetle:"` -> `"1897, Richard
+# Marsh"`-- y baja el promedio de **119 a 31 bytes**, que sobre el pack ingles es +1,6 % en vez
+# de +6,3 %. Lo que se tira es editorial, ciudad, →OCLC y pagina: datos de catalogo que en una
+# pantalla de reloj no entran y que nadie lee en un diccionario.
+CAMPOS_DE_CITA = 2
+
+# Los pares que NO se pueden partir al buscar el separador de nivel superior.
+#
+# ⚠️ **Sin las comillas, 320 citas (1,1 %) salen con el titular cortado al medio**: el `ref` de
+# una nota periodistica es `2019 June 6, “A gaggle, a confusion and a conspiracy…”, in BBC:` y
+# partir por coma a secas deja `2019 June 6, “A gaggle`, que se lee como un dato roto.
+#
+# ⚠️ **Y los CORCHETES los encontro leer el pack construido, no un test.** El Wiktionary los usa
+# para el nombre editorial del autor --`[Alfred, Lord Tennyson]`, `[William Tyndale, transl.]`,
+# `Beniamin Ionson [i.e., Ben Jonson]`-- y esa coma es interna: sin ellos `captive` mostraba
+# `1850, [Alfred`. Medido sobre el dump son **369 citas (1,3 %)** y **todas** salian con el
+# corchete abierto sin cerrar. Los tres pares juntos cuestan **1 byte** de promedio (31 -> 32).
+#
+# Un par sin cerrar en la fuente no rompe nada: la profundidad no vuelve a cero, no se corta, y
+# la cita sale entera. Es mas larga de lo ideal y nunca incorrecta, que es el lado correcto para
+# fallar.
+_PARES_DE_CITA = (("“", "”"), ("(", ")"), ("[", "]"))
+
+# Los caracteres que ABREN uno de esos pares, para la guarda del desenvoltorio.
+_APERTURAS_DE_CITA = frozenset(abre for abre, _ in _PARES_DE_CITA)
+
+# Lo que una fuente deja pegado al final de un campo de cita. **El punto NO esta**: un apellido
+# abreviado termina en punto ("Thos.", "Marsh Jr.") y quitarselo inventa una forma que nadie
+# escribio.
+_CIERRE_DE_CITA = " :,;"
+
+
+def _recorte_de_cita(ref, separador):
+    """Los dos primeros campos de nivel superior de un `ref`, o None si no hay nada que decir.
+
+    "Nivel superior" quiere decir fuera de los pares de [_PARES_DE_CITA]: el separador que cae
+    dentro de un titulo entrecomillado o de un parentesis **no parte**. Ver la medicion ahi.
+
+    Devuelve None y no "" para que el llamador no tenga que distinguir dos formas del mismo
+    caso -- el ejemplo sin fuente conocida, que es el 24,5 % de ellos.
+    """
+    if not separador:
+        return None
+    texto = (ref or "").strip()
+    if not texto:
+        return None
+    cortado = _corta_en_nivel_superior(texto, separador)
+    # ⚠️ **El Wiktionary tambien encierra la cita ENTERA entre corchetes** cuando la fuente es
+    # indirecta: `[1755 April 15, Samuel Johnson, "Lexico'grapher", in A Dictionary…`. Ese
+    # corchete no cierra dentro de los dos primeros campos, asi que la profundidad nunca vuelve
+    # a cero, no se corta nada y sale el `ref` entero con el par abierto. Medido: 184 citas
+    # (0,64 %).
+    #
+    # ⚠️ **Se desenvuelve SOLO si el corte quedo desbalanceado, y la version ingenua se probo
+    # primero: rompia.** Sacar el delimitador inicial siempre convertia `[1877], Anna Sewell` en
+    # `1877], Anna Sewell` y `(Can we date this quote?), Sir T. Browne` en algo peor todavia --
+    # ahi el par **si** cierra y el corte ya era correcto. Con la guarda, las citas con un par
+    # sin cerrar pasan de 184 a **0 de 28.744**, y el promedio baja de 31,8 a 30,8 bytes.
+    if _desbalanceada(cortado) and texto[0] in _APERTURAS_DE_CITA:
+        alternativa = _corta_en_nivel_superior(texto[1:].strip(), separador)
+        if not _desbalanceada(alternativa):
+            cortado = alternativa
+    return cortado or None
+
+
+def _corta_en_nivel_superior(texto, separador):
+    """Los dos primeros campos, sin partir dentro de un par de [_PARES_DE_CITA]."""
+    campos = []
+    actual = []
+    profundidad = 0
+    for ch in texto:
+        for abre, cierra in _PARES_DE_CITA:
+            if ch == abre:
+                profundidad += 1
+                break
+            if ch == cierra:
+                profundidad = max(0, profundidad - 1)
+                break
+        if ch == separador and profundidad == 0:
+            campos.append("".join(actual))
+            actual = []
+            if len(campos) == CAMPOS_DE_CITA:
+                break
+            continue
+        actual.append(ch)
+    if len(campos) < CAMPOS_DE_CITA and actual:
+        campos.append("".join(actual))
+    juntos = (separador + " ").join(c.strip() for c in campos if c.strip())
+    return juntos.rstrip(_CIERRE_DE_CITA)
+
+
+def _desbalanceada(cita):
+    """Si a la cita le falta cerrar alguno de los pares. Es lo que se lee como dato roto."""
+    return any(cita.count(abre) != cita.count(cierra) for abre, cierra in _PARES_DE_CITA)
 
 
 # Etiquetas de mantenimiento del wiki incrustadas en la glosa (D-121).
@@ -431,7 +545,7 @@ def _word_translations(raw, headword, idioma, ya_en_acepciones):
     return tuple(salida[:MAX_TRADUCCIONES_POR_ACEPCION])
 
 
-def _senses(raw, translations_to=None):
+def _senses(raw, translations_to=None, perfil=None):
     """Las acepciones que sobreviven la poda. Vacia si el registro no es una entrada."""
     headword = raw.get("word", "")
     synonyms = _by_sense_index(raw, headword, "synonyms")
@@ -452,8 +566,15 @@ def _senses(raw, translations_to=None):
         examples = []
         for example in (sense.get("examples") or [])[:MAX_EXAMPLES_PER_SENSE]:
             text = (example.get("text") or "").strip()
-            if text:
-                examples.append(text)
+            if not text:
+                continue
+            # ⚠️ **La cita se descarta si no hay ejemplo, no al reves.** Sin texto no hay de que
+            # colgarla, y guardarla igual la dejaria nombrando al ejemplo de la acepcion
+            # siguiente. Ver la regla estricta de `payload.parse`.
+            cita = _recorte_de_cita(
+                example.get("ref"), perfil.separador_de_cita if perfil else None
+            )
+            examples.append({"text": text, "ref": cita} if cita else text)
         index = (sense.get("sense_index") or "").strip()
         # Las dos formas en que la fuente sirve sinonimos. Ningun dump usa las dos, asi que esto
         # no es una precedencia sino una union: la que este vacia no aporta nada.
@@ -637,7 +758,7 @@ def _emit(group, inbound, opciones):
     for raw in group:
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             continue
-        senses = _senses(raw, opciones.translations_to)
+        senses = _senses(raw, opciones.translations_to, perfil)
         if not senses:
             continue
         prepared.append((raw, senses))

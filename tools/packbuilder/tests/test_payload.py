@@ -126,6 +126,98 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual("noun", pos)
 
 
+class CitationTest(unittest.TestCase):
+    """The `C` tag: where the quoted example was taken from.
+
+    The whole point of these tests is that a citation can only ever name the example it was
+    written next to. Hanging it off the wrong one produces content that reads correct and is
+    not -- the failure mode D-122 calls worse than a missing word.
+    """
+
+    def test_the_citation_hangs_off_its_example(self):
+        _pos, senses, _word = payload.parse("S\ta gloss\nE\tan example\nC\t1897, Richard Marsh\n")
+        self.assertEqual(
+            [{"text": "an example", "ref": "1897, Richard Marsh"}], senses[0]["examples"]
+        )
+
+    def test_an_example_without_a_citation_stays_a_plain_string(self):
+        # The canonical form: no citation means no wrapper. Every source that predates the tag
+        # keeps emitting and reading plain strings, untouched.
+        _pos, senses, _word = payload.parse("S\ta gloss\nE\tan example\n")
+        self.assertEqual(["an example"], senses[0]["examples"])
+
+    def test_a_citation_without_an_example_is_dropped(self):
+        # Same rule as the orphan synonym: nothing to hang it on, and hanging it on whatever
+        # comes next would be inventing the attribution.
+        _pos, senses, _word = payload.parse("S\ta gloss\nC\t1897, Richard Marsh\n")
+        self.assertEqual([], senses[0]["examples"])
+
+    def test_a_citation_before_the_first_sense_is_dropped(self):
+        _pos, senses, _word = payload.parse("C\torphan\nS\ta gloss\nE\tan example\n")
+        self.assertEqual(1, len(senses))
+        self.assertEqual(["an example"], senses[0]["examples"])
+
+    def test_the_citation_does_not_cross_into_the_next_sense(self):
+        _pos, senses, _word = payload.parse("S\tone\nE\te1\nC\tc1\nS\ttwo\nE\te2\nC\tc2\n")
+        self.assertEqual([{"text": "e1", "ref": "c1"}], senses[0]["examples"])
+        self.assertEqual([{"text": "e2", "ref": "c2"}], senses[1]["examples"])
+
+    def test_a_citation_that_does_not_immediately_follow_its_example_is_dropped(self):
+        # ⚠️ **The strict rule, and it is deliberate.** A `C` separated from its `E` by any other
+        # tag is a guess about which example it belongs to, and D-179 exists precisely because a
+        # guess of that shape is free, invisible and passes verification. `render` always writes
+        # the pair adjacent, so the only way to reach this is a builder that got it wrong.
+        _pos, senses, _word = payload.parse("S\tone\nE\te1\nY\tsyn\nC\tc1\n")
+        self.assertEqual(["e1"], senses[0]["examples"])
+        self.assertEqual(["syn"], senses[0]["synonyms"])
+
+    def test_only_the_first_citation_of_an_example_counts(self):
+        _pos, senses, _word = payload.parse("S\tone\nE\te1\nC\tfirst\nC\tsecond\n")
+        self.assertEqual([{"text": "e1", "ref": "first"}], senses[0]["examples"])
+
+    def test_render_writes_the_citation_right_after_its_example(self):
+        text = payload.render("noun", [
+            {"gloss": "a gloss",
+             "examples": [{"text": "an example", "ref": "1897, Richard Marsh"}],
+             "synonyms": ["other"]},
+        ])
+        self.assertEqual(
+            "P\tnoun\nS\ta gloss\nE\tan example\nC\t1897, Richard Marsh\nY\tother\n", text
+        )
+
+    def test_an_example_dict_without_a_ref_renders_bare(self):
+        text = payload.render(None, [{"gloss": "g", "examples": [{"text": "e", "ref": None}]}])
+        self.assertEqual("S\tg\nE\te\n", text)
+
+    def test_round_trip_keeps_both_shapes(self):
+        senses = [
+            {"gloss": "one",
+             "examples": [{"text": "quoted", "ref": "1897, Richard Marsh"}],
+             "translations": [], "synonyms": [], "antonyms": [], "related": []},
+            {"gloss": "two", "examples": ["made up"],
+             "translations": [], "synonyms": [], "antonyms": [], "related": []},
+        ]
+        _pos, parsed, _word = payload.parse(payload.render("noun", senses))
+        self.assertEqual(senses, parsed)
+
+    def test_the_citation_is_sanitized(self):
+        # A tab reaching the pack from the source would corrupt the whole entry, and the symptom
+        # would only show up on the watch.
+        text = payload.render(None, [{"gloss": "g", "examples": [{"text": "e", "ref": "a\tb"}]}])
+        self.assertEqual("S\tg\nE\te\nC\ta b\n", text)
+
+    def test_an_example_whose_text_is_empty_takes_no_citation(self):
+        text = payload.render(None, [{"gloss": "g", "examples": [{"text": "  ", "ref": "r"}]}])
+        self.assertEqual("S\tg\n", text)
+
+    def test_the_citation_does_not_bump_the_codec_id(self):
+        # ⚠️ D-119: `C` is purely additive and an old reader ignores it, so forcing every user to
+        # re-download 300 MB for a field they cannot see would throw that property away. This
+        # assertion is what makes someone stop and read D-119 before changing the constant.
+        self.assertEqual("deflate-v2", payload.CODEC_ID)
+        self.assertEqual(2, payload.PAYLOAD_VERSION)
+
+
 class CompressionTest(unittest.TestCase):
     def setUp(self):
         self.dictionary = payload.build_dictionary(
@@ -448,6 +540,30 @@ class AcepcionDireccionableTest(unittest.TestCase):
         ])
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual(["a", "b", "c"], senses[0]["synonyms"])
+
+    def test_la_fusion_conserva_las_citas_de_las_dos(self):
+        # `_LISTAS` dedupes with `==`, and an example is now a dict when it carries a citation.
+        # Two senses that share a gloss and quote different works have to keep both: dropping
+        # one is the silent loss the merge was written to avoid in the first place.
+        texto = payload.render(None, [
+            {"gloss": "g", "examples": [{"text": "uno", "ref": "1897, Richard Marsh"}]},
+            {"gloss": "g", "examples": [{"text": "dos", "ref": "1876, Mark Twain"}]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual(1, len(senses))
+        self.assertEqual(
+            [{"text": "uno", "ref": "1897, Richard Marsh"},
+             {"text": "dos", "ref": "1876, Mark Twain"}],
+            senses[0]["examples"],
+        )
+
+    def test_la_fusion_no_duplica_un_ejemplo_con_la_misma_cita(self):
+        texto = payload.render(None, [
+            {"gloss": "g", "examples": [{"text": "uno", "ref": "1897, Richard Marsh"}]},
+            {"gloss": "g", "examples": [{"text": "uno", "ref": "1897, Richard Marsh"}]},
+        ])
+        _pos, senses, _w = payload.parse(texto)
+        self.assertEqual([{"text": "uno", "ref": "1897, Richard Marsh"}], senses[0]["examples"])
 
     def test_la_fusion_conserva_el_ORDEN_de_la_primera(self):
         """La primera acepcion es la que la fuente puso primero, y el orden es informacion."""

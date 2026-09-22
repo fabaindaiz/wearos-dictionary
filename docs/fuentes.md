@@ -184,6 +184,37 @@ top 200 compartido: 110 de 200
 Dos fuentes honestas que comparten señal sin ser intercambiables. **Un ρ bajo no condena al
 pack**: dice cuánto se está apoyando la mezcla en una calibración ajena.
 
+## La cita del ejemplo: cada dump la sirve con otra forma
+
+Medido el 2026-09-22 sobre los dos dumps, muestreando 1 de cada 10 registros. Importa porque el
+recorte que produce `kaikki._recorte_de_cita` **se calibra por idioma** (D-216): el separador vive
+en `Perfil`, junto a los pesos del rank y por la misma razón que ellos.
+
+| | Wiktionary inglés | Wikcionario español |
+|---|---|---|
+| Ejemplos con `type` | **100 %** (`quotation` 86,5 %, `example` 13,5 %) | **0 %** — el campo no existe |
+| Ejemplos con `ref` | **75,5 %** de los que el builder guarda | **68,4 %** |
+| Forma del `ref` | año primero, campos por **coma**: `1897, Richard Marsh, The Beetle:` | autor primero, año último, campos por **punto**: `Miguel Nicolau. Iniciación a la Teología. Página 85. 1984.` |
+| `ref` completo | 119 B promedio | 92 B |
+| Recortado a dos campos | **31 B** (p50 24 · p90 50 · p99 147 · máx 352) | **50 B** |
+| Construido | ✅ desde D-216 | ⚙️ medido, **no construido**: falta declarar el separador en su `Perfil` |
+
+⚠️ **`type` es un campo sólo del Wiktionary inglés, y es el discriminador que uno querría.** Dice
+si la frase fue *redactada para ilustrar* (`example`) o *citada de un texto publicado*
+(`quotation`). En español no está, así que ahí lo único que distingue una cita es que traiga
+`ref`.
+
+⚠️ **Reordenar para preferir el ejemplo redactado rinde poco**: sólo el **7,3 %** de las
+acepciones con ejemplo tiene los dos tipos. El 86,5 % de citas no es un defecto de la extracción,
+es lo que el Wiktionary inglés tiene.
+
+⚠️ **Dos defectos del recorte los encontró leer el pack construido, no los tests** — que es el
+paso 4 de esta misma página. `captive` salía como `1850, [Alfred`, porque el Wiktionary encierra
+el nombre editorial del autor entre corchetes (`[Alfred, Lord Tennyson]`) y esa coma es interna:
+**369 citas (1,3 %)**, todas con el corchete sin cerrar. Y otras **184 (0,64 %)** traen el `ref`
+entero envuelto, donde el par no cierra nunca. Con los dos arreglos, las citas desbalanceadas
+pasan de 184 a **0 de 28.744**.
+
 ## Cómo se agrega una fuente
 
 1. **Medirla contra el pack que ya existe**, no en abstracto: lo que importa es *cuántas entradas

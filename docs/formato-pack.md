@@ -314,11 +314,32 @@ P<TAB>verb                     part of speech, opcional, antes de cualquier S
 W<TAB>to race                  traducción de LA PALABRA, sin acepción (D-179)
 S<TAB>moverse rapidamente      abre una acepción
 E<TAB>corrio hasta la esquina  ejemplo de la acepción abierta
+C<TAB>1897, Richard Marsh      de dónde se citó el ejemplo de ARRIBA (D-216)
 T<TAB>to run                   traducción de la acepción abierta (D-178)
 Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
 A<TAB>detenerse                antónimo de la acepción abierta (D-126)
 R<TAB>camélido                 palabra relacionada de la acepción abierta (D-132)
 ```
+
+### ⚠️ `C` es el único tag que nombra a la línea de arriba y no a la acepción
+
+Todos los demás cuelgan de **la acepción abierta**, así que su posición dentro del bloque da
+igual. `C` cuelga de **su `E`**, y por eso la regla es más estricta que la de los otros: una `C`
+que no venga **inmediatamente** después de un `E` se **descarta** —al parsear y al verificar—,
+en vez de asignarse al último ejemplo visto.
+
+No es una precaución teórica. El 86,5 % de los ejemplos del dump inglés son citas de textos
+publicados, así que la mayoría de los ejemplos del pack tiene una `C` que le corresponde y sólo
+a ella: elegirle un ejemplo a una cita suelta produce **una atribución inventada**, que es el
+modo de falla que D-179 existe para cerrar y que D-122 califica de peor que *falta una palabra*.
+
+Los tres lados aplican la misma regla y **eso es un contrato cruzado**: `payload.parse`,
+`PayloadCodec.parse` y `verify_pack._citas_huerfanas`. Si se separaran, el mismo pack mostraría
+atribuciones distintas según quién lo lea.
+
+**La cita NO entra a `fts_def`** (como el antónimo y la relacionada, y a diferencia del
+ejemplo): buscar *Richard Marsh* no tiene que devolver `Thomas`. Verificado midiendo — con y sin
+citas, `fts_def_data` pesa exactamente lo mismo.
 
 ### ⚠️ `T` y `W` son dos canales, y la diferencia es una afirmación
 

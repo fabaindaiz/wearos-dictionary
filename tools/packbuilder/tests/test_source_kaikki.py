@@ -1119,5 +1119,139 @@ class RankTest(unittest.TestCase):
         self.assertGreaterEqual(got["zzz"].rank, 0)
 
 
+class CitaDelEjemploTest(unittest.TestCase):
+    """Where the quoted example came from, trimmed to what fits on a watch.
+
+    ⚠️ **Why this is worth reading before changing.** Measured over the English dump, **86,5 %**
+    of the examples are `type: quotation` -- lines lifted from a published text -- and the pack
+    was keeping only `text`. The result on screen is a sentence out of an 1897 novel with nothing
+    saying so, which is what sent a real user to Wiktionary by hand to find out.
+
+    The `ref` the source gives averages **119 bytes** and carries publisher, city, OCLC and page.
+    Trimmed to its first two top-level fields it averages **31** -- p50 24, p90 50 -- which is
+    +1,6 % of the English pack instead of +6,3 %.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def english(self, *raw):
+        path = _jsonl(*raw)
+        self.paths.append(path)
+        return list(kaikki.records(path, lang="en"))
+
+    def _example(self, ref):
+        got = self.english(_raw("thomas", "noun", [
+            _sense("An infidel or doubter.", examples=[{"text": "prove them Thomases", "ref": ref}]),
+        ]))
+        return got[0].senses[0]["examples"][0]
+
+    def test_la_cita_se_recorta_a_ano_y_autor(self):
+        # El `ref` real de la entrada que disparo todo esto.
+        self.assertEqual(
+            {"text": "prove them Thomases", "ref": "1897, Richard Marsh"},
+            self._example("1897, Richard Marsh, The Beetle:"),
+        )
+
+    def test_una_coma_dentro_de_un_titulo_entrecomillado_no_corta(self):
+        # ⚠️ El caso que mato la regla ingenua: partir por coma a secas dejaba
+        # «2019 June 6, “A gaggle» -- un titular cortado al medio que se lee como un error de
+        # datos. Medido, le pasa a 320 citas (1,1 %) y arreglarlo cuesta 1 byte de promedio.
+        ref = ("2019 June 6, “A gaggle, a confusion and a conspiracy - bizarre animal "
+               "collective group names”, in BBC:")
+        self.assertEqual(
+            "2019 June 6, “A gaggle, a confusion and a conspiracy - bizarre animal "
+            "collective group names”",
+            self._example(ref)["ref"],
+        )
+
+    def test_los_parentesis_tampoco_se_parten(self):
+        ref = "1611, The Holy Bible, […] (King James Version), London: […] Robert Barker:"
+        self.assertEqual("1611, The Holy Bible", self._example(ref)["ref"])
+
+    def test_los_corchetes_tampoco_se_parten(self):
+        # ⚠️ **Este caso lo encontro LEER el pack construido, no un test.** El `ref` real de
+        # `captive` salia como `1850, [Alfred` -- un corchete abierto que nunca cierra, que se
+        # lee como dato roto. El Wiktionary usa corchetes para el nombre editorial del autor
+        # (`[Alfred, Lord Tennyson]`, `[William Tyndale, transl.]`, `[i.e., Ben Jonson]`) y esa
+        # coma es interna. Medido sobre el dump: **369 citas (1,3 %)**, y TODAS salian con el
+        # corchete desbalanceado. Cerrarlo cuesta 1 byte de promedio (31 -> 32).
+        ref = "1850, [Alfred, Lord Tennyson], In Memoriam A. H. H., London: Edward Moxon:"
+        self.assertEqual("1850, [Alfred, Lord Tennyson]", self._example(ref)["ref"])
+
+    def test_un_ref_envuelto_entero_en_corchetes_se_desenvuelve(self):
+        # La otra forma que el Wiktionary usa: encerrar la cita ENTERA entre corchetes cuando la
+        # fuente es indirecta. El corchete no cierra dentro de los dos primeros campos, asi que
+        # la profundidad nunca vuelve a cero y **no se corta nada**: salia el `ref` completo,
+        # con el corchete abierto. Medido: 184 citas (0,64 %).
+        ref = "[1755 April 15, Samuel Johnson, “Lexico′grapher”, in A Dictionary of the English Language:"
+        self.assertEqual("1755 April 15, Samuel Johnson", self._example(ref)["ref"])
+
+    def test_el_desenvoltorio_NO_se_aplica_cuando_el_par_si_cierra(self):
+        # ⚠️ **La version ingenua de la regla de arriba --sacar el delimitador inicial siempre--
+        # ROMPE estos dos**, y se vio midiendo: `[1877], Anna Sewell` quedaba `1877], Anna
+        # Sewell`. Por eso se desenvuelve solo si el corte quedo desbalanceado.
+        self.assertEqual("[1877], Anna Sewell",
+                         self._example("[1877], Anna Sewell, “A Strike for Liberty”:")["ref"])
+        self.assertEqual("(Can we date this quote?), Sir T. Browne",
+                         self._example("(Can we date this quote?), Sir T. Browne, (Please provide):")["ref"])
+
+    def test_ninguna_cita_sale_con_un_par_sin_cerrar(self):
+        """La propiedad, no el caso: lo que se lee como roto es el par desbalanceado.
+
+        Medido sobre el dump entero con esta regla: **0 de 28.744**.
+        """
+        for ref in (
+            "1850, [Alfred, Lord Tennyson], In Memoriam:",
+            "1526, [William Tyndale, transl.], The Newe Testament:",
+            "1600 (first performance), Beniamin Ionson [i.e., Ben Jonson], “Cynthias Reuels”:",
+            "[1898], J[ohn] Meade Falkner, Moonfleet:",
+            "[2018, David Correia, Tyler Wall, Police: A Field Guide, page 263:",
+            "[1827, [Richard Cook], “RUMFUSTIAN”, in Oxford Night Caps:",
+        ):
+            cita = self._example(ref)["ref"]
+            for abre, cierra in (("[", "]"), ("(", ")"), ("“", "”")):
+                self.assertEqual(cita.count(abre), cita.count(cierra),
+                                 "par %s%s desbalanceado en %r" % (abre, cierra, cita))
+
+    def test_los_dos_puntos_del_final_se_caen(self):
+        self.assertEqual("2009, Linda D. Wilson", self._example("2009, Linda D. Wilson, “Thomas”:")["ref"])
+
+    def test_un_ref_de_un_solo_campo_entra_entero(self):
+        self.assertEqual("BBC News", self._example("BBC News:")["ref"])
+
+    def test_un_ejemplo_sin_ref_queda_como_cadena_pelada(self):
+        # La forma canonica: el 24,5 % de los ejemplos del dump no declara fuente, y devolver un
+        # dict con `ref: None` obligaria a cada consumidor a distinguir dos formas del mismo
+        # caso. Ver `payload._example_parts`.
+        got = self.english(_raw("dog", "noun", [
+            _sense("A mammal.", examples=[{"text": "the dog barks"}]),
+        ]))
+        self.assertEqual(["the dog barks"], got[0].senses[0]["examples"])
+
+    def test_un_ref_vacio_es_lo_mismo_que_ninguno(self):
+        got = self.english(_raw("dog", "noun", [
+            _sense("A mammal.", examples=[{"text": "the dog barks", "ref": "   "}]),
+        ]))
+        self.assertEqual(["the dog barks"], got[0].senses[0]["examples"])
+
+    def test_el_espanol_todavia_NO_trae_cita(self):
+        # ⚠️ **Fijado a proposito, y no es un olvido.** El dump del Wikcionario sirve sus `ref`
+        # con OTRA forma --puntos en vez de comas, autor primero y año ultimo: «Miguel Nicolau.
+        # Iniciacion a la Teologia. Pagina 85. 1984.»-- asi que aplicarle el separador ingles
+        # produciria basura. El perfil español no declara separador hasta que esa forma se mida
+        # y se fije con sus propios casos; el numero ya esta en docs/fuentes.md.
+        path = _jsonl(_raw("casa", "noun", [
+            _sense("Edificio.", examples=[{"text": "la casa", "ref": "Miguel Nicolau. Obra. 1984."}]),
+        ]))
+        self.paths.append(path)
+        got = list(kaikki.records(path, lang="es"))
+        self.assertEqual(["la casa"], got[0].senses[0]["examples"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,10 @@
     <string name="entry_antonyms_title">Antonyms</string>
     <string name="entry_related_title">Related</string>
     <string name="entry_list_separator">" · "</string>
+    <!-- The source of a quoted example: an em dash and the trimmed citation, e.g.
+         "— 1897, Richard Marsh". The dash is part of the string so a translation
+         can drop it if its typography does not use one. -->
+    <string name="entry_example_citation">— %1$s</string>
 
     <!-- A word's menu -->
     <string name="action_save">Save</string>

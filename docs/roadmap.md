@@ -49,9 +49,9 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **102 tests**) y el
-pipeline de packs (`tools/`, **393 tests**) están completos y en el gate, junto con los **360 JVM
-de `:app`** y **26 checks** de auditoría estructural — **881 tests en total**. Los **46
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **111 tests**) y el
+pipeline de packs (`tools/`, **424 tests**) están completos y en el gate, junto con los **362 JVM
+de `:app`** y **26 checks** de auditoría estructural — **923 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -236,6 +236,48 @@ cobró, y lo que queda —recalibrar el proxy, o cruzar un corpus de frecuencias
 ahora lo que más separa al diccionario de ser bueno. Sigue esperando el número de O-1 para saber
 cuánto presupuesto de latencia hay para gastar.
 
+### El rank mayúsculo: la lista de frecuencia lava los nombres propios — MEDIDO, sin decidir
+
+**Estado.** **Medido 2026-09-22, sin decidir.** Es lo que disparó D-216 y **no** lo que D-216
+arregla: la cita hace legible a la entrada, no la baja de posición.
+
+**El caso.** `Thomas` son dos entradas y la que molesta no es nombre propio:
+
+```
+id     headword  pos   rank
+20551  Thomas    noun   179     ← "An infidel or doubter." — el epónimo de «doubting Thomas»
+20552  Thomas    name  1179     ← 179 + CASTIGO_NOMBRE_PROPIO, correctamente castigada
+```
+
+⚠️ **La poda de nombres propios no toca a la primera**: `kaikki` sólo mira `pos == "name"`. El
+179 sale de que `frequency.key()` baja a minúsculas (D-186, correcto: en español el acento
+distingue palabras) y **la lista de OpenSubtitles ya viene toda en minúsculas** —0 líneas con una
+sola mayúscula, verificado—, así que `Thomas` cobra las **27.442** apariciones del nombre de pila
+en subtítulos de cine.
+
+**La escala, sobre `en-def-wikt.db`.** 6.462 entradas con mayúscula y `pos != name` están en la
+banda de frecuencia real `[0,500)`, que tiene 55.903 → **el 11,5 % de la banda «más frecuente»**.
+Se parten en tres clases, y **no son el mismo problema**:
+
+| clase | cuántas | qué son | ¿regla limpia? |
+|---|---|---|---|
+| tiene homógrafo en minúscula | **4.246** | siglas y formas honoríficas: `TO`, `OF`, `IS`, `WE`, `ME`, `HE`, `NO`, `ARE`, `BE`, `CAN` | ✅ **sí**: la frecuencia es del lema en minúscula, que ya tiene su propia entrada. Cero falsos positivos en las 25 más visibles, leídas |
+| sin homógrafo, con hermano `pos=name` | **1.333** | `Thomas` 179, `Richard` 168 (*«A turd.»*), `Eddie` 172, `George` 150, `Jesus` 142 — **y también** `Christmas` 150, `American` 153, `Chinese` 174, `British` 177 | ❌ **no**: la misma señal cubre la basura y el vocabulario legítimo |
+| ninguno de los dos | **883** | `DID` 52, `TOLD` 89, `Mrs.` 133, `Sunday` 177, `Friday` 178, `Rules` 161 | ❌ mezclado igual |
+
+⚠️ **Una idea muerta por medición, y vale escribirla.** El truco de D-137 —*una palabra escrita
+en minúscula alguna vez en el corpus es común*, lo que salvó a `nadal`— **no transfiere al
+inglés**. Sobre las 41.512 frases inglesas de Tatoeba CC0: `american` 361 apariciones / **0 en
+minúscula**; `british` 91/0; `chinese` 78/0; `christmas` 44/0; `ok` 52/0. El inglés capitaliza
+gentilicios, feriados y siglas **por regla**, así que la señal es constante y no separa nada.
+
+**Lo que se recomienda, y lo que no.** La primera clase tiene regla y es el 66 % del problema:
+*un lema con mayúscula cuyo homógrafo en minúscula también es entrada del pack no toma la
+frecuencia de ese homógrafo*. Las otras dos **no tienen regla disponible hoy** con los datos en
+disco, y D-141 dice que equivocarse en una decisión de contenido no deja rastro. El TSV con las
+6.462 filas —rank, pos, acepciones, hermano `name`, homógrafo, primera glosa— se genera con una
+consulta sobre el pack; está en el registro de la sesión del 2026-09-22.
+
 ### El orden de las acepciones dentro de una ficha — VERIFICADO 2026-09-21, y **bloqueado por falta de evidencia**
 
 **Estado.** ⚠️ **Seguro de hacer, y sin motivo medido para hacerlo.** Pedido: verificar que
@@ -373,6 +415,32 @@ real con lemas comunes y varias acepciones (`banco`, `carta`, `pie`, `tiempo`), 
 ojo, **antes** de escribir la regla. Sin eso se estaría ratificando el orden que el código
 produzca.
 
+
+### La cita del ejemplo en español — MEDIDO, no construido
+
+**Estado.** **Planificado.** El mecanismo existe y está construido para el inglés (D-216); lo que
+falta en español es **una línea**: declarar `separador_de_cita` en su `Perfil`.
+
+No se construyó en el mismo pase porque **el Wikcionario sirve el `ref` con otra forma** y
+aplicarle el separador inglés produciría basura:
+
+| | inglés | español |
+|---|---|---|
+| forma | `1897, Richard Marsh, The Beetle:` — año primero, comas | `Miguel Nicolau. Iniciación a la Teología. Página 85. 1984.` — autor primero, puntos |
+| ejemplos con `ref` | 75,5 % | **68,4 %** |
+| `ref` completo | 119 B | **92 B** |
+| recortado a dos campos | 31 B | **50 B** |
+
+Con una regla de puntos que **fusione iniciales** (`J. R. R. Tolkien` es un campo, no cuatro) el
+recorte acierta en 7 de 8 muestras leídas a mano. Lo que falta es medirla como se midió la
+inglesa —sus propios casos en `test_source_kaikki`, y **leer el pack construido**— antes de
+encenderla.
+
+⚠️ **El español no trae `type`**: 0 de 874 ejemplos muestreados. Ese campo es sólo del Wiktionary
+inglés, así que ahí lo único que dice que una frase fue citada de un texto es que traiga `ref`.
+
+Costo esperado: el pack español tiene ejemplo en el **11,4 %** de sus entradas contra el 33,3 %
+del inglés, así que el +2,52 % medido en inglés debería quedar muy por debajo. **Sin medir.**
 
 ### La calidad del contenido del pack español
 

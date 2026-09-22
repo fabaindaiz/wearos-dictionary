@@ -731,11 +731,19 @@ def _fts_body(senses):
     **Las relacionadas tampoco entran** (D-132), por el mismo criterio: nadie escribe "camelido"
     esperando "guanaco". Van solo al payload, donde se leen al abrir la entrada, que es cuando
     sirven. Hay un test que lo fija.
+
+    **Y la CITA del ejemplo tampoco**, aunque el ejemplo si. Una cita es procedencia y no
+    significado: buscar "Richard Marsh" no tiene que devolver `Thomas`. Ademas seria el tercer
+    caso del error que D-117 midio --los sinonimos costaron tres veces lo estimado porque
+    `fts_def` los indexa ademas del payload-- y sobre el pack ingles las citas pesan casi lo
+    mismo. Hay un test que lo fija, por la misma razon que lo tienen los antonimos.
     """
     parts = []
     for sense in senses:
         parts.append(sense.get("gloss", ""))
-        parts.extend(sense.get("examples", ()))
+        parts.extend(
+            payload_codec.example_text(item) for item in sense.get("examples", ())
+        )
         parts.extend(sense.get("translations", ()))
         parts.extend(sense.get("synonyms", ()))
     return " ".join(part for part in parts if part)

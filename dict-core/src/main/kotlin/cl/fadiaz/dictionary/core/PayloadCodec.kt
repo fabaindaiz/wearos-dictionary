@@ -67,6 +67,21 @@ object PayloadCodec {
     private const val TAG_RELATED = 'R'
 
     /**
+     * Where the example above it was quoted from. Additive like [TAG_ANTONYM] and [TAG_RELATED],
+     * so it **does not bump [CODEC_ID]** either.
+     *
+     * ⚠️ **A tag and not a `` suffix on `E`**, even though the suffix mechanism already
+     * exists and translations use it: bolting it onto a tag that shipped without it would make
+     * an older app paint the raw separator byte inside the example. A new tag degrades to
+     * nothing; a new suffix degrades to garbage.
+     *
+     * ⚠️ **It only names the example written immediately above it** — see [parse]. The strict
+     * rule is mirrored character for character in `payload.py`, because if the two sides
+     * disagreed the same pack would show different attributions depending on who read it.
+     */
+    private const val TAG_CITATION = 'C'
+
+    /**
      * Traducciones de la PALABRA, sin acepcion atribuida.
      *
      * Aditivo igual que [TAG_ANTONYM] y [TAG_RELATED], asi que **tampoco sube [CODEC_ID]**: un
@@ -197,6 +212,11 @@ object PayloadCodec {
         val senses = mutableListOf<MutableSense>()
         val wordTranslations = mutableListOf<String>()
 
+        // La acepcion cuyo ULTIMO ejemplo todavia puede recibir una cita, o null. La pone un
+        // `E` y la borra cualquier otra linea: un `C` que no venga pegado a su `E` se descarta
+        // en vez de elegirle un ejemplo. Ver [TAG_CITATION].
+        var citable: MutableSense? = null
+
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
             val separator = line.indexOf('\t')
@@ -206,11 +226,21 @@ object PayloadCodec {
             val value = line.substring(separator + 1)
             if (value.isEmpty()) continue
 
+            if (line[0] == TAG_CITATION) {
+                citable?.let { it.examples[it.examples.lastIndex] = it.examples.last().copy(citation = value) }
+                citable = null
+                continue
+            }
+            citable = null
+
             when (line[0]) {
                 TAG_PART_OF_SPEECH -> if (partOfSpeech == null) partOfSpeech = value
                 TAG_SENSE -> senses.add(MutableSense(value))
                 // Un ejemplo o traduccion antes de la primera acepcion no tiene donde colgar.
-                TAG_EXAMPLE -> senses.lastOrNull()?.examples?.add(value)
+                TAG_EXAMPLE -> senses.lastOrNull()?.let {
+                    it.examples.add(Example(value))
+                    citable = it
+                }
                 TAG_TRANSLATION -> senses.lastOrNull()?.translations?.add(value)
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
@@ -245,7 +275,11 @@ object PayloadCodec {
         for (sense in body.senses) {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')
             for (example in sense.examples) {
-                out.append(TAG_EXAMPLE).append('\t').append(example).append('\n')
+                out.append(TAG_EXAMPLE).append('\t').append(example.text).append('\n')
+                // Pegada a su ejemplo, que es lo que [parse] exige para aceptarla.
+                example.citation?.let {
+                    out.append(TAG_CITATION).append('\t').append(it).append('\n')
+                }
             }
             for (translation in sense.translations) {
                 out.append(TAG_TRANSLATION).append('\t').append(translation).append('\n')
@@ -264,7 +298,7 @@ object PayloadCodec {
     }
 
     private class MutableSense(val gloss: String) {
-        val examples = mutableListOf<String>()
+        val examples = mutableListOf<Example>()
         val translations = mutableListOf<String>()
         val synonyms = mutableListOf<String>()
         val antonyms = mutableListOf<String>()
