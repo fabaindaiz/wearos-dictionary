@@ -3060,6 +3060,62 @@ la forma del catálogo (un JSON con `pack_id`, `data_version`, `bytes`, `sha256`
 trabajo de WorkManager con las restricciones de D-029, y la pantalla que hoy es un WIP explícito
 en `PacksScreen`. Nada de eso necesita un servidor para escribirse ni para probarse.
 
+#### Actualización versionada de packs: no volver a bajar 192 MB por un cambio chico
+
+**Estado.** Investigado con fuentes primarias el 2026-09-21, **nada implementado**. Pedido como
+*«más un deseable que un requisito»*, y la investigación explica por qué conviene que siga siendo
+un deseable un rato más.
+
+**El problema, con el número.** Un rebuild del inglés cambia `data_version` y hoy eso significa
+**306,8 MB** otra vez (192 comprimidos), sólo mientras el reloj carga y con Wi-Fi (D-029). Entre
+dos builds del mismo dump la mayoría de las filas son idénticas.
+
+**Las dos familias, y por qué una queda descartada.**
+
+| Vía | Qué produce | Veredicto |
+|---|---|---|
+| **`sqldiff`** (SQLite oficial) | SQL o un *changeset* binario que transforma la base | ⚠️ **Descartada, y por una razón de fondo** |
+| **zsync** (rsync del lado del cliente) | Los bloques que cambiaron, por `Range` sobre HTTP | ✅ **La candidata** |
+
+⚠️ **`sqldiff` rompe el modelo de verificación entero, y eso es más grave que su coste.** Un
+changeset **muta** el archivo destino, así que el resultado **no es byte a byte idéntico** a ningún
+artefacto publicado. Y las escrituras de SQLite no son deterministas a nivel de bytes —la
+asignación de páginas y la lista de libres dependen de la historia del archivo— de modo que **el
+`sha256` publicado dejaría de coincidir**, que es exactamente en lo que se apoya D-165. Habría que
+reemplazar la verificación de bytes por una de contenido, y eso es tirar la única comprobación
+que hoy detecta una descarga corrupta. Además `sqldiff` sólo soporta FTS5 con `--vtab`, y sin ese
+flag la documentación oficial avisa de que aplicar el resultado **puede corromper** la tabla
+virtual. Ver `docs/references.md`.
+
+✅ **zsync no tiene ese problema porque reconstruye el archivo exacto.** El cliente descarga un
+metafichero `.zsync` con sumas por bloque, compara contra el pack que ya tiene y pide por `Range`
+sólo los bloques distintos. El resultado es **bit a bit el pack publicado**, así que el `sha256` de
+D-165 sigue valiendo sin cambiar nada. Y no necesita servidor especial: HTTP/1.1 con `Range`, que
+es lo que `tools/packserver.py` ya sirve y lo que D-040 eligió.
+
+**Lo que esto ya cambió, aunque no se implemente nada.** El servidor de desarrollo publica el
+`.db` **en crudo además del `.gz`**, porque zsync necesita bytes que se parezcan a la versión
+anterior y un flujo gzip no se parece en nada después del primer byte que cambia. La versión
+actual de zsync **quitó** el soporte de mirar dentro de archivos comprimidos (necesitaba una zlib
+parcheada; sólo sigue en la 0.6.4).
+
+**Con qué choca, y lo que falta medir antes de decidir.**
+
+1. **Cuánto se ahorraría de verdad.** Nadie lo midió. Se mide barato: `sqldiff --summary` entre dos
+   builds del mismo dump da las filas que cambiaron, y comparar páginas SQLite de 4 KB entre los
+   dos `.db` da la cota real de bloques. **Sin ese número esto no se justifica**, igual que el
+   presupuesto de 50 MB que se retiró por no haber cambiado nunca una decisión (D-207).
+2. **Hay que tener el pack viejo mientras se reconstruye el nuevo**: 306 + 306 MB transitorios. Hay
+   9,0 GiB libres, así que cabe, pero deja de caber si algún día hay varios idiomas completos.
+3. **No hay implementación de zsync en Kotlin/Java** que valga la pena adoptar, y escribir el
+   cliente es trabajo real: rolling checksum, el parseo del metafichero, y la reconstrucción por
+   bloques. Es más código que el instalador completo.
+4. **`--flexiones` y el orden del rebuild** hacen que el inglés cambie cada vez que cambia el
+   español, así que dos packs se mueven juntos más de lo que parece.
+
+**Qué hay que decidir antes.** Nada de producto. Es puramente *¿el ahorro medido justifica el
+cliente?*, y el paso siguiente es la medición del punto 1, que no necesita ni reloj ni servidor.
+
 #### Los tres momentos de validación, y por qué no usan lo mismo
 
 | Momento | Qué pregunta | Con qué | Estado |

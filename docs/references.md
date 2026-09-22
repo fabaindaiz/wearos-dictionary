@@ -304,3 +304,27 @@ one of those entries is about to hold up a decision, read the source first.
 | Performance or startup | the Wear OS performance page | R8 is off today; the emulator does not measure performance |
 | Battery | the Wear OS power page | Battery Historian is unmaintained; the cost is in the network, not the CPU |
 | Downloads | the Wear OS principles | "charging **and** Wi-Fi", not just Wi-Fi |
+
+- **[sqldiff: Database Difference Utility](https://www.sqlite.org/sqldiff.html)** — *(primary
+  source, read 2026-09-21)* The official SQLite tool that emits the SQL (or a binary changeset with
+  `--changeset`) to turn one database into another.
+  **What it confirms:** FTS5 *is* supported, but **only with `--vtab`**; without it sqldiff
+  compares the shadow tables and the page warns that running the result on a slightly different
+  database **can corrupt the virtual table**. It also does not diff triggers or views, and it is
+  "forgiving with respect to differing column definitions" — it will not warn about an
+  incompatibility.
+  **What it rules out for us, and this is the finding:** a changeset **mutates** the target, so the
+  patched file is not byte-identical to any published artifact. SQLite writes are not
+  byte-deterministic — page allocation and the freelist depend on history — so **the published
+  `sha256` would no longer match**, which is the entire verification model of D-165. Content-level
+  verification would have to replace it.
+
+- **[zsync](http://zsync.moria.org.uk/)** — *(primary source, read 2026-09-21)* rsync's algorithm
+  moved to the client, over plain HTTP.
+  **What it confirms:** **no special server is needed** — an HTTP/1.1 server plus a precomputed
+  `.zsync` metafile of block checksums, and the client fetches only the changed blocks. That fits
+  `tools/packserver.py` (static files + `Range`) and D-040 exactly, and unlike sqldiff it yields a
+  **byte-identical** result, so the published hash keeps working.
+  **What it corrects:** the current release **removed** look-inside-compressed-file support (it
+  needed a patched zlib); that lives on in 0.6.4 only. So delta updates want the **raw `.db`**, not
+  the `.gz` — which is why the server publishes both.
