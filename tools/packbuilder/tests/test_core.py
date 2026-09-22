@@ -65,6 +65,58 @@ class BuildCoreTest(unittest.TestCase):
         with sqlite3.connect(path) as db:
             return db.execute(sql).fetchall()
 
+    # --- Los tres tamanos: core, main, full (D-215) ------------------------------------
+
+    def test_el_presupuesto_toma_las_entradas_en_orden_de_RANK(self):
+        """`rank` ya es frecuencia de uso, asi que es el orden de importancia.
+
+        ⚠️ Medido sobre los packs reales: un presupuesto de 50 MB en ingles toma 59.503 entradas,
+        y las que tienen senal de frecuencia --`rank < 500`-- son 55.903. O sea que *"las palabras
+        importantes y de uso general"* y *"las que algun corpus atestigua"* son el mismo conjunto.
+        No hace falta inventar un criterio.
+        """
+        # ⚠️ El pack de `setUp` NO sirve para esto y una mutacion lo demostro: ahi el orden por
+        # rank y el alfabetico casi coinciden --`agua` es la primera por las dos vias-- asi que
+        # ordenar por `headword` pasaba el test igual. Hace falta un pack donde se CONTRADIGAN.
+        # ⚠️ Sin guiones bajos: `norm()` los convierte en espacio, y el primer intento de este
+        # test comparaba contra el lema sin normalizar.
+        contrario = os.path.join(self.dir, "contrario.db")
+        with build.PackBuilder(contrario, dict(BASE_META)) as b:
+            b.add(rec("abeja", rank=999))
+            b.add(rec("zebra", rank=1))
+        vocab = build_core.vocabulario_por_presupuesto(contrario, presupuesto_mb=0.02)
+        self.assertEqual(
+            {"zebra"}, vocab,
+            "con presupuesto para UNA entrada entra la de rank 1, no la primera del alfabeto",
+        )
+
+    def test_un_presupuesto_enorme_se_lo_lleva_todo(self):
+        vocab = build_core.vocabulario_por_presupuesto(self.completo, presupuesto_mb=9999)
+        for lema in ("agua", "correr", "quilombo", "ornitorrinco", "banco"):
+            self.assertIn(lema, vocab, lema)
+
+    def test_el_nivel_va_en_el_NOMBRE_y_en_tier(self):
+        """Pedido: *«3 tamanos, core, main y full, y que esto vaya marcado en el nombre»*."""
+        salida = os.path.join(self.dir, "main.db")
+        build_core.derive(self.completo, salida, {"agua", "correr"}, tier="main")
+        meta = dict(self._filas(salida, "select key, value from meta"))
+        self.assertEqual("main", meta["tier"])
+        self.assertEqual("Español (main)", meta["name"])
+
+    def test_la_identidad_es_IDIOMA_mas_nivel_y_no_las_fuentes(self):
+        """Pedido: *«los packs son por idioma y en versiones»*.
+
+        ⚠️ Antes el `pack_id` era `es-def-wikc-tat-freq-wn-wd`, o sea la lista de fuentes. Eso hace
+        que **anadir una fuente cambie la identidad** y el pack parezca otro: la app no lo
+        reconoceria como el que ya tiene instalado. Las fuentes siguen declaradas en `meta.sources`,
+        que es donde se consultan.
+        """
+        salida = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, salida, {"agua"}, tier="core")
+        meta = dict(self._filas(salida, "select key, value from meta"))
+        self.assertEqual("es-core", meta["pack_id"])
+        self.assertEqual("es-def-wikc", meta["subset_of"], "sigue diciendo de quien es subconjunto")
+
     def test_solo_entran_los_lemas_del_vocabulario(self):
         core = self._core({"agua", "correr"})
         lemas = sorted(r[0] for r in self._filas(core, "SELECT headword FROM entry"))
@@ -91,7 +143,9 @@ class BuildCoreTest(unittest.TestCase):
         core = self._core({"agua"})
         meta = dict(self._filas(core, "SELECT key, value FROM meta"))
         self.assertEqual("es-def-wikc", meta["subset_of"])
-        self.assertEqual("es-def-wikc-core", meta["pack_id"])
+        # ⚠️ Era `es-def-wikc-core`, o sea las fuentes + el nivel. Desde D-215 la identidad es
+        # IDIOMA + NIVEL: anadir una fuente ya no cambia el pack_id ni hace que parezca otro pack.
+        self.assertEqual("es-core", meta["pack_id"])
 
     def test_las_formas_flexionadas_del_lema_viajan_con_el(self):
         # Sin esto, buscar "corriendo" en el nucleo no encontraria "correr", que es el peldano 2

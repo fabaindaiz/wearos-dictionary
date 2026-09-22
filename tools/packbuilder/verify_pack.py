@@ -75,7 +75,19 @@ REQUIRED_META = (
 #
 # El idioma son dos letras (ISO 639-1); el tipo es `def` o `tr`; la fuente y las variantes salen
 # del catalogo de `build_pack.FUENTES` y de las opciones de la CLI.
-GRAMATICA_DE_PACK_ID = re.compile(r"^[a-z]{2}-(def|tr)-[a-z0-9]{2,8}(-[a-z0-9]{1,16})*$")
+#: Las dos formas que puede tener un `pack_id`, y son dos por una razon.
+#:
+#: ⚠️ **`<idioma>-<nivel>` es la forma NUEVA (D-215)**, y existe porque la vieja ataba la identidad
+#: a las fuentes: `es-def-wikc-tat-freq-wn-wd` cambia de id **al anadir una fuente**, y entonces el
+#: pack parece otro y la app no lo reconoce como el que ya esta instalado. Las fuentes siguen
+#: declaradas en `meta.sources`, que es donde se consultan.
+#:
+#: La forma vieja `<idioma>-<tipo>-<fuente>` se sigue aceptando porque el pack **bilingue** no
+#: tiene niveles --su proposito es otro-- y porque los packs ya construidos la usan.
+NIVELES_DE_PACK = ("core", "main", "full")
+GRAMATICA_DE_PACK_ID = re.compile(
+    r"^[a-z]{2}-(?:(?:core|main|full)|(?:def|tr)-[a-z0-9]{2,8}(?:-[a-z0-9]{1,16})*)$"
+)
 
 # Cuantos campos tiene una fila de `meta.sources`. Espeja PackSource.CAMPOS en Kotlin.
 CAMPOS_DE_FUENTE = 5
@@ -154,7 +166,7 @@ def verify(path):
         % (perfiles, declarados),
     )
     report.check(
-        meta.get("tier") in ("core", "full"),
+        meta.get("tier") in NIVELES_DE_PACK,
         "meta.tier declara que clase de pack es (%r)" % meta.get("tier"),
     )
     # ⚠️ **Ningun `entry.lang` puede quedar fuera de lo declarado.** Es la invariante que hace
@@ -203,8 +215,8 @@ def verify(path):
     pack_id = meta.get("pack_id") or ""
     report.check(
         bool(GRAMATICA_DE_PACK_ID.match(pack_id)),
-        "meta.pack_id es un codigo y no un nombre generico (%r; forma "
-        "<idioma>-<tipo>-<fuente>[-variante])" % pack_id,
+        "meta.pack_id es un codigo y no un nombre generico (%r; forma <idioma>-<nivel> "
+        "para los packs por idioma, o <idioma>-<tipo>-<fuente> para el bilingue)" % pack_id,
     )
 
     # El manifiesto: que aporto cada fuente y bajo que licencia. Sin esto el pack abre, busca y
