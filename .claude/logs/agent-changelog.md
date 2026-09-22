@@ -26,6 +26,66 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El pipeline estaba roto, y la clase del rank que sí tenía regla
+**Qué.** Dos rutas de `build_packs.py` que apuntaban a dumps que sus lectores no parsean, con el
+test que ahora fija los nombres además del orden. Una tarea **permanente** en el roadmap para el
+rebuild. Y la primera de las tres clases del lavado de frecuencia, construida.
+
+**Áreas.** `tools/build_packs.py`, `tools/packbuilder/tests/test_build_packs.py`,
+`tools/packbuilder/sources/kaikki.py`, `tools/packbuilder/tests/test_source_kaikki.py`,
+`docs/roadmap.md`.
+
+**Por qué.** Pedido: *«¿quedan cambios por aplicar antes del rebuild? Revisa el roadmap,
+reprioriza [...] añade el rebuild como una tarea repetitiva que siempre queda en el roadmap»*.
+La respuesta al barrer fue que sí, y que uno era bloqueante.
+
+**Arquitectura.** ✅ Cumple. La decisión de tocar **sólo** la clase con regla es del usuario, con
+las tres clases medidas sobre la mesa.
+
+**Medido.**
+- **El pipeline le pasaba a dos lectores un dump que no saben leer**: `es-wd` recibía
+  `es_dbnary_ontolex.ttl.bz2` (`sources/wikidata` hace `json.loads` por línea) y `--tesauro` del
+  español recibía `es_dbnary_enhancement.ttl.bz2` (`wordnet.spanish` abre como texto y parte por
+  tabs). `JSONDecodeError` y `UnicodeDecodeError` en la primera línea. Verificado corriendo los
+  lectores contra los dumps corregidos: **48.402 lemas con sinónimos** en 1,1 s, y Wikidata
+  entregando `Record`s en streaming.
+- **Los packs publicados llevan la identidad vieja**: `es-def-wikc-tat-freq-wn-wd` contra el
+  `es-full` que el builder produce hoy. D-215 sola ya obliga al rebuild, y es de otra sesión.
+- **El rank, sobre la muestra 1/20 del inglés**: la banda `[0,500)` pasa de 2.800 a **2.567**, y
+  las **233** que salen son *exactamente* las mayúsculas — nada más se movió, y las entradas
+  totales son idénticas. La parte de la banda que era ruido con mayúscula cae de **11,4 % a
+  3,4 %**. Escalado ×20 son ~4.660 contra las 4.246 predichas, algo más porque la regla mira el
+  dump y no sólo las entradas muestreadas.
+- Casos concretos: `AND` 0 → 988, `His` 54 → 995, `PUT` 87 → 992, `MISS` 108 → 997.
+
+**Qué salió mal.**
+1. ⚠️ **El pipeline nunca se había corrido de punta a punta, y su propio docstring lo decía sin
+   querer**: *«`plan()` se devuelve en vez de correrse: la forma del plan entra al gate»*. El
+   gate verificaba la **forma** y no los **nombres**, así que el orden correcto sobre los
+   archivos equivocados pasaba. La lección no es el typo: es qué mitad del plan estaba fijada.
+2. ⚠️ **Leer el pack construido encontró un sub-caso que la regla deja afuera.** `CATS` (201) y
+   `FIRES` (213) siguen en la banda porque sus minúsculas existen **sólo como páginas de forma**,
+   y la regla las excluye — con un argumento que tiene su contra: la frecuencia de `cats` sí
+   tiene dueño en minúscula, el lema `cat`. Medido: **5 de las 76** que quedan en la muestra,
+   ~100 en el pack completo. No se cambió, porque extenderlo revierte una decisión documentada y
+   con test por un 2 % más.
+3. Puse `Opciones(...)` **antes** de la pasada 1 que calcula lo que recibe: seis tests de
+   `test_segunda_fuente` reventaron con un `NameError` que no nombraba la variable.
+4. El `--dry-run` **sobre-reporta a propósito** y no estaba escrito: lista `es-main` aunque la
+   corrida real lo salte, porque el guard mira el tamaño del `full`, que en un dry-run no existe.
+
+**Qué quedó sin hacer.**
+- **No se reconstruyó nada**, por decisión explícita. La deuda —D-215, D-216, D-218 y ahora el
+  rank— queda en la tarea permanente del roadmap, que es justamente para que no se olvide.
+- Las **otras dos clases del rank** (1.333 con hermano `pos=name` y 883 sin ninguna señal) siguen
+  abiertas: mezclan `Thomas` con `Christmas` y no hay dato en disco que las separe.
+- ⚠️ **§La calidad del contenido del pack español tenía números de hace dos semanas** —decía
+  114.619 entradas y 68,3 MB contra las 152.281 reales, y citaba el presupuesto de D-028 que
+  D-207 retiró—. Corregido, pero es la segunda sección del roadmap que se encuentra desfasada en
+  dos sesiones seguidas.
+
+---
+
 ## 2026-09-22 — El verificador gana un modo espejo de la app, y el espejo nace con enforcer
 **Qué.** `verify_pack.py --como-la-app` corre sobre un pack exactamente lo que `PackFile.open`
 rechaza, en el mismo orden, e imprime el `PackRejection` que el usuario leería. Acepta varios
