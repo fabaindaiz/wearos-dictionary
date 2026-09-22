@@ -62,6 +62,10 @@ DUMPS, BUILD, DIST = "dumps", "build", "dist"
 #: el mismo contenido. Eso lo decide [_niveles], no una lista escrita a mano.
 PRESUPUESTO = {"core": 40, "main": 130}
 
+#: La lista de frecuencias de cada idioma. Es la misma con la que se construyo el `full`, y usar
+#: la misma importa: el corte de un nivel y el `rank` del pack tienen que hablar del mismo corpus.
+LISTAS_DE_FRECUENCIA = {"en": "freq-en-opensubs.txt", "es": "freq-es-opensubs.txt"}
+
 
 def _ruta(raiz, *partes):
     return os.path.join(raiz, *partes)
@@ -78,9 +82,13 @@ def _niveles(raiz, idioma, tamano_full_mb):
         pasos.append({
             "nombre": "%s-%s" % (idioma, nivel),
             "salida": _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
+            # ⚠️ **`--frecuencias` no es opcional en la practica.** Sin la lista el nivel se
+            # corta por `rank`, y eso esta medido: entre 0,97 y 1,53 puntos menos de cobertura
+            # del corpus, con menos lemas adentro. `build_core` avisa por stderr si falta.
             "comando": [sys.executable, BUILD_CORE, full,
                         _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
-                        "--budget-mb", str(presupuesto), "--tier", nivel],
+                        "--budget-mb", str(presupuesto), "--tier", nivel,
+                        "--frecuencias", _ruta(raiz, DUMPS, LISTAS_DE_FRECUENCIA[idioma])],
             "verifica": True,
         })
     return pasos

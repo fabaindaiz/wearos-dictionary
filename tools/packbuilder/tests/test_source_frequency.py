@@ -94,3 +94,43 @@ class ListaDeFrecuenciasTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PorNormTest(unittest.TestCase):
+    """⚠️ Existe por una medicion que salio mal, no por completitud.
+
+    Escrito como diccionario por comprension, la ultima palabra que comparte clave **pisa** a las
+    anteriores: en la lista inglesa `a` quedaba con 3.942 apariciones en vez de 14.484.562, y el
+    sintoma no fue un error sino un orden absurdo -- `didn` encabezando las palabras mas
+    frecuentes del ingles.
+    """
+
+    def test_las_que_comparten_clave_se_SUMAN(self):
+        def norm(p):
+            return p.lower().replace("\u00e1", "a")
+        self.assertEqual(
+            {"a": 111},
+            frequency.por_norm({"A": 100, "\u00e1": 10, "a": 1}, norm),
+        )
+
+    def test_una_clave_vacia_no_entra(self):
+        self.assertEqual({}, frequency.por_norm({"  ": 5}, lambda p: p.strip()))
+
+
+class CoberturaTest(unittest.TestCase):
+    """La metrica de un nivel: que fraccion de los TOKENS del corpus tiene adentro."""
+
+    FREC = {"de": 100, "casa": 10, "ornitorrinco": 1}
+
+    def test_cubrir_la_palabra_mas_usada_vale_mas_que_cubrir_dos_raras(self):
+        # Es el punto de medir tokens y no tipos: dos de tres palabras es el 66 % de los TIPOS y
+        # el 9,9 % de los TOKENS. Lo segundo es lo que el usuario siente.
+        self.assertAlmostEqual(90.09, frequency.cobertura({"de"}, self.FREC), places=2)
+        self.assertAlmostEqual(9.91, frequency.cobertura({"casa", "ornitorrinco"}, self.FREC), places=2)
+
+    def test_todo_o_nada(self):
+        self.assertEqual(100.0, frequency.cobertura(set(self.FREC), self.FREC))
+        self.assertEqual(0.0, frequency.cobertura(set(), self.FREC))
+
+    def test_un_corpus_vacio_no_divide_por_cero(self):
+        self.assertEqual(0.0, frequency.cobertura({"de"}, {}))

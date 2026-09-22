@@ -2,6 +2,7 @@
 
     python3 verify_pack.py ruta/al/pack.db
     python3 verify_pack.py --como-la-app pack.db [...]   # lo que la APP comprueba, y nada mas
+    python3 verify_pack.py pack.db --frecuencias <lista>  # ademas, recalcula meta.corpus_coverage
 
 Corre sobre el pack final, no sobre el builder: chequea el artefacto que realmente se va a
 descargar al reloj. Un pack a medio construir o con la normalizacion desfasada se abre sin
@@ -26,6 +27,7 @@ import sys
 
 import normalize
 import payload as payload_codec
+from sources import frequency as _frequency
 
 import build
 
@@ -109,6 +111,9 @@ REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 # Cuantas entradas se descomprimen para comprobar los payloads. Descomprimir el pack completo
 # en un diccionario real tomaria minutos; una muestra al azar detecta lo mismo.
 PAYLOAD_SAMPLE = 200
+
+#: La lista con la que comprobar `meta.corpus_coverage`, o None. La pone `main` desde la CLI.
+FRECUENCIAS_PARA_VERIFICAR = None
 
 # Los tags que el formato define hoy. Se listan y no se derivan de `dir(payload_codec)` para que
 # agregar uno sea un acto explicito: un tag nuevo tiene que entrar aca **y** en el espejo Kotlin.
@@ -318,6 +323,27 @@ def verify(path):
         db.execute("SELECT COUNT(*) FROM fts_def").fetchone()[0] == entry_count,
         "fts_def tiene una fila por entrada",
     )
+
+    # ⚠️ **La cobertura declarada se RECALCULA, o no vale nada.** Un nivel escribe en
+    # `meta.corpus_coverage` que fraccion de los tokens del corpus tiene adentro, y ese numero es
+    # lo unico que justifica su corte (D-219). Declararlo sin comprobarlo lo vuelve una intencion:
+    # el artefacto se recorta mal y sigue diciendo que cubre el 96 %.
+    #
+    # Sin la lista NO se puede comprobar, y entonces se dice que no se comprobo en vez de callarlo.
+    if "corpus_coverage" in meta:
+        declarada = float(meta["corpus_coverage"])
+        if FRECUENCIAS_PARA_VERIFICAR:
+            crudas = _frequency.load(FRECUENCIAS_PARA_VERIFICAR)
+            frec = _frequency.por_norm(crudas, normalize.norm)
+            vocabulario = {row["norm"] for row in db.execute("SELECT DISTINCT norm FROM entry")}
+            real = _frequency.cobertura(vocabulario, frec)
+            report.check(
+                abs(real - declarada) < 0.05,
+                "meta.corpus_coverage dice %.2f %% y el pack cubre %.2f %%" % (declarada, real),
+            )
+        else:
+            report.note("meta.corpus_coverage = %.2f %% (declarado; sin --frecuencias no se "
+                        "comprueba)" % declarada)
 
     print("\n[integridad referencial]")
     # SQLite no aplica claves foraneas aca (las tablas no las declaran, para no pagar el
@@ -973,8 +999,14 @@ def como_la_app(path):
 
 
 def main(argv):
-    argumentos = [a for a in argv[1:] if not a.startswith("--")]
-    banderas = {a for a in argv[1:] if a.startswith("--")}
+    global FRECUENCIAS_PARA_VERIFICAR
+    resto = list(argv[1:])
+    if "--frecuencias" in resto:
+        i = resto.index("--frecuencias")
+        FRECUENCIAS_PARA_VERIFICAR = resto[i + 1]
+        del resto[i:i + 2]
+    argumentos = [a for a in resto if not a.startswith("--")]
+    banderas = {a for a in resto if a.startswith("--")}
     desconocidas = banderas - {"--como-la-app"}
     if not argumentos or desconocidas:
         print(__doc__)

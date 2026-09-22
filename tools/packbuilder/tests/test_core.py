@@ -90,6 +90,59 @@ class BuildCoreTest(unittest.TestCase):
             "con presupuesto para UNA entrada entra la de rank 1, no la primera del alfabeto",
         )
 
+    def test_con_la_lista_de_frecuencias_gana_la_MAS_USADA_y_no_la_de_mejor_rank(self):
+        """⚠️ **El corte por `rank` es peor que el corte por frecuencia, y esta medido.**
+
+        `rank` ya sale de la frecuencia, pero **bucketizado**: `int(round(zipf * 70))` mete miles
+        de palabras en el mismo numero y el desempate es alfabetico, asi que una palabra gorda que
+        empieza con `a` desplaza a una mas usada y mas flaca. Y pasado el 500 deja de ser
+        frecuencia: es riqueza de pagina, que correlaciona **-0,250** con el uso real.
+
+        Medido sobre los packs reales, cobertura de tokens del corpus:
+
+        | | por `rank` | por frecuencia | delta |
+        |---|---|---|---|
+        | ingles 25 MB | 93,46 % | **94,43 %** | +0,97 |
+        | ingles 40 MB | 94,75 % | **96,03 %** | +1,28 |
+        | ingles 130 MB | 95,10 % | **96,63 %** *(= el pack completo)* | +1,53 |
+        | español 25 MB | 77,59 % | **78,87 %** *(= el pack completo)* | +1,28 |
+
+        Y ademas entran **mas** lemas, no menos: el corte por rank gasta el presupuesto en las
+        paginas gordas.
+        """
+        contrario = os.path.join(self.dir, "empate.db")
+        with build.PackBuilder(contrario, dict(BASE_META)) as b:
+            # Mismo rank: por rank desempata el alfabeto y entra `alfa`. Por frecuencia, `zulu`.
+            b.add(rec("alfa", rank=100))
+            b.add(rec("zulu", rank=100))
+        vocab = build_core.vocabulario_por_presupuesto(
+            contrario, presupuesto_mb=0.02, frecuencias={"zulu": 999, "alfa": 1})
+        self.assertEqual({"zulu"}, vocab)
+
+    def test_sin_lista_de_frecuencias_sigue_cortando_por_rank(self):
+        """La lista es opcional: sin ella el comportamiento es el de antes, no un error.
+
+        Importa porque `build_core` deriva de un pack ya construido y puede correrse a mano sobre
+        uno cualquiera, sin tener a mano el corpus con el que se construyo.
+        """
+        contrario = os.path.join(self.dir, "sin-lista.db")
+        with build.PackBuilder(contrario, dict(BASE_META)) as b:
+            b.add(rec("abeja", rank=999))
+            b.add(rec("zebra", rank=1))
+        vocab = build_core.vocabulario_por_presupuesto(contrario, presupuesto_mb=0.02)
+        self.assertEqual({"zebra"}, vocab)
+
+    def test_una_palabra_SIN_frecuencia_va_detras_de_las_que_tienen(self):
+        # La lista cubre ~50.000 palabras y el pack ingles tiene 842.026 lemas: el 95,5 % no
+        # tiene senal. Esas se ordenan entre si por `rank`, detras de todas las atestiguadas.
+        contrario = os.path.join(self.dir, "mixto.db")
+        with build.PackBuilder(contrario, dict(BASE_META)) as b:
+            b.add(rec("rara", rank=1))       # mejor rank, pero el corpus no la vio
+            b.add(rec("comun", rank=400))    # peor rank, pero atestiguada
+        vocab = build_core.vocabulario_por_presupuesto(
+            contrario, presupuesto_mb=0.02, frecuencias={"comun": 500})
+        self.assertEqual({"comun"}, vocab)
+
     def test_un_presupuesto_enorme_se_lo_lleva_todo(self):
         vocab = build_core.vocabulario_por_presupuesto(self.completo, presupuesto_mb=9999)
         for lema in ("agua", "correr", "quilombo", "ornitorrinco", "banco"):
