@@ -26,6 +26,78 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — Descargar un pack funciona, y el emulador encontró cuatro defectos que los tests no veían
+**Qué.** El instalador dejó de ser un plan. `PackDownloader` (dos etapas, dos hashes, reanudación
+por `Range`), `DownloadPackWorker` (WorkManager con las restricciones de D-029), la fila pulsable
+en la pantalla de gestión con su estado, y la recarga de packs al terminar. D-214.
+
+**Áreas.** Dos archivos nuevos en el paquete `data` de `:app` —`PackDownloader` y
+`DownloadPackWorker`— más `PackStore`, `Catalog`, `SearchViewModel`, `PacksScreen`, `MainActivity`
+y los dos `strings.xml`. La dependencia de WorkManager, que llevaba tiempo en el catálogo de
+versiones sin usarse.
+
+**Por qué.** Pedido: *«sigue probando hasta que logres descargar un pack de idioma desde el
+servidor»*. El catálogo ya listaba; faltaba el verbo.
+
+**Arquitectura.** ✅ Cumple. D-029 se respeta **y ahora está fijada por un test**.
+
+**Medido.** Verificado en el emulador contra `tools/packserver.py`:
+
+```
+worker: encolado en-pack-de-prueba (cargando + Wi-Fi sin medir)
+worker: empieza en-pack-de-prueba
+descarga: http://localhost:8765/packs/en-nuevo.db.gz
+descarga: instalado 12 MB en en-nuevo.db
+descarga terminada: en-pack-de-prueba
+packs en disco: 3 (en-core.db, en-nuevo.db, es-core.db)
+listo: 3 abiertos, 0 rechazados
+catalogo: INSTALLED=2 INCOMPATIBLE=1
+```
+
+El `sha256` del archivo instalado es **idéntico al publicado**, en descarga y en actualización.
+La actualización subió `dataVersion` de `202609211911` a `202609211912`.
+
+**Qué salió mal.** Cuatro defectos, **ninguno visible desde un test**, y uno de ellos fue mi propio
+arreglo:
+
+1. ⚠️ **El emulador no cumplía D-029 y el trabajo se quedaba encolado para siempre.** `dumpsys
+   jobscheduler` lo dijo: `Unsatisfied constraints: CONNECTIVITY`. La red por defecto del emulador
+   es celular simulada —medida— y el Wi-Fi venía apagado. Se arregla con
+   `cmd wifi connect-network AndroidWifi open` y `dumpsys battery set ac 1 / set status 2`. Sin
+   tocar D-029.
+2. ⚠️ **WorkManager CONSERVA los trabajos terminados**, y nadie lo había escrito. La primera
+   emisión de cada arranque trae los DONE de sesiones anteriores, y eso causó **dos** defectos
+   distintos: republicaba el catálogo estando vacío —la pantalla decía *«Nada nuevo»* sin que nadie
+   preguntara— y mostraba la fila como *«Instalado»* **dejándola no pulsable**, aunque el pack
+   estuviera borrado y el catálogo lo ofreciera. No había forma de volver a bajarlo.
+3. ⚠️ **Mi primer arreglo del punto 2 tenía su propio defecto**: escondía la historia pero dejaba
+   marcado al pack, así que su descarga **nueva** tampoco contaba al terminar. La fase se veía bien
+   en pantalla y no se recargaba nada. Son **dos registros** —lo que se esconde y lo que ya se
+   contó— y yo limpié uno. **El síntoma era la ausencia de una línea de log**, y sólo el emulador
+   lo mostró.
+4. ⚠️ **La descarga creó un downgrade silencioso.** `es-core.db` viene en el APK; actualizarlo
+   desde el catálogo reescribe ese archivo, y la regla era que una versión nueva de la app
+   re-extrae sus packs — lo que pisaría el nuevo con el viejo **sin un error**, porque el viejo
+   abre igual de bien. Tercer caso añadido: **el catálogo gana sobre el APK**.
+
+Menores: un comentario XML no puede contener `--` (otra vez); `asHumanSize` usa MB decimales y no
+MiB, y mi test asumía MiB; `SearchViewModelTest` usa `kotlin.test.assertEquals` (mensaje al final)
+y `ScreensTest` la de JUnit (mensaje al principio).
+
+**Qué quedó sin hacer.**
+- **No se puede CANCELAR una descarga** ni sacarla de la cola. Con el inglés en 192 MB se va a
+  notar, y es lo primero que falta.
+- **Sólo se probó con packs de 9 MB.** La reanudación tiene test unitario, pero **nadie ha cortado
+  el Wi-Fi a mitad de 192 MB reales**.
+- **Nada de esto se ha visto en un reloj físico.** Y ⚠️ **`benchmark` no puede hablar con el
+  servidor** (`http://` sólo en `debug`).
+- **`gradle/libs.versions.toml` tiene un bump de AGP 9.4.0 → 9.4.1 sin commitear que NO es mío.**
+  Se dejó fuera de todos los commits de esta sesión.
+- El linter de Python sigue con 18 findings preexistentes, y `tools/CLAUDE.md` afirma que `check`
+  *«has to be zero»*. Es la **segunda** vez que se anota: sube al roadmap §Proceso si reaparece.
+
+---
+
 ## 2026-09-22 — Logs por todas partes, un servidor de packs, y el catálogo que afiló la promesa del proyecto
 **Qué.** Tres piezas pedidas en un mismo turno. **(1) Observabilidad**: la app no tenía **ni un
 `Log`**, así que se creó `DictLog` (en `:app`) y `SearchTrace` (en `:dict-core`, que no puede
