@@ -37,6 +37,13 @@ the one case where the gate is not enough.
 
 ## If you touched the pack format
 
+And before sideloading anything, `--como-la-app` over every pack you are about to push: it
+answers the other question, *"if I install this, does it show up?"*, and it takes seconds.
+
+```sh
+python3 tools/packbuilder/verify_pack.py --como-la-app <dir>/dist/*.db
+```
+
 On top of the above, `verify_pack.py` over any real pack there is. Look specifically at the
 `[planes de consulta]` section: if the prefix stops using `COVERING INDEX`, the incremental search
 stops meeting its latency budget and **nothing else would notice**.

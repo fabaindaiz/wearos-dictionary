@@ -382,6 +382,195 @@ class CitaHuerfanaTest(BuilderTestCase):
         self.assertEqual(0, codigo, salida)
 
 
+class ComoLaAppTest(BuilderTestCase):
+    """El modo espejo: `verify_pack.py --como-la-app` contesta lo que la app contestaria.
+
+    ⚠️ **Es el cuarto contrato cruzado del repo** (D-217), y lo que lo sostiene es doble: la
+    auditoria compara los ids de `MOTIVOS_DE_LA_APP` contra el enum `PackRejection`, y estos
+    casos comprueban que cada motivo **se dispare de verdad**. Sin lo segundo, una tabla con los
+    ids correctos y las comprobaciones rotas pasaria la auditoria y mentiria en cada respuesta.
+    """
+
+    def _pack(self, **meta_extra):
+        metadata = dict(BASE_META)
+        metadata.update(meta_extra)
+        with build.PackBuilder(self.path, metadata) as builder:
+            builder.add(record("correr"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        return codigo, salida.getvalue()
+
+    def _con_meta_crudo(self, clave, valor):
+        """Escribe en `meta` DESPUES de construir: el builder no deja poner un valor invalido."""
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        if valor is None:
+            db.execute("DELETE FROM meta WHERE key = ?", (clave,))
+        else:
+            db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (clave, valor))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        return codigo, salida.getvalue()
+
+    def test_un_pack_recien_construido_lo_abriria(self):
+        codigo, salida = self._pack()
+        self.assertEqual(0, codigo, salida)
+        self.assertIn("la app lo abriria", salida)
+
+    def test_otro_esquema_se_reporta_como_esquema_y_no_como_metadata(self):
+        """⚠️ El caso que encontraron los packs reales de `schema_version` 3.
+
+        Un pack de otro esquema **tambien** puede no traer claves que nacieron despues, asi que
+        los dos motivos aplican. El que se reporta tiene que ser el esquema: es el unico que le
+        dice al usuario que hacer.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("UPDATE meta SET value = '3' WHERE key = 'schema_version'")
+        db.execute("DELETE FROM meta WHERE key IN ('langs', 'fuzzy_profiles')")
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        salida = salida.getvalue()
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO schema", salida)
+        self.assertNotIn("RECHAZADO metadata", salida)
+
+    def test_una_clave_obligatoria_que_falta_es_metadata(self):
+        codigo, salida = self._con_meta_crudo("attribution", None)
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO metadata", salida)
+
+    def test_otra_norm_version_se_rechaza_por_la_normalizacion(self):
+        codigo, salida = self._con_meta_crudo("norm_version", "99")
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO norm", salida)
+
+    def test_otro_codec_se_rechaza_por_el_codec(self):
+        codigo, salida = self._con_meta_crudo("payload_codec", "zstd-v1")
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO codec", salida)
+
+    def test_sin_fuentes_declaradas_no_se_puede_acreditar(self):
+        # D-031: la pantalla de atribucion no es opcional.
+        codigo, salida = self._con_meta_crudo("sources", "")
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO license", salida)
+
+    def test_entry_count_que_no_cuadra_es_un_archivo_truncado(self):
+        codigo, salida = self._con_meta_crudo("entry_count", "999")
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO count", salida)
+
+    def test_sin_un_indice_la_busqueda_escanearia(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("DROP INDEX idx_entry_fuzzy")
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        salida = salida.getvalue()
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO index", salida)
+
+    def test_una_clave_mal_calculada_se_agarra_con_la_muestra(self):
+        # Es el modo de falla central del repo: la palabra esta y ninguna busqueda la alcanza.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("UPDATE entry SET norm = 'otracosa' WHERE id = 1")
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        salida = salida.getvalue()
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO keys", salida)
+
+    def test_un_archivo_que_no_es_un_pack_es_damaged(self):
+        with open(self.path, "wb") as handle:
+            handle.write(b"esto no es sqlite")
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.como_la_app(self.path)
+        salida = salida.getvalue()
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("RECHAZADO damaged", salida)
+
+
+class InvariantesExhaustivasTest(BuilderTestCase):
+    """Lo que `verify()` mira de mas que la app, porque corre al construir y puede gastar."""
+
+    def test_una_lista_con_items_repetidos_hace_fallar(self):
+        # D-218. `render` lo deduplica al construir; esto lo comprueba sobre los BYTES, que es lo
+        # unico que vale para un pack que no construimos nosotros.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        diccionario = bytes.fromhex(db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        cuerpo = "P\tverb\nS\tuna glosa\nT\tto run\nT\tto run\n"
+        db.execute("UPDATE entry SET payload = ?",
+                   (payload_codec.compress(cuerpo, diccionario),))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(1, codigo)
+        self.assertIn("repite items", salida.getvalue())
+
+    def test_un_tag_desconocido_hace_fallar(self):
+        # El lector los ignora a proposito (D-119), asi que este es el unico lugar donde un tag
+        # que el builder escribio mal se puede notar.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        diccionario = bytes.fromhex(db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.execute("UPDATE entry SET payload = ?",
+                   (payload_codec.compress("P\tverb\nS\tuna glosa\nZ\tdel futuro\n",
+                                           diccionario),))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(1, codigo)
+        self.assertIn("tag desconocido", salida.getvalue())
+
+    def test_una_clave_de_form_que_no_es_norm_valida_hace_fallar(self):
+        """⚠️ La tabla `form` son 1,5 millones de filas que NADIE miraba.
+
+        D-142 recalcula una muestra de `entry`; `form` es la que resuelve una flexion, y una
+        clave suya construida con otras reglas es la palabra que esta en el archivo y ninguna
+        busqueda alcanza.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("INSERT OR REPLACE INTO form (norm, entry_id) VALUES ('MAYUSCULA', 1)")
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(1, codigo)
+        self.assertIn("claves de norm() validas", salida.getvalue())
+
+
 class AntonimosFueraDelIndiceTest(BuilderTestCase):
     """Los antonimos van al payload y NO a `fts_def` (D-126).
 

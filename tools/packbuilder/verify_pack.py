@@ -1,11 +1,20 @@
 """Verifica las invariantes de un pack construido.
 
     python3 verify_pack.py ruta/al/pack.db
+    python3 verify_pack.py --como-la-app pack.db [...]   # lo que la APP comprueba, y nada mas
 
 Corre sobre el pack final, no sobre el builder: chequea el artefacto que realmente se va a
 descargar al reloj. Un pack a medio construir o con la normalizacion desfasada se abre sin
 ningun error y devuelve menos resultados de los que corresponde, asi que estas comprobaciones
 son el unico lugar donde ese problema se vuelve visible.
+
+`--como-la-app` contesta otra pregunta, y es la de antes de subir un pack al reloj: *si lo
+instalo, ¿aparece?*. Corre **exactamente** las comprobaciones por las que `PackFile.open`
+rechazaria el pack, en el mismo orden, e imprime el `PackRejection` que el usuario veria. Acepta
+varios packs porque la pregunta natural es "¿pasan todos los que voy a subir?".
+
+⚠️ **Es un espejo, el cuarto de este repo, y nace con enforcer**: `audit_dictionary.py` compara
+sus motivos contra el enum `PackRejection` de Kotlin. Ver [MOTIVOS_DE_LA_APP].
 
 Sale con codigo 1 si algo falla.
 """
@@ -100,6 +109,20 @@ REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 # Cuantas entradas se descomprimen para comprobar los payloads. Descomprimir el pack completo
 # en un diccionario real tomaria minutos; una muestra al azar detecta lo mismo.
 PAYLOAD_SAMPLE = 200
+
+# Los tags que el formato define hoy. Se listan y no se derivan de `dir(payload_codec)` para que
+# agregar uno sea un acto explicito: un tag nuevo tiene que entrar aca **y** en el espejo Kotlin.
+TAGS_CONOCIDOS = frozenset((
+    payload_codec.TAG_PART_OF_SPEECH,
+    payload_codec.TAG_SENSE,
+    payload_codec.TAG_EXAMPLE,
+    payload_codec.TAG_CITATION,
+    payload_codec.TAG_TRANSLATION,
+    payload_codec.TAG_SYNONYM,
+    payload_codec.TAG_ANTONYM,
+    payload_codec.TAG_RELATED,
+    payload_codec.TAG_WORD_TRANSLATION,
+))
 
 
 class Report:
@@ -305,6 +328,36 @@ def verify(path):
             " (SELECT 1 FROM entry e WHERE e.id = t.entry_id)" % table
         ).fetchone()[0]
         report.check(orphans == 0, "%s no tiene entry_id huerfanos" % table)
+
+    # ⚠️ **Las claves de `form` y `trans` no las miraba NADIE, y son el camino de entrada de
+    # 1.499.895 palabras en el pack español.** D-142 recalcula una muestra de `entry`, pero la
+    # tabla `form` es la que resuelve una flexion --`palpitaciones` -> `palpitacion`-- y una
+    # clave suya construida con otras reglas es exactamente el modo de falla central del repo:
+    # la palabra esta en el archivo y ninguna busqueda la alcanza.
+    #
+    # Se comprueba por **idempotencia** (`norm(k) == k`) y no recalculando desde la forma
+    # original, porque la forma original no se guarda: la tabla es `(norm, entry_id)` y nada mas.
+    # Eso detecta una clave plegada con otro Unicode, con otro casefold o sin NFD; no detecta una
+    # clave que sea el `norm()` correcto de OTRA palabra. Acota, no elimina -- el mismo trato que
+    # D-142 hizo con la muestra.
+    #
+    # Medido: **7,6 s** sobre las 1.309.880 claves distintas del pack español y **4,3 s** sobre
+    # las 801.758 del ingles. Caro para un reloj y barato para un build de una hora, que es
+    # justamente por que vive aca y no en `PackFile`.
+    for table in ("form", "trans"):
+        malas = []
+        total_claves = 0
+        for (clave,) in db.execute("SELECT DISTINCT norm FROM %s" % table):
+            total_claves += 1
+            if normalize.norm(clave) != clave:
+                if len(malas) < 5:
+                    malas.append(clave)
+        report.check(
+            not malas,
+            "las %d claves distintas de %s son claves de norm() validas%s"
+            % (total_claves, table,
+               "" if not malas else " (mal: %s)" % ", ".join(repr(x) for x in malas)),
+        )
     # `norm` vacio y `fuzzy` vacio NO son el mismo problema, y tratarlos igual hacia fallar el
     # primer pack real por dos entradas legitimas: "h" y "H", la letra. Sin `norm` la entrada es
     # inalcanzable por cualquier camino. Sin `fuzzy` solo queda fuera del nivel tolerante, que es
@@ -395,8 +448,17 @@ def verify(path):
     decoded = 0
     senses_total = 0
     failures_before = len(report.failures)
+    # ⚠️ **Repartida a lo largo de la tabla, no las primeras 200.** Era `ORDER BY id LIMIT 200`,
+    # que es exactamente lo que D-142 argumenta que no sirve: un pack correcto solo en sus
+    # primeras filas --lo que pasa si alguien construyo la mitad con una version y la mitad con
+    # otra-- pasaba entero. Y en un pack BIDIRECCIONAL es peor todavia: las entradas inversas
+    # viven en la segunda mitad de la tabla (D-196), asi que la muestra vieja no miraba ni una.
+    total_entradas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+    paso_muestra = max(1, total_entradas // PAYLOAD_SAMPLE)
     for row in db.execute(
-        "SELECT id, uid, headword, payload FROM entry ORDER BY id LIMIT ?", (PAYLOAD_SAMPLE,)
+        "SELECT id, uid, headword, payload FROM entry"
+        " WHERE (id - 1) - ((id - 1) / ?) * ? = 0 ORDER BY id LIMIT ?",
+        (paso_muestra, paso_muestra, PAYLOAD_SAMPLE),
     ):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
@@ -427,6 +489,38 @@ def verify(path):
                 report.check(False,
                              "la entrada %s tiene %d cita(s) que no siguen a un ejemplo"
                              % (row["headword"], huerfanas))
+            # ⚠️ **Ninguna lista repite un item** (D-218). Lo encontro barrer los packs
+            # construidos: el 3,1 % de las entradas con traducciones de palabra del bilingue
+            # repetian un termino --`where` traia `donde, donde`-- y en una fila de reloj eso es
+            # la misma palabra dos veces, en un ancho que ya se corta. `payload.render` lo
+            # deduplica al construir; esto lo comprueba sobre los BYTES, que es lo unico que
+            # vale para un pack que no construimos nosotros.
+            repetidas = []
+            for sense in senses:
+                for campo in ("examples", "translations", "synonyms", "antonyms", "related"):
+                    items = [payload_codec.example_text(x) if campo == "examples" else x
+                             for x in sense[campo]]
+                    if len(items) != len(set(items)):
+                        repetidas.append((row["headword"], campo))
+            palabras = [x for x in palabra]
+            if len(palabras) != len(set(palabras)):
+                repetidas.append((row["headword"], "word_translations"))
+            if repetidas:
+                report.check(False,
+                             "la entrada %s repite items en %s"
+                             % (repetidas[0][0], ", ".join(c for _, c in repetidas[:4])))
+
+            # ⚠️ **Ningun tag desconocido.** El lector los ignora a proposito --es lo que deja
+            # agregar un campo sin romper una app vieja (D-119)-- y por eso mismo un tag que el
+            # builder escribio mal es invisible: no lanza, no loguea, y su contenido no se ve
+            # nunca. Aca es el unico lugar donde se puede notar.
+            for linea in text.split("\n"):
+                if len(linea) >= 2 and linea[1] == "\t" and linea[0] not in TAGS_CONOCIDOS:
+                    report.check(False,
+                                 "la entrada %s trae un tag desconocido: %r"
+                                 % (row["headword"], linea[0]))
+                    break
+
             codigos = {payload_codec.sense_code(row["uid"], s["gloss"]) for s in senses}
             if len(codigos) != len(senses):
                 report.check(False,
@@ -632,11 +726,266 @@ def _section_sizes(db):
         return [("(dbstat no disponible en este sqlite)", 0)]
 
 
+# ---------------------------------------------------------------------------------------------
+# El modo espejo: "¿esta app rechazaria este pack, y con que motivo?"
+# ---------------------------------------------------------------------------------------------
+#
+# ESTE BLOQUE TIENE UN ESPEJO:
+#     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt -> PackRejection
+#     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PackIntegrity.kt -> checkMeta
+#     dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt -> open
+#
+# ⚠️ **Es el CUARTO contrato cruzado de este repo, y nace con enforcer porque los otros tres
+# ensenaron que sin el se separan.** `tools/audit_dictionary.py` compara los ids de
+# [MOTIVOS_DE_LA_APP] contra los de `PackRejection`, en el mismo orden: agregar un motivo en
+# Kotlin sin agregarlo aca --o cambiar el orden de uno solo de los dos lados-- rompe el gate.
+#
+# ⚠️ **Y el ORDEN es parte del contrato, no una casualidad.** Todas las comprobaciones rechazan
+# (D-217), asi que el orden no decide si un pack entra: decide **que motivo se reporta**, que es
+# la unica linea que el usuario lee. Los siete packs de `schema_version` 3 del directorio de
+# datos salian como "metadatos incompletos" en vez de "otra version del formato" justamente por
+# tener el orden al reves.
+#
+# Lo que este modo NO es: un reemplazo de `verify()`. Aquel mira mucho mas --recalcula TODAS las
+# claves, cruza `uid`, comprueba planes de consulta-- porque corre al construir y puede gastar
+# segundos. Este contesta una sola pregunta, la que importa antes de subir un pack al reloj:
+# *si lo instalo, ¿aparece?*
+
+# Cuantas filas de `form`/`trans` mira el modo espejo buscando huerfanas.
+# Espeja ORPHAN_SAMPLE_SIZE de PackFile.kt.
+APP_ORPHAN_SAMPLE = 64
+
+# Cuantas entradas recalcula el modo espejo. Espeja KEY_SAMPLE_SIZE de PackFile.kt.
+APP_KEY_SAMPLE = 64
+
+# Las claves que `PackIntegrity.REQUIRED_META` exige. **No es [REQUIRED_META]**, que es lo que
+# este verificador pide de mas: la app no necesita `built_at` ni `proper_nouns` para abrir.
+APP_REQUIRED_META = (
+    "pack_id", "schema_version", "norm_version", "kind", "name", "langs",
+    "fuzzy_profiles", "entry_count", "data_version", "license", "attribution",
+    "payload_dict", "payload_dict_sha256", "payload_codec",
+)
+
+
+def _app_metadata(meta, db):
+    """`METADATA`: sin estas claves no se puede ni decir que archivo es esto."""
+    faltan = [k for k in APP_REQUIRED_META if k not in meta]
+    if faltan:
+        return "a meta le faltan claves obligatorias: %s" % ", ".join(faltan)
+    for clave in ("norm_version", "entry_count"):
+        if not meta[clave].strip().lstrip("-").isdigit():
+            return "%s no es un numero: %r" % (clave, meta[clave])
+    if not meta["data_version"].strip().lstrip("-").isdigit():
+        return "data_version no es un numero: %r" % meta["data_version"]
+    idiomas = [x.strip() for x in meta["langs"].split(",") if x.strip()]
+    if not idiomas:
+        return "meta.langs no declara ningun idioma"
+    perfiles = [x.strip() for x in meta["fuzzy_profiles"].split(",") if x.strip()]
+    if len(perfiles) != len(idiomas):
+        return "meta.fuzzy_profiles trae %d perfiles para %d idiomas" % (
+            len(perfiles), len(idiomas))
+    return None
+
+
+def _app_schema(meta, db):
+    """`SCHEMA_VERSION`: se mira ANTES que las claves. Ver el ⚠️ del encabezado."""
+    crudo = meta.get("schema_version", "").strip()
+    if not crudo.lstrip("-").isdigit():
+        return "schema_version ausente o ilegible: %r" % meta.get("schema_version")
+    if int(crudo) != build.SCHEMA_VERSION:
+        return "schema_version %s, esta app entiende %d" % (crudo, build.SCHEMA_VERSION)
+    return None
+
+
+def _app_norm(meta, db):
+    if int(meta["norm_version"]) != normalize.NORM_VERSION:
+        return "norm_version %s != %d: el pack esta indexado con otras reglas" % (
+            meta["norm_version"], normalize.NORM_VERSION)
+    return None
+
+
+def _app_codec(meta, db):
+    if meta.get("payload_codec") != payload_codec.CODEC_ID:
+        return "payload_codec %r, esta app lee %r" % (
+            meta.get("payload_codec"), payload_codec.CODEC_ID)
+    return None
+
+
+def _app_license(meta, db):
+    """`LICENSE`: D-031 dice que la atribucion no es opcional, asi que no poder acreditar rechaza."""
+    fuentes = [l for l in (meta.get("sources") or "").split("\n") if l.strip()]
+    if not fuentes:
+        return "meta.sources vacio: el pack no declara de donde sale su contenido (D-138)"
+    sin = []
+    for linea in fuentes:
+        campos = linea.split("\t")
+        if len(campos) < 4 or not campos[3].strip():
+            sin.append(campos[1] if len(campos) > 1 and campos[1] else "(sin nombre)")
+    if sin:
+        return "fuentes sin licencia declarada: %s" % ", ".join(sin)
+    return None
+
+
+def _objetos(db):
+    return {row["name"] for row in db.execute(
+        "SELECT name FROM sqlite_master WHERE name IN "
+        "('idx_entry_norm', 'idx_entry_fuzzy', 'staging')")}
+
+
+def _app_index(meta, db):
+    faltan = [n for n in ("idx_entry_norm", "idx_entry_fuzzy") if n not in _objetos(db)]
+    if faltan:
+        return "faltan indices: %s; la busqueda escanearia la tabla" % ", ".join(faltan)
+    return None
+
+
+def _app_staging(meta, db):
+    if "staging" in _objetos(db):
+        return "quedo la tabla de staging: el pack se construyo a medias"
+    return None
+
+
+def _app_count(meta, db):
+    filas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+    if filas != int(meta["entry_count"]):
+        return "meta.entry_count dice %s y hay %d filas: el archivo esta truncado" % (
+            meta["entry_count"], filas)
+    return None
+
+
+def _app_fts(meta, db):
+    filas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+    indexadas = db.execute("SELECT COUNT(*) FROM fts_def_docsize").fetchone()[0]
+    if indexadas != filas:
+        return "fts_def tiene %d filas para %d entradas (D-011)" % (indexadas, filas)
+    return None
+
+
+def _app_emptykey(meta, db):
+    vacias = db.execute("SELECT COUNT(*) FROM entry WHERE norm = ''").fetchone()[0]
+    if vacias:
+        return "%d entradas con norm vacio: estan en el archivo y no se alcanzan" % vacias
+    return None
+
+
+def _app_orphan(meta, db):
+    for tabla in ("form", "trans"):
+        huerfanas = db.execute(
+            "SELECT COUNT(*) FROM (SELECT entry_id FROM %s LIMIT ?) t "
+            "WHERE NOT EXISTS (SELECT 1 FROM entry e WHERE e.id = t.entry_id)" % tabla,
+            (APP_ORPHAN_SAMPLE,)).fetchone()[0]
+        if huerfanas:
+            return "%d filas de %s apuntan a entradas que no existen" % (huerfanas, tabla)
+    return None
+
+
+def _app_keys(meta, db):
+    """`KEYS`: la muestra de 64 repartida de D-142, recalculada con el codigo del builder."""
+    total = int(meta["entry_count"])
+    if total <= 0:
+        return None
+    perfiles = [x.strip() for x in meta["fuzzy_profiles"].split(",") if x.strip()]
+    idiomas = [x.strip() for x in meta["langs"].split(",") if x.strip()]
+    por_idioma = dict(zip(idiomas, perfiles))
+    paso = max(1, total // APP_KEY_SAMPLE)
+    for i in range(APP_KEY_SAMPLE):
+        fila = db.execute(
+            "SELECT headword, norm, fuzzy, lang FROM entry WHERE id = ?", (1 + i * paso,)
+        ).fetchone()
+        if fila is None:
+            continue
+        esperado = normalize.norm(fila["headword"])
+        if fila["norm"] != esperado:
+            return "entry.norm no coincide en %r: el pack dice %r y se calcula %r" % (
+                fila["headword"], fila["norm"], esperado)
+        if fila["fuzzy"] is not None:
+            perfil = por_idioma.get(fila["lang"], perfiles[0] if perfiles else "generic")
+            espera_f = normalize.fuzzy(fila["headword"], perfil)
+            if fila["fuzzy"] != espera_f:
+                return "entry.fuzzy no coincide en %r: el pack dice %r y se calcula %r" % (
+                    fila["headword"], fila["fuzzy"], espera_f)
+    return None
+
+
+def _app_dict(meta, db):
+    try:
+        diccionario = bytes.fromhex(meta["payload_dict"])
+    except ValueError:
+        return "payload_dict no es hexadecimal"
+    if payload_codec.dictionary_digest(diccionario) != meta["payload_dict_sha256"]:
+        return "payload_dict_sha256 no corresponde al diccionario guardado"
+    return None
+
+
+def _app_damaged(meta, db):
+    """`DAMAGED` no se comprueba: es lo que queda cuando abrir el archivo lanza."""
+    return None
+
+
+# ⚠️ **El orden es el de `PackFile.open`, y el de `PackRejection`.** La auditoria compara los
+# ids de esta tabla contra el enum, en orden. Ver el ⚠️ del encabezado del bloque.
+MOTIVOS_DE_LA_APP = (
+    ("metadata", _app_metadata),
+    ("schema", _app_schema),
+    ("norm", _app_norm),
+    ("codec", _app_codec),
+    ("license", _app_license),
+    ("index", _app_index),
+    ("staging", _app_staging),
+    ("count", _app_count),
+    ("fts", _app_fts),
+    ("emptykey", _app_emptykey),
+    ("orphan", _app_orphan),
+    ("keys", _app_keys),
+    ("dict", _app_dict),
+    ("damaged", _app_damaged),
+)
+
+# El orden de EVALUACION no es el de declaracion: `PackIntegrity.checkMeta` mira el esquema antes
+# que las claves obligatorias --es la clave que dice que otras claves tienen que existir-- y el
+# enum se declara en el orden en que se leen los motivos, no en el que se evaluan.
+ORDEN_DE_EVALUACION = (
+    "schema", "metadata", "norm", "codec", "license", "index", "staging",
+    "count", "fts", "emptykey", "orphan", "keys", "dict",
+)
+
+
+def como_la_app(path):
+    """Corre sobre el pack lo que la app corre al abrirlo. 0 si lo aceptaria, 1 si no."""
+    checkers = dict(MOTIVOS_DE_LA_APP)
+    try:
+        db = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+        db.row_factory = sqlite3.Row
+        meta = {row["key"]: row["value"] for row in db.execute("SELECT key, value FROM meta")}
+    except Exception as error:  # noqa: BLE001 - se reporta, no se propaga
+        print("%s: RECHAZADO damaged -- %r" % (os.path.basename(path), error))
+        return 1
+    for motivo in ORDEN_DE_EVALUACION:
+        detalle = checkers[motivo](meta, db)
+        if detalle:
+            db.close()
+            print("%s: RECHAZADO %s -- %s" % (os.path.basename(path), motivo, detalle))
+            return 1
+    entradas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+    db.close()
+    print("%s: la app lo abriria (%d entradas)" % (os.path.basename(path), entradas))
+    return 0
+
+
 def main(argv):
-    if len(argv) != 2:
+    argumentos = [a for a in argv[1:] if not a.startswith("--")]
+    banderas = {a for a in argv[1:] if a.startswith("--")}
+    desconocidas = banderas - {"--como-la-app"}
+    if not argumentos or desconocidas:
         print(__doc__)
         return 2
-    return verify(argv[1])
+    if "--como-la-app" in banderas:
+        # Varios packs de una: la pregunta natural es "¿pasan TODOS los que voy a subir?".
+        return max(como_la_app(p) for p in argumentos)
+    if len(argumentos) != 1:
+        print(__doc__)
+        return 2
+    return verify(argumentos[0])
 
 
 if __name__ == "__main__":

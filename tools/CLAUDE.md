@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 427 tests
+hatch run test              # the 440 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -244,6 +244,31 @@ rebuild es **inglés → español → bilingüe → los dos núcleos**.
 `--flexiones` toma un **pack ya construido** del idioma destino, no un dump: las flexiones ya
 están extraídas y podadas ahí, y volver al dump de 3,2 GB sería otra hora de build más una segunda
 poda que puede divergir de la primera — el mismo razonamiento de D-175.
+
+## `--como-la-app`: would the watch accept this pack?
+
+`verify_pack.py` answers *"is this pack well built?"*. That is not the question you have before
+sideloading, which is *"if I install this, does it show up?"* — and the two differ, because the
+app checks **less** than the builder and rejects on a different set.
+
+```sh
+python3 tools/packbuilder/verify_pack.py --como-la-app ../wearos-dictionary-data/dist/*.db
+```
+
+It runs **exactly** what `PackFile.open` rejects on, in the same order, and prints the
+`PackRejection` the user would read. Several packs at once, because the question is always "do
+they *all* pass?". Exit 1 if any would be rejected.
+
+⚠️ **This is the repo's fourth cross-language contract, and the only one born with an enforcer.**
+The other three — `norm()`, `sense_code`, the catalogue index — earned theirs after drifting.
+`audit_dictionary.py` → `check_rejection_mirror` compares the ids of `MOTIVOS_DE_LA_APP` against
+the `PackRejection` enum **including the order**: a reason added in Kotlin and not here makes the
+verifier say yes to a pack the app will reject.
+
+⚠️ **The order is part of the contract.** Every check rejects (D-217), so the order does not
+decide whether a pack gets in — it decides **which reason is reported**, which is the only line
+the user reads. The seven schema-3 packs in the data directory came out as "incomplete metadata"
+instead of "another format version" purely from having it backwards.
 
 ## Adding a source
 

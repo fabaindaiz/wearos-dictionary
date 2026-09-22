@@ -82,7 +82,7 @@ Backed by `.claude/settings.json` → `permissions.deny`.
 ./gradlew :dict-core:test                                       # the core only (fast, no emulator)
 cd tools/packbuilder && python3 -m unittest discover -s tests    # the builder
 python3 tools/packbuilder/build_toy.py                          # regenerate the toy pack
-python3 tools/packbuilder/verify_pack.py <pack.db>              # invariants of a real pack
+python3 tools/packbuilder/verify_pack.py [--como-la-app] <pack.db>  # invariants; the flag = what the APP checks
 python3 tools/unicode/gen_{repertoire,casefold}.py              # regenerate the pinned Unicode tables (a deliberate act)
 python3 tools/packbuilder/gen_payload_fixture.py                # regenerate the codec fixture
 ./gradlew :dict-data:devicePrecheck                             # is there an emulator or a watch? says what is missing
