@@ -26,6 +26,64 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — Tres tamaños por idioma, y la lista deja de mostrar lo que no se puede tener
+**Qué.** Dos cambios de modelo pedidos. **(1)** Un pack que esta versión no abre **ya no se lista**:
+en su lugar, una frase que dice que hay que actualizar la app. **(2)** Tres tamaños por idioma
+—`core`, `main`, `full`— marcados en el nombre («Español (core)»), y la identidad pasa de las
+fuentes al **idioma + nivel**. D-215.
+
+**Áreas.** En `:app`, `Catalog` y `PacksScreen`. En `tools/packbuilder`, `build_core.py` (modo de
+presupuesto y niveles), `build_pack.py` (estampa `full`) y `verify_pack.py`. En `:dict-core`,
+`PackTier`.
+
+**Por qué.** Pedido: *«no quiero listar packs no disponibles»* y *«los packs son por idioma y en
+versiones… 3 tamaños marcados en el nombre»*, con presupuestos de 25–50 MB y 100–150 MB.
+
+**Arquitectura.** ✅ Cumple. Dos decisiones anteriores revertidas a propósito y con su costo escrito.
+
+**Medido.** Todo sobre los packs reales:
+
+- **El criterio es `rank`, y no se eligió: se midió.** Un presupuesto de 50 MB en inglés toma
+  **59.503 entradas**, y las que tienen señal de frecuencia son **55.903**. *«Las palabras
+  importantes y de uso general»* y *«las que algún corpus atestigua»* son el mismo conjunto.
+- **El corte alternativo quedó descartado por la medición**: los nombres propios son el **21,2 %**
+  de las entradas del español y sólo el **6,1 % de los bytes** (20 B contra 84 B de media).
+- **Qué ocupa cada pack, y son dos formas distintas**: al español lo domina `form` (32,9 MB,
+  **44,6 %**) y al inglés `entry` (143,1 MB, **46,6 %**). Por eso el factor del presupuesto sale
+  del pack y no de una constante: 7,2× los payloads en español, 3,8× en inglés.
+- **Producidos y verificados** (`verify_pack.py`, cero fallas): `es-core` 49.298 entradas / 49,0 MB,
+  `en-core` 59.875 / 33,1 MB, `en-main` 277.912 / 120,1 MB.
+- **El techo de los corpus, que obligó a cambiar de mecanismo**: Tatoeba tiene 64.992 palabras en
+  español y **30.573 en inglés**; OpenSubtitles, 50.000. Derivar por corte de corpus topa en
+  19,5 MB (es) y 26,7 MB (en) — **por debajo del presupuesto de `core`**. De ahí que el corte sea
+  por bytes y no por número de palabras.
+
+**Qué salió mal.**
+1. ⚠️ **Un test vacuo, y lo delató la mutación.** El que probaba que el presupuesto toma las
+   entradas *en orden de `rank`* pasaba igual ordenando por `headword`: en el fixture los dos
+   órdenes casi coinciden. Hubo que construir un pack donde se **contradigan**.
+2. ⚠️ **Y el arreglo de ese test también estaba mal**: comparaba contra `zzz_comunisima` cuando
+   `norm()` convierte el guion bajo en espacio.
+3. ⚠️ **`verify_pack.py` rechazó los packs nuevos, y tenía razón**: codificaba la gramática vieja
+   del `pack_id` y sólo conocía dos niveles. Se actualizó deliberadamente, no se silenció.
+4. ⚠️ **Dos tests del builder afirmaban lo contrario de lo que ahora es cierto** — que el `pack_id`
+   gana un sufijo por fuente *«para que los dos puedan convivir»*. Era una función deliberada; se
+   retira, y el costo queda escrito: **dos variantes del mismo idioma ya no conviven instaladas**.
+
+**Qué quedó sin hacer.**
+- **Los packs reales no se han reconstruido** con la identidad nueva. Los `es-core`/`en-core`/
+  `en-main` producidos están en el scratchpad, no en el directorio de datos, y el `full` seguirá
+  con el `pack_id` viejo hasta que se reconstruya desde los dumps (una hora).
+- ⚠️ **`packserver.py` publica cualquier `.db` del directorio**, incluidos los intermedios del
+  merge como `es-def-wd`, que **no son packs para distribuir**. Se vio en el catálogo del emulador.
+- **El español no tiene `main`** y eso está decidido, pero la pantalla no lo explica: un usuario
+  que ve tres tamaños en inglés y dos en español no sabe por qué.
+- **Nada de esto se ha visto en el emulador todavía.**
+- Sigue sin poder **cancelarse una descarga**, y sigue sin probarse un corte de Wi-Fi a mitad de
+  192 MB reales.
+
+---
+
 ## 2026-09-22 — Descargar un pack funciona, y el emulador encontró cuatro defectos que los tests no veían
 **Qué.** El instalador dejó de ser un plan. `PackDownloader` (dos etapas, dos hashes, reanudación
 por `Range`), `DownloadPackWorker` (WorkManager con las restricciones de D-029), la fila pulsable
