@@ -138,15 +138,10 @@ def plan(raiz, solo=None, tamanos=None):
         })
 
     if solo in (None, "es"):
-        # Wikidata: una ENTRADA del merge espanol. No se distribuye, asi que va a build/.
-        pasos.append({
-            "nombre": "es-wd (intermedio)",
-            "salida": _ruta(raiz, BUILD, "es-def-wd.db"),
-            "comando": [sys.executable, BUILD_PACK, "es-wd",
-                        _ruta(raiz, DUMPS, "wikidata-lexemes.json.bz2"),
-                        _ruta(raiz, BUILD, "es-def-wd.db")],
-            "verifica": False,
-        })
+        # ⚠️ **Wikidata NO se construye como pack aparte, y eso lo corrigio el rebuild.** El plan
+        # construia `build/es-def-wd.db` creyendo que era *una entrada del merge*; `--sumar` lee
+        # el **dump**, asi que ese archivo no lo consumia nadie: 30 s y 4,5 MB para nada. Lo que
+        # entra al pack español es el dump, fundido por D-146.
         pasos.append({
             "nombre": "es-full",
             "salida": _ruta(raiz, DIST, "es-full.db"),
@@ -156,7 +151,11 @@ def plan(raiz, solo=None, tamanos=None):
                         "--frases", _ruta(raiz, DUMPS, "tatoeba-spa.tsv"),
                         "--tesauro", _ruta(raiz, DUMPS, "wn-data-spa.tab"),
                         "--frecuencias", _ruta(raiz, DUMPS, "freq-es-opensubs.txt"),
-                        "--sumar", "es-wd", _ruta(raiz, BUILD, "es-def-wd.db")],
+                        # ⚠️ **`--sumar <pack> <dump>` lee el DUMP, no un pack construido.** El
+                        # nombre `es-wd` selecciona el lector y la atribucion (D-146); la ruta es
+                        # el dump que ese lector parsea.
+                        "--sumar", "es-wd",
+                        _ruta(raiz, DUMPS, "wikidata-lexemes.json.bz2")],
             "verifica": True,
         })
 

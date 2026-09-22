@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 469 tests
+hatch run test              # the 475 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -198,9 +198,15 @@ python3 tools/build_packs.py ../wearos-dictionary-data --solo es
 ```
 
 ⚠️ **Con todo en un directorio plano, `es-def-wd` apareció en el catálogo del emulador como un
-pack descargable.** No lo es: es una **entrada** del merge español, que el pack español lleva
-fundido dentro. Publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que
-D-215 descartó.
+pack descargable.** No lo es: es una fuente que el pack español lleva **fundida dentro**.
+Publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que D-215 descartó.
+
+⚠️ **Y hoy `build/` está vacío, porque ese intermedio resultó no existir.** El plan lo construía
+creyendo que `--sumar` leía un pack; `--sumar <pack> <dump>` lee el **dump** —el nombre sólo
+selecciona el lector y la atribución (D-146)—, así que `build/es-def-wd.db` no lo consumía nadie:
+30 s y 4,5 MB por nada. Lo agarró el **rebuild**, no el gate, y ahora lo fija
+`test_nada_se_construye_para_que_NADIE_lo_consuma`. El directorio se queda: separar lo intermedio
+de lo publicable sigue siendo la regla, y lo que hoy no tiene sujeto mañana lo tiene.
 
 ⚠️ **El inglés completo vive en `dist/` aunque TAMBIÉN sea una entrada** —del bilingüe, por
 `--flexiones`—. Es las dos cosas, y lo que decide dónde vive es **si se distribuye**.
