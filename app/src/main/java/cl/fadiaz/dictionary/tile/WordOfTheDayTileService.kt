@@ -8,6 +8,7 @@ import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.PackStore
 import cl.fadiaz.dictionary.presentation.posLabel
 import com.google.common.util.concurrent.Futures
@@ -38,6 +39,7 @@ class WordOfTheDayTileService : TileService() {
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
+        val desde = System.nanoTime()
         val (since, words) = PackStore.weekWords(this)
         val timeline = TimelineBuilders.Timeline.Builder()
 
@@ -59,6 +61,14 @@ class WordOfTheDayTileService : TileService() {
             }
         }
 
+        // Ver el log gemelo en HistoryTileService: es el unico rastro de que el tile corrio.
+        // `days` es lo que de verdad importa aca -- cero ventanas significa estado vacio, y esa
+        // es la forma en que la palabra del dia ha fallado dos veces (packs de traduccion, y
+        // despues los nucleos).
+        DictLog.i {
+            "tile palabra del dia: since=$since palabras=${words.size} ventanas=${days.size} " +
+                "en ${(System.nanoTime() - desde) / 1_000_000} ms"
+        }
         return Futures.immediateFuture(
             TileBuilders.Tile.Builder()
                 .setResourcesVersion(RESOURCES)

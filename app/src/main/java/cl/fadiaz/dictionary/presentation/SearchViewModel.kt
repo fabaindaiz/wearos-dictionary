@@ -7,6 +7,8 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
+import cl.fadiaz.dictionary.data.DictLog
+import cl.fadiaz.dictionary.data.LogSearchTrace
 import cl.fadiaz.dictionary.core.TextNormalizer
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.core.PackKind
@@ -239,8 +241,16 @@ class SearchViewModel(
         favoriteVisits = savedFavorites()
         _state.update { it.copy(settings = savedSettings(), favorites = favoriteVisits) }
         viewModelScope.launch {
+            // La fase de arranque que no se ve desde `am start -W`: ese numero termina en el
+            // primer frame, y los packs abren DESPUES, en IO. Sin esto no habia forma de saber si
+            // la espera hasta poder buscar la ponen los packs o Compose.
+            val desde = System.nanoTime()
             visits = savedHistory()
             loadPacks()
+            DictLog.i {
+                "arranque: listo para buscar en ${(System.nanoTime() - desde) / 1_000_000} ms " +
+                    "(historial=${visits.size})"
+            }
         }
 
         viewModelScope.launch {
@@ -376,6 +386,7 @@ class SearchViewModel(
             listOf(active) + mismoIdioma,
             otherLanguages = otrosIdiomas,
             lang = idioma,
+            trace = LogSearchTrace,
         )
     }
 

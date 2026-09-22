@@ -247,6 +247,21 @@ android {
             // Robolectric necesita los recursos reales --strings, temas, densidades-- para poder
             // medir un Composable. Sin esto los tests compilan y fallan al inflar.
             isIncludeAndroidResources = true
+
+            // `android.util.Log` devuelve el valor por defecto en vez de lanzar.
+            //
+            // Hizo falta al instrumentar la app con `DictLog`: el `android.jar` de los tests
+            // unitarios es un stub que lanza `RuntimeException("Method isLoggable in
+            // android.util.Log not mocked")`, asi que **un log dentro del ViewModel tiraba diez
+            // tests de `SearchViewModelTest`**, que es un test JVM plano y no de Robolectric.
+            //
+            // ⚠️ **El precio es real y conviene saberlo**: con esto, CUALQUIER metodo de Android
+            // sin mockear deja de avisar y devuelve `null`/`0`/`false` en silencio. Lo que antes
+            // era una excepcion que decia "este test esta tocando el framework sin querer" ahora
+            // pasa desapercibido. Los tests que de verdad necesitan Android siguen siendo los de
+            // Robolectric, que traen la implementacion real y no se ven afectados por esto --por
+            // eso `DictLogTest` puede afirmar sobre las lineas emitidas.
+            isReturnDefaultValues = true
         }
     }
 }

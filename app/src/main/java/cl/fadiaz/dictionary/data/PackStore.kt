@@ -6,6 +6,7 @@ import android.content.Context
 // olvidar. Viene de core-ktx, que ya estaba en el classpath.
 import androidx.core.content.edit
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.TextNormalizer
 import java.io.File
 import java.io.IOException
@@ -103,8 +104,13 @@ object PackStore {
         )
         if (missing.isNotEmpty()) {
             onExtracting()
+            DictLog.i { "extrayendo del APK: ${missing.joinToString()}" }
             for (asset in missing) {
+                // ⚠️ El `runCatching` se traga el fallo a proposito --la app arranca igual con los
+                // packs que ya esten-- pero sin este log un nucleo que nunca se extrae es
+                // invisible: la pantalla solo muestra que ese idioma no esta.
                 runCatching { installAtomically(context.assets.open(asset), dir, asset) }
+                    .onFailure { e -> DictLog.e(e) { "no se pudo extraer $asset del APK" } }
             }
         }
         // Se anota DESPUÉS de copiar: si la extracción falla a medias, el próximo arranque la
@@ -119,16 +125,25 @@ object PackStore {
         val fromAssets = packAssets(context).toSet()
         val opened = mutableListOf<PackHandle.Open>()
         val problems = mutableListOf<String>()
+        DictLog.i { "packs en disco: ${installed.size} (${installed.joinToString { it.name }})" }
         for (file in installed) {
+            val desde = System.nanoTime()
             when (val loaded = openFile(context, file)) {
-                is PackLoad.Ready ->
+                is PackLoad.Ready -> {
                     opened += PackHandle.Open(
                         source = loaded.source,
                         isBundled = file.name in fromAssets,
                         fileName = file.name,
                         bytes = file.length(),
                     )
-                is PackLoad.Unusable -> problems += "${file.name}: ${loaded.reason}"
+                    logAbierto(loaded.source.metadata, file, desde)
+                }
+                is PackLoad.Unusable -> {
+                    problems += "${file.name}: ${loaded.reason}"
+                    // WARN y no DEBUG: un pack rechazado es la explicacion entera de "falta un
+                    // idioma", y en la sesion de reloj hubo que inferirlo de que no hubo crash.
+                    DictLog.w { "pack RECHAZADO ${file.name}: ${loaded.reason}" }
+                }
                 PackLoad.NoPack -> Unit
             }
         }
@@ -152,7 +167,28 @@ object PackStore {
                 problems.firstOrNull() ?: context.getString(R.string.pack_none_opened),
             )
 
+        DictLog.i {
+            "listo: ${opened.size} abiertos, ${problems.size} rechazados, " +
+                "activo=${chosen.source.metadata.packId}"
+        }
         PackSet.Ready(chosen, opened, problems)
+    }
+
+    /**
+     * La identidad de un pack recien abierto, que es la primera pregunta cuando falta una palabra.
+     *
+     * `schema_version` y `norm_version` estan porque son las dos que hacen que un pack se rechace
+     * entero (D-001, D-006), y `data_version` porque es con la que el catalogo decide si hay
+     * actualizacion. Va a INFO: son tres lineas por arranque, no una por consulta.
+     */
+    private fun logAbierto(meta: PackMetadata, file: File, desdeNanos: Long) {
+        val ms = (System.nanoTime() - desdeNanos) / 1_000_000
+        DictLog.i {
+            "pack ${meta.packId} schema=${meta.schemaVersion} norm=${meta.normVersion} " +
+                "langs=${meta.langs.joinToString("+")} kind=${meta.kind} tier=${meta.tier} " +
+                "entries=${meta.entryCount} dataVersion=${meta.dataVersion} " +
+                "${file.length() / 1_048_576} MB en ${ms} ms"
+        }
     }
 
     /** The chosen language, so the watch opens the same dictionary as last time. */
