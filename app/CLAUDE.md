@@ -237,6 +237,61 @@ clone has to keep compiling.
 ./gradlew :app:releasePrecheck   # says what is missing and the keytool to generate it
 ```
 
+## Reading the app over adb
+
+**The app writes to one tag, `Dict`, and the detail is off until you ask for it.**
+
+```sh
+adb logcat -s Dict:V                      # what it says by default: INFO and up
+adb shell setprop log.tag.Dict DEBUG      # the per-query detail, no rebuild, no reinstall
+adb shell setprop log.tag.Dict INFO       # and off again
+```
+
+⚠️ **It is `Log.isLoggable` and deliberately NOT `BuildConfig.DEBUG`.** R8 strips
+BuildConfig-guarded calls in `release`, and `benchmark` inherits from `release` — so the build used
+to measure startup and battery would be the one build with no logs, which is where they are needed
+most. `setprop` works identically in all three.
+
+**Messages are lambdas, and that is the contract**: `DictLog.d { "x=$x" }` builds nothing when
+nobody listens. `DictLog.d("x=" + x)` would build the string on every keystroke in production.
+`DictLogTest` asserts the lambda is not evaluated, and it is verified by mutation — removing the
+guard fails it.
+
+### What is worth reading, and why it is that and not something else
+
+Each line exists because of a failure this repo actually had.
+
+| Level | Line | The failure it makes visible |
+|---|---|---|
+| INFO | `pack <id> schema=4 norm=2 langs=es+en tier=full entries=209484 dataVersion=… N MB en M ms` | *A word is missing.* `schema_version` and `norm_version` are the two that reject a pack whole (D-001, D-006), and there was no way to ask over adb |
+| WARN | `pack RECHAZADO <file>: <reason>` | A rejected pack only ever reached a UI string. On the watch, "no pack was rejected" had to be inferred from the absence of a crash |
+| WARN | `pack <id> FALLO al consultarlo` | `SearchRepository.recolectar` swallows it on purpose so one corrupt pack cannot take the search down — and its comment claimed such a pack "is visible". It is, on screen. In logcat it looked like an empty one |
+| ERROR | `no se pudo extraer <asset> del APK` | `runCatching` swallowed it, so a core that never extracts looked like a language the user did not install |
+| INFO | `arranque: listo para buscar en N ms` | `am start -W` stops at the first frame; the packs open afterwards on IO. This is the part the user waits for |
+| INFO | `tile historial: pantalla=NNNdp filas=N contenido=… en M ms` | `onTileRequest` is `@MainThread` with ten seconds (D-106) and *nobody opens a tile on purpose*. The screen width is also the number the 225 dp breakpoint item needs |
+| INFO | `tile palabra del dia: since=… palabras=N ventanas=N` | Zero windows means the empty state, which is how the word of the day has broken **twice** — translation packs, then the cores |
+| DEBUG | `buscar 'cas' -> 7 (prefix=2 translation=4 fuzzy=1) RESPALDO` | `measure_query_cost.py` replicates the cascade on the desktop and **nothing observed it on the device**. This is what would have caught the ordering bugs |
+
+**Not logged, on purpose**: anything per row, anything in a hot loop, and no counters of things
+nobody has asked a question about. The rungs are reported in the order of the `MatchKind` enum —
+the cascade's own order — so two lines can be compared; a test pins that.
+
+### `:dict-core` cannot log, and that shapes the design
+
+`ArchitectureTest` forbids `import java.*` and `System.` in that module (D-017), so neither
+`android.util.Log` nor a timestamp can go there. The cascade therefore **reports** through
+`SearchTrace` — pure Kotlin, counts only, no timing, `SearchTrace.None` by default — and `:app`
+translates it in `LogSearchTrace`. **Timing is always the caller's job.**
+
+`SearchTrace.enabled` exists so the report is not even assembled when nobody listens: grouping the
+results costs a pass over the list. The contract is *whoever reports asks first*, and a test fails
+if the guard is removed.
+
+⚠️ **One consequence to know about**: instrumenting the ViewModel broke ten `SearchViewModelTest`
+cases, because the stub `android.jar` of a plain JVM test throws on `Log.isLoggable`. The fix is
+`isReturnDefaultValues = true` in `testOptions`, and its price is written where it is set — every
+unmocked Android method now fails quietly instead of saying so.
+
 ## Performance
 
 Many watches have considerably more limited CPU and GPU than a phone. Minimise animations, and if
