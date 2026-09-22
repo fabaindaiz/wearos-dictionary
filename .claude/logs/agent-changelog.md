@@ -90,6 +90,35 @@ el producto.
    categoría caía fuera de 234 dp y el test contaba dos. Se arregló con el qualifier de pantalla
    alta que el archivo ya usaba.
 
+**Verificado en el emulador (2026-09-22).** 498×498 @ 340dpi, que son los 234 dp del reloj
+(D-150), con un `packserver` real sirviendo tres packs preparados para caer en las tres
+categorías.
+
+- **El catálogo, de punta a punta**: `3 packs, 2378 B` → `DOWNLOAD=1 INCOMPATIBLE=1 UPDATE=1`, en
+  el orden fijo. Segundo toque: `(con ETag)` → `304, sin cambios`, con el servidor registrando
+  `304` — y **vuelve a clasificar**, que es lo que un 304 no puede saltarse.
+- **El camino de error también es real**: con `10.0.2.2` hubo timeout a los 8 s, y produjo el log
+  de nivel E con su traza, el motivo en pantalla y el botón convertido en «Check again».
+- **Los logs nuevos dan tres números que antes no existían**: extracción de los núcleos del APK,
+  abrir los dos packs (142 + 111 ms) y **«listo para buscar» en 540 ms**.
+
+**Y el emulador desmintió dos cosas que ningún test podía ver:**
+
+1. ⚠️ **La fila de una actualización decía `3,0 MB · v202609211912, you have v202609211911`**: dos
+   números de doce dígitos que difieren en el último, 390 px de los ~459 útiles a esa altura en
+   una pantalla redonda. Con eso no se decide nada. Ahora muestra **la fecha** (286 px), y que hay
+   algo más nuevo ya lo dice la cabecera. ⚠️ **Y al revisarlo apareció un segundo defecto que el
+   primer arreglo habría escondido**: hay **dos anchos** de `data_version` en circulación —
+   `es-def-wd` declara `20260920`, sin hora — así que aceptar sólo doce dígitos dejaba media tabla
+   sin fecha y sin ningún error que lo delatara. ⚠️ **La guarda de rango anterior era redundante**,
+   y lo demostró una mutación **al no hacer fallar nada**: `runCatching` sobre `LocalDate.of` ya
+   rechazaba todo. La de ahora sí es portante.
+2. ⚠️ **El default `10.0.2.2` no funciona**, y el servidor estaba vivo: `SocketTimeoutException
+   after 8000ms` mientras el mismo servidor contestaba 200 a curl desde el host por loopback **y**
+   por la IP de la LAN. Es el cortafuegos de macOS. El default pasa a `localhost` por
+   `adb reverse tcp:8765 tcp:8765`, que además **no necesita descubrir ninguna IP** y **vale igual
+   en un reloj de verdad**, donde `10.0.2.2` no significa nada.
+
 **Qué quedó sin hacer.**
 - **Descargar no existe.** El botón **lista**; instalar sigue siendo por cable, y la pantalla lo
   dice. Falta el trabajo de WorkManager con las restricciones de D-029, la descompresión del `.gz`
