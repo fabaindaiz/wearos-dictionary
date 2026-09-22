@@ -136,7 +136,7 @@ son las de ahora.*
 |---|---|---|---|
 | 1 | **Medir sobre un build de RELEASE en el reloj** | ✅ La sesión del 2026-09-21 (tarde) ya midió sobre el reloj, pero con un APK `DEBUGGABLE` que **ART nunca compiló** (`status=run-from-apk`): 2203 ms de arranque, 1401 tras forzar `verify`, contra los **500 ms del build con R8**. Todo número de rendimiento y batería que tenemos sale de ese build de debug, así que son **techos, no costes**. El redibujo en reposo quedó **confirmado en 4,0 fps** con ventana limpia, pero ya **no es el mayor gasto**: la pantalla son 33,2 mAh y toda nuestra CPU 6,05 | el número real de O-1 · verificar R8 en dispositivo · cualquier decisión de optimización |
 | 2 | **§Alinear acepciones entre fuentes** | El problema abierto más caro, con **cuatro caras**: bloquea 20.644 aportes de contenido, el espacio de equivalencias entre packs, y la pregunta de qué se muestra cuando dos packs tienen la misma palabra — hoy **se elige uno y el otro se esconde** | sinónimos/ejemplos por acepción de fuentes externas · composición entre packs |
-| 3 | **El instalador** | Los packs entran por cable con `devpack.py`. Sin catálogo no hay forma de que alguien que no seas vos instale un diccionario, y **el `sha256` del pack entero no existe**: una descarga truncada abre sin error y devuelve menos palabras | distribuir la app a cualquiera |
+| 3 | ~~**El instalador**~~ **Dónde se hostea el catálogo** | ✅ El mecanismo funciona y está verificado en el emulador (D-214): descarga, reanuda, comprueba dos hashes, instala y recarga. Lo que falta es **de producto**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo, y sólo `debug` habla por `http://`. Falta también **cancelar una descarga**, que con 192 MB se va a notar | distribuir la app a cualquiera |
 
 ---
 
@@ -3027,8 +3027,18 @@ diarios a cero. Sigue siendo O-4.
 
 ### Instalador de packs: descargar e instalar un idioma
 
-**Estado.** Planificado. Lo que falta es **mecanismo**, salvo una cosa que es de producto y la
-bloquea: dónde se hostea el catálogo.
+**Estado.** ✅ **Funciona de punta a punta** (2026-09-22), verificado en el emulador contra
+`tools/packserver.py`. Se consulta el catálogo, se toca una oferta, WorkManager espera a que el
+reloj esté cargando con Wi-Fi sin medir (D-029), se descarga el `.gz` con reanudación, se
+comprueban **los dos hashes**, se infla, se instala atómicamente, la app recarga y la fila pasa de
+«descargar» a «instalado». El `sha256` del archivo instalado es **idéntico al publicado**.
+
+⚠️ **Lo que queda abierto es de producto, no de mecanismo**: dónde se hostea el catálogo de
+verdad. `BuildConfig.CATALOG_URL` apunta hoy a un servidor de desarrollo por `adb reverse`, y sólo
+`debug` puede hablar por `http://`.
+
+⚠️ **Y una deuda de UI**: no hay forma de **cancelar** una descarga en curso ni de borrarla de la
+cola. Con el inglés en 192 MB eso se va a notar.
 
 **No hay "importar a la base de datos", y conviene decirlo primero** porque es la confusión
 natural. El pack **es** la base de datos: un SQLite inmutable que se abre read-only (D-001).
