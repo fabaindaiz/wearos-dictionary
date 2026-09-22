@@ -38,6 +38,42 @@ class PackStoreTest {
     private fun content(n: Int) = ByteArray(n) { (it % 251).toByte() }
 
     @Test
+    fun `un pack incluido que se ACTUALIZO desde el catalogo no se re-extrae`() {
+        // ⚠️ Visto en el emulador el 2026-09-22, y es un defecto que la descarga CREO. `es-core.db`
+        // viene en el APK; actualizarlo desde el catalogo reescribe ese mismo archivo. Sin esto, la
+        // siguiente version de la app re-extrae todos sus assets y **pisa en silencio el pack nuevo
+        // con el viejo**: un downgrade que nadie reporta, porque el pack sigue abriendo.
+        //
+        // La regla: el catalogo gana sobre el APK. Lo incluido existe para arrancar de cero.
+        assertEquals(
+            emptyList(),
+            PackStore.assetsToExtract(
+                assets = listOf("es-core.db"),
+                installed = listOf("es-core.db"),
+                last = 4,
+                current = 5,
+                downloaded = setOf("es-core.db"),
+            ),
+            "una version nueva de la app no puede pisar lo que se bajo del catalogo",
+        )
+    }
+
+    @Test
+    fun `lo incluido que NO se actualizo si se re-extrae al subir de version`() {
+        // La regla anterior sigue valiendo: un pack del APK es suyo y viaja con el.
+        assertEquals(
+            listOf("en-core.db"),
+            PackStore.assetsToExtract(
+                assets = listOf("en-core.db", "es-core.db"),
+                installed = listOf("en-core.db", "es-core.db"),
+                last = 4,
+                current = 5,
+                downloaded = setOf("es-core.db"),
+            ),
+        )
+    }
+
+    @Test
     fun aCompleteCopyLeavesThePackAndNoLeftovers() {
         val bytes = content(300_000)
         val target = PackStore.installAtomically(bytes.inputStream(), dir, "es.db")

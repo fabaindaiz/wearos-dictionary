@@ -20,6 +20,10 @@ import kotlinx.coroutines.test.setMain
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import cl.fadiaz.dictionary.data.DownloadPhase
+import cl.fadiaz.dictionary.data.PackDownload
 import cl.fadiaz.dictionary.data.CatalogFetch
 import cl.fadiaz.dictionary.data.CatalogPack
 import cl.fadiaz.dictionary.data.CatalogState
@@ -73,6 +77,131 @@ class SearchViewModelTest {
         advanceUntilIdle()
         assertEquals(CatalogState.Idle, vm.state.value.catalog)
         assertEquals(0, consultas, "arrancar la app no puede consultar el catalogo")
+    }
+
+    @Test
+    fun una_descarga_VIEJA_de_WorkManager_no_publica_un_catalogo_vacio() = runTest {
+        // ⚠️ Visto en el emulador el 2026-09-22. WorkManager **conserva** el `WorkInfo` de un
+        // trabajo terminado, asi que al arrancar la app llega un DONE de la sesion anterior. El
+        // colector lo leia como "acaba de terminar una descarga" y republicaba el catalogo -- que
+        // en ese momento esta VACIO, porque nadie lo consulto todavia. Resultado: la pantalla
+        // decia "Nada nuevo. Lo instalado esta al dia" sin que nadie hubiera preguntado nunca.
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def")) },
+            downloadStates = flowOf(
+                listOf(PackDownload("lo-de-ayer", DownloadPhase.DONE)),
+            ),
+        )
+        advanceUntilIdle()
+        assertEquals(
+            CatalogState.Idle,
+            vm.state.value.catalog,
+            "sin haber consultado el catalogo, el estado tiene que seguir en Idle",
+        )
+    }
+
+    @Test
+    fun una_descarga_TERMINADA_de_otra_sesion_no_se_muestra_como_en_curso() = runTest {
+        // ⚠️ Visto en el emulador el 2026-09-22, y es peor que el republicado. WorkManager
+        // conserva el trabajo SUCCEEDED, asi que al arrancar la fila de ese pack mostraba
+        // "Instalado" **y dejaba de ser pulsable** -- aunque el pack se hubiera borrado y el
+        // catalogo lo estuviera ofreciendo para descargar. No habia forma de volver a bajarlo.
+        //
+        // Un trabajo ya terminado es historia, no una descarga en curso.
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def")) },
+            downloadStates = flowOf(listOf(PackDownload("lo-de-ayer", DownloadPhase.DONE))),
+        )
+        advanceUntilIdle()
+        assertTrue(
+            vm.state.value.downloads.isEmpty(),
+            "un trabajo terminado en otra sesion no es una descarga en curso: ${vm.state.value.downloads}",
+        )
+    }
+
+    @Test
+    fun volver_a_bajar_un_pack_que_YA_se_habia_bajado_antes_si_cuenta() = runTest {
+        // ⚠️ El defecto del propio arreglo, visto en el emulador el 2026-09-22. Al esconder la
+        // historia de WorkManager, un pack que ya se habia bajado en otra sesion quedaba marcado
+        // para siempre: su descarga NUEVA se escondia tambien al terminar, asi que no se
+        // recargaban los packs ni se reclasificaba. El pack quedaba en disco y la app sin verlo.
+        //
+        // Salir de la historia tiene que pasar en cuanto el pack vuelve a moverse.
+        val descargas = MutableStateFlow(listOf(PackDownload("repetido", DownloadPhase.DONE)))
+        // ⚠️ Lo que de verdad importa es que se RECARGUEN los packs: sin eso el pack queda en
+        // disco y la app no lo ve hasta el proximo arranque. La fase en pantalla es el sintoma.
+        var escaneos = 0
+        val vm = SearchViewModel(
+            { escaneos++; listos(FakeDictionary("es-def", dataVersion = 200L)) },
+            fetchCatalog = { CatalogFetch.Fresh(listOf(ofrecido("repetido", 100L)), null) },
+            downloadStates = descargas,
+        )
+        advanceUntilIdle()
+        assertTrue(vm.state.value.downloads.isEmpty(), "la historia empieza escondida")
+        vm.onCheckCatalog(); advanceUntilIdle()
+
+        // Se vuelve a pedir: WorkManager lo pone en marcha y despues lo termina.
+        descargas.value = listOf(PackDownload("repetido", DownloadPhase.RUNNING))
+        advanceUntilIdle()
+        assertEquals(
+            DownloadPhase.RUNNING,
+            vm.state.value.downloads["repetido"]?.phase,
+            "en marcha tiene que verse",
+        )
+        val antes = escaneos
+        descargas.value = listOf(PackDownload("repetido", DownloadPhase.DONE))
+        advanceUntilIdle()
+        assertEquals(
+            DownloadPhase.DONE,
+            vm.state.value.downloads["repetido"]?.phase,
+            "la SEGUNDA descarga del mismo pack tiene que contar como terminada",
+        )
+        assertEquals(
+            antes + 1,
+            escaneos,
+            "terminar la segunda descarga tiene que RECARGAR los packs",
+        )
+    }
+
+    @Test
+    fun una_descarga_que_termina_SIN_haber_consultado_tampoco_publica_nada() = runTest {
+        // ⚠️ La segunda guarda, y hace falta aparte: la primera solo cubre lo que WorkManager
+        // arrastra del arranque. Este es el caso vivo -- una descarga encolada en una sesion
+        // anterior que termina AHORA, con el usuario mirando la pantalla sin haber consultado.
+        // Sin la guarda, terminar publica una lista vacia y la pantalla dice "nada nuevo".
+        val descargas = MutableStateFlow(emptyList<PackDownload>())
+        val vm = SearchViewModel({ listos(FakeDictionary("es-def")) }, downloadStates = descargas)
+        advanceUntilIdle()
+        assertEquals(CatalogState.Idle, vm.state.value.catalog)
+
+        descargas.value = listOf(PackDownload("recien", DownloadPhase.DONE))
+        advanceUntilIdle()
+        assertEquals(
+            CatalogState.Idle,
+            vm.state.value.catalog,
+            "terminar una descarga no puede inventar un catalogo que nadie pidio",
+        )
+    }
+
+    @Test
+    fun una_descarga_que_termina_AHORA_si_reclasifica() = runTest {
+        // La otra mitad: lo que SI tiene que pasar cuando una descarga termina de verdad.
+        val descargas = MutableStateFlow(emptyList<PackDownload>())
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def", dataVersion = 200L)) },
+            fetchCatalog = { CatalogFetch.Fresh(listOf(ofrecido("otro", 100L)), null) },
+            downloadStates = descargas,
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        assertEquals(
+            CatalogStatus.DOWNLOAD,
+            (vm.state.value.catalog as CatalogState.Ready).offers.single().status,
+        )
+        descargas.value = listOf(PackDownload("otro", DownloadPhase.DONE))
+        advanceUntilIdle()
+        // Sigue habiendo catalogo: se reclasifico, no se borro.
+        assertEquals(1, (vm.state.value.catalog as CatalogState.Ready).offers.size)
     }
 
     @Test
