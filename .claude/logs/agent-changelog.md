@@ -26,6 +26,85 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — Logs por todas partes, un servidor de packs, y el catálogo que afiló la promesa del proyecto
+**Qué.** Tres piezas pedidas en un mismo turno. **(1) Observabilidad**: la app no tenía **ni un
+`Log`**, así que se creó `DictLog` (en `:app`) y `SearchTrace` (en `:dict-core`, que no puede
+loguear) y se instrumentaron packs, arranque, tiles y la cascada. **(2) `tools/packserver.py`**: un
+servidor de archivos de desarrollo, stdlib only, que **genera el índice leyendo los propios packs**
+y soporta `Range` y `ETag`. **(3) El catálogo en la app**: `Catalog.classify`, `CatalogClient`, y el
+botón *Consultar el catálogo* en la pantalla de gestión, con las categorías actualizar / descargar /
+incompatible. Más el ítem de roadmap de actualización delta, investigado y **no** implementado.
+
+**Áreas.** Cuatro archivos nuevos en el paquete `data` de `:app` —`DictLog`, `LogSearchTrace`,
+`Catalog`, `CatalogClient`— más `PackStore`, `SearchViewModel`, `PacksScreen` y los dos servicios
+de tile. En `:dict-core`, `SearchTrace` (nuevo) y `SearchRepository`. En `tools`,
+`tools/packserver.py` (nuevo) y `tools/audit_dictionary.py`. El manifest de `main` y uno nuevo en
+el source set `debug`. Documentos: `README.md`, `CLAUDE.md`, `app/CLAUDE.md`, `tools/CLAUDE.md` y
+los tres de `docs` (decisiones, referencias y roadmap).
+
+**Por qué.** Pedido explícito: *«ayúdame a mejorar los logs por toda la app para facilitar el debug
+por adb»* y *«crear un servidor de archivos simples en este equipo con los packs comprimidos»*. El
+instalador estaba bloqueado desde hacía sesiones por una pregunta de producto —dónde se hostea el
+catálogo— y eso bloqueaba también escribir el mecanismo. Esto desbloquea el mecanismo sin decidir
+el producto.
+
+**Arquitectura.** ✅ Cumple, y **con dos decisiones nuevas**: D-212 (un solo tag, `setprop`) y D-213
+(la promesa pasa a «buscar no usa red»).
+
+**Medido.**
+- **Logs: el punto de partida era cero.** `Log.isLoggable` y **no** `BuildConfig.DEBUG`, porque R8
+  borra las llamadas en `release` y **`benchmark` hereda de `release`** — la única build con la que
+  se mide arranque y batería sería la única sin logs.
+- **Servidor**: verificado en marcha — índice 200 con `ETag`, **304** al repetir con
+  `If-None-Match`, **206** con `Content-Range: bytes 100-199/3015926` en un `Range`. Imprime la IP
+  de la LAN (`192.168.100.53`), que es lo que el reloj necesita.
+- **gzip, ya medido antes**: español 73,6 → ~37 MB, inglés 306,8 → ~192 MB. Se sirve el `.gz` como
+  **archivo opaco** y no con `Content-Encoding`, porque así `Range` sigue sirviendo para reanudar.
+- **Delta**: `sqldiff` **descartado con fundamento** (muta el archivo, y las escrituras de SQLite no
+  son deterministas a nivel de bytes ⟹ el `sha256` publicado deja de coincidir, que es todo D-165).
+  zsync es la candidata: reconstruye los bytes exactos y no necesita servidor especial. **Falta el
+  número de cuánto se ahorraría, y sin él el ítem no avanza.**
+- **Tests**: +69 (dict-core 3, app 26, tools 23, más los del catálogo). **Todos los asertos que
+  sostienen una decisión están verificados por mutación o por sonda.**
+
+**Qué salió mal.** Seis cosas, y las tres primeras son de método:
+1. ⚠️ **Commiteé dos veces con el gate en rojo** y lo descubrí después, al leer el `exit`. Las dos
+   veces era el audit avisando de conteos de tests desfasados, corregible con `--fix`. **Leer el
+   código de salida antes de commitear, no la última línea.**
+2. ⚠️ **Metí `--` dentro de un comentario XML, dos veces.** Es ilegal en XML y rompe el merge del
+   manifest con un `Error parsing`. La costumbre viene de los comentarios Kotlin de este repo, que
+   usan `--` como raya. En XML va `—`.
+3. ⚠️ **Un test mío estaba mal, no el código**: `deletePack` recibe un `packId` y yo le pasaba un
+   nombre de archivo; y el doble de `openPacks` devolvía siempre el mismo pack, así que el borrado
+   "reaparecía". Lo delató el mensaje del aserto, no el color.
+4. ⚠️ **Instrumentar el ViewModel tiró diez tests de `SearchViewModelTest`**: es un test JVM plano
+   y el `android.jar` de stub lanza en `Log.isLoggable`. Se arregló con `isReturnDefaultValues`, y
+   **su precio quedó escrito** en `build.gradle.kts`: cualquier método de Android sin mockear pasa
+   de avisar a devolver `null` en silencio. Verificado por mutación que los tests de Robolectric
+   siguen mordiendo después.
+5. ⚠️ **El audit rechazó el commit del catálogo, con razón**: tenía una regla que prohibía los
+   permisos de red porque *«esa frase es la primera línea del README y de CLAUDE.md»*. Declarar
+   `INTERNET` la contradecía. **La regla no se borró: se rediseñó** (D-213) y se verificó con dos
+   sondas.
+6. ⚠️ **`TransformingLazyColumn` sólo compone lo visible**, así que la tercera cabecera de
+   categoría caía fuera de 234 dp y el test contaba dos. Se arregló con el qualifier de pantalla
+   alta que el archivo ya usaba.
+
+**Qué quedó sin hacer.**
+- **Descargar no existe.** El botón **lista**; instalar sigue siendo por cable, y la pantalla lo
+  dice. Falta el trabajo de WorkManager con las restricciones de D-029, la descompresión del `.gz`
+  en el reloj y la verificación de los dos hashes.
+- **Nada de esto se vio en un reloj ni en el emulador.** El reloj se desconectó en la sesión
+  anterior. ⚠️ **Y `benchmark` no puede hablar con el servidor** (`http://` sólo en `debug`).
+- **El linter de Python tiene 18 findings preexistentes** en archivos que no toqué, y
+  `tools/CLAUDE.md` afirma que `check` *«has to be zero»*. Los míos están a cero; los otros 18 no
+  se tocaron. **Es una discrepancia entre el documento y el estado real**, y va al roadmap como
+  ítem de proceso, no se arregla de paso.
+- `CLAUDE.md` está en **200/200 líneas**, el tope del audit. El siguiente que añada algo tiene que
+  quitar algo.
+
+---
+
 ## 2026-09-21 — Sesión de reloj, sólo lectura: la batería reordena el roadmap y el APK no estaba compilado
 **Qué.** Sesión de **debug puro sobre el reloj** —`dumpsys`, `logcat`, `am start -W`, sin inyectar
 entrada ni navegar la app— pedida así explícitamente: *«quiero que todas las pruebas directamente
