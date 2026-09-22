@@ -102,3 +102,47 @@ def combined(principal, relleno):
     salida = dict(relleno or {})
     salida.update(principal)
     return salida
+
+
+def por_norm(counts, norm):
+    """`{norm(palabra): cuenta}`, **sumando** cuando varias palabras comparten clave.
+
+    ⚠️ **Sumar y no pisar, y eso costo una medicion equivocada.** Escrito como un diccionario por
+    comprension --`{norm(k): v for k, v in counts.items()}`-- la ultima palabra gana: en la lista
+    inglesa `a` quedaba con **3.942** apariciones en vez de **14.484.562**, porque alguna palabra
+    rara normaliza igual y venia despues. El sintoma no fue un error sino un orden absurdo, con
+    `didn` encabezando la lista de palabras mas frecuentes del ingles.
+
+    `norm` se pasa como argumento y no se importa para que este modulo siga sin depender de
+    `normalize`, que es lo que lo mantiene barato de probar.
+    """
+    salida = {}
+    for palabra, cuenta in counts.items():
+        clave = norm(palabra)
+        if clave:
+            salida[clave] = salida.get(clave, 0) + cuenta
+    return salida
+
+
+def cobertura(vocabulario, frecuencias):
+    """Que fraccion de los TOKENS del corpus cubre `vocabulario`, en tanto por ciento.
+
+    ⚠️ **Es la metrica de un nivel, y la unica que contesta la pregunta correcta.** Un `core` no
+    se juzga por cuantas palabras trae --eso es un numero sin unidades-- sino por que fraccion de
+    lo que alguien va a buscar tiene adentro. Se mide sobre **tokens** y no sobre tipos: que falte
+    una palabra que aparece un millon de veces no es lo mismo que falte una que aparece tres.
+
+    Medido sobre los packs reales: el ingles completo cubre **96,63 %** y el español **78,87 %**.
+    La diferencia no es calidad del pack, es del corpus: el español de OpenSubtitles trae mucha
+    forma flexionada que el pack resuelve por `form` y esta cuenta no ve.
+
+    ⚠️ **Satura.** Mas alla de las ~50.000 palabras que la lista atestigua, sumar lemas no sube el
+    numero: un `main` ingles de 130 MB ya llega al 96,63 % del pack completo de 307. Lo que un
+    nivel mas grande compra a partir de ahi es encontrar lo raro, que es otra metrica y no esta.
+    """
+    total = cubierto = 0
+    for clave, cuenta in frecuencias.items():
+        total += cuenta
+        if clave in vocabulario:
+            cubierto += cuenta
+    return 100.0 * cubierto / total if total else 0.0

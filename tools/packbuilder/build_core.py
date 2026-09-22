@@ -34,6 +34,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import build  # noqa: E402
+import normalize  # noqa: E402
+from sources import frequency as _frequency  # noqa: E402
 import payload as payload_codec  # noqa: E402
 
 # Cuantas palabras entran por defecto.
@@ -68,14 +70,55 @@ def vocabulario_del_corpus(corpus, lang, top=TOP_POR_DEFECTO):
 NIVELES = ("core", "main", "full")
 
 
-def vocabulario_por_presupuesto(completo, presupuesto_mb):
-    """Los lemas que caben en `presupuesto_mb`, tomados en orden de `rank`.
+def frecuencias_por_norm(lista):
+    """La lista de frecuencias, con las claves que el pack usa. Ver `frequency.por_norm`."""
+    return _frequency.por_norm(_frequency.load(lista), normalize.norm)
 
-    ⚠️ **`rank` ES el criterio, y eso no es una comodidad: esta medido.** Desde que `rank` pasa a
-    ser frecuencia de uso en escala Zipf (`rank_basis=frequency-zipf-v1`), ordenar por el es
-    ordenar por importancia. Sobre los packs reales, un presupuesto de 50 MB en ingles toma 59.503
-    entradas y las que tienen senal de frecuencia --`rank < 500`-- son 55.903: *"las palabras
-    importantes y de uso general"* y *"las que algun corpus atestigua"* resultan el mismo conjunto.
+
+def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
+    """Los lemas que caben en `presupuesto_mb`, **los mas usados primero**.
+
+    ## Que metrica decide, y por que esa
+
+    La pregunta que un nivel tiene que contestar no es *"¿cuantas palabras entran?"* sino *"¿que
+    fraccion de lo que alguien va a buscar esta adentro?"*. Eso se mide: **cobertura de tokens
+    del corpus** -- la suma de las frecuencias de los lemas que entraron, sobre el total. Es
+    verificable sobre el artefacto terminado, no una intencion, y por eso se escribe en
+    `meta.corpus_coverage` y `verify_pack.py` la recalcula.
+
+    ## El orden: frecuencia primero, `rank` detras, y eso esta MEDIDO
+
+    ⚠️ **Ordenar por `rank` es peor, aunque `rank` ya salga de la frecuencia.** Dos razones, y
+    las dos se ven en el numero:
+
+    1. `rank` esta **bucketizado** --`int(round(zipf * ESCALA_ZIPF))`, 500 cubetas-- asi que
+       miles de palabras comparten numero y el desempate es **alfabetico**. Una palabra gorda que
+       empieza con `a` desplaza a una mas usada y mas flaca.
+    2. Pasado el 500 `rank` **deja de ser frecuencia**: es riqueza de pagina, que correlaciona
+       **-0,250** con el uso real (D-185). Un presupuesto que llega ahi gasta en paginas largas.
+
+    Cobertura de tokens medida sobre los packs reales:
+
+    | | por `rank` | por frecuencia | delta |
+    |---|---|---|---|
+    | ingles 25 MB | 93,46 % | **94,43 %** | +0,97 |
+    | ingles 40 MB | 94,75 % | **96,03 %** | +1,28 |
+    | ingles 130 MB | 95,10 % | **96,63 %** *(= el pack completo)* | +1,53 |
+    | español 25 MB | 77,59 % | **78,87 %** *(= el pack completo)* | +1,28 |
+    | español 40 MB | 77,62 % | **78,87 %** | +1,25 |
+
+    Y entran **mas** lemas, no menos. Dos lecturas que valen: un nucleo español de **25 MB cubre
+    tanto como el pack completo de 74**, y un `main` ingles de 130 MB alcanza la cobertura del de
+    307. El techo es la lista: mas alla de las ~50.000 palabras que atestigua, sumar lemas no
+    sube la cobertura -- lo que sube es lo que se encuentra al buscar algo raro, que es otra
+    metrica y no esta.
+
+    ⚠️ **`frecuencias` es opcional y sin ella se corta por `rank`, como antes.** No es un
+    descuido: `build_core` deriva de un pack ya construido y puede correrse sobre uno cualquiera
+    sin tener a mano el corpus con el que se hizo. Degradar al criterio viejo es mejor que fallar.
+
+    ⚠️ **Lo que NO tiene senal va detras de todo lo que si la tiene**, ordenado por `rank` entre
+    si. Sobre el pack ingles son el **95,5 %** de los lemas: la lista cubre 38.067 de 842.026.
 
     ⚠️ **Se devuelve un conjunto de `norm` y no de ids, a proposito.** Asi un homografo entra
     entero o no entra: quedarse con la mitad de `banco` seria perder una acepcion sin ningun aviso.
@@ -93,21 +136,45 @@ def vocabulario_por_presupuesto(completo, presupuesto_mb):
             raise ValueError("%s no tiene payloads" % os.path.basename(completo))
         factor = os.path.getsize(completo) / total_payload
         tope = presupuesto_mb * 1048576 / factor
+        filas = origen.execute(
+            "SELECT norm, length(payload), rank FROM entry ORDER BY rank ASC, headword ASC"
+        ).fetchall()
+        if not frecuencias:
+            vocabulario = set()
+            acumulado = 0
+            for norm, plen, _rank in filas:
+                if acumulado + plen > tope and vocabulario:
+                    break
+                acumulado += plen
+                vocabulario.add(norm)
+            return vocabulario
+
+        # ⚠️ **Por LEMA y no por fila**, y esa es la diferencia con el modo sin lista. Un
+        # homografo entra entero (`banco` asiento y `banco` entidad), asi que lo que cuesta es la
+        # suma de sus payloads; cobrar fila por fila mezclaba el orden de dos lemas distintos.
+        coste = {}
+        mejor_rank = {}
+        for norm, plen, rank in filas:
+            coste[norm] = coste.get(norm, 0) + plen
+            if norm not in mejor_rank or rank < mejor_rank[norm]:
+                mejor_rank[norm] = rank
+        orden = sorted(
+            coste,
+            key=lambda n: (0, -frecuencias[n], n) if n in frecuencias else (1, mejor_rank[n], n),
+        )
         vocabulario = set()
         acumulado = 0
-        for norm, plen in origen.execute(
-            "SELECT norm, length(payload) FROM entry ORDER BY rank ASC, headword ASC"
-        ):
-            if acumulado + plen > tope and vocabulario:
+        for norm in orden:
+            if acumulado + coste[norm] > tope and vocabulario:
                 break
-            acumulado += plen
+            acumulado += coste[norm]
             vocabulario.add(norm)
         return vocabulario
     finally:
         origen.close()
 
 
-def _meta_del_nivel(meta, tier):
+def _meta_del_nivel(meta, tier, cobertura=None):
     """La meta de un nivel derivado: la del completo, mas lo que lo declara subconjunto."""
     if tier not in NIVELES:
         raise ValueError("nivel desconocido %r; los que hay son %s" % (tier, ", ".join(NIVELES)))
@@ -124,6 +191,10 @@ def _meta_del_nivel(meta, tier):
     # el completo presente, la app no le pregunta al nucleo. Es una afirmacion de CONTENIDO, y
     # derivando el nucleo del completo es verdadera por construccion.
     salida["subset_of"] = completo
+    if cobertura is not None:
+        # La metrica que justifica el corte, en el artefacto y no en un changelog. Dos decimales
+        # porque la diferencia entre dos estrategias se juega en el primero.
+        salida["corpus_coverage"] = "%.2f" % cobertura
     # ⚠️ **Y `tier`, que dice lo mismo sin nombrar a nadie.** `subset_of` afirma *«soy parte de
     # ESE pack»* y sirve cuando el completo esta instalado; `tier` afirma *«soy un nucleo»*, que
     # es lo que hace falta para decidir sin conocer al otro. Se declaran los dos porque contestan
@@ -154,8 +225,13 @@ def _agrupar(origen, tabla):
     return salida
 
 
-def derive(completo, salida, vocabulario, tier="core"):
-    """Escribe en `salida` las entradas de `completo` cuyo lema este en `vocabulario`."""
+def derive(completo, salida, vocabulario, tier="core", cobertura=None):
+    """Escribe en `salida` las entradas de `completo` cuyo lema este en `vocabulario`.
+
+    `cobertura` es el porcentaje de tokens del corpus que el vocabulario cubre, y **se escribe en
+    el artefacto**: un nivel que no declara su cobertura obliga a recalcularla para saber si el
+    corte fue bueno, y nadie lo hace. `verify_pack.py` la recalcula y falla si no coincide.
+    """
     origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
     meta = dict(origen.execute("SELECT key, value FROM meta"))
     diccionario = binascii.unhexlify(meta["payload_dict"])
@@ -182,7 +258,7 @@ def derive(completo, salida, vocabulario, tier="core"):
     traducciones_por_entrada = _agrupar(origen, "trans")
 
     escritos = 0
-    with build.PackBuilder(salida, _meta_del_nivel(meta, tier)) as constructor:
+    with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura)) as constructor:
         for entry_id, uid, headword, pos, rank, blob in filas:
             _pos_payload, senses, _palabra = payload_codec.parse(
                 payload_codec.decompress(blob, diccionario))
@@ -220,11 +296,22 @@ def main(argv):
 
     if "--budget-mb" in argv:
         presupuesto = float(argv[argv.index("--budget-mb") + 1])
-        vocabulario = vocabulario_por_presupuesto(completo, presupuesto)
-        escritos = derive(completo, salida, vocabulario, tier=tier)
+        # ⚠️ **Sin la lista el nivel sale medible pero PEOR**, y por eso se avisa. Medido: el
+        # corte por `rank` pierde entre 0,97 y 1,53 puntos de cobertura contra el corte por
+        # frecuencia, y ademas mete menos lemas. Ver `vocabulario_por_presupuesto`.
+        frecuencias = None
+        if "--frecuencias" in argv:
+            frecuencias = frecuencias_por_norm(argv[argv.index("--frecuencias") + 1])
+        else:
+            print("  ⚠️  sin --frecuencias: se corta por rank, que cubre ~1,3 puntos menos",
+                  file=sys.stderr)
+        vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
+        cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
+        escritos = derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura)
         real = os.path.getsize(salida) / 1048576
-        print("%s: %d entradas, %.1f MB (presupuesto %.0f MB, nivel %s)"
-              % (os.path.basename(salida), escritos, real, presupuesto, tier))
+        print("%s: %d entradas, %.1f MB (presupuesto %.0f MB, nivel %s)%s"
+              % (os.path.basename(salida), escritos, real, presupuesto, tier,
+                 "" if cobertura is None else ", cubre %.2f %% del corpus" % cobertura))
         # ⚠️ El presupuesto se ESTIMA escalando los payloads, asi que el archivo real puede
         # pasarse. Se avisa en vez de callarlo: quien lo corre decide si baja el numero.
         if real > presupuesto * 1.1:
