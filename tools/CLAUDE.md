@@ -69,7 +69,7 @@ directory of packs, stdlib only.
 
 ```sh
 adb reverse tcp:8765 tcp:8765                                       # the tunnel, first
-python3 tools/packserver.py ../wearos-dictionary-data --port 8765
+python3 tools/packserver.py ../wearos-dictionary-data/dist --port 8765
 python3 tools/packserver.py ../wearos-dictionary-data --index-only   # just print the index
 ```
 
@@ -176,6 +176,54 @@ same filters, a promise nothing checks. It also takes seven seconds instead of a
 ⚠️ **The vocabulary comes from usage frequency (Tatoeba), never from `rank`, and the gap is
 measured**: by `rank` a core takes **91 %** of the Spanish inflection table — the richest pages are
 verbs, and a Spanish verb has 33 forms — while by frequency it takes **5.5 %**. See D-175.
+
+## `build_packs.py`: el pipeline entero, y donde vive cada cosa
+
+**Los scripts van en el repo; los packs, no.** Son 4,4 GB de dumps y cientos de MB de artefactos,
+y `.gitignore` ya cubre `/*.db`. Lo que faltaba es que **el orden del rebuild vivía sólo en prosa**
+—en esta misma página—, y ahí no se puede correr ni comprobar.
+
+```sh
+python3 tools/build_packs.py ../wearos-dictionary-data --dry-run   # el plan, sin tocar nada
+python3 tools/build_packs.py ../wearos-dictionary-data             # y corriéndolo
+python3 tools/build_packs.py ../wearos-dictionary-data --solo es
+```
+
+### Tres directorios, y la separación es el punto
+
+```
+<raíz>/dumps/   las entradas: los .jsonl de kaikki, los corpus, WordNet, dbnary
+<raíz>/build/   los INTERMEDIOS: packs que son entrada de un merge y no se distribuyen
+<raíz>/dist/    lo que se publica, y lo único que `packserver.py` debe servir
+```
+
+⚠️ **Con todo en un directorio plano, `es-def-wd` apareció en el catálogo del emulador como un
+pack descargable.** No lo es: es una **entrada** del merge español, que el pack español lleva
+fundido dentro. Publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que
+D-215 descartó.
+
+⚠️ **El inglés completo vive en `dist/` aunque TAMBIÉN sea una entrada** —del bilingüe, por
+`--flexiones`—. Es las dos cosas, y lo que decide dónde vive es **si se distribuye**.
+
+### El orden, y por qué un test lo fija
+
+`--flexiones` lee un pack **ya construido** del idioma destino, así que el bilingüe tiene que ir
+después del inglés. ⚠️ **Saltárselo no da error**: el pack sale bien formado, pasa `verify_pack.py`
+y es **peor en silencio** — 8,6 puntos de cobertura inversa, medidos.
+
+Por eso `plan()` se devuelve en vez de correrse: **la forma del plan entra al gate** y correrlo
+necesita los dumps, que no. Es el mismo reparto que `devpack.py`.
+
+Y cada pack publicable **se verifica antes de seguir**: encadenar sobre un pack a medias propaga
+el defecto, y un pack a medias se abre sin error.
+
+### Qué se genera, y qué no
+
+Los niveles salen de `build_core.py --budget-mb`, derivando del `full` y nunca de otro nivel
+—derivar un `core` de un `main` haría que `subset_of` apunte al intermedio—. ⚠️ **Un idioma cuyo
+`full` ya cabe en el presupuesto de `main` no genera `main`**: el español completo son 73,6 MB, por
+debajo de los 130, así que sería un segundo pack con el mismo contenido. Lo decide el tamaño
+medido, no una lista escrita a mano.
 
 ## ⚠️ Rebuilding a pack: the flags that are not optional
 
