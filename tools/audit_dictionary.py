@@ -257,7 +257,7 @@ def check_doc_paths(report):
     token = re.compile(r"`([^`\n]+)`")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
-        if relative == "docs/roadmap.md" or relative.startswith("docs/agents/"):
+        if relative == "docs/roadmap.md" or relative.startswith(("docs/agents/", ".agents/")):
             continue
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
@@ -281,7 +281,7 @@ def check_markdown_links(report):
     link = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
-        if relative.startswith("docs/agents/"):
+        if relative.startswith(("docs/agents/", ".agents/")):
             continue
         base = os.path.dirname(path)
         with open(path, encoding="utf-8") as handle:
