@@ -143,6 +143,16 @@ grey
 
 # Words that carry today's meaning. Defends the finding that made OEWN a spike and not a source:
 # it covered 64 % of a 39-word probe because it is frozen academic vocabulary (D-120).
+#
+# ⚠️ **This group binds the FULL pack only, and the reason is measured.** What it defends is that
+# the *source* carries current vocabulary -- not that a cut is sane. And a cut by frequency
+# cannot deliver these: `blockchain`, `deepfake` and `workaround` have **zero** occurrences in
+# `freq-en-opensubs.txt`, so no frequency-ordered tier will ever reach them. Demanding them of a
+# `core` turns the check into noise somebody eventually switches off.
+#
+# Every other group here has no directive, and that is the right default: months, verbs and
+# everyday words are frequent, so if a tier is missing one, **the cut is broken**.
+#! solo el pack completo
 selfie
 blockchain
 deepfake

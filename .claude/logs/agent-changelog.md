@@ -26,6 +26,69 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El rebuild corrió de punta a punta, y encontró tres cosas que el gate no ve
+**Qué.** Los seis packs de `dist/` reconstruidos con el builder de hoy. Para llegar ahí hubo que
+arreglar `--sumar`, borrar un paso que no consumía nadie, y acotar a qué pack le exige cada grupo
+de la lista de cobertura.
+
+**Áreas.** `tools/build_packs.py`, `tools/packbuilder/verify_pack.py`,
+`tools/packbuilder/vectors/cobertura-en.txt`, `tools/packbuilder/tests/test_build.py`,
+`tools/packbuilder/tests/test_build_packs.py`, `docs/roadmap.md`, `tools/CLAUDE.md`.
+
+**Por qué.** Pedido: *«¿puedes verificar que está todo listo y hacer el build final?»*. La
+sección permanente §🔁 del roadmap listaba seis deudas sin llegar al reloj; el rebuild las cierra.
+
+**Arquitectura.** ✅ Cumple. Nada generado entra al repo: los packs viven en
+`wearos-dictionary-data/`.
+
+**Medido.**
+- Los seis packs, todos pasando `verify_pack.py` completo y `--como-la-app`: `en-full` 329,6 MB /
+  956.150 entradas · `en-main` 108,0 MB / 138.083 (cobertura 96,63 %, lemas 16,40 %) · `en-core`
+  42,9 MB / 36.952 (96,60 %, 4,39 %) · `es-full` 77,6 MB / 152.281 · `es-core` 50,8 MB / 39.021
+  (78,87 %, 28,18 %) · `es-en` 67,2 MB / 209.484. `es-main` se salta solo: el español completo no
+  llega al mínimo de ese rango.
+- **El calendario volvió**: `en-core` trae **19 de 19** meses y días, contra **0 de 19** del
+  publicado. `es-core` trae **9 de 9** chilenismos contra 1 de 9.
+- **El inglés completo creció 2,5 %** (321,7 → 329,6 MB) por la cita del ejemplo, que es
+  exactamente lo que D-216 midió.
+- Leídas entradas reales, no filas: `Thomas` muestra `C | 1897, Richard Marsh` bajo su ejemplo —el
+  reclamo que abrió este hilo—, e `inglés` da `English, Englishman` sin repetir (D-218).
+- `blockchain`, `deepfake` y `workaround` tienen **cero** apariciones en `freq-en-opensubs.txt`;
+  `tuesday` tiene **14.074**.
+
+**Qué salió mal.**
+- ⚠️ **`--sumar es-wd` recibía el pack construido y su lector abre el dump crudo.** Reventó el
+  paso 3 con un `UnicodeDecodeError`. Es la **tercera** instancia de la misma clase; las dos
+  anteriores las fijó una tabla de nombres y ésta se escapó porque **la bandera no estaba en la
+  tabla** —y además toma dos valores, así que el chequeo de «índice+1» leía `es-wd`—. Ahora un
+  test exige que **toda bandera que reciba una ruta esté declarada**, que cierra la clase.
+- ⚠️ **`build/es-def-wd.db` no lo consumía nadie.** El plan lo construía creyendo que era una
+  entrada del merge; `--sumar` lee el dump. 30 s y 4,5 MB por nada, y `tools/CLAUDE.md` afirmaba
+  lo contrario. Nuevo test: nada se construye para que nadie lo consuma.
+- ⚠️ **La lista de cobertura le exigía a dos packs promesas que no hicieron.** Al bilingüe, ser un
+  diccionario de inglés: su lado inglés existe para la dirección inversa (D-196), así que ahora se
+  le informa y no reprueba. Y a un `core`, traer palabras con cero frecuencia, que un corte por
+  frecuencia **no puede** alcanzar; ese grupo obliga sólo al pack completo, con directiva
+  explícita en el archivo. Verificado por mutación: borrarle `january` al `core` lo sigue
+  reprobando.
+- **Leí `meta.payload_dict` como `str` y lo re-encodeé en UTF-8; está guardado como hex.** `zlib`
+  no lanzó nada y devolvió texto con palabras reales mezcladas con basura. Es **D-008 en vivo**, y
+  si hubiera mirado sólo las primeras palabras lo habría dado por bueno. Lo agarró el sha256 del
+  diccionario, que es para lo que existe.
+- Cuatro corridas del pipeline en vez de una, porque cada falla aparecía recién al llegar a su
+  paso. El `--dry-run` no las habría visto: valida la forma del plan, no que cada lector sepa
+  abrir lo que recibe.
+
+**Qué quedó sin hacer.**
+- ⚠️ **`Tuesday` no es entrada del pack bilingüe** aunque `Monday` y `Wednesday` sí: la fuente
+  escribe la traducción de `martes` glosada dentro de la acepción. Anotado en el roadmap con lo
+  que falta medir antes de escribir una regla.
+- **Medir las tres rutas de alineación de acepciones** (*«primero medirlo mejor»*) — sin empezar.
+- Los packs **no se subieron al reloj**: `dist/` está listo, `devpack.py` no se corrió.
+- El fixture del índice del catálogo sigue fijando los `pack_id` viejos. Es deliberado —incluye un
+  pack schema 3 que el `dist/` nuevo ya no puede producir— pero ahora no describe el directorio
+  real, y `tools/CLAUDE.md` todavía dice que sí.
+
 ## 2026-09-22 — El presupuesto de un nivel pasa a ser un rango, y sus extremos se miden
 **Qué.** `build_core.py --rango-mb <min> <max>`: deriva, **mide el archivo**, corrige el factor y
 vuelve —hasta 4 vueltas, apuntando al medio— y sale **1** si no lo logra. El pipeline pasa a

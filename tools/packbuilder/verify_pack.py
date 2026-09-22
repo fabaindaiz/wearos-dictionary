@@ -608,17 +608,40 @@ def _citas_huerfanas(text):
 VECTORES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors")
 
 
+#: La directiva que un grupo de la lista puede llevar en su encabezado.
+#:
+#: ⚠️ **Existe porque no toda palabra obliga a todo nivel, y confundirlo rompe el chequeo en las
+#: dos direcciones.** Medido sobre `freq-en-opensubs.txt`: `blockchain`, `deepfake` y `workaround`
+#: tienen **cero** apariciones, asi que un corte por frecuencia **no puede** traerlas -- y el
+#: grupo que las contiene no defiende al corte: defiende que la FUENTE traiga vocabulario de hoy
+#: (D-120), que es una propiedad del pack completo. Exigirselas a un `core` convierte el chequeo
+#: en ruido que alguien termina apagando; no exigirselas a nadie pierde la señal.
+#:
+#: Lo que NO lleva directiva obliga a todo nivel, y ese es el default correcto: los meses, los
+#: verbos y el vocabulario cotidiano son frecuentes, asi que si faltan **el corte esta roto**.
+DIRECTIVA_SOLO_COMPLETO = "#! solo el pack completo"
+
+
 def lista_de_cobertura(lang):
-    """Las palabras que `lang` exige, o None si ese idioma no declara ninguna."""
+    """Lo que `lang` exige, como `(palabra, obliga_en_todo_nivel)`; None si no declara lista."""
     ruta = os.path.join(VECTORES, "cobertura-%s.txt" % lang)
     if not os.path.exists(ruta):
         return None
     palabras = []
+    todo_nivel = True
     with open(ruta, encoding="utf-8") as handle:
         for linea in handle:
             linea = linea.strip()
-            if linea and not linea.startswith("#"):
-                palabras.append(linea)
+            if not linea:
+                # La linea en blanco cierra el grupo, asi que la directiva no se filtra al que
+                # sigue. Es la misma separacion que el archivo ya usa para agrupar.
+                todo_nivel = True
+                continue
+            if linea.startswith("#"):
+                if linea == DIRECTIVA_SOLO_COMPLETO:
+                    todo_nivel = False
+                continue
+            palabras.append((linea, todo_nivel))
     return palabras
 
 
@@ -641,6 +664,16 @@ def _verify_vocabulary(db, meta, report):
     convertiria el chequeo en uno sobre la lematizacion de la fuente, que es otra cosa.
     """
     idiomas = [x.strip() for x in (meta.get("langs") or "").split(",") if x.strip()]
+    # ⚠️ **A un bilingue se le exige el idioma del que es diccionario, que es el de ORIGEN.** Su
+    # lado destino existe para la direccion inversa --`went` llega a `go` por la tabla `form`
+    # (D-196)--, no para ser un diccionario de ese idioma: sus entradas son las que alguna
+    # palabra del origen tradujo. Exigirle la lista completa mide una promesa que ese pack no
+    # hizo. Lo encontro el rebuild: `es-en` reprobaba por `tuesday` porque `martes` trae su
+    # traduccion **glosada dentro de la acepcion** en vez de un termino limpio.
+    #
+    # ⚠️ **Pero no se calla, se informa.** Esa señal es real -- buscar `tuesday` en el bilingue no
+    # devuelve nada-- y silenciarla seria perder justo lo que este chequeo existe para ver.
+    exigidos = idiomas[:1] if meta.get("kind") == "bilingual" else idiomas
     for lang in idiomas:
         palabras = lista_de_cobertura(lang)
         if palabras is None:
@@ -655,8 +688,13 @@ def _verify_vocabulary(db, meta, report):
             report.note("%s: %d entradas para una lista de %d palabras; es un fixture, no se "
                         "comprueba la cobertura" % (lang, entradas, len(palabras)))
             continue
+        # ⚠️ Un nivel derivado solo responde por lo que obliga a todo nivel. Ver
+        # [DIRECTIVA_SOLO_COMPLETO]: pedirle a un corte por frecuencia una palabra sin frecuencia
+        # es pedirle algo que su metrica no puede entregar.
+        es_completo = meta.get("tier", "full") == "full"
+        exigidas = [p for p, todo_nivel in palabras if todo_nivel or es_completo]
         faltan = []
-        for palabra in palabras:
+        for palabra in exigidas:
             clave = normalize.norm(palabra)
             hay = db.execute(
                 "SELECT 1 FROM entry WHERE norm = ? UNION ALL"
@@ -664,13 +702,15 @@ def _verify_vocabulary(db, meta, report):
             ).fetchone()
             if not hay:
                 faltan.append(palabra)
-        report.check(
-            not faltan,
-            "las %d palabras que exige %s estan en el pack%s" % (
-                len(palabras), lang,
-                "" if not faltan else " (faltan %d: %s)" % (
-                    len(faltan), ", ".join(faltan[:12]) + (" ..." if len(faltan) > 12 else ""))),
-        )
+        detalle = "las %d palabras que exige %s estan en el pack%s" % (
+            len(exigidas), lang,
+            "" if not faltan else " (faltan %d: %s)" % (
+                len(faltan), ", ".join(faltan[:12]) + (" ..." if len(faltan) > 12 else "")))
+        if lang in exigidos:
+            report.check(not faltan, detalle)
+        elif faltan:
+            report.note("%s es el idioma DESTINO de un bilingue, asi que esto no reprueba: %s"
+                        % (lang, detalle))
 
 
 def _verify_query_plans(db, report):

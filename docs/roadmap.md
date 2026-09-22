@@ -50,8 +50,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **469 tests**) están completos y en el gate, junto con los **374 JVM
-de `:app`** y **28 checks** de auditoría estructural — **993 tests en total**. Los **46
+pipeline de packs (`tools/`, **475 tests**) están completos y en el gate, junto con los **374 JVM
+de `:app`** y **28 checks** de auditoría estructural — **999 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -175,24 +175,37 @@ español completo (73,6 MB) esté por debajo del máximo del rango de `main` (15
 real lo salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía
 no existe**. El plan que se lee no es exactamente el plan que corre.
 
-### La deuda de hoy — actualizado 2026-09-22
+### La deuda de hoy — NINGUNA, reconstruido el 2026-09-22 a las 17:22
 
-Los cinco packs de `dist/` se construyeron el **2026-09-21 entre las 18:56 y las 19:37**
-(`data_version` 2026092118xx–19xx). Desde entonces el builder cambió en **seis commits**, y esto
-es lo que no llegó:
+**Los seis packs de `dist/` salieron del builder de esta fecha** y pasan `verify_pack.py` completo
+y `--como-la-app`. Las seis deudas que esta tabla listaba —la identidad `<idioma>-<nivel>`, los
+tres tamaños, el rango medido, el calendario inglés, la cita del ejemplo y el deduplicado de
+listas— **las cierra este build**.
 
-| Qué | De dónde | Por qué importa |
-|---|---|---|
-| **La identidad `<idioma>-<nivel>`** | D-215 | Los publicados dicen `es-def-wikc-tat-freq-wn-wd`; el builder de hoy produce `es-full`. **Son packs distintos para el catálogo y para el instalador** |
-| **Los tres tamaños por idioma** | D-215 | `main` no existe todavía como artefacto |
-| **El rango, y sus extremos medidos** | D-220 | Los niveles se pedían con `--budget-mb`, que es un techo **estimado**: pedir 25 MB daba 17,7. Y el mínimo de `core` estaba 1,1 puntos por debajo del codo inglés |
-| **El calendario inglés** | D-116 | ⚠️ **`dist/en-core.db` no tiene 11 de los 12 meses ni ningún día de la semana** — 0 entradas para `january`…`sunday`. El núcleo nuevo, ordenado por frecuencia, trae 14. Lo encontró la lista de cobertura, no un test |
-| **La cita del ejemplo** | D-216 | 86,5 % de los ejemplos ingleses son citas de un texto y hoy salen sin decir de dónde |
-| **El deduplicado de listas** | D-218 | `inglés` muestra `English, Englishman, English` |
+| pack | tamaño | entradas | cobertura del corpus | fracción de lemas |
+|---|---|---|---|---|
+| `en-full` | 329,6 MB | 956.150 | — | — |
+| `en-main` | 108,0 MB | 138.083 | 96,63 % | 16,40 % |
+| `en-core` | 42,9 MB | 36.952 | 96,60 % | 4,39 % |
+| `es-full` | 77,6 MB | 152.281 | — | — |
+| `es-core` | 50,8 MB | 39.021 | 78,87 % | 28,18 % |
+| `es-en` | 67,2 MB | 209.484 | — | — |
 
-⚠️ **Y `dist/` ya NO pasa `verify_pack.py` completo**, por lo último: la invariante de repetidos
-los agarra. Sí pasa `--como-la-app`, o sea que la app los abre sin problema. **No hay urgencia,
-hay desfase.**
+`es-main` no existe y eso es correcto: el español completo son 77,6 MB, por debajo del mínimo de
+ese rango (D-220). Los packs anteriores quedaron en `build/*.PREV.db`, movidos y no borrados.
+
+⚠️ **Lo que el rebuild encontró, y el gate no podía ver**, está en el changelog del 2026-09-22:
+`--sumar` recibía un pack donde su lector abre el dump —tercera instancia de la misma clase—, un
+intermedio que no consumía nadie, y la lista de cobertura exigiéndole a dos packs promesas que no
+hicieron. Los tres tienen test ahora.
+
+### Lo que sigue desfasado después del rebuild
+
+| Qué | Por qué importa |
+|---|---|
+| **Los packs no están en el reloj** | `dist/` está listo; `devpack.py` no se corrió. Hasta que se corra, el reloj sigue con los packs del 2026-09-21 |
+| **El fixture del índice del catálogo** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test— pero ya **no describe el directorio real**, y `tools/CLAUDE.md` todavía afirma que sí |
+| **`Tuesday` en el bilingüe** | Ver §La traducción glosada no produce entrada inversa. Necesita una medición antes que código |
 
 ### ✅ Lo que había que arreglar antes de reconstruir — HECHO el 2026-09-22
 
@@ -734,8 +747,31 @@ cada uno en orden cronológico inverso, así que se leía al revés de como se e
 `(idioma, palabra, acepción)` con un código que **no nombra un pack**, `trans` deja de estar vacía
 en los packs monolingües, y las flexiones del idioma destino cierran la dirección inversa.
 
-⚠️ **Nada de eso se ve todavía**: los `.db` en disco son builds anteriores. Lo destraba el build
-completo, que es el único punto del corte que falta.
+✅ **Construido el 2026-09-22.** `dist/es-en.db` es el pack con todo eso adentro.
+
+### ⚠️ La traducción glosada no produce entrada inversa — ABIERTO, medido el 2026-09-22
+
+Lo encontró la lista de cobertura durante el rebuild: **`Tuesday` no es entrada del pack
+bilingüe**, y `Monday` y `Wednesday` sí. No es una regla que se lleve los días: es que la fuente
+escribe la traducción de `martes` **glosada dentro de la acepción** en vez de como término limpio.
+
+```
+lunes   S | Monday                                              T | Monday      ← sale la inversa
+martes  S | Tuesday (the third day of the week in many…)        (sin T)         ← no sale
+```
+
+⚠️ **Y la palabra es frecuente, así que no es un caso de cola**: `tuesday` aparece **14.074**
+veces en `freq-en-opensubs.txt`. Buscar *tuesday* con sólo el bilingüe instalado no devuelve nada.
+
+⚠️ **Lo que NO se sabe es cuántas son**, y eso es lo primero que hay que medir antes de escribir
+una regla: cuántas acepciones traen una traducción con paréntesis explicativo, y si recortar en el
+primer `(` acierta o parte términos que legítimamente lo llevan. Es exactamente el modo de falla
+que `kaikki.py:6-8` prohíbe atacar con heurísticas sobre la prosa, así que necesita el número
+antes que el código.
+
+El chequeo de cobertura **lo informa y no reprueba** al bilingüe: el lado inglés de `es-en` existe
+para la dirección inversa (D-196), no para ser un diccionario de inglés, y exigirle la lista
+completa mide una promesa que ese pack no hizo.
 
 | | |
 |---|---|

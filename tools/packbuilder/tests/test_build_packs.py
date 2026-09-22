@@ -15,6 +15,8 @@ sys.path.insert(
 
 import build_packs  # noqa: E402
 
+BUILD, DIST = build_packs.BUILD, build_packs.DIST
+
 RAIZ = "/datos"
 
 
@@ -51,21 +53,19 @@ class PlanTest(unittest.TestCase):
             "tiene que apuntar al pack que este mismo plan acaba de construir",
         )
 
-    def test_el_INTERMEDIO_no_va_a_dist(self):
-        """⚠️ Es lo que se vio en el emulador: `es-def-wd` aparecio como pack descargable.
+    def test_cada_paso_escribe_DONDE_le_toca(self):
+        """Lo publicable a `dist/`, lo intermedio a `build/`, y nada al reves.
 
-        Es una ENTRADA del merge espanol, no un diccionario para nadie. Un pack de una sola fuente
-        es justo el modelo que se descarto.
+        ⚠️ Es lo que se vio en el emulador: con todo en un directorio plano, `es-def-wd` aparecio
+        como pack **descargable**. No lo era. Hoy el plan no tiene intermedios --el unico que
+        habia no lo consumia nadie, ver [test_nada_se_construye_para_que_NADIE_lo_consuma]-- asi
+        que la mitad de `build/` es una guarda para cuando vuelva a haber uno.
         """
-        intermedio = next(p for p in _pasos() if "intermedio" in p["nombre"])
-        self.assertIn(os.sep + "build" + os.sep, intermedio["salida"])
-        self.assertNotIn(os.sep + "dist" + os.sep, intermedio["salida"])
-
-    def test_todo_lo_demas_SI_va_a_dist(self):
         for paso in _pasos():
-            if "intermedio" in paso["nombre"]:
-                continue
-            self.assertIn(os.sep + "dist" + os.sep, paso["salida"], paso["nombre"])
+            destino = BUILD if "intermedio" in paso["nombre"] else DIST
+            self.assertIn(os.sep + destino + os.sep, paso["salida"], paso["nombre"])
+            if destino == BUILD:
+                self.assertNotIn(os.sep + DIST + os.sep, paso["salida"], paso["nombre"])
 
     def test_un_idioma_cuyo_FULL_ya_cabe_no_genera_main(self):
         """El espanol completo son 73,6 MB, por debajo del presupuesto de `main` (D-215).
@@ -135,8 +135,6 @@ class PlanTest(unittest.TestCase):
         "en-full": ["en.jsonl"],
         "es-full": ["es.jsonl"],
         "es-en (bilingue)": ["es-en-wikt.jsonl"],
-        # Wikidata Lexemes (D-139): `json.loads` por linea, bz2.
-        "es-wd (intermedio)": ["wikidata-lexemes.json.bz2"],
     }
 
     #: Que archivo espera cada bandera. El lector esta entre parentesis.
@@ -149,7 +147,13 @@ class PlanTest(unittest.TestCase):
         "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
         # build_core lee un pack ya construido, no un dump.
         "--flexiones": ["en-full.db"],
+        # ⚠️ `--sumar <pack> <dump>` toma DOS valores, y el que es ruta es el segundo. Por eso
+        # se le escapo al chequeo viejo, que miraba siempre indice+1 y leia `es-wd`.
+        "--sumar": ["wikidata-lexemes.json.bz2"],
     }
+
+    #: Cual de los valores de la bandera es la ruta. El default es 1 (el que sigue).
+    RUTA_EN = {"--sumar": 2}
 
     def test_cada_paso_recibe_el_dump_que_su_lector_sabe_leer(self):
         for paso in _pasos():
@@ -170,12 +174,56 @@ class PlanTest(unittest.TestCase):
             for bandera, esperados in self.DUMPS_POR_BANDERA.items():
                 if bandera not in comando:
                     continue
-                valor = os.path.basename(comando[comando.index(bandera) + 1])
+                valor = os.path.basename(
+                    comando[comando.index(bandera) + self.RUTA_EN.get(bandera, 1)])
                 self.assertIn(
                     valor, esperados,
                     "%s pasa %s %r; ese lector espera %s"
                     % (paso["nombre"], bandera, valor, esperados),
                 )
+
+    def test_ninguna_bandera_con_RUTA_queda_fuera_de_la_tabla(self):
+        """⚠️ **El chequeo por tabla sirve mientras la tabla este completa, y no lo estaba.**
+
+        Es la tercera vez que un paso le pasa a un lector un archivo que no sabe leer: primero
+        `es-wd` con un Turtle, despues `--tesauro` con otro, y ahora `--sumar` con un `.db`
+        construido cuando su lector abre el dump crudo. Las dos primeras las fijo una tabla; la
+        tercera se escapo porque **la bandera no estaba en la tabla**.
+
+        Asi que la exhaustividad tambien se fija: cualquier bandera que reciba una ruta tiene que
+        estar declarada. Una bandera nueva sin fila hace fallar esto, no al rebuild.
+        """
+        for paso in _pasos():
+            comando = paso["comando"]
+            for i, argumento in enumerate(comando):
+                if not argumento.startswith("--"):
+                    continue
+                siguientes = comando[i + 1:i + 3]
+                if not any(os.sep in v for v in siguientes):
+                    continue
+                self.assertIn(
+                    argumento, self.DUMPS_POR_BANDERA,
+                    "%s pasa %s con una ruta y esa bandera no esta en DUMPS_POR_BANDERA"
+                    % (paso["nombre"], argumento),
+                )
+
+    def test_nada_se_construye_para_que_NADIE_lo_consuma(self):
+        """Un intermedio que nadie lee es tiempo de build y un archivo que confunde.
+
+        ⚠️ **Lo encontro el rebuild, no el gate**: `build/es-def-wd.db` se construia y el paso que
+        supuestamente lo consumia (`--sumar`) lee el **dump**, no el pack. Treinta segundos y 4,5
+        MB para nada, y la documentacion decia que era *una entrada del merge*.
+        """
+        pasos = _pasos()
+        for i, paso in enumerate(pasos):
+            if os.sep + "build" + os.sep not in paso["salida"]:
+                continue
+            consumido = any(paso["salida"] in p["comando"] for p in pasos[i + 1:])
+            self.assertTrue(
+                consumido,
+                "%s escribe %s y ningun paso posterior lo lee"
+                % (paso["nombre"], os.path.basename(paso["salida"])),
+            )
 
     def test_el_plan_no_usa_ninguna_fuente_RECHAZADA(self):
         """⚠️ DBnary esta en `docs/fuentes.md` como rechazada **y medida**: misma fuente que el

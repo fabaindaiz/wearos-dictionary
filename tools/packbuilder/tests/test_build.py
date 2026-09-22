@@ -1151,3 +1151,86 @@ class DataVersionTest(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(self.dir, ignore_errors=True)
+
+
+class ListaDeCoberturaTest(unittest.TestCase):
+    """A quien le exige la lista de cobertura las palabras de un idioma.
+
+    ⚠️ **Lo trajo el rebuild, no un test.** El pack bilingue declara `langs = es,en` y reprobo
+    por `tuesday`: `martes` trae su traduccion **glosada dentro de la acepcion** --*«Tuesday (the
+    third day of the week...)»*-- en vez de un termino limpio, asi que nunca salio la entrada
+    inglesa. Es un hueco real **y una promesa que ese pack no hizo**: su lado ingles existe para
+    la direccion inversa (D-196), no para ser un diccionario de ingles.
+
+    La regla que queda: **la lista le exige a un pack el idioma del que es diccionario**. En un
+    monolingue, todos los que declara; en un bilingue, el de ORIGEN. Lo demas se informa, porque
+    callarlo seria perder la señal que encontro esto.
+    """
+
+    def _pack(self, langs, kind, palabras_presentes):
+        path = os.path.join(self.dir, "%s-%s.db" % (kind, langs.replace(",", "")))
+        db = sqlite3.connect(path)
+        db.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+        db.execute("CREATE TABLE entry (id INTEGER, norm TEXT)")
+        db.execute("CREATE TABLE form (entry_id INTEGER, norm TEXT)")
+        db.executemany("INSERT INTO meta VALUES (?, ?)",
+                       [("langs", langs), ("kind", kind)])
+        # ⚠️ Con menos entradas que palabras tiene la lista, el chequeo se salta por "es un
+        # fixture". El relleno existe para que la regla que se prueba sea la del idioma.
+        filas = list(palabras_presentes) + ["relleno%d" % i for i in range(8)]
+        db.executemany("INSERT INTO entry VALUES (?, ?)", list(enumerate(filas)))
+        db.commit()
+        return db, dict(db.execute("SELECT key, value FROM meta"))
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.original = verify_pack.lista_de_cobertura
+        verify_pack.lista_de_cobertura = lambda lang: {
+            "es": [("martes", True), ("casa", True)],
+            "en": [("tuesday", True), ("house", True), ("blockchain", False)]}.get(lang)
+
+    def tearDown(self):
+        verify_pack.lista_de_cobertura = self.original
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_a_un_MONOLINGUE_se_le_exige_su_idioma(self):
+        db, meta = self._pack("en", "monolingual", ["house"])
+        report = verify_pack.Report()
+        verify_pack._verify_vocabulary(db, meta, report)
+        self.assertTrue(any("tuesday" in f for f in report.failures), report.failures)
+
+    def test_a_un_BILINGUE_se_le_exige_el_idioma_de_ORIGEN(self):
+        db, meta = self._pack("es,en", "bilingual", ["casa"])
+        report = verify_pack.Report()
+        verify_pack._verify_vocabulary(db, meta, report)
+        self.assertTrue(any("martes" in f for f in report.failures), report.failures)
+
+    def test_lo_que_solo_obliga_al_COMPLETO_no_reprueba_a_un_nivel(self):
+        """⚠️ **Un corte por frecuencia no puede traer una palabra que no tiene frecuencia.**
+
+        Medido sobre `freq-en-opensubs.txt`: `blockchain`, `deepfake` y `workaround` tienen
+        **cero** apariciones. Exigirselas a un `core` es pedirle al corte algo que su propia
+        metrica no puede entregar -- y el grupo que las contiene defiende otra cosa: que la
+        FUENTE traiga vocabulario de hoy (D-120), que es una propiedad del pack completo.
+
+        `tuesday`, en cambio, tiene 14.074: si falta en un nivel, el corte esta roto.
+        """
+        db, meta = self._pack("en", "monolingual", ["tuesday", "house"])
+        meta["tier"] = "core"
+        report = verify_pack.Report()
+        verify_pack._verify_vocabulary(db, meta, report)
+        self.assertEqual([], report.failures)
+
+    def test_y_al_pack_COMPLETO_si_se_le_exige(self):
+        db, meta = self._pack("en", "monolingual", ["tuesday", "house"])
+        meta["tier"] = "full"
+        report = verify_pack.Report()
+        verify_pack._verify_vocabulary(db, meta, report)
+        self.assertTrue(any("blockchain" in f for f in report.failures), report.failures)
+
+    def test_al_BILINGUE_el_idioma_DESTINO_se_le_informa_y_no_reprueba(self):
+        """El lado ingles de `es-en` es la direccion inversa, no un diccionario de ingles."""
+        db, meta = self._pack("es,en", "bilingual", ["casa", "martes", "house"])
+        report = verify_pack.Report()
+        verify_pack._verify_vocabulary(db, meta, report)
+        self.assertEqual([], report.failures)
