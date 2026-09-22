@@ -1255,9 +1255,103 @@ def check_method_digest(report):
         )
 
 
+def check_rejection_mirror(report):
+    """Regla: los motivos de rechazo de la app y los de verify_pack.py coinciden. (D-217)
+
+    ⚠️ **Es el CUARTO contrato cruzado del repo, y el unico que nacio con enforcer.** Los otros
+    tres --`norm()`, `sense_code` y el indice del catalogo-- lo ganaron despues de separarse. El
+    modo `--como-la-app` de `verify_pack.py` existe para contestar *"si subo este pack al reloj,
+    ¿aparece?"*, y esa respuesta vale exactamente lo que valga su fidelidad: un motivo agregado
+    en Kotlin y no aca hace que el verificador diga que si a un pack que la app va a rechazar.
+
+    ⚠️ **Compara tambien el ORDEN.** Todas las comprobaciones rechazan (D-217), asi que el orden
+    no decide si un pack entra: decide **que motivo se reporta**, que es la unica linea que el
+    usuario lee. Los siete packs de `schema_version` 3 del directorio de datos salian como
+    "metadatos incompletos" en vez de "otra version del formato" por tener el orden al reves.
+    """
+    kotlin = read("dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt")
+    bloque = re.search(r"enum class PackRejection\(val id: String\) \{(.*?)\n\}", kotlin, re.S)
+    if not bloque:
+        report.failure("espejo de rechazos", "no se encontro el enum PackRejection en Model.kt")
+        return
+    ids_kt = re.findall(r'^\s*[A-Z_]+\("([a-z]+)"\),', bloque.group(1), re.M)
+
+    python = read("tools/packbuilder/verify_pack.py")
+    tabla = re.search(r"MOTIVOS_DE_LA_APP = \((.*?)\n\)", python, re.S)
+    if not tabla:
+        report.failure("espejo de rechazos", "no se encontro MOTIVOS_DE_LA_APP en verify_pack.py")
+        return
+    ids_py = re.findall(r'^\s*\("([a-z]+)", ', tabla.group(1), re.M)
+
+    if not ids_kt or not ids_py:
+        report.failure("espejo de rechazos", "alguno de los dos lados quedo vacio")
+    elif ids_kt != ids_py:
+        faltan = [x for x in ids_kt if x not in ids_py]
+        sobran = [x for x in ids_py if x not in ids_kt]
+        detalle = "Kotlin=%s Python=%s" % (ids_kt, ids_py)
+        if faltan:
+            detalle += "; le faltan a verify_pack: %s" % ", ".join(faltan)
+        if sobran:
+            detalle += "; sobran en verify_pack: %s" % ", ".join(sobran)
+        if not faltan and not sobran:
+            detalle += "; mismos motivos, OTRO ORDEN -- y el orden decide que motivo se reporta"
+        report.failure("motivos de rechazo desincronizados", detalle)
+
+    # El orden de EVALUACION tambien se declara, y tiene que cubrir los mismos motivos menos
+    # `damaged`, que no se comprueba: es lo que queda cuando abrir el archivo lanza.
+    orden = re.search(r"ORDEN_DE_EVALUACION = \((.*?)\n\)", python, re.S)
+    if not orden:
+        report.failure("espejo de rechazos", "no se encontro ORDEN_DE_EVALUACION")
+        return
+    ids_orden = re.findall(r'"([a-z]+)"', orden.group(1))
+    esperados = [x for x in ids_kt if x != "damaged"]
+    if sorted(ids_orden) != sorted(esperados):
+        report.failure(
+            "orden de evaluacion incompleto",
+            "ORDEN_DE_EVALUACION no cubre los mismos motivos: %s contra %s"
+            % (sorted(ids_orden), sorted(esperados)),
+        )
+
+
+def check_xml_comments(report):
+    """Regla: un comentario XML no contiene `--`, que es su propio cierre.
+
+    ⚠️ **Tercer golpe, y por eso existe** (roadmap §Proceso). El estilo de comentario de este
+    repo escribe `--` todo el tiempo --«el nombre mentia --y lo decidio una medicion--»-- porque
+    es el guion de inciso que se teclea sin raya. En `.kt` y en `.py` es correcto; en XML rompe
+    `mergeDebugResources` con *"The string `--` is not permitted within comments"*, seguido de
+    treinta lineas de stack de Xerces que no nombran el archivo hasta la primera.
+
+    El sintoma se lee como un problema de recursos y no de puntuacion, y cuesta una corrida de
+    Gradle averiguarlo. Aca cuesta segundos. La alternativa --acordarse de escribir `—`-- ya
+    fallo tres veces.
+    """
+    objetivos = []
+    base = os.path.join(ROOT, "app", "src", "main")
+    for carpeta, _, archivos in os.walk(base):
+        for nombre in archivos:
+            if nombre.endswith(".xml"):
+                objetivos.append(os.path.join(carpeta, nombre))
+    for ruta in sorted(objetivos):
+        try:
+            texto = open(ruta, encoding="utf-8").read()
+        except OSError:
+            continue
+        for comentario in re.findall(r"<!--(.*?)-->", texto, re.S):
+            if "--" in comentario:
+                relativa = os.path.relpath(ruta, ROOT)
+                linea = texto[:texto.index(comentario)].count("\n") + 1
+                report.failure(
+                    "`--` dentro de un comentario XML",
+                    "%s:%d rompe mergeDebugResources; en XML el guion de inciso es `\u2014`"
+                    % (relativa, linea),
+                )
+
+
 CHECKS = [
     check_mirror_declarations,
     check_version_constants,
+    check_rejection_mirror,
     check_unicode_table,
     check_fuzzy_profiles,
     check_doc_paths,
@@ -1277,6 +1371,7 @@ CHECKS = [
     check_test_counts,
     check_r8_keep_rules,
     check_manifest_hygiene,
+    check_xml_comments,
     check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
