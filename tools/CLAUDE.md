@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 463 tests
+hatch run test              # the 469 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -219,11 +219,20 @@ el defecto, y un pack a medias se abre sin error.
 
 ### Qué se genera, y qué no
 
-Los niveles salen de `build_core.py --budget-mb`, derivando del `full` y nunca de otro nivel
-—derivar un `core` de un `main` haría que `subset_of` apunte al intermedio—. ⚠️ **Un idioma cuyo
-`full` ya cabe en el presupuesto de `main` no genera `main`**: el español completo son 73,6 MB, por
-debajo de los 130, así que sería un segundo pack con el mismo contenido. Lo decide el tamaño
-medido, no una lista escrita a mano.
+Los niveles salen de `build_core.py --rango-mb <min> <max>`, derivando del `full` y nunca de otro
+nivel —derivar un `core` de un `main` haría que `subset_of` apunte al intermedio—. ⚠️ **Un idioma
+cuyo `full` ya cabe entero en el rango de `main` no genera `main`**: el español completo son 73,6
+MB, por debajo del máximo de 150, así que sería un segundo pack con el mismo contenido. Lo decide
+el tamaño medido, no una lista escrita a mano.
+
+⚠️ **Es un rango y no un presupuesto, y eso es lo que hace que se cumpla.** `--budget-mb` estima
+el tamaño escalando los payloads por la proporción del pack de **origen**, y el derivado tiene
+otra —se lleva las formas de sus lemas y no las de los demás—: **pedir 25 MB dio 17,7**, por
+debajo del mínimo del nivel, sin error y con el pack pasando todas sus invariantes. `--rango-mb`
+deriva, **mide el archivo**, corrige el factor y vuelve, hasta cuatro veces, y **sale con código 1
+si no lo logra** — porque un exit 0 con un artefacto fuera de rango le dice al pipeline *esto
+cumple*. `--budget-mb` sigue existiendo para explorar la curva; publicar con él no garantiza nada
+(D-220).
 
 ## ⚠️ Rebuilding a pack: the flags that are not optional
 
@@ -269,6 +278,25 @@ verifier say yes to a pack the app will reject.
 decide whether a pack gets in — it decides **which reason is reported**, which is the only line
 the user reads. The seven schema-3 packs in the data directory came out as "incomplete metadata"
 instead of "another format version" purely from having it backwards.
+
+## Las listas de cobertura: lo que un pack TIENE que poder encontrar
+
+`vectors/cobertura-es.txt` y `cobertura-en.txt`. `verify_pack.py` las corre **solo**, sin flag,
+cuando el pack declara ese idioma, y falla nombrando lo que falta. Una palabra cuenta como
+encontrada si es lema **o** una de sus formas flexionadas: `fui` llega a `ir`, que es lo que el
+usuario experimenta.
+
+⚠️ **Es el primer chequeo de CONTENIDO del repo, y por eso existe.** El gate compila, las
+invariantes pasan y `--como-la-app` dice que sí sobre un `en-core` que **no tiene ningún mes del
+año** — no hay nada estructuralmente roto que mirar. Lo encontró la lista el día que se escribió:
+`dist/en-core.db` da **0 entradas** para `january`…`sunday`.
+
+⚠️ **Agregar una palabra es documentar una decisión de producto**, no engordar un test: afirma que
+el diccionario, sin ella, está roto. Por eso van agrupadas y cada grupo dice qué defiende.
+
+⚠️ **Y lo que NO resuelve hay que decirlo**: una lista escrita a mano tiene el mismo sesgo que
+mirar a mano — no sabe lo que nadie pensó en poner. Sirve contra **regresiones**, no contra huecos
+desconocidos. Un pack de fixture (menos entradas que palabras en la lista) se salta el chequeo.
 
 ## Adding a source
 

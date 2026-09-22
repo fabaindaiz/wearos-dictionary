@@ -174,7 +174,7 @@ def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
         origen.close()
 
 
-def _meta_del_nivel(meta, tier, cobertura=None):
+def _meta_del_nivel(meta, tier, cobertura=None, lemas=None):
     """La meta de un nivel derivado: la del completo, mas lo que lo declara subconjunto."""
     if tier not in NIVELES:
         raise ValueError("nivel desconocido %r; los que hay son %s" % (tier, ", ".join(NIVELES)))
@@ -195,6 +195,10 @@ def _meta_del_nivel(meta, tier, cobertura=None):
         # La metrica que justifica el corte, en el artefacto y no en un changelog. Dos decimales
         # porque la diferencia entre dos estrategias se juega en el primero.
         salida["corpus_coverage"] = "%.2f" % cobertura
+    if lemas is not None:
+        # La segunda metrica. Ver [_fraccion_de_lemas]: la primera satura y no puede justificar
+        # un nivel grande.
+        salida["lemma_coverage"] = "%.2f" % lemas
     # ⚠️ **Y `tier`, que dice lo mismo sin nombrar a nadie.** `subset_of` afirma *«soy parte de
     # ESE pack»* y sirve cuando el completo esta instalado; `tier` afirma *«soy un nucleo»*, que
     # es lo que hace falta para decidir sin conocer al otro. Se declaran los dos porque contestan
@@ -225,7 +229,7 @@ def _agrupar(origen, tabla):
     return salida
 
 
-def derive(completo, salida, vocabulario, tier="core", cobertura=None):
+def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=None):
     """Escribe en `salida` las entradas de `completo` cuyo lema este en `vocabulario`.
 
     `cobertura` es el porcentaje de tokens del corpus que el vocabulario cubre, y **se escribe en
@@ -258,7 +262,7 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None):
     traducciones_por_entrada = _agrupar(origen, "trans")
 
     escritos = 0
-    with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura)) as constructor:
+    with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura, lemas)) as constructor:
         for entry_id, uid, headword, pos, rank, blob in filas:
             _pos_payload, senses, _palabra = payload_codec.parse(
                 payload_codec.decompress(blob, diccionario))
@@ -282,11 +286,134 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None):
     return escritos
 
 
-def main(argv):
-    """Dos modos, y el de presupuesto es el que usan los niveles de D-215.
+#: Cuantas veces se re-deriva buscando el rango. Cada vuelta es un pack escrito entero, asi que
+#: el tope existe: converge en dos o tres porque el factor real se estabiliza en cuanto se mide
+#: una vez, y seguir intentando cuesta mas de lo que afina.
+MAX_VUELTAS = 4
 
-        build_core.py <completo.db> <salida.db> --budget-mb 50 --tier core
-        build_core.py <completo.db> <salida.db> <corpus.tsv> [--top N]   # el modo original
+#: A que altura del rango se apunta: **el medio**.
+#:
+#: ⚠️ **La razon archivo/presupuesto NO es monotona, y por eso ninguna constante la compensa.**
+#: Medido sobre el pack español derivando a seis presupuestos:
+#:
+#:     presupuesto   archivo   razon
+#:          10 MB     6,0 MB    0,60
+#:          20 MB    13,4 MB    0,67
+#:          30 MB    27,4 MB    0,91
+#:        37,5 MB    47,3 MB    1,26   <- el pico
+#:          45 MB    51,2 MB    1,14
+#:          60 MB    60,4 MB    1,01
+#:
+#: Sube hasta 1,26 y vuelve a bajar: la tabla `form` crece mas rapido que los payloads --12,98
+#: flexiones por lema en español-- hasta que el vocabulario empieza a agotarse y la proporcion se
+#: normaliza. Con ese comportamiento, **la unica garantia del rango es medir el archivo y volver**,
+#: que es lo que hace [derivar_en_rango]. Apuntar al medio es lo que le deja margen de error en
+#: las dos direcciones.
+OBJETIVO_DEL_RANGO = 0.5
+
+
+def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecuencias=None):
+    """Deriva un nivel cuyo ARCHIVO cae dentro de `[minimo_mb, maximo_mb]`.
+
+    ## Por que converge en vez de estimar una vez
+
+    ⚠️ **El factor del pack de origen NO es el del derivado, y eso hacia que el rango no se
+    cumpliera.** `vocabulario_por_presupuesto` escala los payloads por `tamaño / suma(payloads)`
+    del **completo**; el derivado tiene otra proporcion --se lleva las formas de sus lemas pero
+    no las de los demas, y los indices crecen distinto-- asi que pedir 25 MB daba **17,7**, por
+    debajo del minimo del rango.
+
+    Un nivel corto no esta mal por el tamaño: esta mal porque **el rango es el requisito** y el
+    artefacto no lo cumple. Y el factor real solo se conoce **midiendo el archivo**, asi que se
+    deriva, se mide, se corrige y se vuelve.
+
+    ## Que devuelve
+
+    Un informe con `en_rango`, `mb`, `vueltas` y, si no se pudo, `motivo`. ⚠️ **No poder no es un
+    error**: un `full` mas chico que el minimo del nivel significa que ese nivel no tiene sentido
+    para ese idioma, y eso se dice en vez de callarse -- si saliera callado, el rango dejaria de
+    significar algo.
+    """
+    objetivo_mb = minimo_mb + (maximo_mb - minimo_mb) * OBJETIVO_DEL_RANGO
+    presupuesto = objetivo_mb
+    informe = {"en_rango": False, "mb": 0.0, "vueltas": 0, "motivo": ""}
+    for vuelta in range(1, MAX_VUELTAS + 1):
+        vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
+        cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
+        lemas = _fraccion_de_lemas(completo, vocabulario)
+        derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
+        mb = os.path.getsize(salida) / 1048576
+        informe.update(mb=mb, vueltas=vuelta, cobertura=cobertura, lemas=lemas,
+                       entradas=len(vocabulario))
+        if minimo_mb <= mb <= maximo_mb:
+            informe["en_rango"] = True
+            return informe
+        if mb < minimo_mb and _es_el_pack_entero(completo, vocabulario):
+            # No hay mas vocabulario que meter: el `full` no llega al minimo de este nivel.
+            informe["motivo"] = ("todo el pack entra y pesa %.1f MB, por debajo del minimo de "
+                                 "%.1f MB" % (mb, minimo_mb))
+            return informe
+        # El factor real se mide del archivo que acaba de salir. Es la unica forma de saberlo.
+        presupuesto *= objetivo_mb / mb if mb else 2.0
+    informe["motivo"] = "no convergio en %d vueltas (ultimo: %.1f MB)" % (MAX_VUELTAS, informe["mb"])
+    return informe
+
+
+def _es_el_pack_entero(completo, vocabulario):
+    origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
+    try:
+        total = origen.execute("SELECT COUNT(DISTINCT norm) FROM entry").fetchone()[0]
+    finally:
+        origen.close()
+    return len(vocabulario) >= total
+
+
+def _fraccion_de_lemas(completo, vocabulario):
+    """Que porcentaje de los lemas del pack completo se lleva este nivel.
+
+    ⚠️ **Es la SEGUNDA metrica, y hace falta porque la primera satura.** `corpus_coverage` deja
+    de moverse pasadas las ~50.000 palabras que la lista atestigua: medido, el ingles llega a su
+    techo de 96,63 % en **57,6 MB**, asi que los 130 MB de `main` compran **cero** cobertura por
+    esa vara. Lo que compran es encontrar lo raro -- la palabra que no esta en ningun corpus de
+    subtitulos y que alguien igual va a buscar-- y eso es justamente lo que esta mide.
+
+    No pretende ser una probabilidad: es una fraccion del diccionario, monotona y verificable.
+    Una metrica ponderada por "que tan probable es que alguien la busque" necesitaria un corpus
+    que hoy no existe, y decirlo es mejor que inventar un numero.
+    """
+    origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
+    try:
+        total = origen.execute("SELECT COUNT(DISTINCT norm) FROM entry").fetchone()[0]
+    finally:
+        origen.close()
+    return 100.0 * len(vocabulario) / total if total else 0.0
+
+
+def _frecuencias_de(argv):
+    """La lista de frecuencias, o `None` avisando lo que eso cuesta.
+
+    ⚠️ **Sin la lista el nivel sale medible pero PEOR**, y por eso se avisa en vez de callarlo.
+    Medido: el corte por `rank` pierde entre 0,97 y 1,53 puntos de cobertura contra el corte por
+    frecuencia, y ademas mete menos lemas. Ver [vocabulario_por_presupuesto].
+    """
+    if "--frecuencias" in argv:
+        return frecuencias_por_norm(argv[argv.index("--frecuencias") + 1])
+    print("  ⚠️  sin --frecuencias: se corta por rank, que cubre ~1,3 puntos menos",
+          file=sys.stderr)
+    return None
+
+
+def main(argv):
+    """Tres modos, y el de RANGO es el que usan los niveles de D-215.
+
+        build_core.py <completo.db> <salida.db> --rango-mb 25 50 --tier core   # el del pipeline
+        build_core.py <completo.db> <salida.db> --budget-mb 50 --tier core     # un techo, sin rango
+        build_core.py <completo.db> <salida.db> <corpus.tsv> [--top N]         # el modo original
+
+    ⚠️ **`--budget-mb` sigue existiendo para explorar la curva, no para publicar.** Estima una
+    sola vez escalando los payloads por la proporcion del pack de ORIGEN, que no es la del
+    derivado: pedir 25 MB dio **17,7**. Medir seis presupuestos con el sale barato y es asi como
+    se validaron los rangos; construir un nivel publicable con el no garantiza nada.
     """
     if len(argv) < 3:
         sys.stderr.write(__doc__)
@@ -294,17 +421,31 @@ def main(argv):
     completo, salida = argv[1], argv[2]
     tier = argv[argv.index("--tier") + 1] if "--tier" in argv else "core"
 
+    if "--rango-mb" in argv:
+        i = argv.index("--rango-mb")
+        minimo, maximo = float(argv[i + 1]), float(argv[i + 2])
+        informe = derivar_en_rango(completo, salida, minimo, maximo, tier=tier,
+                                   frecuencias=_frecuencias_de(argv))
+        print("%s: %d entradas, %.1f MB (rango %g-%g MB, nivel %s, %d vuelta%s)%s"
+              % (os.path.basename(salida), informe["entradas"], informe["mb"], minimo, maximo,
+                 tier, informe["vueltas"], "" if informe["vueltas"] == 1 else "s",
+                 "" if informe.get("cobertura") is None
+                 else ", cubre %.2f %% del corpus y %.2f %% de los lemas"
+                      % (informe["cobertura"], informe["lemas"])))
+        if not informe["en_rango"]:
+            # ⚠️ **Exit 1 y no un aviso.** El pipeline encadena sobre lo que el paso anterior
+            # dejo, y salir 0 con un artefacto fuera de rango dice *esto cumple* de un pack que
+            # no cumple -- que es exactamente la clase de fallo que este repo no puede ver.
+            print("  ✗  fuera de rango: %s" % informe["motivo"], file=sys.stderr)
+            return 1
+        return 0
+
     if "--budget-mb" in argv:
         presupuesto = float(argv[argv.index("--budget-mb") + 1])
         # ⚠️ **Sin la lista el nivel sale medible pero PEOR**, y por eso se avisa. Medido: el
         # corte por `rank` pierde entre 0,97 y 1,53 puntos de cobertura contra el corte por
         # frecuencia, y ademas mete menos lemas. Ver `vocabulario_por_presupuesto`.
-        frecuencias = None
-        if "--frecuencias" in argv:
-            frecuencias = frecuencias_por_norm(argv[argv.index("--frecuencias") + 1])
-        else:
-            print("  ⚠️  sin --frecuencias: se corta por rank, que cubre ~1,3 puntos menos",
-                  file=sys.stderr)
+        frecuencias = _frecuencias_de(argv)
         vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
         cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
         escritos = derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura)

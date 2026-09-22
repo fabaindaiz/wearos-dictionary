@@ -26,6 +26,64 @@ que los aciertos: una entrada que esconde un desvío manda a la sesión siguient
 
 ---
 
+## 2026-09-22 — El presupuesto de un nivel pasa a ser un rango, y sus extremos se miden
+**Qué.** `build_core.py --rango-mb <min> <max>`: deriva, **mide el archivo**, corrige el factor y
+vuelve —hasta 4 vueltas, apuntando al medio— y sale **1** si no lo logra. El pipeline pasa a
+pedirlo. Y dos listas de vocabulario obligatorio, `vectors/cobertura-es.txt` y `cobertura-en.txt`, que
+`verify_pack.py` corre solo cuando el pack declara ese idioma.
+
+**Áreas.** `tools/packbuilder/build_core.py`, `tools/build_packs.py`,
+`tools/packbuilder/verify_pack.py`, `tools/packbuilder/vectors/cobertura-es.txt` y `cobertura-en.txt`,
+`tools/packbuilder/tests/test_core.py`, `tools/packbuilder/tests/test_build_packs.py`, `docs/decisions.md` (D-220),
+`docs/roadmap.md`, `tools/CLAUDE.md`.
+
+**Por qué.** Pedido: *«da lo mismo que el core se quede corto, lo importante es que la calibración
+esté dentro del rango del presupuesto y la elección de este presupuesto esté validada»*. Eran dos
+cosas y ninguna estaba.
+
+**Arquitectura.** ✅ Cumple. El rango es un requisito sobre el artefacto, no sobre la estimación, y
+el exit 1 lo hace observable por el pipeline.
+
+**Medido.**
+- **El artefacto no cumplía el presupuesto**: pedir 25 MB daba **17,7**, sin error y pasando todas
+  las invariantes. Y **ninguna constante lo compensa**: la razón archivo/presupuesto del pack
+  español a seis presupuestos da **0,60 · 0,67 · 0,91 · 1,26 · 1,14 · 1,01** — sube a un pico y
+  vuelve a bajar, porque `form` crece más rápido que los payloads hasta que el vocabulario se agota.
+- **El codo de la curva cobertura/tamaño** (criterio escrito antes de leer: *+10 MB compran < 0,5
+  puntos*), derivando a 8 presupuestos en español y 11 en inglés: español **~13 MB**, satura en
+  17,7 con 78,87 %; **inglés ~29 MB**, satura en 45,2 con 96,63 %. Los dos valores de saturación
+  son los del pack completo. ⚠️ **Eso corrigió el mínimo de `core`: 25 MB estaba 1,1 puntos por
+  debajo del codo inglés, y pasa a 30.** Medido en el artefacto: `en-core` sube de **95,86 %** (27,4
+  MB con el rango viejo) a **96,63 %** (40,9 MB) — la cobertura del pack de 307 MB.
+- ⚠️ **Los máximos NO los valida ninguna métrica de contenido, y ése es el hallazgo.** Pasado el
+  codo la cobertura no se mueve, y `lemma_coverage` es **convexa**: acelera, **0,168 → 0,248 →
+  0,301 → 0,388 puntos por MB**, porque las palabras raras tienen payloads chicos. Por esa vara
+  siempre conviene gastar más, así que no hay codo superior. Lo que sí está medido es el **ancho**
+  (`máx ≥ mín × 1,5`, la dispersión de la razón) y el **salto** (`mín(main) ≥ máx(core) × 2`).
+- **Las listas de cobertura encontraron un defecto vivo en un pack publicado**: `dist/en-core.db`
+  tiene **0 entradas** para `january`…`sunday` — **11 de los 12 meses y los 7 días**. Es D-116
+  viva: el castigo a los nombres propios los empuja fuera del presupuesto. `dist/es-core.db` no
+  tiene 8 chilenismos. Con el corte por frecuencia: el núcleo español pasa las **123** y al inglés
+  le faltan **3** (`blockchain`, `deepfake`, `workaround`), que son neologismos que el corpus de
+  subtítulos casi no tiene.
+- Los tres niveles nuevos convergen dentro de su rango en 1–2 vueltas y los tres pasan
+  `--como-la-app`.
+
+**Qué salió mal.**
+- ⚠️ **`derivar_en_rango` existía, con sus tres tests en verde, y el pipeline seguía llamando a
+  `--budget-mb`.** Es la forma de deuda que no se ve: la función probada y el artefacto publicado
+  derivado por el camino viejo. El test que lo agarra mira el **comando del plan**, no la función.
+- Intenté justificar el máximo con `lemma_coverage` antes de graficarla. Es convexa: la regla
+  *«hasta que deje de rendir»* nunca dispara. Dos redacciones tiradas antes de medir la pendiente.
+- `set -- $x` en el Bash de la sesión no separó los campos y las tres derivaciones salieron con
+  `--rango-mb 30 --tier`, que revienta con un `ValueError` crudo en vez de un mensaje.
+
+**Qué quedó sin hacer.**
+- **El rebuild sigue sin hacerse** y ahora tiene una razón más (§🔁 del roadmap): los packs
+  publicados no sólo están desfasados, `en-core` **no tiene el calendario**.
+- **Medir las tres rutas de alineación de acepciones** (*«primero medirlo mejor»*) — sin empezar.
+- `--rango-mb` con un argumento faltante tira traceback en vez de decir qué falta.
+
 ## 2026-09-22 — El pipeline estaba roto, y la clase del rank que sí tenía regla
 **Qué.** Dos rutas de `build_packs.py` que apuntaban a dumps que sus lectores no parsean, con el
 test que ahora fija los nombres además del orden. Una tarea **permanente** en el roadmap para el

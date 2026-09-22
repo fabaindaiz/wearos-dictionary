@@ -88,6 +88,24 @@ class PlanTest(unittest.TestCase):
                 continue
             self.assertTrue(paso["verifica"], "%s tendria que verificarse" % paso["nombre"])
 
+    def test_los_niveles_piden_un_RANGO_medido_y_no_un_numero_suelto(self):
+        """⚠️ **`--budget-mb` es un techo estimado; el requisito de D-215 es un rango.**
+
+        La estimacion escala los payloads por la proporcion del pack de ORIGEN, que no es la del
+        derivado: pedir 25 MB daba 17,7. El pipeline tiene que pedir el rango, que es lo unico
+        que se cumple midiendo el archivo.
+        """
+        for paso in _pasos():
+            if not paso["nombre"].endswith(("-core", "-main")):
+                continue
+            cmd = paso["comando"]
+            self.assertIn("--rango-mb", cmd, paso["nombre"])
+            self.assertNotIn("--budget-mb", cmd, paso["nombre"])
+            nivel = paso["nombre"].rsplit("-", 1)[1]
+            minimo, maximo = build_packs.RANGO[nivel]
+            i = cmd.index("--rango-mb")
+            self.assertEqual([str(minimo), str(maximo)], cmd[i + 1:i + 3], paso["nombre"])
+
     def test_los_niveles_derivan_del_FULL_y_no_de_otro_nivel(self):
         """Derivar un `core` de un `main` haria que `subset_of` apunte al intermedio."""
         for paso in _pasos():

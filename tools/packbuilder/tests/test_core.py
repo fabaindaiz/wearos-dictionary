@@ -1,5 +1,7 @@
 """Derivar un pack nucleo de un pack completo ya construido."""
 
+import contextlib
+import io
 import os
 import sqlite3
 import sys
@@ -26,6 +28,11 @@ BASE_META = {
     "source_url": "https://example.invalid/w",
     "proper_nouns": "included",
 }
+
+
+def _sin_ruido():
+    """La CLI imprime su informe; el gate no es el lugar para leerlo."""
+    return contextlib.redirect_stdout(io.StringIO())
 
 
 def rec(headword, pos="noun", rank=0, forms=(), senses=None, sense_key=None):
@@ -142,6 +149,81 @@ class BuildCoreTest(unittest.TestCase):
         vocab = build_core.vocabulario_por_presupuesto(
             contrario, presupuesto_mb=0.02, frecuencias={"comun": 500})
         self.assertEqual({"comun"}, vocab)
+
+    def test_el_artefacto_cae_DENTRO_del_rango_y_no_solo_debajo(self):
+        """⚠️ **El presupuesto es un RANGO que el archivo tiene que cumplir, no un techo.**
+
+        Antes se estimaba una sola vez, escalando los payloads por la proporcion que tenia el
+        pack de ORIGEN, y el derivado tiene otra: pedir 25 MB daba **17,7**, o sea por debajo del
+        minimo del rango. Un nivel que se queda corto no esta mal por el tamaño -- esta mal
+        porque el rango es el requisito de producto y el artefacto no lo cumple.
+
+        Converge: deriva, mide el archivo de verdad, corrige el factor y vuelve. El factor real
+        solo se conoce midiendo, asi que estimarlo una vez no alcanza.
+        """
+        salida = os.path.join(self.dir, "en-rango.db")
+        informe = build_core.derivar_en_rango(
+            self.completo, salida, minimo_mb=0.02, maximo_mb=0.06, tier="core")
+        real = os.path.getsize(salida) / 1048576
+        self.assertGreaterEqual(real, 0.02, informe)
+        self.assertLessEqual(real, 0.06, informe)
+
+    def test_si_el_pack_entero_no_llega_al_minimo_se_DICE(self):
+        """No se puede inventar contenido para llenar un rango.
+
+        Un `full` mas chico que el minimo del nivel no es un error: es que ese nivel no tiene
+        sentido para ese idioma. Lo que no puede pasar es que salga callado, porque entonces el
+        rango deja de significar algo.
+        """
+        salida = os.path.join(self.dir, "imposible.db")
+        informe = build_core.derivar_en_rango(
+            self.completo, salida, minimo_mb=500, maximo_mb=900, tier="core")
+        self.assertFalse(informe["en_rango"])
+        self.assertIn("todo el pack", informe["motivo"])
+
+    def test_declara_las_DOS_metricas(self):
+        """⚠️ Dos, porque una sola no puede justificar los dos niveles.
+
+        `corpus_coverage` **satura**: pasadas las ~50.000 palabras que la lista atestigua, sumar
+        lemas no la mueve. Medido, el ingles llega a su techo de 96,63 % en **57,6 MB**, asi que
+        los 130 MB de `main` compran **cero** cobertura por esa vara. Lo que compran es encontrar
+        lo raro, y eso lo mide `lemma_coverage`: que fraccion del diccionario completo se lleva.
+        """
+        salida = os.path.join(self.dir, "metricas.db")
+        build_core.derivar_en_rango(self.completo, salida, minimo_mb=0.001, maximo_mb=9999,
+                                    tier="core", frecuencias={"agua": 100})
+        with sqlite3.connect(salida) as db:
+            meta = dict(db.execute("SELECT key, value FROM meta"))
+        self.assertIn("corpus_coverage", meta)
+        self.assertIn("lemma_coverage", meta)
+        self.assertEqual("100.00", meta["lemma_coverage"])
+
+    def test_la_CLI_pide_el_RANGO_y_no_un_presupuesto_suelto(self):
+        """⚠️ **La funcion existia y el pipeline seguia llamando al modo viejo.**
+
+        Es la forma de deuda que no se ve: `derivar_en_rango` con sus tests en verde, y los packs
+        publicados derivados igual con `--budget-mb`, o sea sin garantia de rango. El modo entra
+        por la CLI o no entra.
+        """
+        salida = os.path.join(self.dir, "cli-rango.db")
+        with _sin_ruido():
+            codigo = build_core.main(["build_core.py", self.completo, salida,
+                                      "--rango-mb", "0.02", "0.06", "--tier", "core"])
+        self.assertEqual(0, codigo)
+        real = os.path.getsize(salida) / 1048576
+        self.assertGreaterEqual(real, 0.02)
+        self.assertLessEqual(real, 0.06)
+
+    def test_la_CLI_falla_si_el_rango_NO_se_cumple(self):
+        """Salir 0 con un artefacto fuera de rango seria peor que no tener el modo.
+
+        El pipeline encadena sobre lo que el paso anterior dejo, y un exit 0 dice *esto cumple*.
+        """
+        salida = os.path.join(self.dir, "cli-imposible.db")
+        with _sin_ruido():
+            codigo = build_core.main(["build_core.py", self.completo, salida,
+                                      "--rango-mb", "500", "900"])
+        self.assertEqual(1, codigo)
 
     def test_un_presupuesto_enorme_se_lo_lleva_todo(self):
         vocab = build_core.vocabulario_por_presupuesto(self.completo, presupuesto_mb=9999)
