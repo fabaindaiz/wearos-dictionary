@@ -87,8 +87,9 @@ android {
          * ./gradlew :app:assembleDebug -PdebugR8  # con R8, ~3 minutos
          * ```
          *
-         * Apagado por defecto porque R8 tarda ~3 minutos y `debug` es la build que se compila
-         * muchas veces al dia. Encendido siempre, dejaria de ser la build barata **y** dejaria de
+         * Apagado por defecto por lo que cuesta: medido incremental el 2026-09-21, **11,7 s sin
+         * el flag contra 59 s con el**, y `debug` es la build que se compila muchas veces al dia.
+         * (El bloque `benchmark` dice «~3 minutos» para R8; eso es una build limpia, no esta.) Encendido siempre, dejaria de ser la build barata **y** dejaria de
          * ser la build sin minificar donde se verifica a diario -- seria ya otra cosa.
          *
          * ⚠️ **Esto NO da el arranque del build real, y es exactamente por lo que existe
