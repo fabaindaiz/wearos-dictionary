@@ -269,6 +269,16 @@ object PayloadCodec {
         )
     }
 
+    /**
+     * Vuelve a texto un [Body], para el ida y vuelta de los tests.
+     *
+     * ⚠️ **NO deduplica las listas, y el lado Python SI, y la asimetria es deliberada.**
+     * `payload.render` es el paso por el que pasan todos los packs **al construirse**, asi que
+     * ahi la deduplicacion decide que se guarda. Aca se esta LEYENDO un pack que ya existe:
+     * alterar en silencio lo que el archivo trae escondería que un pack ajeno viene con la misma
+     * palabra dos veces, en vez de dejarlo a la vista. Mostrar lo que el pack dice es la
+     * respuesta correcta para un lector.
+     */
     fun render(body: Body): String {
         val out = StringBuilder()
         body.partOfSpeech?.let { out.append(TAG_PART_OF_SPEECH).append('\t').append(it).append('\n') }
