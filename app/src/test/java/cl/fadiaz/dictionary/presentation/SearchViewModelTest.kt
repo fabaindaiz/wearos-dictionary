@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackSet
@@ -1290,12 +1291,24 @@ class SearchViewModelTest {
     @Test
     fun aBrokenPackDoesNotTakeTheOtherDown() = runTest {
         val es = FakeDictionary("es-def", "es")
-        val vm = SearchViewModel({
-            PackSet.Ready(handle(es), listOf(handle(es)), problems = listOf("en-def: dañado"))
-        })
+        val roto = PackHandle.Incompatible("en-def.db", 1_000L, PackRejection.FTS_MISALIGNED)
+        val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), roto)) })
         advanceUntilIdle()
         assertEquals(SearchState.Status.Ready, vm.state.value.status)
-        assertEquals(listOf("en-def: dañado"), vm.state.value.problems)
+        assertEquals(listOf(roto), vm.state.value.rejected)
+    }
+
+    @Test
+    fun aRejectedPackIsNotOfferedInTheSelector() = runTest {
+        // ⚠️ **Los dos canales tienen que separarse en las DOS direcciones.** Un rechazado que
+        // se cuela en `available` es un chip de idioma que no busca nada; uno que falta en
+        // `rejected` es un archivo que ocupa lugar y no aparece en ninguna parte.
+        val es = FakeDictionary("es-def", "es")
+        val roto = PackHandle.Incompatible("en-def.db", 1_000L, PackRejection.KEYS)
+        val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), roto)) })
+        advanceUntilIdle()
+        assertTrue(vm.state.value.available.none { it is PackHandle.Incompatible })
+        assertEquals(listOf(roto), vm.state.value.rejected)
     }
 
     @Test

@@ -402,10 +402,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     )
                 }
                 composable(ROUTE_ATTRIBUTION) {
-                    AttributionScreen(
-                        packs = state.available,
-                        problems = state.problems,
-                    )
+                    AttributionScreen(packs = state.available)
                 }
                 composable(ROUTE_FAVORITES) {
                     WordListScreen(
@@ -462,6 +459,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 composable(ROUTE_PACKS) {
                     PacksScreen(
                         packs = state.available,
+                        rejected = state.rejected,
                         onDelete = viewModel::deletePack,
                         catalog = state.catalog,
                         onCheckCatalog = viewModel::onCheckCatalog,

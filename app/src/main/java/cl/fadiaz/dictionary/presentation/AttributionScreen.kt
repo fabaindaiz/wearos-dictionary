@@ -33,9 +33,15 @@ import cl.fadiaz.dictionary.data.PackHandle
  * The content is CC BY-SA: showing where it comes from and under which license is the condition
  * for using the data, not a courtesy. The text is not written here: it comes from `meta.license`
  * and `meta.attribution` of the open pack, so a pack from another source brings its own.
+ *
+ * ⚠️ **Un pack rechazado NO aparece aca, y antes si.** Esta pantalla acredita a las fuentes del
+ * contenido que la app esta usando; un pack que no se carga no aporta contenido, asi que
+ * nombrarlo aca era acreditar algo que nadie esta leyendo. Ahora se muestra en la pantalla de
+ * diccionarios, que es donde se puede hacer algo con el. Y no hace falta filtrarlo: un
+ * `PackHandle.Incompatible` **no tiene `metadata`**, asi que este `filterIsInstance` no lo ve.
  */
 @Composable
-fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyList()) {
+fun AttributionScreen(packs: List<PackHandle>) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
@@ -125,18 +131,6 @@ fun AttributionScreen(packs: List<PackHandle>, problems: List<String> = emptyLis
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                         )
                     }
-                }
-            }
-            // A rejected pack cannot vanish from the selector in silence.
-            problems.forEach { problem ->
-                item {
-                    Text(
-                        text = problem,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    )
                 }
             }
         }

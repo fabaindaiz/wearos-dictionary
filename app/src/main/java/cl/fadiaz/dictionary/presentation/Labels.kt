@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.MatchKind
+import cl.fadiaz.dictionary.core.PackRejection
 
 /**
  * Como se NOMBRA en pantalla lo que el pack guarda como codigo.
@@ -99,4 +100,35 @@ internal fun matchLabel(kind: MatchKind): String? = when (kind) {
     MatchKind.TRANSLATION -> stringResource(R.string.match_translation)
     MatchKind.FUZZY -> stringResource(R.string.match_fuzzy)
     MatchKind.DEFINITION -> stringResource(R.string.match_definition)
+}
+
+/**
+ * Por qué un diccionario no se carga, **en una línea**.
+ *
+ * ⚠️ **Un `when` exhaustivo y no un mapa, y esa es la regla de D-125**: un motivo nuevo en
+ * [PackRejection] **no compila** hasta que alguien le escribe un texto. Lo contrario --un mapa
+ * con un `?: "desconocido"`-- dejaría entrar motivos mudos, que en la pantalla se leen como un
+ * diccionario que desapareció sin explicación.
+ *
+ * ⚠️ **Una línea, y corta, es el requisito y no una preferencia.** Es lo que pidió el usuario y
+ * es lo que entra en una fila de reloj bajo el nombre del archivo. Lo que un motivo necesita
+ * para depurarse --qué declaraba el pack, qué se esperaba-- va al log y no acá: esa prosa es
+ * para `logcat`, y en la muñeca sólo estorba.
+ */
+@StringRes
+internal fun packRejectionLabelRes(rejection: PackRejection): Int = when (rejection) {
+    PackRejection.METADATA -> R.string.pack_reason_metadata
+    PackRejection.SCHEMA_VERSION -> R.string.pack_reason_schema
+    PackRejection.NORM_VERSION -> R.string.pack_reason_norm
+    PackRejection.PAYLOAD_CODEC -> R.string.pack_reason_codec
+    PackRejection.LICENSE -> R.string.pack_reason_license
+    PackRejection.MISSING_INDEX -> R.string.pack_reason_index
+    PackRejection.HALF_BUILT -> R.string.pack_reason_half_built
+    PackRejection.ENTRY_COUNT -> R.string.pack_reason_count
+    PackRejection.FTS_MISALIGNED -> R.string.pack_reason_fts
+    PackRejection.EMPTY_KEY -> R.string.pack_reason_empty_key
+    PackRejection.ORPHAN_ROW -> R.string.pack_reason_orphan
+    PackRejection.KEYS -> R.string.pack_reason_keys
+    PackRejection.PAYLOAD_DICTIONARY -> R.string.pack_reason_dictionary
+    PackRejection.DAMAGED -> R.string.pack_reason_damaged
 }

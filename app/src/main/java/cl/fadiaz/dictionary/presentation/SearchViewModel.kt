@@ -81,10 +81,24 @@ data class SearchState(
     val catalog: CatalogState = CatalogState.Idle,
     /** Descargas en curso por `packId`. Vacio cuando no hay ninguna. */
     val downloads: Map<String, PackDownload> = emptyMap(),
-    /** Every pack the app knows about, extracted or not. It is what the selector draws. */
+    /**
+     * Every pack the app knows about. It is what the selector draws.
+     *
+     * ⚠️ **Lleva tambien los rechazados**, como `PackHandle.Incompatible`, y `offerable` los
+     * saca del selector. Ya no hay una lista aparte de cadenas: un rechazado es una fila mas de
+     * la pantalla de diccionarios, con su motivo, y no una nota al pie en los creditos.
+     */
     val available: List<PackHandle> = emptyList(),
-    /** Packs that were there and did not open. Shown on the attribution screen, not the search. */
-    val problems: List<String> = emptyList(),
+    /**
+     * Los `.db` que estan en el disco y **no se cargan**, con su motivo.
+     *
+     * ⚠️ **Viajan aparte de [available] a proposito.** Las dos pantallas que leen packs quieren
+     * listas distintas y confundirlas es un bug en cada direccion: el selector del inicio no
+     * puede ofrecer un diccionario que no busca, y la pantalla de diccionarios **tiene** que
+     * mostrar lo que ocupa lugar en el disco. Un solo campo filtrado en cada uso termina
+     * ofreciendo lo que no sirve o escondiendo lo que hay.
+     */
+    val rejected: List<PackHandle.Incompatible> = emptyList(),
     val mode: Mode = Mode.NORMAL,
     /** The most recently opened entries, already filtered: only those from installed packs. */
     val history: List<Visit> = emptyList(),
@@ -358,7 +372,7 @@ class SearchViewModel(
                         // placeholder, not an option. Its label would also clash -- with the
                         // toy and the real Spanish one the selector read "ES" and "ES".
                         available = offerable(result.all),
-                        problems = result.problems,
+                        rejected = result.all.filterIsInstance<PackHandle.Incompatible>(),
                         history = visibleOnes(visits),
                     )
                 }
@@ -726,7 +740,11 @@ class SearchViewModel(
 
     private fun offerable(all: List<PackHandle>): List<PackHandle> {
         val opened = all.filterIsInstance<PackHandle.Open>()
-        return if (opened.any { !it.isBundled }) opened.filterNot { it.isBundled } else all
+        // ⚠️ **El respaldo es `opened` y no `all`, y eso dejo de ser lo mismo.** Mientras `all`
+        // solo traia packs abiertos los dos eran identicos; ahora trae tambien los rechazados, y
+        // devolverlos aca los pondria en el selector del inicio -- un chip de idioma que no
+        // busca nada. Los rechazados van por su propio canal, a la pantalla de diccionarios.
+        return if (opened.any { !it.isBundled }) opened.filterNot { it.isBundled } else opened
     }
 
     /** Only those from open packs: a row that opens nothing is worse than no row at all. */
@@ -868,11 +886,22 @@ class SearchViewModel(
      * The demo pack **cannot be deleted**: it comes inside the APK and `PackStore.open` re-extracts
      * it on reopening, so the action would do nothing and the pack would come back on its own.
      */
+    /**
+     * Borra un diccionario del disco, esté cargado o no.
+     *
+     * ⚠️ **Resuelve contra las DOS listas.** Un pack rechazado no está en `available` --no se
+     * ofrece para buscar-- pero ocupa lugar en el disco y borrarlo es la única acción que queda
+     * sobre él. Buscarlo sólo entre los abiertos hacía que el botón de su fila no hiciera nada,
+     * que es peor que no tener botón.
+     */
     fun deletePack(packId: String) {
-        val handle = state.value.available
+        val abierto = state.value.available
             .filterIsInstance<PackHandle.Open>()
-            .firstOrNull { it.packId == packId } ?: return
-        if (handle.isBundled) return
+            .firstOrNull { it.packId == packId }
+        val archivo = abierto?.fileName
+            ?: state.value.rejected.firstOrNull { it.fileName == packId }?.fileName
+            ?: return
+        if (abierto?.isBundled == true) return
 
         viewModelScope.launch {
             // No active pack and in "loading" while it lasts: a query arriving in the middle
@@ -885,7 +914,7 @@ class SearchViewModel(
             }
             source.value = null
             close()
-            deleteFromDisk(handle.fileName)
+            deleteFromDisk(archivo)
             loadPacks()
         }
     }

@@ -19,8 +19,24 @@
 
     <!-- Opening a pack -->
     <string name="pack_none_opened">No dictionary could be opened.</string>
-    <string name="pack_incompatible">This dictionary is not compatible with this version. %1$s</string>
-    <string name="pack_damaged">The dictionary is damaged or incomplete. %1$s</string>
+    <!-- Por que un diccionario no se carga. UN SINTAGMA, no una oracion: en el reloj
+         comparten linea con el tamano y a ~140 dp se cortaban con ellipsis a la
+         tercera palabra — "4,4 MB . Built for a...", visto en el emulador. El
+         detalle con los valores concretos va al log, que es donde sirve. -->
+    <string name="pack_reason_metadata">Incomplete metadata.</string>
+    <string name="pack_reason_schema">Another format version.</string>
+    <string name="pack_reason_norm">Other search rules.</string>
+    <string name="pack_reason_codec">Unknown compression.</string>
+    <string name="pack_reason_license">No licence declared.</string>
+    <string name="pack_reason_index">No search indexes.</string>
+    <string name="pack_reason_half_built">Built only halfway.</string>
+    <string name="pack_reason_count">Entries missing.</string>
+    <string name="pack_reason_fts">Index out of sync.</string>
+    <string name="pack_reason_empty_key">Unreachable entries.</string>
+    <string name="pack_reason_orphan">Forms with no entry.</string>
+    <string name="pack_reason_keys">Keys built with other rules.</string>
+    <string name="pack_reason_dictionary">Text would come out garbled.</string>
+    <string name="pack_reason_damaged">Damaged, or not a dictionary.</string>
     <string name="pack_none_installed">No dictionary installed.</string>
     <string name="pack_installing">Installing the dictionary.\nIt only happens the first time.</string>
     <string name="pack_opening">Opening the dictionary…</string>

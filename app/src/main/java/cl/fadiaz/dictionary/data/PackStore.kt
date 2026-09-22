@@ -6,6 +6,9 @@ import android.content.Context
 // olvidar. Viene de core-ktx, que ya estaba en el classpath.
 import androidx.core.content.edit
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.presentation.packRejectionLabelRes
+import cl.fadiaz.dictionary.core.PayloadCodec
+import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.TextNormalizer
 import java.io.File
@@ -161,7 +164,7 @@ object PackStore {
         // installed dictionary.
         val fromAssets = packAssets(context).toSet()
         val opened = mutableListOf<PackHandle.Open>()
-        val problems = mutableListOf<String>()
+        val rejected = mutableListOf<PackHandle.Incompatible>()
         DictLog.i { "packs en disco: ${installed.size} (${installed.joinToString { it.name }})" }
         for (file in installed) {
             val desde = System.nanoTime()
@@ -176,10 +179,21 @@ object PackStore {
                     logAbierto(loaded.source.metadata, file, desde)
                 }
                 is PackLoad.Unusable -> {
-                    problems += "${file.name}: ${loaded.reason}"
+                    rejected += PackHandle.Incompatible(
+                        fileName = file.name,
+                        bytes = file.length(),
+                        rejection = loaded.rejection,
+                    )
                     // WARN y no DEBUG: un pack rechazado es la explicacion entera de "falta un
                     // idioma", y en la sesion de reloj hubo que inferirlo de que no hubo crash.
-                    DictLog.w { "pack RECHAZADO ${file.name}: ${loaded.reason}" }
+                    // El `detail` va acá y NO a la pantalla: es prosa con valores concretos,
+                    // util para depurar e ilegible en un reloj.
+                    DictLog.w {
+                        // El detalle viene vacio cuando el veredicto salio del memo: no se
+                        // abrio el archivo, asi que no hay valores concretos que contar.
+                        "pack RECHAZADO ${file.name}: ${loaded.rejection.id}" +
+                            loaded.detail.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+                    }
                 }
                 PackLoad.NoPack -> Unit
             }
@@ -201,14 +215,18 @@ object PackStore {
         // dejaba entrar un build viejo, que después se consultaba igual por ser el activo.
         val chosen = activePack(opened, preferred)
             ?: return@withContext PackSet.Unusable(
-                problems.firstOrNull() ?: context.getString(R.string.pack_none_opened),
+                rejected.firstOrNull()
+                    ?.let { context.getString(packRejectionLabelRes(it.rejection)) }
+                    ?: context.getString(R.string.pack_none_opened),
             )
 
         DictLog.i {
-            "listo: ${opened.size} abiertos, ${problems.size} rechazados, " +
+            "listo: ${opened.size} abiertos, ${rejected.size} rechazados, " +
                 "activo=${chosen.source.metadata.packId}"
         }
-        PackSet.Ready(chosen, opened, problems)
+        // Los rechazados van AL FINAL de la lista: la pantalla de diccionarios los muestra
+        // debajo de los que sirven, que es donde estorban menos.
+        PackSet.Ready(chosen, opened + rejected)
     }
 
     /**
@@ -447,30 +465,66 @@ object PackStore {
      * ⚠️ **Se anota DESPUÉS de abrir bien, nunca antes.** Anotar primero convertiría un pack que
      * falla a medias en un pack que la próxima vez ni se revisa.
      */
-    private fun openFile(context: Context, file: File): PackLoad =
-        try {
-            val memo = prefs(context).getString(KEY_VERIFIED, null)
-            val fingerprint = PackVerification.fingerprint(
-                file.length(),
-                file.lastModified(),
+    /**
+     * Abre un pack, o dice por qué no — **sin volver a probar lo que ya se probó**.
+     *
+     * ⚠️ **Un rechazo anotado corta antes de abrir el archivo.** Ésa es la diferencia con la
+     * versión anterior, que recordaba sólo los éxitos: un `.db` incompatible se volvía a abrir,
+     * a leer su `meta` y a descartar en **cada arranque**. Ahora, si el memo dice que este mismo
+     * archivo ya se rechazó bajo estas mismas reglas, no se toca el disco.
+     *
+     * Lo que hace que eso no sea peligroso es que la huella lleva las reglas enteras: ver
+     * [PackVerification.rules]. Sin eso, un rechazo sobreviviría a la versión de la app que ya
+     * sabría leer ese pack, y el usuario vería un diccionario desaparecido para siempre.
+     */
+    private fun openFile(context: Context, file: File): PackLoad {
+        val memo = prefs(context).getString(KEY_VERIFIED, null)
+        val fingerprint = PackVerification.fingerprint(
+            file.length(),
+            file.lastModified(),
+            PackVerification.rules(
                 TextNormalizer.NORM_VERSION,
-            )
-            val yaVerificado = PackVerification.isVerified(memo, file.name, fingerprint)
+                PackFile.SUPPORTED_SCHEMA_VERSION,
+                PayloadCodec.CODEC_ID,
+            ),
+        )
+        val anotado = PackVerification.verdict(memo, file.name, fingerprint)
+        if (anotado is PackVerification.Verdict.Rejected) {
+            DictLog.d { "pack ${file.name} ya rechazado (${anotado.rejection.id}), no se abre" }
+            return PackLoad.Unusable(anotado.rejection)
+        }
+        val yaVerificado = anotado == PackVerification.Verdict.Passed
+        return try {
             val pack = PackFile.open(file.path, verifyKeys = !yaVerificado)
-            if (!yaVerificado) {
-                prefs(context).edit {
-                    putString(KEY_VERIFIED, PackVerification.remember(memo, file.name, fingerprint))
-                }
-            }
+            if (!yaVerificado) recordar(context, memo, file.name, fingerprint, null)
             PackLoad.Ready(SqlitePackSource(pack))
         } catch (e: PackFile.IncompatibleException) {
             // The pack is from another format version or from other normalization rules. It
             // would return FEWER results than it holds, in silence: that is why it is rejected
             // whole instead of being opened anyway (D-001, D-006).
-            PackLoad.Unusable(context.getString(R.string.pack_incompatible, e.message.orEmpty()))
+            recordar(context, memo, file.name, fingerprint, e.rejection)
+            PackLoad.Unusable(e.rejection, e.message.orEmpty())
         } catch (e: Exception) {
-            PackLoad.Unusable(context.getString(R.string.pack_damaged, e.message.orEmpty()))
+            // ⚠️ **Esto NO se anota**, y la asimetría es deliberada. Una `IncompatibleException`
+            // es un veredicto sobre el contenido del pack y no va a cambiar solo; cualquier otra
+            // excepción puede ser el disco, la memoria o un archivo a medio copiar, y cachear
+            // eso escondería para siempre un pack que la próxima vez habría abierto bien.
+            DictLog.e(e) { "pack ${file.name}: fallo no atribuible al contenido" }
+            PackLoad.Unusable(PackRejection.DAMAGED, e.message.orEmpty())
         }
+    }
+
+    private fun recordar(
+        context: Context,
+        memo: String?,
+        name: String,
+        fingerprint: String,
+        rejection: PackRejection?,
+    ) {
+        prefs(context).edit {
+            putString(KEY_VERIFIED, PackVerification.remember(memo, name, fingerprint, rejection))
+        }
+    }
 
     private const val BUFFER = 256 * 1024
 }
