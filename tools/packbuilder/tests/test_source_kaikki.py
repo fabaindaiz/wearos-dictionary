@@ -1119,6 +1119,79 @@ class RankTest(unittest.TestCase):
         self.assertGreaterEqual(got["zzz"].rank, 0)
 
 
+class LavadoDeFrecuenciaTest(unittest.TestCase):
+    """Una palabra con mayuscula no cobra la frecuencia de su homografo en minuscula.
+
+    ⚠️ **El problema, medido sobre `en-def-wikt.db`:** 6.462 entradas con mayuscula y
+    `pos != name` estaban en la banda de frecuencia real `[0,500)`, que tiene 55.903 -- el
+    **11,6 %** de la banda "mas frecuente". La causa es que `frequency.key()` baja a minusculas
+    --correcto, D-186: en español el acento distingue palabras-- y la lista de OpenSubtitles
+    **ya viene toda en minusculas**, asi que `TO` cobra las apariciones de `to`.
+
+    ⚠️ **Se arregla SOLO la clase que tiene regla, y eso fue la decision.** Las 4.246 con
+    homografo en minuscula son siglas y formas honorificas --`TO`, `OF`, `IS`, `WE`, `ME`, `HE`,
+    `NO`, `ARE`, `BE`, `CAN`-- y ahi la regla es inequivoca: **la frecuencia es del lema en
+    minuscula, que ya tiene su propia entrada**. Las otras dos clases --1.333 con hermano
+    `pos=name` y 883 sin ninguna de las dos senales-- mezclan `Thomas` con `Christmas`, y no hay
+    dato que las separe: el truco de D-137 se midio y **no transfiere al ingles**.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def records(self, *raw, **kw):
+        path = _jsonl(*raw)
+        self.paths.append(path)
+        return {r.headword: r for r in kaikki.records(path, lang="en", **kw)}
+
+    def test_la_sigla_no_cobra_la_frecuencia_de_la_palabra(self):
+        got = self.records(
+            _raw("to", "prep", [_sense("Indicating direction.")], lang_code="en"),
+            _raw("TO", "noun", [_sense("Initialism of time-out.")], lang_code="en"),
+            frequencies={"to": 6.0},
+        )
+        self.assertLess(got["to"].rank, kaikki.FRONTERA_CON_SENAL,
+                        "la palabra en minuscula SI tiene senal de frecuencia")
+        self.assertGreaterEqual(
+            got["TO"].rank, kaikki.FRONTERA_CON_SENAL,
+            "la sigla cobro la frecuencia de `to`: sale en la banda de los mas frecuentes")
+
+    def test_sin_homografo_en_minuscula_la_frecuencia_SI_se_cobra(self):
+        # ⚠️ El contra-caso, y es la mitad que define el alcance. `Christmas` y `American` son
+        # vocabulario ingles frecuente y no tienen homografo en minuscula: tienen que conservar
+        # su frecuencia. Negarsela por llevar mayuscula seria el falso positivo que hizo descartar
+        # la regla mas amplia.
+        got = self.records(
+            _raw("Christmas", "noun", [_sense("The feast.")], lang_code="en"),
+            frequencies={"christmas": 5.0},
+        )
+        self.assertLess(got["Christmas"].rank, kaikki.FRONTERA_CON_SENAL)
+
+    def test_el_homografo_tiene_que_ser_una_ENTRADA_y_no_una_pagina_de_forma(self):
+        # Una pagina `form-of` no es una entrada del pack: se invierte como forma de su lema
+        # (D-065). Si contara, cualquier mayuscula cuya minuscula sea una flexion perderia su
+        # frecuencia sin que exista ninguna entrada que la reclame.
+        got = self.records(
+            _raw("ran", "verb", [
+                _sense("simple past of run", tags=["form-of"], form_of=[{"word": "run"}]),
+            ], lang_code="en"),
+            _raw("RAN", "noun", [_sense("Initialism of regional area network.")], lang_code="en"),
+            frequencies={"ran": 5.0},
+        )
+        self.assertLess(got["RAN"].rank, kaikki.FRONTERA_CON_SENAL)
+
+    def test_una_minuscula_nunca_pierde_su_propia_frecuencia(self):
+        got = self.records(
+            _raw("run", "verb", [_sense("To move quickly.")], lang_code="en"),
+            frequencies={"run": 5.5},
+        )
+        self.assertLess(got["run"].rank, kaikki.FRONTERA_CON_SENAL)
+
+
 class CitaDelEjemploTest(unittest.TestCase):
     """Where the quoted example came from, trimmed to what fits on a watch.
 
