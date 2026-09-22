@@ -18,13 +18,9 @@
     ],
     "deny": [
       "Edit(dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt)",
-      "Write(dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt)",
       "Edit(tools/unicode/repertoire.txt)",
-      "Write(tools/unicode/repertoire.txt)",
       "Edit(tools/packbuilder/vectors/payload-fixture.tsv)",
-      "Write(tools/packbuilder/vectors/payload-fixture.tsv)",
-      "Edit(local.properties)",
-      "Write(local.properties)"
+      "Edit(local.properties)"
     ]
   },
   "hooks": {
