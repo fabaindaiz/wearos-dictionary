@@ -3,6 +3,7 @@ package cl.fadiaz.dictionary.data
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
+import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -104,6 +105,31 @@ class CatalogTest {
             installed = listOf(instalado("es-def", 200L)),
         )
         assertEquals(CatalogStatus.INCOMPATIBLE, r.single().status)
+    }
+
+    @Test
+    fun `data_version se lee como fecha en LOS DOS anchos que existen`() {
+        // ⚠️ Los dos estan en el indice real: los packs nuevos traen YYYYMMDDHHMM y `es-def-wd`
+        // trae YYYYMMDD. Aceptar solo uno dejaba la mitad de las filas sin fecha.
+        assertEquals(LocalDate.of(2026, 9, 21), Catalog.dataVersionDate(202609211912L))
+        assertEquals(LocalDate.of(2026, 1, 1), Catalog.dataVersionDate(202601010000L))
+        assertEquals(LocalDate.of(2026, 9, 20), Catalog.dataVersionDate(20260920L))
+    }
+
+    @Test
+    fun `un data_version que NO es fecha devuelve null en vez de inventar una`() {
+        // ⚠️ Un pack ajeno puede poner lo que quiera: es un entero monotono y nada mas. Inventar
+        // una fecha ahi seria mostrarle al usuario un dato que nadie declaro.
+        assertNull(Catalog.dataVersionDate(1L), "un contador simple no es una fecha")
+        assertNull(Catalog.dataVersionDate(300L))
+        assertNull(Catalog.dataVersionDate(0L))
+        assertNull(Catalog.dataVersionDate(202613011200L), "mes 13")
+        assertNull(Catalog.dataVersionDate(202602301200L), "30 de febrero")
+        assertNull(Catalog.dataVersionDate(99999999999999L), "demasiados digitos")
+        // ⚠️ Un ancho intermedio no es ninguno de los dos formatos, y NO se puede dividir por
+        // 10.000 y esperar que salga algo: eso es lo que protege el `when` de los dos rangos.
+        assertNull(Catalog.dataVersionDate(2026092119L), "diez digitos no es ni uno ni otro")
+        assertNull(Catalog.dataVersionDate(2026092119120L), "trece tampoco")
     }
 
     @Test

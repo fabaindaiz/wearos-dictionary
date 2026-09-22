@@ -153,6 +153,5 @@
     <string name="packs_catalog_update">Hay actualización</string>
     <string name="packs_catalog_download">Se puede descargar</string>
     <string name="packs_catalog_incompatible">Esta versión no lo abre</string>
-    <string name="packs_catalog_newer">v%1$s, tienes la v%2$s</string>
     <string name="packs_catalog_install_note">Por ahora sólo se listan: instalar sigue siendo por cable.</string>
 </resources>

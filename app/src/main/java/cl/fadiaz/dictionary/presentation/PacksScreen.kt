@@ -40,10 +40,13 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.data.Catalog
 import cl.fadiaz.dictionary.data.CatalogOffer
 import cl.fadiaz.dictionary.data.CatalogState
 import cl.fadiaz.dictionary.data.CatalogStatus
 import cl.fadiaz.dictionary.data.PackHandle
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import cl.fadiaz.dictionary.data.asHumanSize
 
 /**
@@ -338,26 +341,23 @@ private fun Aviso(text: String) {
 }
 
 /**
- * La segunda linea de una fila del catalogo: **el tamano de lo que se va a descargar**.
+ * La segunda linea de una fila del catalogo: **el tamano, y de cuando es**.
  *
  * ⚠️ Se muestra [CatalogOffer.pack] `bytes`, que es el `.gz` que viaja, y no `dbBytes`: lo que el
  * usuario decide aca es si quiere pagar esa descarga. El tamano en disco importa despues, y la
  * fila de arriba --la de los instalados-- ya lo dice.
  *
- * Para una actualizacion se agregan las dos versiones, porque *"hay actualizacion"* sin decir de
- * que a que no deja decidir nada.
+ * ⚠️ **Antes se mostraban las DOS `data_version` en crudo y fue un error, visto en el emulador.**
+ * La fila decia `3,0 MB · v202609211912, you have v202609211911`: dos numeros de doce digitos que
+ * difieren en el ultimo, ocupando 390 px de los ~459 utiles a esa altura. Con eso no se decide
+ * nada. **Lo que informa es la fecha**, y que hay algo mas nuevo ya lo dice la cabecera de la
+ * seccion. Si el numero no es una fecha --un pack ajeno puede poner lo que quiera-- la fila se
+ * queda con el tamano, que es el dato que nunca falta.
  */
 @Composable
 private fun detalleDeOferta(oferta: CatalogOffer): String {
     val tamano = asHumanSize(oferta.pack.bytes)
-    val instalada = oferta.installedVersion
-    return if (oferta.status == CatalogStatus.UPDATE && instalada != null) {
-        tamano + " · " + stringResource(
-            R.string.packs_catalog_newer,
-            oferta.pack.dataVersion.toString(),
-            instalada.toString(),
-        )
-    } else {
-        tamano
-    }
+    val fecha = Catalog.dataVersionDate(oferta.pack.dataVersion)
+        ?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+    return if (fecha != null) "$tamano · $fecha" else tamano
 }

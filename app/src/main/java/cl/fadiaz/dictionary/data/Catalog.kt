@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.data
 
 import cl.fadiaz.dictionary.core.PackMetadata
+import java.time.LocalDate
 import cl.fadiaz.dictionary.core.TextNormalizer
 import org.json.JSONObject
 
@@ -130,6 +131,35 @@ object Catalog {
             }
             CatalogOffer(pack, status, local)
         }
+    }
+
+    /**
+     * La fecha que lleva dentro un `data_version`, o `null` si ese numero no es una fecha.
+     *
+     * ⚠️ **Esto salio de verlo en el emulador**, que es donde se ven las decisiones de UI en este
+     * repo. La fila de una actualizacion decia literalmente
+     * `3,0 MB · v202609211912, you have v202609211911`: dos numeros de doce digitos que difieren
+     * en el ultimo, 390 px de los ~459 utiles a esa altura de una pantalla redonda, y con eso no
+     * se decide nada. La fecha si informa.
+     *
+     * El builder escribe `data_version` como `YYYYMMDDHHMM`, pero **un pack ajeno puede poner lo
+     * que quiera ahi** --es un entero monotono y nada mas-- asi que esto es defensivo: si no
+     * parece una fecha valida devuelve `null` y la fila se queda con el tamano.
+     */
+    fun dataVersionDate(dataVersion: Long): LocalDate? {
+        // ⚠️ **Hay DOS anchos en circulacion**, visto en el indice real: los packs nuevos traen
+        // `YYYYMMDDHHMM` (202609211912) y `es-def-wd` trae `YYYYMMDD` (20260920). Aceptar solo
+        // uno dejaba la mitad de las filas sin fecha, y sin ningun error que lo delatara.
+        val ymd = when (dataVersion) {
+            in 10_000_101L..99_991_231L -> dataVersion
+            in 100_001_010_000L..999_912_312_359L -> dataVersion / 10_000L
+            else -> return null
+        }.toInt()
+        // `runCatching` y no mas comprobaciones a mano: `LocalDate.of` ya rechaza el mes 13 y el
+        // 30 de febrero, y duplicar ese calendario aca seria una segunda fuente de verdad.
+        return runCatching {
+            LocalDate.of(ymd / 10_000, (ymd / 100) % 100, ymd % 100)
+        }.getOrNull()
     }
 
     /**
