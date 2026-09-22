@@ -171,9 +171,12 @@ class SumarVocabularioTest(unittest.TestCase):
                 )
         db.close()
 
-    def test_el_pack_id_dice_que_trae_vocabulario_sumado(self):
+    def test_la_fuente_sumada_se_declara_en_SOURCES_y_no_en_el_pack_id(self):
+        """⚠️ Antes exigia que el `pack_id` terminara en `-wd`. Ver D-215: la identidad es idioma
+        + nivel, y de donde viene el contenido se contesta en `sources`, que es donde se mira."""
         _filas, meta = self._construir("--sumar", "es-wd", self.wd)
-        self.assertTrue(meta["pack_id"].endswith("-wd"), meta["pack_id"])
+        self.assertEqual("es-full", meta["pack_id"])
+        self.assertIn("wikidata", meta["sources"].lower(), meta["sources"])
 
 
 class SegundaFuenteTest(unittest.TestCase):
@@ -242,13 +245,26 @@ class SegundaFuenteTest(unittest.TestCase):
         self.assertEqual(1, len(meta["sources"].strip().split("\n")))
         self.assertIn("definitions", meta["sources"])
 
-    def test_el_pack_id_cambia_para_que_los_dos_PUEDAN_convivir(self):
-        # Si compartieran pack_id, instalar uno pisaria al otro y el historial del reloj
-        # apuntaria a entradas de un pack que ya no esta.
-        sin_ = self._construir(con_ejemplos=False)["pack_id"]
-        con = self._construir(con_ejemplos=True)["pack_id"]
-        self.assertNotEqual(sin_, con)
-        self.assertTrue(con.startswith(sin_), "el sufijo tiene que dejar ver de cual deriva")
+    def test_el_pack_id_NO_cambia_al_anadir_una_fuente(self):
+        """⚠️ **Esto afirma lo contrario de lo que afirmaba hasta D-215**, a proposito.
+
+        Antes el `pack_id` acumulaba un sufijo por fuente, *"para que los dos puedan convivir"*:
+        dos builds del espanol con distintas fuentes eran dos packs instalables a la vez. Bajo
+        *«los packs son por idioma y en versiones»* eso es justo lo que no se quiere -- son **el
+        mismo diccionario**, y lo que los distingue es `data_version`, no la identidad.
+
+        Lo que se pierde: dos variantes del mismo idioma ya no conviven. Lo que se gana: anadir
+        una fuente deja de hacer que el pack parezca otro que la app nunca vio.
+        """
+        sin_ = self._construir(con_ejemplos=False)
+        con = self._construir(con_ejemplos=True)
+        self.assertEqual(sin_["pack_id"], con["pack_id"])
+        self.assertEqual("es-full", con["pack_id"])
+        # Y la proteccion de fondo sigue en pie por otra via: los dos builds se distinguen.
+        self.assertNotEqual(
+            sin_["sources"], con["sources"],
+            "la diferencia real entre los dos sigue declarada, en sources",
+        )
 
     def test_la_entrada_de_DOS_acepciones_no_recibe_el_ejemplo(self):
         """"banco" tiene ejemplo en la segunda fuente, pero dos acepciones en la nuestra.

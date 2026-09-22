@@ -542,6 +542,20 @@ def main(argv):
             metadata, PACKS[sumar[0]]["fuente_base"])["codigo"]
         metadata["description"] += " Con vocabulario de una fuente adicional."
 
+    # ⚠️ **La identidad final: IDIOMA + NIVEL, y se estampa AQUI, despues de todos los sufijos**
+    # (D-215). Hasta aqui `pack_id` fue acumulando de que fuentes viene --`es-def-wikc-tat-freq-
+    # wn-wd`-- y eso tiene un defecto: **anadir una fuente cambia la identidad**, asi que el pack
+    # parece otro y la app no lo reconoce como el que ya esta instalado. Las fuentes no se
+    # pierden: siguen enteras en `meta.sources`, que es donde se consultan (D-138).
+    #
+    # ⚠️ **El bilingue queda fuera, a proposito**: no tiene niveles porque su proposito no es un
+    # tamano del mismo diccionario, es otra cosa. Conserva su `pack_id` de siempre.
+    if metadata.get("kind") != "bilingual":
+        idioma = metadata["langs"].split(",")[0].strip()
+        metadata["pack_id"] = "%s-full" % idioma
+        metadata["tier"] = "full"
+        metadata["name"] = "%s (full)" % metadata["name"]
+
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
