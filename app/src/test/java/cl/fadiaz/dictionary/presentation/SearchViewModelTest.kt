@@ -20,6 +20,10 @@ import kotlinx.coroutines.test.setMain
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Suggestion
+import cl.fadiaz.dictionary.data.CatalogFetch
+import cl.fadiaz.dictionary.data.CatalogPack
+import cl.fadiaz.dictionary.data.CatalogState
+import cl.fadiaz.dictionary.data.CatalogStatus
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.tile.TileContents
@@ -50,6 +54,115 @@ class SearchViewModelTest {
     fun after() = Dispatchers.resetMain()
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
+
+    // --- El catalogo de descarga (D-213) ---------------------------------------------------
+
+    private fun ofrecido(id: String, version: Long, schema: Int = 4) = CatalogPack(
+        packId = id, name = id, description = null, langs = listOf("es"), entryCount = 1,
+        dataVersion = version, schemaVersion = schema, normVersion = 2, license = null,
+        url = "packs/$id.db.gz", bytes = 1, sha256 = "a", dbBytes = 2, dbSha256 = "b",
+    )
+
+    @Test
+    fun elCatalogoEmpiezaEnIdleYNadieLoConsultaSolo() = runTest {
+        var consultas = 0
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def")) },
+            fetchCatalog = { consultas++; CatalogFetch.NotModified },
+        )
+        advanceUntilIdle()
+        assertEquals(CatalogState.Idle, vm.state.value.catalog)
+        assertEquals(0, consultas, "arrancar la app no puede consultar el catalogo")
+    }
+
+    @Test
+    fun consultarClasificaContraLoInstalado() = runTest {
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def", dataVersion = 200L)) },
+            fetchCatalog = {
+                CatalogFetch.Fresh(listOf(ofrecido("es-def", 300L), ofrecido("otro", 100L)), "\"e1\"")
+            },
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog()
+        advanceUntilIdle()
+        val listo = vm.state.value.catalog as CatalogState.Ready
+        assertEquals(
+            mapOf("es-def" to CatalogStatus.UPDATE, "otro" to CatalogStatus.DOWNLOAD),
+            listo.offers.associate { it.pack.packId to it.status },
+        )
+    }
+
+    @Test
+    fun unaSegundaConsultaMANDAelEtagDeLaPrimera() = runTest {
+        val etags = mutableListOf<String?>()
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def", dataVersion = 200L)) },
+            fetchCatalog = { etag ->
+                etags += etag
+                if (etag == null) {
+                    CatalogFetch.Fresh(listOf(ofrecido("es-def", 300L)), "\"e1\"")
+                } else {
+                    CatalogFetch.NotModified
+                }
+            },
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        assertEquals(listOf(null, "\"e1\""), etags, "la segunda consulta tiene que llevar el ETag")
+    }
+
+    @Test
+    fun un304VUELVEaClasificar_porque_lo_instalado_pudo_cambiar() = runTest {
+        // ⚠️ El aserto que paga esta seccion. El catalogo no cambio --304-- pero el usuario borro
+        // el diccionario entre las dos consultas, asi que lo que era ACTUALIZAR ahora es
+        // DESCARGAR. Reusar el resultado anterior tal cual mostraria "actualizar" un pack que ya
+        // no esta en el reloj.
+        val pack = FakeDictionary("es-def", dataVersion = 200L)
+        val otro = FakeDictionary("se-queda", dataVersion = 5L)
+        var borrado = false
+        val vm = SearchViewModel(
+            // El doble tiene que ENCOGER al borrar: devolver siempre el mismo pack haria que
+            // reapareciera, y el test no probaria nada.
+            { if (borrado) listos(otro) else listos(otro, pack) },
+            fetchCatalog = { etag ->
+                if (etag == null) {
+                    CatalogFetch.Fresh(listOf(ofrecido("es-def", 300L)), "\"e1\"")
+                } else {
+                    CatalogFetch.NotModified
+                }
+            },
+            deleteFromDisk = { borrado = true; true },
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        assertEquals(
+            CatalogStatus.UPDATE,
+            (vm.state.value.catalog as CatalogState.Ready).offers.single().status,
+        )
+
+        // ⚠️ `deletePack` recibe un packId, no un nombre de archivo.
+        vm.deletePack("es-def")
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        assertEquals(
+            CatalogStatus.DOWNLOAD,
+            (vm.state.value.catalog as CatalogState.Ready).offers.single().status,
+            "tras borrarlo, el mismo catalogo tiene que ofrecerlo para DESCARGAR",
+        )
+    }
+
+    @Test
+    fun unFalloDeRedNoTumbaElEstado() = runTest {
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def")) },
+            fetchCatalog = { CatalogFetch.Failed("Connection refused") },
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        assertEquals(CatalogState.Failed("Connection refused"), vm.state.value.catalog)
+    }
 
     // --- Varios packs del mismo idioma, conviviendo (D-136) --------------------------------
 

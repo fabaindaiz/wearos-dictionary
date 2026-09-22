@@ -42,6 +42,7 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.BuildConfig
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.CatalogClient
 import cl.fadiaz.dictionary.data.PackStore
 import cl.fadiaz.dictionary.data.Visit
 import kotlinx.coroutines.launch
@@ -156,6 +157,11 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             // The tiles have no scheduled refresh: if the app does not push
                             // them, they keep whatever they had.
                             notifyTiles = { notifyTiles(context) },
+                            // La url sale de BuildConfig y se cambia con -PcatalogUrl=... Solo
+                            // `debug` puede hablar por http:// (src/debug/AndroidManifest.xml).
+                            fetchCatalog = { etag ->
+                                CatalogClient.fetchIndex(BuildConfig.CATALOG_URL, etag)
+                            },
                         )
                     }
                 },
@@ -441,6 +447,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     PacksScreen(
                         packs = state.available,
                         onDelete = viewModel::deletePack,
+                        catalog = state.catalog,
+                        onCheckCatalog = viewModel::onCheckCatalog,
                     )
                 }
                 composable(ROUTE_SETTINGS) {

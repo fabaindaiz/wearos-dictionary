@@ -219,13 +219,27 @@ of `repertoire.txt`, and raising `NORM_VERSION`. Read the generator's header fir
 
 ## The mirror obligation
 
-**There are now TWO mirrors, not one**, and the second is easy to forget because it does not look
-like normalisation:
+**There are now THREE mirrors, not one**, and the second and third are easy to forget because
+neither looks like normalisation:
 
 | Python | Kotlin | qué se rompe si divergen |
 |---|---|---|
 | `normalize.py` | `TextNormalizer.kt` | **falta una palabra** en los resultados |
 | `payload.py` → `sense_code` / `fold_gloss` | `PayloadCodec.kt` → `senseCode` / `foldGloss` | **un enlace a una acepción lleva a otra**, o a ninguna |
+| `packserver.py` → `META_FIELDS` y `catalog_entry` | `Catalog.kt` → `Catalog.parse` | **la pantalla de descarga dice «nada nuevo» para siempre**: un campo renombrado deja la lista vacía, sin excepción y sin log |
+
+El tercero lo fija un **fixture del índice real** —`app/src/test/resources/catalog-index-fixture.json`—
+que `CatalogTest` parsea y verifica campo por campo. Se regenera a mano, y eso es deliberado: que
+sea un acto explícito es lo que hace que un renombrado se note. **Verificado por mutación**: leer
+`db_sha` en vez de `db_sha256` tira cuatro tests.
+
+```sh
+python3 tools/packserver.py <dir> --index-only > app/src/test/resources/catalog-index-fixture.json
+```
+
+⚠️ **El fixture incluye a propósito un pack de esquema VIEJO** (`es-def-wd`, schema 3), porque el
+directorio de datos real lo tiene. Así el test comprueba también que se clasifique como
+incompatible, que es lo que evita descargar 192 MB para tirarlos.
 
 Los dos fallan igual: sin excepción, sin log, y con el pack pasando todas sus invariantes. El
 segundo lo fija un vector idéntico en ambos lados — `sense_code(1, "casa")` = `8ec316909e48`.

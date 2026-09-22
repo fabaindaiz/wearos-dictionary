@@ -26,6 +26,8 @@ class FakeDictionary(
     /** Tells two packs apart in the selector tests. */
     private val packId: String = "fake",
     private val lang: String = "es",
+    /** La version de datos que declara. Es con esto que el catalogo decide si hay novedad (D-213). */
+    private val dataVersion: Long = 1,
     /** Los idiomas del pack. `null` = solo [lang]; con dos, el pack es bidireccional. */
     private val langs: List<String>? = null,
     /** How long each `suggest` takes. Useful to keep one query alive when another arrives. */
@@ -66,7 +68,7 @@ class FakeDictionary(
         langs = langs ?: listOf(lang),
         fuzzyProfiles = List((langs ?: listOf(lang)).size) { FuzzyProfile.SPANISH },
         entryCount = entryCount,
-        dataVersion = 1,
+        dataVersion = dataVersion,
         license = "CC0-1.0",
         attribution = "sin atribucion: es un fake",
     )
