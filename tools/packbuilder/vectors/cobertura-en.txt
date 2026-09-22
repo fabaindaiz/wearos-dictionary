@@ -1,0 +1,155 @@
+# Words an English dictionary HAS to be able to find.
+#
+# Same pattern as `normalization-vectors.tsv`: the file of expectations IS the mechanism.
+# `verify_pack.py` runs it on its own when the pack declares `en`, and fails naming what is
+# missing.
+#
+# ⚠️ **What this does NOT solve, and it has to be said.** A hand-written list carries the same
+# bias as looking by hand: it does not know what nobody thought to put in it. It defends against
+# **regressions** -- a prune that takes half the calendar, a filter that empties 39.6 % of the
+# entries -- and not against unknown holes. There is no shortcut for those.
+#
+# ⚠️ **Adding a word here is recording a product decision**, not padding a test: it asserts that
+# this dictionary is broken without it. Hence the groups, and hence each group saying what it
+# defends.
+#
+# A word counts as found if it is a lemma of the pack **or** one of its inflected forms: `went`
+# reaches `go`, which is exactly what the user experiences when searching for it.
+
+# The months. This is the measured case: pruning by `pos = name` took 6 of the 12 English months
+# -- march, may and august survived only by also being a verb, a modal and an adjective -- and
+# the gate, verify_pack.py and the tests were all green (D-116).
+january
+february
+march
+april
+may
+june
+july
+august
+september
+october
+november
+december
+
+# The days. Same risk as the months: proper nouns as far as the source is concerned.
+monday
+tuesday
+wednesday
+thursday
+friday
+saturday
+sunday
+
+# Numbers.
+one
+two
+three
+four
+five
+ten
+hundred
+thousand
+million
+
+# The verbs that hold the language up. Defends the other measured case: 39.6 % of the entries
+# defined nothing and everything was green.
+be
+have
+do
+say
+go
+get
+make
+know
+think
+take
+see
+come
+want
+use
+find
+give
+tell
+work
+call
+need
+feel
+leave
+put
+mean
+keep
+let
+eat
+drink
+sleep
+live
+die
+
+# Everyday vocabulary: what somebody looks up on a watch.
+house
+water
+dog
+cat
+child
+woman
+man
+mother
+father
+son
+brother
+friend
+food
+bread
+milk
+meat
+fruit
+tree
+flower
+sun
+moon
+sky
+earth
+sea
+river
+mountain
+street
+city
+country
+time
+day
+night
+year
+hand
+eye
+mouth
+head
+heart
+body
+book
+table
+chair
+door
+window
+
+# Colours.
+red
+blue
+green
+yellow
+black
+white
+grey
+
+# Words that carry today's meaning. Defends the finding that made OEWN a spike and not a source:
+# it covered 64 % of a 39-word probe because it is frozen academic vocabulary (D-120).
+selfie
+blockchain
+deepfake
+woke
+burnout
+workaround
+podcast
+emoji
+smartphone
+internet
