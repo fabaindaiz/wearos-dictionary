@@ -88,7 +88,7 @@
     <!-- Gestión de diccionarios -->
     <string name="packs_on_watch">En el reloj</string>
     <string name="packs_to_download">Para descargar</string>
-    <string name="packs_wip">Todavía no. Hoy los diccionarios se instalan por cable, desde la computadora. Aquí va a aparecer el catálogo para descargarlos desde el reloj.</string>
+    <string name="packs_wip">Toca para ver qué diccionarios se pueden descargar.</string>
     <string name="packs_bundled">Incluido en la app</string>
     <string name="packs_delete_question">¿Borrar %1$s?</string>
     <string name="packs_delete_cost">Ocupa %1$s. Para recuperarlo hay que volver a instalarlo desde la computadora.</string>
@@ -153,5 +153,11 @@
     <string name="packs_catalog_update">Hay actualización</string>
     <string name="packs_catalog_download">Se puede descargar</string>
     <string name="packs_catalog_incompatible">Esta versión no lo abre</string>
-    <string name="packs_catalog_install_note">Por ahora sólo se listan: instalar sigue siendo por cable.</string>
+    <string name="packs_catalog_install_note">Las descargas corren cuando el reloj está cargando, con Wi-Fi.</string>
+    <!-- Descarga de packs (D-029: cargando + Wi-Fi). -->
+    <string name="packs_dl_waiting">En espera: conecta el reloj, con Wi-Fi</string>
+    <string name="packs_dl_running">%1$s de %2$s</string>
+    <string name="packs_dl_done">Instalado</string>
+    <string name="packs_dl_failed">Falló \u2014 se reintentará</string>
+    <string name="packs_dl_tap">%1$s \u00b7 toca para descargar</string>
 </resources>

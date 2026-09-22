@@ -456,6 +456,13 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.robolectric)
     implementation(libs.material.icons.core)
+
+    // WorkManager. Estaba en el catalogo de versiones desde hace tiempo y sin usar, porque no
+    // habia nada que diferir: los packs entraban por cable. Llega con la descarga (D-029), que
+    // **exige** cargando + Wi-Fi sin medir, y eso es exactamente lo que WorkManager impone sin
+    // que la app tenga que mirar el estado de la red --por eso el manifest no pide
+    // ACCESS_NETWORK_STATE, y el audit lo vigila--.
+    implementation(libs.work.runtime.ktx)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.runner)

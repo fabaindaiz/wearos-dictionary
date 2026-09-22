@@ -59,6 +59,32 @@ enum class CatalogStatus {
     INCOMPATIBLE,
 }
 
+/** En que punto esta la descarga de UN pack. */
+enum class DownloadPhase {
+    /**
+     * Encolada, esperando a que se cumpla D-029: cargando y con Wi-Fi sin medir.
+     *
+     * ⚠️ **Este estado tiene que verse en la pantalla.** Si el reloj no esta cargando, tocar
+     * descargar no descarga nada todavia, y un progreso que no se mueve sin explicacion se lee
+     * como una app rota.
+     */
+    WAITING,
+
+    RUNNING,
+    DONE,
+
+    /** Fallo; WorkManager reintentara. El `.part` se conserva, asi que reanudara. */
+    FAILED,
+}
+
+/** El progreso de la descarga de un pack, tal como lo reporta WorkManager. */
+data class PackDownload(
+    val packId: String,
+    val phase: DownloadPhase,
+    val done: Long = 0,
+    val total: Long = 0,
+)
+
 /**
  * En que punto esta la consulta al catalogo, para la pantalla de gestion.
  *
