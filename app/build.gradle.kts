@@ -7,6 +7,15 @@ plugins {
 }
 
 /**
+ * Si este build de `debug` lleva R8. Apagado salvo que se pase `-PdebugR8`.
+ *
+ * Se lee aca, en el script, y no dentro del `buildType`: ahi el receptor es el BuildType y
+ * `providers` resuelve por la cadena de receptores implicitos, que es justo el tipo de cosa que
+ * se rompe en silencio al subir de AGP.
+ */
+val debugConR8: Boolean = providers.gradleProperty("debugR8").isPresent
+
+/**
  * Los datos de firma del release, o null si no hay ninguno configurado.
  *
  * Cascada variable de entorno -> local.properties, la misma que usan `:dict-data:devicePrecheck`
@@ -70,6 +79,53 @@ android {
     }
 
     buildTypes {
+        /**
+         * **R8 en `debug`, bajo demanda y apagado por defecto.**
+         *
+         * ```sh
+         * ./gradlew :app:assembleDebug            # como siempre, segundos
+         * ./gradlew :app:assembleDebug -PdebugR8  # con R8, ~3 minutos
+         * ```
+         *
+         * Apagado por defecto porque R8 tarda ~3 minutos y `debug` es la build que se compila
+         * muchas veces al dia. Encendido siempre, dejaria de ser la build barata **y** dejaria de
+         * ser la build sin minificar donde se verifica a diario -- seria ya otra cosa.
+         *
+         * ⚠️ **Esto NO da el arranque del build real, y es exactamente por lo que existe
+         * `benchmark`.** `debug` es `debuggable = true`, y **ART nunca compila AOT un paquete
+         * debuggable** porque el depurador necesita codigo deoptimizable. Medido en el reloj el
+         * 2026-09-21: `cmd package compile -m speed -f` contesta `Success` y el estado aterriza
+         * en **`verify`**, no en `speed`.
+         *
+         * ⚠️ **Y R8 en un build debuggable ENCOGE pero no OPTIMIZA.** Medido sobre los tres APK
+         * el 2026-09-21:
+         *
+         * | build | dex | info de depuracion |
+         * |---|---|---|
+         * | `debug` | 43,8 MB en 12 archivos | si |
+         * | `debug -PdebugR8` | **10,1 MB en 1** | **si** -- conserva los nombres de fuente |
+         * | `benchmark` | **2,7 MB en 1** | no -- cero nombres `.kt` en el dex |
+         *
+         * Los 7,4 MB de diferencia son informacion que el depurador necesita y las pasadas de
+         * optimizacion que R8 se salta para no romperlo. Asi que **«R8 no rompio nada en debug»
+         * es una garantia MAS DEBIL que la de `benchmark`**: justo las transformaciones que
+         * rompen cosas por reflexion --renombrado a fondo, inlining, fusion de clases-- son las
+         * que aqui se atenuan.
+         *
+         * **Para que sirve entonces**: probar el *shrinking* **con un depurador enganchado** y
+         * poner un breakpoint donde se sospeche. Lo que R8 rompe, lo rompe sin error de
+         * compilacion --los dos `TileService` son el borde filoso, y sobreviven con su nombre
+         * original en los dos builds, verificado leyendo el dex--. La verificacion que cuenta
+         * sigue siendo `benchmark`, y el arranque comparable con los 500 ms de O-1, tambien.
+         */
+        debug {
+            optimization {
+                enable = debugConR8
+                keepRules {
+                    files.add(file("proguard-rules.pro"))
+                }
+            }
+        }
         release {
             // `findByName` y no `getByName`: null cuando no hay keystore configurada.
             //
