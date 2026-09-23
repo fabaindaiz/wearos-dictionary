@@ -16,6 +16,74 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (5) — Las formas no costaban cero bytes, y el tap se resolvió contra mi recomendación
+**Qué.** Dos construcciones —las partes principales en la ficha (D-242) y la heurística de
+cercanía del tap (D-243)—, dos mediciones que contestan preguntas abiertas (typos e IPA), la
+traducción de todo lo escrito en esta sesión, y la verificación del estado de `.agents`.
+
+**Áreas.** `payload.py`, `sources/{kaikki,toy}.py`, `build.py`, `verify_pack.py`, sus tests,
+`PayloadCodec.kt`, `Model.kt`, `SqlitePackSource.kt`, `EntryScreen.kt`, `GlossTap.kt` (nuevo),
+`GlossTapTest.kt` (nuevo), `res/values{,-es}/strings.xml`, el toy pack,
+`docs/{decisions,roadmap}.md`.
+
+**Por qué.** Siete pedidos: resistencia a typos, implementar la opción E del tap, completar las
+traducciones, mostrar las formas antes de las traducciones, anotar la pronunciación para el
+próximo rebuild, decir qué preguntas quedaron sin contestar, y verificar `.agents`.
+
+**Arquitectura.** ⚠️ **Desviación, declarada.** La opción E se eligió contra mi recomendación
+explícita. Se construyó entera y con tres cotas que acotan la objeción; lo que la objeción decía
+—que con dos enlaces pegados adivina sin avisar— **sigue en pie** y está escrito en D-243.
+
+**Medido.**
+- ⚠️ **«Mostrar las formas cuesta 0 bytes» era falso, y descubrirlo fue lo más valioso.** La tabla
+  `form` guarda `norm(forma)`: **`corrais`, no `corráis`**. Es una clave de búsqueda. Las formas
+  con su ortografía **existen al construir y el builder las tiraba**, así que el canal nuevo no
+  duplica un dato, recupera uno.
+- **De 137 formas de `correr` salen dos**: `corriendo` y `corrido`. De `alto`, `altos` y `alta`.
+  Contra las **202 filas** que `correr` tiene en `form`.
+- **El nivel tolerante atrapa una sola clase de typo.** Medido sobre 400 sustantivos reales:
+  duplicación **83 %**, transposición **1 %**, borrado **3 %**, tecla vecina **3 %**.
+- **Y cerrar ese hueco NO es caro**: el vecindario de distancia 1 de la consulta contra
+  `idx_entry_norm` resuelve `csaa → casa` en **9,16 ms** y `csa → casa` en **0,13 ms**, con
+  **cero bytes de índice nuevo** y `SEARCH ... USING COVERING INDEX`. ⚠️ Trae un
+  `USE TEMP B-TREE FOR ORDER BY` que D-094 ya sabe cómo evitar: ordenar en Kotlin.
+- **IPA: 99,8 % de las entradas, mediana 11 caracteres.** Etimología: 63,4 %, mediana **30**,
+  p90 127, máximo 1.541 — por eso entra con tope, no entera.
+- **El tap: 40 × 14 dp contra un mínimo de 48 × 48.** La altura es lo que está 3,4× por debajo.
+- **La deuda de prosa, con una regla afinada**: 6.798 líneas contra las 6.966 de ayer. La
+  diferencia son **falsos positivos** —prosa inglesa que cita strings de UI y líneas de log— y
+  están concentrados en los `CLAUDE.md`, que **ya están traducidos**.
+
+**Qué salió mal.**
+- ⚠️ **Mi primer filtro de formas dejaba a `correr` sin ninguna.** Traté `impersonal` como
+  descalificador razonando que marca lo no personal; el español la pone en **todas** esas formas,
+  así que el filtro descartaba el gerundio y el participio a la vez. Lo que separa `corriendo` de
+  `habiendo corrido` no es una etiqueta sino el espacio. Lo encontró correr el selector contra el
+  dump real, no leerlo.
+- ⚠️ **Escribí un bug en `GlossTap` y lo encontró su propio test**: la guarda `radius < 0f` corría
+  **antes** de la contención, así que un tap exacto sobre la palabra se perdía si el radio era
+  inválido. La contención no depende del radio.
+- **Dos expectativas mías estaban mal, no el código**: un tap en el punto medio exacto entre dos
+  líneas se resuelve por desempate de índice, y un femenino plural no es ni el plural llano ni el
+  femenino singular. Las dos veces corregí el test, no la implementación.
+- **Una sonda no mordió**: mutar el filtro de compuestas dejaba todo verde porque en `correr` la
+  forma simple viene primero. Hizo falta un test con la compuesta al frente.
+- **`verify_pack.py` rechazó el tag nuevo** y estuvo bien: un tag sin registrar es invisible para
+  el lector, que los ignora a propósito.
+- **Lint rompió el build** por el orden de `modifier` entre los parámetros opcionales.
+
+**Qué quedó sin hacer.**
+- **La traducción no está completa y no va a estarlo en una sesión.** Traducido: todo lo escrito
+  hoy. **Quedan 6.798 líneas**, y el grueso es `docs/roadmap.md` (2.265), `tools/**` (1.778) y
+  `app/src/main` (1.293). El orden del roadmap sigue siendo el correcto y la etapa 1 —los
+  `CLAUDE.md`— está cerrada.
+- **La opción B del tap no se construyó**, y es la única que haría que equivocarse no cueste. Las
+  dos son compatibles.
+- **La resistencia a typos está medida y no construida**: es una decisión, no trabajo pendiente.
+- **La IPA y la etimología quedaron anotadas para el próximo rebuild**, con sus números.
+- **Nada de esto se vio en un reloj.** Las formas, el tap por cercanía y la palabra del día de un
+  núcleo son tres cosas que terminan en la pantalla.
+
 ## 2026-09-23 (4) — La palabra del día fallaba en los dos extremos, y §O-3 generalizaba un pack
 **Qué.** Un arreglo (el piso de rank de la palabra del día, que devuelve los núcleos al juego),
 dos mediciones que corrigen el roadmap sin cambiar código, una evaluación pedida sin construir, y

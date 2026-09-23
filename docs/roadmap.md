@@ -3456,11 +3456,72 @@ están a ~4 dp. No es un defecto de implementación: es geometría.
 | **B** | **El tap abre una confirmación** *«¿Ir a X?»* con la palabra ya resuelta | 1 fila temporal, 1 toque extra | ⚠️ **Convierte un error en un rechazo**: equivocarse deja de costar una navegación perdida. Es lo único que resuelve el problema sin pelear contra la geometría. **Recomendada** |
 | **C** | Chips de 48 dp con las palabras tocables, debajo de la glosa | 1–2 filas por acepción | Toques perfectos y el dato ya existe (`links`). ⚠️ Rompe la lectura: la glosa deja de ser el objeto y pasa a ser un índice |
 | **D** | Lupa propia (zoom al mantener apretado) | Alto: gesto, render y medición en reloj | ⚠️ **Wear OS ya trae una lupa del sistema** en accesibilidad. Construir una propia duplica plataforma y la haría peor. **Descartada** |
-| **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. **Descartada** |
+| **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. ✅ **CONSTRUIDA el 2026-09-23 (D-243), contra esta recomendación**, con tres cotas que acotan la objeción: un acierto exacto no se pisa, un tap dentro de una línea no salta de línea, y más allá del radio no pasa nada. Lo que sigue sin resolver es el hueco entre dos enlaces pegados |
 
 **Lo que lo desbloquea.** P-2 de `docs/preguntas-del-reloj.md`: nadie probó esto en una muñeca
 todavía, y la elección entre A y B depende de cuánto molesta el toque extra, que en escritorio no
 se siente.
+
+### Pronunciación (IPA) y etimología en el pack — MEDIDO 2026-09-23, para el próximo rebuild
+
+**Estado.** **Planificado**, con las dos mediciones hechas y el canal de la ficha ya construido:
+las partes principales (D-242) abrieron el tag `F` y demostraron que **agregar un tag al payload
+no rompe un pack viejo** — el lector ignora lo que no conoce, y `verify_pack.py` exige registrar
+el tag nuevo, que es lo que convierte ese silencio en un fallo visible.
+
+#### La pronunciación entra. Es el dato más barato que queda sin usar
+
+**Medido sobre el dump español, 40.000 entradas:**
+
+| | |
+|---|---|
+| entradas con IPA | **99,8 %** |
+| largo mediano | **11 caracteres** |
+| p90 | 18 caracteres |
+
+Once caracteres. Contra las **150,6 MB** que pesa `entry` en el pack inglés, la IPA de sus 956.150
+entradas son **~10 MB sin comprimir** y menos con el diccionario precargado del payload; en
+español, sobre 152.281 entradas, **~1,7 MB**. Es la segunda pregunta de cualquier diccionario
+después del significado, y hoy el dato viaja en la fuente y se tira.
+
+**Lo que hay que tocar**, y es exactamente la forma de D-242: un `TAG_PRONUNCIATION` en
+`payload.py` y en `PayloadCodec.kt`, `kaikki.py` leyendo `sounds[].ipa`, el tag registrado en
+`TAGS_CONOCIDOS`, una fila en la ficha y el toy pack con una entrada que lo lleve. **No necesita
+`schema_version` nuevo**: el payload es texto con tags y un pack viejo simplemente no lo trae.
+
+#### La etimología también, **pero con tope** — y el tope es lo que la hace aceptable
+
+Pedido: *«no me interesa la etimología a menos que sea un dato muy corto, revisa esto»*. **Revisado
+sobre 30.000 entradas del dump español:**
+
+| | |
+|---|---|
+| entradas con etimología | **63,4 %** |
+| largo **mediano** | **30 caracteres** |
+| p90 | 127 caracteres |
+| máximo | **1.541 caracteres** |
+
+⚠️ **La mediana dice que sí y el máximo dice que no**, y por eso la respuesta es un tope y no un
+sí o un no. El caso típico es `De Japón y el sufijo -és.` — treinta caracteres, una línea, y
+contesta algo que la definición no. El caso p90 son 127 caracteres, que en 234 dp son **cuatro
+filas** compitiendo con la definición. Y hay entradas de 1.541.
+
+**Recomendación: entra con un tope de ~80 caracteres, descartando la que no quepa en vez de
+cortarla.** Una etimología cortada a la mitad es peor que ninguna: `Del latín *cor, cordis*, y
+éste del protoind…` no enseña nada y ocupa lo mismo. Con ese tope entra la mediana entera y se
+cae la cola.
+
+⚠️ **Y va DESPUÉS de las acepciones, no antes**, a diferencia de las formas. Una forma contesta
+*cómo se escribe esta palabra*, que es sobre la palabra; una etimología contesta *de dónde viene*,
+que es lo que alguien pregunta **después** de saber qué significa. Empujar la definición hacia
+abajo por la etimología invierte el orden en que se lee un diccionario.
+
+#### Lo que las dos comparten, y conviene decirlo una vez
+
+**Ninguna de las dos necesita un rebuild propio**: entran en el próximo, junto con los dos
+defectos de contenido ya anotados —`Eddie`/`Richard` pasando el filtro de nombres propios, y la
+frase en español dentro de la `description` del pack inglés—. Un rebuild completo es ~1 h con los
+dumps presentes, así que el costo de juntarlas es cero y el de separarlas es una hora por cabeza.
 
 ### Funcionalidades de diccionario que faltan — REVISADO contra la literatura 2026-09-23
 
@@ -3472,11 +3533,13 @@ lo que la comparación lista como esperable.
 
 **Lo que falta, por relación valor/costo:**
 
-1. ⚠️ **Mostrar las flexiones en la ficha — y es la mejor de la lista por mucho.** `form` es el
-   **42 % del pack español** (32,9 MB) y hoy se usa **sólo para encontrar**, nunca para mostrar:
-   `EntryScreen` no la consulta ni una vez. Un conjugador cuesta **0 bytes** — el dato ya viajó,
-   ya se paga en disco y en descarga, y no se ve. Un diccionario de español sin conjugaciones es
-   la queja más obvia que puede tener, y acá el contenido ya está adentro.
+1. ✅ ~~**Mostrar las flexiones en la ficha**~~ — **CONSTRUIDO el 2026-09-23** (D-242), y el
+   diagnóstico de *«cuesta 0 bytes»* resultó **falso**, que es lo que más valió de hacerlo.
+   `form` guarda `norm(forma)`: **`corrais`, no `corráis`**. Es una clave de búsqueda, y una
+   ficha alimentada desde ahí estaría mal escrita. Las formas con su ortografía **existen al
+   construir y el builder las tiraba**, así que hizo falta un canal nuevo en el payload — no
+   cero bytes, pero sí muy pocos: dos formas por entrada contra las 202 filas que `correr` tiene
+   en `form`.
 2. **Pronunciación (IPA).** El esquema no tiene columna; el dato está en Wiktionary y es texto,
    así que es barato. Es la segunda pregunta de cualquier diccionario después del significado.
    Requiere `schema_version` nuevo y rebuild.
