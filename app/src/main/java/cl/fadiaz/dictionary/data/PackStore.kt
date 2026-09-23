@@ -162,6 +162,17 @@ object PackStore {
         val compare: List<String>,
     )
 
+    /**
+     * El memo de verificación tal cual está guardado, **para poder mirarlo en el dispositivo**.
+     *
+     * Existe por el ítem 3 de las herramientas de depuración del roadmap: hasta acá el memo sólo
+     * se podía leer con `run-as`, que no funciona sobre un APK de `benchmark`. Y es justo el dato
+     * con el que se comprueba que instalar una versión nueva lo caducó (D-225). Lo consume
+     * `DebugIntents.dump`.
+     */
+    fun verificationMemo(context: Context): String? =
+        prefs(context).getString(KEY_VERIFIED, null)
+
     /** Qué packs del APK fueron reemplazados desde el catálogo. Ver [assetsToExtract]. */
     fun downloadedPacks(context: Context): Set<String> =
         prefs(context).getStringSet(KEY_DOWNLOADED, emptySet()).orEmpty()

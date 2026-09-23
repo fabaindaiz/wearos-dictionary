@@ -156,6 +156,12 @@ android {
          * sigue siendo `benchmark`, y el arranque comparable con los 500 ms de O-1, tambien.
          */
         debug {
+            // ⚠️ **La puerta de los intents de depuracion, y su motivo de existir.** Sin ella no
+            // hay forma de sembrar una consulta desde `adb`: el campo de busqueda **no toma foco
+            // con un tap sintetico** --misma forma del problema que obligo a fijar espresso 3.7.0
+            // (D-093)-- y eso dejo sin verificar D-168 y D-169 con el reloj en la mano, y volvio
+            // a costar en el emulador. Ver `DebugIntents`.
+            buildConfigField("boolean", "DEBUG_INTENTS", "true")
             optimization {
                 enable = debugConR8
                 keepRules {
@@ -164,6 +170,11 @@ android {
             }
         }
         release {
+            // ⚠️ **Apagada, y es la mitad que importa.** Un receiver exportado en produccion es
+            // superficie de ataque y bateria. Con la constante en `false` R8 pliega el `if` y se
+            // lleva la clase entera, asi que en release el codigo **no existe**, no es que no se
+            // use. Lo mismo que hace el source set `debug` con el HTTP en claro (D-213).
+            buildConfigField("boolean", "DEBUG_INTENTS", "false")
             // `findByName` y no `getByName`: null cuando no hay keystore configurada.
             //
             // Lo que NUNCA hay que hacer aca es caer a `signingConfigs.getByName("debug")`. Eso
@@ -229,6 +240,12 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             isDebuggable = false
             matchingFallbacks += listOf("release")
+            // ⚠️ **Encendida aca aunque herede de release, y es deliberado.** `benchmark` es la
+            // build con la que se mide arranque y bateria (D-166) y la unica que se parece a
+            // release siendo instalable: si fuera la unica sin poder sembrar una consulta, medir
+            // una busqueda obligaria a un dedo. Es el mismo razonamiento por el que D-212 eligio
+            // `Log.isLoggable` y no `BuildConfig.DEBUG`.
+            buildConfigField("boolean", "DEBUG_INTENTS", "true")
         }
     }
     compileOptions {
