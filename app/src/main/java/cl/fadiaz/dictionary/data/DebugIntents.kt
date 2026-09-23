@@ -7,83 +7,82 @@ import android.content.IntentFilter
 import cl.fadiaz.dictionary.BuildConfig
 
 /**
- * Preguntarle cosas a la app **desde `adb`**, sin un dedo.
+ * Asking the app things **from `adb`**, with no finger.
  *
- * ## Por qué existe
+ * ## Why it exists
  *
- * ⚠️ **El campo de búsqueda no toma foco con un tap sintético.** Es la misma forma del problema
- * que obligó a fijar espresso 3.7.0 (D-093), y no es teórica: dejó **D-168** (el respaldo entre
- * idiomas) y **D-169** (los sinónimos tocables) sin verificar *con el reloj en la mano*, y volvió
- * a costar en el emulador cuando hubo que comprobar que un pack núcleo devuelve resultados — hubo
- * que contestarlo leyendo el `.db` con `sqlite3`, que comprueba el dato y no la app.
+ * ⚠️ **The search field does not take focus from a synthetic tap.** Same shape as the problem
+ * that pinned espresso 3.7.0 (D-093), and not a theoretical one: it left **D-168** (the fallback
+ * between languages) and **D-169** (tappable synonyms) unverified *with the watch in hand*, and
+ * it cost again on the emulator when the question was whether a core pack returns results — that
+ * had to be answered by reading the `.db` with `sqlite3`, which checks the data and not the app.
  *
- * Lo que esto habilita es todo lo que **termina en la pantalla** y por eso el gate no lo ve: el
- * orden de los resultados sobre el pack real, el respaldo entre idiomas, los sinónimos, y cualquier
- * cosa que dependa de escribir.
+ * What this enables is everything that **ends up on screen**, which is exactly what the gate
+ * cannot see: result order over the real pack, the language fallback, the synonyms, and anything
+ * that depends on typing.
  *
- * ## Lo que se puede preguntar
+ * ## What can be asked
  *
  * ```sh
- * # Sembrar una consulta, como si se hubiera escrito. `-p` ANTES del extra: ver ACTION_CLEAR.
+ * # Seed a query, as if it had been typed. `-p` BEFORE the extra: see ACTION_CLEAR.
  * adb shell am broadcast -p cl.fadiaz.dictionary \
  *     -a cl.fadiaz.dictionary.DEBUG_SEARCH -e q "hous"
  *
- * # Vaciar el campo y volver al inicio:
+ * # Clear the field and go back to the home screen:
  * adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_CLEAR
  *
- * # Volcar el estado a logcat: qué packs abrieron, cuál está activo, y el memo de verificación:
+ * # Dump the state to logcat: which packs opened, which is active, and the verification memo:
  * adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_DUMP
  * adb logcat -s Dict:V
  * ```
  *
- * El volcado es el ítem 3 de la tabla de herramientas del roadmap, y lo que cierra es que
- * [PackVerification] **se pueda comprobar en el dispositivo**: hasta acá el memo sólo se podía
- * leer con `run-as`, que no existe sobre un APK de `benchmark`.
+ * The dump is item 3 of the roadmap's tooling table, and what it closes is that
+ * [PackVerification] **can be checked on the device**: until now the memo could only be read with
+ * `run-as`, which does not exist over a `benchmark` APK.
  *
- * ## Por qué no está en release, y cómo se garantiza
+ * ## Why it is not in release, and how that is guaranteed
  *
- * ⚠️ **Un receiver exportado en producción es superficie de ataque y batería.** La garantía no es
- * que nadie lo registre: es que `BuildConfig.DEBUG_INTENTS` sea una **constante** `false` en
- * `release`, así que R8 pliega el `if`, la clase se queda sin referencias y **desaparece del
- * dex**. No es que no se use — es que no existe. Es el mismo trato que D-213 le dio al HTTP en
- * claro, y el motivo por el que la puerta es un `buildConfigField` y no un chequeo en tiempo de
- * ejecución.
+ * ⚠️ **An exported receiver in production is attack surface and battery.** The guarantee is not
+ * that nobody registers it: it is that `BuildConfig.DEBUG_INTENTS` is a **constant** `false` in
+ * `release`, so R8 folds the `if`, the class loses its references and **leaves the dex**. It is
+ * not that it goes unused — it does not exist. Same treatment D-213 gave cleartext HTTP, and the
+ * reason the gate is a `buildConfigField` and not a runtime check.
  *
- * ⚠️ **Y está encendida en `benchmark`** aunque herede de `release`: es la build con la que se
- * mide (D-166) y la única parecida a release que se puede instalar. Si fuera la única que no
- * puede sembrar una consulta, medir una búsqueda volvería a necesitar un dedo.
+ * ⚠️ **And it is on in `benchmark`** despite inheriting from `release`: that is the build used to
+ * measure (D-166) and the only release-like one that installs. If it were the only one unable to
+ * seed a query, measuring a search would need a finger again.
  */
 object DebugIntents {
 
-    /** Sembrar una consulta. El texto viaja en el extra `q`. */
+    /** Seed a query. The text travels in the `q` extra. */
     const val ACTION_SEARCH = "cl.fadiaz.dictionary.DEBUG_SEARCH"
 
-    /** Volcar el estado a `logcat`, bajo el tag `Dict`. */
+    /** Dump the state to `logcat`, under the `Dict` tag. */
     const val ACTION_DUMP = "cl.fadiaz.dictionary.DEBUG_DUMP"
 
     /**
-     * Vaciar el campo, que es la otra mitad de cualquier prueba de busqueda.
+     * Clear the field, which is the other half of any search probe.
      *
-     * ⚠️ **Accion propia y no `-e q ""`, y el motivo salio de usarlo.** Un extra vacio **no
-     * sobrevive a `adb shell`**: el shell del dispositivo se come la cadena vacia y el argumento
-     * siguiente ocupa su lugar. Medido el 2026-09-23 -- `am broadcast -a ... -e q "" -p
-     * cl.fadiaz.dictionary` dejo la app buscando literalmente **`-p`**, y de paso perdio el
-     * filtro de paquete. Con una accion sin extras no hay nada que se pueda comer.
+     * ⚠️ **Its own action rather than `-e q ""`, and the reason came from using it.** An empty
+     * extra **does not survive `adb shell`**: the device's shell eats the empty string and the
+     * next argument takes its place. Measured 2026-09-23 -- `am broadcast -a ... -e q "" -p
+     * cl.fadiaz.dictionary` left the app searching for the literal **`-p`**, and lost the package
+     * filter on the way. An action with no extras has nothing that can be eaten.
      */
     const val ACTION_CLEAR = "cl.fadiaz.dictionary.DEBUG_CLEAR"
 
-    /** El extra con el texto a buscar. */
+    /** The extra carrying the text to search for. */
     const val EXTRA_QUERY = "q"
 
     /**
-     * Registra el receiver si esta build lo permite, y devuelve cómo darlo de baja.
+     * Registers the receiver if this build allows it, and returns how to take it down.
      *
-     * Devuelve `null` cuando la puerta está cerrada, y eso es lo que permite que quien llama
-     * escriba `DebugIntents.install(...)?.let { ... }` sin preguntar por la build.
+     * Returns `null` when the gate is shut, which is what lets a caller write
+     * `DebugIntents.install(...)?.let { ... }` without asking which build it is.
      *
-     * ⚠️ **`RECEIVER_EXPORTED` es obligatorio para que `am broadcast` llegue**, y es exactamente
-     * la razón por la que esto no puede existir en release. Desde API 34 el flag es obligatorio
-     * declararlo; acá se declara el valor que hace falta y se paga apagando el build entero.
+     * ⚠️ **`RECEIVER_EXPORTED` is required for `am broadcast` to arrive**, and that is exactly
+     * why this cannot exist in release. The flag is mandatory to declare from API 34; here the
+     * needed value is declared and paid for by switching the whole thing off per build type.
      */
     fun install(
         context: Context,
@@ -96,11 +95,11 @@ object DebugIntents {
                 when (intent.action) {
                     ACTION_SEARCH -> {
                         val texto = intent.getStringExtra(EXTRA_QUERY).orEmpty()
-                        DictLog.i { "debug: sembrar consulta '$texto'" }
+                        DictLog.i { "debug: seed query '$texto'" }
                         onSearch(texto)
                     }
                     ACTION_CLEAR -> {
-                        DictLog.i { "debug: vaciar el campo" }
+                        DictLog.i { "debug: clear the field" }
                         onSearch("")
                     }
                     ACTION_DUMP -> onDump()
@@ -112,20 +111,20 @@ object DebugIntents {
             addAction(ACTION_CLEAR)
             addAction(ACTION_DUMP)
         }
-        // Sin rama de compatibilidad: `minSdk` es 33 y el flag existe desde 33, asi que
-        // preguntar por `SDK_INT` seria codigo muerto -- lo agarro lint, que en este repo rompe
-        // el build (ObsoleteSdkInt).
+        // No compatibility branch: `minSdk` is 33 and the flag exists from 33, so asking about
+        // `SDK_INT` would be dead code -- lint caught it, and lint breaks the build here
+        // (ObsoleteSdkInt).
         context.registerReceiver(receiver, filtro, Context.RECEIVER_EXPORTED)
-        DictLog.i { "debug: intents de depuracion ACTIVOS ($ACTION_SEARCH, $ACTION_DUMP)" }
+        DictLog.i { "debug: debug intents ACTIVE ($ACTION_SEARCH, $ACTION_DUMP)" }
         return { context.unregisterReceiver(receiver) }
     }
 
     /**
-     * El volcado, como texto. Puro y sin Android **para que el gate lo cubra** (D-072).
+     * The dump, as text. Pure and free of Android **so the gate covers it** (D-072).
      *
-     * ⚠️ **Va en líneas y no en una sola**, porque `logcat` corta los mensajes largos y el memo de
-     * verificación puede tener una línea por pack: un volcado truncado es peor que ninguno,
-     * porque parece completo.
+     * ⚠️ **In lines rather than one string**, because `logcat` truncates long messages and the
+     * verification memo can hold one line per pack: a truncated dump is worse than none, because
+     * it looks complete.
      */
     fun dump(
         opened: List<String>,
@@ -134,10 +133,11 @@ object DebugIntents {
         memo: String?,
         appVersion: Int,
         /**
-         * La identidad del build: commit, `+dirty`, y cuándo.
+         * The build identity: commit, `+dirty`, and when.
          *
-         * ⚠️ **Va PRIMERO y no al final**, porque decide si el resto del volcado sirve: un
-         * readout que describe un APK que no es el que se cree estar mirando es peor que ninguno.
+         * ⚠️ **It goes FIRST and not last**, because it decides whether the rest of the dump is
+         * worth anything: a readout describing an APK other than the one you think you are
+         * looking at is worse than no readout.
          */
         buildId: String = "",
     ): List<String> = buildList {
@@ -151,8 +151,9 @@ object DebugIntents {
         )
         val lineas = memo.orEmpty().lineSequence().filter { it.isNotBlank() }.toList()
         add("memo de verificacion: ${lineas.size} anotacion(es)")
-        // ⚠️ Una línea por anotación, y la huella entera: es el dato con el que se comprueba que
-        // un `versionCode` nuevo caducó el memo (D-225), y abreviarla lo volvería incomprobable.
+        // ⚠️ One line per annotation, and the whole fingerprint: it is the datum that proves a
+        // new `versionCode` expired the memo (D-225), and abbreviating it would make that
+        // uncheckable.
         lineas.forEach { add("  $it") }
         add("--- fin ---")
     }

@@ -99,26 +99,25 @@ internal object PackVerification {
      * comprobaciones se corren. Cualquiera que se mueva caduca el memo entero, que es lo que
      * evita que un rechazo sobreviva a la versión de la app que ya sabría leer ese pack.
      *
-     * ⚠️ **El quinto es el `versionCode`, y existe porque los otros cuatro dependen de que
-     * alguien se acuerde.** `NORM_VERSION`, `schema_version` y el códec los obligan a subir
-     * D-005 y D-006; [CHECKS_VERSION] no lo obliga nadie — agregar una invariante a
-     * `PackFile.open` no toca ninguna de las tres, y olvidarse deja a **todo pack ya anotado
-     * saltándose la comprobación nueva para siempre**, que es exactamente el agujero que la
-     * comprobación venía a tapar.
+     * ⚠️ **The fifth is the `versionCode`, and it exists because the other four depend on
+     * somebody remembering.** `NORM_VERSION`, `schema_version` and the codec are forced upwards
+     * by D-005 and D-006; nothing forces [CHECKS_VERSION] — adding an invariant to
+     * `PackFile.open` touches none of the three, and forgetting leaves **every already-annotated
+     * pack skipping the new check forever**, which is exactly the hole the check came to plug.
      *
-     * El `versionCode` no se puede olvidar: el instalador de Android **rechaza un downgrade**
-     * (D-095), así que una app que llega al reloj trae un número mayor que la anterior, siempre.
-     * Con él adentro, instalar una versión nueva **caduca el memo entero** y el primer arranque
-     * vuelve a probar cada pack bajo las reglas de hoy.
+     * The `versionCode` cannot be forgotten: the Android installer **rejects a downgrade**
+     * (D-095), so an app reaching the watch always carries a higher number than the last. With it
+     * in the fingerprint, installing a new version **expires the whole memo** and the first
+     * launch re-tests every pack under today's rules.
      *
-     * ⚠️ **Y caduca los RECHAZOS, que es la mitad que más importa.** Un sí cacheado de más
-     * cuesta que se use un pack malo; un **no** cacheado de más cuesta que un pack bueno
-     * desaparezca sin log y sin que nada lo vuelva a mirar. Una app nueva es justo el momento en
-     * que un rechazo puede haber dejado de ser cierto.
+     * ⚠️ **And it expires the REJECTIONS, which is the half that matters most.** One cached yes
+     * too many costs a bad pack being used; one cached **no** too many costs a perfectly good
+     * pack disappearing with no log and nothing ever looking again. A new app is precisely the
+     * moment a rejection may have stopped being true.
      *
-     * **Lo que cuesta**: el primer arranque después de cada actualización paga la muestra de 64
-     * claves de D-142 sobre cada pack — medido en D-164, **41,33 ms contra 6,30** con los dos
-     * packs reales. Una vez por actualización de la app, no una vez por arranque.
+     * **What it costs**: the first launch after each update pays D-142's 64-key sample over every
+     * pack — measured in D-164, **41.33 ms against 6.30** with the two real packs. Once per app
+     * update, not once per launch.
      */
     fun rules(
         normVersion: Int,
