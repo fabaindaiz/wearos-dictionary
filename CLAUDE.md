@@ -47,10 +47,9 @@ one has its row in `docs/decisions.md`.
 **Wear OS surface**
 - Tiles and widgets accept no text input: the search lives inside the app. The glanceable
   surface is for word of the day, recent searches or a shortcut. (D-026)
-- **Never** `androidx.glance:glance-wear-tiles` — it is deprecated and will be removed. The naming
-  confuses: it is not the Wear Widgets library. (D-025)
-- Wear Widgets (Glance + RemoteCompose) is postponed, not discarded: the packages are in alpha and
-  only exist on Wear OS 7. (D-024)
+- **Never** `androidx.glance:glance-wear-tiles` — deprecated, and the naming confuses: it is not
+  the Wear Widgets library (D-025), which is postponed and not discarded — alpha, Wear OS 7 only
+  (D-024).
 - Downloads are deferred to **charging and on Wi-Fi**, per the official Wear OS guidance. (D-029)
 
 ## Guardrails that do not get relaxed
@@ -63,6 +62,15 @@ one has its row in `docs/decisions.md`.
   fewer results than it holds.
 - **The on-device check.** It does not exist yet and it is the class of bug this repo cannot see:
   see `docs/contratos-cruzados.md`.
+
+**A pre-ship check is half of it; the other half is observing after shipping.** Every silent
+failure needs a **readout** (`DictLog`, D-212); every build **states its identity** —commit, time,
+dirty, *generated and never typed*— or *"the fix did not work"* and *"the watch runs yesterday's
+APK"* are one report; and what only a watch answers lives in `docs/preguntas-del-reloj.md`.
+
+**And what promotes a rule: an instruction the agent had loaded and broke anyway is the signal to
+raise its rung**, not to repeat it louder. Prose that was in context and did not hold is evidence
+that prose is the wrong mechanism for it.
 
 ## Files that are never edited by hand
 
@@ -94,24 +102,12 @@ The Hatch environment for the Python pipeline is optional and **the gate does no
 
 ## Verification
 
-`./gradlew check` runs the full gate: the core's tests, the structural audit, and **the Python
-tests** via `:tools:pythonTest`.
-
-After touching `norm()`, `fuzzy()` or the pack format, additionally:
-`python3 tools/packbuilder/build_toy.py && python3 tools/packbuilder/verify_pack.py dict-data/src/androidTest/assets/toy-es-en.db`
-
-**A claim needs a measurement**, carrying its date and its environment, and **a retraction is
-written everywhere the claim was**. **The test comes first**, and if it was already green, a
-targeted mutation proves it bites. **The uncommitted diff is the work**: no `checkout`, `restore`,
-`stash`, `reset` or `clean` over files you did not write. The four in full: the `verify` skill.
-
-**The emulator and the watch do not measure the same thing** (D-043): the emulator closes
-correctness —normalization, FTS5, query plans— because it ships the ICU and SQLite of its API
-level. Performance and battery only count measured on a **physical watch**. See `benchmark`.
-
-**`:dict-data`'s tests are instrumented and the gate does NOT run them** (they need a device).
-They are the only ones that close the assumptions about Android. Run them on every supported API
-level: the whole point is that ICU versions differ.
+`./gradlew check` is the gate, read **by its exit code**. What it cannot enforce — a number carries
+its date and its environment; a retraction is written everywhere the claim was; the test comes
+first, and one green first time proves it bites by mutation; **a change that must change nothing is
+proved by its invariant, compared mechanically**, never by reading the diff; the uncommitted diff
+is not yours to discard; emulator and watch measure **different things**, not different amounts
+(D-043); `:dict-data`'s tests are instrumented and stay outside — lives in the `verify` skill.
 
 ## How a session runs
 
@@ -141,26 +137,26 @@ not counting rows. See the `pack-workflow` skill.
 
 **Close by giving back what the session learned.** Capturing is unconditional; proposing has a
 threshold: a friction goes into the changelog the first time and **up to the roadmap §Proceso y
-herramientas the second**, with the arithmetic. Process improvements **are proposed, not
-executed**, except the one-line reversible kind. The closing question: *if the next session is
-another agent with no memory of this one, what would it have to re-derive?*
+herramientas the second**, with the arithmetic. Process improvements **are proposed, not executed**
+—except the one-line reversible kind— and **never ride inside a feature**, which a revert takes
+with it. The closing question: *if the next session is another agent with no memory of this one,
+what would it have to re-derive?*
 
 ## Commits
 
-They are offered when the work is finished, never on your own initiative mid-task — the `commit` skill. They are split
-**by dependency, not by size**: every commit has to be green on its own, so the history is
-bisectable. Verify it with `git worktree` before assuming it is.
+**Each commit is offered when ITS piece passes**, not when the whole task ends — the `commit`
+skill, which also owns how a series is split after the fact. Split **by dependency, not by size**:
+every commit green on its own, so the history is bisectable, and **proved in a `git worktree`**
+before that is claimed.
 
 The message says **why**, not which files changed — the diff already says that.
 
 ## Logging obligation
 
-Every session writes its entry in `.claude/logs/agent-changelog.md`, at the very top. It exists
-because **two parallel sessions cannot see each other** and the conflict shows up at compile time,
-or worse, at review time.
-
-The entry also says **what went wrong along the way** and **what was left undone**. A log of
-successes is bookkeeping: what warns the next session are the mistakes and the debt.
+Every session writes its entry at the top of `.claude/logs/agent-changelog.md`, **including what
+went wrong and what was left undone** — a log of successes is bookkeeping — **and a claim it could
+not verify says so, its question joining the standing brief in the same change**. The file explains
+its own format, and why, at its end.
 
 ## Working style
 
@@ -175,6 +171,11 @@ successes is bookkeeping: what warns the next session are the mistakes and the d
   **ASSUMPTION** anything that comes from memory or from a summary.
 - **Extend before creating.** A second file doing the job of one that already exists is how a
   codebase forgets what it decided.
+- **A comment describes the code, never the change.** *"Now uses X"* is dead the next commit and
+  the diff already said it. And **a durable document never cites a session artifact** — a branch,
+  a scratch path, a task id: it outlives them and starts lying.
+- **Content the owner wrote is not yours to complete.** An empty slot in their prose is a choice
+  until they say otherwise; fill the ones you created.
 - **Architectural integrity wins over the request.** If something breaks a constraint from here,
   say the cost and propose the right path; deviate only with explicit confirmation, and record
   it as ⚠️ Desviación.
@@ -189,6 +190,7 @@ successes is bookkeeping: what warns the next session are the mistakes and the d
 | Where does a new file go? What are the layers? | `docs/architecture.md` |
 | What is next? What does what I want to do collide with? | `docs/roadmap.md` |
 | How do I measure this? Is it slow? What does it cost in battery? | the `benchmark` skill, `docs/bateria.md`, `docs/roadmap.md` §Optimización |
+| What can only be answered with a watch on a wrist? What is still unverified? | `docs/preguntas-del-reloj.md` |
 | Which source should the next pack be built from? Is it worth it? | `docs/fuentes.md` |
 | Did we already research this? What does the official source say? | `docs/references.md` |
 | What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |

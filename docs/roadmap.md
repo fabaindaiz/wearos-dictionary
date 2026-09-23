@@ -4163,27 +4163,46 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### El triage v8→v16 del método quedó a medias, y v17–v21 no se puede hacer
+### ✅ El triage v8→v16 del método — **CERRADO el 2026-09-23**; v17–v21 sigue bloqueado
 
-**Estado.** ⚠️ **Parcial, 2026-09-22.** El bundle está en v21 y los deltas con casa en los
-artefactos se aplicaron (D-221 a D-224). **Lo que falta, por nombre**: principio 7 segunda mitad
-—observar después de shippear, un readout por falla silenciosa—, principio 15 —el contenido que
-escribió el dueño no es del agente para completar—, principio 17 —el formatter que sólo escribe
-copias que conservaron cada comentario—, la regla de la escalera —*una regla que el agente tenía
-cargada y rompió igual es la señal para subirle el rung*—, los tres pasos del session loop (sondas
-halladas por el audit; un cambio que no debe cambiar nada se prueba por su invariante; cada commit
-se ofrece cuando su pieza pasa) y los estándares de ingeniería (un comentario describe el código,
-nunca el cambio; un documento durable no cita artefactos de sesión).
+**Estado.** ✅ **Los seis bloques aplicados** (D-233 a D-239), contra la recomendación de partirlos
+en dos sesiones — ver ⚠️ Desviación abajo. Lo que entró, por nombre:
 
-⚠️ **Y v17 a v21 está bloqueado, no pendiente.** El header declara `version: 21` y el *Method
-changelog* del bundle llega hasta la **16**: cinco versiones sin una línea que diga qué cambia para
-quien lee. El método dice explícitamente que la lista de deltas **no es un diff de la prosa**, así
-que no hay con qué triagearlas. Reportado en `.agents/tracking/candidates.md`; se destraba cuando
-el dueño de la lineage escriba esas filas.
+| Bloque | Dónde aterrizó | Decisión |
+|---|---|---|
+| Principio 7, segunda mitad — observar después de shippear | `BuildConfig.BUILD_COMMIT`/`BUILD_TIME` generados, leídos en Ajustes y en `DEBUG_DUMP`, más el brief permanente `docs/preguntas-del-reloj.md` | D-238 |
+| Principio 15 — el contenido del dueño no es del agente para completar | `CLAUDE.md` §Working style | D-239 |
+| La regla de la escalera | `CLAUDE.md` §Guardrails | D-234 |
+| Session loop 3 — las sondas las encuentra el audit | `check_no_probes_left_behind` | D-236 |
+| Session loop 4 — lo que no debe cambiar se prueba por su invariante | La skill `verify` | D-237 |
+| Session loop 7 — cada commit se ofrece cuando su pieza pasa | La skill `commit`, con el procedimiento de partición | D-235 |
+| Estándares de ingeniería — el comentario describe el código; un documento durable no cita artefactos de sesión | `CLAUDE.md` §Working style | D-239 |
 
-**Lo que costaría cerrar la primera parte.** Una sesión por bloque, con la skill `state-review`
-§0 como punto de entrada —que ya rutea— y `CLAUDE.md` en 198 de 200 líneas, así que cada regla que
-entre tiene que salir a una skill con su puntero y su disparador (D-222).
+**El presupuesto, que era la restricción real.** `CLAUDE.md` estaba en **198 de 200** y hicieron
+falta **10 líneas**. ⚠️ **Nueve salieron de dos secciones que ya estaban duplicadas palabra por
+palabra** —§Verification en la skill `verify`, §Logging obligation en la cabecera del propio
+changelog— así que desalojarlas borró una segunda fuente de verdad en vez de retirar una regla
+(D-233). La décima salió de fundir dos filas de Wear Widgets que decían lo mismo desde dos lados.
+El archivo quedó en **200 exactas**.
+
+⚠️ **Principio 17 tiene un delta SIN SUJETO acá, y eso no es lo mismo que rechazado.** Su ejemplo
+de v13 especifica un formatter que sólo escribe copias que conservaron cada comentario y cada
+token no-layout. **Este repo no tiene formatter**, así que no hay nada que aplicar ni nada que
+declinar. Lo que sí entró de ese principio es su disciplina 2 —una mejora de proceso no viaja
+dentro de una feature— que faltaba. La falta de un veredicto para *«aplicado: no hay sujeto»* se
+reportó como candidato.
+
+⚠️ **Y v17 a v21 sigue bloqueado, no pendiente.** El header declara `version: 21` y el *Method
+changelog* del bundle llega hasta la **16**: cinco versiones sin una línea que diga qué cambia
+para quien lee. El método dice explícitamente que la lista de deltas **no es un diff de la
+prosa**, así que no hay con qué triagearlas. Reportado en `.agents/tracking/candidates.md`; se
+destraba cuando el dueño de la lineage escriba esas filas.
+
+**Lo que queda de esta familia**, y es chico: `r-a2f271` sigue **sin registrar en
+`carriers.md`**. Bloqueado por partida doble — ese archivo no es de los que un carrier puede
+escribir (sólo `candidates.md`), y `bundle.py register` necesita **Python 3.11+** por `tomllib`
+mientras esta máquina corre **3.9.6**. Lo cierra una meta-sesión del dueño del bundle, no este
+repo.
 
 ### `set -- $x` en fish no separa campos, y van dos
 

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Corre el gate y define **cómo se escribe una medición, cómo se confirma que un test sirve y qué no se toca del árbol**. Usar antes de commitear, después de tocar normalización o el formato de pack, **antes de escribir un número en un documento**, **cuando un test pasó a la primera**, **antes de descartar o restaurar archivos** (`checkout`, `restore`, `stash`, `reset`, `clean`), al corregir algo que ya se afirmó, y cuando se pida "verificá", "corré el gate", "chequeá", "¿está listo?" o "¿esto funciona?".
+description: Corre el gate y define **cómo se escribe una medición, cómo se confirma que un test sirve, cómo se prueba un cambio que no debe cambiar nada, y qué no se toca del árbol**. Usar también **cuando un refactor o una regeneración no deberían alterar el resultado**, y **después de correr una sonda de mutación**. Usar antes de commitear, después de tocar normalización o el formato de pack, **antes de escribir un número en un documento**, **cuando un test pasó a la primera**, **antes de descartar o restaurar archivos** (`checkout`, `restore`, `stash`, `reset`, `clean`), al corregir algo que ya se afirmó, y cuando se pida "verificá", "corré el gate", "chequeá", "¿está listo?" o "¿esto funciona?".
 allowed-tools: Bash, Read
 ---
 
@@ -67,10 +67,48 @@ one that was green the first time it ran, has not been shown to detect anything.
 —narrow the range, flip the comparison, delete the branch— and watch that same test fail. Restore
 by rewriting the file, not with `git checkout`.
 
+**A change that must change nothing is proved by its invariant, compared mechanically.** A
+refactor, a regeneration, a rename: *"I read the diff and it looks equivalent"* is not a proof, and
+this is where an agent is weakest — the diff is exactly what it just wrote. Pick the invariant the
+change promises to preserve and compare it before and after **with a command**, not with an eye.
+
+> **Measured, 2026-09-23.** The two core packs were regenerated to fix their name. The invariant
+> that had to hold was *the content does not move*, and the check was the byte size: **50,843,648
+> and 42,856,448, identical before and after**. That is what let the change be called a rename.
+> Reading the diff of a `.db` proves nothing at all.
+
+The shapes this repo uses: byte size or `sha256` for an artefact, `verify_pack.py --como-la-app`
+for a pack, the shared vectors for `norm()`, the query plan for an index. If no invariant can be
+named, the change is not the one being claimed.
+
+**A probe does not survive the session that ran it.** After a mutation, restore by rewriting the
+file, and check the tree is clean of markers before offering anything — `check_no_probes_left_behind`
+in the audit fails on `MUTACION`, `MUTATION PROBE` and `SONDA:`. ⚠️ **A forgotten mutation breaks
+nothing**: the test that would catch it is the one being probed, so what remains is deliberately
+wrong code with a green gate. And macOS caches bytecode outside the repo, so a mutation of the
+same width has survived a restore before.
+
 **The uncommitted diff is the work.** No `checkout`, `restore`, `stash`, `reset` or `clean` over
 files this session did not write: a parallel session's work is in that diff and it is not yours.
 Probe on a copy under the scratchpad, or in a `git worktree`, which is also the only place a
 split commit can be proved green on its own.
+
+## The emulator and the watch measure different things
+
+Not different amounts of the same thing — **different things** (D-043), and confusing them is how
+a number gets believed that was never about the watch.
+
+- **The emulator closes correctness**: normalization, FTS5, query plans. It ships the ICU and the
+  SQLite of its API level, so what it says about those is true of that level.
+- **Performance and battery only count on a physical watch.** A start-up time or a p99 from an
+  emulator is not a slow measurement of the watch; it is a measurement of this laptop. See the
+  `benchmark` skill.
+- **And a debug APK is a ceiling, not a number**: `debuggable = true` means ART never compiles it
+  AOT. Measure on `benchmark`.
+
+The questions that need a wrist live in `docs/preguntas-del-reloj.md`, each with the readout that
+answers it. **A claim this session could not verify goes there**, in the same change as its
+changelog entry.
 
 ## Reporting
 
