@@ -499,4 +499,15 @@ data class Entry(
      * D-117 --se lee plausible y no lo agarra nadie. Medido, son el 37,7 % del dato.
      */
     val wordTranslations: List<String> = emptyList(),
+    /**
+     * The word's principal parts, with their own spelling. See [PayloadCodec.InflectedForm].
+     *
+     * ⚠️ **Not the `form` table.** That one holds `norm(form)` --`corrais`, not `corráis`--
+     * because it is a search key; showing it would be misspelled. These travel in the payload
+     * precisely so the card can show them.
+     *
+     * Empty for any pack built before the channel existed, and the card then has no forms
+     * section at all.
+     */
+    val forms: List<PayloadCodec.InflectedForm> = emptyList(),
 )

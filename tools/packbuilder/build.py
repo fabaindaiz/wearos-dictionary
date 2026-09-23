@@ -148,6 +148,7 @@ class Record:
         "rank",
         "senses",
         "forms",
+        "display_forms",
         "translations",
         "word_translations",
         "sense_key",
@@ -162,6 +163,7 @@ class Record:
         part_of_speech=None,
         rank=0,
         forms=(),
+        display_forms=(),
         translations=(),
         word_translations=(),
         sense_key=None,
@@ -175,6 +177,9 @@ class Record:
         self.part_of_speech = part_of_speech
         self.rank = rank
         self.forms = forms
+        #: The principal parts the card SHOWS. See `kaikki._display_forms`: not the same as
+        #: `forms`, which feeds the normalized search.
+        self.display_forms = display_forms
         self.translations = translations
         # Traducciones de la PALABRA, sin acepcion. Van al payload (tag `W`) y NO a `trans`
         # por si solas: `translations` es el canal de busqueda y lleva la union de las dos.
@@ -348,7 +353,8 @@ class PackBuilder:
             return
 
         body = payload_codec.render(
-            record.part_of_speech, record.senses, record.word_translations)
+            record.part_of_speech, record.senses, record.word_translations,
+            record.display_forms)
         if not body:
             # Sin ninguna acepcion utilizable la entrada no tiene nada que mostrar.
             return

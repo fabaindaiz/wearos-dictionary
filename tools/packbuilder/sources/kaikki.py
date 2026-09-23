@@ -696,6 +696,56 @@ def _forms(raw, headword, inbound):
     return tuple(seen)
 
 
+#: Which principal parts are kept, and under which neutral key. Order is the table's.
+#:
+#: WARNING: each row REQUIRES some tags and FORBIDS others, and the second half is what makes it
+#: useful: without `forbidden`, `plural` takes any first-person-plural verb form.
+#:
+#: WARNING: `impersonal` does NOT disqualify, and believing it cost the first version. The source
+#: puts it on EVERY non-personal Spanish form -- `corriendo`, `corrido` and `haber corrido` all
+#: carry it -- so using it as a filter left `correr` with no principal parts at all. What
+#: separates `corriendo` from `habiendo corrido` is not a tag but that the second is COMPOUND,
+#: and that shows in the space. Measured against the real dump, not reasoned.
+PARTES_PRINCIPALES = (
+    ("ger", frozenset({"gerund"}), frozenset()),
+    ("part", frozenset({"participle"}), frozenset()),
+    ("pl", frozenset({"plural"}),
+     frozenset({"first-person", "second-person", "third-person", "feminine"})),
+    ("fem", frozenset({"feminine"}),
+     frozenset({"plural", "first-person", "second-person", "third-person"})),
+)
+
+
+def _display_forms(raw, headword):
+    """The principal parts the card shows, as `[(key, form), ...]`.
+
+    WARNING: this is not `_forms`, and mixing them would be an expensive mistake. `_forms` feeds
+    the SEARCH channel: it wants every inflection, normalized, so typing `corrais` finds
+    `correr`. This feeds the SCREEN: it wants very few, with their spelling and their label. A
+    Spanish verb carries 137 forms in the source; two come out here.
+
+    WARNING: with the original spelling, which is exactly what `form` cannot give: that table
+    stores `norm(form)` -- `corrais`, not `corráis` -- because its job is to be a search key.
+    """
+    salida = []
+    vistas = set()
+    for clave, exigidas, prohibidas in PARTES_PRINCIPALES:
+        for item in raw.get("forms") or []:
+            forma = (item.get("form") or "").strip()
+            if not forma or forma == headword or forma in vistas:
+                continue
+            # WARNING: compounds out. `haber corrido` and `habiendo corrido` carry the same
+            # tags as the simple ones, and a watch card has no room for a periphrasis.
+            if " " in forma:
+                continue
+            tags = set(item.get("tags") or ())
+            if exigidas <= tags and not (prohibidas & tags):
+                salida.append((clave, forma))
+                vistas.add(forma)
+                break
+    return tuple(salida)
+
+
 def _rank(raw, senses, forms, perfil, es_nombre_propio=False, zipf=None):
     """El prior con el que se ordenan los resultados. Menor es mas comun.
 
@@ -880,6 +930,7 @@ def _emit(group, inbound, opciones):
             rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name"),
                        zipf=opciones.zipf(headword)),
             forms=forms,
+            display_forms=_display_forms(raw, headword),
             # ⚠️ **El canal de BUSQUEDA lleva las dos**, atribuidas y sueltas: para encontrar
             # `casa` escribiendo `house` da igual si la fuente supo a que acepcion pertenece.
             # Esto es lo que hace que un pack monolingue se busque tambien en el otro idioma.

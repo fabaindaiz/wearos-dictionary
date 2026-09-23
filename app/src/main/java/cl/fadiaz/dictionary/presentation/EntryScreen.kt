@@ -63,6 +63,7 @@ import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.GlossTokenizer
 import cl.fadiaz.dictionary.core.Sense
+import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.TextNormalizer
 
 /**
@@ -311,6 +312,34 @@ fun EntryScreen(
             //
             // Con `prominent`: no cuelga de ninguna acepción, así que no se dibuja subordinada
             // a una.
+            // ⚠️ **Forms come BEFORE the translations and carry a sense's weight**, which was
+            // the request. The order is not cosmetic: *how this word is spelled* is a question
+            // about the word itself, and it is answered before *how it is said in another
+            // language*. With `prominent = true` it draws at the margin in `bodyMedium`, the
+            // same body a gloss gets, rather than hanging off a sense in `labelSmall`.
+            //
+            // ⚠️ **These are the principal parts, not the conjugation.** `correr` has 202 rows
+            // in `form`; what comes out here is `corriendo` and `corrido`. See
+            // `PayloadCodec.TAG_FORM`.
+            //
+            // ⚠️ **And they are NOT tappable**, unlike synonyms and translations: an inflected
+            // form is not a headword, so it has no card of its own to go to. Painting something
+            // that leads nowhere teaches the reader not to trust the colour (D-094).
+            val forms = current?.forms.orEmpty()
+            if (forms.isNotEmpty()) {
+                item(key = "formas") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        TermList(
+                            R.string.entry_forms_title,
+                            forms.map { labelledForm(it) },
+                            links = emptyMap(),
+                            onOpenWord = {},
+                            prominent = true,
+                        )
+                    }
+                }
+            }
+
             val wordTranslations = current?.wordTranslations.orEmpty()
             if (wordTranslations.isNotEmpty()) {
                 item(key = "traducciones-palabra") {
@@ -667,6 +696,30 @@ private fun linkedTerms(
         }
         LinkedContent(text, targets)
     }
+}
+
+/**
+ * One principal part as the card shows it: `corriendo (gerundio)`.
+ *
+ * ⚠️ **The label comes from the app and not from the pack**, and that is the point of the
+ * channel: the pack stores a neutral key (`ger`, `part`) because the same file is shared by a
+ * user running the interface in Spanish and one running it in English. Translating belongs to the
+ * localization, never to the artefact.
+ *
+ * ⚠️ **An unknown key shows the form WITHOUT a label rather than hiding it.** Somebody else's
+ * pack may declare parts this version cannot name, and `corriendo` with no note is still
+ * information; `corriendo` missing is not.
+ */
+@Composable
+private fun labelledForm(form: PayloadCodec.InflectedForm): String {
+    val label = when (form.key) {
+        "ger" -> R.string.entry_form_gerund
+        "part" -> R.string.entry_form_participle
+        "pl" -> R.string.entry_form_plural
+        "fem" -> R.string.entry_form_feminine
+        else -> null
+    } ?: return form.form
+    return stringResource(R.string.entry_form_item, form.form, stringResource(label))
 }
 
 /**

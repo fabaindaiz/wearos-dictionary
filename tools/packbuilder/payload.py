@@ -91,6 +91,24 @@ TAG_CITATION = "C"
 # de acepcion -- la atribucion inventada que este canal existe para evitar.
 TAG_WORD_TRANSLATION = "W"
 
+#: A **principal part** of the word: gerund, participle, plural or feminine.
+#:
+#: WARNING: the value is `key:form`, and the key is deliberately neutral. Storing the label
+#: already translated --"gerundio"-- would put the interface's language INSIDE the pack, and the
+#: same file is shared by a user running the app in Spanish and one running it in English. The app
+#: maps the key to its localized string, which is where translation belongs (CLAUDE.md, Working
+#: style).
+#:
+#: WARNING: these are FEW and chosen, not the whole conjugation. `correr` carries 137 forms in the
+#: source and 202 rows in `form`; dumping those into the payload would be unreadable on a watch
+#: and expensive in bytes -- `form` is already 42 % of the Spanish pack. What travels here are the
+#: parts the rest derive from, which is what a printed dictionary puts beside the headword.
+TAG_FORM = "F"
+
+#: Separates the key from the form inside a [TAG_FORM]. A colon and not a tab: `sanitize` strips
+#: tabs because they would split the line, and this value has to survive it.
+FORM_SEPARATOR = ":"
+
 # Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
 # esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
 _RAW_DEFLATE = -15
@@ -354,7 +372,7 @@ def _sin_repetir(valores):
     return salida
 
 
-def render(part_of_speech, senses, word_translations=()):
+def render(part_of_speech, senses, word_translations=(), forms=()):
     """Serializa a texto. `senses` es una lista de dicts con gloss/examples/translations.
 
     Los valores se sanean aca: un tab perdido en una glosa de Wiktionary corromperia la
@@ -375,6 +393,12 @@ def render(part_of_speech, senses, word_translations=()):
         value = _sanitize_item(translation)
         if value:
             lines.append(TAG_WORD_TRANSLATION + "\t" + value)
+    # Before the senses, like `W`: they describe the WORD, not one of its senses.
+    for key, form in forms:
+        clave = sanitize(key).replace(FORM_SEPARATOR, "")
+        valor = sanitize(form)
+        if clave and valor:
+            lines.append(TAG_FORM + "\t" + clave + FORM_SEPARATOR + valor)
     for sense in senses:
         gloss = sanitize(sense.get("gloss", ""))
         if not gloss:
@@ -411,10 +435,34 @@ def render(part_of_speech, senses, word_translations=()):
     return "".join(line + "\n" for line in lines)
 
 
+def parse_forms(text):
+    """A payload's principal parts, as `[(key, form), ...]`.
+
+    Separate from [parse] because almost no caller wants them, and changing the tuple parse
+    returns would mean touching `verify_pack.py` and all its tests over a datum they do not read.
+
+    A line with no separator is ignored: the cost is losing that form, and throwing over one bad
+    line would lose the whole entry.
+    """
+    salida = []
+    for line in text.split("\n"):
+        if len(line) < 3 or line[0] != TAG_FORM or line[1] != "\t":
+            continue
+        valor = line[2:]
+        if FORM_SEPARATOR not in valor:
+            continue
+        clave, forma = valor.split(FORM_SEPARATOR, 1)
+        if clave and forma:
+            salida.append((clave, forma))
+    return salida
+
+
 def parse(text):
     """Inverso de render(). Existe para verify_pack.py y los tests, no para el camino normal.
 
-    Devuelve `(pos, acepciones, traducciones_de_la_palabra)`.
+    Returns `(pos, senses, word_translations)`. Forms are read with [parse_forms]: `parse` keeps
+    its signature because `verify_pack.py` and the tests use it, and changing it would mean
+    touching both over a list almost no caller wants.
     """
     part_of_speech = None
     senses = []

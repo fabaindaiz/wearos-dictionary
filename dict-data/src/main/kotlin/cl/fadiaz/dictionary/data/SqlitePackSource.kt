@@ -348,6 +348,7 @@ class SqlitePackSource(
                 partOfSpeech = statement.getTextOrNull(1) ?: body.partOfSpeech,
                 senses = body.senses,
                 wordTranslations = body.wordTranslations,
+                forms = body.forms,
             )
         }
     }

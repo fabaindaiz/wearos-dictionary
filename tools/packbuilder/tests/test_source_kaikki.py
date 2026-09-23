@@ -1452,3 +1452,66 @@ class CitaDelEjemploTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartesPrincipalesTest(unittest.TestCase):
+    """Que formas llegan a la FICHA. Distinto de `forms`, que alimenta la busqueda."""
+
+    def _forms(self, *items):
+        return kaikki._display_forms({"forms": list(items)}, "correr")
+
+    def test_elige_la_simple_y_descarta_la_compuesta(self):
+        # ⚠️ **El caso que una sonda descubrio sin cubrir.** La fuente etiqueta `corriendo` y
+        # `habiendo corrido` EXACTAMENTE igual --las dos llevan `['impersonal', 'gerund']`-- asi
+        # que ninguna etiqueta las separa: lo unico que las distingue es el espacio. Con la
+        # compuesta primero en la lista, un selector sin ese filtro se la lleva.
+        self.assertEqual(
+            (("ger", "corriendo"),),
+            self._forms({"form": "habiendo corrido", "tags": ["impersonal", "gerund"]},
+                        {"form": "corriendo", "tags": ["impersonal", "gerund"]}),
+        )
+
+    def test_impersonal_NO_descalifica(self):
+        # ⚠️ Creerlo dejo a `correr` sin ninguna parte principal en la primera version: el
+        # español marca asi TODAS sus formas no personales.
+        self.assertEqual(
+            (("part", "corrido"),),
+            self._forms({"form": "corrido", "tags": ["impersonal", "participle"]}),
+        )
+
+    def test_el_plural_no_se_lleva_una_forma_verbal(self):
+        # `corremos` es `['first-person', 'plural', ...]`: plural, y no el plural de un lema.
+        self.assertEqual(
+            (("pl", "casas"),),
+            self._forms({"form": "corremos", "tags": ["first-person", "plural", "present"]},
+                        {"form": "casas", "tags": ["plural"]}),
+        )
+
+    def test_el_femenino_singular_no_se_lleva_el_femenino_plural(self):
+        self.assertEqual(
+            (("fem", "alta"),),
+            self._forms({"form": "altas", "tags": ["feminine", "plural"]},
+                        {"form": "alta", "tags": ["feminine"]}),
+        )
+
+    def test_el_lema_no_es_una_forma_suya(self):
+        self.assertEqual((), self._forms({"form": "correr", "tags": ["gerund"]}))
+
+    def test_sin_etiquetas_no_se_adivina_nada(self):
+        # Una fuente sin `tags` no permite decir que es cada forma, y una etiqueta inventada es
+        # peor que ninguna forma.
+        self.assertEqual((), self._forms({"form": "corriendo"}))
+
+    def test_un_femenino_plural_no_es_ninguna_de_las_dos(self):
+        # `altas` es plural Y femenino, asi que no es el plural llano (`altos`) ni el femenino
+        # singular (`alta`): las dos filas lo prohiben y no sale ninguna. Mostrarlo bajo
+        # cualquiera de las dos claves seria una etiqueta equivocada, que es peor que ninguna.
+        self.assertEqual((), self._forms({"form": "altas", "tags": ["plural", "feminine"]}))
+
+    def test_una_forma_no_se_repite_bajo_dos_claves(self):
+        # `corriendo` califica como gerundio y nada mas; si una forma calificara dos veces, la
+        # ficha la mostraria dos veces con etiquetas distintas.
+        salida = self._forms({"form": "corriendo", "tags": ["gerund"]},
+                             {"form": "corrido", "tags": ["participle"]})
+        self.assertEqual(len({f for _, f in salida}), len(salida))
+

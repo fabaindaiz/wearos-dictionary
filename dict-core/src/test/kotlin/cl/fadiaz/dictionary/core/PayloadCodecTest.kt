@@ -476,4 +476,47 @@ class PayloadCodecTest {
             assertEquals(salida, CaseFolding.fold(entrada), "plegado distinto para $entrada")
         }
     }
+
+    // --- Principal parts, the channel the card shows beside the headword -------------------
+
+    @Test
+    fun `a form keeps the spelling the form table cannot`() {
+        // ⚠️ **This is the whole reason the channel exists.** The `form` table stores
+        // `norm(form)` -- `corrais`, not `corráis` -- because its job is to be a search key, so
+        // a card fed from it would be misspelled. The payload carries the surface spelling.
+        val body = PayloadCodec.parse("F\tpart:corrído\nS\tg\n")
+        assertEquals(listOf(PayloadCodec.InflectedForm("part", "corrído")), body.forms)
+    }
+
+    @Test
+    fun `forms belong to the entry, not to whatever sense came before`() {
+        // Same rule as `W`: no guard on the sense list, so their position in the text decides
+        // nothing. A form attributed to a sense would be an invented claim about grammar.
+        val body = PayloadCodec.parse("S\tuno\nF\tpl:casas\nS\tdos\n")
+        assertEquals(1, body.forms.size)
+        assertEquals(2, body.senses.size)
+    }
+
+    @Test
+    fun `a pack with no forms simply has none`() {
+        // The degradation: every pack built before this channel existed reads clean, and the
+        // card shows no forms section. Nothing fails and nothing is left blank.
+        assertEquals(emptyList(), PayloadCodec.parse("P\tnoun\nS\tg\n").forms)
+    }
+
+    @Test
+    fun `a malformed form line loses the form, never the entry`() {
+        // Throwing here would cost the whole entry over one bad line. Ignoring costs one form.
+        val body = PayloadCodec.parse("F\tsinseparador\nF\t:sinclave\nF\tsinforma:\n" +
+            "F\tger:corriendo\nS\tg\n")
+        assertEquals(listOf(PayloadCodec.InflectedForm("ger", "corriendo")), body.forms)
+        assertEquals(1, body.senses.size)
+    }
+
+    @Test
+    fun `a form whose own text contains the separator keeps it`() {
+        // Only the FIRST separator splits: a key cannot contain one, a form can.
+        val body = PayloadCodec.parse("F\tpl:a:b\n")
+        assertEquals(listOf(PayloadCodec.InflectedForm("pl", "a:b")), body.forms)
+    }
 }
