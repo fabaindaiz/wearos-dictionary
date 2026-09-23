@@ -212,8 +212,12 @@ hicieron. Los tres tienen test ahora.
 | Qué | Por qué importa |
 |---|---|
 | **Los packs no están en el reloj** | `dist/` está listo; `devpack.py` no se corrió. Hasta que se corra, el reloj sigue con los packs del 2026-09-21 |
-| **El fixture del índice del catálogo** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test— pero ya **no describe el directorio real**, y `tools/CLAUDE.md` todavía afirma que sí |
+| ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
 | **`Tuesday` en el bilingüe** | Ver §La traducción glosada no produce entrada inversa. Necesita una medición antes que código |
+| ~~**Los núcleos se llaman `Español (full) (core)`**~~ ✅ **cerrado el 2026-09-23** | El builder le pegaba `(core)` al nombre del completo sin sacarle `(full)`. Arreglado en `build.name_with_tier` y los dos núcleos regenerados — **15 s cada uno**, derivan del completo y no necesitan los dumps. Salieron **byte a byte del mismo tamaño**: cambió el nombre y nada más. Verificado en pantalla: `English (core)`. (D-230) |
+| ~~**Los conteos de `-core` del changelog no reconcilian**~~ ✅ **explicado el 2026-09-23** | No era una contradicción: **la CLI de `build_core.py` llamaba «entradas» a `len(vocabulario)`**, que es el conjunto de palabras elegidas, no las filas de `entry`. Medido sobre `es-core`: **39.021 = `count(DISTINCT norm)`** (el número del changelog), 41.219 lemas distintos y **48.292 filas**, que es lo que declara `meta.entry_count`. Los tres reconcilian. El rótulo dice ahora **«palabras»**, que es lo que evita que vuelva a costar una sesión |
+| ⚠️ **El pack inglés completo mezcla español en su `description`** | Visto en la pantalla de atribución del emulador (2026-09-23): *«English definitions from Wiktionary. Includes synonyms, antonyms, related words and the source of each quoted example. **Resultados ordenados por frecuencia de uso real.** With WordNet synonyms…»*. Es **contenido del pack**, escrito por el builder, así que se arregla en el próximo rebuild del completo — no del núcleo, que lo hereda |
+| ⚠️ **Un APK incremental carga ~25 MB de relleno muerto** | Medido el 2026-09-23 sobre el mismo código: build **incremental 135.881.265 bytes**, build **limpia 111.020.805**. La suma de las entradas comprimidas es 110,83 MB en las dos, así que los **24,9 MB de diferencia son padding**, no contenido. El APK va al reloj por adb y ya pasa los 75 MB en que la conexión inalámbrica se cortó una vez, así que **el que se sube se arma con `:app:clean` antes**. Sin explicar: qué lo introduce dentro de AGP |
 
 ### ✅ Lo que había que arreglar antes de reconstruir — HECHO el 2026-09-22
 
@@ -3260,8 +3264,10 @@ comprueban **los dos hashes**, se infla, se instala atómicamente, la app recarg
 verdad. `BuildConfig.CATALOG_URL` apunta hoy a un servidor de desarrollo por `adb reverse`, y sólo
 `debug` puede hablar por `http://`.
 
-⚠️ **Y una deuda de UI**: no hay forma de **cancelar** una descarga en curso ni de borrarla de la
-cola. Con el inglés en 192 MB eso se va a notar.
+✅ **La deuda de UI se cerró el 2026-09-23** (D-231): una descarga en curso se cancela desde su
+propia fila, con el mismo botón que borra, y **se libera el `.gz.part`**. `CANCELLED` dejó de
+reportarse como `FAILED` —que prometía un reintento que no existe— y la fila vuelve a ser una
+oferta. El costo, nombrado: pedirla de nuevo baja desde cero.
 
 **No hay "importar a la base de datos", y conviene decirlo primero** porque es la confusión
 natural. El pack **es** la base de datos: un SQLite inmutable que se abre read-only (D-001).
@@ -3508,13 +3514,23 @@ y frames, y **no se pudo escribir en el campo de búsqueda**: no toma foco con u
 es la misma forma del problema que obligó a fijar espresso 3.7.0 (D-093). Eso dejó D-168 y D-169
 sin verificar teniendo el dispositivo en la mano.
 
-**Lo que falta, en orden de lo que habría desbloqueado hoy:**
+**Estado: los tres están hechos.** El 2 lo cerró D-212; el **1 y el 3, D-232 el 2026-09-23**.
 
 | | Qué | Qué desbloquea |
 |---|---|---|
-| 1 | **Una forma de sembrar la consulta desde `adb`** — un intent con la palabra, o un receiver de debug sólo en builds no-release | Verificar cualquier cosa que dependa de buscar, sin depender de un dedo |
-| 2 | **Logs de diagnóstico que se puedan leer con `logcat`**: qué packs abrieron, cuántos peldaños corrió la cascada, cuántos ms tardó | Hoy la app no emite **una sola línea**; todo lo que se sabe sale de `dumpsys` |
-| 3 | **Un volcado del estado** —packs abiertos, activo, memo de verificación— por intent o por el diagnóstico de Ajustes | Que `PackVerification` y las reglas de selección se puedan comprobar en el dispositivo |
+| 1 | ✅ **Sembrar la consulta desde `adb`** — `DEBUG_SEARCH` / `DEBUG_CLEAR`, receiver sólo en builds no-release | Verificar cualquier cosa que dependa de buscar, sin depender de un dedo. **Usado el mismo día**: `hous` → `house` primero, por la vía del usuario, sobre el pack núcleo |
+| 2 | ✅ **Logs por `logcat`** bajo el tag `Dict`, con el detalle por `setprop` (D-212) | Hoy la app no emitía **una sola línea**; todo lo que se sabía salía de `dumpsys` |
+| 3 | ✅ **Volcado del estado** por `DEBUG_DUMP`: packs abiertos con su `data_version`, activo, rechazados con su motivo, y **el memo de verificación entero** | Que `PackVerification` se compruebe en el dispositivo. Usado para verificar D-225: el memo mostró `…c2.a5` con el APK en `versionCode 5` |
+
+```sh
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_SEARCH -e q "hous"
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_CLEAR
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_DUMP
+```
+
+⚠️ **`-p` va antes del extra, y vaciar tiene acción propia.** Un extra vacío **no sobrevive a
+`adb shell`**: medido, `-e q "" -p cl.fadiaz.dictionary` dejó la app buscando literalmente `-p` y
+además perdió el filtro de paquete. Por eso `DEBUG_CLEAR` no lleva extras.
 
 ⚠️ **Y la restricción que ordena el diseño**: nada de esto puede quedar en el APK de release. Un
 receiver exportado o un log verboso en producción son superficie de ataque y batería. El build
@@ -3741,6 +3757,37 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 
 ### Pendiente de subir al reloj
 
+⚠️ **Hay un APK nuevo listo y SIN subir: `versionCode 5` / `0.5.0`, debug, 111,0 MB**
+(2026-09-23). El reloj sigue en `versionCode 4`. Lo que trae y por qué hay que subirlo:
+
+- **Los dos núcleos viajan adentro por primera vez que funciona.** `bundlePacks` buscaba en
+  `../wearos-dictionary-data/` y el rebuild del 22 los movió a `dist/`: el APK que se armó desde
+  entonces **no llevaba ningún diccionario**, en silencio (D-228). Verificado en el emulador: los
+  dos núcleos se extraen y abren, `48.292` y `75.734` entradas, 0 rechazados.
+- **Instalarlo caduca el memo de packs verificados** (D-225), así que el primer arranque en el
+  reloj re-verifica **todos** los packs que tenga — los dos núcleos nuevos y los cinco completos
+  que ya están. Es lo esperado y conviene saberlo antes de leer el arranque como una regresión.
+- **`en-core` vuelve a aparecer en el selector** aunque haya un completo de español instalado
+  (D-227). Ése es el cambio que hay que mirar en el reloj, porque el reloj **sí** tiene completos
+  instalados y el emulador no.
+
+```sh
+./gradlew :app:installDebug          # 111 MB por adb; ver la advertencia de abajo
+```
+
+⚠️ **Y no se pudo verificar en el emulador, por falta de herramienta**: que buscar en un núcleo
+devuelva resultados **por la vía del usuario**. El campo de búsqueda no toma foco con un tap
+sintético — ver §Sembrar la consulta desde `adb`. Se contestó leyendo el pack con `sqlite3`
+(`cas` → `casa, caso, casi`; `hous` → `house, household, housing`), que comprueba el dato y no la
+pantalla.
+
+⚠️ **Tampoco se verificó `extractIfNewer` en un dispositivo** (D-226): necesita un núcleo bajado
+del catálogo cuyo `data_version` difiera del que trae el APK, y hoy los dos salen del mismo
+`dist/`, así que son iguales y no hay nada que comparar. El gate cubre el plan; el cableado no.
+
+<details>
+<summary>Lo anterior, del 2026-09-21, conservado</summary>
+
 ✅ **Subido y verificado el 2026-09-21.** El reloj tiene `versionCode 4` / `0.4.0`, el build
 **benchmark con R8** (5,48 MB), y los packs **no se tocaron porque son los mismos bytes** que los
 locales —mismo `pack_id`, mismo tamaño— y lo único que cambiaría al reconstruirlos es metadata
@@ -3785,6 +3832,13 @@ Lo que hay que mirar ahí, y que no se pudo verificar de otra forma:
 ⚠️ **Y una advertencia operativa**: la subida de 315 MB por adb inalámbrico se cortó una vez a los
 75 MB. Reintentar alcanza —`devpack.py` limpia el `.part` antes de escribir— pero por cable no
 debería pasar.
+
+</details>
+
+⚠️ **Esa advertencia ahora también vale para el APK.** Pasó de 5,48 MB a **111,0 MB** al meterle
+los núcleos, o sea **por encima de los 75 MB en que la conexión inalámbrica ya se cortó una vez**.
+A diferencia de un pack, un `install` cortado no deja nada a medias —el package manager es
+atómico— así que el peor caso es reintentar. **Por cable no debería pasar.**
 
 ### 3. El orden que recomiendo
 
@@ -4147,6 +4201,33 @@ entero llegó como un solo argumento.
 **Lo que costaría cerrarlo.** Nada de código: es una regla de una línea —en fish se itera con
 `for x in ...; set -l a (string split ' ' $x)` o se escribe el bucle en Python— y el lugar es
 `CLAUDE.md` §Commands o la skill `verify`. Se propone, no se ejecuta.
+
+### ~~Sembrar la consulta desde `adb`~~ ✅ **CONSTRUIDO el 2026-09-23** (D-232)
+
+**Estado.** **Hecho**, y usado el mismo día para cerrar lo que bloqueaba. La entrada se deja
+entera porque el patrón es lo que importa: una fricción que aparece **dos veces** deja de ser
+anécdota y pasa a ser trabajo. Lo que sigue abierto de esta familia es verificar **D-168 y D-169
+en el reloj físico**, que ahora por fin se puede.
+
+**Las dos veces, con el costo.** La primera el 2026-09-21 **en el reloj**: dejó D-168 (el respaldo
+entre idiomas) y D-169 (los sinónimos tocables) sin verificar *teniendo el dispositivo en la mano*,
+y es la misma forma del problema que obligó a fijar espresso 3.7.0 (D-093). La segunda el
+2026-09-23 **en el emulador `wear_sm_l715f`**: `adb shell input tap` sobre el campo no le da el
+foco, el `input text "hous"` se fue a otro control, y la app terminó en **Ajustes** — o sea que no
+se pudo comprobar de punta a punta que los núcleos del APK devuelvan resultados por la vía del
+usuario. Hubo que contestarlo **leyendo el pack con `sqlite3`**, que comprueba el dato pero no la
+app.
+
+⚠️ **Lo que esto vuelve inverificable crece con cada sesión**: hoy ya son el respaldo entre
+idiomas, los sinónimos tocables, el orden de los nombres propios sobre el pack real, y ahora
+**buscar en un núcleo**. Ninguna de esas cosas la cubre el gate, porque todas terminan en la
+pantalla.
+
+**Lo que costó cerrarlo.** Un `BroadcastReceiver` registrado en runtime detrás de
+`BuildConfig.DEBUG_INTENTS` — `true` en `debug` y en `benchmark`, **`false` en `release`**, donde
+R8 pliega el `if` y se lleva la clase entera. La restricción que ordenaba el diseño —un receiver
+exportado en producción es superficie de ataque y batería— se cumple **por construcción y no por
+disciplina**: en release el código no existe. Ver D-232.
 
 ### Un `Write` fresco sobre los archivos generados no lo bloquea nada
 
