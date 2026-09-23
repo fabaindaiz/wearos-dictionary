@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Distancia de edicion para reordenar candidatos del nivel difuso de la busqueda.
+ * Edit distance, used to reorder candidates from the search's fuzzy rung.
  */
 object EditDistance {
 
@@ -13,9 +13,9 @@ object EditDistance {
      * sustituciones y transposiciones de caracteres adyacentes. La transposicion importa
      * porque en un teclado de reloj "hte" por "the" es de los errores mas comunes.
      *
-     * Corta apenas la distancia supera [maxDistance] y devuelve [maxDistance] + 1. Como esto
-     * corre sobre un par de cientos de candidatos por pulsacion, el corte temprano es lo que
-     * mantiene el nivel difuso dentro del presupuesto de latencia.
+     * It cuts as soon as the distance passes [maxDistance] and returns [maxDistance] + 1. Since
+     * this runs over a couple of hundred candidates per keystroke, cutting early is what keeps
+     * the fuzzy rung inside the latency budget.
      */
     fun damerauLevenshtein(a: String, b: String, maxDistance: Int): Int {
         val overflow = maxDistance + 1
@@ -43,8 +43,8 @@ object EditDistance {
                 current[j] = cost
                 if (cost < rowBest) rowBest = cost
             }
-            // Toda fila posterior es >= al minimo de esta, asi que si la fila entera ya se
-            // paso del umbral no hace falta seguir.
+            // Every later row is >= this one's minimum, so once a whole row has passed the
+            // threshold there is no point going on.
             if (rowBest > maxDistance) return overflow
 
             val recycled = twoRowsBack

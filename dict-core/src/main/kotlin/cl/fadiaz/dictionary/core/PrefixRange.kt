@@ -1,15 +1,15 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Traduce una busqueda por prefijo a un rango semiabierto [prefijo, cota) sobre una columna con
+ * Turns a prefix search into a half-open range [prefix, bound) over a column with
  * collation BINARY.
  *
- * Se usa esto en vez de `LIKE 'x%'` a proposito: LIKE solo se optimiza a un escaneo de rango si
- * `case_sensitive_like` esta en el valor correcto, cosa que depende de la conexion, y ante la
- * duda SQLite hace un full scan de la tabla. Con el rango explicito el plan de consulta es
- * siempre un range scan sobre el indice, sin depender de pragmas.
+ * This is used instead of `LIKE 'x%'` on purpose: LIKE is only optimized into a range scan when
+ * `case_sensitive_like` holds the right value, which depends on the connection, and in doubt
+ * SQLite full-scans the table. With an explicit range the query plan is always a range scan over
+ * the index, with no pragma to depend on.
  *
- * Kotlin puro: ver PlatformJvm.kt para por que importa.
+ * Pure Kotlin: see PlatformJvm.kt for why that matters.
  */
 object PrefixRange {
 
@@ -18,12 +18,12 @@ object PrefixRange {
     private const val SURROGATE_LAST = 0xDFFF
 
     /**
-     * Cota superior exclusiva del prefijo: el sucesor lexicografico mas chico que no empieza con
+     * The prefix's exclusive upper bound: the smallest lexicographic successor not starting with
      * [prefix].
      *
-     * Devuelve null cuando no existe cota (prefijo vacio, o compuesto solo por el code point
-     * maximo). En ese caso la consulta debe omitir la condicion de cota en vez de pasar null,
-     * que haria que el rango no matchee nada.
+     * It returns null when no bound exists (an empty prefix, or one made only of the maximum
+     * code point). In that case the query must omit the bound condition rather than pass null,
+     * which would make the range match nothing.
      */
     fun upperBound(prefix: String): String? {
         if (prefix.isEmpty()) return null
@@ -32,7 +32,7 @@ object PrefixRange {
         var end = codePoints.size
         while (end > 0) {
             var next = codePoints[end - 1] + 1
-            // El rango de surrogates no son code points validos por si mismos.
+            // The surrogate range is not made of valid code points on its own.
             if (next in SURROGATE_FIRST..SURROGATE_LAST) next = SURROGATE_LAST + 1
             if (next <= MAX_CODE_POINT) {
                 val out = StringBuilder()
@@ -46,7 +46,7 @@ object PrefixRange {
         return null
     }
 
-    /** Equivalente de String.codePoints().toArray(), que es de la JVM. */
+    /** Equivalent of String.codePoints().toArray(), which is a JVM API. */
     private fun toCodePoints(text: String): IntArray {
         val out = IntArray(text.length)
         var count = 0

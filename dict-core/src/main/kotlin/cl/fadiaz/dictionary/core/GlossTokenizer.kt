@@ -1,48 +1,50 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Una palabra dentro de un texto: donde esta en el original y con que clave se busca.
+ * A word inside a text: where it sits in the original, and which key it is searched by.
  *
- * [start] y [end] son indices sobre el string **original**, no sobre el normalizado: son lo que
- * necesita la interfaz para pintar y hacer tocable ese tramo exacto. [norm] es la clave con la
- * que se consulta `entry.norm`, y por eso sale de [TextNormalizer.norm] y no de un recorte propio.
+ * [start] and [end] are indices into the **original** string, not the normalized one: they are
+ * what the interface needs to paint and make that exact span tappable. [norm] is the key
+ * `entry.norm` is queried with, which is why it comes from [TextNormalizer.norm] and not from a
+ * slice of its own.
  */
 data class WordSpan(val start: Int, val end: Int, val norm: String)
 
 /**
- * Parte un texto --una glosa-- en las palabras que se pueden buscar en el diccionario.
+ * Splits a text --a gloss-- into the words that can be looked up in the dictionary.
  *
- * QUE ES UNA PALABRA, Y POR QUE NO LO DECIDE ESTE ARCHIVO
+ * WHAT A WORD IS, AND WHY THIS FILE DOES NOT DECIDE IT
  *
- * No hay aca una tabla de puntuacion, ni una regex, ni una consulta a [UnicodeRepertoire]. Un
- * code point abre palabra si y solo si `norm()` lo conserva. Eso es deliberado: si este archivo
- * tuviera su propia idea de que es una letra, seria **una segunda fuente de verdad** sobre la
- * misma pregunta que ya responde el invariante central, y las dos se separarian en silencio --
- * exactamente el fallo que D-003 y D-005 existen para impedir--.
+ * There is no punctuation table here, no regex, and no query to [UnicodeRepertoire]. A code point
+ * opens a word if and only if `norm()` keeps it. That is deliberate: if this file had its own idea
+ * of what a letter is, it would be **a second source of truth** about the same question the
+ * central invariant already answers, and the two would drift apart in silence -- exactly the
+ * failure D-003 and D-005 exist to prevent.
  *
- * El efecto practico: "self-made" da dos palabras porque `norm` convierte el guion en separador,
- * y "Ärztin" da una sola con clave "arztin", sin que este archivo sepa nada de guiones ni de
+ * The practical effect: "self-made" gives two words because `norm` turns the hyphen into a
+ * separator, and "Ärztin" gives one with the key "arztin", without this file knowing anything
+ * about hyphens or about
  * diacriticos.
  */
 object GlossTokenizer {
 
     /**
-     * Las palabras de [text], en orden y sin solaparse.
+     * The words in [text], in order and without overlapping.
      *
-     * Devuelve solo las de clave no vacia: un tramo que `norm` deja en nada no se puede buscar,
-     * asi que tampoco tiene sentido pintarlo como tocable.
+     * It returns only the ones with a non-empty key: a span `norm` reduces to nothing cannot be
+     * searched, so there is no sense painting it as tappable either.
      */
     fun tokenize(text: String): List<WordSpan> {
         val spans = mutableListOf<WordSpan>()
-        // Memo por code point: una glosa repite las mismas letras decenas de veces y cada
+        // Memo per code point: a gloss repeats the same letters dozens of times and each
         // `norm` hace NFD y recorre el repertorio entero.
         val abrePalabra = HashMap<Int, Boolean>()
 
         var inicio = -1
         var indice = 0
         while (indice < text.length) {
-            // Recorrido por code point escrito a mano, igual que en TextNormalizer: `Character.`
-            // y `codePoints()` son de la JVM y este modulo no los usa (D-017).
+            // Hand-written code point walk, same as in TextNormalizer: `Character.` and
+            // `codePoints()` are JVM APIs and this module does not use them (D-017).
             val primero = text[indice]
             val esPar = primero.isHighSurrogate() &&
                 indice + 1 < text.length &&

@@ -1,48 +1,50 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Donde la cascada cuenta lo que hizo, para que alguien lo pueda mirar por `adb logcat`.
+ * Where the cascade reports what it did, so somebody can read it over `adb logcat`.
  *
- * Existe porque este modulo **no puede** loguear: `ArchitectureTest` prohibe `import java.*` y
- * `System.` en `:dict-core` (D-017), asi que ni `android.util.Log` ni una marca de tiempo entran
- * aca. Lo que se puede hacer es **reportar**, en Kotlin puro, y que el llamador decida si eso se
+ * It exists because this module **cannot** log: `ArchitectureTest` forbids `import java.*` and
+ * `System.` in `:dict-core` (D-017), so neither `android.util.Log` nor a timestamp can come in
+ * here. What can be done is **reporting**, in pure Kotlin, leaving the caller to decide whether
  * escribe, se mide o se tira.
  *
- * ⚠️ **El que paga es el llamador, y por eso esta [enabled].** Armar el reporte de un peldaño
- * cuesta recorrer la lista de resultados; con [None] eso no debe pasar. El contrato es: quien
+ * ⚠️ **The caller is the one who pays, which is why [enabled] exists.** Assembling a rung's
+ * report costs a pass over the result list; with [None] that must not happen. The contract is:
+ * whoever
  * reporta pregunta primero.
  */
 interface SearchTrace {
 
     /**
-     * ¿Hay alguien escuchando? Si es `false`, el llamador **no arma** el reporte.
+     * Is anybody listening? When `false`, the caller **does not assemble** the report.
      *
-     * Es una propiedad y no una constante porque quien la implemente en `:app` la ata a
-     * `Log.isLoggable`, que el usuario enciende con `setprop` sin reinstalar nada.
+     * A property and not a constant, because whoever implements it in `:app` ties it to
+     * `Log.isLoggable`, which the user switches on with `setprop` without reinstalling anything.
      */
     val enabled: Boolean
 
     /**
-     * Un pack lanzo al consultarlo y la cascada **siguio sin el**.
+     * A pack threw when queried and the cascade **carried on without it**.
      *
-     * ⚠️ Este es el evento que justifica todo el archivo. `SearchRepository.recolectar` se traga
-     * la excepcion a proposito --un pack corrupto no puede dejar al usuario sin buscador-- y el
-     * comentario decia que *"un pack que nunca devuelve nada es visible"*. Lo es en la pantalla;
-     * **no lo era en ningun log**. Un pack que revienta en cada consulta parecia uno vacio.
+     * ⚠️ This is the event that justifies the whole file. `SearchRepository.recolectar` swallows
+     * the exception on purpose --a corrupt pack cannot leave the user with no search-- and its
+     * comment claimed *"a pack that never returns anything is visible"*. It is, on screen;
+     * **it was in no log at all**. A pack blowing up on every query looked like an empty one.
      */
     fun packFailed(packId: String, error: String)
 
     /**
-     * Una busqueda termino. [byKind] dice **cuantas filas puso cada peldaño** en el resultado.
+     * A search finished. [byKind] says **how many rows each rung put** into the result.
      *
-     * ⚠️ **Cuenta lo que el peldaño produjo, no si corrio.** `FUZZY` ausente significa "no aporto
-     * filas", que puede ser porque no se intento --solo corre si lo anterior no dio nada-- o
-     * porque se intento y no encontro. Distinguirlo obligaria a instrumentar `DictionarySource`,
-     * y lo que se quiere observar --que un peldaño aporte lo que no deberia-- ya se ve asi.
+     * ⚠️ **It counts what a rung produced, not whether it ran.** An absent `FUZZY` means "it
+     * contributed no rows", which may be because it was not attempted --it only runs when what
+     * came before returned nothing-- or because it was attempted and found nothing.
+     * Distinguishing the two would mean instrumenting `DictionarySource`, and what is worth
+     * watching --a rung contributing what it should not-- is already visible this way.
      */
     fun searched(query: String, byKind: Map<MatchKind, Int>, fallback: Boolean, returned: Int)
 
-    /** No hay nadie escuchando. El caso por defecto y el de produccion sin `setprop`. */
+    /** Nobody is listening. The default, and production without `setprop`. */
     object None : SearchTrace {
         override val enabled: Boolean = false
         override fun packFailed(packId: String, error: String) = Unit
