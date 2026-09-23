@@ -16,6 +16,63 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (15) — Meta-session held from the bundle's home: v18 lands, and this repo's harvest was answered
+**What.** The bundle moves from `g-8b5800` v17 to **v18** (method v22, knowledge v9), built in a
+meta-session run from the bundle's own repository, with this one as the second carrier. Each of
+the 20 candidates this repository wrote on 2026-09-22 and 2026-09-23 got a verdict: one admitted
+into the method, three folded into a note, four fixed as defects, two merged and twelve kept.
+`.agents/` was written only by `bundle.py splice`, which kept this repository's `adopted`,
+`adapted` and `declined`.
+
+**Areas.** `.agents/` (66 files spliced, 0 removed), `.claude/logs/agent-changelog.md`.
+
+**Why.** Asked for: bring this repository's changes into the bundle's home, review the process,
+prompts and scheme while doing it, and leave both copies identical.
+
+**Architecture.** ✅ Complies. Nothing outside `.agents/` and this entry was touched. The audit
+needed no change, because it reads the bundle by recipe and the recipe did not change.
+
+**Measured.**
+- **Where each candidate went** is in `.agents/tracking/candidates.md`, §*Taken out of the queue
+  by the release of 2026-09-23*. `correction-lands-where-the-rule-is-enforced` had been waiting
+  for a second repository, and this is it. Principle 6 now says a retraction reaches the loaded
+  copy and the reversed decision's own row. The three zero-subject checks are now a named form in
+  `a-check-must-be-seen-to-fail`, with this repository's numbers (65 files, 8 mirror pairs, the
+  53-of-314 MB monitor).
+- **The four defects reported here were real**, and all four are fixed:
+  - `incoming/` is now *empty except its README*.
+  - Method changelog rows 17–21 exist.
+  - `layout.md` names one skills folder for a single-assistant repository.
+  - *Does not apply* is distinguished from `declined` in `prompt-update.md`.
+- **The hand-written carriers row is gone.** `bundle.py` now runs on Python 3.9: 50 of 50 tests
+  pass on 3.9.6 and on 3.14. `register` wrote this repository's row at v18. The Spanish note
+  that explained the hand-written row was replaced by an English one that does not name the
+  remote, because the bundle names carriers only by derived id.
+- `bundle.py align` over both carriers: **2 carriers aligned**.
+- Audit: **34 checks, 0 failures, 3 advisories**, the same three as entry 14.
+- `./gradlew check`: **exit 0**, 2026-09-23, on this machine. `:tools:structuralAudit`,
+  `:tools:pythonTest` and `:app:testDebugUnitTest` executed. `:dict-core:test` was up to date,
+  because nothing it reads changed.
+
+**What went wrong.**
+- **The release was started in the other carrier before the meta-session opened.** Citation links
+  and a new `references.md` were stamped there as v18, so `check-local` flagged 49 files in that
+  carrier. The sync procedure allows a release authored in one carrier while the others sit at
+  the base, and that was the case. Once this carrier's harvest was in, the release was rebuilt in
+  a scratch tree, as the procedure asks when two carriers have moved.
+- **`lost` printed 40 lines, and every one was an approved removal**: the ten candidate rows this
+  release answered, the Spanish note, and the release's own earlier wording. Each line was read
+  before stamping.
+
+**What was left undone.**
+- **Twelve candidates from this repository are still waiting**, each for a second occurrence.
+- **Nothing here checks that `incoming/` is empty except its README.** The rule is now checkable,
+  but this repository's audit has no check for it.
+- **Three carriers registered at v17 were not reached.** They are named in the bundle roadmap's
+  *Blocked outside*.
+
+---
+
 ## 2026-09-23 (14) — The conformance sweep, and the drift was in the field names I invented
 **What.** Every one of the method's ten artifacts checked against the repository. Three gaps
 found and closed: the changelog's English field names had been translated on the fly rather than
