@@ -352,3 +352,36 @@ class BuildCoreTest(unittest.TestCase):
         # repo exists in order not to have.
         with self.assertRaises(ValueError):
             self._core({"palabraqueno existe"})
+
+
+class DescriptionFollowsTheLanguage(unittest.TestCase):
+    """Every sentence appended to a description is written in the pack's own language.
+
+    WARNING: **this is a regression test for something that shipped.** All three English packs
+    carried *"Resultados ordenados por frecuencia de uso real."* wedged into English prose, and
+    `en-core` travels inside the APK, so it was on a watch. Four of the five append sites did not
+    look at the language; the fifth did, which is why the defect looked deliberate.
+    """
+
+    def _meta(self, langs):
+        return {"langs": langs, "description": "Base."}
+
+    def test_english_pack_gets_the_english_sentence(self):
+        import build_pack
+        m = self._meta("en")
+        build_pack._describir(m, "frecuencia")
+        self.assertEqual("Base. " + build_pack.FRASES["frecuencia"][0], m["description"])
+
+    def test_spanish_pack_gets_the_spanish_sentence(self):
+        import build_pack
+        m = self._meta("es")
+        build_pack._describir(m, "frecuencia")
+        self.assertEqual("Base. " + build_pack.FRASES["frecuencia"][1], m["description"])
+
+    def test_the_bidirectional_pack_follows_its_first_language(self):
+        # `es,en` is described in Spanish on purpose: it is a Spanish-first dictionary, and the
+        # rest of this file already reads the FIRST of `langs` as the pack's language.
+        import build_pack
+        m = self._meta("es,en")
+        build_pack._describir(m, "frecuencia")
+        self.assertEqual("Base. " + build_pack.FRASES["frecuencia"][1], m["description"])
