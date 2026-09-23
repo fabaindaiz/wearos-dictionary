@@ -16,6 +16,72 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (4) — La palabra del día fallaba en los dos extremos, y §O-3 generalizaba un pack
+**Qué.** Un arreglo (el piso de rank de la palabra del día, que devuelve los núcleos al juego),
+dos mediciones que corrigen el roadmap sin cambiar código, una evaluación pedida sin construir, y
+la traducción al inglés de las 391 líneas de comentarios que estas dos sesiones agregaron.
+
+**Áreas.** `WordOfTheDay.kt`, `PackSelection.kt`, `WordOfTheDayTest.kt`, `SearchViewModelTest.kt`,
+`DebugIntents.kt` (traducido entero), `PackStore.kt`, `PackVerification.kt`,
+`docs/preguntas-del-reloj.md` (reescrito en inglés), `docs/{decisions,roadmap}.md` (D-240, D-241).
+
+**Por qué.** Cinco pedidos: los núcleos sin palabra del día, el tap que acierta en la palabra de
+al lado (*«sólo evalúa opciones»*), terminar la traducción, revisar el roadmap y la optimización,
+y buscar en la literatura qué funcionalidades faltan.
+
+**Arquitectura.** ✅ Cumple.
+
+**Medido.**
+- **La palabra del día falla en los dos extremos, no sólo en los núcleos.** Simulando el selector
+  real sobre 112 días y los cuatro packs, los días que caen en la zona funcional: **84 %
+  (es-core), 94 % (en-core), 41 % (es-full), 16 % (en-full)**. `en-core` daba `'m`, `TOLD`, `a`.
+  Con un piso de `rank` 150, **0 % en los cuatro**, y la variedad no baja (101 → 100 palabras
+  distintas en es-core; 109 → **111** en es-full).
+- **Un solo piso sirve para los dos idiomas, y está verificado por qué**: desde D-185 `rank` es
+  Zipf y los dos packs declaran `rank_signal_boundary = 500`. Al mismo rank: 0 → `a, la, no, y` /
+  `a, and, i, it`; 150 → `amable, ataque, avión` / `attack, bag, clothes`.
+- ⚠️ **§O-3 generalizaba el pack español a todos.** `dbstat` sobre los packs reales: `form` es el
+  **42 % en español y el 6 % en inglés**, donde el peso está en `entry` (48 %) y `fts_def_data`
+  (22 %). La frase *«el recorte obvio no existe porque el 46 % está en `form`»* es falsa para el
+  inglés.
+- **Las dos opciones abiertas no valen lo mismo**, reindexando 60.000 entradas de texto real:
+  `detail=none` ahorra **55,3 %** del índice (≈38 MB del pack inglés); `columnsize=0`, **3,6 %**.
+  Ninguna se aplicó: decisión explícita de medir el arranque primero.
+- **El tap: 40 × 14 dp contra un mínimo de 48 × 48.** La altura es el problema, no el ancho.
+- **La deuda de prosa en español creció 32 % en dos días** (5.281 → 6.966 con la misma regla).
+
+**Qué salió mal.**
+- ⚠️ **Escribí un test vacuo y lo delató la sonda, no yo.** `conFRECUENCIA_la_palabra_mas_comun_NO_es_la_del_dia`
+  afirmaba `picked.rank >= WordOfTheDay.RANK_FLOOR`. Poner la constante en 0 —o sea, quitar el
+  piso entero— lo dejaba **en verde**: el aserto mueve el poste junto con lo que debería vigilar.
+  Reescrito contra un literal. **Un test que se compara contra la constante que prueba no prueba
+  la constante**, y es una forma de vacuidad que la mutación de D-236 sí agarra.
+- **Mi primer arreglo fue el equivocado y lo descartó una medición.** Probé filtrar por `pos`
+  —excluir `prep`, `conj`, `pron`— y no sirve: Wiktionary etiqueta `a` como `noun` y `no` como
+  `adv`. Sin medirlo lo habría dado por bueno.
+- **Asumí que `columnsize=0` rompía `ORDER BY rank`** y lo escribí en una pregunta al usuario
+  antes de probarlo. No lo rompe. Verificarlo costó diez líneas de Python.
+- **El primer intento de medir la deuda de prosa dio 13.087 líneas** contra las ≈3.000 del
+  roadmap, y estuve a punto de reportar que se había cuadruplicado. Lo que faltaba era correr
+  **la misma regla contra el árbol viejo**: el ruler era más laxo, y el crecimiento real es 32 %.
+- Un heredoc de Python con acentos volvió a reventar por encoding. Tercera vez esta semana; ya
+  está la costumbre de escribir a archivo, no la de recordarla.
+
+**Qué quedó sin hacer.**
+- **El piso no se vio en un reloj**: se ajustó sobre tiradas simuladas. Entró como **P-10** al
+  brief permanente, que es el camino que `CLAUDE.md` exige para una afirmación sin verificar.
+- **`detail=none` está medido y sin aplicar**, esperando el número de arranque de P-4.
+- **El tap quedó evaluado y sin construir**, por pedido. Cinco opciones costeadas; recomiendo la
+  confirmación (B) y descarto la lupa propia (D) porque Wear OS ya trae una del sistema.
+- **La traducción está a medias a propósito**: 391 líneas de código hechas, **317 sin hacer** en
+  `decisions.md` y `roadmap.md`, que están enteros en español y quedarían mezclados.
+- **Dos defectos de contenido de pack, que necesitan rebuild**: `Eddie` y `Richard` pasan el
+  filtro de nombres propios en el inglés —están etiquetados `noun`, no `name`— y el pack inglés
+  completo mezcla una frase en español en su `description`.
+- **Lo que la literatura sugiere y no está**: mostrar las flexiones en la ficha —**`form` es el
+  42 % del pack español y hoy no se muestra nunca**, así que cuesta 0 bytes— y la pronunciación
+  en IPA. Anotados en el roadmap, no construidos.
+
 ## 2026-09-23 (3) — El triage del método se termina, y nueve de diez líneas salieron de prosa duplicada
 **Qué.** Los seis bloques que el triage v8→v16 había dejado nombrados y sin aplicar, aplicados
 (D-233 a D-239). `CLAUDE.md` vuelve a 200 líneas exactas. Antes de eso, los cinco commits del

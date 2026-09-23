@@ -3438,6 +3438,57 @@ en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de
 
 ---
 
+### El tap sobre una palabra de la glosa acierta en la de al lado — EVALUADO 2026-09-23, sin construir
+
+**Estado.** **Planificado**, con cinco opciones costeadas y una recomendación. Pedido explícito:
+*«no hagas ningún cambio en esto y sólo evalúa opciones»*.
+
+**La causa, medida.** El mecanismo es `LinkAnnotation.Clickable` dentro de un `AnnotatedString`
+(D-094): **el área táctil es exactamente el glifo**. En `labelSmall` sobre 234 dp una palabra de
+ocho letras —la media de estos packs— ocupa unos **40 × 14 dp**. El mínimo de Android es
+**48 × 48**, y Wear OS admite 40 × 40 sólo en algunos casos. ⚠️ **La altura es el problema, no el
+ancho**: 14 dp contra 48 es 3,4 × por debajo, y en un párrafo la palabra de arriba y la de abajo
+están a ~4 dp. No es un defecto de implementación: es geometría.
+
+| | Opción | Costo en unidades de este repo | Qué cierra / qué cuesta |
+|---|---|---|---|
+| **A** | Subir `lineHeight` sólo en glosas con enlaces | ~2 de las 3–4 filas que caben | Sube el alto efectivo de 14 a ~28 dp. Barato y reversible; **no llega a 48** |
+| **B** | **El tap abre una confirmación** *«¿Ir a X?»* con la palabra ya resuelta | 1 fila temporal, 1 toque extra | ⚠️ **Convierte un error en un rechazo**: equivocarse deja de costar una navegación perdida. Es lo único que resuelve el problema sin pelear contra la geometría. **Recomendada** |
+| **C** | Chips de 48 dp con las palabras tocables, debajo de la glosa | 1–2 filas por acepción | Toques perfectos y el dato ya existe (`links`). ⚠️ Rompe la lectura: la glosa deja de ser el objeto y pasa a ser un índice |
+| **D** | Lupa propia (zoom al mantener apretado) | Alto: gesto, render y medición en reloj | ⚠️ **Wear OS ya trae una lupa del sistema** en accesibilidad. Construir una propia duplica plataforma y la haría peor. **Descartada** |
+| **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. **Descartada** |
+
+**Lo que lo desbloquea.** P-2 de `docs/preguntas-del-reloj.md`: nadie probó esto en una muñeca
+todavía, y la elección entre A y B depende de cuánto molesta el toque extra, que en escritorio no
+se siente.
+
+### Funcionalidades de diccionario que faltan — REVISADO contra la literatura 2026-09-23
+
+**Estado.** **Planificado.** Comparado con OneLook, Fora Dictionary, WordWeb y LookUp.
+
+**Ya está**: búsqueda por definición (FTS5 sobre `fts_def`), historial, favoritas, voz, nivel
+tolerante —el *did you mean*—, palabra del día y prefijo incremental. Eso cubre la mayor parte de
+lo que la comparación lista como esperable.
+
+**Lo que falta, por relación valor/costo:**
+
+1. ⚠️ **Mostrar las flexiones en la ficha — y es la mejor de la lista por mucho.** `form` es el
+   **42 % del pack español** (32,9 MB) y hoy se usa **sólo para encontrar**, nunca para mostrar:
+   `EntryScreen` no la consulta ni una vez. Un conjugador cuesta **0 bytes** — el dato ya viajó,
+   ya se paga en disco y en descarga, y no se ve. Un diccionario de español sin conjugaciones es
+   la queja más obvia que puede tener, y acá el contenido ya está adentro.
+2. **Pronunciación (IPA).** El esquema no tiene columna; el dato está en Wiktionary y es texto,
+   así que es barato. Es la segunda pregunta de cualquier diccionario después del significado.
+   Requiere `schema_version` nuevo y rebuild.
+3. **Comodín `*` en medio de la palabra.** El sufijo ya funciona —es el peldaño de prefijo— pero
+   un infijo necesita otro índice. Caro, y en una muñeca se escribe poco.
+4. **Etimología.** Disponible en la fuente, sube el pack, y en 234 dp compite por altura con la
+   definición, que es lo que la persona vino a leer.
+
+**Lo que la comparación NO sugiere y conviene dejar escrito**: la búsqueda por cámara/OCR aparece
+en todas las listas de diccionarios de teléfono y **no tiene sentido en un reloj** — no hay
+encuadre posible con la muñeca levantada.
+
 ### Reportado usando la app en el reloj (2026-09-21)
 
 Cuatro cosas que salieron de tener la app puesta, no de razonar sobre ella. **La primera está
@@ -3994,9 +4045,39 @@ se puede sacrificar sin romper la búsqueda.
 | `fts_def_data` + `docsize` | 10,0 | 13,8 % | Acá viven `detail=none` y `columnsize=0` |
 | `idx_entry_norm` + `idx_entry_fuzzy` | 9,2 | 12,9 % | `idx_entry_fuzzy` es el precio del nivel tolerante |
 
-**El recorte obvio no existe.** Las tres opciones abiertas de `docs/decisions.md`
-(`detail=none`, `columnsize=0`, bloques vs fila) juntas atacan el 13,8 % del pack; el 46,3 %
-está en una tabla que no se puede tocar sin romper la búsqueda por forma flexionada.
+⚠️ **La tabla de arriba es del pack ESPAÑOL, y generalizarla fue un error que duró dos días.**
+Medido con `dbstat` sobre los packs reales el 2026-09-23, el inglés tiene otra forma por completo:
+
+| | español (77,6 MB) | **inglés (329,6 MB)** |
+|---|---|---|
+| `entry` | 20,0 MB — 26 % | **150,6 MB — 48 %** |
+| `fts_def_data` | 9,1 MB — 12 % | **69,2 MB — 22 %** |
+| `idx_entry_norm` | 5,8 MB — 7,5 % | **38,0 MB — 12 %** |
+| `idx_entry_fuzzy` | 4,1 MB — 5,3 % | **27,7 MB — 8,8 %** |
+| `form` | **32,9 MB — 42 %** | 19,1 MB — **6 %** |
+| `fts_def_docsize` | 1,4 MB | 9,2 MB — 2,9 % |
+
+O sea: *«el recorte obvio no existe porque el 46 % está en `form`»* **vale para el español y es
+falso para el inglés**, donde `form` es el 6 % y el índice FTS solo es el 25 %.
+
+**Y las dos opciones abiertas no valen lo mismo, medido** (D-241). Reindexando **texto real del
+pack inglés**, 60.000 entradas, de las cuatro formas:
+
+```
+detail=full (hoy)     15,50 MB
+detail=none            6,93 MB   →  ahorra 55,3 %   ≈ 38 MB del pack inglés (12 %)
+columnsize=0          14,95 MB   →  ahorra  3,6 %   ≈  9 MB
+```
+
+⚠️ **La compatibilidad se verificó ejecutando la expresión MATCH real de la app, no razonándola**,
+y eso corrigió una suposición: `columnsize=0` **no** rompe `ORDER BY rank`. Lo que `detail=none`
+rompe son las **frases de varias palabras**, que hoy no se usan (`toMatchExpression` entrecomilla
+token por token) — así que su costo real es **cerrar la búsqueda por frase exacta para siempre**.
+Y el costo de `columnsize=0` es de este repo: borra `fts_def_docsize`, una de las siete
+invariantes que D-217 le agregó a `PackFile.open`.
+
+**Ninguna se aplicó**, por decisión explícita: primero el número de arranque de un reloj (P-4).
+Aplicar un recorte sin el número que debería proteger es exactamente lo que esta sección prohíbe.
 
 **La palanca de producto ya se tiró, y está decidida (D-116).** Lo que decía esta fila —*"las
 32.305 de `pos = name` son el primer candidato y nadie decidió si un diccionario de muñeca las
@@ -4335,6 +4416,24 @@ the rule satisfied is worse than the current state.
 ⚠️ **And the rule that prevents this from growing again**: everything written from 2026-09-21
 onward is English. No enforcer — a language detector over prose would have false positives on the
 technical terms this repo deliberately leaves untranslated (gate, covering index, payload, rung).
+
+⚠️ **That rule is NOT holding, and it is now measured.** Running one ruler against the tree of
+2026-09-21 and against today's: **5,281 → 6,966 lines, +32 % in two days.** (That ruler is looser
+than the one behind the ≈3,000 above — same tree, two different heuristics — so the two totals are
+not comparable; **the delta between two runs of the same ruler is.**) A large share of the growth
+was written by the sessions of the 22nd and the 23rd, which is to say by an agent that had the
+rule loaded and broke it anyway — which by D-234 is the signal to raise its rung rather than
+repeat it.
+
+**What was translated on 2026-09-23**: the 391 lines of source comments this session and the last
+one **added** — `DebugIntents.kt` whole, plus the new blocks in `PackStore`, `PackVerification`,
+`WordOfTheDay` and `PackSelection` — and `docs/preguntas-del-reloj.md`, written new.
+
+⚠️ **What was deliberately NOT translated, and why**: the 15 decision rows (D-225 to D-241) and
+the roadmap sections added in those two days. `docs/decisions.md` and `docs/roadmap.md` are
+**entirely in Spanish**, so putting fifteen English rows into them leaves a mixed document, which
+is worse than either state. They belong to stages 2 and 4 of the order above, which translate each
+document whole. Remaining from those two days: **317 lines, all of them in those two documents.**
 
 ### Los conteos de tests en los documentos se rompen en cada commit
 
