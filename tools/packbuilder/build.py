@@ -183,6 +183,41 @@ class Record:
         self.uid = uid
 
 
+#: Los niveles que un pack puede declarar. En ingles y sin traducir: es el identificador del
+#: nivel y tiene que leerse igual en cualquier idioma de la interfaz (D-215).
+TIERS = ("core", "main", "full")
+
+
+def name_with_tier(name, tier):
+    """El nombre del pack con **exactamente un** token de nivel al final.
+
+    ⚠️ **Existe porque el nivel se estampaba en dos lugares y el segundo no miraba al primero.**
+    `build_pack` cierra el pack completo con `"%s (full)" % name` y `build_core` deriva de ese
+    pack y le pega `(core)` encima, asi que el nucleo salia llamandose **`Español (full) (core)`**
+    --visto en la pantalla de diccionarios del reloj, y las dos mitades son ciertas: derivo de
+    uno `full` y es un `core`--. Lo que el usuario lee tiene que decir **una** cosa.
+
+    La regla: se saca cualquier nivel que ya traiga el final del nombre y se pone el que toca.
+    Asi da igual si el nombre viene limpio o heredado, que es justo lo que no se podia asumir.
+
+    >>> name_with_tier("Espanol", "full")
+    'Espanol (full)'
+    >>> name_with_tier("Espanol (full)", "core")
+    'Espanol (core)'
+    >>> name_with_tier("Espanol (core)", "core")
+    'Espanol (core)'
+    """
+    base = (name or "").strip()
+    # Solo el ULTIMO token, y solo si es un nivel conocido: un pack que se llame "Griego (koine)"
+    # no puede perder su parentesis por parecerse a esto.
+    for conocido in TIERS:
+        sufijo = " (%s)" % conocido
+        if base.endswith(sufijo):
+            base = base[: -len(sufijo)].rstrip()
+            break
+    return "%s (%s)" % (base, tier) if base else "(%s)" % tier
+
+
 def data_version(ahora=None):
     """La version del pack: AAAAMMDDHHMM, como entero en un string.
 

@@ -46,6 +46,37 @@ def rec(headword, pos="noun", rank=0, forms=(), senses=None, sense_key=None):
     )
 
 
+class NombreConNivelTest(unittest.TestCase):
+    """El nivel se estampa UNA vez, venga el nombre limpio o ya con uno."""
+
+    def test_un_nombre_limpio_recibe_su_nivel(self):
+        self.assertEqual("Español (full)", build.name_with_tier("Español", "full"))
+
+    def test_un_nombre_que_YA_trae_nivel_no_acumula(self):
+        # ⚠️ **El defecto que esto cierra, visto en la pantalla del reloj**: `build_pack` cierra
+        # el completo como `Español (full)` y `build_core` derivaba de ESE pack, pegandole
+        # `(core)` encima. El nucleo salia llamandose `Español (full) (core)`: las dos mitades
+        # ciertas y la frase, para quien la lee, sin sentido.
+        self.assertEqual("Español (core)", build.name_with_tier("Español (full)", "core"))
+        self.assertEqual("English (main)", build.name_with_tier("English (full)", "main"))
+
+    def test_volver_a_estampar_el_mismo_nivel_es_idempotente(self):
+        self.assertEqual("Español (core)", build.name_with_tier("Español (core)", "core"))
+
+    def test_un_parentesis_que_NO_es_un_nivel_se_respeta(self):
+        # Un pack ajeno puede llamarse como quiera. Sacar cualquier parentesis final le borraria
+        # parte del nombre a quien no tiene nada que ver con los niveles.
+        self.assertEqual(
+            "Griego (koiné) (core)", build.name_with_tier("Griego (koiné)", "core"))
+
+    def test_solo_se_mira_el_ULTIMO_token(self):
+        # "full" en el medio del nombre no es el sufijo de nivel y no se toca.
+        self.assertEqual(
+            "Diccionario (full) de bolsillo (core)",
+            build.name_with_tier("Diccionario (full) de bolsillo", "core"),
+        )
+
+
 class BuildCoreTest(unittest.TestCase):
 
     def setUp(self):
