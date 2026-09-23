@@ -3535,6 +3535,79 @@ rm -f app/build/outputs/apk/debug/app-debug.apk        # or --rerun-tasks
 ./gradlew :app:assembleDebug -Pdictionary.packsDir=<an empty directory>
 ```
 
+### The APK is 111 MB and the estimate said 60 — MEASURED 2026-09-23
+
+**Status.** **Open**, and the gap is fully explained by two numbers nobody re-derived together.
+
+**Where the 111 MB is**, read off the zip with `unzip -v`:
+
+| | Uncompressed | In the APK | |
+|---|---|---|---|
+| `classes*.dex` | 45.2 MB | **45.2 MB** | ⚠️ **stored, not deflated** — ART mmaps it, so AGP never compresses it |
+| `assets/es-core.db` | 50.8 MB | 24.9 MB | 51 % |
+| `assets/en-core.db` | 42.9 MB | 32.2 MB | 25 % |
+| libs, resources, the rest | | ~8.8 MB | |
+| | | **111.1 MB** | |
+
+**The two causes, and they are independent:**
+
+1. ⚠️ **The cores grew 5.3× and the APK estimate was never redone.** The watch was carrying
+   `es-core` at **4.9 MB** and `en-core` at **11.9 MB** — 16.8 MB together, which is the era the
+   *"app plus compressed packs is about 60 MB"* figure comes from. Today they are **48.4 and
+   40.8 MB, 89.2 MB together**. That was not a regression: the 2026-09-22 rebuild re-cut the core
+   tier **by corpus coverage** rather than by size, and the table in §*La deuda de hoy* records
+   the result — `en-core` 96.60 % coverage, `es-core` 78.87 %. What nobody did was carry that
+   number back to the APK.
+2. ⚠️ **The 45 MB of dex is R8 being off** (D-087, roadmap O-2), and it is **stored
+   uncompressed**, so it costs its full size. A pack-less build measured today is **53.96 MB**;
+   `CLAUDE.md` claims a release build is 35 MB, which is **documented and not re-measured**.
+
+⚠️ **And the two cores are asymmetric in a way worth its own look**: `es-core` is **bigger**
+(50.8 vs 42.9 MB) while covering **less** (78.87 % vs 96.60 %), and it spends **28.18 % of the
+Spanish lemmas** to get there against English's **4.39 %**. Six times the lemma budget for worse
+coverage is either a property of the language or a defect in how the Spanish core is cut, and
+nothing here says which.
+
+**What would close the gap, priced:**
+
+| | Option | Saves | What it costs |
+|---|---|---|---|
+| **A** | Enable R8 (O-2) | ~19 MB, documented not measured | Reintroduces the class of bug that only shows in release, which is why D-087 deferred it |
+| **B** | Ship ONE core, the watch's locale, and download the other | 25–32 MB | The second language needs the network before it works — against *"every search runs with no network"* for a user who has not downloaded yet |
+| **C** | Re-cut the core tier smaller | up to ~40 MB | Gives back the coverage the 2026-09-22 rebuild bought on purpose. Needs the coverage/size curve, which `build_core.py --rango-mb` can produce |
+| **D** | Accept it | 0 | ⚠️ It is today's answer by default rather than by decision, and it costs **2 min 17 s per install** over wireless adb (measured on SM-L715F) |
+
+**None is free and none is mine to pick.** The measurement is here so the choice is made against
+numbers rather than against a remembered 60 MB.
+
+### An override outlives the tunnel it needs — MEASURED 2026-09-23
+
+**Status.** **A trap, written down.** It is the cost of the override being durable, which is the
+feature working as designed.
+
+The catalogue override (D-259) lives in the app's preferences, so it survives a reboot, a
+force-stop and a disconnect. **`adb reverse` does not**: the tunnel dies with the `adb`
+connection, and wireless debugging on a watch drops on its own — it did on 2026-09-23, mid-probe,
+seconds after the url had been set.
+
+⚠️ **So the app is left pointing at `http://localhost:8799` with nothing on the other end**, and
+what the user sees is a catalogue that will not load. **The url is right and the tunnel is gone**,
+which are opposite fixes, and nothing on screen distinguishes them.
+
+**On reconnecting, the tunnel has to be re-made and the override does not:**
+
+```sh
+adb devices                                # the serial changes between sessions
+adb -s <serial> reverse tcp:8799 tcp:8799  # the part that did NOT survive
+adb -s <serial> shell am broadcast -p cl.fadiaz.dictionary \
+    -a cl.fadiaz.dictionary.DEBUG_DUMP     # `catalogo=` says what the app still believes
+```
+
+**What would close it.** A readout that distinguishes the two: the catalogue failure already
+logs, but not in a way that separates *"nothing answered at that address"* from *"that address
+is wrong"*. Naming the url in the failure line is one line and removes the ambiguity entirely —
+the dump already does it, and the dump is what nobody thinks to run when something looks broken.
+
 ### The `adb` debug surface should exist only in a debug build — ASKED 2026-09-23, **conflicts with benchmark**
 
 **Status.** **Requested and NOT applied**, because applying it as stated would break a measuring
