@@ -59,6 +59,7 @@ propia acción.
 | P-7 | ¿`extractIfNewer` reemplaza el núcleo cuando el APK trae uno más nuevo? | Instalar un núcleo viejo desde el catálogo, subir de `versionCode`, y `<asset>: el APK trae uno mas nuevo (…)` en `logcat` | **D-226/D-229**. El gate cubre el plan y el parser; el cableado necesita dos `data_version` distintos, y hoy los dos salen del mismo `dist/` |
 | P-8 | ¿Instalar una versión nueva caduca el memo sobre los **cinco packs completos**? | `DEBUG_DUMP` antes y después de subir de `versionCode`: la huella termina en `.aN` | **D-225**. Verificado el 2026-09-23 **con dos núcleos en un emulador**; con 450 MB de packs reales el costo del primer arranque es otro número |
 | P-9 | ¿Cuánto tarda realmente instalar un APK de 111 MB por adb inalámbrico? | El tiempo de `installDebug`, y si se corta, a cuántos MB | La subida de 315 MB **ya se cortó una vez a los 75**. El APK pasó de 5,48 a 111 MB: si esto no es viable, el núcleo inglés no puede viajar dentro |
+| P-10 | ¿Una palabra del día de un pack **núcleo** se lee como algo que valga la pena aprender? | `DEBUG_DUMP` nombra el pack activo; el inicio muestra la palabra. Comparar contra la simulación: `acción`, `anillo`, `Christmas`, `afternoon` | **D-240**. El piso de rank se ajustó sobre tiradas simuladas contra los packs reales, nunca sobre la pantalla, y de él depende el primer arranque de cada instalación nueva |
 
 ---
 
