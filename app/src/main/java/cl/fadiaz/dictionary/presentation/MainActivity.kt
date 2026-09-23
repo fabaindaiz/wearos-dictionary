@@ -119,6 +119,16 @@ private fun notifyTiles(context: Context) {
     updater.requestUpdate(WordOfTheDayTileService::class.java)
 }
 
+
+/**
+ * The catalogue url this build is pointing at right now.
+ *
+ * One function because it is read from three places --the index, a download, and the dump-- and
+ * three copies of the same `if` is how one of them keeps pointing at the old server.
+ */
+private fun catalogoEnUso(context: android.content.Context): String =
+    if (BuildConfig.DEBUG_INTENTS) DebugIntents.catalogUrl(context) else BuildConfig.CATALOG_URL
+
 @Composable
 fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
     DictionaryTheme {
@@ -162,13 +172,23 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             // The tiles have no scheduled refresh: if the app does not push
                             // them, they keep whatever they had.
                             notifyTiles = { notifyTiles(context) },
-                            // The url comes from BuildConfig and is changed with -PcatalogUrl=...
-                            // Only `debug` may speak over http:// (src/debug/AndroidManifest.xml).
+                            // The url comes from BuildConfig, set with -PcatalogUrl=..., and a
+                            // debug build can point somewhere else over `adb` without being
+                            // rebuilt (DEBUG_CATALOG). Only `debug` may speak over http://
+                            // (src/debug/AndroidManifest.xml).
+                            //
+                            // ⚠️ **Read at each use and not once**, so an override takes effect
+                            // on the next press instead of on the next launch -- the whole point
+                            // is not restarting anything.
+                            //
+                            // ⚠️ **The `if` is what keeps release clean**: `DEBUG_INTENTS` is a
+                            // constant `false` there, so R8 folds this to the BuildConfig value
+                            // and `DebugIntents` leaves the dex entirely.
                             fetchCatalog = { etag ->
-                                CatalogClient.fetchIndex(BuildConfig.CATALOG_URL, etag)
+                                CatalogClient.fetchIndex(catalogoEnUso(context), etag)
                             },
                             startDownload = { pack ->
-                                DownloadPackWorker.enqueue(context, BuildConfig.CATALOG_URL, pack)
+                                DownloadPackWorker.enqueue(context, catalogoEnUso(context), pack)
                             },
                             // The `.gz.part` lives next to the packs: cancelling has to be able to
                             // delete it, or something the user already stopped keeps taking disk.
@@ -225,6 +245,12 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                     .longVersionCode.toInt()
                             }.getOrDefault(0),
                             buildId = "${BuildConfig.BUILD_COMMIT} ${BuildConfig.BUILD_TIME}",
+                            catalog = catalogoEnUso(context),
+                            overrides = if (BuildConfig.DEBUG_INTENTS) {
+                                DebugIntents.activeOverrides(context)
+                            } else {
+                                emptyMap()
+                            },
                         ).forEach { linea -> DictLog.i { linea } }
                     },
                 )

@@ -1809,13 +1809,34 @@ class ScreensTest {
         // independently of it. With three packs installed those two disagree: the pill could
         // name one file and activate a language whose representative is another. A label
         // asserting a provenance nobody checked is D-080's family.
-        showSearch(twoPackState().copy(query = "dog", submitted = "dog"))
+        //
+        // ⚠️ **The pack is deliberately NOT called "English" here.** With `twoPackState`'s
+        // default name the assertion would pass whether the label came from the language or
+        // from the pack, which is the very confusion this closes -- a test that cannot tell the
+        // fixed behaviour from the broken one is worth nothing.
+        val es = meta()
+        val en = meta("en-def", "en", "Diccionario inglés de bolsillo")
+        val state = readyState().copy(
+            query = "dog",
+            submitted = "dog",
+            results = emptyList(),
+            active = es,
+            activeLang = "es",
+            available = listOf(handle(es), handle(en)),
+        )
+        showSearch(state)
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
-        compose.onNodeWithText("Buscar en EN", substring = true).assertIsDisplayed()
+        // The LANGUAGE's own name: a sentence gets a word, not a code (D-261).
+        compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
         assertEquals(
+            "the pill named the pack instead of the language",
             0,
-            compose.onAllNodesWithText("Buscar en English", substring = true)
-                .fetchSemanticsNodes().size,
+            compose.onAllNodesWithText("bolsillo", substring = true).fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "the pill used the code where a sentence needs a word",
+            0,
+            compose.onAllNodesWithText("Buscar en EN", substring = true).fetchSemanticsNodes().size,
         )
     }
 
@@ -1838,7 +1859,7 @@ class ScreensTest {
         )
         showSearch(state)
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
-        compose.onNodeWithText("Buscar en EN", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
     }
 
     @Test
