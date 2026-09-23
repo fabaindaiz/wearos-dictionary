@@ -1,36 +1,36 @@
-"""¿Las calibraciones de dos packs son compatibles? Se mide, no se supone.
+"""Are two packs' calibrations compatible? It gets measured, not assumed.
 
     python3 compare_calibration.py <pack_a.db> <pack_b.db>
 
-**El problema.** `SearchRepository` mezcla los resultados de varios packs del mismo idioma
-(D-136). Cada pack trae su propio `rank`, calculado por su builder con su propio proxy: el
-nuestro pesa acepciones, ejemplos, formas, traducciones y etimologia (D-063), y el de Wikidata no
-puede pesar las dos ultimas porque la fuente no las trae. Dos packs pueden estar **los dos bien**
-y no estar de acuerdo sobre que palabra es mas comun.
+**The problem.** `SearchRepository` merges the results of several packs of the same language
+(D-136). Each pack brings its own `rank`, computed by its builder with its own proxy: ours weighs
+senses, examples, forms, translations and etymology (D-063), and Wikidata's cannot weigh the last
+two because the source does not carry them. Two packs can **both be right** and not agree on which
+word is more common.
 
-**Por que se puede medir.** `entry.uid` es la identidad logica de una entrada y es **la misma en
-todos los packs** del mismo idioma (D-055), asi que las entradas que los dos tienen se pueden
-aparear sin ambiguedad. Sobre ese solapamiento se calcula la **correlacion de Spearman** entre los
-dos ranks: es una correlacion de ORDENES, no de valores, asi que no le importa que un pack use
-0..1000 y el otro 0..100 -- le importa si coinciden en cual va antes.
+**Why it can be measured.** `entry.uid` is an entry's logical identity and it is **the same across
+every pack** of the same language (D-055), so the entries both hold can be paired unambiguously.
+Over that overlap the **Spearman correlation** between the two ranks is computed: it is a
+correlation of ORDERS, not of values, so it does not care that one pack uses 0..1000 and the other
+0..100 -- it cares whether they agree on which comes first.
 
-**La referencia medida** (2026-09-20), entre `es-def-wikc` y `es-def-wd`:
+**The measured reference** (2026-09-20), between `es-def-wikc` and `es-def-wd`:
 
-    entradas en comun        8.595
-    rho de Spearman          0,388
-    de las 200 mas comunes
-    segun cada uno, comparten  110
+    entries in common        8,595
+    Spearman's rho           0.388
+    of each one's 200 most
+    common, they share         110
 
-Eso es **dos fuentes honestas que no se ponen de acuerdo del todo**: hay señal compartida, pero
-no son intercambiables. Un pack con el rank al azar daria un rho cerca de 0, y el control barajado
-que imprime esta herramienta es justamente para tener ese numero al lado y no compararlo contra la
-intuicion.
+That is **two honest sources that do not entirely agree**: there is shared signal, but they are
+not interchangeable. A pack with a random rank would give a rho near 0, and the shuffled control
+this tool prints exists precisely to have that number alongside rather than comparing the rho
+against intuition.
 
-⚠️ **Lo que un rho bajo NO significa.** No significa que el pack sea malo: significa que **su
-orden no se puede comparar con el del otro**. La app ya no depende de eso -- D-142 puso una banda
-de cobertura calculada del texto escrito, sin mirar ningun dato del pack, delante del orden
-interno. Esta herramienta sirve para saber **cuanto** se esta apoyando la mezcla en una
-calibracion ajena, no para aceptar o rechazar un pack.
+⚠️ **What a low rho does NOT mean.** It does not mean the pack is bad: it means **its order cannot
+be compared with the other's**. The app no longer depends on that -- D-142 put a coverage band
+computed from the typed text, looking at no pack datum, ahead of the internal order. This tool
+serves to know **how much** the merge is leaning on somebody else's calibration, not to accept or
+reject a pack.
 """
 
 import math
@@ -40,7 +40,7 @@ import sys
 
 
 def _rangos(valores):
-    """Rangos promediados, que es lo que Spearman necesita cuando hay empates."""
+    """Averaged ranks, which is what Spearman needs when there are ties."""
     orden = sorted(range(len(valores)), key=lambda i: valores[i])
     out = [0.0] * len(valores)
     i = 0
@@ -56,7 +56,7 @@ def _rangos(valores):
 
 
 def spearman(xs, ys):
-    """Correlacion de Spearman. 1 identico, 0 sin relacion, -1 opuesto."""
+    """Spearman correlation. 1 identical, 0 unrelated, -1 opposite."""
     if len(xs) < 2:
         return 0.0
     ra, rb = _rangos(xs), _rangos(ys)
@@ -92,8 +92,8 @@ def comparar(path_a, path_b, salida=sys.stdout):
     xs = [a[u] for u in comunes]
     ys = [b[u] for u in comunes]
     rho = spearman(xs, ys)
-    # El control: los mismos datos con una relacion destruida. Da la escala de "sin relacion"
-    # para ESTE n, que es lo que evita comparar el rho contra la intuicion.
+    # The control: the same data with the relation destroyed. It gives the "unrelated" scale for
+    # THIS n, which is what avoids comparing the rho against intuition.
     mezclado = ys[len(ys) // 2:] + ys[: len(ys) // 2]
     control = spearman(xs, mezclado)
 

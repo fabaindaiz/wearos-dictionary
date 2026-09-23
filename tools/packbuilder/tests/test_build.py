@@ -1,8 +1,8 @@
-"""Tests del builder de packs.
+"""Tests of the pack builder.
 
-Construyen packs de verdad en un directorio temporal y los inspeccionan con SQL. Lo que se
-verifica aca es sobre todo lo que NO falla ruidosamente: un pack a medio construir, o con el
-tope de traducciones mal aplicado, se abre sin error y devuelve resultados incompletos.
+They build real packs in a temporary directory and inspect them with SQL. What gets verified here
+is above all what does NOT fail loudly: a half-built pack, or one with the translations cap
+misapplied, opens with no error and returns incomplete results.
 """
 
 import contextlib
@@ -24,8 +24,8 @@ import build  # noqa: E402
 import payload as payload_codec  # noqa: E402
 
 BASE_META = {
-    # Un `pack_id` con la forma que D-138 exige: <idioma>-<tipo>-<fuente>. "test" a secas ya no
-    # sirve, y el test que lo rechaza vive en ManifiestoTest.
+    # A `pack_id` in the shape D-138 requires: <language>-<type>-<source>. A bare "test" no longer
+    # works, and the test that rejects it lives in ManifiestoTest.
     "pack_id": "es-def-test",
     "kind": "monolingual",
     "name": "Test",
@@ -62,8 +62,8 @@ class BuilderTestCase(unittest.TestCase):
 
 class ToyPackTest(BuilderTestCase):
     def test_toy_pack_passes_every_invariant(self):
-        # verify_pack.py es lo que se corre sobre los packs reales; si el de juguete no pasa,
-        # el de verdad tampoco va a pasar.
+        # verify_pack.py is what gets run over the real packs; if the toy one does not pass, the
+        # real one will not pass either.
         with build.PackBuilder(self.path, dict(toy.METADATA)) as builder:
             for item in toy.records():
                 builder.add(item)
@@ -71,22 +71,22 @@ class ToyPackTest(BuilderTestCase):
 
 
 class ToyPackFixtureTest(BuilderTestCase):
-    """El pack de juguete tiene que seguir ejercitando los cinco caminos de busqueda.
+    """The toy pack has to keep exercising the five search paths.
 
-    Los tests instrumentados de :dict-data (SqlitePackSourceTest) dependen del CONTENIDO de
-    este pack: que "coreer" no lo encuentre el prefijo, que "c" de mas resultados que el umbral
-    del nivel tolerante, que "bajo" tenga dos homografos. Nada de eso es obvio al editar
+    :dict-data's instrumented tests (SqlitePackSourceTest) depend on this pack's CONTENT: that
+    "coreer" is not found by the prefix, that "c" gives more results than the tolerant rung's
+    threshold, that "bajo" has two homographs. None of that is obvious when editing
     sources/toy.py.
 
-    Sin estos tests, romper una de esas suposiciones no se notaria hasta conectar un emulador,
-    y el fallo se leeria como un bug del codigo y no del fixture.
+    Without these tests, breaking one of those assumptions would not be noticed until an emulator
+    was connected, and the failure would read as a bug in the code and not in the fixture.
     """
 
     # Espejo de SqlitePackSource.FUZZY_TRIGGER. Si cambia alla, cambia aca.
     FUZZY_TRIGGER = 5
 
     def _payload(self, entry_id):
-        """El cuerpo descomprimido de una entrada, para mirar lo que la ficha mostraria."""
+        """An entry's decompressed body, to look at what the card would show."""
         diccionario = bytes.fromhex(self.db.execute(
             "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
         blob = self.db.execute(
@@ -113,18 +113,19 @@ class ToyPackFixtureTest(BuilderTestCase):
         ]
 
     def test_el_mejor_match_de_fts_no_es_el_de_rowid_mas_bajo(self):
-        """La trampa que hace visible que FTS5 ordena por relevancia y `entry.id` no.
+        """The trap that makes visible that FTS5 orders by relevance and `entry.id` does not.
 
-        `searchDefinitions` consulta `fts_def MATCH ... ORDER BY rank` --bm25-- y despues resuelve
-        los rowids con `WHERE id IN (...)`, que sale en orden de rowid. Si el mejor match tuviera
-        siempre el rowid mas bajo, tirar el ranking no se notaria y el bug viviria para siempre.
+        `searchDefinitions` queries `fts_def MATCH ... ORDER BY rank` --bm25-- and then resolves
+        the rowids with `WHERE id IN (...)`, which comes out in rowid order. If the best match
+        always had the lowest rowid, throwing away the ranking would not be noticed and the bug
+        would live forever.
 
-        Dos entradas comparten el termino: una con glosa LARGA que lo menciona una vez, y otra
-        con glosa CORTA que lo repite --bm25 premia la corta y castiga la larga--. La larga va
-        primero en `_DATA`, asi que se lleva el rowid menor.
+        Two entries share the term: one with a LONG gloss that mentions it once, and one with a
+        SHORT gloss that repeats it --bm25 rewards the short one and penalizes the long one--. The
+        long one goes first in `_DATA`, so it takes the lower rowid.
 
-        Este test corre EN EL GATE. El que comprueba que la app respete ese orden es instrumentado
-        y necesita dispositivo: sin esta guarda, reordenar `_DATA` romperia aquel en silencio.
+        This test runs IN THE GATE. The one that checks the app respects that order is instrumented
+        and needs a device: without this guard, reordering `_DATA` would break that one in silence.
         """
         termino = normalize.norm("mineral")
         por_relevancia = [
@@ -139,19 +140,19 @@ class ToyPackFixtureTest(BuilderTestCase):
         )
 
     def test_un_prefijo_productivo_supera_el_umbral_del_nivel_tolerante(self):
-        # Si esto baja del umbral, el test que comprueba que el nivel tolerante NO se dispara
-        # pasaria por el motivo equivocado.
+        # If this drops below the threshold, the test that checks the tolerant rung does NOT fire
+        # would pass for the wrong reason.
         self.assertGreaterEqual(len(self.prefijo("c")), self.FUZZY_TRIGGER)
 
     def test_hay_un_tipeo_que_solo_alcanza_el_nivel_tolerante(self):
-        # "coreer" no debe ser alcanzable por prefijo ni por forma flexionada: si lo fuera, el
-        # test del nivel tolerante no probaria el nivel tolerante.
+        # "coreer" must not be reachable by prefix or by inflected form: if it were, the tolerant
+        # rung's test would not be testing the tolerant rung.
         self.assertEqual([], self.prefijo("coreer"))
         formas = self.db.execute(
             "SELECT COUNT(*) FROM form WHERE norm = ?", (normalize.norm("coreer"),)
         ).fetchone()[0]
         self.assertEqual(0, formas)
-        # Pero si tiene que caer en el vecindario fuzzy.
+        # But it does have to land in the fuzzy neighbourhood.
         clave = normalize.fuzzy("coreer", "es")[:4]
         upper = clave[:-1] + chr(ord(clave[-1]) + 1)
         vecinos = self.db.execute(
@@ -173,10 +174,10 @@ class ToyPackFixtureTest(BuilderTestCase):
             ).fetchone()[0],
             0,
         )
-        # ⚠️ **`run` ya no vive en `trans` sino que ES una entrada**, y ese cambio es el pack
-        # bidireccional: `trans` se vacia porque seria una segunda copia del mismo indice.
-        # Lo que se comprueba es lo mismo de siempre --que escribiendo `run` se llegue a
-        # `correr`-- por el camino nuevo.
+        # ⚠️ **`run` no longer lives in `trans` but IS an entry**, and that change is the
+        # bidirectional pack: `trans` is emptied because it would be a second copy of the same
+        # index. What gets checked is the same as always --that typing `run` reaches `correr`--
+        # through the new path.
         fila = self.db.execute(
             "SELECT id, lang FROM entry WHERE norm = 'run'").fetchone()
         self.assertIsNotNone(fila, "la palabra inglesa tiene que ser un lema")
@@ -190,10 +191,10 @@ class ToyPackFixtureTest(BuilderTestCase):
         )
 
     def test_hay_un_lema_exacto_que_rankea_peor_que_uno_que_lo_extiende(self):
-        """Sin esta trampa, la regla de exacta-primero no tiene nada que probar.
+        """Without this trap, the exact-first rule has nothing to prove.
 
-        "sol" es la coincidencia exacta y rankea 500; "soler" solo lo tiene de prefijo y rankea
-        50. Ordenando solo por rank, escribir "sol" no devuelve "sol".
+        "sol" is the exact match and ranks 500; "soler" only has it as a prefix and ranks 50.
+        Ordering by rank alone, typing "sol" does not return "sol".
         """
         filas = dict(self.db.execute(
             "SELECT headword, rank FROM entry WHERE headword IN ('sol', 'soler')"))
@@ -201,11 +202,11 @@ class ToyPackFixtureTest(BuilderTestCase):
         self.assertEqual("sol", self.prefijo("sol")[0])
 
     def test_hay_dos_entradas_con_el_mismo_headword_y_el_mismo_pos(self):
-        """Es el caso "hacer" del Wikcionario, que aparece cinco veces por etimologia.
+        """It is Wiktionary's "hacer" case, which appears five times by etymology.
 
-        Son entradas distintas y legitimas --uid las separa-- pero una lista que las muestra
-        todas repite la misma palabra. La deduplicacion vive en SqlitePackSource, no aca; esto
-        solo garantiza que el fixture siga teniendo el caso.
+        They are distinct and legitimate entries --uid separates them-- but a list that shows them
+        all repeats the same word. The deduplication lives in SqlitePackSource, not here; this only
+        guarantees the fixture keeps the case.
         """
         velas = self.db.execute(
             "SELECT pos, COUNT(*), COUNT(DISTINCT uid) FROM entry WHERE headword = 'vela'"
@@ -223,7 +224,7 @@ class ToyPackFixtureTest(BuilderTestCase):
 
 class IngestTest(BuilderTestCase):
     def test_headword_that_normalizes_to_empty_is_skipped(self):
-        # "!!!" no se puede buscar por ningun camino; entrar al pack solo ocuparia lugar.
+        # "!!!" cannot be searched by any path; getting into the pack would only take space.
         db = self.build([record("correr"), record("!!!"), record("¿?")])
         self.assertEqual([("correr",)], list(db.execute("SELECT headword FROM entry")))
 
@@ -261,23 +262,25 @@ class IngestTest(BuilderTestCase):
             "SELECT e.rank FROM trans t JOIN entry e ON e.id = t.entry_id"
             " WHERE t.norm = 'to' ORDER BY e.rank")]
         self.assertEqual(limit, len(kept), "no se aplico el tope por clave")
-        # Se conservan los de mejor rank (menor es mas comun), no los primeros que llegaron.
+        # The best ranked (lower is more common) are kept, not the first to arrive.
         self.assertEqual(list(range(limit)), kept)
 
         dropped = db.execute("SELECT value FROM meta WHERE key='trans_dropped'").fetchone()[0]
         self.assertEqual(25, int(dropped), "meta.trans_dropped no refleja lo recortado")
 
     def test_un_lema_cuyo_fuzzy_es_vacio_sigue_siendo_entrada(self):
-        """CARACTERIZACION: el builder ya se comportaba asi; este test fija la conducta.
+        """CHARACTERIZATION: the builder already behaved this way; this test pins the behaviour.
 
-        `fuzzy("h")` es vacio: la hache es muda en el perfil español. La entrada igual existe.
+        `fuzzy("h")` is empty: the h is silent in the Spanish profile. The entry exists all the
+        same.
 
-        `norm` vacio y `fuzzy` vacio no son el mismo problema. Sin `norm` la entrada es
-        inalcanzable y no tiene sentido guardarla. Sin `fuzzy` solo queda fuera del nivel
-        tolerante: se sigue encontrando por prefijo y exacta, que es como se busca una letra.
+        An empty `norm` and an empty `fuzzy` are not the same problem. With no `norm` the entry is
+        unreachable and there is no sense storing it. With no `fuzzy` it merely falls outside the
+        tolerant rung: it is still found by prefix and exact match, which is how a letter gets
+        searched for.
 
-        Lo encontro el primer pack real: "h" y "H" son entradas del Wikcionario (la letra) y
-        hacian fallar la invariante de verify_pack.py, que trataba los dos casos igual.
+        The first real pack found it: "h" and "H" are Wiktionary entries (the letter) and they made
+        verify_pack.py's invariant fail, because it treated both cases alike.
         """
         db = self.build([record("h", gloss="octava letra del abecedario español")])
         row = db.execute("SELECT norm, fuzzy FROM entry WHERE headword='h'").fetchone()
@@ -297,11 +300,11 @@ class IngestTest(BuilderTestCase):
 
 
 class PacksDeclaradosTest(unittest.TestCase):
-    """Todo pack declara su politica de contenido, y el validador la comprueba (D-116).
+    """Every pack declares its content policy, and the validator checks it (D-116).
 
-    La regla se enforcea desde Python y no desde `audit_dictionary.py` porque aca se puede
-    **importar** `PACKS`; alla habria que leerlo con una regex sobre un dict, que se rompe sola
-    en cuanto alguien reordena el archivo.
+    The rule is enforced from Python and not from `audit_dictionary.py` because here `PACKS` can be
+    **imported**; there it would have to be read with a regex over a dict, which breaks on its own
+    the moment somebody reorders the file.
     """
 
     def test_todo_pack_declara_su_politica_de_nombres_propios(self):
@@ -318,14 +321,14 @@ class PacksDeclaradosTest(unittest.TestCase):
 
 
 class SinonimosEnElIndiceTest(BuilderTestCase):
-    """Buscar un sinonimo tiene que encontrar la entrada (D-118).
+    """Searching a synonym has to find the entry (D-118).
 
-    Es media razon del cambio: sin esto los sinonimos solo se VEN al abrir una entrada que ya
-    encontraste, que es justo cuando ya no los necesitas.
+    It is half the reason for the change: without this the synonyms are only SEEN on opening an
+    entry you have already found, which is exactly when you no longer need them.
     """
 
     def test_los_sinonimos_entran_al_indice_de_texto_libre(self):
-        # La glosa NO contiene "bobo": si el match aparece, vino del sinonimo.
+        # The gloss does NOT contain "bobo": if the match appears, it came from the synonym.
         registro = build.Record(
             headword="chulengo",
             senses=[{"gloss": "persona de poco entendimiento", "synonyms": ["bobo", "zonzo"]}],
@@ -338,14 +341,14 @@ class SinonimosEnElIndiceTest(BuilderTestCase):
 
 
 class CitaHuerfanaTest(BuilderTestCase):
-    """`verify_pack.py` rechaza una cita que no cuelgue de un ejemplo.
+    """`verify_pack.py` rejects a citation that does not hang off an example.
 
-    ⚠️ **Se comprueba sobre los BYTES y no sobre la estructura parseada, y esa es la diferencia
-    que hace util al chequeo.** `payload.parse` ya descarta la cita huerfana en silencio, que es
-    la degradacion correcta para el lector; pero un pack construido por otro --o por una version
-    futura del builder con un bug-- la llevaria adentro, y el usuario veria una entrada a la que
-    le falta la atribucion que el pack decia traer. Es, ademas, el unico chequeo de CONTENIDO
-    del payload que este validador tiene: hasta ahora solo miraba invariantes estructurales.
+    ⚠️ **It is checked over the BYTES and not over the parsed structure, and that is the difference
+    that makes the check useful.** `payload.parse` already discards the orphaned citation in
+    silence, which is the right degradation for the reader; but a pack built by somebody else --or
+    by a future version of the builder with a bug-- would carry it inside, and the user would see
+    an entry missing the attribution the pack said it carried. It is also the only payload CONTENT
+    check this validator has: until now it looked only at structural invariants.
     """
 
     def _pack_con_cuerpo(self, cuerpo):
@@ -369,9 +372,9 @@ class CitaHuerfanaTest(BuilderTestCase):
         self.assertIn("cita", salida)
 
     def test_una_cita_separada_de_su_ejemplo_tambien_falla(self):
-        # El caso peligroso de verdad: hay un ejemplo, asi que la cita "parece" tener de que
-        # colgar -- pero el tag del medio la desplaza y quien la lea le asignaria un ejemplo que
-        # la fuente nunca le atribuyo.
+        # The genuinely dangerous case: there is an example, so the citation "looks" as though it
+        # has something to hang off -- but the tag in between displaces it and whoever reads it
+        # would assign it an example the source never attributed to it.
         codigo, salida = self._pack_con_cuerpo(
             "P\tverb\nS\tuna glosa\nE\tun ejemplo\nY\tsinonimo\nC\t1897, Richard Marsh\n")
         self.assertEqual(1, codigo, salida)
@@ -383,12 +386,12 @@ class CitaHuerfanaTest(BuilderTestCase):
 
 
 class ComoLaAppTest(BuilderTestCase):
-    """El modo espejo: `verify_pack.py --como-la-app` contesta lo que la app contestaria.
+    """The mirror mode: `verify_pack.py --como-la-app` answers what the app would answer.
 
-    ⚠️ **Es el cuarto contrato cruzado del repo** (D-217), y lo que lo sostiene es doble: la
-    auditoria compara los ids de `MOTIVOS_DE_LA_APP` contra el enum `PackRejection`, y estos
-    casos comprueban que cada motivo **se dispare de verdad**. Sin lo segundo, una tabla con los
-    ids correctos y las comprobaciones rotas pasaria la auditoria y mentiria en cada respuesta.
+    ⚠️ **It is the repo's fourth cross-language contract** (D-217), and what holds it up is
+    twofold: the audit compares `MOTIVOS_DE_LA_APP`'s ids against the `PackRejection` enum, and
+    these cases check that each reason **actually fires**. Without the second, a table with the
+    right ids and broken checks would pass the audit and lie in every answer.
     """
 
     def _pack(self, **meta_extra):
@@ -423,11 +426,11 @@ class ComoLaAppTest(BuilderTestCase):
         self.assertIn("la app lo abriria", salida)
 
     def test_otro_esquema_se_reporta_como_esquema_y_no_como_metadata(self):
-        """⚠️ El caso que encontraron los packs reales de `schema_version` 3.
+        """⚠️ The case the real `schema_version` 3 packs found.
 
-        Un pack de otro esquema **tambien** puede no traer claves que nacieron despues, asi que
-        los dos motivos aplican. El que se reporta tiene que ser el esquema: es el unico que le
-        dice al usuario que hacer.
+        A pack of another schema can **also** be missing keys that were born later, so both reasons
+        apply. The one reported has to be the schema: it is the only one that tells the user what to
+        do.
         """
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
@@ -485,7 +488,7 @@ class ComoLaAppTest(BuilderTestCase):
         self.assertIn("RECHAZADO index", salida)
 
     def test_una_clave_mal_calculada_se_agarra_con_la_muestra(self):
-        # Es el modo de falla central del repo: la palabra esta y ninguna busqueda la alcanza.
+        # It is the repo's central failure mode: the word is there and no search reaches it.
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
         db = sqlite3.connect(self.path)
@@ -511,11 +514,11 @@ class ComoLaAppTest(BuilderTestCase):
 
 
 class InvariantesExhaustivasTest(BuilderTestCase):
-    """Lo que `verify()` mira de mas que la app, porque corre al construir y puede gastar."""
+    """What `verify()` looks at beyond the app, because it runs at build time and can spend."""
 
     def test_una_lista_con_items_repetidos_hace_fallar(self):
-        # D-218. `render` lo deduplica al construir; esto lo comprueba sobre los BYTES, que es lo
-        # unico que vale para un pack que no construimos nosotros.
+        # D-218. `render` deduplicates it while building; this checks it over the BYTES, which is
+        # the only thing that counts for a pack we did not build.
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
         db = sqlite3.connect(self.path)
@@ -533,8 +536,8 @@ class InvariantesExhaustivasTest(BuilderTestCase):
         self.assertIn("repite items", salida.getvalue())
 
     def test_un_tag_desconocido_hace_fallar(self):
-        # El lector los ignora a proposito (D-119), asi que este es el unico lugar donde un tag
-        # que el builder escribio mal se puede notar.
+        # The reader ignores them on purpose (D-119), so this is the only place a tag the builder
+        # wrote wrongly can be noticed.
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
         db = sqlite3.connect(self.path)
@@ -552,11 +555,10 @@ class InvariantesExhaustivasTest(BuilderTestCase):
         self.assertIn("tag desconocido", salida.getvalue())
 
     def test_una_clave_de_form_que_no_es_norm_valida_hace_fallar(self):
-        """⚠️ La tabla `form` son 1,5 millones de filas que NADIE miraba.
+        """⚠️ The `form` table is 1.5 million rows NOBODY was looking at.
 
-        D-142 recalcula una muestra de `entry`; `form` es la que resuelve una flexion, y una
-        clave suya construida con otras reglas es la palabra que esta en el archivo y ninguna
-        busqueda alcanza.
+        D-142 recomputes a sample of `entry`; `form` is the one that resolves an inflection, and one
+        of its keys built under other rules is the word that is in the file and no search reaches.
         """
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
@@ -572,16 +574,16 @@ class InvariantesExhaustivasTest(BuilderTestCase):
 
 
 class AntonimosFueraDelIndiceTest(BuilderTestCase):
-    """Los antonimos van al payload y NO a `fts_def` (D-126).
+    """The antonyms go to the payload and NOT to `fts_def` (D-126).
 
-    Es lo contrario de lo que se decidio para los sinonimos (D-118), y el motivo es que la
-    pregunta que cada uno responde es distinta: un sinonimo es otra forma de nombrar lo que
-    buscas, un antonimo es lo que NO buscas. Indexarlo haria que escribir "frio" devuelva
-    "caliente", con el orden de resultados --que ya es deuda (D-067)-- decidiendo que tan
-    arriba aparece esa respuesta invertida.
+    It is the opposite of what was decided for the synonyms (D-118), and the reason is that the
+    question each answers is different: a synonym is another way of naming what you are looking
+    for, an antonym is what you are NOT looking for. Indexing it would make typing "frio" return
+    "caliente", with the result ordering --already debt (D-067)-- deciding how high that inverted
+    answer appears.
 
-    Sin este test, alguien que agregue un campo al payload lo suma a `_fts_body` por simetria
-    y nada falla: el pack sale mas grande y la busqueda mas ruidosa, en silencio.
+    Without this test, somebody adding a field to the payload adds it to `_fts_body` out of symmetry
+    and nothing fails: the pack comes out larger and the search noisier, in silence.
     """
 
     def test_un_antonimo_no_se_puede_buscar_por_texto_libre(self):
@@ -599,12 +601,12 @@ class AntonimosFueraDelIndiceTest(BuilderTestCase):
         self.assertEqual(0, antonimo, "el antonimo NO tiene que estar en el indice (D-126)")
 
     def test_la_cita_del_ejemplo_tampoco_entra_al_indice(self):
-        """El ejemplo SI se indexa (D-118) y su cita NO, y la asimetria es el punto.
+        """The example IS indexed (D-118) and its citation is NOT, and the asymmetry is the point.
 
-        Una cita es procedencia, no significado: buscar "Richard Marsh" tiene que devolver nada,
-        no la entrada `Thomas`. Ademas seria el tercer caso del mismo error -- D-117 midio que
-        los sinonimos costaron **tres veces** lo estimado justamente porque `fts_def` los indexa
-        ademas del payload, y las citas del pack ingles pesan casi tanto como ellos.
+        A citation is provenance, not meaning: searching "Richard Marsh" has to return nothing, not
+        the `Thomas` entry. It would also be the third case of the same mistake -- D-117 measured
+        that the synonyms cost **three times** the estimate precisely because `fts_def` indexes them
+        on top of the payload, and the English pack's citations weigh nearly as much as they do.
         """
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             entrada = record("thomas")
@@ -628,12 +630,12 @@ class AntonimosFueraDelIndiceTest(BuilderTestCase):
         self.assertIn("C\t1897, Richard Marsh", cuerpo, "pero si tiene que estar en el payload")
 
     def test_una_relacionada_tampoco_se_puede_buscar_por_texto_libre(self):
-        """Mismo criterio que el antonimo, y es exactamente el descuido que el docstring anuncia.
+        """The same criterion as the antonym, and it is exactly the slip the docstring announces.
 
-        `related` es la tercera lista de palabras del payload (D-132) y la tentacion de sumarla
-        a `_fts_body` "por simetria" con los sinonimos es la misma. No corresponde: nadie escribe
-        "camelido" esperando "guanaco", y la entrada que devolveria compite por el orden con la
-        que el usuario si buscaba.
+        `related` is the payload's third word list (D-132) and the temptation to add it to
+        `_fts_body` "out of symmetry" with the synonyms is the same. It does not belong: nobody
+        types "camelido" expecting "guanaco", and the entry it would return competes for the order
+        with the one the user was actually looking for.
         """
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             entrada = record("guanaco")
@@ -656,11 +658,12 @@ _FUENTE = ("definitions\tWikcionario\thttps://es.wiktionary.org/\t"
 
 
 class ManifiestoTest(BuilderTestCase):
-    """El pack declara QUE es, DE DONDE viene y COMO se puede usar, y el validador lo exige.
+    """The pack declares WHAT it is, WHERE it comes from and HOW it can be used, and the validator
+    requires it.
 
-    Son las tres preguntas que alguien que recibe un `.db` de 68 MB tiene que poder contestar sin
-    preguntarle a nadie. El modo de falla es silencioso en las tres: un pack sin manifiesto abre,
-    busca y funciona -- y no se puede saber si se puede redistribuir.
+    They are the three questions somebody receiving a 68 MB `.db` has to be able to answer without
+    asking anybody. The failure mode is silent in all three: a pack with no manifest opens, searches
+    and works -- and there is no way to know whether it can be redistributed.
     """
 
     def _con_meta(self, **cambios):
@@ -674,12 +677,12 @@ class ManifiestoTest(BuilderTestCase):
         return codigo, salida.getvalue()
 
     def test_un_pack_id_demasiado_generico_se_rechaza(self):
-        """El codigo evita la colision, que es lo que un nombre generico no puede evitar.
+        """The code avoids the collision, which is what a generic name cannot avoid.
 
-        Dos packs de español de fuentes distintas instalados a la vez (D-136) comparten idioma y
-        tipo: lo unico que los separa es el codigo de fuente. Con `pack_id = "espanol"` los dos
-        son "espanol", uno pisa al otro al instalar, y el historial del reloj queda apuntando a
-        entradas de un pack que ya no esta.
+        Two Spanish packs from different sources installed at once (D-136) share a language and a
+        type: the only thing that separates them is the source code. With `pack_id = "espanol"`
+        both are "espanol", one overwrites the other on installing, and the watch's history ends up
+        pointing at entries of a pack that is no longer there.
         """
         codigo, salida = self._con_meta(pack_id="espanol")
         self.assertNotEqual(0, codigo)
@@ -690,24 +693,26 @@ class ManifiestoTest(BuilderTestCase):
         self.assertEqual(0, codigo, salida)
 
     def test_las_variantes_son_parte_de_la_forma(self):
-        # "es-def-wikc-tat" y "es-def-wikc-sample10" son packs legitimos que tienen que convivir
-        # con el pelado. Si la gramatica no las admite, el builder no puede construirlos.
+        # "es-def-wikc-tat" and "es-def-wikc-sample10" are legitimate packs that have to coexist
+        # with the bare one. If the grammar does not admit them, the builder cannot build them.
         for pack_id in ("es-def-wikc-tat", "es-def-wikc-ej-tat", "es-def-wikc-sample10",
                         "en-def-wikt", "es-tr-wikc"):
             codigo, salida = self._con_meta(pack_id=pack_id, sources=_FUENTE)
             self.assertEqual(0, codigo, "%s deberia ser valido:\n%s" % (pack_id, salida))
 
     def test_un_pack_SIN_manifiesto_de_fuentes_se_rechaza(self):
-        """Sin `meta.sources` no se sabe bajo que terminos se puede redistribuir el contenido."""
+        """Without `meta.sources` there is no way to know under what terms the content can be redistributed."""
         codigo, salida = self._con_meta(pack_id="es-def-wikc", sources="")
         self.assertNotEqual(0, codigo)
         self.assertIn("sources", salida)
 
     def test_una_fuente_SIN_licencia_se_rechaza(self):
-        """Declarar la fuente y callar la licencia es peor que no declarar nada: parece completo.
+        """Declaring the source and staying silent about the licence is worse than declaring
+        nothing: it looks complete.
 
-        Es la comprobacion que paga esta clase. La atribucion es la CONDICION de uso del dato
-        (D-031), y un pack que nombra a Tatoeba sin decir CC BY 2.0 FR no dice como usarse.
+        It is the check that pays for this class. The attribution is the CONDITION of using the
+        data (D-031), and a pack that names Tatoeba without saying CC BY 2.0 FR does not say how to
+        be used.
         """
         codigo, salida = self._con_meta(
             pack_id="es-def-wikc",
@@ -717,11 +722,11 @@ class ManifiestoTest(BuilderTestCase):
 
 
 class PoliticaDeContenidoTest(BuilderTestCase):
-    """El validador comprueba el ARTEFACTO, no el builder.
+    """The validator checks the ARTIFACT, not the builder.
 
-    Un flag mal cableado pasa los tests de la fuente --que le pasan el valor a mano-- y deja el
-    pack con los nombres propios adentro igual. Lo unico que lo agarra es contar filas en el
-    pack terminado.
+    A miswired flag passes the source's tests --which hand it the value directly-- and leaves the
+    pack with the proper nouns inside all the same. The only thing that catches it is counting rows
+    in the finished pack.
     """
 
     def test_un_pack_que_dice_excluded_y_trae_nombres_propios_se_rechaza(self):
@@ -737,14 +742,14 @@ class PoliticaDeContenidoTest(BuilderTestCase):
         self.assertIn("proper_nouns", salida.getvalue())
 
     def test_definitions_only_exige_que_el_nombre_propio_este_CASTIGADO(self):
-        """La invariante que 'definitions-only' trae consigo (D-134).
+        """The invariant 'definitions-only' brings with it (D-134).
 
-        La politica deja entrar nombres propios a proposito, asi que el techo de proporcion que
-        cuida a 'lexical-only' no aplica. Lo que si tiene que cumplirse es lo que hace que la
-        politica sea segura: **que ninguno de ellos pueda ganarle en rank a una palabra comun**.
-        Si alguien cablea mal el castigo, el pack sale entero, abre sin error y devuelve el
-        toponimo arriba -- que es exactamente el modo de falla que D-116 midio en ingles, 4.267
-        veces. Sin este check nada lo veria.
+        The policy lets proper nouns in on purpose, so the proportion ceiling that guards
+        'lexical-only' does not apply. What does have to hold is what makes the policy safe:
+        **that none of them can beat a common word on rank**. If somebody miswires the penalty,
+        the pack comes out whole, opens with no error and returns the toponym at the top -- which
+        is exactly the failure mode D-116 measured in English, 4,267 times. Without this check
+        nothing would see it.
         """
         metadata = dict(BASE_META)
         metadata["proper_nouns"] = "definitions-only"
@@ -783,11 +788,11 @@ class PoliticaDeContenidoTest(BuilderTestCase):
         self.assertNotEqual(0, codigo, "'proper noun' tambien es un nombre propio")
 
     def test_lexical_only_acepta_unos_pocos_pero_no_un_pack_sin_podar(self):
-        """La excepcion de la señal lexica deja pasar 1.675 nombres propios en ingles (0,2 %).
+        """The lexical-signal exception lets 1,675 English proper nouns through (0.2 %).
 
-        El validador no puede recalcular la señal --no tiene el dump-- asi que comprueba lo que
-        si puede ver: que sean una minoria. Un pack sin podar tiene 17-22 %, asi que el margen
-        es enorme y el check igual caza el caso que importa (que la poda no corrio).
+        The validator cannot recompute the signal --it does not have the dump-- so it checks what
+        it can see: that they be a minority. An unpruned pack has 17-22 %, so the margin is enormous
+        and the check still catches the case that matters (that the pruning did not run).
         """
         metadata = dict(BASE_META)
         metadata["proper_nouns"] = "lexical-only"
@@ -814,12 +819,12 @@ class PoliticaDeContenidoTest(BuilderTestCase):
         self.assertIn("proper_nouns", salida.getvalue())
 
     def test_una_politica_desconocida_se_rechaza(self):
-        """Un typo en el valor no puede SALTEAR el check estructural en silencio.
+        """A typo in the value cannot SKIP the structural check in silence.
 
-        El check se dispara con `politica in ("excluded", "lexical-only")`, asi que
-        `"lexical_only"` --guion bajo en vez de guion-- cae al mismo lado que `"included"`:
-        el pack pasa entero sin que nadie cuente un solo nombre propio. Es el peor modo de
-        falla del validador, porque el pack se declara podado y nadie lo comprueba.
+        The check fires with `politica in ("excluded", "lexical-only")`, so `"lexical_only"`
+        --underscore instead of hyphen-- falls on the same side as `"included"`: the pack passes
+        whole without anybody counting a single proper noun. It is the validator's worst failure
+        mode, because the pack declares itself pruned and nobody checks it.
         """
         metadata = dict(BASE_META)
         metadata["proper_nouns"] = "lexical_only"
@@ -855,13 +860,13 @@ class StructureTest(BuilderTestCase):
         self.assertNotIn("staging_trans", names)
 
     def test_el_prefijo_devuelve_primero_la_entrada_mas_comun(self):
-        """rank es "menor es mas comun" (schema.sql) y el prefijo tiene que respetarlo.
+        """rank is "lower is more common" (schema.sql) and the prefix has to respect it.
 
-        No es teorico: en el primer pack real, buscar "escrit" devolvia
-        `escrito|verb` ("Participio de escribir", rank 994) **antes** que `escrito|noun`
-        (rank 988), porque la consulta ordenaba por `rank DESC`. Con 22 entradas de juguete
-        no se ve: rank solo desempata dentro de un mismo `norm`, y el toy pack casi no tiene.
-        En el pack real, 375 de 7.265 norms tienen mas de una entrada.
+        It is not theoretical: in the first real pack, searching "escrit" returned `escrito|verb`
+        ("Participio de escribir", rank 994) **before** `escrito|noun` (rank 988), because the
+        query ordered by `rank DESC`. With 22 toy entries it is invisible: rank only breaks ties
+        within one `norm`, and the toy pack has almost none. In the real pack, 375 of 7,265 norms
+        have more than one entry.
         """
         db = self.build([
             record("escrito", gloss="participio de escribir", rank=994),
@@ -873,9 +878,9 @@ class StructureTest(BuilderTestCase):
         self.assertEqual([988, 994], rows)
 
     def test_el_indice_satisface_el_orden_del_prefijo_sin_ordenar(self):
-        """La consulta sale integra del covering index (D-012). Si el indice y el ORDER BY no
-        coinciden en la direccion de `rank`, SQLite agrega un sort: sigue siendo correcto, pero
-        deja de ser el plan que el diseno afirma, y en un pack de 150.000 entradas eso se paga.
+        """The query is served entirely from the covering index (D-012). If the index and the ORDER
+        BY disagree on `rank`'s direction, SQLite adds a sort: it stays correct, but it stops being
+        the plan the design claims, and in a 150,000-entry pack that is paid for.
         """
         db = self.build([record("escrito", rank=1), record("casa", rank=2)])
         plan = " ".join(str(row) for row in db.execute(
@@ -885,8 +890,8 @@ class StructureTest(BuilderTestCase):
         self.assertNotIn("TEMP B-TREE", plan)
 
     def test_fts_rowid_matches_entry_id(self):
-        # fts_def es contentless: el rowid es lo unico que devuelve, asi que si no coincide con
-        # entry.id la busqueda de texto libre apunta a entradas equivocadas.
+        # fts_def is contentless: the rowid is all it returns, so if it does not match entry.id the
+        # free-text search points at the wrong entries.
         db = self.build(
             [record("correr", gloss="moverse rapidamente"), record("casa", gloss="edificio")]
         )
@@ -898,28 +903,28 @@ class StructureTest(BuilderTestCase):
 
 class FailureModeTest(BuilderTestCase):
     def test_reserved_meta_keys_are_rejected(self):
-        # Una schema_version escrita a mano seria una forma silenciosa de romper la validacion
-        # que hace el reloj al abrir el pack.
+        # A hand-written schema_version would be a silent way of breaking the validation the watch
+        # does when opening the pack.
         metadata = dict(BASE_META)
         metadata["schema_version"] = "99"
         with self.assertRaises(ValueError):
             build.PackBuilder(self.path, metadata)
 
     def test_una_palabra_muy_comun_en_las_glosas_no_hace_fallar_la_comprobacion_de_fts(self):
-        """La invariante es que FTS **encuentre** la entrada, no que la rankee alto.
+        """The invariant is that FTS **find** the entry, not that it rank it high.
 
-        Lo destapo el pack de ingles: la entrada de mejor rank es "you", su glosa empieza con
-        "The people spoken...", y "people" aparece en 890 de 47.718 definiciones. La entrada
-        estaba --posicion 721 de 890-- pero fuera del top 30, y la comprobacion fallaba por un
-        pack correcto. Confundir indexado con rankeado es un falso negativo que manda a buscar
-        un bug que no existe.
+        The English pack uncovered it: the best ranked entry is "you", its gloss starts with "The
+        people spoken...", and "people" appears in 890 of 47,718 definitions. The entry was there
+        --position 721 of 890-- but outside the top 30, and the check was failing over a correct
+        pack. Confusing indexed with ranked is a false negative that sends you hunting a bug that
+        does not exist.
 
-        El modo de falla real que esto cuida sigue cubierto: si `fts_def.rowid` se desalineara de
-        `entry.id` (D-011), la entrada no apareceria en NINGUNA posicion.
+        The real failure mode this guards is still covered: if `fts_def.rowid` drifted from
+        `entry.id` (D-011), the entry would appear at NO position.
         """
-        # La entrada de mejor rank tiene la glosa LARGA --bm25 castiga la longitud-- y otras
-        # cincuenta cortas comparten el termino. Asi la entrada correcta cae fuera del top 30,
-        # que es exactamente lo que paso con "you" y "people" en el pack de ingles.
+        # The best ranked entry has the LONG gloss --bm25 penalizes length-- and fifty other short
+        # ones share the term. That way the correct entry falls outside the top 30, which is exactly
+        # what happened with "you" and "people" in the English pack.
         larga = "personas " + " ".join("relleno%d" % i for i in range(40))
         registros = [build.Record(headword="aaa", senses=[{"gloss": larga}], rank=0)]
         registros += [
@@ -936,15 +941,15 @@ class FailureModeTest(BuilderTestCase):
                          % salida.getvalue())
 
     def test_verify_pack_rechaza_un_entero_de_meta_que_no_lo_es(self):
-        """`PackFile.parseMetadata` parsea tres claves de meta como numeros: un string revienta
-        al ABRIR, en el reloj, con un NumberFormatException que no nombra la clave.
+        """`PackFile.parseMetadata` parses three meta keys as numbers: a string blows up on
+        OPENING, on the watch, with a NumberFormatException that does not name the key.
 
-        Es la clase de bug que este repo existe para no tener: el builder lo escribe, el
-        validador lo deja pasar y el error aparece recien en el dispositivo. Paso de verdad --el
-        primer pack real se construyo con `data_version = "2026-09-15"` y `verify_pack.py` dio
-        verde--, y **esa causa concreta ya no existe**: desde que `data_version` lo deriva el
-        builder no hay forma de escribirlo mal. Lo que se fija aca es que el validador siga
-        mirando, porque las otras dos claves se escriben igual.
+        It is the class of bug this repo exists in order not to have: the builder writes it, the
+        validator lets it through and the error appears only on the device. It really happened
+        --the first real pack was built with `data_version = "2026-09-15"` and `verify_pack.py`
+        came out green-- and **that concrete cause no longer exists**: since the builder derives
+        `data_version` there is no way to write it wrongly. What is pinned here is that the
+        validator keeps looking, because the other two keys are still written by hand.
         """
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(record("correr"))
@@ -967,13 +972,13 @@ class FailureModeTest(BuilderTestCase):
             pass
 
     def test_failure_leaves_no_half_built_pack(self):
-        # Un pack a medias es peor que ninguno: se abriria sin error y devolveria resultados
-        # incompletos, sin nada que indique que le faltan entradas.
+        # A half-built pack is worse than none: it would open with no error and return incomplete
+        # results, with nothing to indicate it is missing entries.
         class Boom(Exception):
             pass
 
-        # noqa de SIM117 a proposito: assertRaises no es un peer del otro context manager,
-        # afirma SOBRE el. Combinarlos en un solo `with` los mostraria como iguales.
+        # noqa of SIM117 on purpose: assertRaises is not a peer of the other context manager, it
+        # asserts ABOUT it. Combining them into a single `with` would show them as equals.
         with self.assertRaises(Boom):  # noqa: SIM117
             with build.PackBuilder(self.path, dict(BASE_META)) as builder:
                 builder.add(record("correr"))
@@ -982,11 +987,11 @@ class FailureModeTest(BuilderTestCase):
 
 
 class LogicalIdentityTest(BuilderTestCase):
-    """entry.uid: la identidad que sobrevive a reconstruir el pack (D-055).
+    """entry.uid: the identity that survives rebuilding the pack (D-055).
 
-    Es lo que hace posible que un pack auxiliar le sume informacion a una entrada de este. Si se
-    rompe, el auxiliar apunta a la entrada equivocada y no hay ningun error: se muestran los
-    sinonimos de otra palabra.
+    It is what makes it possible for an auxiliary pack to add information to one of this pack's
+    entries. If it breaks, the auxiliary points at the wrong entry and there is no error at all:
+    another word's synonyms get shown.
     """
 
     def _uids(self, records):
@@ -997,7 +1002,7 @@ class LogicalIdentityTest(BuilderTestCase):
         return out
 
     def test_el_uid_sobrevive_a_que_la_fuente_agregue_una_palabra_en_el_medio(self):
-        # El caso que motiva toda la decision: entry.id se corre, entry.uid no.
+        # The case that motivates the whole decision: entry.id shifts, entry.uid does not.
         antes = self._uids([record("alfa"), record("gamma")])
         self.setUp()
         despues = self._uids([record("alfa"), record("beta"), record("gamma")])
@@ -1011,8 +1016,9 @@ class LogicalIdentityTest(BuilderTestCase):
         )
 
     def test_el_uid_no_depende_de_la_normalizacion(self):
-        # Va sobre el headword crudo: subir NORM_VERSION no puede invalidar los packs auxiliares.
-        # Efecto colateral buscado: "arbol" y "árbol" normalizan igual y son entradas distintas.
+        # It goes over the raw headword: bumping NORM_VERSION must not invalidate the auxiliary
+        # packs. An intended side effect: "arbol" and "árbol" normalize the same and are different
+        # entries.
         uids = self._uids([record("arbol"), record("árbol")])
         self.assertNotEqual(uids["arbol"][0], uids["árbol"][0])
 
@@ -1031,8 +1037,8 @@ class LogicalIdentityTest(BuilderTestCase):
         self.assertEqual(len(uids), 1)  # el dict los pisa: comparten headword, no uid
 
     def test_dos_entradas_con_la_misma_identidad_hacen_fallar_el_build(self):
-        # Fundirlas seria peor: cualquier desempate por orden de insercion rompe justo la
-        # estabilidad entre rebuilds que el uid existe para dar.
+        # Fusing them would be worse: any tie-break by insertion order breaks precisely the
+        # stability across rebuilds the uid exists to give.
         with self.assertRaises(ValueError) as caught:
             self.build([record("banco", part_of_speech="noun"),
                         record("banco", part_of_speech="noun")])
@@ -1050,8 +1056,8 @@ class LogicalIdentityTest(BuilderTestCase):
         db.close()
 
     def test_el_uid_no_depende_del_pack_que_lo_escribe(self):
-        # Dos packs distintos del mismo idioma tienen que darle el mismo uid a la misma palabra:
-        # si dependiera del pack_id, ninguna composicion seria posible.
+        # Two different packs of the same language have to give the same word the same uid: if it
+        # depended on the pack_id, no composition would be possible.
         otro = dict(BASE_META, pack_id="otro", name="Otro")
         primero = self.build([record("correr")])
         uid_primero = primero.execute("SELECT uid FROM entry").fetchone()[0]
@@ -1070,7 +1076,7 @@ class LogicalIdentityTest(BuilderTestCase):
 
 class DeterminismTest(BuilderTestCase):
     def test_two_builds_produce_the_same_data(self):
-        # Determinista para que reconstruir un pack sin cambios no genere una descarga nueva.
+        # Deterministic so that rebuilding an unchanged pack does not generate a new download.
         def contents(path):
             with build.PackBuilder(path, dict(toy.METADATA)) as builder:
                 for item in toy.records():
@@ -1099,17 +1105,17 @@ if __name__ == "__main__":
 
 
 class DataVersionTest(unittest.TestCase):
-    """`data_version` distingue dos builds del MISMO dump.
+    """`data_version` distinguishes two builds of the SAME dump.
 
-    ⚠️ **El bug que esto cierra**: era la fecha del dump escrita a mano, asi que reconstruir el
-    mismo dump con otro builder --otra poda, otra fuente sumada, otro `rank`-- daba **el mismo
-    numero**, y `devpack.py` y el instalador lo leian como "es el mismo pack". Un pack mejor no
-    se propagaba nunca.
+    ⚠️ **The bug this closes**: it used to be the dump's date written by hand, so rebuilding the
+    same dump with another builder --another pruning, another source added, another `rank`-- gave
+    **the same number**, and `devpack.py` and the installer read it as "it is the same pack". A
+    better pack never propagated.
     """
 
     def test_es_un_entero_de_doce_digitos_legible_como_fecha(self):
-        # AAAAMMDDHHMM: un humano lo lee sin convertidor, que era la mitad del pedido. La otra
-        # mitad es que ordene, y un numero con esta forma ordena igual que el tiempo.
+        # YYYYMMDDHHMM: a human reads it with no converter, which was half the request. The other
+        # half is that it order, and a number of this shape orders just like time.
         valor = build.data_version((2026, 9, 21, 14, 32))
         self.assertEqual("202609211432", valor)
         self.assertRegex(build.data_version(), r"^20\d{10}$")
@@ -1121,22 +1127,22 @@ class DataVersionTest(unittest.TestCase):
                         "el mas nuevo tiene que ser el mayor: de eso vive el instalador")
 
     def test_entra_en_un_Long_y_NO_en_un_Int(self):
-        # ⚠️ La app lo parsea, y por eso este test existe: 202609211432 **no entra en un Int de
-        # 32 bits**. Si alguien vuelve `dataVersion` a Int, el pack revienta al abrir en el reloj
-        # con un NumberFormatException que no nombra la clave (D-070).
+        # ⚠️ The app parses it, which is why this test exists: 202609211432 **does not fit in a
+        # 32-bit Int**. If somebody turns `dataVersion` back into an Int, the pack blows up on
+        # opening on the watch with a NumberFormatException that does not name the key (D-070).
         valor = int(build.data_version((2026, 9, 21, 14, 32)))
         self.assertGreater(valor, 2 ** 31 - 1)
         self.assertLess(valor, 2 ** 63 - 1)
 
     def test_escribirlo_a_mano_es_un_error(self):
-        # Si se puede escribir a mano, alguien se va a olvidar de subirlo: es exactamente lo que
-        # paso durante meses.
+        # If it can be written by hand, somebody will forget to bump it: that is exactly what
+        # happened for months.
         with self.assertRaises(ValueError):
             build.PackBuilder(self.path, dict(BASE_META, data_version="20260915"))
 
     def test_la_fecha_del_dump_no_se_pierde(self):
-        # Lo que el valor escrito a mano SIGNIFICABA --de que volcado sale el contenido-- sigue
-        # siendo informacion util, asi que se declara aparte en vez de desaparecer.
+        # What the hand-written value MEANT --which dump the content comes from-- is still useful
+        # information, so it is declared separately rather than disappearing.
         self.path = os.path.join(self.dir, "fecha.db")
         constructor = build.PackBuilder(self.path, dict(BASE_META, source_date="20260915"))
         constructor.add(record("casa"))
@@ -1154,17 +1160,17 @@ class DataVersionTest(unittest.TestCase):
 
 
 class ListaDeCoberturaTest(unittest.TestCase):
-    """A quien le exige la lista de cobertura las palabras de un idioma.
+    """Whom the coverage list requires a language's words of.
 
-    ⚠️ **Lo trajo el rebuild, no un test.** El pack bilingue declara `langs = es,en` y reprobo
-    por `tuesday`: `martes` trae su traduccion **glosada dentro de la acepcion** --*«Tuesday (the
-    third day of the week...)»*-- en vez de un termino limpio, asi que nunca salio la entrada
-    inglesa. Es un hueco real **y una promesa que ese pack no hizo**: su lado ingles existe para
-    la direccion inversa (D-196), no para ser un diccionario de ingles.
+    ⚠️ **The rebuild brought it, not a test.** The bilingual pack declares `langs = es,en` and
+    failed on `tuesday`: `martes` carries its translation **glossed inside the sense** --*"Tuesday
+    (the third day of the week...)"*-- instead of a clean term, so the English entry never came
+    out. It is a real gap **and a promise that pack never made**: its English side exists for the
+    reverse direction (D-196), not to be an English dictionary.
 
-    La regla que queda: **la lista le exige a un pack el idioma del que es diccionario**. En un
-    monolingue, todos los que declara; en un bilingue, el de ORIGEN. Lo demas se informa, porque
-    callarlo seria perder la señal que encontro esto.
+    The rule that remains: **the list requires of a pack the language it is a dictionary of**. In a
+    monolingual one, every language it declares; in a bilingual one, the SOURCE one. The rest gets
+    reported, because silencing it would lose the signal that found this.
     """
 
     def _pack(self, langs, kind, palabras_presentes):
@@ -1175,8 +1181,8 @@ class ListaDeCoberturaTest(unittest.TestCase):
         db.execute("CREATE TABLE form (entry_id INTEGER, norm TEXT)")
         db.executemany("INSERT INTO meta VALUES (?, ?)",
                        [("langs", langs), ("kind", kind)])
-        # ⚠️ Con menos entradas que palabras tiene la lista, el chequeo se salta por "es un
-        # fixture". El relleno existe para que la regla que se prueba sea la del idioma.
+        # ⚠️ With fewer entries than the list has words, the check is skipped as "it is a fixture".
+        # The filler exists so the rule being tested is the language one.
         filas = list(palabras_presentes) + ["relleno%d" % i for i in range(8)]
         db.executemany("INSERT INTO entry VALUES (?, ?)", list(enumerate(filas)))
         db.commit()
@@ -1206,14 +1212,14 @@ class ListaDeCoberturaTest(unittest.TestCase):
         self.assertTrue(any("martes" in f for f in report.failures), report.failures)
 
     def test_lo_que_solo_obliga_al_COMPLETO_no_reprueba_a_un_nivel(self):
-        """⚠️ **Un corte por frecuencia no puede traer una palabra que no tiene frecuencia.**
+        """⚠️ **A frequency cut cannot bring a word that has no frequency.**
 
-        Medido sobre `freq-en-opensubs.txt`: `blockchain`, `deepfake` y `workaround` tienen
-        **cero** apariciones. Exigirselas a un `core` es pedirle al corte algo que su propia
-        metrica no puede entregar -- y el grupo que las contiene defiende otra cosa: que la
-        FUENTE traiga vocabulario de hoy (D-120), que es una propiedad del pack completo.
+        Measured over `freq-en-opensubs.txt`: `blockchain`, `deepfake` and `workaround` have
+        **zero** occurrences. Requiring them of a `core` is asking the cut for something its own
+        metric cannot deliver -- and the group containing them defends something else: that the
+        SOURCE carries today's vocabulary (D-120), which is a property of the full pack.
 
-        `tuesday`, en cambio, tiene 14.074: si falta en un nivel, el corte esta roto.
+        `tuesday`, by contrast, has 14,074: if it is missing from a tier, the cut is broken.
         """
         db, meta = self._pack("en", "monolingual", ["tuesday", "house"])
         meta["tier"] = "core"

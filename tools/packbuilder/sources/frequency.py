@@ -1,44 +1,45 @@
-"""Frecuencia de uso: el prior con el que se ordenan los resultados.
+"""Usage frequency: the prior the results are ordered by.
 
-## Que problema cierra, medido
+## What problem it closes, measured
 
-`kaikki._rank` calculaba el prior como **riqueza de pagina del dump** --acepciones, ejemplos,
-formas flexionadas, traducciones, etimologia-- y eso premia verbos: un verbo español trae hasta 222
-formas y el perfil `es` las cuenta hasta un tope de 80, que es **el termino dominante de los 1000
-puntos**. Medido sobre el pack español real, la correlacion de Spearman entre `rank` y la
-frecuencia real de uso era **-0,250**, donde se esperaria -1.
+`kaikki._rank` computed the prior as **richness of the dump's page** --senses, examples, inflected
+forms, translations, etymology-- and that rewards verbs: a Spanish verb carries up to 222 forms and
+the `es` profile counts them up to a cap of 80, which is **the dominant term of the 1000 points**.
+Measured over the real Spanish pack, the Spearman correlation between `rank` and real usage
+frequency was **-0.250**, where -1 would be expected.
 
-⚠️ **El sintoma no estaba donde parecia.** `coverageBand` (D-142) ya defiende el peldaño de
-prefijo sin confiar en el pack, asi que ahi el daño estaba acotado. Los peldaños `INFLECTED_FORM`
-y `TRANSLATION` **no tienen esa defensa** --`orderFor` aplica la banda solo a `PREFIX`-- y
-ordenaban por `rank` puro:
+⚠️ **The symptom was not where it seemed.** `coverageBand` (D-142) already defends the prefix rung
+without trusting the pack, so the damage there was bounded. The `INFLECTED_FORM` and `TRANSLATION`
+rungs **have no such defence** --`orderFor` applies the band only to `PREFIX`-- and ordered by raw
+`rank`:
 
-    house  ->  solar, alojar, albergar, domiciliar    <- «casa» no aparecia
-    water  ->  gastar, regar, resbalar                <- «agua» no aparecia
-    book   ->  reservar, fichar, multar               <- «libro» no aparecia
+    house  ->  solar, alojar, albergar, domiciliar    <- "casa" did not appear
+    water  ->  gastar, regar, resbalar                <- "agua" did not appear
+    book   ->  reservar, fichar, multar               <- "libro" did not appear
 
-## Por que subtitulos
+## Why subtitles
 
-La literatura de SUBTLEX es consistente en mas de seis idiomas: **las frecuencias de subtitulos
-predicen el reconocimiento de palabras mejor que las de corpus de libros**, porque se parecen al
-habla. Es exactamente el registro de alguien buscando una palabra en un reloj.
+The SUBTLEX literature is consistent across more than six languages: **subtitle frequencies
+predict word recognition better than book-corpus ones**, because they resemble speech. That is
+exactly the register of somebody looking a word up on a watch.
 
-## Por que Zipf y no la cuenta cruda
+## Why Zipf and not the raw count
 
-La distribucion es de ley de potencias: `de` aparece 14.459.520 veces y la palabra numero 50.000
-aparece 185. Sin logaritmo, la primera aplasta a todas y el resto del vocabulario queda
-indistinguible. Zipf es `log10(frecuencia por mil millones)`, la normalizacion estandar --la misma
-escala que usa `wordfreq`-- y tiene la propiedad que hace falta: **tres ordenes de magnitud son
-tres puntos**, no un factor mil.
+The distribution is a power law: `de` appears 14,459,520 times and word number 50,000 appears 185.
+Without a logarithm the first crushes them all and the rest of the vocabulary is
+indistinguishable. Zipf is `log10(frequency per billion)`, the standard normalization --the same
+scale `wordfreq` uses-- and it has the property that is needed: **three orders of magnitude are
+three points**, not a factor of a thousand.
 
-⚠️ **Se usa la idea, no el paquete**: `wordfreq` es una dependencia pip y `tools/CLAUDE.md` fija
-*stdlib only* como propiedad deliberada.
+⚠️ **The idea is used, not the package**: `wordfreq` is a pip dependency and `tools/CLAUDE.md`
+pins *stdlib only* as a deliberate property.
 
-## Por que la principal gana en vez de promediar
+## Why the primary wins instead of averaging
 
-Las dos fuentes miden cosas distintas: OpenSubtitles cuenta **ocurrencias** y
-`tatoeba.frequencies` cuenta **frases que contienen la palabra**. Promediarlas seria calibrar una
-escala contra otra, que es una decision que nadie midio. Cada lema toma su valor de **una** fuente.
+The two sources measure different things: OpenSubtitles counts **occurrences** and
+`tatoeba.frequencies` counts **sentences containing the word**. Averaging them would be
+calibrating one scale against another, which is a decision nobody measured. Each lemma takes its
+value from **one** source.
 """
 
 import math
@@ -46,29 +47,29 @@ import unicodedata
 
 
 def key(word):
-    """La clave con la que se busca una frecuencia: minusculas en NFC, **con el acento**.
+    """The key a frequency is looked up by: lowercase in NFC, **with the accent**.
 
-    ⚠️ **NO se usa `norm()`, y eso lo decidio un defecto visto en el pack construido.** `norm()`
-    pliega acentos, y en español el acento **distingue palabras**: con la clave normalizada, una
-    palabra oscura hereda la frecuencia de su homografo comun.
+    ⚠️ **`norm()` is NOT used, and a defect seen in the built pack decided that.** `norm()` folds
+    accents, and in Spanish the accent **distinguishes words**: with the normalized key, an
+    obscure word inherits its common homograph's frequency.
 
-        háber  (una unidad oscura)  ->  rank  97   <- se llevaba la de `haber`, el verbo
-        hábil                       ->  rank 237       (229.602 ocurrencias, puesto 210)
-        líbero                      ->  rank 240   <- sumaba `libero` + `liberó`
-        liberal                     ->  rank 248
+        háber  (an obscure unit)  ->  rank  97   <- it took `haber`'s, the verb
+        hábil                     ->  rank 237       (229,602 occurrences, position 210)
+        líbero                    ->  rank 240   <- it summed `libero` + `liberó`
+        liberal                   ->  rank 248
 
-    Lo que se pierde es cobertura --una palabra escrita con otro acento en la lista no matchea--
-    y lo que se gana es que la señal no mienta. Una palabra sin entrada propia cae a la banda sin
-    señal, que es la respuesta correcta: nadie midio su frecuencia.
+    What is lost is coverage --a word written with a different accent in the list does not match--
+    and what is gained is that the signal does not lie. A word with no entry of its own falls into
+    the band with no signal, which is the right answer: nobody measured its frequency.
     """
     return unicodedata.normalize("NFC", word).strip().lower()
 
 
 def load(path):
-    """`{key(palabra): cuenta}` de una lista `palabra<espacio>cuenta`. Ver [key].
+    """`{key(word): count}` from a `word<space>count` list. See [key].
 
-    Una linea que no se entiende **se ignora en vez de romper**: son 50.000 lineas bajadas de
-    internet, y una mala no puede tirar un build de una hora.
+    A line that is not understood **is ignored rather than breaking**: it is 50,000 lines
+    downloaded from the internet, and one bad one cannot bring down an hour-long build.
     """
     salida = {}
     with open(path, encoding="utf-8") as handle:
@@ -86,10 +87,10 @@ def load(path):
 
 
 def to_zipf(counts):
-    """`{norm: zipf}` donde Zipf 3 == una vez por millon, 6 == una vez por mil.
+    """`{norm: zipf}` where Zipf 3 == once per million, 6 == once per thousand.
 
-    Es la escala de `wordfreq`: `log10(frecuencia por mil millones)`. Lo que importa acá es que sea
-    **logaritmica**, porque la distribucion no lo es.
+    It is `wordfreq`'s scale: `log10(frequency per billion)`. What matters here is that it be
+    **logarithmic**, because the distribution is not.
     """
     total = sum(counts.values())
     if not total:
@@ -98,23 +99,23 @@ def to_zipf(counts):
 
 
 def combined(principal, relleno):
-    """La principal manda; `relleno` aporta solo lo que aquella no tiene. Ver el docstring."""
+    """The primary decides; `relleno` contributes only what it lacks. See the docstring."""
     salida = dict(relleno or {})
     salida.update(principal)
     return salida
 
 
 def por_norm(counts, norm):
-    """`{norm(palabra): cuenta}`, **sumando** cuando varias palabras comparten clave.
+    """`{norm(word): count}`, **summing** when several words share a key.
 
-    ⚠️ **Sumar y no pisar, y eso costo una medicion equivocada.** Escrito como un diccionario por
-    comprension --`{norm(k): v for k, v in counts.items()}`-- la ultima palabra gana: en la lista
-    inglesa `a` quedaba con **3.942** apariciones en vez de **14.484.562**, porque alguna palabra
-    rara normaliza igual y venia despues. El sintoma no fue un error sino un orden absurdo, con
-    `didn` encabezando la lista de palabras mas frecuentes del ingles.
+    ⚠️ **Summing and not overwriting, and that cost one wrong measurement.** Written as a dict
+    comprehension --`{norm(k): v for k, v in counts.items()}`-- the last word wins: in the English
+    list `a` ended up with **3,942** occurrences instead of **14,484,562**, because some rare word
+    normalizes the same and came later. The symptom was not an error but an absurd order, with
+    `didn` heading the list of the most frequent English words.
 
-    `norm` se pasa como argumento y no se importa para que este modulo siga sin depender de
-    `normalize`, que es lo que lo mantiene barato de probar.
+    `norm` is passed as an argument and not imported so this module stays free of a dependency on
+    `normalize`, which is what keeps it cheap to test.
     """
     salida = {}
     for palabra, cuenta in counts.items():
@@ -125,20 +126,21 @@ def por_norm(counts, norm):
 
 
 def cobertura(vocabulario, frecuencias):
-    """Que fraccion de los TOKENS del corpus cubre `vocabulario`, en tanto por ciento.
+    """What fraction of the corpus's TOKENS `vocabulario` covers, as a percentage.
 
-    ⚠️ **Es la metrica de un nivel, y la unica que contesta la pregunta correcta.** Un `core` no
-    se juzga por cuantas palabras trae --eso es un numero sin unidades-- sino por que fraccion de
-    lo que alguien va a buscar tiene adentro. Se mide sobre **tokens** y no sobre tipos: que falte
-    una palabra que aparece un millon de veces no es lo mismo que falte una que aparece tres.
+    ⚠️ **It is a tier's metric, and the only one that answers the right question.** A `core` is not
+    judged by how many words it carries --that is a number with no units-- but by what fraction of
+    what somebody will look up it holds inside. It is measured over **tokens** and not over types:
+    a missing word that appears a million times is not the same as a missing one that appears
+    three.
 
-    Medido sobre los packs reales: el ingles completo cubre **96,63 %** y el español **78,87 %**.
-    La diferencia no es calidad del pack, es del corpus: el español de OpenSubtitles trae mucha
-    forma flexionada que el pack resuelve por `form` y esta cuenta no ve.
+    Measured over the real packs: full English covers **96.63 %** and Spanish **78.87 %**. The
+    difference is not the pack's quality, it is the corpus's: OpenSubtitles Spanish carries a lot
+    of inflected forms the pack resolves through `form` and this count does not see.
 
-    ⚠️ **Satura.** Mas alla de las ~50.000 palabras que la lista atestigua, sumar lemas no sube el
-    numero: un `main` ingles de 130 MB ya llega al 96,63 % del pack completo de 307. Lo que un
-    nivel mas grande compra a partir de ahi es encontrar lo raro, que es otra metrica y no esta.
+    ⚠️ **It saturates.** Beyond the ~50,000 words the list attests, adding lemmas does not raise
+    the number: a 130 MB English `main` already reaches the 96.63 % of the full 307 MB pack. What a
+    larger tier buys beyond that is finding the rare, which is another metric and is not here.
     """
     total = cubierto = 0
     for clave, cuenta in frecuencias.items():

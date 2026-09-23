@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
-"""Deriva un pack NUCLEO de un pack completo ya construido.
+"""Derives a CORE pack from an already built full pack.
 
-    python3 tools/packbuilder/build_core.py <completo.db> <nucleo.db> <corpus.tsv> [--top N]
+    python3 tools/packbuilder/build_core.py <full.db> <core.db> <corpus.tsv> [--top N]
 
-## Por que se deriva y no se construye en paralelo
+## Why it is derived and not built in parallel
 
-El roadmap habia planteado un filtro dentro de `build_pack`, o sea reconstruir desde los dumps con
-menos vocabulario. Derivar del pack completo es mejor por dos razones, y la primera es de
-correctitud:
+The roadmap had proposed a filter inside `build_pack`, that is, rebuilding from the dumps with less
+vocabulary. Deriving from the full pack is better for two reasons, and the first is correctness:
 
-1. ⚠️ **El nucleo declara `subset_of`, y derivandolo eso es cierto POR CONSTRUCCION.** Construido
-   en paralelo seria cierto sólo mientras las dos corridas usaran las mismas fuentes, los mismos
-   filtros y la misma poda -- una promesa que nada comprueba y que se rompe en silencio la primera
-   vez que alguien agrega una opcion a una sola de las dos.
-2. Tarda segundos en vez de una hora, y no necesita los 4,5 GB de dumps.
+1. ⚠️ **The core declares `subset_of`, and by deriving it that is true BY CONSTRUCTION.** Built in
+   parallel it would be true only while both runs used the same sources, the same filters and the
+   same pruning -- a promise nothing checks and that breaks in silence the first time somebody adds
+   an option to only one of them.
+2. It takes seconds instead of an hour, and it does not need the 4.5 GB of dumps.
 
-## La trampa que esto evita, medida
+## The trap this avoids, measured
 
-**No se elige por `rank`.** `rank` es riqueza de pagina del diccionario, no frecuencia de uso: un
-nucleo de 14.388 entradas elegido por `rank` se lleva **el 91 % de la tabla de flexiones** del pack
-español, porque las paginas mas ricas son los verbos y un verbo tiene 33 formas. Elegido por
-frecuencia de uso, las 7.349 entradas del top 8.000 se llevan **el 5,5 %**. Dieciseis veces menos.
+**It is not chosen by `rank`.** `rank` is richness of the dictionary's page, not frequency of use:
+a 14,388-entry core chosen by `rank` takes **91 % of the Spanish pack's inflections table**,
+because the richest pages are the verbs and a verb has 33 forms. Chosen by frequency of use, the
+top 8,000's 7,349 entries take **5.5 %**. Sixteen times less.
 
-La señal es `sources/tatoeba.frequencies`, que cuenta sobre el corpus con el mismo tokenizador y el
-mismo `norm()` que indexa el pack.
+The signal is `sources/tatoeba.frequencies`, which counts over the corpus with the same tokenizer
+and the same `norm()` that indexes the pack.
 """
 
 import binascii
@@ -38,16 +37,15 @@ import normalize  # noqa: E402
 from sources import frequency as _frequency  # noqa: E402
 import payload as payload_codec  # noqa: E402
 
-# Cuantas palabras entran por defecto.
+# How many words get in by default.
 #
-# ⚠️ **Medido sobre los dos corpus reales, y el techo lo pone el ingles.** En el puesto 8.000 una
-# palabra española aparece en 21 frases y una inglesa en 5; en el puesto 15.000, en 9 y en 2. Mas
-# alla de ~8.000 el corpus ingles --41.512 frases contra 442.135 del español-- deja de ser
-# evidencia y pasa a ser ruido. Se usa el mismo N para los dos para que "nucleo" signifique lo
-# mismo en los dos idiomas.
+# ⚠️ **Measured over both real corpora, and English sets the ceiling.** At position 8,000 a Spanish
+# word appears in 21 sentences and an English one in 5; at position 15,000, in 9 and in 2. Beyond
+# ~8,000 the English corpus --41,512 sentences against Spanish's 442,135-- stops being evidence and
+# becomes noise. The same N is used for both so "core" means the same thing in both languages.
 TOP_POR_DEFECTO = 8000
 
-# Las claves que escribe el builder y que no se pueden heredar (ver PackBuilder.__init__).
+# The keys the builder writes and that cannot be inherited (see PackBuilder.__init__).
 DERIVADAS = {
     "schema_version", "norm_version", "payload_codec", "payload_dict", "payload_dict_sha256",
     "entry_count", "built_at", "uid_recipe", "data_version", "trans_dropped",
@@ -55,7 +53,7 @@ DERIVADAS = {
 
 
 def vocabulario_del_corpus(corpus, lang, top=TOP_POR_DEFECTO):
-    """Las `top` palabras mas usadas del corpus, como claves `norm()`."""
+    """The corpus's `top` most used words, as `norm()` keys."""
     from sources import tatoeba
 
     frecuencias = tatoeba.frequencies(corpus, lang=lang)
@@ -63,71 +61,71 @@ def vocabulario_del_corpus(corpus, lang, top=TOP_POR_DEFECTO):
     return {palabra for palabra, _veces in orden[:top]}
 
 
-#: Los tres tamanos, y lo que separa a cada uno. Ver D-215.
+#: The three sizes, and what separates each. See D-215.
 #:
-#: ⚠️ **`full` no es un nivel derivado**: es el pack construido, sin filtrar y completamente
-#: correcto. Aqui esta solo para que el nombre lo marque como los otros dos.
+#: ⚠️ **`full` is not a derived tier**: it is the pack that was built, unfiltered and completely
+#: correct. It is here only so the name marks it like the other two.
 NIVELES = ("core", "main", "full")
 
 
 def frecuencias_por_norm(lista):
-    """La lista de frecuencias, con las claves que el pack usa. Ver `frequency.por_norm`."""
+    """The frequency list, with the keys the pack uses. See `frequency.por_norm`."""
     return _frequency.por_norm(_frequency.load(lista), normalize.norm)
 
 
 def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
-    """Los lemas que caben en `presupuesto_mb`, **los mas usados primero**.
+    """The lemmas that fit in `presupuesto_mb`, **the most used first**.
 
-    ## Que metrica decide, y por que esa
+    ## Which metric decides, and why that one
 
-    La pregunta que un nivel tiene que contestar no es *"¿cuantas palabras entran?"* sino *"¿que
-    fraccion de lo que alguien va a buscar esta adentro?"*. Eso se mide: **cobertura de tokens
-    del corpus** -- la suma de las frecuencias de los lemas que entraron, sobre el total. Es
-    verificable sobre el artefacto terminado, no una intencion, y por eso se escribe en
-    `meta.corpus_coverage` y `verify_pack.py` la recalcula.
+    The question a tier has to answer is not *"how many words fit?"* but *"what fraction of what
+    somebody will look up is inside?"*. That gets measured: **corpus token coverage** -- the sum of
+    the frequencies of the lemmas that got in, over the total. It is verifiable over the finished
+    artifact, not an intention, which is why it is written to `meta.corpus_coverage` and
+    `verify_pack.py` recomputes it.
 
-    ## El orden: frecuencia primero, `rank` detras, y eso esta MEDIDO
+    ## The order: frequency first, `rank` behind, and that is MEASURED
 
-    ⚠️ **Ordenar por `rank` es peor, aunque `rank` ya salga de la frecuencia.** Dos razones, y
-    las dos se ven en el numero:
+    ⚠️ **Ordering by `rank` is worse, even though `rank` already comes from frequency.** Two
+    reasons, and both show in the number:
 
-    1. `rank` esta **bucketizado** --`int(round(zipf * ESCALA_ZIPF))`, 500 cubetas-- asi que
-       miles de palabras comparten numero y el desempate es **alfabetico**. Una palabra gorda que
-       empieza con `a` desplaza a una mas usada y mas flaca.
-    2. Pasado el 500 `rank` **deja de ser frecuencia**: es riqueza de pagina, que correlaciona
-       **-0,250** con el uso real (D-185). Un presupuesto que llega ahi gasta en paginas largas.
+    1. `rank` is **bucketed** --`int(round(zipf * ESCALA_ZIPF))`, 500 buckets-- so thousands of
+       words share a number and the tie-break is **alphabetical**. A fat word starting with `a`
+       displaces a more used and thinner one.
+    2. Past 500, `rank` **stops being frequency**: it is page richness, which correlates **-0.250**
+       with real usage (D-185). A budget that reaches there spends on long pages.
 
-    Cobertura de tokens medida sobre los packs reales:
+    Token coverage measured over the real packs:
 
-    | | por `rank` | por frecuencia | delta |
+    | | by `rank` | by frequency | delta |
     |---|---|---|---|
-    | ingles 25 MB | 93,46 % | **94,43 %** | +0,97 |
-    | ingles 40 MB | 94,75 % | **96,03 %** | +1,28 |
-    | ingles 130 MB | 95,10 % | **96,63 %** *(= el pack completo)* | +1,53 |
-    | español 25 MB | 77,59 % | **78,87 %** *(= el pack completo)* | +1,28 |
-    | español 40 MB | 77,62 % | **78,87 %** | +1,25 |
+    | English 25 MB | 93.46 % | **94.43 %** | +0.97 |
+    | English 40 MB | 94.75 % | **96.03 %** | +1.28 |
+    | English 130 MB | 95.10 % | **96.63 %** *(= the full pack)* | +1.53 |
+    | Spanish 25 MB | 77.59 % | **78.87 %** *(= the full pack)* | +1.28 |
+    | Spanish 40 MB | 77.62 % | **78.87 %** | +1.25 |
 
-    Y entran **mas** lemas, no menos. Dos lecturas que valen: un nucleo español de **25 MB cubre
-    tanto como el pack completo de 74**, y un `main` ingles de 130 MB alcanza la cobertura del de
-    307. El techo es la lista: mas alla de las ~50.000 palabras que atestigua, sumar lemas no
-    sube la cobertura -- lo que sube es lo que se encuentra al buscar algo raro, que es otra
-    metrica y no esta.
+    And **more** lemmas get in, not fewer. Two readings worth having: a **25 MB** Spanish core
+    **covers as much as the full 74 MB pack**, and a 130 MB English `main` reaches the coverage of
+    the 307 MB one. The ceiling is the list: beyond the ~50,000 words it attests, adding lemmas
+    does not raise the coverage -- what rises is what gets found when searching for something rare,
+    which is another metric and is not here.
 
-    ⚠️ **`frecuencias` es opcional y sin ella se corta por `rank`, como antes.** No es un
-    descuido: `build_core` deriva de un pack ya construido y puede correrse sobre uno cualquiera
-    sin tener a mano el corpus con el que se hizo. Degradar al criterio viejo es mejor que fallar.
+    ⚠️ **`frecuencias` is optional and without it the cut is by `rank`, as before.** That is not an
+    oversight: `build_core` derives from an already built pack and can be run over any one without
+    having to hand the corpus it was made with. Degrading to the old criterion beats failing.
 
-    ⚠️ **Lo que NO tiene senal va detras de todo lo que si la tiene**, ordenado por `rank` entre
-    si. Sobre el pack ingles son el **95,5 %** de los lemas: la lista cubre 38.067 de 842.026.
+    ⚠️ **What has NO signal goes behind everything that does**, ordered by `rank` among themselves.
+    Over the English pack that is **95.5 %** of the lemmas: the list covers 38,067 of 842,026.
 
-    ⚠️ **Se devuelve un conjunto de `norm` y no de ids, a proposito.** Asi un homografo entra
-    entero o no entra: quedarse con la mitad de `banco` seria perder una acepcion sin ningun aviso.
+    ⚠️ **A set of `norm` is returned and not of ids, on purpose.** That way a homograph gets in
+    whole or not at all: keeping half of `banco` would lose a sense with no warning.
 
-    ⚠️ **El presupuesto se estima, no se mide.** El archivo pesa mas que sus payloads --indices,
-    FTS y la tabla de formas-- asi que se escala por la proporcion que tiene el pack de origen.
-    Medido: el espanol pesa 7,2x sus payloads (lo domina `form`, 44,6 % del archivo) y el ingles
-    3,8x (lo domina `entry`). Son dos formas distintas y por eso el factor sale del pack y no de
-    una constante.
+    ⚠️ **The budget is estimated, not measured.** The file weighs more than its payloads --indexes,
+    FTS and the forms table-- so it is scaled by the ratio the source pack has. Measured: Spanish
+    weighs 7.2x its payloads (`form` dominates it, 44.6 % of the file) and English 3.8x (`entry`
+    dominates). They are two different shapes, which is why the factor comes from the pack and not
+    from a constant.
     """
     origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
     try:
@@ -149,9 +147,9 @@ def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
                 vocabulario.add(norm)
             return vocabulario
 
-        # ⚠️ **Por LEMA y no por fila**, y esa es la diferencia con el modo sin lista. Un
-        # homografo entra entero (`banco` asiento y `banco` entidad), asi que lo que cuesta es la
-        # suma de sus payloads; cobrar fila por fila mezclaba el orden de dos lemas distintos.
+        # ⚠️ **By LEMMA and not by row**, and that is the difference from the listless mode. A
+        # homograph gets in whole (`banco` the bench and `banco` the bank), so what it costs is the
+        # sum of its payloads; charging row by row mixed the order of two different lemmas.
         coste = {}
         mejor_rank = {}
         for norm, plen, rank in filas:
@@ -175,46 +173,47 @@ def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
 
 
 def _meta_del_nivel(meta, tier, cobertura=None, lemas=None):
-    """La meta de un nivel derivado: la del completo, mas lo que lo declara subconjunto."""
+    """A derived tier's meta: the full one's, plus what declares it a subset."""
     if tier not in NIVELES:
         raise ValueError("nivel desconocido %r; los que hay son %s" % (tier, ", ".join(NIVELES)))
     salida = {k: v for k, v in meta.items() if k not in DERIVADAS}
     completo = salida["pack_id"]
-    # ⚠️ **La identidad es IDIOMA + NIVEL, no las fuentes.** Antes era
-    # `es-def-wikc-tat-freq-wn-wd`, o sea la lista de lo que se habia fusionado, y eso hace que
-    # **anadir una fuente cambie la identidad**: el pack parece otro y la app no lo reconoce como
-    # el que ya esta instalado. Las fuentes siguen declaradas en `sources`, que es donde se
-    # consultan. Pedido: *«los packs son por idioma y en versiones»*.
+    # ⚠️ **The identity is LANGUAGE + TIER, not the sources.** It used to be
+    # `es-def-wikc-tat-freq-wn-wd`, that is, the list of what had been merged, and that makes
+    # **adding a source change the identity**: the pack looks like another one and the app does not
+    # recognize it as the one already installed. The sources are still declared in `sources`, which
+    # is where they get consulted. Asked for: *"packs are by language and in versions"*.
     idioma = (salida.get("langs") or salida.get("lang_src") or "").split(",")[0].strip()
     salida["pack_id"] = "%s-%s" % (idioma, tier) if idioma else completo + "-" + tier
-    # ⚠️ **La clave que hace que los dos puedan estar instalados sin trabajo de mas** (D-171): con
-    # el completo presente, la app no le pregunta al nucleo. Es una afirmacion de CONTENIDO, y
-    # derivando el nucleo del completo es verdadera por construccion.
+    # ⚠️ **The key that lets both be installed with no extra work** (D-171): with the full one
+    # present, the app does not ask the core. It is a claim about CONTENT, and by deriving the core
+    # from the full one it is true by construction.
     salida["subset_of"] = completo
     if cobertura is not None:
-        # La metrica que justifica el corte, en el artefacto y no en un changelog. Dos decimales
-        # porque la diferencia entre dos estrategias se juega en el primero.
+        # The metric that justifies the cut, in the artifact and not in a changelog. Two decimals
+        # because the difference between two strategies plays out in the first.
         salida["corpus_coverage"] = "%.2f" % cobertura
     if lemas is not None:
         # La segunda metrica. Ver [_fraccion_de_lemas]: la primera satura y no puede justificar
         # un nivel grande.
         salida["lemma_coverage"] = "%.2f" % lemas
-    # ⚠️ **Y `tier`, que dice lo mismo sin nombrar a nadie.** `subset_of` afirma *«soy parte de
-    # ESE pack»* y sirve cuando el completo esta instalado; `tier` afirma *«soy un nucleo»*, que
-    # es lo que hace falta para decidir sin conocer al otro. Se declaran los dos porque contestan
-    # preguntas distintas, y los dos son ciertos por construccion al derivar.
+    # ⚠️ **And `tier`, which says the same thing without naming anybody.** `subset_of` claims *"I
+    # am part of THAT pack"* and serves when the full one is installed; `tier` claims *"I am a
+    # core"*, which is what is needed to decide without knowing the other. Both are declared
+    # because they answer different questions, and both are true by construction when deriving.
     salida["tier"] = tier
-    # ⚠️ **El nivel va en el NOMBRE**, pedido explicito: *«que esto si vaya marcado en el nombre,
-    # por ejemplo español (core) o english (main)»*. Y con el token en ingles --`core`, `main`,
-    # `full`-- y no traducido, porque es el identificador del nivel y tiene que leerse igual en
-    # cualquier idioma de la interfaz.
-    # ⚠️ **Por `name_with_tier` y no por concatenacion**: el pack del que se deriva YA trae su
-    # nivel en el nombre --`build_pack` lo cierra como `Español (full)`-- asi que pegarle `(core)`
-    # encima daba `Español (full) (core)`, que es lo que se veia en el reloj.
+    # ⚠️ **The tier goes in the NAME**, an explicit request: *"do have this marked in the name, for
+    # instance español (core) or english (main)"*. And with the token in English --`core`, `main`,
+    # `full`-- and not translated, because it is the tier's identifier and has to read the same in
+    # any interface language.
+    # ⚠️ **Through `name_with_tier` and not by concatenation**: the pack it derives from ALREADY
+    # carries its tier in the name --`build_pack` closes it as `Español (full)`-- so sticking
+    # `(core)` on top gave `Español (full) (core)`, which is what was visible on the watch.
     salida["name"] = build.name_with_tier(salida.get("name", ""), tier)
-    # El credito se mueve con el contenido (D-138): el nucleo distribuye las mismas definiciones,
-    # asi que hereda las mismas fuentes. Y el corpus que ELIGIO las palabras se declara tambien,
-    # porque `sources` contesta como se armo el pack -- aunque no se distribuya una sola frase suya.
+    # The credit travels with the content (D-138): the core distributes the same definitions, so it
+    # inherits the same sources. And the corpus that CHOSE the words is declared too, because
+    # `sources` answers how the pack was assembled -- even though not one of its sentences is
+    # distributed.
     salida["sources"] = (salida.get("sources", "") +
                          "vocabulary\tTatoeba\thttps://tatoeba.org/\tCC BY 2.0 FR\t"
                          "https://creativecommons.org/licenses/by/2.0/fr/\n")
@@ -222,7 +221,7 @@ def _meta_del_nivel(meta, tier, cobertura=None, lemas=None):
 
 
 def _agrupar(origen, tabla):
-    """`entry_id -> [norm, ...]` para las entradas elegidas, en una sola pasada sobre la tabla."""
+    """`entry_id -> [norm, ...]` for the chosen entries, in a single pass over the table."""
     salida = {}
     for entry_id, norm in origen.execute(
         "SELECT entry_id, norm FROM %s WHERE entry_id IN "
@@ -233,11 +232,12 @@ def _agrupar(origen, tabla):
 
 
 def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=None):
-    """Escribe en `salida` las entradas de `completo` cuyo lema este en `vocabulario`.
+    """Writes into `salida` the entries of `completo` whose lemma is in `vocabulario`.
 
-    `cobertura` es el porcentaje de tokens del corpus que el vocabulario cubre, y **se escribe en
-    el artefacto**: un nivel que no declara su cobertura obliga a recalcularla para saber si el
-    corte fue bueno, y nadie lo hace. `verify_pack.py` la recalcula y falla si no coincide.
+    `cobertura` is the percentage of the corpus's tokens the vocabulary covers, and **it is written
+    into the artifact**: a tier that does not declare its coverage forces recomputing it to know
+    whether the cut was good, and nobody does. `verify_pack.py` recomputes it and fails on a
+    mismatch.
     """
     origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
     meta = dict(origen.execute("SELECT key, value FROM meta"))
@@ -256,11 +256,11 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
             "abre sin error y no encuentra nada" % os.path.basename(completo)
         )
 
-    # ⚠️ **Las formas se leen en UNA pasada y no una consulta por entrada, y la diferencia es
-    # entre segundos y no terminar nunca.** `form` tiene PRIMARY KEY (norm, entry_id), asi que
-    # filtrar por `entry_id` solo **no usa indice**: es un scan completo. Con 986.000 formas y
-    # 16.652 entradas seleccionadas eso son 16 mil millones de filas visitadas. Se descubrio
-    # esperando a que el pack ingles terminara, y no termino.
+    # ⚠️ **The forms are read in ONE pass and not one query per entry, and the difference is
+    # between seconds and never finishing.** `form` has PRIMARY KEY (norm, entry_id), so filtering
+    # by `entry_id` alone **uses no index**: it is a full scan. With 986,000 forms and 16,652
+    # selected entries that is 16 billion rows visited. It was discovered waiting for the English
+    # pack to finish, and it did not.
     formas_por_entrada = _agrupar(origen, "form")
     traducciones_por_entrada = _agrupar(origen, "trans")
 
@@ -278,10 +278,10 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
                 rank=rank,
                 forms=formas,
                 translations=traducciones,
-                # ⚠️ **El uid se COPIA y no se recalcula.** Es la identidad logica y la llave de
-                # join entre packs (D-055): si el nucleo recalculara su `sense_key` contando SUS
-                # homografos, una entrada con gemelo en el completo podria perderlo y quedarse con
-                # otra identidad -- que es exactamente el fallo que D-145 encontro al fusionar.
+                # ⚠️ **The uid is COPIED and not recomputed.** It is the logical identity and the
+                # join key across packs (D-055): if the core recomputed its `sense_key` counting
+                # ITS homographs, an entry with a twin in the full pack could lose it and end up
+                # with another identity -- which is exactly the failure D-145 found when merging.
                 uid=uid,
             ))
             escritos += 1
@@ -289,53 +289,53 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
     return escritos
 
 
-#: Cuantas veces se re-deriva buscando el rango. Cada vuelta es un pack escrito entero, asi que
-#: el tope existe: converge en dos o tres porque el factor real se estabiliza en cuanto se mide
-#: una vez, y seguir intentando cuesta mas de lo que afina.
+#: How many times it re-derives searching for the range. Each round is a whole pack written, so the
+#: cap exists: it converges in two or three because the real factor stabilizes as soon as it is
+#: measured once, and going on trying costs more than it refines.
 MAX_VUELTAS = 4
 
-#: A que altura del rango se apunta: **el medio**.
+#: Where in the range it aims: **the middle**.
 #:
-#: ⚠️ **La razon archivo/presupuesto NO es monotona, y por eso ninguna constante la compensa.**
-#: Medido sobre el pack español derivando a seis presupuestos:
+#: ⚠️ **The file/budget ratio is NOT monotonic, which is why no constant compensates for it.**
+#: Measured over the Spanish pack deriving at six budgets:
 #:
-#:     presupuesto   archivo   razon
-#:          10 MB     6,0 MB    0,60
-#:          20 MB    13,4 MB    0,67
-#:          30 MB    27,4 MB    0,91
-#:        37,5 MB    47,3 MB    1,26   <- el pico
-#:          45 MB    51,2 MB    1,14
-#:          60 MB    60,4 MB    1,01
+#:     budget      file      ratio
+#:      10 MB     6.0 MB      0.60
+#:      20 MB    13.4 MB      0.67
+#:      30 MB    27.4 MB      0.91
+#:    37.5 MB    47.3 MB      1.26   <- the peak
+#:      45 MB    51.2 MB      1.14
+#:      60 MB    60.4 MB      1.01
 #:
-#: Sube hasta 1,26 y vuelve a bajar: la tabla `form` crece mas rapido que los payloads --12,98
-#: flexiones por lema en español-- hasta que el vocabulario empieza a agotarse y la proporcion se
-#: normaliza. Con ese comportamiento, **la unica garantia del rango es medir el archivo y volver**,
-#: que es lo que hace [derivar_en_rango]. Apuntar al medio es lo que le deja margen de error en
-#: las dos direcciones.
+#: It rises to 1.26 and comes back down: the `form` table grows faster than the payloads --12.98
+#: inflections per lemma in Spanish-- until the vocabulary starts running out and the proportion
+#: normalizes. With that behaviour, **the only guarantee of the range is measuring the file and
+#: going back**, which is what [derivar_en_rango] does. Aiming at the middle is what leaves it room
+#: for error in both directions.
 OBJETIVO_DEL_RANGO = 0.5
 
 
 def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecuencias=None):
-    """Deriva un nivel cuyo ARCHIVO cae dentro de `[minimo_mb, maximo_mb]`.
+    """Derives a tier whose FILE falls within `[minimo_mb, maximo_mb]`.
 
-    ## Por que converge en vez de estimar una vez
+    ## Why it converges instead of estimating once
 
-    ⚠️ **El factor del pack de origen NO es el del derivado, y eso hacia que el rango no se
-    cumpliera.** `vocabulario_por_presupuesto` escala los payloads por `tamaño / suma(payloads)`
-    del **completo**; el derivado tiene otra proporcion --se lleva las formas de sus lemas pero
-    no las de los demas, y los indices crecen distinto-- asi que pedir 25 MB daba **17,7**, por
-    debajo del minimo del rango.
+    ⚠️ **The source pack's factor is NOT the derived one's, and that made the range go unmet.**
+    `vocabulario_por_presupuesto` scales the payloads by the **full** pack's `size /
+    sum(payloads)`; the derived one has another ratio --it takes its own lemmas' forms but not the
+    others', and the indexes grow differently-- so asking for 25 MB gave **17.7**, below the
+    range's minimum.
 
-    Un nivel corto no esta mal por el tamaño: esta mal porque **el rango es el requisito** y el
-    artefacto no lo cumple. Y el factor real solo se conoce **midiendo el archivo**, asi que se
-    deriva, se mide, se corrige y se vuelve.
+    A short tier is not wrong because of its size: it is wrong because **the range is the
+    requirement** and the artifact does not meet it. And the real factor is only known by
+    **measuring the file**, so it derives, measures, corrects and goes round again.
 
-    ## Que devuelve
+    ## What it returns
 
-    Un informe con `en_rango`, `mb`, `vueltas` y, si no se pudo, `motivo`. ⚠️ **No poder no es un
-    error**: un `full` mas chico que el minimo del nivel significa que ese nivel no tiene sentido
-    para ese idioma, y eso se dice en vez de callarse -- si saliera callado, el rango dejaria de
-    significar algo.
+    A report with `en_rango`, `mb`, `vueltas` and, if it could not be done, `motivo`. ⚠️ **Not
+    being able to is not an error**: a `full` smaller than the tier's minimum means that tier makes
+    no sense for that language, and that gets said rather than swallowed -- if it came out silent,
+    the range would stop meaning anything.
     """
     objetivo_mb = minimo_mb + (maximo_mb - minimo_mb) * OBJETIVO_DEL_RANGO
     presupuesto = objetivo_mb
@@ -347,24 +347,25 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
         derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
         mb = os.path.getsize(salida) / 1048576
         informe.update(mb=mb, vueltas=vuelta, cobertura=cobertura, lemas=lemas,
-                       # ⚠️ **`palabras` y no `entradas`, y el rotulo importa.** Esto es el
-                       # tamano del VOCABULARIO elegido --`count(DISTINCT norm)` en el pack que
-                       # sale-- y no las filas de `entry`, que son mas porque un lema con dos
-                       # categorias son dos entradas. Medido sobre `es-core`: 39.021 palabras,
-                       # 41.219 lemas distintos y **48.292 filas**, que es lo que declara
-                       # `meta.entry_count`. Llamar "entradas" al primero hizo que el numero del
-                       # changelog pareciera contradecir al del artefacto, y costo una sesion
-                       # dejarlo escrito como inexplicado.
+                       # ⚠️ **`palabras` and not `entradas`, and the label matters.** This is the
+                       # size of the chosen VOCABULARY --`count(DISTINCT norm)` in the pack that
+                       # comes out-- and not `entry`'s rows, which are more because a lemma with
+                       # two categories is two entries. Measured over `es-core`: 39,021 words,
+                       # 41,219 distinct lemmas and **48,292 rows**, which is what
+                       # `meta.entry_count` declares. Calling the first "entries" made the
+                       # changelog's number look as if it contradicted the artifact's, and it cost
+                       # a session to leave it written as unexplained.
                        palabras=len(vocabulario))
         if minimo_mb <= mb <= maximo_mb:
             informe["en_rango"] = True
             return informe
         if mb < minimo_mb and _es_el_pack_entero(completo, vocabulario):
-            # No hay mas vocabulario que meter: el `full` no llega al minimo de este nivel.
+            # There is no more vocabulary to put in: the `full` does not reach this tier's minimum.
             informe["motivo"] = ("todo el pack entra y pesa %.1f MB, por debajo del minimo de "
                                  "%.1f MB" % (mb, minimo_mb))
             return informe
-        # El factor real se mide del archivo que acaba de salir. Es la unica forma de saberlo.
+        # The real factor is measured from the file that has just come out. It is the only way to
+        # know it.
         presupuesto *= objetivo_mb / mb if mb else 2.0
     informe["motivo"] = "no convergio en %d vueltas (ultimo: %.1f MB)" % (MAX_VUELTAS, informe["mb"])
     return informe
@@ -380,17 +381,17 @@ def _es_el_pack_entero(completo, vocabulario):
 
 
 def _fraccion_de_lemas(completo, vocabulario):
-    """Que porcentaje de los lemas del pack completo se lleva este nivel.
+    """What percentage of the full pack's lemmas this tier takes.
 
-    ⚠️ **Es la SEGUNDA metrica, y hace falta porque la primera satura.** `corpus_coverage` deja
-    de moverse pasadas las ~50.000 palabras que la lista atestigua: medido, el ingles llega a su
-    techo de 96,63 % en **57,6 MB**, asi que los 130 MB de `main` compran **cero** cobertura por
-    esa vara. Lo que compran es encontrar lo raro -- la palabra que no esta en ningun corpus de
-    subtitulos y que alguien igual va a buscar-- y eso es justamente lo que esta mide.
+    ⚠️ **It is the SECOND metric, and it is needed because the first saturates.**
+    `corpus_coverage` stops moving past the ~50,000 words the list attests: measured, English
+    reaches its ceiling of 96.63 % at **57.6 MB**, so `main`'s 130 MB buy **zero** coverage by that
+    yardstick. What they buy is finding the rare -- the word that is in no subtitle corpus and that
+    somebody will look up anyway -- and that is precisely what this one measures.
 
-    No pretende ser una probabilidad: es una fraccion del diccionario, monotona y verificable.
-    Una metrica ponderada por "que tan probable es que alguien la busque" necesitaria un corpus
-    que hoy no existe, y decirlo es mejor que inventar un numero.
+    It does not claim to be a probability: it is a fraction of the dictionary, monotonic and
+    verifiable. A metric weighted by "how likely somebody is to look it up" would need a corpus
+    that does not exist today, and saying so beats inventing a number.
     """
     origen = sqlite3.connect("file:%s?mode=ro" % completo, uri=True)
     try:
@@ -401,11 +402,12 @@ def _fraccion_de_lemas(completo, vocabulario):
 
 
 def _frecuencias_de(argv):
-    """La lista de frecuencias, o `None` avisando lo que eso cuesta.
+    """The frequency list, or `None` warning what that costs.
 
-    ⚠️ **Sin la lista el nivel sale medible pero PEOR**, y por eso se avisa en vez de callarlo.
-    Medido: el corte por `rank` pierde entre 0,97 y 1,53 puntos de cobertura contra el corte por
-    frecuencia, y ademas mete menos lemas. Ver [vocabulario_por_presupuesto].
+    ⚠️ **Without the list the tier comes out measurable but WORSE**, which is why it warns rather
+    than swallowing it. Measured: cutting by `rank` loses between 0.97 and 1.53 points of coverage
+    against cutting by frequency, and it also puts in fewer lemmas. See
+    [vocabulario_por_presupuesto].
     """
     if "--frecuencias" in argv:
         return frecuencias_por_norm(argv[argv.index("--frecuencias") + 1])
@@ -415,16 +417,16 @@ def _frecuencias_de(argv):
 
 
 def main(argv):
-    """Tres modos, y el de RANGO es el que usan los niveles de D-215.
+    """Three modes, and the RANGE one is what D-215's tiers use.
 
-        build_core.py <completo.db> <salida.db> --rango-mb 25 50 --tier core   # el del pipeline
-        build_core.py <completo.db> <salida.db> --budget-mb 50 --tier core     # un techo, sin rango
-        build_core.py <completo.db> <salida.db> <corpus.tsv> [--top N]         # el modo original
+        build_core.py <full.db> <out.db> --rango-mb 25 50 --tier core   # the pipeline's
+        build_core.py <full.db> <out.db> --budget-mb 50 --tier core     # a ceiling, no range
+        build_core.py <full.db> <out.db> <corpus.tsv> [--top N]         # the original mode
 
-    ⚠️ **`--budget-mb` sigue existiendo para explorar la curva, no para publicar.** Estima una
-    sola vez escalando los payloads por la proporcion del pack de ORIGEN, que no es la del
-    derivado: pedir 25 MB dio **17,7**. Medir seis presupuestos con el sale barato y es asi como
-    se validaron los rangos; construir un nivel publicable con el no garantiza nada.
+    ⚠️ **`--budget-mb` still exists to explore the curve, not to publish.** It estimates once,
+    scaling the payloads by the SOURCE pack's ratio, which is not the derived one's: asking for
+    25 MB gave **17.7**. Measuring six budgets with it is cheap and that is how the ranges were
+    validated; building a publishable tier with it guarantees nothing.
     """
     if len(argv) < 3:
         sys.stderr.write(__doc__)
@@ -444,18 +446,19 @@ def main(argv):
                  else ", cubre %.2f %% del corpus y %.2f %% de los lemas"
                       % (informe["cobertura"], informe["lemas"])))
         if not informe["en_rango"]:
-            # ⚠️ **Exit 1 y no un aviso.** El pipeline encadena sobre lo que el paso anterior
-            # dejo, y salir 0 con un artefacto fuera de rango dice *esto cumple* de un pack que
-            # no cumple -- que es exactamente la clase de fallo que este repo no puede ver.
+            # ⚠️ **Exit 1 and not a warning.** The pipeline chains onto what the previous step
+            # left, and exiting 0 with an out-of-range artifact says *this complies* about a pack
+            # that does not -- which is exactly the class of failure this repo cannot see.
             print("  ✗  fuera de rango: %s" % informe["motivo"], file=sys.stderr)
             return 1
         return 0
 
     if "--budget-mb" in argv:
         presupuesto = float(argv[argv.index("--budget-mb") + 1])
-        # ⚠️ **Sin la lista el nivel sale medible pero PEOR**, y por eso se avisa. Medido: el
-        # corte por `rank` pierde entre 0,97 y 1,53 puntos de cobertura contra el corte por
-        # frecuencia, y ademas mete menos lemas. Ver `vocabulario_por_presupuesto`.
+        # ⚠️ **Without the list the tier comes out measurable but WORSE**, which is why it warns.
+        # Measured: cutting by `rank` loses between 0.97 and 1.53 points of coverage against
+        # cutting by frequency, and it also puts in fewer lemmas. See
+        # `vocabulario_por_presupuesto`.
         frecuencias = _frecuencias_de(argv)
         vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
         cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
@@ -464,8 +467,8 @@ def main(argv):
         print("%s: %d entradas, %.1f MB (presupuesto %.0f MB, nivel %s)%s"
               % (os.path.basename(salida), escritos, real, presupuesto, tier,
                  "" if cobertura is None else ", cubre %.2f %% del corpus" % cobertura))
-        # ⚠️ El presupuesto se ESTIMA escalando los payloads, asi que el archivo real puede
-        # pasarse. Se avisa en vez de callarlo: quien lo corre decide si baja el numero.
+        # ⚠️ The budget is ESTIMATED by scaling the payloads, so the real file can overshoot. It
+        # warns rather than swallowing it: whoever runs it decides whether to lower the number.
         if real > presupuesto * 1.1:
             print("  ⚠️  se paso un %.0f %% del presupuesto" % (100 * real / presupuesto - 100),
                   file=sys.stderr)

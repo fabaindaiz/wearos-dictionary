@@ -1,19 +1,20 @@
-"""Case folding fijado: la operacion que el estandar define para *caseless matching*.
+"""Pinned case folding: the operation the standard defines for *caseless matching*.
 
-ESTE ARCHIVO TIENE UN ESPEJO: dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/CaseFolding.kt
+THIS FILE HAS A MIRROR: dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/CaseFolding.kt
 
-⚠️ **Lee la tabla generada en vez de llamar a `str.casefold()`, y eso es el punto.** Python tiene
-`casefold()` y Java **no**: lo unico que lo ofrece es ICU, y D-003 prohibe los datos Unicode de la
-plataforma porque cada Android trae su version --14.773 code points se clasificaban distinto entre
-relojes. Si este lado llamara a la funcion y el otro leyera la tabla, los dos se separarian el dia
-que cambie la version de Python, **sin error y sin log**.
+⚠️ **It reads the generated table instead of calling `str.casefold()`, and that is the point.**
+Python has `casefold()` and Java does **not**: the only thing that offers it is ICU, and D-003
+forbids the platform's Unicode data because every Android ships its own version --14,773 code
+points classified differently between watches. If this side called the function and the other read
+the table, the two would drift apart the day Python's version changes, **with no error and no
+log**.
 
-El estandar es explicito (regla R4, seccion 3.13): `toLowerCase()` es **case mapping**, para
-MOSTRAR texto; `toCaseFold()` es **case folding**, para COMPARARLO. Medido sobre el repertorio
-fijado, **242 de 133.730 code points** difieren: `ß`→`ss`, `ſ`→`s`, `ς`→`σ`.
+The standard is explicit (rule R4, section 3.13): `toLowerCase()` is **case mapping**, to DISPLAY
+text; `toCaseFold()` is **case folding**, to COMPARE it. Measured over the pinned repertoire, **242
+of 133,730 code points** differ: `ß`→`ss`, `ſ`→`s`, `ς`→`σ`.
 
-Se genera con `python3 tools/unicode/gen_casefold.py`, que aborta si el Python que lo corre no
-trae la version de Unicode a la que esta fijado el repertorio.
+It is generated with `python3 tools/unicode/gen_casefold.py`, which aborts if the Python running it
+does not ship the Unicode version the repertoire is pinned to.
 """
 
 import os
@@ -50,11 +51,11 @@ PAIR_COUNT = int(HEADER["pairs"])
 
 
 def fold(text):
-    """`toCaseFold()` sobre el repertorio fijado: minusculas y despues la tabla.
+    """`toCaseFold()` over the pinned repertoire: lowercase first, then the table.
 
-    `lower()` va primero porque resuelve la inmensa mayoria de los casos identico en los dos
-    lenguajes --D-004 lo midio, cero diferencias sobre 133.730 code points-- y la tabla corrige
-    los que el estandar pide distinto.
+    `lower()` goes first because it resolves the vast majority of cases identically in both
+    languages --D-004 measured it, zero differences over 133,730 code points-- and the table
+    corrects the ones the standard asks for differently.
     """
     bajo = text.lower()
     if not TABLE:

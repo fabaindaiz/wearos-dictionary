@@ -1,18 +1,18 @@
-"""Construye un pack de diccionario (.db) a partir de un flujo de registros.
+"""Builds a dictionary pack (.db) from a stream of records.
 
-Uso como libreria:
+Use as a library:
 
     from build import PackBuilder, Record
     with PackBuilder("es-en.db", metadata) as builder:
         for record in mi_fuente():
             builder.add(record)
 
-El builder trabaja en dos pasadas sobre una tabla de staging dentro del mismo archivo, nunca
-en memoria: las fuentes reales son de gigabytes (el JSONL de ingles de kaikki.org son 2.9 GB)
-y no caben. La pasada 1 escribe los cuerpos sin comprimir y toma una muestra; con la muestra se
-arma el diccionario de compresion compartido; la pasada 2 comprime y llena `entry` y `fts_def`.
+The builder works in two passes over a staging table inside the same file, never in memory: the
+real sources are gigabytes (kaikki.org's English JSONL is 2.9 GB) and do not fit. Pass 1 writes the
+bodies uncompressed and takes a sample; the shared compression dictionary is built from that
+sample; pass 2 compresses and fills `entry` and `fts_def`.
 
-Los indices se crean al final, sobre las tablas ya pobladas.
+The indexes are created at the end, over the already populated tables.
 """
 
 import hashlib
@@ -27,58 +27,58 @@ import payload as payload_codec
 
 SCHEMA_VERSION = 4
 
-# Receta con la que se calcula entry.uid, la identidad LOGICA de una entrada (D-055).
+# The recipe entry.uid, an entry's LOGICAL identity, is computed with (D-055).
 #
-# entry.id es identidad FISICA: el rowid local, que comparte fts_def y al que apuntan form y
-# trans. Es barato justamente por ser secuencial, y **no sobrevive a reconstruir el pack**:
-# una palabra nueva en el medio corre todos los ids siguientes.
+# entry.id is PHYSICAL identity: the local rowid, which fts_def shares and which form and trans
+# point at. It is cheap precisely for being sequential, and **it does not survive rebuilding the
+# pack**: one new word in the middle shifts every following id.
 #
-# entry.uid es identidad logica: sobrevive al rebuild, y es por donde un pack auxiliar (sinonimos,
-# traducciones) le suma informacion a la misma entrada de este pack.
+# entry.uid is logical identity: it survives the rebuild, and it is how an auxiliary pack
+# (synonyms, translations) adds information to this pack's same entry.
 #
-# Lo calcula SOLO el builder. La app nunca lo recalcula: lo lee de la fila y lo usa como clave
-# de lookup en el pack auxiliar. Por eso, a diferencia de norm()/fuzzy(), NO es un contrato
-# espejado entre dos lenguajes y no puede divergir. Si alguna vez hiciera falta calcularlo en
-# Kotlin, deja de ser cierto y vuelve la clase de bug que D-005 existe para evitar.
+# ONLY the builder computes it. The app never recomputes it: it reads it from the row and uses it
+# as a lookup key in the auxiliary pack. So, unlike norm()/fuzzy(), it is NOT a contract mirrored
+# between two languages and cannot diverge. If it ever had to be computed in Kotlin, that stops
+# being true and the class of bug D-005 exists to avoid comes back.
 #
-# Si la receta cambia, cambia este identificador: los packs auxiliares construidos con la
-# anterior quedan huerfanos y tienen que poder detectarlo.
+# If the recipe changes, this identifier changes: the auxiliary packs built with the previous one
+# are orphaned and have to be able to detect it.
 UID_RECIPE = "uid-v1"
 
-# Tamano de la muestra con la que se arma el diccionario de compresion. Mas muestra no mejora
-# mucho porque el diccionario tope es de 32 KB igual.
+# Size of the sample the compression dictionary is built from. More sample does not improve much
+# because the dictionary caps at 32 KB anyway.
 DICTIONARY_SAMPLE_SIZE = 4000
 
-# Tope de entradas por clave de traduccion inversa.
+# Cap on entries per reverse translation key.
 #
-# Las traducciones son frases ("to run", "all of a sudden") y se indexa cada palabra por
-# separado, si no buscar "run" no encontraria nada. El efecto colateral es que las palabras
-# funcionales ("to", "of", "a") terminan apuntando a decenas de miles de entradas: infla el
-# indice y no le sirve a nadie.
+# Translations are phrases ("to run", "all of a sudden") and each word is indexed separately, or
+# searching "run" would find nothing. The side effect is that function words ("to", "of", "a") end
+# up pointing at tens of thousands of entries: it inflates the index and helps nobody.
 #
-# Se topea en vez de descartar la clave: buscar "to" sigue devolviendo algo util (los verbos
-# mas frecuentes) en lugar de nada. Se conservan las de mejor rank.
+# It is capped rather than discarding the key: searching "to" still returns something useful (the
+# most frequent verbs) instead of nothing. The best ranked ones are kept.
 TRANS_MAX_PER_KEY = 50
 
 
 def stable_uid(lang, headword, pos, sense_key=None):
-    """Identidad logica de una entrada: estable entre rebuilds y entre packs. Ver UID_RECIPE.
+    """An entry's logical identity: stable across rebuilds and across packs. See UID_RECIPE.
 
-    Se calcula sobre el headword **crudo** (no sobre `norm`) a proposito: asi no depende de
-    NORM_VERSION, y subir las reglas de normalizacion no invalida los packs auxiliares. Ademas
-    distingue "arbol" de "árbol", que son dos entradas distintas aunque normalicen igual.
+    It is computed over the **raw** headword (not over `norm`) on purpose: that way it does not
+    depend on NORM_VERSION, and raising the normalization rules does not invalidate the auxiliary
+    packs. It also distinguishes "arbol" from "árbol", which are two different entries even though
+    they normalize the same.
 
-    `sense_key` desambigua homografos que comparten headword Y pos (distinta etimologia). La
-    fuente lo entrega si lo tiene; si dos entradas quedan con la misma identidad, el build falla
-    en vez de fundirlas.
+    `sense_key` disambiguates homographs sharing a headword AND a pos (different etymology). The
+    source supplies it if it has it; if two entries end up with the same identity, the build fails
+    rather than fusing them.
 
-    Devuelve 63 bits sin signo: entra en un INTEGER de SQLite y nunca es negativo.
+    It returns 63 unsigned bits: it fits in a SQLite INTEGER and is never negative.
     """
     material = "\x1f".join(
         (
             lang,
-            # NFC fija la forma de composicion: dos fuentes pueden entregar "á" precompuesta o
-            # descompuesta, y serian bytes distintos para la misma palabra.
+            # NFC pins the composition form: two sources can deliver "á" precomposed or
+            # decomposed, and those would be different bytes for the same word.
             unicodedata.normalize("NFC", headword),
             (pos or "").strip().lower(),
             sense_key or "",
@@ -87,38 +87,38 @@ def stable_uid(lang, headword, pos, sense_key=None):
     return int.from_bytes(hashlib.sha256(material.encode("utf-8")).digest()[:8], "big") >> 1
 
 
-# ⚠️ **Separador `,` y no `+`**: `meta` es TEXT y estas dos claves son listas. La coma es lo que
-# ya usa `meta.sources`, asi que el lector del reloj no aprende una convencion nueva.
+# ⚠️ **Separator `,` and not `+`**: `meta` is TEXT and these two keys are lists. The comma is what
+# `meta.sources` already uses, so the watch's reader learns no new convention.
 _SEPARADOR_DE_LISTA = ","
 
 
 def _parse_langs(crudo):
-    """Los idiomas del pack, en orden de declaracion. `"es,en"` -> `["es", "en"]`."""
+    """The pack's languages, in declaration order. `"es,en"` -> `["es", "en"]`."""
     if not crudo:
         return []
     vistos = []
     for parte in crudo.split(_SEPARADOR_DE_LISTA):
         lang = parte.strip()
-        # Repetir un idioma no es un error del usuario sino un bug del que arma la metadata:
-        # duplicaria el perfil fuzzy y el idioma por defecto seguiria siendo el primero.
+        # Repeating a language is not a user error but a bug in whoever assembles the metadata:
+        # it would duplicate the fuzzy profile and the default language would still be the first.
         if lang and lang not in vistos:
             vistos.append(lang)
     return vistos
 
 
 def _parse_profiles(crudo, langs, unico=None):
-    """`{idioma: perfil fuzzy}`.
+    """`{language: fuzzy profile}`.
 
-    Acepta tres formas, de la mas explicita a la mas comoda:
+    It accepts three shapes, from the most explicit to the most convenient:
 
-    - `"es,en"` en `meta.fuzzy_profiles`, **posicional contra `langs`** -- es lo que escribe un
-      pack bidireccional;
-    - `fuzzy_profile=` o `meta.fuzzy_profile`, un solo perfil para todos los idiomas;
-    - nada, y cae en `generic`.
+    - `"es,en"` in `meta.fuzzy_profiles`, **positional against `langs`** -- it is what a
+      bidirectional pack writes;
+    - `fuzzy_profile=` or `meta.fuzzy_profile`, one profile for every language;
+    - nothing, and it falls back to `generic`.
 
-    ⚠️ **Posicional y no un mapa `es=es`**: el perfil de un idioma no siempre se llama como el
-    idioma --hay `generic`-- y un mapa obligaria a repetir la clave. Que las dos listas tengan
-    el mismo largo lo comprueba esta funcion, que es donde un desajuste todavia es barato.
+    ⚠️ **Positional and not an `es=es` map**: a language's profile is not always named after the
+    language --there is `generic`-- and a map would force repeating the key. That both lists have
+    the same length is checked by this function, which is where a mismatch is still cheap.
     """
     if crudo:
         perfiles = [p.strip() for p in crudo.split(_SEPARADOR_DE_LISTA)]
@@ -131,14 +131,14 @@ def _parse_profiles(crudo, langs, unico=None):
 
 
 class Record:
-    """Una entrada lista para indexar, tal como la entrega una fuente.
+    """An entry ready to index, as a source delivers it.
 
-    `forms` son las formas flexionadas que deben llevar a este lema (sin incluir el lema).
-    `translations` son las palabras del idioma destino por las que se debe poder llegar.
-    Ambas se normalizan aca: la fuente entrega texto crudo.
+    `forms` are the inflected forms that must lead to this lemma (not including the lemma).
+    `translations` are the target language's words by which it must be reachable. Both are
+    normalized here: the source delivers raw text.
 
-    `sense_key` solo hace falta cuando la fuente trae dos entradas con el mismo headword y el
-    mismo pos (tipicamente, distinta etimologia): es lo que las separa en entry.uid. Ver
+    `sense_key` is only needed when the source brings two entries with the same headword and the
+    same pos (typically, a different etymology): it is what separates them in entry.uid. See
     stable_uid().
     """
 
@@ -172,7 +172,7 @@ class Record:
     ):
         self.headword = headword
         self.senses = senses
-        # None = el idioma primario del pack. Solo una fuente bidireccional lo llena.
+        # None = the pack's primary language. Only a bidirectional source fills it.
         self.lang = lang
         self.part_of_speech = part_of_speech
         self.rank = rank
@@ -181,29 +181,30 @@ class Record:
         #: `forms`, which feeds the normalized search.
         self.display_forms = display_forms
         self.translations = translations
-        # Traducciones de la PALABRA, sin acepcion. Van al payload (tag `W`) y NO a `trans`
-        # por si solas: `translations` es el canal de busqueda y lleva la union de las dos.
+        # Translations of the WORD, with no sense. They go to the payload (tag `W`) and NOT to
+        # `trans` on their own: `translations` is the search channel and carries the union of both.
         self.word_translations = word_translations
         self.sense_key = sense_key
         self.uid = uid
 
 
-#: Los niveles que un pack puede declarar. En ingles y sin traducir: es el identificador del
-#: nivel y tiene que leerse igual en cualquier idioma de la interfaz (D-215).
+#: The tiers a pack can declare. In English and untranslated: it is the tier's identifier and has
+#: to read the same in any interface language (D-215).
 TIERS = ("core", "main", "full")
 
 
 def name_with_tier(name, tier):
-    """El nombre del pack con **exactamente un** token de nivel al final.
+    """The pack's name with **exactly one** tier token at the end.
 
-    ⚠️ **Existe porque el nivel se estampaba en dos lugares y el segundo no miraba al primero.**
-    `build_pack` cierra el pack completo con `"%s (full)" % name` y `build_core` deriva de ese
-    pack y le pega `(core)` encima, asi que el nucleo salia llamandose **`Español (full) (core)`**
-    --visto en la pantalla de diccionarios del reloj, y las dos mitades son ciertas: derivo de
-    uno `full` y es un `core`--. Lo que el usuario lee tiene que decir **una** cosa.
+    ⚠️ **It exists because the tier was stamped in two places and the second did not look at the
+    first.** `build_pack` closes the full pack with `"%s (full)" % name` and `build_core` derives
+    from that pack and sticks `(core)` on top, so the core came out called **`Español (full)
+    (core)`** --seen on the watch's dictionaries screen, and both halves are true: it derived from
+    a `full` one and it is a `core`--. What the user reads has to say **one** thing.
 
-    La regla: se saca cualquier nivel que ya traiga el final del nombre y se pone el que toca.
-    Asi da igual si el nombre viene limpio o heredado, que es justo lo que no se podia asumir.
+    The rule: any tier the end of the name already carries is removed and the right one is put on.
+    That way it does not matter whether the name comes in clean or inherited, which is exactly what
+    could not be assumed.
 
     >>> name_with_tier("Espanol", "full")
     'Espanol (full)'
@@ -213,8 +214,8 @@ def name_with_tier(name, tier):
     'Espanol (core)'
     """
     base = (name or "").strip()
-    # Solo el ULTIMO token, y solo si es un nivel conocido: un pack que se llame "Griego (koine)"
-    # no puede perder su parentesis por parecerse a esto.
+    # Only the LAST token, and only if it is a known tier: a pack called "Griego (koine)" cannot
+    # lose its parenthesis for resembling this.
     for conocido in TIERS:
         sufijo = " (%s)" % conocido
         if base.endswith(sufijo):
@@ -224,20 +225,20 @@ def name_with_tier(name, tier):
 
 
 def data_version(ahora=None):
-    """La version del pack: AAAAMMDDHHMM, como entero en un string.
+    """The pack's version: YYYYMMDDHHMM, as an integer in a string.
 
-    Tres cosas a la vez, y ninguna se puede sacrificar:
+    Three things at once, and none can be sacrificed:
 
-    - **Ordena.** Un instalador tiene que poder decir cual de dos packs es mas nuevo comparando
-      numeros, sin parsear fechas.
-    - **Se lee.** `202609211432` es "21 de septiembre de 2026, 14:32" sin convertidor. Un epoch
-      tambien ordenaria y nadie podria leerlo de un vistazo, que era justo lo pedido.
-    - **Distingue dos builds del mismo dump.** Al minuto, que es de sobra: un build tarda
-      minutos, asi que dos no caen nunca en el mismo.
+    - **It orders.** An installer has to be able to say which of two packs is newer by comparing
+      numbers, without parsing dates.
+    - **It reads.** `202609211432` is "21 September 2026, 14:32" with no converter. An epoch would
+      order too and nobody could read it at a glance, which was exactly what was asked for.
+    - **It distinguishes two builds of the same dump.** To the minute, which is ample: a build
+      takes minutes, so two never land on the same one.
 
-    ⚠️ **No entra en un Int de 32 bits** (202609211432 > 2.147.483.647). La app lo parsea como
-    `Long`; si alguien lo vuelve `Int`, el pack revienta al ABRIR en el reloj con un
-    NumberFormatException que no nombra la clave. Hay un test que lo fija.
+    ⚠️ **It does not fit in a 32-bit Int** (202609211432 > 2,147,483,647). The app parses it as a
+    `Long`; if somebody turns it into an `Int`, the pack blows up on OPENING on the watch with a
+    NumberFormatException that does not name the key. A test pins that.
     """
     if ahora is None:
         t = time.gmtime()
@@ -248,19 +249,19 @@ def data_version(ahora=None):
 class PackBuilder:
     def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
                  thesaurus=None):
-        """`metadata` son las claves de la tabla meta que aporta la fuente.
+        """`metadata` are the meta table keys the source contributes.
 
-        El builder agrega por su cuenta las que son suyas (versiones, conteo, fecha) y falla si
-        la fuente intenta declararlas: una version de esquema escrita a mano seria una forma
-        silenciosa de romper la validacion del lado del reloj.
+        The builder adds its own (versions, count, date) and fails if the source tries to declare
+        them: a hand-written schema version would be a silent way of breaking validation on the
+        watch's side.
 
-        `sentences` es el mapa `norm -> frase` de un corpus (D-137). Se resuelve en `finish()` y
-        no aca **porque la condicion que lo vuelve seguro solo se puede evaluar al final**: que
-        la palabra lleve a una sola entrada del pack. Ver `_frases_por_entrada`.
+        `sentences` is a corpus's `norm -> sentence` map (D-137). It is resolved in `finish()` and
+        not here **because the condition that makes it safe can only be evaluated at the end**:
+        that the word leads to a single entry of the pack. See `_frases_por_entrada`.
 
-        `thesaurus` es el mapa `(lema, pos) -> {"synonyms": [...], "antonyms": [...]}` de WordNet
-        (D-144). Tambien se resuelve en `finish()`, y por un motivo parecido: el filtro que saca
-        las flexiones disfrazadas de sinonimo necesita la tabla `form` completa.
+        `thesaurus` is WordNet's `(lemma, pos) -> {"synonyms": [...], "antonyms": [...]}` map
+        (D-144). It is resolved in `finish()` too, and for a similar reason: the filter that
+        removes inflections disguised as synonyms needs the complete `form` table.
         """
         reserved = {
             "schema_version",
@@ -270,31 +271,30 @@ class PackBuilder:
             "entry_count",
             "built_at",
             "uid_recipe",
-            # ⚠️ **Derivado, y por eso reservado.** Era la fecha del dump escrita a mano, asi que
-            # reconstruir el MISMO dump con otro builder daba el mismo numero y `devpack.py` --y
-            # el instalador-- lo leian como "es el mismo pack": un pack mejor no se propagaba.
-            # Lo que el valor escrito significaba se declara ahora en `source_date`.
+            # ⚠️ **Derived, and therefore reserved.** It used to be the dump's date written by
+            # hand, so rebuilding the SAME dump with another builder gave the same number and
+            # `devpack.py` --and the installer-- read it as "it is the same pack": a better pack
+            # did not propagate. What the written value meant is now declared in `source_date`.
             "data_version",
         }
         conflicts = reserved & set(metadata)
         if conflicts:
             raise ValueError("estas claves de meta las escribe el builder: %s" % sorted(conflicts))
 
-        # ⚠️ **`langs` y no `lang_src`: los idiomas de un pack son PARES.** Un pack
-        # bidireccional tiene entradas de los dos y ninguno es el principal; uno monolingue
-        # declara una sola y nada cambia. El orden de la lista es orden de declaracion, no
-        # jerarquia -- lo unico que hace es fijar el idioma por defecto de un `Record` que no
-        # declare el suyo.
+        # ⚠️ **`langs` and not `lang_src`: a pack's languages are PEERS.** A bidirectional pack
+        # has entries of both and neither is the main one; a monolingual one declares a single
+        # language and nothing changes. The list's order is declaration order, not hierarchy --
+        # the only thing it does is fix the default language of a `Record` that declares none.
         self.langs = _parse_langs(metadata.get("langs"))
         if not self.langs:
-            # Entra en entry.uid: sin el, la identidad logica de dos packs de idiomas distintos
-            # podria colisionar.
+            # It goes into entry.uid: without it, the logical identity of two packs in different
+            # languages could collide.
             raise ValueError("falta meta.langs, que forma parte de entry.uid")
 
         self.path = path
         self.metadata = dict(metadata)
-        # Un perfil por idioma. `fuzzy_profile=` sigue aceptandose para el caso de un solo
-        # idioma, que es el 99 % de las llamadas y de los tests.
+        # One profile per language. `fuzzy_profile=` is still accepted for the single-language
+        # case, which is 99 % of the calls and of the tests.
         self.fuzzy_profiles = _parse_profiles(
             metadata.get("fuzzy_profiles"), self.langs,
             fuzzy_profile or metadata.get("fuzzy_profile"),
@@ -302,18 +302,18 @@ class PackBuilder:
         for perfil in self.fuzzy_profiles.values():
             if perfil not in normalize.FUZZY_PROFILES:
                 raise ValueError("perfil fuzzy desconocido: %r" % (perfil,))
-        # El del idioma primario, para lo que todavia habla de "el" perfil del pack.
+        # The primary language's, for whatever still speaks of "the" pack's profile.
         self.fuzzy_profile = self.fuzzy_profiles[self.langs[0]]
 
         if os.path.exists(path):
             os.remove(path)
         self.connection = sqlite3.connect(path)
-        # indexes.sql se corre al final, sobre las tablas ya pobladas.
+        # indexes.sql is run at the end, over the already populated tables.
         self.connection.executescript(_read_sql("schema.sql"))
         self.connection.executescript(
             """
-            -- Solo durante la construccion: el archivo se descarta si algo falla, asi que la
-            -- durabilidad no importa y esto acelera la ingesta de millones de filas.
+            -- Only while building: the file is discarded if anything fails, so durability does
+            -- not matter and this speeds up ingesting millions of rows.
             PRAGMA journal_mode = OFF;
             PRAGMA synchronous = OFF;
             CREATE TABLE staging (
@@ -328,9 +328,8 @@ class PackBuilder:
                 body     TEXT NOT NULL,
                 fts_body TEXT NOT NULL
             );
-            -- Las traducciones pasan por staging porque el tope por clave
-            -- (TRANS_MAX_PER_KEY) necesita los conteos globales, que solo se conocen cuando
-            -- termino la ingesta.
+            -- The translations go through staging because the per-key cap (TRANS_MAX_PER_KEY)
+            -- needs the global counts, which are only known once ingestion has finished.
             CREATE TABLE staging_trans (
                 norm     TEXT NOT NULL,
                 entry_id INTEGER NOT NULL,
@@ -343,24 +342,25 @@ class PackBuilder:
         self._thesaurus = thesaurus or {}
         self._sample = []
         self._sampled = 0
-        # Determinista: dos builds del mismo input dan el mismo pack.
+        # Deterministic: two builds of the same input give the same pack.
         self._random = random.Random(0)
 
     def add(self, record):
         norm_key = normalize.norm(record.headword)
         if not norm_key:
-            # Un lema que se normaliza a vacio (solo puntuacion) no se puede buscar.
+            # A lemma that normalizes to empty (punctuation only) cannot be searched.
             return
 
         body = payload_codec.render(
             record.part_of_speech, record.senses, record.word_translations,
             record.display_forms)
         if not body:
-            # Sin ninguna acepcion utilizable la entrada no tiene nada que mostrar.
+            # With no usable sense the entry has nothing to show.
             return
 
-        # El idioma de ESTA entrada decide su perfil fuzzy y entra en su uid. Un `Record` que no
-        # lo declara es del idioma primario, que es el caso de todo pack monolingue.
+        # THIS entry's language decides its fuzzy profile and goes into its uid. A `Record` that
+        # does not declare one belongs to the primary language, which is every monolingual pack's
+        # case.
         lang = record.lang or self.langs[0]
         if lang not in self.fuzzy_profiles:
             raise ValueError(
@@ -372,11 +372,11 @@ class PackBuilder:
             "INSERT INTO staging (uid, lang, headword, norm, fuzzy, pos, rank, body, fts_body)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                # ⚠️ **Un `uid` ya calculado se COPIA, no se recalcula**, y eso sólo lo usa
-                # `build_core`. Derivar un pack de otro tiene que conservar la identidad logica:
-                # `sense_key` se decide contando los homografos del pack FINAL (D-145), y un
-                # subconjunto tiene menos homografos, asi que recalcularlo le daria otra
-                # identidad a la misma palabra y rompería el join entre packs (D-055).
+                # ⚠️ **An already computed `uid` is COPIED, not recomputed**, and only
+                # `build_core` uses that. Deriving one pack from another has to preserve the
+                # logical identity: `sense_key` is decided by counting the FINAL pack's homographs
+                # (D-145), and a subset has fewer homographs, so recomputing it would give the
+                # same word another identity and break the join across packs (D-055).
                 record.uid if record.uid is not None else stable_uid(
                     lang,
                     record.headword,
@@ -397,7 +397,7 @@ class PackBuilder:
         self.count += 1
         self._collect_sample(body)
 
-        # OR IGNORE porque las fuentes traen repetidos y la PK compuesta ya los rechaza.
+        # OR IGNORE because the sources bring duplicates and the composite PK already rejects them.
         for form in record.forms:
             key = normalize.norm(form)
             if key and key != norm_key:
@@ -413,11 +413,10 @@ class PackBuilder:
 
     @staticmethod
     def _translation_keys(translations):
-        """Claves por las que se debe poder llegar a la entrada desde el idioma destino.
+        """The keys by which the entry must be reachable from the target language.
 
-        Se indexa la frase completa Y cada palabra suelta: "to run" tiene que encontrarse
-        escribiendo "run", que es lo que un usuario escribe en un reloj, y tambien escribiendo
-        "to run" completo.
+        The whole phrase AND each separate word are indexed: "to run" has to be findable by typing
+        "run", which is what a user types on a watch, and also by typing the whole "to run".
         """
         keys = set()
         for translation in translations:
@@ -431,7 +430,7 @@ class PackBuilder:
         return keys
 
     def _collect_sample(self, body):
-        """Muestreo de reservorio: muestra uniforme sin conocer el total ni guardarlo entero."""
+        """Reservoir sampling: a uniform sample without knowing the total or storing it whole."""
         self._sampled += 1
         if len(self._sample) < DICTIONARY_SAMPLE_SIZE:
             self._sample.append(body)
@@ -441,23 +440,25 @@ class PackBuilder:
                 self._sample[index] = body
 
     def _frases_por_entrada(self):
-        """Mapa `entry_id -> frase`, resuelto con el indice YA poblado (D-137).
+        """An `entry_id -> sentence` map, resolved with the index ALREADY populated (D-137).
 
-        ⚠️ **La condicion no es "la palabra aparece", es "la palabra lleva a UNA entrada".** Un
-        corpus no dice de que acepcion --ni de que lema-- es cada oracion. "vino" es un lema (la
-        bebida) y tambien una forma de "venir": colgarle "Ella vino ayer" a la bebida no lanza,
-        no loguea, no lo agarra `verify_pack.py`, y sale del pack como una definicion con un
-        ejemplo que la contradice. Es el modo de falla mas caro que tiene este repo.
+        ⚠️ **The condition is not "the word appears", it is "the word leads to ONE entry".** A
+        corpus does not say which sense --nor which lemma-- each sentence belongs to. "vino" is a
+        lemma (the drink) and also a form of "venir": hanging "Ella vino ayer" off the drink throws
+        nothing, logs nothing, is not caught by `verify_pack.py`, and comes out of the pack as a
+        definition with an example that contradicts it. It is the most expensive failure mode this
+        repo has.
 
-        Se evalua aca y no en `add()` porque **la ambiguedad es global**: cuando entra "vino" la
-        entrada de "venir" puede no existir todavia. Recien con el staging y `form` completos se
-        puede preguntar a cuantas entradas llega una clave.
+        It is evaluated here and not in `add()` because **the ambiguity is global**: when "vino"
+        comes in, "venir"'s entry may not exist yet. Only with staging and `form` complete can you
+        ask how many entries a key reaches.
 
-        Cuesta la mitad del rendimiento: de 14.023 entradas alcanzables quedan 7.019. Se paga.
+        It costs half the yield: of 14,023 reachable entries, 7,019 remain. It is paid.
 
-        Ademas solo se le pega a una entrada de **una acepcion y sin ejemplo propio**. Con varias
-        no se sabe cual ilustra (la regla de D-132 y D-135); y si ya tiene el ejemplo que la
-        fuente ATRIBUYO, ese gana: viene con acepcion, el de corpus solo contiene la palabra.
+        It is also only glued to an entry with **one sense and no example of its own**. With
+        several it is unknown which it illustrates (D-132's and D-135's rule); and if it already
+        has the example the source ATTRIBUTED, that one wins: it comes with a sense, the corpus one
+        merely contains the word.
         """
         if not self._sentences:
             return {}
@@ -465,8 +466,8 @@ class PackBuilder:
         cur.execute("CREATE TEMP TABLE frase (norm TEXT PRIMARY KEY, texto TEXT) WITHOUT ROWID")
         cur.executemany("INSERT OR IGNORE INTO frase (norm, texto) VALUES (?, ?)",
                         self._sentences.items())
-        # `HAVING COUNT(DISTINCT id) = 1` es la regla entera. La union mira lema y forma, que son
-        # los dos caminos por los que una palabra escrita llega a una entrada.
+        # `HAVING COUNT(DISTINCT id) = 1` is the whole rule. The union looks at lemma and form,
+        # which are the two paths by which a typed word reaches an entry.
         filas = cur.execute(
             """
             SELECT MIN(alcanza.id), frase.texto
@@ -483,18 +484,20 @@ class PackBuilder:
         return dict(filas)
 
     def _sumar_tesauro(self, entry_id, headword, pos, body, fts_body):
-        """Le agrega al body los sinonimos y antonimos de WordNet. Ver `sources/wordnet` (D-144).
+        """Adds WordNet's synonyms and antonyms to the body. See `sources/wordnet` (D-144).
 
-        ⚠️ **Solo para entradas de UNA acepcion.** Un synset es *una* acepcion; con varias no se
-        sabe de cual son y colgarlos de la primera es el error de D-117.
+        ⚠️ **Only for entries with ONE sense.** A synset is *one* sense; with several it is unknown
+        which they belong to and hanging them off the first is D-117's mistake.
 
-        ⚠️ **Y una flexion del propio lema NO es un sinonimo.** El MCR español se construyo
-        automaticamente y mete "coreana, coreanos, coreanas" en el synset de "coreano"; emitirlas
-        llenaria la linea del reloj con la misma palabra declinada. Se detecta contra `form`, que
-        es un dato que ya tenemos -- por eso esto corre en `finish()` y no en `add()`.
+        ⚠️ **And an inflection of the lemma itself is NOT a synonym.** The Spanish MCR was built
+        automatically and puts "coreana, coreanos, coreanas" in "coreano"'s synset; emitting them
+        would fill the watch's line with the same word declined. It is detected against `form`,
+        which is a datum we already have -- which is why this runs in `finish()` and not in
+        `add()`.
 
-        Los sinonimos van tambien a `fts_def` y los antonimos **no**, que es D-118 y D-126: un
-        sinonimo es otra forma de nombrar lo que buscas y un antonimo es lo que NO buscas.
+        The synonyms also go to `fts_def` and the antonyms do **not**, which is D-118 and D-126: a
+        synonym is another way of naming what you are looking for and an antonym is what you are
+        NOT looking for.
         """
         aporte = self._thesaurus.get((headword, pos))
         if not aporte or not _tiene_una_acepcion(body):
@@ -515,7 +518,7 @@ class PackBuilder:
         return body, fts_body
 
     def _filtrar(self, terminos, entry_id, headword, ya):
-        """Saca lo repetido, el propio lema, y las flexiones de esta misma entrada."""
+        """Removes the repeated, the lemma itself, and this same entry's inflections."""
         out = []
         cupo = MAX_TESAURO_POR_ACEPCION - len(ya)
         for termino in terminos:
@@ -542,11 +545,11 @@ class PackBuilder:
 
         dictionary = payload_codec.build_dictionary(self._sample)
 
-        # Pasada 2: comprimir y poblar entry + fts_def. Se itera con un cursor separado para no
-        # cargar el staging completo en memoria.
-        # Antes de abrir el cursor de lectura: la temp table de `_frases_por_entrada` no se puede
-        # crear ni borrar con un cursor vivo sobre staging en la misma conexion -- SQLite
-        # devuelve "database table is locked".
+        # Pass 2: compress and populate entry + fts_def. It iterates with a separate cursor so as
+        # not to load the whole staging into memory.
+        # Before opening the read cursor: `_frases_por_entrada`'s temp table cannot be created or
+        # dropped with a live cursor over staging on the same connection -- SQLite returns
+        # "database table is locked".
         frases = self._frases_por_entrada()
 
         read = self.connection.cursor()
@@ -560,14 +563,14 @@ class PackBuilder:
             body, fts_body = self._sumar_tesauro(entry_id, headword, pos, body, fts_body)
             frase = frases.get(entry_id)
             if frase and _admite_frase_de_corpus(body):
-                # El tag E se cuelga de la ULTIMA acepcion abierta, y `_admite_frase_de_corpus`
-                # ya comprobo que hay exactamente una. Se agrega al texto ya renderizado en vez
-                # de re-renderizar: el body es la unica copia y volver a armarlo seria una
-                # segunda implementacion del formato.
+                # The E tag hangs off the LAST open sense, and `_admite_frase_de_corpus` has
+                # already checked there is exactly one. It is appended to the already rendered
+                # text rather than re-rendering: the body is the only copy and reassembling it
+                # would be a second implementation of the format.
                 body = (body + payload_codec.TAG_EXAMPLE + "\t"
                         + payload_codec.sanitize(frase) + "\n")
-                # Y al indice de texto libre, o la busqueda por definicion veria un pack distinto
-                # del que se muestra. Los ejemplos ya entraban (D-118).
+                # And to the free-text index, or searching by definition would see a different
+                # pack from the one displayed. The examples already went in (D-118).
                 fts_body = (fts_body + " " + frase).strip()
             write.execute(
                 "INSERT INTO entry (id, uid, lang, headword, norm, fuzzy, pos, rank, payload)"
@@ -584,35 +587,35 @@ class PackBuilder:
                     payload_codec.compress(body, dictionary),
                 ),
             )
-            # rowid explicito: es lo que ata fts_def a entry.id, y en una tabla contentless es
-            # el unico dato que la consulta puede devolver.
+            # An explicit rowid: it is what ties fts_def to entry.id, and in a contentless table it
+            # is the only datum the query can return.
             write.execute("INSERT INTO fts_def (rowid, body) VALUES (?, ?)", (entry_id, fts_body))
 
         dropped = self._materialize_translations()
         self._write_metadata(dictionary, dropped)
 
         self.connection.executescript("DROP TABLE staging; DROP TABLE staging_trans;")
-        # Los indices se crean ahora, sobre las tablas ya pobladas.
+        # The indexes are created now, over the already populated tables.
         self.connection.executescript(_read_sql("indexes.sql"))
 
         self.connection.commit()
         self.connection.executescript("PRAGMA optimize;")
-        # VACUUM recupera las paginas que dejo libres el staging borrado y deja el archivo
-        # compacto y con las paginas en orden, que es como se va a leer en el reloj.
+        # VACUUM reclaims the pages the deleted staging freed and leaves the file compact and with
+        # its pages in order, which is how it will be read on the watch.
         self.connection.execute("VACUUM")
         self.connection.close()
         return self.count
 
     def _reject_uid_collisions(self):
-        """Dos entradas con la misma identidad logica: el build falla, no se funden.
+        """Two entries with the same logical identity: the build fails, they are not fused.
 
-        Resolver una colision aca seria peor que fallar: cualquier criterio de desempate que
-        dependa del orden de insercion rompe justo la estabilidad entre rebuilds que entry.uid
-        existe para dar. Si aparece, la fuente tiene que entregar `sense_key`.
+        Resolving a collision here would be worse than failing: any tie-break that depends on
+        insertion order breaks precisely the stability across rebuilds entry.uid exists to give.
+        If one appears, the source has to supply a `sense_key`.
 
-        Por hash: con 63 bits y un millon de entradas la probabilidad de una colision fortuita
-        es ~3e-8. En la practica esto atrapa homografos con mismo headword y mismo pos, que son
-        una colision de la *identidad*, no del hash.
+        On the hash: with 63 bits and a million entries the probability of an accidental collision
+        is ~3e-8. In practice this catches homographs with the same headword and the same pos,
+        which are a collision of the *identity*, not of the hash.
         """
         collision = self.connection.execute(
             "SELECT uid, COUNT(*) AS n, group_concat(headword || ' [' || COALESCE(pos, '') || ']')"
@@ -625,10 +628,10 @@ class PackBuilder:
             )
 
     def _materialize_translations(self):
-        """Copia staging_trans a trans aplicando el tope por clave.
+        """Copies staging_trans to trans applying the per-key cap.
 
-        Se resuelve con una sola sentencia y una funcion de ventana para no traer las claves a
-        memoria: en un pack real esto son millones de filas.
+        It is resolved with a single statement and a window function so as not to bring the keys
+        into memory: in a real pack this is millions of rows.
         """
         total = self.connection.execute("SELECT COUNT(*) FROM staging_trans").fetchone()[0]
         self.connection.execute(
@@ -656,35 +659,35 @@ class PackBuilder:
             {
                 "schema_version": str(SCHEMA_VERSION),
                 "norm_version": str(normalize.NORM_VERSION),
-                # ⚠️ **`fuzzy_profiles` en plural y posicional contra `langs`.** El singular se
-                # sigue escribiendo --es el del idioma primario-- porque `verify_pack.py` y los
-                # packs de un solo idioma lo leen, y porque un lector viejo que solo entienda el
-                # singular falla ya en `schema_version`, no aca.
+                # ⚠️ **`fuzzy_profiles` in the plural and positional against `langs`.** The
+                # singular is still written --it is the primary language's-- because
+                # `verify_pack.py` and the single-language packs read it, and because an old reader
+                # that only understands the singular fails at `schema_version` already, not here.
                 "fuzzy_profiles": _SEPARADOR_DE_LISTA.join(
                     self.fuzzy_profiles[lang] for lang in self.langs),
                 "fuzzy_profile": self.fuzzy_profile,
                 "payload_codec": payload_codec.CODEC_ID,
-                # El diccionario de compresion va en hex: la tabla meta es TEXT, y un BLOB
-                # obligaria a tratar esta clave distinto de las demas en el lector.
+                # The compression dictionary goes in hex: the meta table is TEXT, and a BLOB would
+                # force the reader to treat this key differently from the rest.
                 "payload_dict": dictionary.hex(),
-                # Integridad del diccionario: ver dictionary_digest() en payload.py.
+                # The dictionary's integrity: see dictionary_digest() in payload.py.
                 "payload_dict_sha256": payload_codec.dictionary_digest(dictionary),
-                # Con que receta se calculo entry.uid: un pack auxiliar construido con otra
-                # apunta a entradas equivocadas, y sin esto no habria como notarlo.
+                # Which recipe entry.uid was computed with: an auxiliary pack built with another
+                # points at the wrong entries, and without this there would be no way to notice.
                 "uid_recipe": UID_RECIPE,
-                # ⚠️ **`full` salvo que quien construya diga otra cosa**, y por eso el default
-                # vive aca y no en cada llamador. Lo escribe `build_core.py` como `core`.
+                # ⚠️ **`full` unless whoever builds says otherwise**, which is why the default
+                # lives here and not in each caller. `build_core.py` writes it as `core`.
                 #
-                # Existe porque hoy un nucleo se hace a un lado por `subset_of`, que un pack
-                # ajeno puede declarar mal o no declarar; `tier` dice **que es** el pack, igual
-                # que `pack_id` dice quien es (D-138). El roadmap ya lo recomendaba sobre
-                # inferirlo de que el nombre termine en `-core`, que es adivinar del nombre lo
-                # que D-138 decidio que se declara.
+                # It exists because today a core steps aside through `subset_of`, which somebody
+                # else's pack can declare wrongly or not declare at all; `tier` says **what** the
+                # pack is, just as `pack_id` says who it is (D-138). The roadmap already
+                # recommended it over inferring it from the name ending in `-core`, which is
+                # guessing from the name what D-138 decided gets declared.
                 "tier": values.get("tier", "full"),
                 "entry_count": str(self.count),
                 "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "data_version": data_version(),
-                # Para ver, con datos reales, cuanto esta recortando TRANS_MAX_PER_KEY.
+                # To see, on real data, how much TRANS_MAX_PER_KEY is trimming.
                 "trans_dropped": str(dropped_translations),
             }
         )
@@ -696,9 +699,9 @@ class PackBuilder:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        # Un pack a medio construir es peor que ninguno: se abriria sin error y devolveria
-        # resultados incompletos. Aplica tambien a los fallos de validacion de finish() --
-        # una colision de uid, por ejemplo--, que ocurren con el archivo ya casi armado.
+        # A half-built pack is worse than none: it would open with no error and return incomplete
+        # results. It applies to finish()'s validation failures too --a uid collision, for
+        # instance-- which happen with the file already nearly assembled.
         if exc_type is None:
             try:
                 self.finish()
@@ -715,8 +718,9 @@ class PackBuilder:
             os.remove(self.path)
 
 
-# Tope combinado de sinonimos mas antonimos por acepcion. Es el mismo renglon de reloj que
-# `MAX_SYNONYMS_PER_SENSE` en la fuente; aca se repite porque este merge no pasa por ahi.
+# Combined cap of synonyms plus antonyms per sense. It is the same watch line as
+# `MAX_SYNONYMS_PER_SENSE` in the source; it is repeated here because this merge does not go
+# through there.
 MAX_TESAURO_POR_ACEPCION = 4
 
 
@@ -727,10 +731,10 @@ def _tiene_una_acepcion(body):
 
 
 def _terminos_ya_presentes(body):
-    """Las claves normalizadas de los sinonimos y antonimos que el body ya trae.
+    """The normalized keys of the synonyms and antonyms the body already carries.
 
-    Normalizadas y no literales: el wiki puede traer "gelido" y WordNet "gélido", y repetirlos
-    gastaria dos renglones para decir lo mismo.
+    Normalized and not literal: the wiki can bring "gelido" and WordNet "gélido", and repeating
+    them would spend two lines to say the same thing.
     """
     out = set()
     for linea in body.split("\n"):
@@ -744,10 +748,10 @@ def _terminos_ya_presentes(body):
 
 
 def _admite_frase_de_corpus(body):
-    """El body renderizado tiene UNA acepcion y ninguna ejemplo propio.
+    """The rendered body has ONE sense and no example of its own.
 
-    Se lee del texto del payload y no de los `senses` originales porque en la pasada 2 el body es
-    lo unico que queda: el staging guarda el texto, no la estructura. Son dos conteos de lineas.
+    It is read from the payload's text and not from the original `senses` because in pass 2 the
+    body is all that is left: staging stores the text, not the structure. It is two line counts.
     """
     lineas = [linea[0] for linea in body.split("\n")
               if len(linea) > 1 and linea[1] == "\t"]
@@ -755,29 +759,29 @@ def _admite_frase_de_corpus(body):
 
 
 def _fts_body(senses):
-    """Texto que se indexa para la busqueda de texto libre.
+    """The text indexed for free-text search.
 
-    Van glosas, ejemplos, traducciones y sinonimos sin los tags del formato: los tags no son
-    palabras que alguien vaya a buscar y solo ensucian el indice.
+    Glosses, examples, translations and synonyms go in without the format's tags: the tags are not
+    words anybody will search for and they only dirty the index.
 
-    Los sinonimos entran por D-118: si solo fueran al payload, se verian recien al ABRIR una
-    entrada que ya encontraste, que es cuando ya no hacen falta. Buscar "bobo" tiene que
-    encontrar "chulengo".
+    The synonyms go in because of D-118: if they only went to the payload, they would be visible
+    only on OPENING an entry you had already found, which is when they are no longer needed.
+    Searching "bobo" has to find "chulengo".
 
-    **Los antonimos NO entran, y es una decision, no un olvido** (D-126). Buscar "frio" para
-    encontrar "caliente" no es algo que nadie haga: meterlos al indice sumaria ruido a una
-    busqueda cuyo ORDEN ya es deuda abierta (D-067), y la entrada equivocada que devolveria
-    seria ademas la que significa lo contrario de lo buscado. Hay un test que lo fija.
+    **The antonyms do NOT go in, and that is a decision, not an oversight** (D-126). Searching
+    "frio" to find "caliente" is not something anybody does: putting them in the index would add
+    noise to a search whose ORDER is already open debt (D-067), and the wrong entry it would return
+    would moreover be the one that means the opposite of what was sought. A test pins that.
 
-    **Las relacionadas tampoco entran** (D-132), por el mismo criterio: nadie escribe "camelido"
-    esperando "guanaco". Van solo al payload, donde se leen al abrir la entrada, que es cuando
-    sirven. Hay un test que lo fija.
+    **The related words do not go in either** (D-132), by the same criterion: nobody types
+    "camelido" expecting "guanaco". They go only to the payload, where they are read on opening the
+    entry, which is when they help. A test pins that.
 
-    **Y la CITA del ejemplo tampoco**, aunque el ejemplo si. Una cita es procedencia y no
-    significado: buscar "Richard Marsh" no tiene que devolver `Thomas`. Ademas seria el tercer
-    caso del error que D-117 midio --los sinonimos costaron tres veces lo estimado porque
-    `fts_def` los indexa ademas del payload-- y sobre el pack ingles las citas pesan casi lo
-    mismo. Hay un test que lo fija, por la misma razon que lo tienen los antonimos.
+    **And the example's CITATION does not either**, although the example does. A citation is
+    provenance and not meaning: searching "Richard Marsh" must not return `Thomas`. It would also
+    be the third case of the mistake D-117 measured --the synonyms cost three times the estimate
+    because `fts_def` indexes them on top of the payload-- and over the English pack the citations
+    weigh nearly as much. A test pins that, for the same reason the antonyms have one.
     """
     parts = []
     for sense in senses:

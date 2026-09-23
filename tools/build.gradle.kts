@@ -1,16 +1,16 @@
-// Mete el lado Python dentro del gate.
+// Puts the Python side inside the gate.
 //
-// Sin esto, los 35 tests del builder y la auditoria estructural viven fuera de `./gradlew check`,
-// y un desfase introducido en normalize.py pasaria el gate sin problema -- que es justo el modo
-// de falla que el proyecto entero intenta evitar (ver docs/contratos-cruzados.md §1).
+// Without this, the builder's 35 tests and the structural audit live outside `./gradlew check`,
+// and a drift introduced in normalize.py would pass the gate without trouble -- which is exactly
+// the failure mode the whole project tries to avoid (see docs/contratos-cruzados.md §1).
 //
-// El plugin `base` es lo unico que se aplica: aporta la tarea `check`, que Gradle agrega a la
-// del root cuando se corre `./gradlew check`.
+// The `base` plugin is the only one applied: it contributes the `check` task, which Gradle adds to
+// the root's when `./gradlew check` is run.
 plugins {
     base
 }
 
-/** Los 35 tests del pipeline de packs. Solo stdlib: no hay entorno que preparar. */
+/** The pack pipeline's 35 tests. Stdlib only: there is no environment to prepare. */
 val pythonTest by tasks.registering(Exec::class) {
     group = "verification"
     description = "Corre los tests de tools/packbuilder."
@@ -18,7 +18,7 @@ val pythonTest by tasks.registering(Exec::class) {
     commandLine("python3", "-m", "unittest", "discover", "-s", "tests")
 }
 
-/** La auditoria estructural: comprueba el repo contra las reglas que el mismo escribe. */
+/** The structural audit: it checks the repo against the rules it writes itself. */
 val structuralAudit by tasks.registering(Exec::class) {
     group = "verification"
     description = "Corre tools/audit_dictionary.py."

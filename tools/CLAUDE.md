@@ -72,14 +72,14 @@ adb reverse tcp:8765 tcp:8765                                       # the tunnel
 python3 tools/packserver.py ../wearos-dictionary-data/dist --port 8765
 python3 tools/packserver.py ../wearos-dictionary-data --index-only   # just print the index
 
-# ⚠️ **El indice TAMBIEN lo consume el build del APK**, y por eso conviene dejarlo escrito en
-# `dist/`. `:app:bundlePacks` lo lee para saber que `data_version` tiene cada nucleo que empaqueta
-# y lo copia a `assets/core-index.tsv` (D-229). Sin el, la app no puede decidir si el nucleo del
-# APK es mas nuevo que el que el usuario bajo, y **deja el del usuario** -- que es seguro, pero
-# significa que un nucleo actualizado desde el catalogo no vuelve a actualizarse nunca.
+# ⚠️ **The APK's build consumes the index TOO**, which is why it is worth leaving it written in
+# `dist/`. `:app:bundlePacks` reads it to know which `data_version` each core it bundles has and
+# copies it to `assets/core-index.tsv` (D-229). Without it, the app cannot decide whether the APK's
+# core is newer than the one the user downloaded, and **leaves the user's** -- which is safe, but
+# means a core updated from the catalog never updates again.
 #
-# Se regenera despues de construir packs. Si queda desactualizado NO miente: `bundlePacks` compara
-# el `db_bytes` declarado contra el archivo real y, si no coinciden, no declara version.
+# It gets regenerated after building packs. If it goes stale it does NOT lie: `bundlePacks`
+# compares the declared `db_bytes` against the real file and, on a mismatch, declares no version.
 python3 tools/packserver.py ../wearos-dictionary-data/dist --index-only \
     > ../wearos-dictionary-data/dist/index.json
 ```
@@ -188,68 +188,70 @@ same filters, a promise nothing checks. It also takes seven seconds instead of a
 measured**: by `rank` a core takes **91 %** of the Spanish inflection table — the richest pages are
 verbs, and a Spanish verb has 33 forms — while by frequency it takes **5.5 %**. See D-175.
 
-## `build_packs.py`: el pipeline entero, y donde vive cada cosa
+## `build_packs.py`: the whole pipeline, and where each thing lives
 
-**Los scripts van en el repo; los packs, no.** Son 4,4 GB de dumps y cientos de MB de artefactos,
-y `.gitignore` ya cubre `/*.db`. Lo que faltaba es que **el orden del rebuild vivía sólo en prosa**
-—en esta misma página—, y ahí no se puede correr ni comprobar.
+**The scripts go in the repo; the packs do not.** They are 4.4 GB of dumps and hundreds of MB of
+artifacts, and `.gitignore` already covers `/*.db`. What was missing is that **the rebuild's order
+lived only in prose** --on this very page-- and there it can neither be run nor checked.
 
 ```sh
-python3 tools/build_packs.py ../wearos-dictionary-data --dry-run   # el plan, sin tocar nada
-python3 tools/build_packs.py ../wearos-dictionary-data             # y corriéndolo
+python3 tools/build_packs.py ../wearos-dictionary-data --dry-run   # the plan, touching nothing
+python3 tools/build_packs.py ../wearos-dictionary-data             # and running it
 python3 tools/build_packs.py ../wearos-dictionary-data --solo es
 ```
 
-### Tres directorios, y la separación es el punto
+### Three directories, and the separation is the point
 
 ```
-<raíz>/dumps/   las entradas: los .jsonl de kaikki, los corpus, WordNet, dbnary
-<raíz>/build/   los INTERMEDIOS: packs que son entrada de un merge y no se distribuyen
-<raíz>/dist/    lo que se publica, y lo único que `packserver.py` debe servir
+<root>/dumps/   the inputs: kaikki's .jsonl files, the corpora, WordNet, dbnary
+<root>/build/   the INTERMEDIATES: packs that are an input to a merge and are not distributed
+<root>/dist/    what gets published, and the only thing `packserver.py` should serve
 ```
 
-⚠️ **Con todo en un directorio plano, `es-def-wd` apareció en el catálogo del emulador como un
-pack descargable.** No lo es: es una fuente que el pack español lleva **fundida dentro**.
-Publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que D-215 descartó.
+⚠️ **With everything in one flat directory, `es-def-wd` appeared in the emulator's catalog as a
+downloadable pack.** It is not: it is a source the Spanish pack carries **fused inside**.
+Publishing it offers a single-source dictionary, which is exactly the model D-215 discarded.
 
-⚠️ **Y hoy `build/` está vacío, porque ese intermedio resultó no existir.** El plan lo construía
-creyendo que `--sumar` leía un pack; `--sumar <pack> <dump>` lee el **dump** —el nombre sólo
-selecciona el lector y la atribución (D-146)—, así que `build/es-def-wd.db` no lo consumía nadie:
-30 s y 4,5 MB por nada. Lo agarró el **rebuild**, no el gate, y ahora lo fija
-`test_nada_se_construye_para_que_NADIE_lo_consuma`. El directorio se queda: separar lo intermedio
-de lo publicable sigue siendo la regla, y lo que hoy no tiene sujeto mañana lo tiene.
+⚠️ **And today `build/` is empty, because that intermediate turned out not to exist.** The plan
+built it believing `--sumar` read a pack; `--sumar <pack> <dump>` reads the **dump** --the name
+only selects the reader and the attribution (D-146)-- so nobody consumed `build/es-def-wd.db`: 30 s
+and 4.5 MB for nothing. The **rebuild** caught it, not the gate, and
+`test_nada_se_construye_para_que_NADIE_lo_consuma` now pins it. The directory stays: separating the
+intermediate from the publishable is still the rule, and what has no subject today has one
+tomorrow.
 
-⚠️ **El inglés completo vive en `dist/` aunque TAMBIÉN sea una entrada** —del bilingüe, por
-`--flexiones`—. Es las dos cosas, y lo que decide dónde vive es **si se distribuye**.
+⚠️ **Full English lives in `dist/` even though it is ALSO an input** --to the bilingual one,
+through `--flexiones`--. It is both things, and what decides where it lives is **whether it is
+distributed**.
 
-### El orden, y por qué un test lo fija
+### The order, and why a test pins it
 
-`--flexiones` lee un pack **ya construido** del idioma destino, así que el bilingüe tiene que ir
-después del inglés. ⚠️ **Saltárselo no da error**: el pack sale bien formado, pasa `verify_pack.py`
-y es **peor en silencio** — 8,6 puntos de cobertura inversa, medidos.
+`--flexiones` reads an **already built** pack of the target language, so the bilingual one has to
+come after English. ⚠️ **Skipping it raises no error**: the pack comes out well formed, passes
+`verify_pack.py` and is **worse in silence** -- 8.6 points of reverse coverage, measured.
 
-Por eso `plan()` se devuelve en vez de correrse: **la forma del plan entra al gate** y correrlo
-necesita los dumps, que no. Es el mismo reparto que `devpack.py`.
+That is why `plan()` is returned rather than run: **the plan's shape enters the gate** and running
+it needs the dumps, which do not. It is the same split as `devpack.py`.
 
-Y cada pack publicable **se verifica antes de seguir**: encadenar sobre un pack a medias propaga
-el defecto, y un pack a medias se abre sin error.
+And every publishable pack **is verified before going on**: chaining onto a half-built pack
+propagates the defect, and a half-built pack opens with no error.
 
-### Qué se genera, y qué no
+### What gets generated, and what does not
 
-Los niveles salen de `build_core.py --rango-mb <min> <max>`, derivando del `full` y nunca de otro
-nivel —derivar un `core` de un `main` haría que `subset_of` apunte al intermedio—. ⚠️ **Un idioma
-cuyo `full` ya cabe entero en el rango de `main` no genera `main`**: el español completo son 73,6
-MB, por debajo del máximo de 150, así que sería un segundo pack con el mismo contenido. Lo decide
-el tamaño medido, no una lista escrita a mano.
+The tiers come out of `build_core.py --rango-mb <min> <max>`, deriving from the `full` and never
+from another tier --deriving a `core` from a `main` would make `subset_of` point at the
+intermediate--. ⚠️ **A language whose `full` already fits whole in `main`'s range generates no
+`main`**: full Spanish is 73.6 MB, below the maximum of 150, so it would be a second pack with the
+same content. The measured size decides it, not a hand-written list.
 
-⚠️ **Es un rango y no un presupuesto, y eso es lo que hace que se cumpla.** `--budget-mb` estima
-el tamaño escalando los payloads por la proporción del pack de **origen**, y el derivado tiene
-otra —se lleva las formas de sus lemas y no las de los demás—: **pedir 25 MB dio 17,7**, por
-debajo del mínimo del nivel, sin error y con el pack pasando todas sus invariantes. `--rango-mb`
-deriva, **mide el archivo**, corrige el factor y vuelve, hasta cuatro veces, y **sale con código 1
-si no lo logra** — porque un exit 0 con un artefacto fuera de rango le dice al pipeline *esto
-cumple*. `--budget-mb` sigue existiendo para explorar la curva; publicar con él no garantiza nada
-(D-220).
+⚠️ **It is a range and not a budget, and that is what makes it get met.** `--budget-mb` estimates
+the size by scaling the payloads by the **source** pack's ratio, and the derived one has another
+--it takes its own lemmas' forms and not the others'--: **asking for 25 MB gave 17.7**, below the
+tier's minimum, with no error and with the pack passing every invariant. `--rango-mb` derives,
+**measures the file**, corrects the factor and goes round again, up to four times, and **exits with
+code 1 if it does not manage it** -- because an exit 0 with an out-of-range artifact tells the
+pipeline *this complies*. `--budget-mb` still exists to explore the curve; publishing with it
+guarantees nothing (D-220).
 
 ## ⚠️ Rebuilding a pack: the flags that are not optional
 
@@ -257,19 +259,19 @@ cumple*. `--budget-mb` sigue existiendo para explorar la curva; publicar con él
 worse.** There is no error to notice, so they are listed here rather than only in
 `build_pack.py --help`:
 
-| pack | sin qué sale peor | qué se pierde |
+| pack | worse without | what is lost |
 |---|---|---|
-| `es` | `--frases` · `--tesauro` · `--sumar es-wd` | ejemplos, sinónimos de WordNet, 5.283 lemas |
-| **`es-en`** | **`--flexiones en-def-wikt.db`** | **la dirección inversa**: sin él `ran`, `went` y `eaten` no llegan. ⚠️ **Desde D-196 las flexiones van al `form` de la ENTRADA inglesa** —`went` es flexión de `go`, y `go` ya es un lema— en vez de expandirse dentro de `trans`, que en un pack bidireccional está vacía. Saltarse el flag costó **8,6 puntos** de cobertura inversa en el top 1.000, medidos sobre el pack construido: 97,0 % con él, 89,8 % sin él |
-| `en` | `--tesauro` | +30.423 entradas con sinónimos |
+| `es` | `--frases` · `--tesauro` · `--sumar es-wd` | examples, WordNet synonyms, 5,283 lemmas |
+| **`es-en`** | **`--flexiones en-def-wikt.db`** | **the reverse direction**: without it `ran`, `went` and `eaten` do not arrive. ⚠️ **Since D-196 the inflections go to the ENGLISH ENTRY's `form`** --`went` is an inflection of `go`, and `go` is already a lemma-- instead of expanding inside `trans`, which in a bidirectional pack is empty. Skipping the flag cost **8.6 points** of reverse coverage in the top 1,000, measured over the built pack: 97.0 % with it, 89.8 % without it |
+| `en` | `--tesauro` | +30,423 entries with synonyms |
 
-⚠️ **Y el bilingüe se construye DESPUÉS del inglés, no en cualquier orden**: `--flexiones` lee
-un pack ya construido, así que `en-def-wikt.db` tiene que existir antes. El orden completo de un
-rebuild es **inglés → español → bilingüe → los dos núcleos**.
+⚠️ **And the bilingual one is built AFTER English, not in any order**: `--flexiones` reads an
+already built pack, so `en-def-wikt.db` has to exist first. A rebuild's complete order is
+**English → Spanish → bilingual → the two cores**.
 
-`--flexiones` toma un **pack ya construido** del idioma destino, no un dump: las flexiones ya
-están extraídas y podadas ahí, y volver al dump de 3,2 GB sería otra hora de build más una segunda
-poda que puede divergir de la primera — el mismo razonamiento de D-175.
+`--flexiones` takes an **already built pack** of the target language, not a dump: the inflections
+are already extracted and pruned there, and going back to the 3.2 GB dump would be another hour of
+build plus a second pruning that can diverge from the first -- D-175's same reasoning.
 
 ## `--como-la-app`: would the watch accept this pack?
 
@@ -296,24 +298,25 @@ decide whether a pack gets in — it decides **which reason is reported**, which
 the user reads. The seven schema-3 packs in the data directory came out as "incomplete metadata"
 instead of "another format version" purely from having it backwards.
 
-## Las listas de cobertura: lo que un pack TIENE que poder encontrar
+## The coverage lists: what a pack MUST be able to find
 
-`vectors/cobertura-es.txt` y `cobertura-en.txt`. `verify_pack.py` las corre **solo**, sin flag,
-cuando el pack declara ese idioma, y falla nombrando lo que falta. Una palabra cuenta como
-encontrada si es lema **o** una de sus formas flexionadas: `fui` llega a `ir`, que es lo que el
-usuario experimenta.
+`vectors/cobertura-es.txt` and `cobertura-en.txt`. `verify_pack.py` runs them **on its own**, with
+no flag, when the pack declares that language, and fails naming what is missing. A word counts as
+found if it is a lemma **or** one of its inflected forms: `fui` reaches `ir`, which is what the
+user experiences.
 
-⚠️ **Es el primer chequeo de CONTENIDO del repo, y por eso existe.** El gate compila, las
-invariantes pasan y `--como-la-app` dice que sí sobre un `en-core` que **no tiene ningún mes del
-año** — no hay nada estructuralmente roto que mirar. Lo encontró la lista el día que se escribió:
-`dist/en-core.db` da **0 entradas** para `january`…`sunday`.
+⚠️ **It is the repo's first CONTENT check, and that is why it exists.** The gate compiles, the
+invariants pass and `--como-la-app` says yes about an `en-core` that **has not one month of the
+year** -- there is nothing structurally broken to look at. The list found it the day it was
+written: `dist/en-core.db` gives **0 entries** for `january`…`sunday`.
 
-⚠️ **Agregar una palabra es documentar una decisión de producto**, no engordar un test: afirma que
-el diccionario, sin ella, está roto. Por eso van agrupadas y cada grupo dice qué defiende.
+⚠️ **Adding a word is documenting a product decision**, not fattening a test: it asserts that the
+dictionary, without it, is broken. That is why they go grouped and each group says what it
+defends.
 
-⚠️ **Y lo que NO resuelve hay que decirlo**: una lista escrita a mano tiene el mismo sesgo que
-mirar a mano — no sabe lo que nadie pensó en poner. Sirve contra **regresiones**, no contra huecos
-desconocidos. Un pack de fixture (menos entradas que palabras en la lista) se salta el chequeo.
+⚠️ **And what it does NOT solve has to be said**: a hand-written list has the same bias as looking
+by hand -- it does not know what nobody thought to put in. It serves against **regressions**, not
+against unknown gaps. A fixture pack (fewer entries than the list has words) skips the check.
 
 ## Adding a source
 
@@ -362,45 +365,46 @@ of `repertoire.txt`, and raising `NORM_VERSION`. Read the generator's header fir
 **There are now THREE mirrors, not one**, and the second and third are easy to forget because
 neither looks like normalisation:
 
-| Python | Kotlin | qué se rompe si divergen |
+| Python | Kotlin | what breaks if they diverge |
 |---|---|---|
-| `normalize.py` | `TextNormalizer.kt` | **falta una palabra** en los resultados |
-| `payload.py` → `sense_code` / `fold_gloss` | `PayloadCodec.kt` → `senseCode` / `foldGloss` | **un enlace a una acepción lleva a otra**, o a ninguna |
-| `packserver.py` → `META_FIELDS` y `catalog_entry` | `Catalog.kt` → `Catalog.parse` | **la pantalla de descarga dice «nada nuevo» para siempre**: un campo renombrado deja la lista vacía, sin excepción y sin log |
+| `normalize.py` | `TextNormalizer.kt` | **a word is missing** from the results |
+| `payload.py` → `sense_code` / `fold_gloss` | `PayloadCodec.kt` → `senseCode` / `foldGloss` | **a link to one sense leads to another**, or to none |
+| `packserver.py` → `META_FIELDS` and `catalog_entry` | `Catalog.kt` → `Catalog.parse` | **the download screen says "nothing new" forever**: a renamed field leaves the list empty, with no exception and no log |
 
-El tercero lo fija un **fixture del índice real** —`app/src/test/resources/catalog-index-fixture.json`—
-que `CatalogTest` parsea y verifica campo por campo. Se regenera a mano, y eso es deliberado: que
-sea un acto explícito es lo que hace que un renombrado se note. **Verificado por mutación**: leer
-`db_sha` en vez de `db_sha256` tira cuatro tests.
+The third is pinned by a **fixture of the real index**
+--`app/src/test/resources/catalog-index-fixture.json`-- which `CatalogTest` parses and verifies
+field by field. It is regenerated by hand, and that is deliberate: its being an explicit act is
+what makes a rename get noticed. **Verified by mutation**: reading `db_sha` instead of `db_sha256`
+fells four tests.
 
 ```sh
 python3 tools/packserver.py <dir> --index-only > app/src/test/resources/catalog-index-fixture.json
 ```
 
-⚠️ **El fixture incluye a propósito un pack de esquema VIEJO** (`es-def-wd`, schema 3). Así el
-test comprueba también que se clasifique como incompatible, que es lo que evita descargar 192 MB
-para tirarlos.
+⚠️ **The fixture deliberately includes a pack with an OLD schema** (`es-def-wd`, schema 3). That
+way the test also checks it gets classified as incompatible, which is what avoids downloading 192
+MB to throw them away.
 
-⚠️ **Ya NO describe el directorio real, y eso es deliberado.** Decía *«porque el directorio de
-datos real lo tiene»* y dejó de ser cierto con el rebuild del 2026-09-22: `dist/` tiene seis packs
-y **ninguno de esquema 3** (comprobado el 2026-09-23). Regenerar el fixture desde el directorio de
-hoy **debilitaría el test** —se quedaría sin el caso incompatible, que es la mitad de lo que
-vigila— así que el fixture se queda como está y pasa a ser un caso sintético. Quien lo regenere
-tiene que volver a meter a mano un pack de esquema viejo.
+⚠️ **It NO LONGER describes the real directory, and that is deliberate.** It said *"because the
+real data directory has it"* and that stopped being true with the 2026-09-22 rebuild: `dist/` has
+six packs and **none with schema 3** (checked on 2026-09-23). Regenerating the fixture from today's
+directory **would weaken the test** --it would be left without the incompatible case, which is half
+of what it watches-- so the fixture stays as it is and becomes a synthetic case. Whoever
+regenerates it has to put an old-schema pack back in by hand.
 
-Los dos fallan igual: sin excepción, sin log, y con el pack pasando todas sus invariantes. El
-segundo lo fija un vector idéntico en ambos lados — `sense_code(1, "casa")` = `8ec316909e48`.
+Both fail the same way: with no exception, no log, and the pack passing every invariant. The second
+is pinned by an identical vector on both sides -- `sense_code(1, "casa")` = `8ec316909e48`.
 
-⚠️ **Y trajo una lección general para el próximo espejo**: una clase de caracteres de una
-expresión regular **no es portable**. `\s` en Python sobre `str` es **Unicode** y en Java es
-**ASCII**, así que un espacio duro se plegaría de un lado y del otro no. En `fold_gloss` el
-espacio se enumera a mano por eso. Ver `docs/contratos-cruzados.md` §6.
+⚠️ **And it brought a general lesson for the next mirror**: a regular expression's character class
+**is not portable**. `\s` in Python over `str` is **Unicode** and in Java it is **ASCII**, so a
+hard space would fold on one side and not the other. In `fold_gloss` whitespace is enumerated by
+hand because of that. See `docs/contratos-cruzados.md` §6.
 
 `normalize.py` is the hand-written mirror of `TextNormalizer.kt`. Any file with a mirror declares it
 in its header:
 
 ```
-ESTE ARCHIVO TIENE UN ESPEJO: <path>
+THIS FILE HAS A MIRROR: <path>
 ```
 
 `tools/audit_dictionary.py` checks that the declared path exists. That the **contents** match is

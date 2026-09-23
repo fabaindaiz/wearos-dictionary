@@ -1,27 +1,28 @@
-"""Lexemas de Wikidata: el **segundo pack base** de español, y el unico CC0.
+"""Wikidata lexemes: Spanish's **second base pack**, and the only CC0 one.
 
-No es una mejora del pack del Wikcionario: es **otro diccionario**, de otra comunidad, que se
-instala al lado y se consulta junto con el (D-136). La ganancia es la union de lemas.
+It is not an improvement on the Wiktionary pack: it is **another dictionary**, from another
+community, installed alongside and queried together with it (D-136). The gain is the union of
+lemmas.
 
-**Por que este y no un merge.** Fusionarlo dentro del pack 1 obligaria a decidir cual definicion
-gana cuando las dos tienen la palabra, y no hay medicion que resuelva eso. Como pack aparte no
-hay nada que decidir: los dos estan, y el que tenga la palabra la contesta.
+**Why this and not a merge.** Fusing it into pack 1 would force deciding which definition wins
+when both have the word, and no measurement resolves that. As a separate pack there is nothing to
+decide: both are there, and whichever has the word answers it.
 
-**Lo que aporta, medido** sobre el dump del 2026-09-20 (450 MB comprimidos):
+**What it contributes, measured** over the 2026-09-20 dump (450 MB compressed):
 
-    lexemas en español                     66.935
-    de esos, con glosa EN ESPAÑOL          15.814   (23,6 %)
-    de esos, que NO estan en es-def-wikc    5.283   (33,4 %)
+    Spanish lexemes                         66,935
+    of those, with a SPANISH gloss          15,814   (23.6 %)
+    of those, NOT in es-def-wikc             5,283   (33.4 %)
 
-Y lo que aporta es **complementario, no redundante**: gentilicios regionales --"iquiteño",
-"huantino", "ucayalino", "abiyanés"-- y locuciones --"a su vez", "entre tanto", "así como así"--,
-justo lo que un wiki editado mayormente desde España cubre peor.
+And what it contributes is **complementary, not redundant**: regional demonyms --"iquiteño",
+"huantino", "ucayalino", "abiyanés"-- and set phrases --"a su vez", "entre tanto", "así como
+así"-- precisely what a wiki edited mostly from Spain covers worst.
 
-⚠️ **Licencia CC0**, que es la diferencia practica mas grande con las otras fuentes: no suma
-obligacion de atribucion a nadie. Se declara igual en el manifiesto (D-138), porque declarar de
-donde viene un dato es util aunque no sea obligatorio.
+⚠️ **CC0 licence**, which is the biggest practical difference from the other sources: it adds no
+attribution obligation to anybody. It is declared in the manifest all the same (D-138), because
+declaring where a datum comes from is useful even when it is not compulsory.
 
-Fuente: https://dumps.wikimedia.org/wikidatawiki/entities/latest-lexemes.json.bz2
+Source: https://dumps.wikimedia.org/wikidatawiki/entities/latest-lexemes.json.bz2
 """
 
 import bz2
@@ -34,17 +35,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from build import Record  # noqa: E402
 from sources import kaikki  # noqa: E402
 
-# El item de Wikidata que representa al idioma español.
+# The Wikidata item representing the Spanish language.
 IDIOMA_ES = "Q1321"
 
-# Las categorias lexicas, **identificadas mirando los lemas de cada una en el dump** y no de
-# memoria: `Q1084` sale con berilio/vino/viernes/maiz, `Q147276` con Miguel/Portugal/Turquia.
+# The lexical categories, **identified by looking at each one's lemmas in the dump** and not from
+# memory: `Q1084` comes out with berilio/vino/viernes/maiz, `Q147276` with Miguel/Portugal/Turquia.
 #
-# Las locuciones se mapean a su nucleo ("año nuevo" -> noun, "hacer coro" -> verb): en el reloj
-# la etiqueta dice que clase de palabra es, y "locucion nominal" no cabe ni ayuda.
+# Set phrases are mapped to their head ("año nuevo" -> noun, "hacer coro" -> verb): on a watch the
+# label says what class of word it is, and "locución nominal" neither fits nor helps.
 #
-# ⚠️ `Q147276` se mapea a **"name"** a proposito: es el vocabulario que usa la poda de nombres
-# propios (D-116, D-134), asi que las tres politicas funcionan igual en este pack sin tocar nada.
+# ⚠️ `Q147276` maps to **"name"** on purpose: that is the vocabulary the proper-noun pruning uses
+# (D-116, D-134), so all three policies work the same in this pack with nothing to touch.
 CATEGORIAS = {
     "Q1084": "noun",          # sustantivo
     "Q34698": "adj",          # adjetivo
@@ -67,18 +68,18 @@ CATEGORIAS = {
     "Q161873": "det",         # determinante
 }
 
-# Techo del rank, igual que en kaikki: "menor es mas comun", asi que se calcula restando.
+# The rank ceiling, same as in kaikki: "lower is more common", so it is computed by subtracting.
 RANK_BASE = 1000
 
-# ⚠️ **El proxy de rank es OTRO y no se puede comparar con el de kaikki.** Wikidata no trae
-# etimologia ni traducciones, que son dos de los cinco terminos del perfil de `sources/kaikki`.
-# Aca solo hay acepciones y formas. D-136 ya deja escrito que `score` no es comparable entre packs
-# de fuentes distintas; esto es la razon concreta.
+# ⚠️ **The rank proxy is ANOTHER one and cannot be compared with kaikki's.** Wikidata carries
+# neither etymology nor translations, which are two of the five terms in `sources/kaikki`'s
+# profile. Here there are only senses and forms. D-136 already puts in writing that `score` is not
+# comparable across packs from different sources; this is the concrete reason.
 PESO_ACEPCION = 3
 PESO_FORMA = 1
 TOPE_DE_FORMAS = 80
 
-# Mismo tope que el resto del pipeline: es el ancho de un renglon de reloj, no un dato de fuente.
+# The same cap as the rest of the pipeline: it is the width of a watch line, not a source datum.
 MAX_ACEPCIONES = 8
 
 
@@ -88,7 +89,7 @@ def _valor(mapa, idioma="es"):
 
 
 def _lexemas(path):
-    """Itera el dump. Es un array JSON gigante servido de a una entidad por linea."""
+    """Iterates the dump. It is a giant JSON array served one entity per line."""
     abrir = bz2.open if path.endswith(".bz2") else open
     with abrir(path, "rt", encoding="utf-8") as handle:
         for line in handle:
@@ -98,16 +99,16 @@ def _lexemas(path):
             try:
                 yield json.loads(line)
             except ValueError:
-                # Una linea rota no puede tirar un build de 450 MB. No se silencia un error de
-                # logica: se salta una linea que el dump sirvio mal.
+                # A broken line cannot bring down a 450 MB build. No logic error is being
+                # silenced: a line the dump served badly is skipped.
                 continue
 
 
 def _contar_homografos(path, politica):
-    """Cuantas veces aparece cada `(lema, pos)`. Primera de las dos pasadas. Ver `records`.
+    """How many times each `(lemma, pos)` appears. The first of the two passes. See `records`.
 
-    Cuesta ~2 minutos sobre el dump comprimido y evita que la identidad logica de una entrada
-    dependa del orden en que el archivo la sirvio.
+    It costs ~2 minutes over the compressed dump and keeps an entry's logical identity from
+    depending on the order in which the file served it.
     """
     cuenta = {}
     for lexema in _lexemas(path):
@@ -127,17 +128,18 @@ def _contar_homografos(path, politica):
 
 
 def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
-    """Entrega Records desde el dump de lexemas. Ver el docstring del modulo.
+    """Yields Records from the lexemes dump. See the module docstring.
 
-    `politica` existe para que la firma sea la misma que la de `sources/kaikki` --`build_pack`
-    llama a las dos igual-- y aca solo decide si entran los `Q147276`. No hay señal lexica que
-    medir, asi que "lexical-only" y "definitions-only" se comportan como excluirlos: la unica
-    diferencia real es `included`, **que es el default** (D-141).
+    `politica` exists so the signature matches `sources/kaikki`'s --`build_pack` calls both the
+    same way-- and here it only decides whether the `Q147276` get in. There is no lexical signal to
+    measure, so "lexical-only" and "definitions-only" behave like excluding them: the only real
+    difference is `included`, **which is the default** (D-141).
 
-    ⚠️ **Lo que si se descarta y no es una poda: los lexemas SIN glosa en español** (76,4 % del
-    dump). No es una decision de contenido -- es que la fuente **no tiene definicion que dar**.
-    Un lexema asi trae categoria y formas y nada mas; emitirlo seria un lema que al abrirlo esta
-    vacio, y `build.add()` lo rechaza igual. Si algun dia Wikidata los completa, entran solos.
+    ⚠️ **What IS discarded and is not a pruning: the lexemes with NO Spanish gloss** (76.4 % of the
+    dump). It is not a content decision -- it is that the source **has no definition to give**. A
+    lexeme like that carries a category and forms and nothing else; emitting it would be a lemma
+    that is empty when opened, and `build.add()` rejects it anyway. If Wikidata ever completes
+    them, they come in on their own.
     """
     repetidos = _contar_homografos(path, politica)
     for lexema in _lexemas(path):
@@ -158,8 +160,8 @@ def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
              "related": []}
             for g in glosas if g
         ][:MAX_ACEPCIONES]
-        # Sin glosa en español no es una entrada de un diccionario español: el lexema existe
-        # igual --tiene formas y categoria-- pero no dice nada. Son el 76,4 % del dump.
+        # With no Spanish gloss it is not an entry of a Spanish dictionary: the lexeme exists all
+        # the same --it has forms and a category-- but says nothing. They are 76.4 % of the dump.
         if not senses:
             continue
         formas = tuple(
@@ -174,16 +176,16 @@ def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
             rank=max(0, RANK_BASE - score),
             forms=formas,
             translations=(),
-            # ⚠️ **Solo cuando hay homografo, y esto costo una pasada extra.**
+            # ⚠️ **Only when there is a homograph, and this cost an extra pass.**
             #
-            # El id del lexema (`L12345`) es una identidad estable declarada por la fuente, que
-            # es mas de lo que kaikki tiene, y la tentacion es usarlo siempre. **No se puede**:
-            # `uid` existe para unir la MISMA entrada entre packs distintos (D-055), y si este
-            # pack mete `L12345` en el hash y el del Wikcionario no mete nada, la entrada de
-            # "vino" de los dos packs deja de unir. La convencion tiene que ser la misma en todos.
+            # The lexeme's id (`L12345`) is a stable identity declared by the source, which is more
+            # than kaikki has, and the temptation is to use it always. **It cannot be done**: `uid`
+            # exists to join the SAME entry across different packs (D-055), and if this pack puts
+            # `L12345` into the hash and the Wiktionary one puts nothing, the two packs' "vino"
+            # entries stop joining. The convention has to be the same in all of them.
             #
-            # Y como el dump NO viene agrupado por lema, saber si hay homografo obliga a contar
-            # primero: ponerselo solo al segundo haria que el uid del primero dependiera del
-            # orden del archivo. `verify_pack.py` agarro exactamente eso.
+            # And since the dump does NOT come grouped by lemma, knowing whether there is a
+            # homograph forces counting first: giving it only to the second would make the first's
+            # uid depend on the file's order. `verify_pack.py` caught exactly that.
             sense_key=lexema.get("id") if repetidos.get((lema, pos), 0) > 1 else None,
         )

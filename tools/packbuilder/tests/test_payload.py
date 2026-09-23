@@ -1,7 +1,7 @@
-"""Tests del codec de payload.
+"""Tests of the payload codec.
 
-El contrato cruzado con Kotlin lo verifica PayloadCodecTest.kt sobre
-vectors/payload-fixture.tsv. Aca se prueba el lado Python por si mismo.
+The cross-language contract with Kotlin is verified by PayloadCodecTest.kt over
+vectors/payload-fixture.tsv. Here the Python side is tested on its own.
 """
 
 import os
@@ -33,7 +33,7 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual(senses, parsed)
 
     def test_sanitize_replaces_delimiters(self):
-        # Un tab que llegue de la fuente corromperia el formato delimitado.
+        # A tab arriving from the source would corrupt the delimited format.
         self.assertEqual("con un tab", payload.sanitize("con\tun tab"))
         self.assertEqual("dos lineas", payload.sanitize("dos\nlineas"))
         self.assertEqual("colapsa espacios", payload.sanitize("colapsa    espacios"))
@@ -41,7 +41,7 @@ class RenderParseTest(unittest.TestCase):
         self.assertIsNone(payload.sanitize(""))
 
     def test_sense_without_gloss_is_dropped(self):
-        # Una acepcion sin glosa no muestra nada y descolgaria sus ejemplos.
+        # A sense with no gloss shows nothing and would unhook its examples.
         text = payload.render(None, [{"gloss": "  ", "examples": ["huerfano"]}])
         self.assertEqual("", text)
 
@@ -51,22 +51,22 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual([], senses[0]["examples"])
 
     def test_los_sinonimos_antes_de_la_primera_acepcion_se_ignoran(self):
-        # Mismo caso que el ejemplo huerfano: un sinonimo sin acepcion abierta no tiene de que
-        # colgarse, y colgarlo de la primera que venga seria atribuirlo mal.
+        # The same case as the orphaned example: a synonym with no open sense has nothing to hang
+        # off, and hanging it off whichever comes first would be misattributing it.
         _pos, senses, _palabra = payload.parse("Y\tsin acepcion\nS\tla acepcion\n")
         self.assertEqual(1, len(senses))
         self.assertEqual([], senses[0]["synonyms"])
 
     def test_los_sinonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
-        # Lo que este test protege: que el orden de los tags no mezcle acepciones. Un sinonimo
-        # atribuido a la acepcion equivocada no falla ni loguea, sale como contenido correcto.
+        # What this test protects: that the order of the tags does not mix senses. A synonym
+        # attributed to the wrong sense neither fails nor logs, it comes out as correct content.
         _pos, senses, _palabra = payload.parse("S\tuna\nY\tbobo\nS\totra\nY\tlisto\n")
         self.assertEqual(["bobo"], senses[0]["synonyms"])
         self.assertEqual(["listo"], senses[1]["synonyms"])
 
     def test_los_antonimos_van_a_su_acepcion_y_no_a_la_siguiente(self):
-        # Mismo modo de falla que los sinonimos y peor consecuencia: un antonimo mal atribuido
-        # no se lee como "raro", se lee como lo contrario de otra cosa.
+        # The same failure mode as the synonyms and a worse consequence: a misattributed antonym
+        # does not read as "odd", it reads as the opposite of something else.
         _pos, senses, _palabra = payload.parse("S\tuna\nA\tfrio\nS\totra\nA\tlento\n")
         self.assertEqual(["frio"], senses[0]["antonyms"])
         self.assertEqual(["lento"], senses[1]["antonyms"])
@@ -77,7 +77,7 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual([], senses[0]["antonyms"])
 
     def test_sinonimos_y_antonimos_no_se_mezclan(self):
-        # El tag es lo unico que los separa, y confundirlos invierte el significado.
+        # The tag is the only thing that separates them, and confusing them inverts the meaning.
         _pos, senses, _palabra = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\n")
         self.assertEqual(["ardiente"], senses[0]["synonyms"])
         self.assertEqual(["frio"], senses[0]["antonyms"])
@@ -95,9 +95,9 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual(["segunda"], senses[1]["related"])
 
     def test_las_relacionadas_no_se_confunden_con_sinonimos_ni_antonimos(self):
-        # Los tres son listas de palabras y el tag es lo unico que las separa. Una relacionada
-        # leida como sinonimo afirma una equivalencia que la fuente no da: "frances" trae `galo`
-        # como related, y como sinonimo seria falso.
+        # All three are word lists and the tag is the only thing that separates them. A related
+        # word read as a synonym asserts an equivalence the source does not give: "frances" carries
+        # `galo` as related, and as a synonym it would be false.
         _pos, senses, _palabra = payload.parse("S\tcaliente\nY\tardiente\nA\tfrio\nR\tcalor\n")
         self.assertEqual(["ardiente"], senses[0]["synonyms"])
         self.assertEqual(["frio"], senses[0]["antonyms"])
@@ -116,7 +116,7 @@ class RenderParseTest(unittest.TestCase):
         self.assertEqual([], senses[0]["related"])
 
     def test_unknown_tags_are_ignored(self):
-        # Compatibilidad hacia adelante con un builder mas nuevo.
+        # Forward compatibility with a newer builder.
         pos, senses, _palabra = payload.parse("P\tnoun\nZ\tcampo futuro\nS\tuna\n")
         self.assertEqual("noun", pos)
         self.assertEqual(1, len(senses))
@@ -236,12 +236,12 @@ class CompressionTest(unittest.TestCase):
         self.assertEqual(text, payload.decompress(blob, self.dictionary))
 
     def test_wrong_dictionary_corrupts_silently(self):
-        """Documenta POR QUE existe meta.payload_dict_sha256.
+        """Documents WHY meta.payload_dict_sha256 exists.
 
-        deflate no valida el diccionario precargado. Con uno equivocado del largo suficiente
-        descomprime sin lanzar nada y devuelve texto corrupto. Este test fija ese
-        comportamiento: si una version futura de zlib empezara a detectarlo, queremos enterarnos
-        antes de sacar la verificacion por hash pensando que es redundante.
+        deflate does not validate the preloaded dictionary. With a wrong one of sufficient length
+        it decompresses without throwing anything and returns corrupt text. This test pins that
+        behaviour: if a future version of zlib started detecting it, we want to find out before
+        removing the hash verification on the assumption that it is redundant.
         """
         senses = [{"gloss": "moverse rapidamente", "translations": ["to run"]}]
         text = payload.render("verb", senses)
@@ -251,14 +251,14 @@ class CompressionTest(unittest.TestCase):
         try:
             result = payload.decompress(blob, wrong)
         except Exception:
-            # Tambien es aceptable: pasa cuando el diccionario equivocado es mas corto y las
-            # referencias quedan fuera de la ventana.
+            # Also acceptable: it happens when the wrong dictionary is shorter and the references
+            # fall outside the window.
             return
         self.assertNotEqual(text, result, "con otro diccionario no deberia dar el texto correcto")
 
     def test_dictionary_digest_detects_every_change(self):
-        # Es la unica defensa contra el caso de arriba, asi que tiene que detectar cualquier
-        # diferencia, incluida una truncadura de pocos bytes.
+        # It is the only defence against the case above, so it has to detect any difference,
+        # including a truncation of a few bytes.
         digest = payload.dictionary_digest(self.dictionary)
         self.assertEqual(digest, payload.dictionary_digest(self.dictionary))
         self.assertNotEqual(digest, payload.dictionary_digest(self.dictionary[:-1]))
@@ -267,13 +267,13 @@ class CompressionTest(unittest.TestCase):
         self.assertNotEqual(digest, payload.dictionary_digest(b""))
 
     def test_dictionary_respects_size_budget(self):
-        # 32 KB es el maximo que usa deflate; pasarse seria desperdiciar bytes del pack.
+        # 32 KB is the maximum deflate uses; going over would waste the pack's bytes.
         samples = ["S\tacepcion numero %d de relleno\nT\tfiller %d\n" % (i, i) for i in range(5000)]
         dictionary = payload.build_dictionary(samples * 2)
         self.assertLessEqual(len(dictionary), 32 * 1024)
 
     def test_dictionary_is_deterministic(self):
-        # Dos builds del mismo input tienen que dar el mismo pack.
+        # Two builds of the same input have to give the same pack.
         samples = ["S\tuno\nT\tone\n", "S\tdos\nT\ttwo\n"] * 5
         self.assertEqual(
             payload.build_dictionary(samples), payload.build_dictionary(samples)
@@ -300,10 +300,10 @@ class CompressionTest(unittest.TestCase):
 
 class FixtureTest(unittest.TestCase):
     def test_fixture_is_current(self):
-        """El fixture commiteado tiene que corresponder al codec actual.
+        """The committed fixture has to correspond to the current codec.
 
-        Si alguien cambia el formato y no regenera el fixture, el test de Kotlin sigue pasando
-        contra datos viejos y la divergencia queda tapada.
+        If somebody changes the format and does not regenerate the fixture, the Kotlin test goes on
+        passing against old data and the divergence stays covered up.
         """
         self.assertTrue(
             os.path.exists(FIXTURE),
@@ -345,17 +345,17 @@ class FixtureTest(unittest.TestCase):
 
 
 class TraduccionesDeNivelEntradaTest(unittest.TestCase):
-    """El tag `W`: las traducciones que la fuente NO pudo atribuir a una acepcion.
+    """The `W` tag: the translations the source could NOT attribute to a sense.
 
-    ⚠️ **Existe para que la opcion deshonesta deje de ser la barata.** Con un solo canal, un
-    builder con dato no atribuible solo podia tirarlo o embadurnarlo por todas las acepciones --y
-    embadurnar es gratis, invisible y pasa `verify_pack.py`, que es el error de D-117. Medido: el
-    **37,7 %** de las traducciones del dump español no trae `sense_index`, y sobre el pack de
-    muestra eso era el **34,8 % del dato tirado** (`construir` tenia 16 y mostraba 0).
+    ⚠️ **It exists so the dishonest option stops being the cheap one.** With a single channel, a
+    builder holding unattributable data could only drop it or smear it across every sense -- and
+    smearing is free, invisible and passes `verify_pack.py`, which is D-117's mistake. Measured:
+    **37.7 %** of the Spanish dump's translations carry no `sense_index`, and over the sample pack
+    that was **34.8 % of the data thrown away** (`construir` had 16 and showed 0).
 
-    Va **antes de la primera `S`** a proposito: un lector viejo lo descarta por la guarda
-    `if senses:` y muestra la entrada sin la lista, que es degradacion correcta. Por eso
-    **no sube `CODEC_ID`** (D-119).
+    It goes **before the first `S`** on purpose: an old reader drops it through the `if senses:`
+    guard and shows the entry without the list, which is the right degradation. That is why it
+    **does not bump `CODEC_ID`** (D-119).
     """
 
     def test_las_de_nivel_entrada_no_se_cuelgan_de_ninguna_acepcion(self):
@@ -379,10 +379,10 @@ class TraduccionesDeNivelEntradaTest(unittest.TestCase):
                         "va antes de la primera S para que un lector viejo la descarte")
 
     def test_un_W_despues_de_una_acepcion_igual_es_de_la_entrada(self):
-        """La posicion es una convencion de escritura, no la semantica.
+        """The position is a writing convention, not the semantics.
 
-        Si fuera la semantica, un `W` mal ubicado se volveria una traduccion de acepcion --que es
-        exactamente la atribucion inventada que este canal existe para evitar.
+        If it were the semantics, a misplaced `W` would become a sense translation -- which is
+        exactly the invented attribution this channel exists to prevent.
         """
         _pos, senses, palabra = payload.parse("S\tuna\nW\ttarde\n")
         self.assertEqual(["tarde"], palabra)
@@ -390,19 +390,19 @@ class TraduccionesDeNivelEntradaTest(unittest.TestCase):
 
 
 class ReferenciaDeTraduccionTest(unittest.TestCase):
-    """Apuntar a `(pack, palabra, acepcion)` sin gastar bytes en lo que es constante.
+    """Pointing at `(pack, word, sense)` without spending bytes on what is constant.
 
-    ⚠️ **Las tres partes viven en lugares distintos, y ese reparto ES el diseño**:
+    ⚠️ **The three parts live in different places, and that split IS the design**:
 
-        pack      -> `meta.translations_pack`, UNA vez por pack. Es constante para todas las
-                     traducciones: repetirlo por item costaria ~280 KB de una sola cadena.
-        palabra   -> el valor del item. Ya estaba ahi: es el termino que se muestra.
-        acepcion  -> sufijo OPCIONAL del item, porque solo existe cuando la fuente la supo.
+        pack   -> `meta.translations_pack`, ONCE per pack. It is constant for every translation:
+                  repeating it per item would cost ~280 KB of a single string.
+        word   -> the item's value. It was already there: it is the term being shown.
+        sense  -> an OPTIONAL suffix on the item, because it only exists when the source knew it.
 
-    De ahi sale que **una traduccion sin acepcion ya es un link a la palabra** y no cuesta un
-    solo byte extra: el caso comun es el barato. Y sin `translations_to` declarado no hay a
-    donde ir, asi que el termino se muestra sin pintar -- que es la regla de D-084 y lo que se
-    pidio: *"mostrarse pero no ser linkeables a menos que tengan algo que mostrar"*.
+    From that it follows that **a translation with no sense is already a link to the word** and
+    costs not one extra byte: the common case is the cheap one. And with no `translations_to`
+    declared there is nowhere to go, so the term is shown unpainted -- which is D-084's rule and
+    what was asked for: *"shown but not linkable unless they have something to show"*.
     """
 
     def test_un_termino_pelado_es_la_palabra_sin_acepcion(self):
@@ -415,10 +415,10 @@ class ReferenciaDeTraduccionTest(unittest.TestCase):
                          payload.split_ref(payload.parse(texto)[1][0]["translations"][0]))
 
     def test_el_separador_no_puede_venir_del_dato(self):
-        """Si la fuente pudiera meterlo, podria FORJAR una referencia a otra acepcion.
+        """If the source could put it in, it could FORGE a reference to another sense.
 
-        Este test **fallo de verdad** contra la primera version, que juntaba en una cadena y
-        dejaba que `render` adivinara: `ho\x1fuse` se leia como `ho` apuntando a `use`.
+        This test **really failed** against the first version, which joined into a string and let
+        `render` guess: `ho\x1fuse` read as `ho` pointing at `use`.
         """
         texto = payload.render(None, [{"gloss": "g", "translations": ["ho\x1fuse"]}])
         self.assertIn("T\thouse", texto)
@@ -435,25 +435,24 @@ class ReferenciaDeTraduccionTest(unittest.TestCase):
 
 
 class CodigoDeAcepcionTest(unittest.TestCase):
-    """El codigo que nombra una acepcion sin nombrar un pack.
+    """The code that names a sense without naming a pack.
 
-    Pedido: *«en lugar de mostrar un pack, mostrar un idioma, la palabra, y que el link a la
-    acepcion sea inequivoco y unico para esa palabra, idioma y pack (core y completo aqui pueden
-    repetir este codigo). Asi si no esta la acepcion exacta pero si la palabra, se puede
-    referenciar a esta.»*
+    Asked for: *"instead of showing a pack, show a language, the word, and let the link to the
+    sense be unambiguous and unique for that word, language and pack (core and full may repeat this
+    code here). That way, if the exact sense is not there but the word is, it can be referenced."*
 
-    ⚠️ **`entry.uid` ya lleva el idioma adentro** --`stable_uid(lang, headword, pos, sense_key)`--
-    asi que el codigo sale de combinarlo con la glosa y **no nombra ningun pack**. Verificado
-    sobre los packs reales: los **21.534** codigos del nucleo español son **identicos** en el
-    completo, porque `build_core.py` **copia** el uid en vez de recalcularlo.
+    ⚠️ **`entry.uid` already carries the language inside** --`stable_uid(lang, headword, pos,
+    sense_key)`-- so the code comes from combining it with the gloss and it **names no pack**.
+    Verified over the real packs: the Spanish core's **21,534** codes are **identical** in the full
+    one, because `build_core.py` **copies** the uid instead of recomputing it.
 
-    Colisiones medidas sobre el pack español entero: **22 de 210.249 (0,0105 %)**, y son glosas
-    que el wiki define dos veces, asi que apuntan a dos acepciones de texto identico.
+    Collisions measured over the whole Spanish pack: **22 of 210,249 (0.0105 %)**, and they are
+    glosses the wiki defines twice, so they point at two senses of identical text.
     """
 
     def test_el_codigo_no_depende_del_pack(self):
-        """Mismo uid y misma glosa dan el mismo codigo. Eso es lo que hace que nucleo y completo
-        lo compartan sin coordinarse."""
+        """The same uid and the same gloss give the same code. That is what makes the core and the
+        full one share it without coordinating."""
         self.assertEqual(payload.sense_code(123, "Edificación destinada a vivienda."),
                          payload.sense_code(123, "Edificación destinada a vivienda."))
 
@@ -462,55 +461,54 @@ class CodigoDeAcepcionTest(unittest.TestCase):
                             payload.sense_code(123, "entidad financiera"))
 
     def test_la_misma_glosa_en_otra_palabra_da_otro_codigo(self):
-        """Sin el uid, dos entradas con la misma definicion corta --y las hay a miles-- serian
-        la misma acepcion."""
+        """Without the uid, two entries with the same short definition --and there are thousands--
+        would be the same sense."""
         self.assertNotEqual(payload.sense_code(123, "Apellido."),
                             payload.sense_code(456, "Apellido."))
 
     def test_no_depende_de_NORM_VERSION(self):
-        """⚠️ El precedente de D-055, y aca muerde mas fuerte.
+        """⚠️ D-055's precedent, and here it bites harder.
 
-        Si el codigo pasara por `norm()`, un bump de `NORM_VERSION` --que D-005 permite en
-        cualquier momento-- cambiaria TODOS los codigos y dejaria apuntando a la nada cada enlace
-        de cada pack ya construido, sin error y sin log. Se calcula sobre la glosa cruda.
+        If the code went through `norm()`, a `NORM_VERSION` bump --which D-005 allows at any time--
+        would change EVERY code and leave every link of every already built pack pointing at
+        nothing, with no error and no log. It is computed over the raw gloss.
         """
         import normalize
-        # ⚠️ El caso tiene que ser uno donde el PLEGADO y `norm()` difieran, y eso son los
-        # acentos: `fold_gloss` los conserva y `norm()` los saca. Con "Un  ASIENTO  largo" los
-        # dos dan lo mismo, asi que ese caso no probaba nada.
+        # ⚠️ The case has to be one where the FOLDING and `norm()` differ, and that is the accents:
+        # `fold_gloss` keeps them and `norm()` strips them. With "Un  ASIENTO  largo" both give the
+        # same thing, so that case proved nothing.
         glosa = "El público"
         self.assertNotEqual(payload.sense_code(7, glosa),
                             payload.sense_code(7, normalize.norm(glosa)),
                             "si estos coinciden es que el codigo esta pasando por norm()")
 
     def test_NFC_para_que_la_misma_glosa_no_de_dos_codigos(self):
-        """Dos fuentes pueden entregar "á" precompuesta o descompuesta para la misma glosa."""
+        """Two sources can deliver "á" precomposed or decomposed for the same gloss."""
         import unicodedata
         g = "Sección"
         self.assertEqual(payload.sense_code(7, unicodedata.normalize("NFC", g)),
                          payload.sense_code(7, unicodedata.normalize("NFD", g)))
 
     def test_es_estable_y_esta_fijado_por_un_vector(self):
-        """⚠️ Tiene ESPEJO en Kotlin: si este numero cambia, los enlaces de todos los packs ya
-        construidos apuntan a la nada. Se fija aqui para que cambiarlo sea un acto deliberado."""
+        """⚠️ It has a MIRROR in Kotlin: if this number changes, the links of every already built
+        pack point at nothing. It is pinned here so changing it is a deliberate act."""
         self.assertEqual("8ec316909e48", payload.sense_code(1, "casa"))
 
 
 class AcepcionDireccionableTest(unittest.TestCase):
-    """**Toda acepcion tiene que ser alcanzable por `(idioma, palabra, acepcion)`, sin excepciones.**
+    """**Every sense has to be reachable by `(language, word, sense)`, with no exceptions.**
 
-    Pedido literal del usuario. Es una propiedad del PACK, no del hash: el codigo sale de
-    `(uid, glosa)`, asi que **dos acepciones de la misma entrada con la glosa identica comparten
-    codigo** y una de las dos queda inalcanzable.
+    The user's literal request. It is a property of the PACK, not of the hash: the code comes from
+    `(uid, gloss)`, so **two senses of the same entry with an identical gloss share a code** and one
+    of the two becomes unreachable.
 
-    Medido sobre los seis packs reales antes de arreglarlo: **350 acepciones** de 1,7 millones
-    caian en ese caso -- 14 en el español, 106 en el ingles, 211 en el bilingue, 0 en el nucleo
-    español. Todas son glosas que la fuente escribe dos veces (`y` → *and* cinco veces).
+    Measured over the six real packs before fixing it: **350 senses** of 1.7 million fell into that
+    case -- 14 in the Spanish one, 106 in the English one, 211 in the bilingual one, 0 in the
+    Spanish core. All of them are glosses the source writes twice (`y` → *and* five times).
 
-    ⚠️ **Se FUSIONAN y no se descartan, y eso lo decidio una medicion**: de 12 grupos duplicados
-    inspeccionados, **5 traian adjuntos distintos** -- `them` repite *"Used as the direct object
-    of a verb"* con **ejemplos diferentes**. Descartar la copia habria perdido ese dato en
-    silencio.
+    ⚠️ **They are FUSED and not discarded, and a measurement decided that**: of 12 duplicate groups
+    inspected, **5 carried different attachments** -- `them` repeats *"Used as the direct object of
+    a verb"* with **different examples**. Discarding the copy would have lost that data in silence.
     """
 
     def test_dos_acepciones_con_la_misma_glosa_se_fusionan(self):
@@ -523,7 +521,7 @@ class AcepcionDireccionableTest(unittest.TestCase):
         self.assertEqual(["la misma", "otra"], [s["gloss"] for s in senses])
 
     def test_la_fusion_conserva_los_adjuntos_de_las_dos(self):
-        """`them` repite la glosa con ejemplos distintos: descartar perderia uno."""
+        """`them` repeats the gloss with different examples: discarding would lose one."""
         texto = payload.render(None, [
             {"gloss": "g", "examples": ["She treated them."], "synonyms": ["a"]},
             {"gloss": "g", "examples": ["Give it to them."], "synonyms": ["b"]},
@@ -566,17 +564,17 @@ class AcepcionDireccionableTest(unittest.TestCase):
         self.assertEqual([{"text": "uno", "ref": "1897, Richard Marsh"}], senses[0]["examples"])
 
     def test_una_lista_no_repite_el_mismo_item(self):
-        """Lo encontro barrer los packs construidos, no un test.
+        """Sweeping the built packs found it, not a test.
 
-        Medido sobre los packs reales: el **3,1 %** de las entradas con traducciones de palabra
-        del pack bilingue repetian un termino --`where` traia `donde, donde` y `do, do`, `Brazil`
-        traia `carioca` dos veces-- y en el pack español eran **88 de 407** con traducciones por
-        acepcion. En el reloj eso es la misma palabra dos veces en una fila que ya se corta.
+        Measured over the real packs: **3.1 %** of the bilingual pack's entries with word
+        translations repeated a term --`where` carried `donde, donde` and `do, do`, `Brazil`
+        carried `carioca` twice-- and in the Spanish pack it was **88 of 407** with per-sense
+        translations. On the watch that is the same word twice in a row that is already clipped.
 
-        ⚠️ **Se deduplica en `render` y no en cada fuente**, por el mismo motivo que
-        `merge_duplicate_senses`: es el unico paso por el que pasan TODOS los packs. Puesto en
-        `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual`, y la propiedad seria
-        cierta solo en los packs cuyo autor se acordo.
+        ⚠️ **It is deduplicated in `render` and not in each source**, for the same reason as
+        `merge_duplicate_senses`: it is the only step EVERY pack goes through. Put in `kaikki` it
+        would have to be repeated in `oewn`, `wikidata` and `bilingual`, and the property would be
+        true only in the packs whose author remembered.
         """
         texto = payload.render("noun", [
             {"gloss": "g",
@@ -595,20 +593,20 @@ class AcepcionDireccionableTest(unittest.TestCase):
         self.assertEqual(["gratis", "libre"], palabra)
 
     def test_deduplicar_conserva_el_ORDEN_de_la_primera_aparicion(self):
-        # El orden es informacion: la fuente pone primero lo que mas se usa, y con tope 4 o 8 el
-        # orden decide que se ve.
+        # The order is information: the source puts what is most used first, and with a cap of 4 or
+        # 8 the order decides what gets seen.
         texto = payload.render(None, [{"gloss": "g", "synonyms": ["c", "a", "c", "b"]}])
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual(["c", "a", "b"], senses[0]["synonyms"])
 
     def test_dos_ejemplos_distintos_no_se_pisan(self):
-        # Deduplicar no puede comerse contenido distinto: se comparan los items enteros.
+        # Deduplicating must not eat distinct content: whole items are compared.
         texto = payload.render(None, [{"gloss": "g", "examples": ["uno", "dos"]}])
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual(["uno", "dos"], senses[0]["examples"])
 
     def test_la_fusion_conserva_el_ORDEN_de_la_primera(self):
-        """La primera acepcion es la que la fuente puso primero, y el orden es informacion."""
+        """The first sense is the one the source put first, and the order is information."""
         texto = payload.render(None, [
             {"gloss": "primera"}, {"gloss": "segunda"}, {"gloss": "primera"},
         ])
@@ -622,23 +620,22 @@ class AcepcionDireccionableTest(unittest.TestCase):
 
 
 class PlegadoDeGlosaTest(unittest.TestCase):
-    """El plegado que hace que dos diccionarios reconozcan la misma acepcion.
+    """The folding that makes two dictionaries recognize the same sense.
 
-    Decidido por el usuario con el numero sobre la mesa: entre Wikcionario y Wikidata sube la
-    coincidencia de **34,40 % a 42,21 % (+1.531 acepciones)**. Los fallos que recupera son de esta
-    forma, y se ven leyendo:
+    Decided by the user with the number on the table: between Wiktionary and Wikidata it raises
+    agreement from **34.40 % to 42.21 % (+1,531 senses)**. The failures it recovers are of this
+    shape, and they are visible by reading:
 
-        wikcionario: "Condición o carácter de torpe."
-        wikidata   : "condición o carácter de torpe"
+        wiktionary: "Condición o carácter de torpe."
+        wikidata  : "condición o carácter de torpe"
 
-    ⚠️ **El plegado tiene que aplicarse al codigo Y a la clave de fusion, o reaparecen las
-    excepciones de direccionabilidad**: dos acepciones que difieren solo en un punto tendrian el
-    mismo codigo sin fusionarse, y una quedaria inalcanzable. Por eso las dos cosas llaman a la
-    misma funcion.
+    ⚠️ **The folding has to be applied to the code AND to the fusion key, or the addressability
+    exceptions come back**: two senses differing only by a full stop would have the same code
+    without being fused, and one would be unreachable. That is why both call the same function.
 
-    ⚠️ **Es una regla NUESTRA y versionada, a diferencia de NFC que es un estandar.** Cambiarla
-    invalida todos los enlaces ya escritos, asi que es un acto deliberado y lo fija un vector en
-    los dos lenguajes.
+    ⚠️ **It is a rule of OURS and versioned, unlike NFC which is a standard.** Changing it
+    invalidates every link already written, so it is a deliberate act and a vector pins it in both
+    languages.
     """
 
     def test_ignora_mayusculas_y_punto_final(self):
@@ -661,7 +658,7 @@ class PlegadoDeGlosaTest(unittest.TestCase):
                             payload.sense_code(1, "una casa"))
 
     def test_NO_ignora_los_acentos(self):
-        """Plegado LIGERO: `publico` y `público` son palabras distintas y las glosas tambien."""
+        """LIGHT folding: `publico` and `público` are different words and so are the glosses."""
         self.assertNotEqual(payload.sense_code(7, "el publico"), payload.sense_code(7, "el público"))
 
     def test_NO_ignora_una_palabra_distinta(self):
@@ -669,7 +666,7 @@ class PlegadoDeGlosaTest(unittest.TestCase):
                             payload.sense_code(7, "asiento corto"))
 
     def test_la_fusion_usa_el_MISMO_plegado_que_el_codigo(self):
-        """Si no, dos acepciones comparten codigo sin fusionarse y una queda inalcanzable."""
+        """Otherwise two senses share a code without being fused and one becomes unreachable."""
         texto = payload.render(None, [
             {"gloss": "Condición de torpe.", "examples": ["uno"]},
             {"gloss": "condición de torpe", "examples": ["dos"]},
@@ -679,18 +676,18 @@ class PlegadoDeGlosaTest(unittest.TestCase):
         self.assertEqual(["uno", "dos"], senses[0]["examples"])
 
     def test_la_fusion_conserva_la_glosa_de_la_PRIMERA(self):
-        """El plegado decide que es lo mismo; lo que se MUESTRA sigue siendo el texto original."""
+        """The folding decides what is the same; what is DISPLAYED is still the original text."""
         texto = payload.render(None, [{"gloss": "Condición de torpe."}, {"gloss": "condición de torpe"}])
         _pos, senses, _w = payload.parse(texto)
         self.assertEqual("Condición de torpe.", senses[0]["gloss"])
 
     def test_el_vector_esta_fijado_en_los_dos_lenguajes(self):
-        """⚠️ Si este numero cambia, los enlaces de todos los packs ya construidos mueren.
+        """⚠️ If this number changes, the links of every already built pack die.
 
-        Que `"Casa."` y `"casa"` den **el mismo** numero es el plegado funcionando, y que ese
-        numero sea el mismo que antes del plegado dice que para una glosa ya minuscula y sin
-        puntuacion final no cambio nada -- o sea que el plegado sólo agrega, no mueve lo que ya
-        andaba.
+        That `"Casa."` and `"casa"` give **the same** number is the folding working, and that this
+        number is the same as before the folding says that for a gloss already lowercase and with
+        no trailing punctuation nothing changed -- meaning the folding only adds, it does not move
+        what already worked.
         """
         self.assertEqual("8ec316909e48", payload.sense_code(1, "Casa."))
         self.assertEqual("8ec316909e48", payload.sense_code(1, "casa"))
@@ -700,16 +697,16 @@ if __name__ == "__main__":
 
 
 class PartesPrincipalesTest(unittest.TestCase):
-    """El canal que la ficha muestra al lado del lema."""
+    """The channel the card shows beside the lemma."""
 
     def test_van_antes_de_las_acepciones(self):
-        # Describen la PALABRA, no una de sus acepciones, igual que las traducciones sueltas.
+        # They describe the WORD, not one of its senses, just like the loose translations.
         texto = payload.render("verb", [{"gloss": "g"}], forms=[("ger", "corriendo")])
         self.assertLess(texto.index("F\tger"), texto.index("S\tg"))
 
     def test_la_clave_viaja_neutra_y_la_forma_con_su_ortografia(self):
-        # ⚠️ Es todo el punto de este canal: `form` guarda `corrais` porque es una clave de
-        # busqueda, y una ficha que muestre `corrais` esta mal escrita.
+        # ⚠️ It is the whole point of this channel: `form` stores `corrais` because it is a search
+        # key, and a card showing `corrais` is misspelled.
         texto = payload.render("verb", [{"gloss": "g"}], forms=[("part", "corrído")])
         self.assertIn("F\tpart:corrído\n", texto)
 
@@ -719,22 +716,22 @@ class PartesPrincipalesTest(unittest.TestCase):
         self.assertEqual([("pl", "altos"), ("fem", "alta")], payload.parse_forms(texto))
 
     def test_una_linea_sin_separador_se_ignora_y_no_tira_la_entrada(self):
-        # Romper por una forma mal escrita perderia la entrada entera, que es mucho peor.
+        # Breaking over a malformed form would lose the whole entry, which is far worse.
         self.assertEqual([("pl", "casas")],
                          payload.parse_forms("F\tsinsep\nF\tpl:casas\nS\tg\n"))
 
     def test_un_pack_sin_formas_no_emite_nada(self):
-        # La degradacion: un pack construido antes de este canal simplemente no lo trae, y la
-        # ficha no muestra la seccion. Sin excepcion y sin hueco.
+        # The degradation: a pack built before this channel simply does not carry it, and the card
+        # does not show the section. No exception and no gap.
         self.assertEqual("", "".join(
             l for l in payload.render("noun", [{"gloss": "g"}]).splitlines(True)
             if l.startswith("F\t")))
         self.assertEqual([], payload.parse_forms("P\tnoun\nS\tg\n"))
 
     def test_un_tab_en_la_forma_no_parte_la_linea(self):
-        # Mismo saneo que el resto del payload: un tab perdido corromperia la entrada.
-        # `sanitize` lo cambia por un espacio en vez de borrarlo, que es lo que hace con el
-        # resto del payload: lo que importa es que la linea NO se parte y la forma sobrevive.
+        # The same sanitizing as the rest of the payload: a stray tab would corrupt the entry.
+        # `sanitize` turns it into a space rather than deleting it, which is what it does with the
+        # rest of the payload: what matters is that the line does NOT split and the form survives.
         texto = payload.render("noun", [{"gloss": "g"}], forms=[("pl", "ca\tsas")])
         self.assertEqual([("pl", "ca sas")], payload.parse_forms(texto))
         self.assertEqual(1, texto.count("F\t"))

@@ -1,15 +1,15 @@
-"""Comprueba el repositorio contra las reglas que él mismo escribe sobre sí mismo.
+"""Checks the repository against the rules it writes about itself.
 
-Cada regla de acá está escrita en CLAUDE.md, en un <area>/CLAUDE.md o en docs/decisions.md.
-Si una regla cambia allá, cambiala acá también; si un check de acá no tiene regla escrita, no
-debería estar rompiendo el build.
+Every rule here is written in CLAUDE.md, in an <area>/CLAUDE.md or in docs/decisions.md. If a rule
+changes there, change it here too; if a check here has no written rule, it should not be breaking
+the build.
 
-Dos severidades:
-  - FALLA     detiene el build.
-  - AVISO     se imprime siempre y no detiene nada. Se usa cuando las excepciones legítimas
-              son reales: un aviso que grita en falso se termina ignorando.
+Two severities:
+  - FALLA     stops the build.
+  - AVISO     is always printed and stops nothing. It is used when the legitimate exceptions are
+              real: an advisory that cries wolf ends up ignored.
 
-Corre sin red y sin dependencias: es parte del gate.
+It runs with no network and no dependencies: it is part of the gate.
 """
 
 import hashlib
@@ -21,8 +21,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUNDLE = ".agents"
 
-#: Documentos que nombran rutas legítimamente inexistentes: el roadmap las planifica, el
-#: changelog las recuerda. Ver check_doc_paths.
+#: Documents that name legitimately non-existent paths: the roadmap plans them, the changelog
+#: remembers them. See check_doc_paths.
 EXENTOS_DE_RUTAS = ("docs/roadmap.md", ".claude/logs/agent-changelog.md")
 
 # Directorios de primer nivel cuyos paths se consideran referencias reales al repo.
@@ -36,8 +36,8 @@ for base, dirs, files in os.walk(ROOT):
             MARKDOWN.append(os.path.join(base, name))
 
 
-#: Las fuentes que una sonda de mutacion podria ensuciar. Los `.md` quedan fuera a proposito: un
-#: documento que EXPLICA que es una sonda no es una sonda, y este mismo archivo las nombra.
+#: The sources a mutation probe could dirty. The `.md` files are left out on purpose: a document
+#: that EXPLAINS what a probe is, is not a probe, and this very file names them.
 FUENTES = []
 for base, dirs, files in os.walk(ROOT):
     dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__")]
@@ -62,16 +62,16 @@ class Report:
         self.advisories.append((rule, detail))
 
 
-# Si este pase puede REESCRIBIR los conteos que encuentre mal. Lo enciende `--fix`.
+# Whether this pass may REWRITE the counts it finds wrong. `--fix` switches it on.
 #
-# ⚠️ **Sólo los conteos, y sólo el número.** Es la única falla del archivo que un humano no
-# puede deducir sin correr la suite: agregar un test mueve cuatro o cinco cifras repartidas en
-# `README.md`, `app/CLAUDE.md`, `tools/CLAUDE.md` y `docs/roadmap.md`. Medido: falló **cinco
-# veces en una sola sesión**, siempre por lo mismo, y **cinco más** en la del 2026-09-21.
+# ⚠️ **Only the counts, and only the number.** It is the only failure in the file a human cannot
+# deduce without running the suite: adding a test moves four or five figures spread across
+# `README.md`, `app/CLAUDE.md`, `tools/CLAUDE.md` and `docs/roadmap.md`. Measured: it failed **five
+# times in a single session**, always for the same reason, and **five more** in 2026-09-21's.
 #
-# ⚠️ **Lo que `--fix` NO toca, a propósito**: que un documento haya **dejado de afirmar** un
-# conteo. Ahí la frase se reescribió o el dato se borró, y decidirlo es de quien escribe — un
-# arreglo automático inventaría una frase o borraría una vigilancia sin que nadie se entere.
+# ⚠️ **What `--fix` does NOT touch, on purpose**: a document having **stopped asserting** a count.
+# There the sentence was rewritten or the datum deleted, and deciding that belongs to whoever
+# writes -- an automatic fix would invent a sentence or delete a watch without anybody noticing.
 ARREGLAR = False
 
 
@@ -89,14 +89,15 @@ def read(path):
 
 
 def check_mirror_declarations(report):
-    """Regla: todo archivo con espejo lo declara, y la ruta declarada existe. (tools/CLAUDE.md)
+    """Rule: every mirrored file declares its mirror, and the declared path exists. (tools/CLAUDE.md)
 
-    Que el CONTENIDO coincida lo comprueban los vectores compartidos, no esto.
+    That the CONTENT matches is checked by the shared vectors, not by this.
     """
-    # WARNING: both spellings are accepted while the translation is in flight. The marker moves
-    # from "ESTE ARCHIVO TIENE UN ESPEJO" to "THIS FILE HAS A MIRROR", and a check that knew
-    # only one of them would stop seeing every file written in the other -- it would pass by
-    # looking at nothing, which is exactly what the `found == 0` guard below is for.
+    # WARNING: both spellings are accepted while the translation is in flight. The marker moved
+    # from "ESTE ARCHIVO TIENE UN ESPEJO" to "THIS FILE HAS A MIRROR" with the English pass, and
+    # a check that only knew the new one would stop seeing any file nobody had translated yet --
+    # it would pass by looking at nothing, which is exactly what the `found == 0` guard below is
+    # for. That guard is what caught this the day the markers were translated.
     pattern = re.compile(
         r"(?:ESPEJO(?:\s+GENERADO)?|MIRROR(?:\s+\w+)?):\s*\n?[#/\* ]*([\w./\-]+\.(?:kt|py))"
     )
@@ -119,19 +120,19 @@ def check_mirror_declarations(report):
                 ]
                 if not any(os.path.exists(c) for c in candidates):
                     report.failure(
-                        "espejo declarado que no existe",
-                        "%s declara espejo en %s" % (os.path.relpath(path, ROOT), target),
+                        "declared mirror that does not exist",
+                        "%s declares a mirror at %s" % (os.path.relpath(path, ROOT), target),
                     )
     if found == 0:
         report.failure(
             "ningun espejo declarado",
-            "se esperaban declaraciones 'ESTE ARCHIVO TIENE UN ESPEJO';"
-            " el check no esta viendo nada",
+            "expected 'THIS FILE HAS A MIRROR' declarations;"
+            " the check is seeing nothing",
         )
 
 
 def check_version_constants(report):
-    """Regla: las constantes espejadas coinciden entre Kotlin y Python. (CLAUDE.md, D-005/D-006)"""
+    """Rule: the mirrored constants match between Kotlin and Python. (CLAUDE.md, D-005/D-006)"""
     pairs = [
         (
             "NORM_VERSION",
@@ -148,9 +149,9 @@ def check_version_constants(report):
             "tools/packbuilder/payload.py",
         ),
         (
-            # No es un espejo de implementacion como los otros: es la version del esquema que
-            # el builder escribe y la que la app acepta. Si se desincronizan, todo pack recien
-            # construido se rechaza al abrirse -- ruidoso, pero solo en dispositivo.
+            # It is not an implementation mirror like the others: it is the schema version the
+            # builder writes and the one the app accepts. If they drift apart, every freshly built
+            # pack is rejected on opening -- loudly, but only on a device.
             "SCHEMA_VERSION",
             r"const val SUPPORTED_SCHEMA_VERSION: Int = (\d+)",
             "dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt",
@@ -179,7 +180,7 @@ def check_version_constants(report):
 
 
 def check_unicode_table(report):
-    """Regla: las dos copias del repertorio salen del mismo origen. (D-003)"""
+    """Rule: the repertoire's two copies come from the same origin. (D-003)"""
     data = {}
     for line in read("tools/unicode/repertoire.txt").splitlines():
         if line and not line.startswith("#"):
@@ -203,7 +204,7 @@ def check_unicode_table(report):
 
 
 def check_fuzzy_profiles(report):
-    """Regla: los perfiles existen en los dos lenguajes. (dict-core/CLAUDE.md)"""
+    """Rule: the profiles exist in both languages. (dict-core/CLAUDE.md)"""
     kotlin = set(
         re.findall(r'^\s{4}[A-Z_]+\(\s*\n?\s*"([a-z]+)"', read(
             "dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/FuzzyProfile.kt"), re.M)
@@ -225,11 +226,11 @@ def check_fuzzy_profiles(report):
 
 
 def _patrones_ignorados():
-    """Los patrones de .gitignore que sirven para decidir si una ruta es generada.
+    """The .gitignore patterns useful for deciding whether a path is generated.
 
-    Deliberadamente parcial: solo prefijos de directorio (`build/`) y sufijos (`*.db`), que es
-    todo lo que hace falta para distinguir un artefacto generado de un archivo del repo. No
-    reimplementa el matcher de git, y no tiene por que.
+    Deliberately partial: only directory prefixes (`build/`) and suffixes (`*.db`), which is all
+    that is needed to tell a generated artifact from a repo file. It does not reimplement git's
+    matcher, and it has no reason to.
     """
     patrones = []
     ruta = os.path.join(ROOT, ".gitignore")
@@ -248,7 +249,7 @@ def _esta_ignorado(candidate, patrones):
     partes = candidate.split("/")
     for patron in patrones:
         if patron.endswith("/"):
-            # Un directorio ignorado: cualquier segmento de la ruta que lo nombre alcanza.
+            # An ignored directory: any segment of the path naming it is enough.
             if patron.rstrip("/") in partes or candidate.startswith(patron):
                 return True
         elif patron.startswith("*."):
@@ -260,30 +261,29 @@ def _esta_ignorado(candidate, patrones):
 
 
 def check_doc_paths(report):
-    """Regla: un documento no apunta a un archivo que no existe. (CLAUDE.md, mapa de documentos)
+    """Rule: a document does not point at a file that does not exist. (CLAUDE.md, document map)
 
-    Un puntero muerto es peor que no tener puntero, y es la decadencia mas comun en un repo
-    asistido por agentes: borran codigo mas rapido de lo que releen prosa.
+    A dead pointer is worse than no pointer, and it is the commonest decay in an agent-assisted
+    repo: they delete code faster than they re-read prose.
 
-    docs/roadmap.md queda exento a proposito: su trabajo es nombrar cosas que todavia no
-    existen.
+    docs/roadmap.md is exempt on purpose: its job is to name things that do not yet exist.
 
-    ⚠️ **Y lo GENERADO tambien queda exento, porque si no el chequeo miente al reves**: mira
-    `os.path.exists`, asi que una ruta como el pack de juguete --que `build_toy.py` escribe y
-    que D-020 decidio no commitear-- **existe en la maquina de cualquiera que haya construido
-    una vez y no existe en un clone limpio**. El chequeo pasaba en el arbol del que escribia y
-    fallaba en el del que revisaba. Se encontro asi: verificando un commit con `git worktree`,
-    que es donde esa diferencia se ve.
+    ⚠️ **And the GENERATED is exempt too, because otherwise the check lies the other way**: it
+    looks at `os.path.exists`, so a path like the toy pack --which `build_toy.py` writes and which
+    D-020 decided not to commit-- **exists on the machine of anybody who has built once and does
+    not exist in a clean clone**. The check passed in the tree of whoever wrote and failed in the
+    tree of whoever reviewed. That is how it was found: verifying a commit with `git worktree`,
+    which is where that difference shows.
 
-    La exencion sale de `.gitignore` y no de una lista aparte: si git lo ignora, no es un
-    archivo del repo y un documento puede nombrarlo.
+    The exemption comes from `.gitignore` and not from a separate list: if git ignores it, it is
+    not a repo file and a document may name it.
 
-    ⚠️ **Y el changelog queda exento por la misma razon que el roadmap, pero al reves en el
-    tiempo**: es un registro y nombra rutas que existian cuando se escribio la entrada. La carpeta
-    docs/agents/ se retiro en D-221 y cinco entradas viejas la mencionan correctamente. El
-    grandfathering por numero de linea que usa D-020 **no sirve aca**: el changelog se escribe de
-    arriba, asi que cada sesion desplaza todos los numeros. El costo es real y se nombra: el
-    documento mas largo del repo no tiene chequeo de rutas.
+    ⚠️ **And the changelog is exempt for the same reason as the roadmap, but backwards in time**:
+    it is a record and it names paths that existed when the entry was written. The docs/agents/
+    folder was retired in D-221 and five old entries mention it correctly. The line-number
+    grandfathering D-020 uses **is no use here**: the changelog is written from the top, so each
+    session shifts every number. The cost is real and gets named: the repo's longest document has
+    no path check.
     """
     ignorados = _patrones_ignorados()
     token = re.compile(r"`([^`\n]+)`")
@@ -309,7 +309,7 @@ def check_doc_paths(report):
 
 
 def check_markdown_links(report):
-    """Regla: los enlaces relativos entre documentos resuelven. (CLAUDE.md, mapa de documentos)"""
+    """Rule: the relative links between documents resolve. (CLAUDE.md, document map)"""
     link = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     for path in MARKDOWN:
         relative = os.path.relpath(path, ROOT)
@@ -327,10 +327,10 @@ def check_markdown_links(report):
 
 
 def check_index_definitions(report):
-    """Regla: cada indice se define una vez. (tools/CLAUDE.md, D-016)
+    """Rule: each index is defined once. (tools/CLAUDE.md, D-016)
 
-    schema.sql e indexes.sql se separaron porque un comentario con un punto y coma rompia el
-    split (D-041). Si un indice reaparece en schema.sql, el builder falla al crearlo dos veces.
+    schema.sql and indexes.sql were separated because a comment with a semicolon broke the split
+    (D-041). If an index reappears in schema.sql, the builder fails creating it twice.
     """
     schema = read("tools/packbuilder/schema.sql")
     indexes = read("tools/packbuilder/indexes.sql")
@@ -345,7 +345,7 @@ def check_index_definitions(report):
         report.failure("indice duplicado", ", ".join(sorted(duplicates)))
 
 
-# Dependencias que no pueden entrar, con la decision que lo dice.
+# Dependencies that cannot get in, with the decision that says so.
 FORBIDDEN_DEPENDENCIES = {
     "glance-wear-tiles": "D-025: deprecado y sera removido; NO es la libreria de Wear Widgets",
     "androidx.glance.wear": "D-024: Wear Widgets esta pospuesto; los packages estan en alpha",
@@ -354,10 +354,10 @@ FORBIDDEN_DEPENDENCIES = {
 
 
 def check_forbidden_dependency(report):
-    """Regla: ciertas dependencias no entran. (D-024, D-025, app/CLAUDE.md)
+    """Rule: certain dependencies do not get in. (D-024, D-025, app/CLAUDE.md)
 
-    glance-wear-tiles es el caso peligroso: es el PRIMER resultado al buscar como hacer un Tile
-    con Glance, y es el equivocado.
+    glance-wear-tiles is the dangerous case: it is the FIRST result when searching how to make a
+    Tile with Glance, and it is the wrong one.
     """
     for base, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__", "docs")]
@@ -375,17 +375,17 @@ def check_forbidden_dependency(report):
                     )
 
 
-# Miembros de la JVM que NO se pueden sombrear con una extension de Kotlin: en la JVM gana el
-# miembro nativo, asi que la extension nunca correria. Funcionaria hoy y fallaria el dia que el
-# modulo apunte a otro target. Ver D-019.
+# JVM members that CANNOT be shadowed by a Kotlin extension: on the JVM the native member wins, so
+# the extension would never run. It would work today and fail the day the module targets something
+# else. See D-019.
 SHADOWED_JVM_MEMBERS = ("appendCodePoint", "codePointAt", "codePointCount")
 
 
 def check_shadowed_extensions(report):
-    """Regla: un reemplazo portable de una API JVM lleva nombre distinto. (D-019)
+    """Rule: a portable replacement for a JVM API carries a different name. (D-019)
 
-    Ya paso una vez: `StringBuilder.appendCodePoint` como extension nunca se habria ejecutado.
-    Se renombro a `appendUtf16`.
+    It already happened once: `StringBuilder.appendCodePoint` as an extension would never have
+    run. It was renamed to `appendUtf16`.
     """
     core = os.path.join(ROOT, "dict-core", "src", "main")
     for base, _dirs, files in os.walk(core):
@@ -407,14 +407,14 @@ def check_shadowed_extensions(report):
 
 
 def check_forbidden_mirror(report):
-    """Regla: entry.uid lo calcula SOLO el builder; en Kotlin no existe. (D-057)
+    """Rule: ONLY the builder computes entry.uid; in Kotlin it does not exist. (D-057)
 
-    `norm()` y `fuzzy()` viven dos veces y por eso necesitan vectores compartidos que detecten
-    que se separaron (D-005). `uid` se salva de todo eso mientras siga habiendo una sola
-    implementacion: la app lo lee de la columna y nunca lo recalcula.
+    `norm()` and `fuzzy()` live twice and therefore need shared vectors that detect they have
+    drifted apart (D-005). `uid` escapes all of that as long as there is a single implementation:
+    the app reads it from the column and never recomputes it.
 
-    El dia que alguien escriba `TextNormalizer.uid()` --por conveniencia, para no tener que leer
-    la fila-- vuelve la clase de bug entera, y esta vez sin vectores que la atrapen.
+    The day somebody writes `TextNormalizer.uid()` --out of convenience, to avoid reading the
+    row-- the whole class of bug comes back, and this time with no vectors to catch it.
     """
     sospechas = (
         (r"\bUID_RECIPE\b", "declara la receta del uid"),
@@ -443,19 +443,19 @@ def check_forbidden_mirror(report):
 
 
 def check_module_direction(report):
-    """Regla: :app -> :dict-data -> :dict-core, y nunca al reves. (docs/architecture.md)
+    """Rule: :app -> :dict-data -> :dict-core, and never the other way. (docs/architecture.md)
 
-    `docs/architecture.md` lo pide por escrito desde que existe --"comprobar la direccion es lo
-    primero que la auditoria tiene que agregar"-- y durante tres sesiones el documento describio
-    un check que no existia. Ahora existe.
+    `docs/architecture.md` has asked for it in writing since it existed --"checking the direction
+    is the first thing the audit has to add"-- and for three sessions the document described a
+    check that did not exist. Now it does.
 
-    Se mira el build file y no los imports a proposito: `:app` y `:dict-data` **comparten el
-    nombre de paquete** `cl.fadiaz.dictionary.data`, asi que un import no dice de que modulo
-    viene. La declaracion de dependencia si.
+    The build file is looked at and not the imports, on purpose: `:app` and `:dict-data` **share
+    the package name** `cl.fadiaz.dictionary.data`, so an import does not say which module it comes
+    from. The dependency declaration does.
 
-    Lo que rompe si esto se invierte no es estetico: `:dict-core` es el que se testea en
-    milisegundos sin emulador y el que se espeja con el builder (D-005). Una dependencia hacia
-    arriba lo ata a Android y esos tests dejan de poder correr.
+    What breaks if this gets inverted is not cosmetic: `:dict-core` is the one tested in
+    milliseconds with no emulator and the one mirrored with the builder (D-005). A dependency
+    upwards ties it to Android and those tests stop being able to run.
     """
     permitido = {
         "dict-core": set(),
@@ -478,16 +478,16 @@ def check_module_direction(report):
 
 
 def check_app_logic_is_jvm_testable(report):
-    """Regla: la logica de :app no importa android.*; lo de Android entra por parametro. (D-072)
+    """Rule: `:app`'s logic does not import android.*; Android comes in as a parameter. (D-072)
 
-    `:app` estuvo sin un solo test hasta el 2026-09-17, y la razon no fue pereza: el ViewModel
-    extendia AndroidViewModel y construia el pack desde un Context, asi que **no habia forma de
-    correrlo en la JVM**. Retrofitear un test ahi costo un refactor, que es exactamente el precio
-    que este check existe para no volver a pagar.
+    `:app` went without a single test until 2026-09-17, and the reason was not laziness: the
+    ViewModel extended AndroidViewModel and built the pack from a Context, so **there was no way to
+    run it on the JVM**. Retrofitting a test there cost a refactor, which is exactly the price this
+    check exists not to pay again.
 
-    Los archivos vigilados son los que tienen logica de verdad --el ViewModel y el resultado de
-    abrir un pack--, no las pantallas: un Composable es Android por definicion y se prueba en un
-    dispositivo. La frontera es `PackLoad`, que no conoce Android y por eso deja pasar un fake.
+    The watched files are the ones with real logic --the ViewModel and the result of opening a
+    pack-- and not the screens: a Composable is Android by definition and is tested on a device.
+    The boundary is `PackLoad`, which knows no Android and therefore lets a fake through.
     """
     vigilados = (
         os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
@@ -531,15 +531,15 @@ def check_app_logic_is_jvm_testable(report):
 
 
 def check_tiles_dont_open_packs(report):
-    """Regla: ningun Tile abre un pack. (D-042, y el contrato de onTileRequest)
+    """Rule: no Tile opens a pack. (D-042, and onTileRequest's contract)
 
-    No es una precaucion de rendimiento --que sin medir estaria prohibida-- sino el contrato de
-    la API: `onTileRequest` esta anotado @MainThread y "must complete after at most 10 seconds".
-    Abrir un pack de 69 o 295 MB ahi esta descartado por escrito.
+    It is not a performance precaution --which without a measurement would be forbidden-- but the
+    API's contract: `onTileRequest` is annotated @MainThread and "must complete after at most 10
+    seconds". Opening a 69 or 295 MB pack there is ruled out in writing.
 
-    El diseno lo evita leyendo SharedPreferences, pero nada lo impedia: un TileService no tiene
-    `onCleared`, asi que un pack abierto desde ahi se filtra --un handle nativo de SQLite y un
-    dispatcher de un hilo-- por toda la vida del proceso, y en silencio.
+    The design avoids it by reading SharedPreferences, but nothing prevented it: a TileService has
+    no `onCleared`, so a pack opened from there leaks --a native SQLite handle and a
+    single-threaded dispatcher-- for the whole life of the process, and in silence.
     """
     prohibidos = ("PackStore.open", "PackFile.", "SqlitePackSource")
     carpeta = os.path.join(ROOT, "app", "src", "main", "java", "cl", "fadiaz", "dictionary", "tile")
@@ -567,15 +567,15 @@ def check_tiles_dont_open_packs(report):
 
 
 def check_attribution_screen(report):
-    """Regla: la atribucion se muestra, y sale del pack. (D-031)
+    """Rule: the attribution is shown, and it comes from the pack. (D-031)
 
-    El contenido es CC BY-SA y mostrar de donde sale es la **condicion de uso de los datos**, no
-    una cortesia. Si alguien borra esa pantalla para ganar espacio, nada mas en el repo lo dice.
+    The content is CC BY-SA and showing where it comes from is the **condition of using the data**,
+    not a courtesy. If somebody deletes that screen to gain space, nothing else in the repo says so.
 
-    Este check es **barato y limitado a proposito**: comprueba que el archivo exista y que lo que
-    muestra venga de `meta`, no de una constante en el codigo. Que los pixeles aparezcan lo
-    prueba `PantallasTest.laAtribucionMuestraLaLicenciaYLaFuente`, que necesita un dispositivo y
-    por lo tanto no corre en el gate. Los dos juntos son el enforcer; ninguno solo alcanza.
+    This check is **cheap and limited on purpose**: it checks that the file exists and that what it
+    shows comes from `meta`, not from a constant in the code. That the pixels appear is proven by
+    `PantallasTest.laAtribucionMuestraLaLicenciaYLaFuente`, which needs a device and therefore does
+    not run in the gate. The two together are the enforcer; neither alone is enough.
     """
     pantalla = os.path.join("app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                             "presentation", "AttributionScreen.kt")
@@ -597,8 +597,8 @@ def check_attribution_screen(report):
                 "fuente trae otra licencia, y una constante en el codigo mostraria la "
                 "equivocada (D-031)." % (pantalla, parametro),
             )
-    # La atribucion tiene que leerse de la METADATA de cada pack abierto. Con dos packs esto
-    # dejo de ser un detalle: mostrar una sola licencia es incumplir la condicion de la otra.
+    # The attribution has to be read from each open pack's METADATA. With two packs this stopped
+    # being a detail: showing a single licence is breaching the other's condition.
     if "metadata" not in texto:
         report.failure(
             "la atribucion dejo de leerse del pack",
@@ -608,10 +608,10 @@ def check_attribution_screen(report):
 
 
 def _bloque(texto, apertura):
-    """El cuerpo del bloque que empieza en `apertura`, contando llaves. Vacio si no esta.
+    """The body of the block starting at `apertura`, counting braces. Empty if it is not there.
 
-    No es un parser de Kotlin y no pretende serlo: alcanza para acotar un chequeo a la seccion
-    que de verdad quiere vigilar, en vez de a todo el archivo.
+    It is not a Kotlin parser and does not pretend to be: it is enough to narrow a check to the
+    section it really wants to watch, rather than to the whole file.
     """
     inicio = texto.find(apertura)
     if inicio < 0:
@@ -628,17 +628,17 @@ def _bloque(texto, apertura):
 
 
 def check_release_signing(report):
-    """Regla: la firma del release no deja secretos en el repo ni usa la clave de debug.
+    """Rule: the release signing leaves no secrets in the repo and does not use the debug key.
 
-    Dos errores, los dos silenciosos:
+    Two errors, both silent:
 
-    - **Una keystore o una contraseña trackeadas.** No rompe nada y no se nota, hasta que el
-      repositorio se comparte. Una clave filtrada no se "arregla": se reemplaza, y reemplazarla
-      significa que ninguna app instalada con la vieja se puede volver a actualizar.
-    - **Firmar el release con `signingConfigs.getByName("debug")`.** Es la salida facil cuando el
-      release sale sin firmar, y **parece funcionar**: instala y corre. Lo que rompe aparece
-      meses despues, cuando se quiere publicar con la clave de verdad y el reloj rechaza la
-      actualizacion porque la firma no coincide.
+    - **A tracked keystore or password.** It breaks nothing and goes unnoticed, until the
+      repository gets shared. A leaked key does not get "fixed": it gets replaced, and replacing it
+      means no app installed with the old one can ever be updated again.
+    - **Signing the release with `signingConfigs.getByName("debug")`.** It is the easy way out when
+      the release comes out unsigned, and it **looks as though it works**: it installs and runs.
+      What breaks appears months later, when you want to publish with the real key and the watch
+      rejects the update because the signature does not match.
     """
     rastreados = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False
@@ -657,10 +657,11 @@ def check_release_signing(report):
     with open(gradle, encoding="utf-8") as handle:
         texto = handle.read()
 
-    # ⚠️ **Sólo dentro del bloque `release`**, y eso no es un detalle. La regla habla del APK que
-    # sale a la gente; un build type aparte que firma con la clave de debug para poder instalarse
-    # por adb es legítimo y necesario --es como se prueba R8 antes de que exista la keystore, y es
-    # lo que Macrobenchmark exige--. Mirar el archivo entero prohibía eso por accidente.
+    # ⚠️ **Only inside the `release` block**, and that is not a detail. The rule speaks about the
+    # APK that goes out to people; a separate build type signing with the debug key so it can be
+    # installed over adb is legitimate and necessary --it is how R8 gets tested before the keystore
+    # exists, and it is what Macrobenchmark requires--. Looking at the whole file forbade that by
+    # accident.
     if re.search(r'signingConfig\s*=\s*signingConfigs\.getByName\(\s*"debug"',
                  _bloque(texto, "release {")):
         report.failure(
@@ -681,18 +682,18 @@ def check_release_signing(report):
 
 
 def check_app_version(report):
-    """Regla: el APK que sale al reloj se distingue del anterior. (D-095)
+    """Rule: the APK that goes to the watch is distinguishable from the previous one. (D-095)
 
-    versionCode y versionName nacieron como literales del template --1 y "1.0"-- y nada los
-    incrementaba: ni tarea, ni script, ni CI, ni un git tag. Eso no es cosmetico: el instalador
-    de Android **rechaza** un APK con versionCode menor al instalado, y acepta reinstalar el
-    mismo numero solo porque la firma coincide. Es la misma trampa que devpack.py ya evita para
-    los packs comparando data_version.
+    versionCode and versionName were born as template literals --1 and "1.0"-- and nothing
+    incremented them: no task, no script, no CI, no git tag. That is not cosmetic: Android's
+    installer **rejects** an APK with a versionCode lower than the installed one, and accepts
+    reinstalling the same number only because the signature matches. It is the same trap devpack.py
+    already avoids for the packs by comparing data_version.
 
-    Viven en gradle.properties y no en el .kts para que subirlos sea una linea que no toca
-    logica de build. El .kts los lee con un default, asi que un clone sin la property sigue
-    compilando --misma regla que la firma (D-086)-- y por eso este check mira la property y
-    ademas que el .kts no la pise con un literal.
+    They live in gradle.properties and not in the .kts so bumping them is one line that touches no
+    build logic. The .kts reads them with a default, so a clone without the property still compiles
+    --the same rule as the signing (D-086)-- which is why this check looks at the property and also
+    that the .kts does not override it with a literal.
     """
     props = read("gradle.properties")
     build = read("app/build.gradle.kts")
@@ -723,21 +724,21 @@ def check_app_version(report):
 
 
 def check_no_hardcoded_translations(report):
-    """Ningun texto que ya tiene clave de recurso puede estar ESCRITO en el codigo.
+    """No text that already has a resource key may be WRITTEN into the code.
 
-    ⚠️ **Esto no lo agarra `check_locale_parity`, y por eso hace falta.** Las dos tablas pueden
-    estar perfectamente parejas --las claves existen en los dos idiomas-- y la pantalla seguir
-    dibujando el literal. Fue lo que paso: `home_saved` y `home_settings` existian en `values/` y
-    en `values-es/`, y `SearchScreen` ponia "Guardadas" y "Ajustes" a mano. En un reloj en ingles
-    salian en español, al lado de texto en ingles.
+    ⚠️ **`check_locale_parity` does not catch this, which is why it is needed.** Both tables can be
+    perfectly even --the keys exist in both languages-- and the screen still draw the literal. That
+    is what happened: `home_saved` and `home_settings` existed in `values/` and in `values-es/`,
+    and `SearchScreen` put "Guardadas" and "Ajustes" in by hand. On an English watch they came out
+    in Spanish, beside English text.
 
-    Lo encontro **mirar la pantalla**, no un test, y este chequeo existe para que la proxima vez
-    no haga falta mirar: si un valor de `values-es/` aparece entre comillas en un `.kt`, es que
-    alguien escribio el texto en vez de pedir el recurso.
+    **Looking at the screen** found it, not a test, and this check exists so that next time looking
+    is not necessary: if a `values-es/` value appears in quotes in a `.kt`, somebody wrote the text
+    instead of asking for the resource.
 
-    Se compara contra el español y no contra el ingles a proposito: un valor ingles corto
-    ("Search", "Saved") puede aparecer legitimamente en un nombre de test o un comentario, y el
-    chequeo daria falsos positivos. Los valores en español no tienen ese problema.
+    It is compared against Spanish and not against English on purpose: a short English value
+    ("Search", "Saved") can legitimately appear in a test name or a comment, and the check would
+    give false positives. The Spanish values do not have that problem.
     """
     ruta_es = os.path.join(ROOT, "app", "src", "main", "res", "values-es", "strings.xml")
     if not os.path.exists(ruta_es):
@@ -745,18 +746,18 @@ def check_no_hardcoded_translations(report):
         return
     with open(ruta_es, encoding="utf-8") as handle:
         texto = handle.read()
-    # Solo los suficientemente largos: "ES", "OK" o "%s" aparecen en cualquier lado.
-    # ⚠️ **Tres y no cuatro, y el cambio tiene un caso**: la palabra "voz" estaba escrita a mano
-    # en `SearchBar` y este chequeo no la vio por un caracter. Se dibujaba en español en un reloj
-    # en ingles. Con tres, "ES" y "OK" siguen afuera, que es lo que el piso protege.
+    # Only the long enough ones: "ES", "OK" or "%s" appear anywhere.
+    # ⚠️ **Three and not four, and the change has a case**: the word "voz" was hardcoded in
+    # `SearchBar` and this check missed it by one character. It was drawn in Spanish on an English
+    # watch. At three, "ES" and "OK" stay out, which is what the floor protects.
     valores = {v for v in re.findall(r"<string name=\"[^\"]+\">([^<]*)</string>", texto)
                if len(v) >= 3 and "%" not in v}
     encontrados = []
     for ruta in _kotlin_sources(os.path.join(ROOT, "app", "src", "main")):
         with open(ruta, encoding="utf-8") as handle:
-            # Sin los comentarios: un KDoc que CITA el texto --"no puede parecerse a `sin.`"--
-            # esta explicando la regla, no rompiendola. Mirar el archivo entero daba ese falso
-            # positivo, y un chequeo con falsos positivos se termina apagando.
+            # Without the comments: a KDoc that QUOTES the text --"it cannot look like `sin.`"-- is
+            # explaining the rule, not breaking it. Looking at the whole file gave that false
+            # positive, and a check with false positives ends up switched off.
             fuente = "\n".join(
                 linea for linea in handle.read().split("\n")
                 if not linea.lstrip().startswith(("//", "*", "/*"))
@@ -779,16 +780,17 @@ def _kotlin_sources(base):
 
 
 def check_locale_parity(report):
-    """Regla: values/ y values-es/ declaran las MISMAS claves, y las cortas siguen cortas. (D-127)
+    """Rule: values/ and values-es/ declare the SAME keys, and the short ones stay short. (D-127)
 
-    Una clave que existe en `values/` y falta en `values-es/` no rompe nada: Android cae al
-    default y el usuario ve **una linea en ingles dentro de una pantalla en español**. No hay
-    excepcion, no hay log, y quien la agrego no la ve porque su reloj esta en el otro idioma.
+    A key that exists in `values/` and is missing from `values-es/` breaks nothing: Android falls
+    back to the default and the user sees **one line in English inside a screen in Spanish**. There
+    is no exception, no log, and whoever added it does not see it because their watch is in the
+    other language.
 
-    Lo segundo que comprueba es por que el nombre del pack se acorto (D-125): la etiqueta de tipo
-    se dibuja al lado del nombre en una fila de reloj, y una traduccion larga reintroduce el
-    recorte que D-125 vino a arreglar. Se mide en LOS DOS idiomas, que es algo que ningun test de
-    pantalla puede hacer -- cada uno corre en un locale.
+    The second thing it checks is why the pack's name was shortened (D-125): the type label is
+    drawn beside the name in a watch row, and a long translation reintroduces the clipping D-125
+    came to fix. It is measured in BOTH languages, which is something no screen test can do -- each
+    runs in one locale.
     """
     import re as _re
 
@@ -796,10 +798,10 @@ def check_locale_parity(report):
         texto = read(ruta)
         tabla = {m.group(1): m.group(2) for m in
                  _re.finditer(r'<string name="([^"]+)"[^>]*>(.*?)</string>', texto, _re.S)}
-        # Los plurales cuentan igual. Sin esto, un `<plurals>` que existe en un idioma y falta
-        # en el otro pasa el chequeo: la paridad miraba solo `<string>`, asi que el primer
-        # plural del repo --el contador de entradas de un pack-- habria nacido fuera de la
-        # regla. Se guardan con un prefijo para que no puedan chocar con una clave de string.
+        # The plurals count too. Without this, a `<plurals>` that exists in one language and is
+        # missing from the other passes the check: the parity looked only at `<string>`, so the
+        # repo's first plural --a pack's entry counter-- would have been born outside the rule.
+        # They are stored with a prefix so they cannot collide with a string key.
         tabla.update({"plurals:" + m.group(1): m.group(2) for m in
                       _re.finditer(r'<plurals name="([^"]+)">(.*?)</plurals>', texto, _re.S)})
         return tabla
@@ -823,7 +825,7 @@ def check_locale_parity(report):
             "%s. Son texto muerto: nadie las lee" % ", ".join(sobran),
         )
 
-    # Lo que se dibuja al lado del nombre del pack, en una fila de reloj.
+    # What gets drawn beside the pack's name, in a watch row.
     for clave in ("pack_kind_monolingual", "pack_kind_bilingual"):
         for idioma, tabla in (("values", base), ("values-es", es)):
             valor = tabla.get(clave, "")
@@ -836,17 +838,18 @@ def check_locale_parity(report):
 
 
 def check_ui_language_picker(report):
-    """Regla: el selector de idioma ofrece EXACTAMENTE los idiomas que la app tiene. (D-158)
+    """Rule: the language selector offers EXACTLY the languages the app has. (D-158)
 
-    Las dos mitades se rompen distinto y ninguna da error:
+    The two halves break differently and neither raises an error:
 
-    - Una carpeta `values-xx/` nueva sin fila en el selector: la traduccion existe, se aplica si
-      el reloj esta en ese idioma, y **no hay forma de elegirla a mano**. Nadie la encuentra.
-    - Una fila en el selector sin carpeta: se puede elegir un idioma que no existe, y la app
-      queda en ingles con el selector marcando otra cosa. Es peor que no ofrecerlo.
+    - A new `values-xx/` folder with no row in the selector: the translation exists, it applies if
+      the watch is in that language, and **there is no way to choose it by hand**. Nobody finds it.
+    - A row in the selector with no folder: a language that does not exist can be chosen, and the
+      app stays in English with the selector marking something else. It is worse than not offering
+      it.
 
-    El endonimo se comprueba aparte porque es la unica cadena de la UI que **no** se traduce a
-    proposito: un selector de idioma escrito en el idioma que no entiendes no sirve para nada.
+    The endonym is checked separately because it is the only UI string that is **not** translated,
+    on purpose: a language selector written in the language you do not understand is no use at all.
     """
     fuente = os.path.join(ROOT, "app", "src", "main", "java", "cl", "fadiaz", "dictionary",
                           "data", "UiLanguage.kt")
@@ -867,13 +870,14 @@ def check_ui_language_picker(report):
         return
 
     res = os.path.join(ROOT, "app", "src", "main", "res")
-    # `values/` es la base y es el ingles (D-127): no lleva sufijo, pero es un idioma ofrecible.
+    # `values/` is the base and it is English (D-127): it carries no suffix, but it is an offerable
+    # language.
     carpetas = {"en"}
     for nombre in os.listdir(res):
         if nombre.startswith("values-") and os.path.isfile(
                 os.path.join(res, nombre, "strings.xml")):
             sufijo = nombre[len("values-"):]
-            # Solo los calificadores de idioma: `values-round` o `values-v33` no son traducciones.
+            # Only the language qualifiers: `values-round` or `values-v33` are not translations.
             if re.fullmatch(r"[a-z]{2}", sufijo):
                 carpetas.add(sufijo)
 
@@ -904,7 +908,7 @@ def check_ui_language_picker(report):
 
 
 def _contar(carpeta, patron):
-    """Cuantas veces aparece `patron` al principio de una linea, bajo `carpeta`."""
+    """How many times `patron` appears at the start of a line, under `carpeta`."""
     total = 0
     base = os.path.join(ROOT, carpeta)
     if not os.path.isdir(base):
@@ -921,22 +925,23 @@ def _contar(carpeta, patron):
 
 
 def check_test_counts(report):
-    """Regla: un numero que un documento afirma tiene que ser el numero que hay.
+    """Rule: a number a document asserts has to be the number that is there.
 
-    ⚠️ **Es la decadencia que este repo ya pago cuatro veces a la vez.** En una sola revision se
-    encontro que `README.md` decia 560 tests, `dict-data/CLAUDE.md` decia 31 instrumentados,
-    `tools/CLAUDE.md` decia 129 de Python y `app/CLAUDE.md` decia 178 de JVM. Ninguno era cierto,
-    ninguno rompia nada, y cada uno le hace perder el tiempo a quien lo lea -- o peor, le hace
-    creer que una suite encogio.
+    ⚠️ **It is the decay this repo already paid for four times at once.** In a single review it was
+    found that `README.md` said 560 tests, `dict-data/CLAUDE.md` said 31 instrumented,
+    `tools/CLAUDE.md` said 129 Python ones and `app/CLAUDE.md` said 178 JVM ones. None was true,
+    none broke anything, and each wastes the time of whoever reads it -- or worse, makes them
+    believe a suite has shrunk.
 
-    El conteo es **estatico** --lineas que empiezan con `@Test` o `def test_`-- y eso no es una
-    aproximacion: se comparo contra los conteos de runtime de Gradle y unittest el 2026-09-20 y
-    dan **exactamente** lo mismo (81, 251, 250). Un conteo estatico deja el chequeo en la
-    auditoria, que es stdlib pura y no necesita compilar nada.
+    The count is **static** --lines starting with `@Test` or `def test_`-- and that is not an
+    approximation: it was compared against Gradle's and unittest's runtime counts on 2026-09-20 and
+    they give **exactly** the same (81, 251, 250). A static count keeps the check in the audit,
+    which is pure stdlib and needs to compile nothing.
 
-    ⚠️ **Si una frase se reescribe y el patron deja de matchear, esto FALLA.** Es deliberado y es
-    la misma politica que `check_app_logic_is_jvm_testable`: un chequeo que se apaga solo cuando
-    alguien toca el texto que vigila no vigila nada. Reescribir la frase obliga a venir aca.
+    ⚠️ **If a sentence is rewritten and the pattern stops matching, this FAILS.** That is
+    deliberate and it is `check_app_logic_is_jvm_testable`'s same policy: a check that switches
+    itself off when somebody touches the text it watches watches nothing. Rewriting the sentence
+    forces coming here.
     """
     nucleo = _contar(os.path.join("dict-core", "src", "test"), "@Test")
     app_jvm = _contar(os.path.join("app", "src", "test"), "@Test")
@@ -951,8 +956,8 @@ def check_test_counts(report):
         return
 
     checks = len(CHECKS)
-    # Lo que corre el gate, y lo que no. La suma "en total" incluye los checks a proposito:
-    # es como el roadmap la viene contando.
+    # What the gate runs, and what it does not. The "in total" sum includes the checks on purpose:
+    # it is how the roadmap has been counting it.
     gate = nucleo + app_jvm + python
     esperados = {
         ("README.md", r"el gate: compila, lint, (\d+) tests"): gate,
@@ -994,38 +999,38 @@ def check_test_counts(report):
 
 
 def check_r8_keep_rules(report):
-    """Regla: las reglas de keep estan cableadas y no protegen clases que ya no existen. (D-163)
+    """Rule: the keep rules are wired in and do not protect classes that no longer exist. (D-163)
 
-    R8 esta encendido y **lo que rompe, lo rompe solo en release y sin error de compilacion**.
-    Este chequeo cubre las dos formas en que las reglas dejan de servir sin que nadie lo note:
+    R8 is on and **what it breaks, it breaks only in release and with no compilation error**. This
+    check covers the two ways the rules stop being any use without anybody noticing:
 
-    ⚠️ **(1) El archivo deja de estar cableado.** `keepRules { files.add(...) }` es una linea de
-    `app/build.gradle.kts`; si alguien reorganiza ese bloque y la pierde, las reglas **siguen ahi
-    y no se aplican**. El build sigue verde, el APK sigue saliendo, y lo que falla es un tile en
-    un reloj.
+    ⚠️ **(1) The file stops being wired in.** `keepRules { files.add(...) }` is one line of
+    `app/build.gradle.kts`; if somebody reorganizes that block and loses it, the rules **stay there
+    and are not applied**. The build stays green, the APK still comes out, and what fails is a tile
+    on a watch.
 
-    ⚠️ **(2) Una regla nombra una clase que ya no existe.** Renombrar `HistoryTileService` sin
-    tocar el `.pro` deja una regla muerta que no protege nada -- y `app/CLAUDE.md` ya tiene
-    escrito que romper un tile no da error de compilacion ni test. Es la misma decadencia que
-    `check_doc_paths` atrapa para los documentos, aplicada a las reglas.
+    ⚠️ **(2) A rule names a class that no longer exists.** Renaming `HistoryTileService` without
+    touching the `.pro` leaves a dead rule protecting nothing -- and `app/CLAUDE.md` already has it
+    in writing that breaking a tile raises no compilation error and no test failure. It is the same
+    decay `check_doc_paths` catches for the documents, applied to the rules.
 
-    No comprueba que cada componente del manifest TENGA regla: AGP ya conserva los componentes
-    declarados, asi que exigirlo seria sobre-restringir. Lo que se vigila es que lo que decidimos
-    proteger siga protegido de verdad.
+    It does not check that every manifest component HAS a rule: AGP already keeps the declared
+    components, so requiring it would over-restrict. What gets watched is that what we decided to
+    protect stays genuinely protected.
     """
-    # Sin los comentarios: el bloque `optimization` EXPLICA que las reglas estan en
-    # proguard-rules.pro, asi que mirar el archivo entero daba un falso negativo -- se podia
-    # desconectar el `files.add(...)` y el chequeo seguia pasando por culpa de la prosa. Se
-    # encontro comprobando que el chequeo fallara, que es para lo que se comprueba.
+    # Without the comments: the `optimization` block EXPLAINS that the rules are in
+    # proguard-rules.pro, so looking at the whole file gave a false negative -- the `files.add(...)`
+    # could be disconnected and the check went on passing because of the prose. It was found by
+    # checking that the check failed, which is what checking is for.
     build = "\n".join(
         linea for linea in read(os.path.join("app", "build.gradle.kts")).split("\n")
         if not linea.lstrip().startswith(("//", "*", "/*"))
     )
     if "enable = true" not in build:
-        # R8 apagado: no hay nada que vigilar. Va PRIMERO, antes incluso de mirar si el archivo
-        # de reglas existe: con R8 apagado no hace falta, y fallar por su ausencia haria que este
-        # chequeo impidiera apagar R8 -- que es justo lo que alguien querria hacer si R8 rompiera
-        # algo en el reloj.
+        # R8 off: there is nothing to watch. It goes FIRST, even before looking at whether the
+        # rules file exists: with R8 off it is not needed, and failing over its absence would make
+        # this check prevent switching R8 off -- which is exactly what somebody would want to do if
+        # R8 broke something on the watch.
         return
 
     reglas_rel = os.path.join("app", "proguard-rules.pro")
@@ -1048,8 +1053,7 @@ def check_r8_keep_rules(report):
     with open(reglas_path, encoding="utf-8") as handle:
         contenido = handle.read()
 
-    # Solo las clases nuestras: las de androidx cambian de paquete con la libreria y no son
-    # nuestras para arreglar.
+    # Only our own classes: androidx's change package with the library and are not ours to fix.
     nuestras = re.findall(r"^-keep class (cl\.fadiaz\.[\w.]+)", contenido, re.M)
     if not nuestras:
         report.failure(
@@ -1068,31 +1072,32 @@ def check_r8_keep_rules(report):
 
 
 def check_manifest_hygiene(report):
-    """Regla: el manifest no declara permisos que no se usan, ni pierde lo que la app necesita.
+    """Rule: the manifest declares no unused permissions, and loses nothing the app needs.
 
-    ⚠️ **«100 % offline» es la primera linea del README y de `CLAUDE.md`, y no tenia enforcer.**
-    Si alguien agrega `INTERNET` --y el instalador de packs lo va a necesitar algun dia (D-029)--
-    la afirmacion central del proyecto deja de ser cierta y **nada lo dice**. Este chequeo no
-    prohibe agregarlo: obliga a venir aca y cambiar la regla a mano, que es la diferencia entre
-    una decision y un descuido.
+    ⚠️ **"100 % offline" is the first line of the README and of `CLAUDE.md`, and it had no
+    enforcer.** If somebody adds `INTERNET` --and the pack installer will need it one day
+    (D-029)-- the project's central claim stops being true and **nothing says so**. This check does
+    not forbid adding it: it forces coming here and changing the rule by hand, which is the
+    difference between a decision and an oversight.
 
-    Lo segundo que mira es lo contrario: un permiso declarado y **nunca usado**. `WAKE_LOCK`
-    estuvo asi desde el template hasta el 2026-09-20; no rompe nada, pero se lo muestra al
-    usuario al instalar y hay que poder justificarlo.
+    The second thing it looks at is the opposite: a declared and **never used** permission.
+    `WAKE_LOCK` was like that from the template until 2026-09-20; it breaks nothing, but it is
+    shown to the user on installing and has to be justifiable.
 
-    Y lo tercero es `localeConfig`, que se genera desde las carpetas `values-*` reales: sin el,
-    la app **no aparece en la lista de idiomas del sistema** (el selector propio si funciona, y
-    por eso el hueco paso desapercibido dos sesiones).
+    And the third is `localeConfig`, generated from the real `values-*` folders: without it, the
+    app **does not appear in the system's language list** (the app's own selector does work, which
+    is why the gap went unnoticed for two sessions).
     """
     manifest = read(os.path.join("app", "src", "main", "AndroidManifest.xml"))
     build = read(os.path.join("app", "build.gradle.kts"))
 
     permisos = set(re.findall(r'uses-permission android:name="android\.permission\.(\w+)"',
                               manifest))
-    # ⚠️ Esta regla CAMBIO el 2026-09-22, cuando llego el catalogo de descarga (D-213), y el
-    # cambio es el punto: antes prohibia INTERNET porque nada lo usaba, y ahora vigila que la
-    # promesa que queda siga escrita. La propiedad que se defiende nunca fue "no hay red" sino
-    # **"buscar no usa red"**, y esa distincion se pierde en un commit si nadie la comprueba.
+    # ⚠️ This rule CHANGED on 2026-09-22, when the download catalog arrived (D-213), and the change
+    # is the point: it used to forbid INTERNET because nothing used it, and now it watches that the
+    # promise that remains stays written. The property being defended was never "there is no
+    # network" but **"searching uses no network"**, and that distinction is lost in one commit if
+    # nobody checks it.
     inspeccion = permisos & {"ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"}
     if inspeccion:
         report.failure(
@@ -1103,8 +1108,8 @@ def check_manifest_hygiene(report):
             "exactamente lo que D-029 saco de ahi" % ", ".join(sorted(inspeccion)),
         )
 
-    # INTERNET si esta permitido, pero solo mientras los dos documentos sigan diciendo QUE es lo
-    # unico que lo usa. Si alguien borra esa frase, la promesa se vuelve indefendible en silencio.
+    # INTERNET is allowed, but only while both documents go on saying WHAT is the only thing that
+    # uses it. If somebody deletes that sentence, the promise becomes indefensible in silence.
     if "INTERNET" in permisos:
         promesas = {
             "README.md": "descargar un diccionario es lo unico",
@@ -1124,9 +1129,9 @@ def check_manifest_hygiene(report):
                     % ("AndroidManifest.xml", documento, frase),
                 )
 
-    # Un permiso declarado tiene que aparecer en el codigo. La heuristica es grosera a proposito:
-    # busca el nombre del permiso o su API mas obvia, y con eso alcanza para el tamano de este
-    # manifest.
+    # A declared permission has to appear in the code. The heuristic is coarse on purpose: it looks
+    # for the permission's name or its most obvious API, and that is enough for this manifest's
+    # size.
     usos = {
         "WAKE_LOCK": ("WakeLock", "WAKE_LOCK"),
         "VIBRATE": ("Vibrator", "vibrate"),
@@ -1155,11 +1160,12 @@ def check_manifest_hygiene(report):
         )
 
 
-# Las claves de meta que un pack DEBE traer. Crecer esta lista rompe todos los packs ya
-# instalados: `getValue` lanza y el pack se rechaza entero al abrir.
-# ⚠️ `langs` y `fuzzy_profiles` entraron con `schema_version` 4, que es lo que esta lista exige
-# para crecer: los packs anteriores se rechazan al abrir, y eso es correcto porque tampoco tienen
-# la columna `entry.lang`. `lang_src`/`lang_dst` salieron -- los idiomas de un pack son pares.
+# The meta keys a pack MUST carry. Growing this list breaks every already installed pack:
+# `getValue` throws and the pack is rejected whole on opening.
+# ⚠️ `langs` and `fuzzy_profiles` came in with `schema_version` 4, which is what this list requires
+# in order to grow: the earlier packs are rejected on opening, and that is right because they do
+# not have the `entry.lang` column either. `lang_src`/`lang_dst` went out -- a pack's languages are
+# peers.
 META_OBLIGATORIAS = {
     "attribution", "data_version", "entry_count", "fuzzy_profiles", "kind", "langs", "license",
     "name", "norm_version", "pack_id", "payload_dict", "schema_version",
@@ -1167,20 +1173,20 @@ META_OBLIGATORIAS = {
 
 
 def check_required_meta_keys(report):
-    """Regla: la lista de claves de meta OBLIGATORIAS no crece sin que alguien lo decida. (D-174)
+    """Rule: the list of REQUIRED meta keys does not grow without somebody deciding it. (D-174)
 
-    ⚠️ **Agregar una clave con `getValue` rompe todos los packs que ya estan en un reloj**, y no
-    al construirlos: al ABRIRLOS. `getValue` lanza, `PackFile.open` lo convierte en un pack
-    rechazado, y el usuario se queda sin diccionario hasta reconstruir y volver a subir -- hoy
-    **372,6 MB**.
+    ⚠️ **Adding a key with `getValue` breaks every pack already on a watch**, and not while
+    building them: on OPENING them. `getValue` throws, `PackFile.open` turns it into a rejected
+    pack, and the user is left with no dictionary until it is rebuilt and re-uploaded -- today
+    **372.6 MB**.
 
-    La forma correcta de sumar un dato al pack es `meta[...]`, que devuelve null en un pack viejo
-    y deja que el codigo decida. Es lo que ya se hizo con `description` (D-125), `sources`
-    (D-138) y `subset_of`: tres claves nuevas, cero packs rotos.
+    The right way to add a datum to the pack is `meta[...]`, which returns null in an old pack and
+    lets the code decide. It is what was already done with `description` (D-125), `sources` (D-138)
+    and `subset_of`: three new keys, zero broken packs.
 
-    Este chequeo no prohibe subir la lista: **obliga a venir aca y cambiarla a mano**, que es la
-    diferencia entre una decision y un descuido. Es la misma politica que los archivos vigilados
-    de D-072.
+    This check does not forbid growing the list: **it forces coming here and changing it by hand**,
+    which is the difference between a decision and an oversight. It is the same policy as D-072's
+    watched files.
     """
     fuente = read(os.path.join("dict-data", "src", "main", "kotlin", "cl", "fadiaz",
                                "dictionary", "data", "PackFile.kt"))
@@ -1312,7 +1318,7 @@ def check_spanish_prose_budget(report):
 
 
 def check_root_budget(report):
-    """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
+    """Rule: CLAUDE.md is paid for on every request and lives under 200 lines. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
     if lines > 200:
         report.failure(
@@ -1324,21 +1330,21 @@ def check_root_budget(report):
 
 
 def check_skills_reachable(report):
-    """Regla: una regla que sale de CLAUDE.md sigue siendo alcanzable. (D-222)
+    """Rule: a rule that leaves CLAUDE.md stays reachable. (D-222)
 
-    CLAUDE.md se paga en cada request y vive bajo 200 lineas, asi que las reglas menos
-    especificas se mudan a una skill. El problema es que una skill **no se carga sola**: se
-    carga cuando su `description` matchea lo que el usuario dijo. Entonces mudar una regla y
-    dejar el puntero no alcanza --la regla deja de leerse justo en la situacion que gobierna.
+    CLAUDE.md is paid for on every request and lives under 200 lines, so the less specific rules
+    move to a skill. The problem is that a skill **does not load on its own**: it loads when its
+    `description` matches what the user said. So moving a rule and leaving the pointer is not
+    enough -- the rule stops being read exactly in the situation it governs.
 
-    Dos mitades:
+    Two halves:
 
-    1. **Toda skill que CLAUDE.md nombra existe.** Un puntero roto es una regla perdida.
-    2. **Toda skill existente esta nombrada** en CLAUDE.md o en otra skill. Una skill a la que
-       nadie apunta es contenido que se saco de la vista y nadie va a volver a leer.
+    1. **Every skill CLAUDE.md names exists.** A broken pointer is a lost rule.
+    2. **Every existing skill is named** in CLAUDE.md or in another skill. A skill nobody points at
+       is content taken out of sight that nobody will read again.
 
-    No comprueba que la `description` dispare --eso no es decidible-- y por eso la segunda
-    mitad es lo que queda: si algo se muda, el mapa tiene que nombrarlo.
+    It does not check that the `description` fires --that is not decidable-- which is why the
+    second half is what remains: if something moves, the map has to name it.
     """
     folder = os.path.join(ROOT, ".claude/skills")
     if not os.path.isdir(folder):
@@ -1395,7 +1401,7 @@ def check_rules_without_enforcer(report):
 
 
 def _bundle_body(relative):
-    """El cuerpo de un documento del bundle: todo menos su frontmatter."""
+    """A bundle document's body: everything but its frontmatter."""
     lines = read(relative).splitlines(True)
     if not lines or lines[0].rstrip("\n") != "---":
         return None, lines
@@ -1418,7 +1424,7 @@ def _digest(relatives):
 
 
 def _bundle_md(subfolder):
-    """Los .md bajo .agents/<subfolder>, en orden de byte de la ruta relativa al bundle."""
+    """The .md files under .agents/<subfolder>, in byte order of the bundle-relative path."""
     found = []
     base = os.path.join(ROOT, BUNDLE, subfolder)
     for folder, _, names in os.walk(base):
@@ -1492,18 +1498,18 @@ def check_bundle_digests(report):
 
 
 def check_rejection_mirror(report):
-    """Regla: los motivos de rechazo de la app y los de verify_pack.py coinciden. (D-217)
+    """Rule: the app's rejection reasons and verify_pack.py's match. (D-217)
 
-    ⚠️ **Es el CUARTO contrato cruzado del repo, y el unico que nacio con enforcer.** Los otros
-    tres --`norm()`, `sense_code` y el indice del catalogo-- lo ganaron despues de separarse. El
-    modo `--como-la-app` de `verify_pack.py` existe para contestar *"si subo este pack al reloj,
-    ¿aparece?"*, y esa respuesta vale exactamente lo que valga su fidelidad: un motivo agregado
-    en Kotlin y no aca hace que el verificador diga que si a un pack que la app va a rechazar.
+    ⚠️ **It is the repo's FOURTH cross-language contract, and the only one born with an enforcer.**
+    The other three --`norm()`, `sense_code` and the catalog index-- earned one after drifting
+    apart. `verify_pack.py`'s `--como-la-app` mode exists to answer *"if I put this pack on the
+    watch, does it appear?"*, and that answer is worth exactly what its fidelity is worth: a reason
+    added in Kotlin and not here makes the verifier say yes to a pack the app will reject.
 
-    ⚠️ **Compara tambien el ORDEN.** Todas las comprobaciones rechazan (D-217), asi que el orden
-    no decide si un pack entra: decide **que motivo se reporta**, que es la unica linea que el
-    usuario lee. Los siete packs de `schema_version` 3 del directorio de datos salian como
-    "metadatos incompletos" en vez de "otra version del formato" por tener el orden al reves.
+    ⚠️ **It compares the ORDER too.** Every check rejects (D-217), so the order does not decide
+    whether a pack gets in: it decides **which reason gets reported**, which is the only line the
+    user reads. The data directory's seven `schema_version` 3 packs came out as "incomplete
+    metadata" instead of "another version of the format" because the order was the wrong way round.
     """
     kotlin = read("dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt")
     bloque = re.search(r"enum class PackRejection\(val id: String\) \{(.*?)\n\}", kotlin, re.S)
@@ -1533,8 +1539,8 @@ def check_rejection_mirror(report):
             detalle += "; mismos motivos, OTRO ORDEN -- y el orden decide que motivo se reporta"
         report.failure("motivos de rechazo desincronizados", detalle)
 
-    # El orden de EVALUACION tambien se declara, y tiene que cubrir los mismos motivos menos
-    # `damaged`, que no se comprueba: es lo que queda cuando abrir el archivo lanza.
+    # The EVALUATION order is declared too, and it has to cover the same reasons minus `damaged`,
+    # which is not checked: it is what is left when opening the file throws.
     orden = re.search(r"ORDEN_DE_EVALUACION = \((.*?)\n\)", python, re.S)
     if not orden:
         report.failure("espejo de rechazos", "no se encontro ORDEN_DE_EVALUACION")
@@ -1550,17 +1556,17 @@ def check_rejection_mirror(report):
 
 
 def check_xml_comments(report):
-    """Regla: un comentario XML no contiene `--`, que es su propio cierre.
+    """Rule: an XML comment does not contain `--`, which is its own closing marker.
 
-    ⚠️ **Tercer golpe, y por eso existe** (roadmap §Proceso). El estilo de comentario de este
-    repo escribe `--` todo el tiempo --«el nombre mentia --y lo decidio una medicion--»-- porque
-    es el guion de inciso que se teclea sin raya. En `.kt` y en `.py` es correcto; en XML rompe
-    `mergeDebugResources` con *"The string `--` is not permitted within comments"*, seguido de
-    treinta lineas de stack de Xerces que no nombran el archivo hasta la primera.
+    ⚠️ **Third strike, which is why it exists** (roadmap §Proceso). This repo's comment style
+    writes `--` all the time --"the name lied --and a measurement decided it--"-- because it is the
+    parenthetical dash you type without an em dash. In `.kt` and in `.py` it is correct; in XML it
+    breaks `mergeDebugResources` with *"The string `--` is not permitted within comments"*,
+    followed by thirty lines of Xerces stack that do not name the file until the first one.
 
-    El sintoma se lee como un problema de recursos y no de puntuacion, y cuesta una corrida de
-    Gradle averiguarlo. Aca cuesta segundos. La alternativa --acordarse de escribir `—`-- ya
-    fallo tres veces.
+    The symptom reads as a resources problem and not a punctuation one, and it costs a Gradle run
+    to work out. Here it costs seconds. The alternative --remembering to write `—`-- has already
+    failed three times.
     """
     objetivos = []
     base = os.path.join(ROOT, "app", "src", "main")
@@ -1585,16 +1591,16 @@ def check_xml_comments(report):
 
 
 def check_core_index_name(report):
-    """Regla: el nombre del indice de versiones coincide en el build y en la app. (D-229)
+    """Rule: the version index's name matches in the build and in the app. (D-229)
 
-    `bundlePacks` escribe `assets/<CORE_INDEX>` con el `data_version` de cada pack incluido, y
-    `PackStore` lo lee por el mismo nombre. Son los dos extremos de un archivo y **no hay forma de
-    compartir una constante entre un script de Gradle y el codigo de la app**.
+    `bundlePacks` writes `assets/<CORE_INDEX>` with each bundled pack's `data_version`, and
+    `PackStore` reads it by the same name. They are the two ends of one file and **there is no way
+    to share a constant between a Gradle script and the app's code**.
 
-    El modo de falla es el que este repo no puede ver: si los literales se separan, el indice
-    **no se encuentra y nada falla**. `coreIndex` devuelve un mapa vacio --por diseno, para que un
-    APK sin indice degrade-- asi que los nucleos quedan sin version declarada y **no se actualizan
-    nunca**. Sin excepcion, sin log de error, y con la app funcionando.
+    The failure mode is the one this repo cannot see: if the literals drift apart, the index **is
+    not found and nothing fails**. `coreIndex` returns an empty map --by design, so an APK with no
+    index degrades-- so the cores are left with no declared version and **never update**. No
+    exception, no error log, and the app working.
     """
     build = read("app/build.gradle.kts")
     store = read("app/src/main/java/cl/fadiaz/dictionary/data/PackStore.kt")
@@ -1621,24 +1627,24 @@ def check_core_index_name(report):
 
 
 def check_no_probes_left_behind(report):
-    """Regla: una sonda de mutacion no sobrevive a la sesion que la corrio. (D-236)
+    """Rule: a mutation probe does not outlive the session that ran it. (D-236)
 
-    El paso 3 del session loop del metodo: *las sondas las encuentra el audit y las limpia quien
-    las corrio*. Antes de esto dependia de acordarse, y acordarse no es un mecanismo.
+    Step 3 of the method's session loop: *the audit finds the probes and whoever ran them cleans
+    them up*. Before this it depended on remembering, and remembering is not a mechanism.
 
-    ⚠️ **El modo de falla es el peor que tiene este repo: una mutacion olvidada NO rompe nada.**
-    Se escribe para que un test falle, se comprueba que falla, y si el restore no vuelve --o
-    vuelve a medias-- lo que queda es codigo deliberadamente equivocado con todos los tests en
-    verde, porque el test que la detectaba es justo el que se estaba probando. Ya mordio una vez
-    de otra forma: macOS cachea bytecode fuera del repo y una mutacion del mismo ancho sobrevivio
-    a un restore.
+    ⚠️ **The failure mode is the worst this repo has: a forgotten mutation breaks NOTHING.** It is
+    written so a test fails, it is checked that it fails, and if the restore does not come back
+    --or comes back half way-- what is left is deliberately wrong code with every test green,
+    because the test that detected it is precisely the one being tested. It already bit once in
+    another shape: macOS caches bytecode outside the repo and a mutation of the same width survived
+    a restore.
 
-    Busca los marcadores que este repo usa al sondear. No cubre una mutacion sin marcar --nada
-    puede-- y por eso el marcador es la convencion: **una sonda se escribe con su marca**, y esta
-    regla convierte olvidarla en la unica forma de que pase desapercibida.
+    It looks for the markers this repo uses when probing. It does not cover an unmarked mutation
+    --nothing can-- which is why the marker is the convention: **a probe is written with its
+    mark**, and this rule turns forgetting it into the only way for one to go unnoticed.
     """
     marcadores = ("MUTACION", "MUTACIÓN", "MUTATION PROBE", "SONDA:")
-    # Este archivo se nombra a si mismo; excluirlo es la unica exencion, y va escrita.
+    # This file names them itself; excluding it is the only exemption, and it goes in writing.
     exento = os.path.join("tools", "audit_dictionary.py")
     for ruta in FUENTES:
         if ruta == exento:

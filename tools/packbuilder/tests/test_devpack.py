@@ -1,21 +1,20 @@
-"""Tests de tools/devpack.py: el sideload de packs por adb en desarrollo.
+"""Tests of tools/devpack.py: sideloading packs over adb in development.
 
-Lo que se prueba aca es **la forma del plan**, no su ejecucion: armar la lista de comandos es
-puro y entra al gate, correrlos necesita un dispositivo y no entra. Esa division es deliberada
-y el limite esta medido -- lo que queda afuera se nombra en el changelog, no se disfraza de
-cobertura.
+What gets tested here is **the plan's shape**, not its execution: assembling the list of commands
+is pure and enters the gate, running them needs a device and does not. That split is deliberate and
+the limit is measured -- what is left out gets named in the changelog, not disguised as coverage.
 
-El aserto que paga este archivo es uno solo: **nunca se escribe `<pack>.db` antes de comparar
-los hashes**. Un pack a medio copiar se abre sin error y devuelve menos palabras de las que
-tiene, y ese es el sintoma que este repo no puede observar (PackStore.kt:132-141).
+There is a single assertion that pays for this file: **`<pack>.db` is never written before the
+hashes are compared**. A half-copied pack opens with no error and returns fewer words than it
+holds, and that is the symptom this repo cannot observe (PackStore.kt:132-141).
 """
 
 import os
 import sys
 import unittest
 
-# tests/ -> packbuilder/ -> tools/, que es donde vive devpack.py. Mismo patron que el resto
-# de los tests de este directorio, exento de E402 en pyproject.toml.
+# tests/ -> packbuilder/ -> tools/, which is where devpack.py lives. Same pattern as the rest of
+# this directory's tests, exempt from E402 in pyproject.toml.
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -35,13 +34,13 @@ ADB = ["adb", "-s", "emulator-5554"]
 
 
 class DestinoTest(unittest.TestCase):
-    """El nombre del archivo sale de meta.pack_id, no de como se llame el archivo local."""
+    """The file's name comes from meta.pack_id, not from what the local file is called."""
 
     def test_el_destino_sale_del_pack_id(self):
         self.assertEqual("es-def-wikc.db", devpack.destino(META))
 
     def test_un_pack_id_con_separador_se_rechaza(self):
-        # Sin esto, un pack_id malicioso o mal construido escribe fuera de files/packs.
+        # Without this, a malicious or badly built pack_id writes outside files/packs.
         for malo in ("../fuera", "sub/dir", "", "   "):
             with self.assertRaises(devpack.PackInvalido):
                 devpack.destino(dict(META, pack_id=malo))
@@ -52,7 +51,7 @@ class DestinoTest(unittest.TestCase):
 
 
 class PlanInstallTest(unittest.TestCase):
-    """La secuencia. Lo que se congela es el ORDEN, que es donde vive la atomicidad."""
+    """The sequence. What gets frozen is the ORDER, which is where the atomicity lives."""
 
     def plan(self, **kw):
         return devpack.plan_install(ADB, "/tmp/es.db", META, **kw)
@@ -61,7 +60,7 @@ class PlanInstallTest(unittest.TestCase):
         return [paso.nombre for paso in plan]
 
     def test_lo_primero_es_matar_la_app(self):
-        # Pisar un .db que la app tiene abierto es la otra forma de romper esto.
+        # Overwriting a .db the app has open is the other way of breaking this.
         self.assertEqual("force-stop", self.nombres(self.plan())[0])
 
     def test_nada_escribe_el_db_final_antes_de_comparar(self):
@@ -93,8 +92,8 @@ class PlanInstallTest(unittest.TestCase):
         self.assertNotIn("/data/local/tmp", " ".join(escribir.argv))
 
     def test_el_fallback_pasa_por_tmp_y_lo_borra(self):
-        # El pico de disco de esta ruta es 2x el pack: 590,2 MiB para el ingles. Si el temporal
-        # no se borra, el pico se vuelve permanente.
+        # This route's disk peak is 2x the pack: 590.2 MiB for English. If the temporary is not
+        # deleted, the peak becomes permanent.
         plan = self.plan(pipe=False)
         nombres = self.nombres(plan)
         self.assertIn("push", nombres)
@@ -113,8 +112,8 @@ class PlanInstallTest(unittest.TestCase):
         self.assertNotIn("relanzar", self.nombres(self.plan(relanzar=False)))
 
     def test_el_chmod_deja_el_mismo_archivo_que_la_extraccion_del_apk(self):
-        # Un pack extraido del APK queda 0600; `cat >` lo crea 0666. Que los dos caminos dejen
-        # el mismo archivo es el diseño: la app no tiene que poder distinguirlos.
+        # A pack extracted from the APK ends up 0600; `cat >` creates it 0666. That both routes
+        # leave the same file is the design: the app must not be able to tell them apart.
         nombres = self.nombres(self.plan())
         self.assertLess(nombres.index("comparar"), nombres.index("chmod"))
         self.assertLess(nombres.index("chmod"), nombres.index("mv"))
@@ -125,7 +124,7 @@ class PlanInstallTest(unittest.TestCase):
 
 
 class ElegirDispositivoTest(unittest.TestCase):
-    """Con un emulador por nivel de API --que es lo que este repo pide-- adb a secas falla."""
+    """With one emulator per API level --which is what this repo asks for-- a bare adb fails."""
 
     UNO = "List of devices attached\nemulator-5554\tdevice product:sdk_gwear_arm64\n"
     DOS = (
@@ -166,8 +165,8 @@ class ElegirDispositivoTest(unittest.TestCase):
 
 
 class CompararHashesTest(unittest.TestCase):
-    """La unica comprobacion de que el pack llego entero. Si esto se afloja, el `.part` se
-    renombra igual y queda un diccionario mutilado que se abre sin error."""
+    """The only check that the pack arrived whole. If this is relaxed, the `.part` gets renamed all
+    the same and a mutilated dictionary is left that opens with no error."""
 
     SHA = "1f318b89ca208e01" + "0" * 48
 
@@ -180,7 +179,7 @@ class CompararHashesTest(unittest.TestCase):
         self.assertEqual("distinto", devpack.comparar_hashes(self.SHA, salida))
 
     def test_sin_sha256sum_en_el_device(self):
-        # toybox sin sha256sum: la salida es un error, no un hash. No se puede leer como "ok".
+        # toybox with no sha256sum: the output is an error, not a hash. It cannot be read as "ok".
         for salida in ("", None, "sh: sha256sum: not found\n", "\n"):
             self.assertEqual("sin-sha256", devpack.comparar_hashes(self.SHA, salida))
 
@@ -189,7 +188,7 @@ class CompararHashesTest(unittest.TestCase):
 
 
 class DecidirTest(unittest.TestCase):
-    """Instalar, reinstalar, o avisar. Lo que no se puede saber, se dice."""
+    """Install, reinstall, or warn. What cannot be known gets said."""
 
     def test_sin_nada_instalado_se_instala(self):
         accion, _ = devpack.decidir(META, {})
@@ -209,9 +208,9 @@ class DecidirTest(unittest.TestCase):
         self.assertIn("20261231", mensaje)
 
     def test_otro_archivo_con_el_mismo_pack_id_es_colision(self):
-        # El caso real: el pack de demo del APK se llama demo-es-en.db pero su pack_id es
-        # toy-es-en. Instalar el toy pack dejaria dos archivos con el mismo id, y la app
-        # abriria los dos: el selector muestra el idioma repetido.
+        # The real case: the APK's demo pack is called demo-es-en.db but its pack_id is toy-es-en.
+        # Installing the toy pack would leave two files with the same id, and the app would open
+        # both: the selector shows the language repeated.
         accion, mensaje = devpack.decidir(
             dict(META, pack_id="toy-es-en"),
             {"demo-es-en.db": {"pack_id": "toy-es-en", "data_version": "20260101"}},
@@ -220,20 +219,20 @@ class DecidirTest(unittest.TestCase):
         self.assertIn("demo-es-en.db", mensaje)
 
     def test_sin_poder_leer_el_remoto_se_instala_y_se_dice(self):
-        # Sin sqlite3 en el device no hay forma de saber que pack_id tiene cada archivo.
+        # With no sqlite3 on the device there is no way to know which pack_id each file has.
         accion, mensaje = devpack.decidir(META, {"otro.db": None})
         self.assertEqual("instalar", accion)
         self.assertIn("otro.db", mensaje)
 
 
 class PaqueteAusenteTest(unittest.TestCase):
-    """Que `run-as` falle porque la app no esta instalada tiene que decirse, no reventar.
+    """`run-as` failing because the app is not installed has to be said, not blow up.
 
-    Es un caso NORMAL, no una rareza: `connectedAndroidTest` desinstala la app al terminar, asi
-    que correr los tests y despues instalar un pack es una secuencia que cualquiera hace. Lo que
-    pasaba es que el mensaje de `run-as` va a **stderr** y `packs_remotos` solo miraba stdout, asi
-    que la guarda no disparaba: el install seguia y moria con un BrokenPipeError de 295 MB
-    adentro, que no dice nada de lo que hay que hacer.
+    It is a NORMAL case, not an oddity: `connectedAndroidTest` uninstalls the app when it finishes,
+    so running the tests and then installing a pack is a sequence anybody does. What was happening
+    is that `run-as`'s message goes to **stderr** and `packs_remotos` only looked at stdout, so the
+    guard did not fire: the install carried on and died with a BrokenPipeError 295 MB in, which
+    says nothing about what to do.
     """
 
     def test_run_as_fallando_por_stderr_se_detecta(self):

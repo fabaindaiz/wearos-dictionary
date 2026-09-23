@@ -18,12 +18,12 @@ def _lista(texto):
 
 
 class ListaDeFrecuenciasTest(unittest.TestCase):
-    """La señal que reemplaza a la riqueza de pagina como prior de orden.
+    """The signal that replaces page richness as the ordering prior.
 
-    El defecto que cierra, medido sobre el pack español real: `rank` correlaciona **-0,250** con la
-    frecuencia real de uso, donde se esperaria -1, porque cuenta formas flexionadas y un verbo trae
-    hasta 222. El sintoma se ve en los peldaños que **no** tienen la banda de cobertura de D-142:
-    `house` devolvia `solar, alojar, albergar` y nunca `casa`.
+    The defect it closes, measured over the real Spanish pack: `rank` correlates **-0.250** with
+    real usage frequency, where -1 would be expected, because it counts inflected forms and a verb
+    carries up to 222. The symptom shows on the rungs that do **not** have D-142's coverage band:
+    `house` returned `solar, alojar, albergar` and never `casa`.
     """
 
     def setUp(self):
@@ -40,18 +40,18 @@ class ListaDeFrecuenciasTest(unittest.TestCase):
                          frequency.load(ruta))
 
     def test_el_acento_NO_se_pliega(self):
-        """⚠️ **El defecto que esto cierra se vio en el pack construido, no razonando.**
+        """⚠️ **The defect this closes was seen in the built pack, not by reasoning.**
 
-        La primera version usaba `norm()` como clave, que pliega acentos. En español el acento
-        DISTINGUE palabras, asi que una oscura heredaba la frecuencia de su homografo comun:
+        The first version used `norm()` as the key, which folds accents. In Spanish the accent
+        DISTINGUISHES words, so an obscure one inherited its common homograph's frequency:
 
-            háber  (una unidad oscura)  ->  rank  97   <- se llevaba la de `haber`, el verbo
-            hábil                       ->  rank 237       (229.602 ocurrencias, puesto 210)
-            líbero                      ->  rank 240   <- sumaba `libero` + `liberó`
-            liberal                     ->  rank 248
+            háber  (an obscure unit)  ->  rank  97   <- it took `haber`'s, the verb
+            hábil                     ->  rank 237       (229,602 occurrences, position 210)
+            líbero                    ->  rank 240   <- it summed `libero` + `liberó`
+            liberal                   ->  rank 248
 
-        La clave conserva el acento y sólo pliega mayusculas. Una palabra sin entrada propia en la
-        lista cae a la banda sin señal, que es lo correcto: nadie midio su frecuencia.
+        The key keeps the accent and only folds capitals. A word with no entry of its own in the
+        list falls into the band with no signal, which is right: nobody measured its frequency.
         """
         ruta = _lista("haber 229602\nhábil 2264\nCASA 120000\n")
         self.rutas.append(ruta)
@@ -62,27 +62,27 @@ class ListaDeFrecuenciasTest(unittest.TestCase):
         self.assertEqual(120000, mapa["casa"], "las mayusculas si se pliegan")
 
     def test_una_linea_rota_se_ignora_en_vez_de_romper(self):
-        """Un archivo de 50.000 lineas bajado de internet: una linea mala no tira el build."""
+        """A 50,000-line file downloaded from the internet: one bad line does not fell the build."""
         ruta = _lista("casa 120000\nsin-cuenta\n\nperro noesunnumero\nsol 90000\n")
         self.rutas.append(ruta)
         self.assertEqual({"casa": 120000, "sol": 90000}, frequency.load(ruta))
 
     def test_zipf_es_logaritmico(self):
-        """⚠️ Sin log, `de` (14.459.520) aplasta todo: la distribucion es de ley de potencias y
-        el resto del vocabulario quedaria indistinguible entre si."""
+        """⚠️ Without a logarithm, `de` (14,459,520) crushes everything: the distribution is a
+        power law and the rest of the vocabulary would be indistinguishable."""
         z = frequency.to_zipf({"comun": 1_000_000, "rara": 1_000})
         self.assertGreater(z["comun"], z["rara"])
         # tres ordenes de magnitud son tres puntos de Zipf, no un factor 1000
         self.assertAlmostEqual(3.0, z["comun"] - z["rara"], places=6)
 
     def test_zipf_de_una_palabra_por_millon_es_tres(self):
-        """La escala fijada: Zipf 3 == una vez por millon. Es la convencion de `wordfreq`."""
+        """The pinned scale: Zipf 3 == once per million. It is `wordfreq`'s convention."""
         z = frequency.to_zipf({"x": 1, "resto": 999_999})
         self.assertAlmostEqual(3.0, z["x"], places=6)
 
     def test_la_principal_gana_y_la_otra_rellena(self):
-        """Cada lema toma su valor de UNA fuente. Promediar dos escalas distintas --ocurrencias
-        contra frases-que-la-contienen-- seria una calibracion que nadie midio."""
+        """Each lemma takes its value from ONE source. Averaging two different scales --occurrences
+        against sentences-that-contain-it-- would be a calibration nobody measured."""
         principal = {"casa": 5.0, "sol": 4.0}
         relleno = {"casa": 1.0, "guanaco": 2.5}
         self.assertEqual({"casa": 5.0, "sol": 4.0, "guanaco": 2.5},
@@ -97,12 +97,11 @@ if __name__ == "__main__":
 
 
 class PorNormTest(unittest.TestCase):
-    """⚠️ Existe por una medicion que salio mal, no por completitud.
+    """⚠️ It exists because of a measurement that came out wrong, not out of completeness.
 
-    Escrito como diccionario por comprension, la ultima palabra que comparte clave **pisa** a las
-    anteriores: en la lista inglesa `a` quedaba con 3.942 apariciones en vez de 14.484.562, y el
-    sintoma no fue un error sino un orden absurdo -- `didn` encabezando las palabras mas
-    frecuentes del ingles.
+    Written as a dict comprehension, the last word sharing a key **overwrites** the earlier ones:
+    in the English list `a` ended up with 3,942 occurrences instead of 14,484,562, and the symptom
+    was not an error but an absurd order -- `didn` heading English's most frequent words.
     """
 
     def test_las_que_comparten_clave_se_SUMAN(self):
@@ -118,13 +117,13 @@ class PorNormTest(unittest.TestCase):
 
 
 class CoberturaTest(unittest.TestCase):
-    """La metrica de un nivel: que fraccion de los TOKENS del corpus tiene adentro."""
+    """A tier's metric: what fraction of the corpus's TOKENS it holds inside."""
 
     FREC = {"de": 100, "casa": 10, "ornitorrinco": 1}
 
     def test_cubrir_la_palabra_mas_usada_vale_mas_que_cubrir_dos_raras(self):
-        # Es el punto de medir tokens y no tipos: dos de tres palabras es el 66 % de los TIPOS y
-        # el 9,9 % de los TOKENS. Lo segundo es lo que el usuario siente.
+        # It is the point of measuring tokens and not types: two of three words is 66 % of the
+        # TYPES and 9.9 % of the TOKENS. The second is what the user feels.
         self.assertAlmostEqual(90.09, frequency.cobertura({"de"}, self.FREC), places=2)
         self.assertAlmostEqual(9.91, frequency.cobertura({"casa", "ornitorrinco"}, self.FREC), places=2)
 

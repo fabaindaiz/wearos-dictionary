@@ -1,9 +1,9 @@
-"""Usar dos fuentes obliga a nombrar a las dos, y eso no puede depender de que alguien se acuerde.
+"""Using two sources forces naming both, and that cannot depend on somebody remembering.
 
-La atribucion no es una formalidad del README: es **la condicion de la licencia** con la que se
-distribuye el pack. Las dos fuentes son CC BY-SA 4.0, asi que no hay incompatibilidad -- hay una
-obligacion, y el modo de falla es silencioso: el pack sale entero, abre, funciona, y esta mal
-licenciado. Ningun otro check lo veria.
+The attribution is not a README formality: it is **the condition of the licence** the pack is
+distributed under. Both sources are CC BY-SA 4.0, so there is no incompatibility -- there is an
+obligation, and the failure mode is silent: the pack comes out whole, opens, works, and is badly
+licensed. No other check would see it.
 """
 
 import json
@@ -19,7 +19,7 @@ import build_pack  # noqa: E402
 
 
 def _dump_kaikki(path):
-    """Un dump minimo del Wikcionario español: una entrada flaca y una con dos acepciones."""
+    """A minimal Spanish Wiktionary dump: one thin entry and one with two senses."""
     filas = [
         {"word": "acomodador", "pos": "noun", "lang_code": "es", "lang": "Español",
          "pos_title": "Sustantivo",
@@ -52,7 +52,7 @@ def _dump_ejemplos(path):
 
 
 def _dump_wikidata(path):
-    """Un dump de lexemas minimo: uno que el Wikcionario ya tiene y uno que no."""
+    """A minimal lexemes dump: one Wiktionary already has and one it does not."""
     filas = [
         {"id": "L1", "language": "Q1321", "lexicalCategory": "Q1084",
          "lemmas": {"es": {"language": "es", "value": "banco"}},
@@ -74,16 +74,16 @@ def _dump_wikidata(path):
 
 
 class SumarVocabularioTest(unittest.TestCase):
-    """Una segunda fuente que aporta LEMAS NUEVOS se funde en el pack (D-146).
+    """A second source contributing NEW LEMMAS is merged into the pack (D-146).
 
-    ⚠️ **Es una union de FILAS, no de campos, y por eso no necesita composicion.** Wikidata
-    aporta 6.092 lemas que el Wikcionario no tiene --gentilicios regionales, locuciones--; los
-    8.595 que comparten se quedan con la definicion del Wikcionario, asi que no hay nada que
-    arbitrar. Eso es lo que hace barato fusionar y caro separar.
+    ⚠️ **It is a union of ROWS, not of fields, which is why it needs no composition.** Wikidata
+    contributes 6,092 lemmas Wiktionary does not have --regional demonyms, set phrases--; the 8,595
+    they share keep Wiktionary's definition, so there is nothing to arbitrate. That is what makes
+    merging cheap and separating expensive.
 
-    Lo que se evita fusionando: dos packs del mismo idioma producian **dos chips "ES" y dos
-    palabras del dia** en el inicio, porque la pantalla lista packs y desde D-136 el selector
-    elige idioma.
+    What merging avoids: two packs of the same language produced **two "ES" chips and two words of
+    the day** on the home, because the screen lists packs and since D-136 the selector chooses a
+    language.
     """
 
     def setUp(self):
@@ -119,18 +119,18 @@ class SumarVocabularioTest(unittest.TestCase):
         self.assertIn(("iquiteño", "adj"), filas)
 
     def test_UN_LEMA_QUE_YA_ESTA_NO_SE_DUPLICA(self):
-        """EL TEST QUE PAGA ESTE ARCHIVO.
+        """THE TEST THAT PAYS FOR THIS FILE.
 
-        "banco" existe en las dos fuentes. Dejar entrar las dos daria **dos filas para la misma
-        palabra** en la lista de resultados, y ademas dos entradas con el mismo `uid`, que
-        `_reject_uid_collisions` rechaza al cerrar el pack.
+        "banco" exists in both sources. Letting both in would give **two rows for the same word**
+        in the results list, and also two entries with the same `uid`, which
+        `_reject_uid_collisions` rejects when closing the pack.
         """
         filas, _ = self._construir("--sumar", "es-wd", self.wd)
         self.assertEqual(1, [f[0] for f in filas].count("banco"))
 
     def test_la_definicion_que_gana_es_la_de_la_fuente_BASE(self):
-        # No hay arbitraje: el que llega primero se queda. Asi la fusion no necesita decidir
-        # cual definicion es mejor, que es lo que la haria cara.
+        # There is no arbitration: whoever arrives first stays. That way the merge does not have to
+        # decide which definition is better, which is what would make it expensive.
         import payload
         self._construir("--sumar", "es-wd", self.wd)
         db = sqlite3.connect(self.salida)
@@ -147,17 +147,18 @@ class SumarVocabularioTest(unittest.TestCase):
         self.assertIn("CC0", meta["sources"])
 
     def test_EL_SENSE_KEY_SE_RECALCULA_SOBRE_EL_PACK_FUSIONADO(self):
-        """EL TEST QUE ESTE MERGE HIZO NECESARIO, y lo agarro `verify_pack.py` primero.
+        """THE TEST THIS MERGE MADE NECESSARY, and `verify_pack.py` caught it first.
 
-        Cada fuente decide si una entrada necesita `sense_key` mirando SUS homografos. Al
-        fusionar, un lexema que tenia gemelo en Wikidata puede perderlo --porque el gemelo ya
-        estaba en el Wikcionario y se descarto-- y queda con una clave que ya no corresponde.
+        Each source decides whether an entry needs a `sense_key` by looking at ITS homographs. On
+        merging, a lexeme that had a twin in Wikidata can lose it --because the twin was already in
+        Wiktionary and got discarded-- and is left with a key that no longer corresponds.
 
-        ⚠️ Eso rompe `uid`, que es la identidad logica y **la llave del join entre packs**
-        (D-055): un `uid` calculado con `sense_key` no coincide con el mismo lema en otro pack
-        que lo calculo sin ella. Es el mismo error que D-139 documenta, ahora por otra puerta.
+        ⚠️ That breaks `uid`, which is the logical identity and **the join key across packs**
+        (D-055): a `uid` computed with a `sense_key` does not match the same lemma in another pack
+        that computed it without one. It is the same error D-139 documents, now through another
+        door.
 
-        La regla que vale es la del pack FINAL: lleva clave el que tiene homografo **ahi**.
+        The rule that holds is the FINAL pack's: a key goes to whoever has a homograph **there**.
         """
         filas, _ = self._construir("--sumar", "es-wd", self.wd)
         db = sqlite3.connect(self.salida)
@@ -172,8 +173,8 @@ class SumarVocabularioTest(unittest.TestCase):
         db.close()
 
     def test_la_fuente_sumada_se_declara_en_SOURCES_y_no_en_el_pack_id(self):
-        """⚠️ Antes exigia que el `pack_id` terminara en `-wd`. Ver D-215: la identidad es idioma
-        + nivel, y de donde viene el contenido se contesta en `sources`, que es donde se mira."""
+        """⚠️ It used to require the `pack_id` to end in `-wd`. See D-215: the identity is language
+        + tier, and where the content comes from is answered in `sources`, which is where you look."""
         _filas, meta = self._construir("--sumar", "es-wd", self.wd)
         self.assertEqual("es-full", meta["pack_id"])
         self.assertIn("wikidata", meta["sources"].lower(), meta["sources"])
@@ -212,10 +213,10 @@ class SegundaFuenteTest(unittest.TestCase):
         self.assertNotIn("en.wiktionary.org", meta["attribution"])
 
     def test_con_la_segunda_fuente_la_atribucion_nombra_las_DOS(self):
-        """EL TEST QUE PAGA ESTE ARCHIVO.
+        """THE TEST THAT PAYS FOR THIS FILE.
 
-        Si el merge se hace y el credito no se mueve, el pack sale bien construido y **mal
-        licenciado**, y no hay forma de notarlo mirando el contenido.
+        If the merge happens and the credit does not move, the pack comes out well built and
+        **badly licensed**, and there is no way to notice by looking at the content.
         """
         meta = self._construir(con_ejemplos=True)
         self.assertIn("es.wiktionary.org", meta["attribution"])
@@ -224,12 +225,12 @@ class SegundaFuenteTest(unittest.TestCase):
                          "las dos fuentes son CC BY-SA 4.0: la licencia del pack no cambia")
 
     def test_el_manifiesto_declara_CADA_fuente_con_SU_licencia(self):
-        """`meta.sources`: el manifiesto estructurado (D-138).
+        """`meta.sources`: the structured manifest (D-138).
 
-        La prosa de `attribution` sirve para leerla; esto sirve para **mostrarla por fuente**. Un
-        pack puede mezclar contenido bajo licencias distintas --el español con `--frases` junta
-        CC BY-SA 4.0 y CC BY 2.0 FR-- y un solo nombre para todo el pack o reclama de mas o
-        acredita de menos.
+        `attribution`'s prose serves to be read; this serves to **show it per source**. A pack can
+        mix content under different licences --the Spanish one with `--frases` joins CC BY-SA 4.0
+        and CC BY 2.0 FR-- and a single name for the whole pack either over-claims or
+        under-credits.
         """
         meta = self._construir(con_ejemplos=True)
         filas = [linea.split("\t") for linea in meta["sources"].strip().split("\n")]
@@ -246,31 +247,32 @@ class SegundaFuenteTest(unittest.TestCase):
         self.assertIn("definitions", meta["sources"])
 
     def test_el_pack_id_NO_cambia_al_anadir_una_fuente(self):
-        """⚠️ **Esto afirma lo contrario de lo que afirmaba hasta D-215**, a proposito.
+        """⚠️ **This asserts the opposite of what it asserted until D-215**, on purpose.
 
-        Antes el `pack_id` acumulaba un sufijo por fuente, *"para que los dos puedan convivir"*:
-        dos builds del espanol con distintas fuentes eran dos packs instalables a la vez. Bajo
-        *«los packs son por idioma y en versiones»* eso es justo lo que no se quiere -- son **el
-        mismo diccionario**, y lo que los distingue es `data_version`, no la identidad.
+        The `pack_id` used to accumulate a suffix per source, *"so both can coexist"*: two Spanish
+        builds with different sources were two packs installable at once. Under *"packs are by
+        language and in versions"* that is exactly what is not wanted -- they are **the same
+        dictionary**, and what distinguishes them is `data_version`, not the identity.
 
-        Lo que se pierde: dos variantes del mismo idioma ya no conviven. Lo que se gana: anadir
-        una fuente deja de hacer que el pack parezca otro que la app nunca vio.
+        What is lost: two variants of the same language no longer coexist. What is gained: adding a
+        source stops making the pack look like another one the app has never seen.
         """
         sin_ = self._construir(con_ejemplos=False)
         con = self._construir(con_ejemplos=True)
         self.assertEqual(sin_["pack_id"], con["pack_id"])
         self.assertEqual("es-full", con["pack_id"])
-        # Y la proteccion de fondo sigue en pie por otra via: los dos builds se distinguen.
+        # And the underlying protection still stands by another route: the two builds are
+        # distinguishable.
         self.assertNotEqual(
             sin_["sources"], con["sources"],
             "la diferencia real entre los dos sigue declarada, en sources",
         )
 
     def test_la_entrada_de_DOS_acepciones_no_recibe_el_ejemplo(self):
-        """"banco" tiene ejemplo en la segunda fuente, pero dos acepciones en la nuestra.
+        """"banco" has an example in the second source, but two senses in ours.
 
-        Pegarlo a la primera seria inventar la atribucion. Es la misma regla de D-132, aplicada
-        del otro lado del merge.
+        Gluing it to the first would be inventing the attribution. It is D-132's same rule, applied
+        on the other side of the merge.
         """
         import payload
         self._construir(con_ejemplos=True)

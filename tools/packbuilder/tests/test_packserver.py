@@ -1,17 +1,18 @@
-"""Tests de tools/packserver.py: el servidor de archivos de desarrollo.
+"""Tests of tools/packserver.py: the development file server.
 
-Dos clases de aserto, y la division es deliberada:
+Two classes of assertion, and the split is deliberate:
 
-- **Las funciones puras** --parsear `Range`, filtrar respaldos, leer `meta`-- se prueban solas.
-- **`Range` y `ETag` son protocolo**, y una funcion que devuelve la tupla correcta no prueba que
-  el servidor emita un 206 con el `Content-Range` correcto. Eso se prueba levantando el servidor
-  en un puerto efimero y hablandole por HTTP. Es barato y es lo unico que cierra D-040: esa
-  decision eligio `HttpURLConnection` **porque hace `Range`**, y sin un servidor que lo soporte
-  la reanudacion es inverificable.
+- **The pure functions** --parsing `Range`, filtering backups, reading `meta`-- are tested on
+  their own.
+- **`Range` and `ETag` are protocol**, and a function returning the right tuple does not prove the
+  server emits a 206 with the right `Content-Range`. That is tested by starting the server on an
+  ephemeral port and talking to it over HTTP. It is cheap and it is the only thing that closes
+  D-040: that decision chose `HttpURLConnection` **because it does `Range`**, and without a server
+  that supports it, resumption is unverifiable.
 
-El aserto que paga el archivo: **reanudar devuelve exactamente los bytes que faltaban**. Una
-descarga de 192 MB que se corta al 90 % y se reanuda mal produce un `.db` que se abre sin error y
-devuelve menos palabras de las que tiene.
+The assertion that pays for the file: **resuming returns exactly the bytes that were missing**. A
+192 MB download cut off at 90 % and resumed badly produces a `.db` that opens with no error and
+returns fewer words than it holds.
 """
 
 import gzip
@@ -26,7 +27,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-# tests/ -> packbuilder/ -> tools/, donde vive packserver.py. Mismo patron que test_devpack.py.
+# tests/ -> packbuilder/ -> tools/, which is where packserver.py lives. Same pattern as
+# test_devpack.py.
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
@@ -35,7 +37,7 @@ import packserver  # noqa: E402
 
 
 def un_pack(path, **meta):
-    """Un `.db` minimo con tabla `meta`. No es un pack valido: aca solo se lee `meta`."""
+    """A minimal `.db` with a `meta` table. It is not a valid pack: only `meta` is read here."""
     base = {
         "pack_id": "es-test",
         "name": "Test",
@@ -49,7 +51,7 @@ def un_pack(path, **meta):
         "norm_version": "2",
         "license": "CC-BY-SA-4.0",
         "attribution": "nadie",
-        # No publicable: 32 KB de binario que no tienen nada que hacer en un catalogo.
+        # Not publishable: 32 KB of binary that has no business in a catalog.
         "payload_dict": "deadbeef",
     }
     base.update({k: str(v) for k, v in meta.items()})
@@ -61,7 +63,7 @@ def un_pack(path, **meta):
 
 
 class TestParseRange(unittest.TestCase):
-    """RFC 9110 §14.1.1. Las tres formas, y todo lo demas tratado como ausente."""
+    """RFC 9110 §14.1.1. The three forms, and everything else treated as absent."""
 
     def test_sin_cabecera_es_None(self):
         self.assertIsNone(packserver.parse_range(None, 1000))
@@ -72,7 +74,7 @@ class TestParseRange(unittest.TestCase):
         self.assertEqual((10, 20), packserver.parse_range("bytes=10-20", 1000))
 
     def test_desde_un_punto_hasta_el_final_es_el_caso_de_REANUDAR(self):
-        # El que importa: el cliente ya tiene 900 bytes y pide el resto.
+        # The one that matters: the client already has 900 bytes and asks for the rest.
         self.assertEqual((900, 999), packserver.parse_range("bytes=900-", 1000))
 
     def test_sufijo(self):
@@ -82,8 +84,8 @@ class TestParseRange(unittest.TestCase):
         self.assertEqual((0, 999), packserver.parse_range("bytes=0-99999", 1000))
 
     def test_insatisfacible_es_distinto_de_no_entendido(self):
-        # 416 y no 200: pedir desde mas alla del final es un error del cliente, y tragarselo
-        # devolviendo el archivo entero haria que una reanudacion mal calculada se vea como exito.
+        # 416 and not 200: asking from beyond the end is a client error, and swallowing it by
+        # returning the whole file would make a miscalculated resume look like a success.
         self.assertEqual((-1, -1), packserver.parse_range("bytes=1000-", 1000))
         self.assertEqual((-1, -1), packserver.parse_range("bytes=5000-6000", 1000))
         self.assertEqual((-1, -1), packserver.parse_range("bytes=-0", 1000))
@@ -95,8 +97,8 @@ class TestParseRange(unittest.TestCase):
 
 class TestCatalogo(unittest.TestCase):
     def test_los_respaldos_OLD_no_se_publican(self):
-        # ⚠️ El directorio real tiene en-def-wikt.OLD.db y es-tr-enwikt.OLD2.db al lado de los
-        # buenos. Publicarlos serviria un pack viejo como si fuera el catalogo.
+        # ⚠️ The real directory holds en-def-wikt.OLD.db and es-tr-enwikt.OLD2.db beside the good
+        # ones. Publishing them would serve an old pack as if it were the catalog.
         self.assertTrue(packserver.is_pack("es-def-wikc.db"))
         self.assertFalse(packserver.is_pack("en-def-wikt.OLD.db"))
         self.assertFalse(packserver.is_pack("es-tr-enwikt.OLD2.db"))
@@ -104,18 +106,18 @@ class TestCatalogo(unittest.TestCase):
         self.assertFalse(packserver.is_pack("notas.txt"))
 
     def test_un_INTERMEDIO_del_merge_no_se_publica(self):
-        """⚠️ Visto en el catalogo del emulador: `es-def-wd` aparecia como un pack descargable.
+        """⚠️ Seen in the emulator's catalog: `es-def-wd` appeared as a downloadable pack.
 
-        No lo es. Es una **entrada** del merge --el pack espanol lo lleva fundido dentro-- y
-        publicarlo ofrece un diccionario de una sola fuente, que es justo el modelo que se
-        descarto. El filtro es **semantico y no por nombre**: un pack publicable DECLARA su nivel
-        (D-215), y un intermedio no declara ninguno. Renombrar el archivo no lo cuela.
+        It is not. It is an **input** to the merge --the Spanish pack carries it fused inside-- and
+        publishing it offers a single-source dictionary, which is exactly the model that was
+        discarded. The filter is **semantic and not by name**: a publishable pack DECLARES its tier
+        (D-215), and an intermediate declares none. Renaming the file does not sneak it through.
         """
         with tempfile.TemporaryDirectory() as d:
             un_pack(os.path.join(d, "final.db"), tier="full", kind="monolingual")
             intermedio = os.path.join(d, "intermedio.db")
-            # ⚠️ `kind` explicito: el fixture por defecto es bilingue, que es JUSTO la excepcion
-            # del filtro -- y con el por defecto este test pasaba sin probar nada.
+            # ⚠️ An explicit `kind`: the default fixture is bilingual, which is PRECISELY the
+            # filter's exception -- and with the default this test passed without testing anything.
             un_pack(intermedio, kind="monolingual")
             conn = sqlite3.connect(intermedio)
             conn.execute("DELETE FROM meta WHERE key = 'tier'")
@@ -125,7 +127,7 @@ class TestCatalogo(unittest.TestCase):
             self.assertEqual(1, len(ids), "solo el que declara nivel: %s" % ids)
 
     def test_el_BILINGUE_si_se_publica_aunque_no_tenga_nivel(self):
-        """Su proposito no es un tamano del mismo diccionario, asi que no lleva `tier` (D-215)."""
+        """Its purpose is not a size of the same dictionary, so it carries no `tier` (D-215)."""
         with tempfile.TemporaryDirectory() as d:
             biling = os.path.join(d, "es-en.db")
             un_pack(biling, kind="bilingual")  # explicito aunque sea el default del fixture
@@ -150,7 +152,7 @@ class TestCatalogo(unittest.TestCase):
             )
 
     def test_el_indice_lleva_DOS_hashes_distintos(self):
-        # Uno del .gz que viaja y otro del .db que queda. Se verifica en dos momentos.
+        # One of the .gz that travels and one of the .db that stays. It is verified at two moments.
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "es-test.db")
             un_pack(db)
@@ -170,7 +172,7 @@ class TestCatalogo(unittest.TestCase):
             self.assertEqual(2, pack["norm_version"])
 
     def test_attribution_NO_se_publica(self):
-        # ~600 caracteres por pack que el pack ya lleva dentro. Ver META_FIELDS.
+        # ~600 characters per pack that the pack already carries inside. See META_FIELDS.
         with tempfile.TemporaryDirectory() as d:
             un_pack(os.path.join(d, "es-test.db"))
             pack = packserver.build_catalog(d)["packs"][0]
@@ -178,8 +180,8 @@ class TestCatalogo(unittest.TestCase):
             self.assertIn("license", pack, "la licencia SI, que es corta y se muestra antes")
 
     def test_un_pack_de_esquema_VIEJO_se_publica_con_su_version(self):
-        # Es lo que deja que la app lo descarte sin bajar 192 MB. Un pack de esquema 3 no tiene
-        # `langs` --ese campo nacio con el 4-- y aun asi tiene que aparecer.
+        # It is what lets the app discard it without downloading 192 MB. A schema 3 pack has no
+        # `langs` --that field was born with 4-- and still has to appear.
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "viejo.db")
             un_pack(db, schema_version=3)
@@ -215,7 +217,7 @@ class TestCatalogo(unittest.TestCase):
 
 
 class TestServidorDeVerdad(unittest.TestCase):
-    """Levanta el servidor en un puerto efimero y le habla por HTTP."""
+    """Starts the server on an ephemeral port and talks to it over HTTP."""
 
     @classmethod
     def setUpClass(cls):
@@ -243,7 +245,7 @@ class TestServidorDeVerdad(unittest.TestCase):
         self.assertEqual("es-test", cat["packs"][0]["pack_id"])
 
     def test_pedirlo_dos_veces_cuesta_un_304_SIN_cuerpo(self):
-        # Es lo que hace que apretar el boton de consultar no cueste el indice entero cada vez.
+        # It is what makes pressing the query button not cost the whole index every time.
         with urllib.request.urlopen(self.base + "/index.json") as r:
             tag = r.headers["ETag"]
         self.assertTrue(tag)
@@ -262,7 +264,7 @@ class TestServidorDeVerdad(unittest.TestCase):
             self.assertEqual(len(r.read()), int(r.headers["Content-Length"]))
 
     def test_REANUDAR_devuelve_exactamente_los_bytes_que_faltaban(self):
-        # El aserto que paga el archivo.
+        # The assertion that pays for the file.
         url = self.base + "/packs/es-test.db.gz"
         with urllib.request.urlopen(url) as r:
             entero = r.read()
@@ -295,7 +297,7 @@ class TestServidorDeVerdad(unittest.TestCase):
                 self.assertIn(e.code, (400, 403, 404), intento)
 
     def test_el_db_en_crudo_TAMBIEN_se_sirve(self):
-        # A proposito: una actualizacion delta por bloques necesita los bytes del .db.
+        # On purpose: a block-level delta update needs the .db's bytes.
         with urllib.request.urlopen(self.base + "/packs/es-test.db") as r:
             self.assertEqual(200, r.status)
             self.assertEqual(os.path.getsize(self.db), len(r.read()))

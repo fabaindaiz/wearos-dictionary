@@ -1,26 +1,26 @@
-"""Formato del cuerpo de una entrada (columna entry.payload).
+"""The format of an entry's body (the entry.payload column).
 
-ESTE ARCHIVO TIENE UN ESPEJO:
+THIS FILE HAS A MIRROR:
     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PayloadCodec.kt
 
-El payload va comprimido con deflate crudo y un diccionario precargado compartido por todo el
-pack, guardado en meta.payload_dict. Las entradas son de unos cientos de bytes, demasiado
-cortas para que deflate encuentre redundancia por si solo; el diccionario le da la ventana ya
-primada con los fragmentos frecuentes del corpus.
+The payload is compressed with raw deflate and a preloaded dictionary shared by the whole pack,
+stored in meta.payload_dict. Entries are a few hundred bytes, far too short for deflate to find
+redundancy on its own; the dictionary hands it a window already primed with the corpus's frequent
+fragments.
 
-Se eligio deflate y no zstd aunque comprime menos, porque deflate esta en java.util.zip
-(plataforma Android, sin .so extra) y en el zlib de la stdlib de Python. zstd obligaria a una
-libreria nativa en el reloj ADEMAS de la de SQLite, y a una dependencia de pip aca, para ganar
-unos puntos de compresion.
+deflate was chosen over zstd even though it compresses less, because deflate is in java.util.zip
+(the Android platform, no extra .so) and in Python's stdlib zlib. zstd would force a native
+library on the watch ON TOP of SQLite's, and a pip dependency here, to gain a few points of
+compression.
 
-Formato una vez descomprimido: texto UTF-8, una linea por campo, tag de un caracter + TAB.
-Ver la documentacion del espejo en Kotlin para el detalle.
+The format once decompressed: UTF-8 text, one line per field, a one-character tag + TAB. See the
+Kotlin mirror's documentation for the detail.
 
-`CODEC_ID` sube cuando cambia el formato del TEXTO, no solo cuando cambia la compresion, porque
-`PackFile.open` lo compara con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a
-sideloadear los packs, y nada mas. **Cuando exista el instalador, un tag ADITIVO no lo sube**:
-para eso esta la tolerancia a tags desconocidos, y forzar a redescargar 300 MB por un campo
-nuevo que el lector viejo ignora seria tirar esa propiedad a la basura (D-119).
+`CODEC_ID` is bumped when the TEXT format changes, not only when the compression does, because
+`PackFile.open` compares it with `!=` and rejects the pack. Today that costs rebuilding and
+re-sideloading the packs, and nothing more. **Once the installer exists, an ADDITIVE tag does not
+bump it**: that is what tolerance of unknown tags is for, and forcing a 300 MB re-download over a
+new field the old reader ignores would throw that property away (D-119).
 """
 
 import hashlib
@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import casefold as _casefold  # noqa: E402
 import zlib
 
-# Sube cuando cambia el formato. Se escribe en meta.payload_codec.
+# Bumped when the format changes. Written to meta.payload_codec.
 PAYLOAD_VERSION = 2
 CODEC_ID = "deflate-v2"
 
@@ -44,18 +44,18 @@ TAG_EXAMPLE = "E"
 TAG_TRANSLATION = "T"
 TAG_SYNONYM = "Y"
 
-# Antonimo de ESTA acepcion (D-126). **No sube CODEC_ID y eso es deliberado**: es un tag
-# puramente aditivo, y D-119 dejo escrito que forzar a redescargar por uno de esos seria tirar
-# a la basura la tolerancia que el formato tiene. Un lector viejo lo ignora y muestra la entrada
-# sin antonimos, que es degradacion correcta.
+# An antonym of THIS sense (D-126). **It does not bump CODEC_ID and that is deliberate**: it is a
+# purely additive tag, and D-119 put it in writing that forcing a re-download over one of those
+# would throw away the tolerance the format has. An old reader ignores it and shows the entry
+# without antonyms, which is the right degradation.
 TAG_ANTONYM = "A"
 
-# Palabra RELACIONADA de esta acepcion: hiperonimo, hiponimo o pariente morfologico (D-132).
-# Tag aditivo como el anterior, asi que tampoco sube CODEC_ID.
+# A RELATED word of this sense: a hypernym, a hyponym or a morphological relative (D-132). An
+# additive tag like the previous one, so it does not bump CODEC_ID either.
 #
-# **No es un sinonimo y el tag separado es toda la diferencia.** "frances" trae `galo` como
-# related; emitido como sinonimo afirmaria una equivalencia que la fuente no da. Se emite solo
-# para entradas de una sola acepcion -- ver `sources/kaikki._relacionadas`.
+# **It is not a synonym and the separate tag is the whole difference.** "frances" carries `galo` as
+# related; emitted as a synonym it would assert an equivalence the source does not give. It is
+# emitted only for single-sense entries -- see `sources/kaikki._relacionadas`.
 TAG_RELATED = "R"
 
 # Where the example above it was quoted from: year and author, already trimmed by the source
@@ -76,19 +76,19 @@ TAG_RELATED = "R"
 # choosing an example for it would be the invented attribution of D-179.
 TAG_CITATION = "C"
 
-# Traducciones de la PALABRA, sin acepcion atribuida.
+# Translations of the WORD, with no sense attributed.
 #
-# ⚠️ **Es el segundo canal, y existe para que la opcion deshonesta deje de ser la barata.** Con
-# `T` solo --que vive dentro de una acepcion-- un builder con dato no atribuible podia tirarlo o
-# embadurnarlo por todas las acepciones, y embadurnar es gratis, invisible y pasa `verify_pack`:
-# el error de D-117. Medido sobre el dump español, el **37,7 %** de las traducciones no trae
-# `sense_index`, y en el pack de muestra eso era el **34,8 % del dato tirado**.
+# ⚠️ **It is the second channel, and it exists so the dishonest option stops being the cheap one.**
+# With `T` alone --which lives inside a sense-- a builder holding unattributable data could either
+# drop it or smear it across every sense, and smearing is free, invisible and passes
+# `verify_pack`: D-117's mistake. Measured over the Spanish dump, **37.7 %** of the translations
+# carry no `sense_index`, and in the sample pack that was **34.8 % of the data thrown away**.
 #
-# ⚠️ **Se escribe antes de la primera `S` y NO sube [CODEC_ID]** (D-119): un lector viejo lo
-# descarta por su guarda `if senses:` y muestra la entrada sin la lista. Pero la posicion es una
-# convencion de escritura y **no** la semantica: `parse` lo toma como de la entrada aparezca
-# donde aparezca, porque si la posicion decidiera, un `W` mal ubicado se volveria una traduccion
-# de acepcion -- la atribucion inventada que este canal existe para evitar.
+# ⚠️ **It is written before the first `S` and does NOT bump [CODEC_ID]** (D-119): an old reader
+# drops it through its `if senses:` guard and shows the entry without the list. But the position is
+# a writing convention and **not** the semantics: `parse` takes it as belonging to the entry
+# wherever it appears, because if the position decided, a misplaced `W` would become a sense
+# translation -- the invented attribution this channel exists to prevent.
 TAG_WORD_TRANSLATION = "W"
 
 #: A **principal part** of the word: gerund, participle, plural or feminine.
@@ -109,31 +109,31 @@ TAG_FORM = "F"
 #: tabs because they would split the line, and this value has to survive it.
 FORM_SEPARATOR = ":"
 
-# Deflate crudo: sin encabezado zlib. El encabezado trae un DICTID que obliga al lector a
-# esperar needsDictionary(); sin encabezado los dos lados fijan el diccionario de entrada.
+# Raw deflate: no zlib header. The header carries a DICTID that forces the reader to wait for
+# needsDictionary(); with no header both sides pin the input dictionary.
 _RAW_DEFLATE = -15
 
-# Separa el termino de la acepcion a la que apunta, DENTRO del valor de un item.
+# Separates the term from the sense it points at, INSIDE an item's value.
 #
-# ⚠️ **El reparto de las tres partes de una referencia `(pack, palabra, acepcion)` es el diseño
-# entero, y cada una vive donde cuesta menos:**
+# ⚠️ **The split of a `(pack, word, sense)` reference's three parts is the whole design, and each
+# lives where it costs least:**
 #
-#     pack      -> NO se nombra. El destino se declara por IDIOMA en `meta.translations_to`,
-#                  una vez por pack. Nombrar un pack concreto mataba el enlace del usuario
-#                  que tiene instalado el nucleo y no el completo (D-180).
-#     palabra   -> el valor del item. Ya estaba ahi: es el termino que se muestra.
-#     acepcion  -> este sufijo, OPCIONAL, porque solo existe cuando la fuente la supo.
+#     pack   -> NOT named. The target is declared by LANGUAGE in `meta.translations_to`, once per
+#               pack. Naming a concrete pack killed the link for the user who has the core
+#               installed and not the full one (D-180).
+#     word   -> the item's value. It was already there: it is the term being shown.
+#     sense  -> this suffix, OPTIONAL, because it only exists when the source knew it.
 #
-# De ese reparto sale la propiedad que importa: **una traduccion sin acepcion ya es un link a la
-# palabra y no cuesta un byte extra**. El caso comun es el gratis.
+# From that split comes the property that matters: **a translation with no sense is already a link
+# to the word and costs not one extra byte**. The common case is the free one.
 #
-# Se elige `\x1f` porque es el mismo juntador que usa `stable_uid()` y porque **no es whitespace
-# para `str.split()`**, asi que sobrevive a `sanitize`. Por eso mismo entra en los prohibidos: si
-# la fuente pudiera escribirlo, podria FORJAR una referencia a otra acepcion.
+# `\x1f` is chosen because it is the same joiner `stable_uid()` uses and because it **is not
+# whitespace for `str.split()`**, so it survives `sanitize`. For that very reason it goes into the
+# forbidden set: if the source could write it, it could FORGE a reference to another sense.
 REF_SEPARATOR = "\x1f"
 
-# Caracteres que romperian el formato delimitado. Se sanean al construir, no al leer: el reloj
-# no deberia gastar ciclos defendiendose de datos que nosotros mismos generamos.
+# Characters that would break the delimited format. They are sanitized on building, not on
+# reading: the watch should not spend cycles defending itself from data we generate ourselves.
 _FORBIDDEN = str.maketrans({"\t": " ", "\n": " ", "\r": " ", REF_SEPARATOR: ""})
 
 
@@ -143,124 +143,124 @@ def sanitize(value):
     return cleaned or None
 
 
-# Cuantos caracteres hex del sha256 nombran una acepcion.
+# How many hex characters of the sha256 name a sense.
 #
-# 12 hex son 48 bits. Con las 210.249 acepciones del pack español la probabilidad de que dos
-# distintas choquen es ~4e-7: despreciable frente a las **22 colisiones reales (0,0105 %)** que
-# ya tiene el dato por glosas que el wiki define dos veces. Alargarlo no compraria nada y cada
-# caracter se paga en cada referencia.
+# 12 hex is 48 bits. With the Spanish pack's 210,249 senses the probability of two distinct ones
+# colliding is ~4e-7: negligible against the **22 real collisions (0.0105 %)** the data already has
+# from glosses the wiki defines twice. Lengthening it would buy nothing and every character is paid
+# in every reference.
 SENSE_CODE_LENGTH = 12
 
 
-# La puntuacion que una fuente pone al final de una glosa y otra no.
+# The punctuation one source puts at the end of a gloss and another does not.
 _CIERRE = " .;:,"
 
-# ⚠️ **El espacio se enumera a mano y NO se usa `\s`, y eso es una trampa entre lenguajes.**
-# En Python `\s` sobre `str` es **Unicode** y en Java/Kotlin es **ASCII**: un espacio duro
-# (U+00A0) se colapsaria de un lado y del otro no, y los dos codigos de la misma acepcion
-# quedarian distintos **sin error y sin log**. Se pierde plegar el espacio duro --que aparece en
-# alguna glosa-- a cambio de que los dos lenguajes hagan exactamente lo mismo, que es el trato
-# que este repo ya eligio para `norm()`.
+# ⚠️ **Whitespace is enumerated by hand and `\s` is NOT used, and that is a cross-language trap.**
+# In Python `\s` over `str` is **Unicode** and in Java/Kotlin it is **ASCII**: a hard space
+# (U+00A0) would collapse on one side and not the other, and the two codes for the same sense would
+# come out different **with no error and no log**. Folding the hard space --which appears in the odd
+# gloss-- is lost, in exchange for both languages doing exactly the same thing, which is the deal
+# this repo already chose for `norm()`.
 _ESPACIO = re.compile("[ \t\n\r\f\v]+")
 
 
 def fold_gloss(gloss):
-    """Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
+    """Folds a gloss to decide whether two sources wrote **the same** sense.
 
-    ⚠️ **El plegado de caja SIGUE EL ESTANDAR**: `toCaseFold()`, regla R4 de la seccion 3.13 del
-    Estandar Unicode, que es la operacion que UAX #31 define para *caseless matching*. El estandar
-    separa explicitamente las dos: `toLowerCase()` es **case mapping**, para MOSTRAR texto;
-    `toCaseFold()` es **case folding**, para COMPARARLO. La primera version usaba `lower()`, que es
-    la equivocada -- medido, **242 de 133.730** code points del repertorio fijado difieren
-    (`ß`→`ss`, `ſ`→`s`, `ς`→`σ`), y sobre las glosas reales 8 de 97.337 en español.
+    ⚠️ **The case folding FOLLOWS THE STANDARD**: `toCaseFold()`, rule R4 of section 3.13 of the
+    Unicode Standard, which is the operation UAX #31 defines for *caseless matching*. The standard
+    separates the two explicitly: `toLowerCase()` is **case mapping**, to DISPLAY text;
+    `toCaseFold()` is **case folding**, to COMPARE it. The first version used `lower()`, which is
+    the wrong one -- measured, **242 of 133,730** code points of the pinned repertoire differ
+    (`ß`→`ss`, `ſ`→`s`, `ς`→`σ`), and over the real glosses 8 of 97,337 in Spanish.
 
-    Viene de la tabla fijada de [casefold] y no de `str.casefold()`, porque Java **no tiene**
-    `toCaseFold()` y lo unico que lo ofrece es ICU, que D-003 prohibe.
+    It comes from [casefold]'s pinned table and not from `str.casefold()`, because Java **does not
+    have** `toCaseFold()` and the only thing that offers it is ICU, which D-003 forbids.
 
-    ⚠️ **Lo que si es una regla NUESTRA y versionada es quitar la puntuacion final**: ningun
-    estandar lo hace. Es una decision de CONTENIDO --el Wikcionario escribe "Casa." y Wikidata
-    "casa"-- y cambiarla invalida todos los enlaces ya escritos, asi que es un acto deliberado y
-    lo fija un vector en los dos lenguajes.
+    ⚠️ **What IS a rule of OURS, and versioned, is stripping trailing punctuation**: no standard
+    does it. It is a CONTENT decision --Wiktionary writes "Casa." and Wikidata "casa"-- and changing
+    it invalidates every link already written, so it is a deliberate act and a vector pins it in
+    both languages.
 
-    Decidido con el numero sobre la mesa: entre el Wikcionario y Wikidata sube la coincidencia de
-    **34,40 % a 42,21 % (+1.531 acepciones)**. Los fallos que recupera se ven leyendo:
+    Decided with the number on the table: between Wiktionary and Wikidata it raises agreement from
+    **34.40 % to 42.21 % (+1,531 senses)**. The failures it recovers are visible by reading:
 
-        wikcionario: "Condición o carácter de torpe."
-        wikidata   : "condición o carácter de torpe"
+        wiktionary: "Condición o carácter de torpe."
+        wikidata  : "condición o carácter de torpe"
 
-    **Ligero a proposito**: minusculas, espacios colapsados y puntuacion final fuera. **NO** saca
-    acentos -- `publico` y `público` son palabras distintas, y dos glosas que solo difieren en eso
-    no son la misma acepcion. Cuanto mas plegara, mas acepciones distintas fundiria en silencio.
+    **Light on purpose**: lowercase, spaces collapsed and trailing punctuation removed. It does
+    **NOT** strip accents -- `publico` and `público` are different words, and two glosses differing
+    only in that are not the same sense. The more it folded, the more distinct senses it would fuse
+    in silence.
 
-    ⚠️ **Lo usan `sense_code` Y `merge_duplicate_senses`, y tiene que ser asi**: si solo plegara
-    el codigo, dos acepciones que difieren en un punto compartirian codigo sin fusionarse y una
-    quedaria **inalcanzable** -- justo la excepcion que el invariante cierra.
+    ⚠️ **`sense_code` AND `merge_duplicate_senses` use it, and it has to be that way**: if only the
+    code folded, two senses differing by a full stop would share a code without being merged and
+    one would be **unreachable** -- exactly the exception the invariant closes.
     """
     plegada = _casefold.fold(unicodedata.normalize("NFC", gloss).strip())
     return _ESPACIO.sub(" ", plegada).strip(_CIERRE)
 
 
 def sense_code(uid, gloss):
-    """Nombra una acepcion **sin nombrar un pack**: unico para `(idioma, palabra, acepcion)`.
+    """Names a sense **without naming a pack**: unique for `(language, word, sense)`.
 
-    ⚠️ **El idioma y la palabra ya estan dentro de `uid`** --`stable_uid(lang, headword, pos,
-    sense_key)`-- asi que alcanza con combinarlo con la glosa. De ahi salen las tres propiedades
-    que se pidieron:
+    ⚠️ **The language and the word are already inside `uid`** --`stable_uid(lang, headword, pos,
+    sense_key)`-- so combining it with the gloss is enough. From there come the three properties
+    that were asked for:
 
-    1. **No nombra un pack.** Cualquier pack instalado de ese idioma puede resolverlo, asi que el
-       enlace no muere porque el usuario tenga el nucleo en vez del completo.
-    2. **El nucleo y el completo lo comparten.** Verificado sobre los packs reales: los **21.534**
-       codigos del nucleo español son **identicos** en el completo, porque `build_core.py`
-       **copia** el uid en vez de recalcularlo (D-175) y conserva la glosa.
-    3. **Degrada a la palabra.** Si ningun pack tiene esa acepcion pero alguno tiene la palabra,
-       el termino sigue siendo un enlace util: el codigo es un *sufijo* del termino, no lo
-       reemplaza.
+    1. **It does not name a pack.** Any installed pack of that language can resolve it, so the link
+       does not die because the user has the core instead of the full one.
+    2. **The core and the full one share it.** Verified over the real packs: the Spanish core's
+       **21,534** codes are **identical** in the full one, because `build_core.py` **copies** the
+       uid instead of recomputing it (D-175) and keeps the gloss.
+    3. **It degrades to the word.** If no pack has that sense but some pack has the word, the term
+       is still a useful link: the code is a *suffix* on the term, it does not replace it.
 
-    ⚠️ **Se calcula sobre la glosa plegada por [fold_gloss], NO sobre `norm()`, y esa distincion
-    es el precedente de D-055 aplicado tal cual.** El plegado es ligero y propio; `norm()` es la
-    funcion del invariante central y esta atada a `NORM_VERSION`. `stable_uid` ya decidio lo mismo y dejo escrito por que: *«asi no
-    depende de NORM_VERSION, y subir las reglas de normalizacion no invalida los packs
-    auxiliares»*. Aca muerde mas fuerte todavia -- un bump de `NORM_VERSION`, que D-005 permite
-    en cualquier momento, cambiaria **todos** los codigos y dejaria apuntando a la nada cada
-    enlace de cada pack ya construido, sin error y sin log.
+    ⚠️ **It is computed over the gloss folded by [fold_gloss], NOT over `norm()`, and that
+    distinction is D-055's precedent applied as it stands.** The folding is light and our own;
+    `norm()` is the central invariant's function and is tied to `NORM_VERSION`. `stable_uid`
+    already decided the same and left written why: *"so it does not depend on NORM_VERSION, and
+    raising the normalization rules does not invalidate the auxiliary packs"*. Here it bites harder
+    still -- a `NORM_VERSION` bump, which D-005 allows at any time, would change **every** code and
+    leave every link of every already built pack pointing at nothing, with no error and no log.
 
-    NFC y no los bytes crudos porque dos fuentes pueden entregar "á" precompuesta o descompuesta
-    para la misma glosa, y serian codigos distintos para la misma acepcion.
+    NFC and not the raw bytes because two sources can deliver "á" precomposed or decomposed for the
+    same gloss, and those would be different codes for the same sense.
 
-    ⚠️ **ESTE ARCHIVO TIENE UN ESPEJO**: `PayloadCodec.senseCode` en Kotlin. Si los dos calculan
-    distinto, los enlaces apuntan a la nada **sin error y sin log**, que es el modo de falla
-    central de este repo. Lo fija un vector en `test_payload.py` y su gemelo en Kotlin.
+    ⚠️ **THIS FILE HAS A MIRROR**: `PayloadCodec.senseCode` in Kotlin. If the two compute
+    differently, the links point at nothing **with no error and no log**, which is this repo's
+    central failure mode. A vector in `test_payload.py` and its twin in Kotlin pin it.
     """
     material = "%d\x1f%s" % (uid, fold_gloss(gloss))
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:SENSE_CODE_LENGTH]
 
 
 def make_ref(term, sense_ref=None):
-    """Un item de traduccion, como TUPLA `(termino, acepcion_o_None)`.
+    """A translation item, as a TUPLE `(term, sense_or_None)`.
 
-    ⚠️ **Devuelve una tupla y no una cadena a proposito, y esto no es estilo: es la defensa.**
-    La primera version devolvia la cadena ya juntada y `render` tenia que adivinar si un valor
-    traia referencia partiendolo por el separador. Con eso, un termino de la fuente que
-    **contuviera** el separador --`ho\x1fuse`-- se leia como el termino `ho` apuntando a `use`:
-    la fuente podia FORJAR una referencia a otra acepcion. Lo agarro su propio test.
+    ⚠️ **It returns a tuple and not a string on purpose, and this is not style: it is the
+    defence.** The first version returned the string already joined and `render` had to guess
+    whether a value carried a reference by splitting it on the separator. With that, a term from
+    the source that **contained** the separator --`ho\x1fuse`-- read as the term `ho` pointing at
+    `use`: the source could FORGE a reference to another sense. Its own test caught it.
 
-    Con la tupla no hay nada que adivinar: una cadena es siempre un termino y se limpia entera,
-    y una referencia solo la puede construir quien llama a esto.
+    With the tuple there is nothing to guess: a string is always a term and is cleaned whole, and a
+    reference can only be built by whoever calls this.
     """
     return (term, sense_ref) if sense_ref else term
 
 
 def split_ref(value):
-    """`(termino, acepcion_o_None)`. Lo que no trae sufijo apunta a la palabra entera."""
+    """`(term, sense_or_None)`. What carries no suffix points at the whole word."""
     termino, _, destino = value.partition(REF_SEPARATOR)
     return termino, destino or None
 
 
 def _sanitize_item(value):
-    """Serializa un item de traduccion: una cadena es un termino, una tupla es una referencia.
+    """Serializes a translation item: a string is a term, a tuple is a reference.
 
-    Las dos partes se limpian **por separado** y recien despues se juntan, asi que el separador
-    del formato solo puede venir de nosotros. Ver [make_ref].
+    Both parts are cleaned **separately** and only then joined, so the format's separator can only
+    come from us. See [make_ref].
     """
     termino, destino = value if isinstance(value, tuple) else (value, None)
     limpio = sanitize(termino)
@@ -289,45 +289,45 @@ def _example_parts(item):
 
 
 def example_text(item):
-    """Solo el texto de un ejemplo, sea cual sea su forma. Ver [_example_parts].
+    """Only an example's text, whatever its shape. See [_example_parts].
 
-    Existe para `build._fts_body`, que indexa el ejemplo y **no** su cita: publicarla como
-    funcion en vez de dejar que cada llamador haga su propio `isinstance` es lo que evita que
-    dentro de un mes haya dos ideas distintas de que es un ejemplo.
+    It exists for `build._fts_body`, which indexes the example and **not** its citation:
+    publishing it as a function instead of letting every caller write its own `isinstance` is what
+    stops there being two different ideas of what an example is a month from now.
     """
     return _example_parts(item)[0]
 
 
-# Los campos de una acepcion que son listas, en el orden en que se escriben.
+# A sense's fields that are lists, in the order they are written.
 _LISTAS = ("examples", "translations", "synonyms", "antonyms", "related")
 
 
 def merge_duplicate_senses(senses):
-    """Funde las acepciones que comparten glosa, conservando el orden y los adjuntos de todas.
+    """Fuses the senses that share a gloss, keeping the order and every one's attachments.
 
-    ⚠️ **Es lo que hace cierta la propiedad "toda acepcion es alcanzable por `(idioma, palabra,
-    acepcion)`".** El codigo de una acepcion sale de `(uid, glosa)`, asi que dos acepciones de la
-    misma entrada con la glosa identica **comparten codigo** y una de las dos queda inalcanzable.
-    Medido sobre los seis packs reales: **350 acepciones de 1,7 millones** caian en ese caso --
-    todas glosas que la fuente escribe dos veces (`y` → *and*, cinco veces).
+    ⚠️ **It is what makes the property "every sense is reachable by `(language, word, sense)`"
+    true.** A sense's code comes from `(uid, gloss)`, so two senses of the same entry with an
+    identical gloss **share a code** and one of the two becomes unreachable. Measured over the six
+    real packs: **350 senses of 1.7 million** fell into that case -- all of them glosses the source
+    writes twice (`y` → *and*, five times).
 
-    ⚠️ **Se fusionan y no se descartan, y eso lo decidio una medicion**: de 12 grupos duplicados
-    inspeccionados, **5 traian adjuntos distintos** -- `them` repite *"Used as the direct object
-    of a verb"* con **ejemplos diferentes**. Descartar la copia habria perdido ese dato en
-    silencio, que es justo el modo de falla que este repo no acepta.
+    ⚠️ **They are fused and not discarded, and a measurement decided that**: of 12 duplicate groups
+    inspected, **5 carried different attachments** -- `them` repeats *"Used as the direct object of
+    a verb"* with **different examples**. Discarding the copy would have lost that data in silence,
+    which is exactly the failure mode this repo does not accept.
 
-    No se vuelven a topear los adjuntos. El desborde esta acotado y medido: son ~5 acepciones en
-    todo el corpus las que quedan con un ejemplo de mas, contra 1,7 millones.
+    The attachments are not re-capped. The overflow is bounded and measured: it is ~5 senses in the
+    whole corpus that end up with one example too many, against 1.7 million.
 
-    Vive aca y no en cada fuente porque `render` es el **unico** paso por el que pasan todos los
-    packs: puesto en `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual`, y la
-    propiedad seria cierta sólo en los packs cuyo autor se acordo.
+    It lives here and not in each source because `render` is the **only** step every pack goes
+    through: put in `kaikki` it would have to be repeated in `oewn`, `wikidata` and `bilingual`,
+    and the property would be true only in the packs whose author remembered.
     """
     salida = []
     por_glosa = {}
     for sense in senses:
-        # ⚠️ La MISMA clave que usa `sense_code`: si divergieran, dos acepciones compartirian
-        # codigo sin fusionarse y una quedaria inalcanzable.
+        # ⚠️ The SAME key `sense_code` uses: if they diverged, two senses would share a code
+        # without being fused and one would be unreachable.
         gloss = fold_gloss(sense.get("gloss", ""))
         previa = por_glosa.get(gloss)
         if previa is None:
@@ -345,25 +345,25 @@ def merge_duplicate_senses(senses):
 
 
 def _sin_repetir(valores):
-    """Los items, sin los que ya aparecieron, **conservando el orden de la primera aparicion**.
+    """The items, without the ones already seen, **keeping the order of first appearance**.
 
-    ⚠️ **El orden es informacion y por eso no se ordena ni se usa un set**: la fuente pone
-    primero lo que mas se usa, y con topes de 4 y de 8 el orden decide QUE SE VE.
+    ⚠️ **The order is information, which is why nothing is sorted and no set is used**: the source
+    puts what is most used first, and with caps of 4 and 8 the order decides WHAT GETS SEEN.
 
-    ⚠️ **Lo encontro barrer los packs construidos, no un test.** Medido sobre los reales: el
-    **3,1 %** de las entradas con traducciones de palabra del pack bilingue repetian un termino
-    --`where` traia `donde, donde` y `do, do`; `Brazil` traia `carioca` dos veces-- y en el pack
-    español eran **88 de 407** de las que traen traducciones por acepcion. En una fila de reloj
-    eso es la misma palabra dos veces, ocupando un ancho que ya se corta.
+    ⚠️ **Sweeping the built packs found it, not a test.** Measured over the real ones: **3.1 %** of
+    the bilingual pack's entries with word translations repeated a term --`where` carried `donde,
+    donde` and `do, do`; `Brazil` carried `carioca` twice-- and in the Spanish pack it was **88 of
+    407** of those carrying per-sense translations. In a watch row that is the same word twice,
+    taking a width that is already being clipped.
 
-    Se compara el item **entero y exacto**: `donde` y `dónde` son palabras distintas y las dos
-    se quedan.
+    The item is compared **whole and exact**: `donde` and `dónde` are different words and both
+    stay.
     """
     vistos = set()
     salida = []
     for valor in valores:
-        # La clave es el item tal como se emite -- una tupla de traduccion con su acepcion es
-        # distinta de la misma palabra sin acepcion, y las dos tienen sentido.
+        # The key is the item as it is emitted -- a translation tuple with its sense is different
+        # from the same word with no sense, and both make sense.
         clave = valor if isinstance(valor, (str, tuple)) else repr(valor)
         if clave in vistos:
             continue
@@ -373,15 +373,15 @@ def _sin_repetir(valores):
 
 
 def render(part_of_speech, senses, word_translations=(), forms=()):
-    """Serializa a texto. `senses` es una lista de dicts con gloss/examples/translations.
+    """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
-    Los valores se sanean aca: un tab perdido en una glosa de Wiktionary corromperia la
-    entrada entera y el sintoma apareceria recien en el reloj.
+    The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
+    and the symptom would only appear on the watch.
 
-    ⚠️ **Y se deduplican las listas, aca y no en cada fuente.** Mismo argumento que
-    `merge_duplicate_senses`: `render` es el **unico** paso por el que pasan todos los packs, asi
-    que puesto en `kaikki` habria que repetirlo en `oewn`, `wikidata` y `bilingual` y la
-    propiedad seria cierta solo en los packs cuyo autor se acordo. Ver [_sin_repetir].
+    ⚠️ **And the lists are deduplicated, here and not in each source.** Same argument as
+    `merge_duplicate_senses`: `render` is the **only** step every pack goes through, so put in
+    `kaikki` it would have to be repeated in `oewn`, `wikidata` and `bilingual` and the property
+    would be true only in the packs whose author remembered. See [_sin_repetir].
     """
     lines = []
     if part_of_speech:
@@ -402,15 +402,15 @@ def render(part_of_speech, senses, word_translations=(), forms=()):
     for sense in senses:
         gloss = sanitize(sense.get("gloss", ""))
         if not gloss:
-            # Una acepcion sin glosa no aporta nada y descolgaria sus ejemplos.
+            # A sense with no gloss contributes nothing and would unhook its examples.
             continue
         lines.append(TAG_SENSE + "\t" + gloss)
         for example in _sin_repetir(sense.get("examples", ())):
             texto, cita = _example_parts(example)
             value = sanitize(texto)
             if not value:
-                # Sin ejemplo no hay de que colgar la cita, y una cita suelta nombraria al
-                # ejemplo que venga despues. Se caen las dos juntas.
+                # With no example there is nothing to hang the citation off, and a loose citation
+                # would name whichever example came next. Both fall together.
                 continue
             lines.append(TAG_EXAMPLE + "\t" + value)
             atribucion = sanitize(cita) if cita else None
@@ -458,7 +458,7 @@ def parse_forms(text):
 
 
 def parse(text):
-    """Inverso de render(). Existe para verify_pack.py y los tests, no para el camino normal.
+    """The inverse of render(). It exists for verify_pack.py and the tests, not the normal path.
 
     Returns `(pos, senses, word_translations)`. Forms are read with [parse_forms]: `parse` keeps
     its signature because `verify_pack.py` and the tests use it, and changing it would mean
@@ -467,9 +467,9 @@ def parse(text):
     part_of_speech = None
     senses = []
     word_translations = []
-    # La acepcion cuyo ULTIMO ejemplo todavia puede recibir una cita, o None. Se pone al emitir
-    # un `E` y lo borra cualquier otra linea: un `C` que no venga pegado a su `E` se descarta en
-    # vez de elegirle un ejemplo. Ver [TAG_CITATION].
+    # The sense whose LAST example can still receive a citation, or None. It is set on emitting an
+    # `E` and cleared by any other line: a `C` that does not come right after its `E` is discarded
+    # rather than having an example picked for it. See [TAG_CITATION].
     citable = None
     for line in text.split("\n"):
         if not line or len(line) < 2 or line[1] != "\t":
@@ -504,9 +504,9 @@ def parse(text):
             if senses:
                 senses[-1]["examples"].append(value)
                 citable = senses[-1]
-        # noqa de SIM102 a proposito: las tres ramas con guarda (P, E, T) tienen la misma
-        # forma. Aplanar solo esta la volveria asimetrica respecto de las otras dos, que ruff
-        # no marca, y el paralelismo es lo que hace legible la cadena.
+        # noqa of SIM102 on purpose: the three guarded branches (P, E, T) have the same shape.
+        # Flattening only this one would make it asymmetric against the other two, which ruff does
+        # not flag, and the parallelism is what makes the chain readable.
         elif tag == TAG_TRANSLATION:  # noqa: SIM102
             if senses:
                 senses[-1]["translations"].append(value)
@@ -519,48 +519,48 @@ def parse(text):
         elif tag == TAG_RELATED:  # noqa: SIM102
             if senses:
                 senses[-1]["related"].append(value)
-        # Los tags desconocidos se ignoran a proposito: un builder mas nuevo puede agregar
-        # campos sin romper un lector viejo.
+        # Unknown tags are ignored on purpose: a newer builder can add fields without breaking an
+        # old reader.
     return part_of_speech, senses, word_translations
 
 
 def compress(text, dictionary):
-    """Comprime a los bytes que van en entry.payload."""
+    """Compresses to the bytes that go in entry.payload."""
     compressor = zlib.compressobj(9, zlib.DEFLATED, _RAW_DEFLATE, zdict=dictionary)
     return compressor.compress(text.encode("utf-8")) + compressor.flush()
 
 
 def decompress(blob, dictionary):
-    """Inverso de compress(). Tiene que dar exactamente lo mismo que PayloadCodec.decode."""
+    """The inverse of compress(). It has to give exactly what PayloadCodec.decode gives."""
     decompressor = zlib.decompressobj(_RAW_DEFLATE, zdict=dictionary)
     return (decompressor.decompress(blob) + decompressor.flush()).decode("utf-8")
 
 
 def dictionary_digest(dictionary):
-    """Hash del diccionario precargado, para guardar en meta.payload_dict_sha256.
+    """Hash of the preloaded dictionary, to store in meta.payload_dict_sha256.
 
-    Motivo: deflate NO detecta un diccionario precargado equivocado. Si tiene el largo
-    suficiente, descomprime sin error y devuelve texto corrupto -- se verifico que
-    "moverse rapidamente" sale como " nadrse rapidamente", sin ninguna excepcion. Un pack con
-    el diccionario mal llenaria la pantalla de basura sin una sola pista del motivo.
+    The reason: deflate does NOT detect a wrong preloaded dictionary. Given enough length it
+    decompresses without error and returns corrupt text -- it was verified that "moverse
+    rapidamente" comes out as " nadrse rapidamente", with no exception at all. A pack with the
+    wrong dictionary would fill the screen with garbage without a single clue why.
 
-    El lector comprueba este hash UNA VEZ al abrir el pack, no por entrada. Se probo antes un
-    canario comprimido derivado del propio diccionario y se descarto: como el valor esperado se
-    calculaba desde el mismo diccionario, un diccionario truncado seguia validando.
+    The reader checks this hash ONCE on opening the pack, not per entry. A compressed canary
+    derived from the dictionary itself was tried first and discarded: since the expected value was
+    computed from the same dictionary, a truncated dictionary went on validating.
     """
     return hashlib.sha256(dictionary).hexdigest()
 
 
 def build_dictionary(samples, max_bytes=32 * 1024):
-    """Arma el diccionario precargado a partir de payloads de muestra.
+    """Builds the preloaded dictionary from sample payloads.
 
-    zlib no entrena diccionarios como zstd: el diccionario es simplemente texto, y lo que sirve
-    es que contenga las subcadenas frecuentes del corpus, con las mas frecuentes al FINAL
-    (deflate prefiere las coincidencias mas cercanas al inicio de los datos, que corresponden
-    al final de la ventana del diccionario).
+    zlib does not train dictionaries the way zstd does: the dictionary is simply text, and what
+    helps is that it contain the corpus's frequent substrings, with the most frequent at the END
+    (deflate prefers the matches closest to the start of the data, which correspond to the end of
+    the dictionary's window).
 
-    Estrategia: contar n-gramas de palabras completas y quedarse con los mas repetidos hasta
-    llenar el presupuesto de 32 KB, que es el maximo que usa deflate.
+    The strategy: count whole-word n-grams and keep the most repeated until the 32 KB budget --the
+    maximum deflate uses-- is full.
     """
     from collections import Counter
 
@@ -572,7 +572,7 @@ def build_dictionary(samples, max_bytes=32 * 1024):
             for i in range(len(tokens) - size + 1):
                 counts[" ".join(tokens[i : i + size])] += 1
 
-    # Se ordena de menos a mas frecuente para que los mas frecuentes queden al final.
+    # Sorted from least to most frequent so the most frequent end up last.
     ranked = sorted(
         (item for item in counts.items() if item[1] > 1),
         key=lambda item: (item[1], len(item[0])),
@@ -587,5 +587,5 @@ def build_dictionary(samples, max_bytes=32 * 1024):
         chosen.append(encoded)
         total += len(encoded)
 
-    # chosen esta de mas a menos frecuente; se invierte para que el mas frecuente quede al final.
+    # `chosen` runs most to least frequent; it is reversed so the most frequent ends up last.
     return b"".join(reversed(chosen))

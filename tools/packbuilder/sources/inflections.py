@@ -1,44 +1,43 @@
-"""Flexiones del idioma DESTINO, leidas de un pack ya construido.
+"""Inflections of the TARGET language, read from an already built pack.
 
-## Que problema cierra, medido
+## What problem it closes, measured
 
-La direccion inversa de un pack bilingue esta floja y **el motivo es estructural, no accidental**:
-el lado español tiene la tabla `form`, asi que toda flexion llega a su lema; el lado ingles solo
-tiene las claves derivadas, asi que una flexion inglesa se encuentra **unicamente si alguna glosa
-la escribe**. Medido sobre las palabras inglesas mas usadas, la cobertura era **92,7 % / 85,9 % /
-78,1 %** en el top 1.000 / 3.000 / 8.000, y con las flexiones sube a **99,4 % / 99,6 / 98,9 %**.
+A bilingual pack's reverse direction is weak and **the reason is structural, not accidental**: the
+Spanish side has the `form` table, so every inflection reaches its lemma; the English side has
+only the derived keys, so an English inflection is found **only if some gloss writes it**.
+Measured over the most used English words, coverage was **92.7 % / 85.9 % / 78.1 %** in the top
+1,000 / 3,000 / 8,000, and with the inflections it rises to **99.4 % / 99.6 / 98.9 %**.
 
-Lo que sigue faltando despues de esto **no es vocabulario sino el tokenizador**: `didn`, `doesn`,
-`wasn`, `shouldn` son mitades de contracciones que `tatoeba.frequencies` parte por el apostrofo.
+What is still missing after this **is not vocabulary but the tokenizer**: `didn`, `doesn`, `wasn`,
+`shouldn` are halves of contractions `tatoeba.frequencies` splits on the apostrophe.
 
-## Por que la fuente es un PACK y no un dump
+## Why the source is a PACK and not a dump
 
-Las flexiones inglesas ya estan construidas y podadas dentro de `en-def-wikt.db`. Volver al dump
-de 3,2 GB para recalcular lo que ya tenemos seria otra hora de build y una segunda poda que puede
-divergir de la primera -- el mismo razonamiento por el que `build_core.py` **deriva** en vez de
-reconstruir (D-175).
+The English inflections are already built and pruned inside `en-def-wikt.db`. Going back to the
+3.2 GB dump to recompute what we already have would be another hour of build and a second pruning
+that can diverge from the first -- the same reasoning by which `build_core.py` **derives** rather
+than rebuilds (D-175).
 
-## El filtro NO es opcional, y se descubrio leyendo filas
+## The filter is NOT optional, and it was discovered by reading rows
 
-⚠️ La tabla `form` del pack ingles **esta sucia**: de sus 985.992 filas, el **38,7 % contiene un
-espacio** --`big fat hairy deals`, `ate breathed and slept`, `1 000 000 questions`-- y
-`no table tags` (577) y `glossary` (575) son **artefactos del parser de wiktextract** sentados ahi
-como si fueran flexiones. El español, en comparacion, tiene como forma mas repetida `unas`, 16
-veces.
+⚠️ The English pack's `form` table **is dirty**: of its 985,992 rows, **38.7 % contains a space**
+--`big fat hairy deals`, `ate breathed and slept`, `1 000 000 questions`-- and `no table tags`
+(577) and `glossary` (575) are **wiktextract parser artifacts** sitting there as if they were
+inflections. Spanish, by comparison, has `unas` as its most repeated form, 16 times.
 
-Quedarse con una palabra, alfabetica y no artefacto **descarta el 35 % de los candidatos y no
-mueve la cobertura ni una decima**. El filtro sale gratis.
+Keeping what is one word, alphabetic and not an artifact **discards 35 % of the candidates and
+does not move coverage by a tenth**. The filter is free.
 """
 
 import sqlite3
 
-# Artefactos del parser que aparecen en `form` como si fueran flexiones. Se delatan por
-# repeticion: una flexion real casi no se repite.
+# Parser artifacts that appear in `form` as if they were inflections. Repetition gives them away:
+# a real inflection hardly ever repeats.
 ARTEFACTOS = {"no table tags", "glossary"}
 
 
 def _sirve(forma, lema):
-    """Una flexion sirve si es UNA palabra, alfabetica, y no un artefacto del parser."""
+    """An inflection is usable if it is ONE word, alphabetic, and not a parser artifact."""
     return (
         forma not in ARTEFACTOS
         and " " not in forma
@@ -49,19 +48,19 @@ def _sirve(forma, lema):
 
 
 def por_lema(pack, claves=None):
-    """`lema -> [flexion, ...]`, leido de `pack`.
+    """`lemma -> [inflection, ...]`, read from `pack`.
 
-    `claves` acota a las palabras por las que el pack bilingue ya llega a alguna entrada. Con
-    `None` trae el mapa entero, que es lo que hace el build real: **las claves no se conocen hasta
-    haber leido todos los registros**, y consultar por registro serian 124.000 consultas. El mapa
-    completo del pack ingles son ~600.000 pares despues del filtro y entra de sobra en memoria de
-    una maquina de build.
+    `claves` narrows it to the words by which the bilingual pack already reaches some entry. With
+    `None` it brings the whole map, which is what the real build does: **the keys are not known
+    until every record has been read**, and querying per record would be 124,000 queries. The
+    English pack's full map is ~600,000 pairs after the filter and fits easily in a build machine's
+    memory.
     """
     con = sqlite3.connect("file:%s?mode=ro" % pack, uri=True)
     try:
-        # Una sola pasada y un solo JOIN: `form` tiene PRIMARY KEY (norm, entry_id), asi que
-        # filtrar por `entry_id` **no usa indice** y seria un scan por lema. Eso ya hizo que un
-        # build no terminara nunca (ver build_core.py).
+        # A single pass and a single JOIN: `form` has PRIMARY KEY (norm, entry_id), so filtering by
+        # `entry_id` **uses no index** and would be a scan per lemma. That already made one build
+        # never finish (see build_core.py).
         sql = "SELECT f.norm, e.norm FROM form f JOIN entry e ON e.id = f.entry_id"
         if claves is not None:
             con.execute("CREATE TEMP TABLE claves(norm TEXT PRIMARY KEY)")

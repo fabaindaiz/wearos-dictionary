@@ -1,8 +1,8 @@
-"""Tests de tools/build_packs.py: el pipeline completo, en orden.
+"""Tests of tools/build_packs.py: the complete pipeline, in order.
 
-Se prueba **la forma del plan y no su ejecucion**, el mismo reparto que `test_devpack.py`: correr
-el pipeline necesita 4,4 GB de dumps y una hora, y eso no entra al gate. Lo que si entra, y es lo
-que importa, es **el orden** -- porque saltarselo no da error.
+**The plan's shape and not its execution** is tested, the same split as `test_devpack.py`: running
+the pipeline needs 4.4 GB of dumps and an hour, and that does not enter the gate. What does enter,
+and is what matters, is **the order** -- because skipping it raises no error.
 """
 
 import os
@@ -31,11 +31,12 @@ def _nombres(pasos):
 class PlanTest(unittest.TestCase):
 
     def test_el_INGLES_va_antes_que_el_bilingue(self):
-        """⚠️ El aserto que paga el archivo.
+        """⚠️ The assertion that pays for the file.
 
-        `--flexiones` lee un pack YA CONSTRUIDO del idioma destino, asi que el bilingue tiene que
-        ir despues del ingles. Saltarselo **no da error**: el pack sale bien formado, pasa
-        `verify_pack.py`, y es peor en silencio -- la cobertura inversa cae 8,6 puntos, medidos.
+        `--flexiones` reads an ALREADY BUILT pack of the target language, so the bilingual one has
+        to come after English. Skipping it **raises no error**: the pack comes out well formed,
+        passes `verify_pack.py`, and is worse in silence -- the reverse coverage drops 8.6 points,
+        measured.
         """
         nombres = _nombres(_pasos())
         self.assertLess(
@@ -54,12 +55,13 @@ class PlanTest(unittest.TestCase):
         )
 
     def test_cada_paso_escribe_DONDE_le_toca(self):
-        """Lo publicable a `dist/`, lo intermedio a `build/`, y nada al reves.
+        """The publishable to `dist/`, the intermediate to `build/`, and nothing the other way.
 
-        ⚠️ Es lo que se vio en el emulador: con todo en un directorio plano, `es-def-wd` aparecio
-        como pack **descargable**. No lo era. Hoy el plan no tiene intermedios --el unico que
-        habia no lo consumia nadie, ver [test_nada_se_construye_para_que_NADIE_lo_consuma]-- asi
-        que la mitad de `build/` es una guarda para cuando vuelva a haber uno.
+        ⚠️ It is what was seen on the emulator: with everything in one flat directory, `es-def-wd`
+        appeared as a **downloadable** pack. It was not. Today the plan has no intermediates --the
+        only one there was, nobody consumed, see
+        [test_nada_se_construye_para_que_NADIE_lo_consuma]-- so the `build/` half is a guard for
+        when there is one again.
         """
         for paso in _pasos():
             destino = BUILD if "intermedio" in paso["nombre"] else DIST
@@ -68,9 +70,9 @@ class PlanTest(unittest.TestCase):
                 self.assertNotIn(os.sep + DIST + os.sep, paso["salida"], paso["nombre"])
 
     def test_un_idioma_cuyo_FULL_ya_cabe_no_genera_main(self):
-        """El espanol completo son 73,6 MB, por debajo del presupuesto de `main` (D-215).
+        """Full Spanish is 73.6 MB, below `main`'s budget (D-215).
 
-        Generarlo daria un segundo pack con el mismo contenido.
+        Generating it would give a second pack with the same content.
         """
         nombres = _nombres(_pasos(tamanos={"es": 73.6, "en": 306.8}))
         self.assertNotIn("es-main", nombres, nombres)
@@ -78,22 +80,23 @@ class PlanTest(unittest.TestCase):
         self.assertIn("en-main", nombres, "el ingles son 306,8 MB: ahi si hace falta")
 
     def test_sin_saber_el_tamano_se_planean_LOS_DOS_niveles(self):
-        # En seco no hay `full` que medir, y quedarse corto seria peor que planear de mas.
+        # In a dry run there is no `full` to measure, and coming up short would be worse than
+        # planning too much.
         self.assertIn("es-main", _nombres(_pasos()))
 
     def test_cada_pack_publicable_se_VERIFICA(self):
-        """Un pack a medias se abre sin error y devuelve menos palabras de las que tiene."""
+        """A half-built pack opens with no error and returns fewer words than it holds."""
         for paso in _pasos():
             if "intermedio" in paso["nombre"]:
                 continue
             self.assertTrue(paso["verifica"], "%s tendria que verificarse" % paso["nombre"])
 
     def test_los_niveles_piden_un_RANGO_medido_y_no_un_numero_suelto(self):
-        """⚠️ **`--budget-mb` es un techo estimado; el requisito de D-215 es un rango.**
+        """⚠️ **`--budget-mb` is an estimated ceiling; D-215's requirement is a range.**
 
-        La estimacion escala los payloads por la proporcion del pack de ORIGEN, que no es la del
-        derivado: pedir 25 MB daba 17,7. El pipeline tiene que pedir el rango, que es lo unico
-        que se cumple midiendo el archivo.
+        The estimate scales the payloads by the SOURCE pack's ratio, which is not the derived
+        one's: asking for 25 MB gave 17.7. The pipeline has to ask for the range, which is the only
+        thing met by measuring the file.
         """
         for paso in _pasos():
             if not paso["nombre"].endswith(("-core", "-main")):
@@ -107,7 +110,7 @@ class PlanTest(unittest.TestCase):
             self.assertEqual([str(minimo), str(maximo)], cmd[i + 1:i + 3], paso["nombre"])
 
     def test_los_niveles_derivan_del_FULL_y_no_de_otro_nivel(self):
-        """Derivar un `core` de un `main` haria que `subset_of` apunte al intermedio."""
+        """Deriving a `core` from a `main` would make `subset_of` point at the intermediate."""
         for paso in _pasos():
             if not paso["nombre"].endswith(("-core", "-main")):
                 continue
@@ -115,29 +118,28 @@ class PlanTest(unittest.TestCase):
             self.assertTrue(origen.endswith("-full.db"), "%s deriva de %s" % (paso["nombre"], origen))
 
     # ---------------------------------------------------------------------------------------
-    # Los DUMPS: que cada paso le pase a su lector un archivo que ese lector sepa leer.
+    # The DUMPS: that each step hand its reader a file that reader knows how to read.
     # ---------------------------------------------------------------------------------------
     #
-    # ⚠️ **Esto faltaba, y el pipeline estaba mal desde que se escribio.** Los tests de arriba
-    # fijan el ORDEN, que es lo que "no da error" al saltarselo; pero el orden correcto sobre los
-    # archivos equivocados no construye nada. Medido el 2026-09-22: `es-wd` recibia
-    # `es_dbnary_ontolex.ttl.bz2` --y `sources/wikidata` hace `json.loads` por linea-- y
-    # `--tesauro` del español recibia `es_dbnary_enhancement.ttl.bz2` --y `wordnet.spanish` abre
-    # el archivo como TEXTO y parte por tabs--. Los dos revientan en la primera linea.
+    # ⚠️ **This was missing, and the pipeline was wrong from the day it was written.** The tests
+    # above pin the ORDER, which is what "raises no error" when skipped; but the right order over
+    # the wrong files builds nothing. Measured on 2026-09-22: `es-wd` was receiving
+    # `es_dbnary_ontolex.ttl.bz2` --and `sources/wikidata` does a `json.loads` per line-- and
+    # Spanish's `--tesauro` was receiving `es_dbnary_enhancement.ttl.bz2` --and `wordnet.spanish`
+    # opens the file as TEXT and splits on tabs--. Both blow up on the first line.
     #
-    # Que reviente es una suerte: el modo de falla que este repo teme es el otro. Pero el
-    # pipeline **nunca se corrio de punta a punta** --su propio docstring lo dice-- asi que nada
-    # lo habia notado.
+    # That they blow up is good fortune: the failure mode this repo fears is the other one. But the
+    # pipeline **was never run end to end** --its own docstring says so-- so nothing had noticed.
 
-    #: Que archivo espera cada paso, y por que ese y no otro.
+    #: Which file each step expects, and why that one and not another.
     DUMPS_ESPERADOS = {
-        # kaikki: JSONL de lineas, una por pagina del wiki.
+        # kaikki: line-based JSONL, one per wiki page.
         "en-full": ["en.jsonl"],
         "es-full": ["es.jsonl"],
         "es-en (bilingue)": ["es-en-wikt.jsonl"],
     }
 
-    #: Que archivo espera cada bandera. El lector esta entre parentesis.
+    #: Which file each flag expects. The reader is in parentheses.
     DUMPS_POR_BANDERA = {
         # wordnet.english: WN-LMF comprimido. wordnet.spanish: OMW `.tab`, texto plano.
         "--tesauro": ["oewn-2024.xml.gz", "wn-data-spa.tab"],
@@ -147,12 +149,12 @@ class PlanTest(unittest.TestCase):
         "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
         # build_core lee un pack ya construido, no un dump.
         "--flexiones": ["en-full.db"],
-        # ⚠️ `--sumar <pack> <dump>` toma DOS valores, y el que es ruta es el segundo. Por eso
-        # se le escapo al chequeo viejo, que miraba siempre indice+1 y leia `es-wd`.
+        # ⚠️ `--sumar <pack> <dump>` takes TWO values, and the one that is a path is the second.
+        # That is how it escaped the old check, which always looked at index+1 and read `es-wd`.
         "--sumar": ["wikidata-lexemes.json.bz2"],
     }
 
-    #: Cual de los valores de la bandera es la ruta. El default es 1 (el que sigue).
+    #: Which of the flag's values is the path. The default is 1 (the next one).
     RUTA_EN = {"--sumar": 2}
 
     def test_cada_paso_recibe_el_dump_que_su_lector_sabe_leer(self):
@@ -183,15 +185,15 @@ class PlanTest(unittest.TestCase):
                 )
 
     def test_ninguna_bandera_con_RUTA_queda_fuera_de_la_tabla(self):
-        """⚠️ **El chequeo por tabla sirve mientras la tabla este completa, y no lo estaba.**
+        """⚠️ **A table-driven check works while the table is complete, and it was not.**
 
-        Es la tercera vez que un paso le pasa a un lector un archivo que no sabe leer: primero
-        `es-wd` con un Turtle, despues `--tesauro` con otro, y ahora `--sumar` con un `.db`
-        construido cuando su lector abre el dump crudo. Las dos primeras las fijo una tabla; la
-        tercera se escapo porque **la bandera no estaba en la tabla**.
+        It is the third time a step hands a reader a file it cannot read: first `es-wd` with a
+        Turtle, then `--tesauro` with another, and now `--sumar` with a built `.db` when its reader
+        opens the raw dump. The first two were pinned by a table; the third escaped because **the
+        flag was not in the table**.
 
-        Asi que la exhaustividad tambien se fija: cualquier bandera que reciba una ruta tiene que
-        estar declarada. Una bandera nueva sin fila hace fallar esto, no al rebuild.
+        So exhaustiveness gets pinned too: any flag that receives a path has to be declared. A new
+        flag with no row makes this fail, not the rebuild.
         """
         for paso in _pasos():
             comando = paso["comando"]
@@ -208,11 +210,11 @@ class PlanTest(unittest.TestCase):
                 )
 
     def test_nada_se_construye_para_que_NADIE_lo_consuma(self):
-        """Un intermedio que nadie lee es tiempo de build y un archivo que confunde.
+        """An intermediate nobody reads is build time and a file that confuses.
 
-        ⚠️ **Lo encontro el rebuild, no el gate**: `build/es-def-wd.db` se construia y el paso que
-        supuestamente lo consumia (`--sumar`) lee el **dump**, no el pack. Treinta segundos y 4,5
-        MB para nada, y la documentacion decia que era *una entrada del merge*.
+        ⚠️ **The rebuild found it, not the gate**: `build/es-def-wd.db` was being built and the step
+        supposedly consuming it (`--sumar`) reads the **dump**, not the pack. Thirty seconds and
+        4.5 MB for nothing, and the documentation said it was *an input to the merge*.
         """
         pasos = _pasos()
         for i, paso in enumerate(pasos):
@@ -226,9 +228,9 @@ class PlanTest(unittest.TestCase):
             )
 
     def test_el_plan_no_usa_ninguna_fuente_RECHAZADA(self):
-        """⚠️ DBnary esta en `docs/fuentes.md` como rechazada **y medida**: misma fuente que el
-        Wikcionario, la mitad del rendimiento. Un `.ttl` en el plan no es un cambio de fuente
-        --que seria una decision con su fila en `decisions.md`-- es un descuido.
+        """⚠️ DBnary is in `docs/fuentes.md` as rejected **and measured**: the same source as
+        Wiktionary, half the yield. A `.ttl` in the plan is not a change of source --which would be
+        a decision with its row in `decisions.md`-- it is an oversight.
         """
         for paso in _pasos():
             for argumento in paso["comando"]:

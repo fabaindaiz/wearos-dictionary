@@ -30,8 +30,9 @@ import binascii  # noqa: E402
 import normalize  # noqa: E402
 import payload  # noqa: E402
 
-# Los mismos numeros que SqlitePackSource. Si alla cambian, aca tienen que cambiar: este script
-# miente en silencio si se desincroniza, que es el precio de replicar en vez de instrumentar.
+# The same numbers as SqlitePackSource. If they change there, they have to change here: this
+# script lies in silence when it drifts, which is the price of replicating rather than
+# instrumenting.
 LIMIT = 30
 PREFIX_OVERFETCH = 3
 FUZZY_TRIGGER = 5
@@ -39,8 +40,8 @@ FUZZY_PREFIX_LENGTH = 4
 FUZZY_CANDIDATES = 200
 MAX_PALABRAS_POR_CONSULTA = 64
 
-# Palabras de prueba por idioma: comunes, raras y una que no existe. No son una muestra de uso
-# real --no la tenemos-- pero cubren los tres caminos distintos de la cascada.
+# Test words per language: common ones, rare ones and one that does not exist. They are not a
+# sample of real usage --we do not have one-- but they cover the cascade's three distinct paths.
 PALABRAS = {
     "es": ["perro", "casa", "arbol", "murcielago", "esdrujula", "guanaco",
            "italiano", "tomate", "llover", "biblioteca", "ornitorrinco", "mesa"],
@@ -54,23 +55,23 @@ INEXISTENTES = {
 
 
 def _upper(prefix):
-    """El limite superior del rango, igual que `PrefixRange.upperBound`."""
+    """The range's upper bound, same as `PrefixRange.upperBound`."""
     return prefix[:-1] + chr(ord(prefix[-1]) + 1) if prefix else None
 
 
 class Cascade:
-    """Los cuatro peldanos, con el mismo corte temprano que la implementacion real."""
+    """The four rungs, with the same early cut as the real implementation."""
 
     def __init__(self, path, lang=None):
         self.con = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
-        # ⚠️ **Un pack puede tener DOS idiomas** desde schema_version 4, asi que la replica
-        # tiene que filtrar igual que la app o mide otra consulta. `lang=None` no filtra, que es
-        # lo que hace un pack monolingue.
+        # ⚠️ **A pack can hold TWO languages** since schema_version 4, so the replica has to
+        # filter the way the app does or it measures another query. `lang=None` does not filter,
+        # which is what a monolingual pack does.
         self.langs = [x.strip() for x in self._meta("langs").split(",") if x.strip()]
         perfiles = [x.strip() for x in self._meta("fuzzy_profiles").split(",") if x.strip()]
         self.lang = lang if lang in self.langs else self.langs[0]
         self.profile = dict(zip(self.langs, perfiles)).get(self.lang, "generic")
-        # Un solo idioma no filtra: el WHERE cambiaria el plan de consulta que se esta midiendo.
+        # A single language does not filter: the WHERE would change the query plan being measured.
         self.filtro = self.lang if len(self.langs) > 1 else None
         self.entries = self.con.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
         self.dictionary = binascii.unhexlify(self._meta("payload_dict"))
@@ -126,7 +127,7 @@ class Cascade:
         return rungs, touched, ms
 
     def open_entry(self, sample):
-        """El costo de ABRIR una palabra: el inflate y la UNICA consulta de D-094."""
+        """The cost of OPENING a word: the inflate and D-094's SINGLE query."""
         rows = self.con.execute(
             "SELECT id, headword, payload FROM entry ORDER BY rank LIMIT ?", (sample,)).fetchall()
         inflate = query = 0.0
@@ -135,9 +136,9 @@ class Cascade:
             start = time.perf_counter()
             text = payload.decompress(blob, self.dictionary)
             inflate += (time.perf_counter() - start) * 1000
-            # Tres valores desde D-179 (el canal `W`). Esta replica se quedo en dos y
-            # **crasheaba desde entonces**: es la desincronizacion que la cabecera de este
-            # archivo advierte, y de las pocas que avisan en vez de mentir.
+            # Three values since D-179 (the `W` channel). This replica stayed at two and
+            # **had been crashing ever since**: it is the drift this file's header warns about,
+            # and one of the few that warns instead of lying.
             _pos, senses, _palabra = payload.parse(text)
             glosses = " ".join(s["gloss"] for s in senses if s.get("gloss"))
             keys = list({normalize.norm(w)
@@ -154,7 +155,7 @@ class Cascade:
         return measured, inflate / len(rows), keys_total / measured, query / measured
 
     def by_rowid(self, count):
-        """Lo que cuestan N lecturas por rowid: la palabra del dia (32) y la muestra (64)."""
+        """What N reads by rowid cost: the word of the day (32) and the sample (64)."""
         step = max(1, self.entries // count)
         start = time.perf_counter()
         for i in range(count):
@@ -224,9 +225,9 @@ def main(argv):
         if not os.path.exists(path):
             print("no existe: %s" % path)
             return 1
-        # ⚠️ **Un pack bidireccional se mide UNA VEZ POR IDIOMA**, porque son dos consultas
-        # distintas: distinto filtro, distinto perfil fuzzy y distinto conjunto de filas. Medirlo
-        # solo en el primero diria la mitad.
+        # ⚠️ **A bidirectional pack is measured ONCE PER LANGUAGE**, because they are two
+        # different queries: different filter, different fuzzy profile and a different set of
+        # rows. Measuring only the first would say half of it.
         for lang in Cascade(path).langs:
             report(path, lang)
     print("\nEstos ms son de la maquina donde corrio esto, no del reloj. Sirven para COMPARAR")

@@ -47,16 +47,16 @@ def rec(headword, pos="noun", rank=0, forms=(), senses=None, sense_key=None):
 
 
 class NombreConNivelTest(unittest.TestCase):
-    """El nivel se estampa UNA vez, venga el nombre limpio o ya con uno."""
+    """The tier is stamped ONCE, whether the name comes clean or already carrying one."""
 
     def test_un_nombre_limpio_recibe_su_nivel(self):
         self.assertEqual("Español (full)", build.name_with_tier("Español", "full"))
 
     def test_un_nombre_que_YA_trae_nivel_no_acumula(self):
-        # ⚠️ **El defecto que esto cierra, visto en la pantalla del reloj**: `build_pack` cierra
-        # el completo como `Español (full)` y `build_core` derivaba de ESE pack, pegandole
-        # `(core)` encima. El nucleo salia llamandose `Español (full) (core)`: las dos mitades
-        # ciertas y la frase, para quien la lee, sin sentido.
+        # ⚠️ **The defect this closes, seen on the watch's screen**: `build_pack` closes the full
+        # one as `Español (full)` and `build_core` derived from THAT pack, sticking `(core)` on
+        # top. The core came out called `Español (full) (core)`: both halves true and the phrase,
+        # to whoever reads it, meaningless.
         self.assertEqual("Español (core)", build.name_with_tier("Español (full)", "core"))
         self.assertEqual("English (main)", build.name_with_tier("English (full)", "main"))
 
@@ -64,13 +64,13 @@ class NombreConNivelTest(unittest.TestCase):
         self.assertEqual("Español (core)", build.name_with_tier("Español (core)", "core"))
 
     def test_un_parentesis_que_NO_es_un_nivel_se_respeta(self):
-        # Un pack ajeno puede llamarse como quiera. Sacar cualquier parentesis final le borraria
-        # parte del nombre a quien no tiene nada que ver con los niveles.
+        # Somebody else's pack can call itself anything. Removing any trailing parenthesis would
+        # erase part of the name of one that has nothing to do with the tiers.
         self.assertEqual(
             "Griego (koiné) (core)", build.name_with_tier("Griego (koiné)", "core"))
 
     def test_solo_se_mira_el_ULTIMO_token(self):
-        # "full" en el medio del nombre no es el sufijo de nivel y no se toca.
+        # "full" in the middle of the name is not the tier suffix and is not touched.
         self.assertEqual(
             "Diccionario (full) de bolsillo (core)",
             build.name_with_tier("Diccionario (full) de bolsillo", "core"),
@@ -103,21 +103,22 @@ class BuildCoreTest(unittest.TestCase):
         with sqlite3.connect(path) as db:
             return db.execute(sql).fetchall()
 
-    # --- Los tres tamanos: core, main, full (D-215) ------------------------------------
+    # --- The three sizes: core, main, full (D-215) -------------------------------------
 
     def test_el_presupuesto_toma_las_entradas_en_orden_de_RANK(self):
-        """`rank` ya es frecuencia de uso, asi que es el orden de importancia.
+        """`rank` is already usage frequency, so it is the order of importance.
 
-        ⚠️ Medido sobre los packs reales: un presupuesto de 50 MB en ingles toma 59.503 entradas,
-        y las que tienen senal de frecuencia --`rank < 500`-- son 55.903. O sea que *"las palabras
-        importantes y de uso general"* y *"las que algun corpus atestigua"* son el mismo conjunto.
-        No hace falta inventar un criterio.
+        ⚠️ Measured over the real packs: a 50 MB budget in English takes 59,503 entries, and the
+        ones with a frequency signal --`rank < 500`-- are 55,903. That is, *"the important,
+        general-use words"* and *"the ones some corpus attests"* are the same set. There is no need
+        to invent a criterion.
         """
-        # ⚠️ El pack de `setUp` NO sirve para esto y una mutacion lo demostro: ahi el orden por
-        # rank y el alfabetico casi coinciden --`agua` es la primera por las dos vias-- asi que
-        # ordenar por `headword` pasaba el test igual. Hace falta un pack donde se CONTRADIGAN.
-        # ⚠️ Sin guiones bajos: `norm()` los convierte en espacio, y el primer intento de este
-        # test comparaba contra el lema sin normalizar.
+        # ⚠️ `setUp`'s pack is NO use for this and a mutation proved it: there the rank order and
+        # the alphabetical one nearly coincide --`agua` is first by both routes-- so ordering by
+        # `headword` passed the test just the same. A pack where they CONTRADICT each other is
+        # needed.
+        # ⚠️ No underscores: `norm()` turns them into spaces, and this test's first attempt
+        # compared against the unnormalized lemma.
         contrario = os.path.join(self.dir, "contrario.db")
         with build.PackBuilder(contrario, dict(BASE_META)) as b:
             b.add(rec("abeja", rank=999))
@@ -129,28 +130,28 @@ class BuildCoreTest(unittest.TestCase):
         )
 
     def test_con_la_lista_de_frecuencias_gana_la_MAS_USADA_y_no_la_de_mejor_rank(self):
-        """⚠️ **El corte por `rank` es peor que el corte por frecuencia, y esta medido.**
+        """⚠️ **Cutting by `rank` is worse than cutting by frequency, and it is measured.**
 
-        `rank` ya sale de la frecuencia, pero **bucketizado**: `int(round(zipf * 70))` mete miles
-        de palabras en el mismo numero y el desempate es alfabetico, asi que una palabra gorda que
-        empieza con `a` desplaza a una mas usada y mas flaca. Y pasado el 500 deja de ser
-        frecuencia: es riqueza de pagina, que correlaciona **-0,250** con el uso real.
+        `rank` already comes from the frequency, but **bucketed**: `int(round(zipf * 70))` puts
+        thousands of words on the same number and the tie-break is alphabetical, so a fat word
+        starting with `a` displaces a more used and thinner one. And past 500 it stops being
+        frequency: it is page richness, which correlates **-0.250** with real usage.
 
-        Medido sobre los packs reales, cobertura de tokens del corpus:
+        Measured over the real packs, corpus token coverage:
 
-        | | por `rank` | por frecuencia | delta |
+        | | by `rank` | by frequency | delta |
         |---|---|---|---|
-        | ingles 25 MB | 93,46 % | **94,43 %** | +0,97 |
-        | ingles 40 MB | 94,75 % | **96,03 %** | +1,28 |
-        | ingles 130 MB | 95,10 % | **96,63 %** *(= el pack completo)* | +1,53 |
-        | español 25 MB | 77,59 % | **78,87 %** *(= el pack completo)* | +1,28 |
+        | English 25 MB | 93.46 % | **94.43 %** | +0.97 |
+        | English 40 MB | 94.75 % | **96.03 %** | +1.28 |
+        | English 130 MB | 95.10 % | **96.63 %** *(= the full pack)* | +1.53 |
+        | Spanish 25 MB | 77.59 % | **78.87 %** *(= the full pack)* | +1.28 |
 
-        Y ademas entran **mas** lemas, no menos: el corte por rank gasta el presupuesto en las
-        paginas gordas.
+        And **more** lemmas get in, not fewer: the rank cut spends the budget on the fat pages.
         """
         contrario = os.path.join(self.dir, "empate.db")
         with build.PackBuilder(contrario, dict(BASE_META)) as b:
-            # Mismo rank: por rank desempata el alfabeto y entra `alfa`. Por frecuencia, `zulu`.
+            # Same rank: by rank the alphabet breaks the tie and `alfa` gets in. By frequency,
+            # `zulu`.
             b.add(rec("alfa", rank=100))
             b.add(rec("zulu", rank=100))
         vocab = build_core.vocabulario_por_presupuesto(
@@ -158,10 +159,10 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual({"zulu"}, vocab)
 
     def test_sin_lista_de_frecuencias_sigue_cortando_por_rank(self):
-        """La lista es opcional: sin ella el comportamiento es el de antes, no un error.
+        """The list is optional: without it the behaviour is the old one, not an error.
 
-        Importa porque `build_core` deriva de un pack ya construido y puede correrse a mano sobre
-        uno cualquiera, sin tener a mano el corpus con el que se construyo.
+        It matters because `build_core` derives from an already built pack and can be run by hand
+        over any one, without having to hand the corpus it was built with.
         """
         contrario = os.path.join(self.dir, "sin-lista.db")
         with build.PackBuilder(contrario, dict(BASE_META)) as b:
@@ -171,8 +172,8 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual({"zebra"}, vocab)
 
     def test_una_palabra_SIN_frecuencia_va_detras_de_las_que_tienen(self):
-        # La lista cubre ~50.000 palabras y el pack ingles tiene 842.026 lemas: el 95,5 % no
-        # tiene senal. Esas se ordenan entre si por `rank`, detras de todas las atestiguadas.
+        # The list covers ~50,000 words and the English pack has 842,026 lemmas: 95.5 % have no
+        # signal. Those are ordered among themselves by `rank`, behind every attested one.
         contrario = os.path.join(self.dir, "mixto.db")
         with build.PackBuilder(contrario, dict(BASE_META)) as b:
             b.add(rec("rara", rank=1))       # mejor rank, pero el corpus no la vio
@@ -182,15 +183,15 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual({"comun"}, vocab)
 
     def test_el_artefacto_cae_DENTRO_del_rango_y_no_solo_debajo(self):
-        """⚠️ **El presupuesto es un RANGO que el archivo tiene que cumplir, no un techo.**
+        """⚠️ **The budget is a RANGE the file has to meet, not a ceiling.**
 
-        Antes se estimaba una sola vez, escalando los payloads por la proporcion que tenia el
-        pack de ORIGEN, y el derivado tiene otra: pedir 25 MB daba **17,7**, o sea por debajo del
-        minimo del rango. Un nivel que se queda corto no esta mal por el tamaño -- esta mal
-        porque el rango es el requisito de producto y el artefacto no lo cumple.
+        It used to be estimated once, scaling the payloads by the SOURCE pack's ratio, and the
+        derived one has another: asking for 25 MB gave **17.7**, that is, below the range's
+        minimum. A tier that comes up short is not wrong because of its size -- it is wrong because
+        the range is the product requirement and the artifact does not meet it.
 
-        Converge: deriva, mide el archivo de verdad, corrige el factor y vuelve. El factor real
-        solo se conoce midiendo, asi que estimarlo una vez no alcanza.
+        It converges: it derives, measures the real file, corrects the factor and goes round again.
+        The real factor is only known by measuring, so estimating it once is not enough.
         """
         salida = os.path.join(self.dir, "en-rango.db")
         informe = build_core.derivar_en_rango(
@@ -200,11 +201,11 @@ class BuildCoreTest(unittest.TestCase):
         self.assertLessEqual(real, 0.06, informe)
 
     def test_si_el_pack_entero_no_llega_al_minimo_se_DICE(self):
-        """No se puede inventar contenido para llenar un rango.
+        """Content cannot be invented to fill a range.
 
-        Un `full` mas chico que el minimo del nivel no es un error: es que ese nivel no tiene
-        sentido para ese idioma. Lo que no puede pasar es que salga callado, porque entonces el
-        rango deja de significar algo.
+        A `full` smaller than the tier's minimum is not an error: it means that tier makes no sense
+        for that language. What cannot happen is that it come out silent, because then the range
+        stops meaning anything.
         """
         salida = os.path.join(self.dir, "imposible.db")
         informe = build_core.derivar_en_rango(
@@ -213,12 +214,12 @@ class BuildCoreTest(unittest.TestCase):
         self.assertIn("todo el pack", informe["motivo"])
 
     def test_declara_las_DOS_metricas(self):
-        """⚠️ Dos, porque una sola no puede justificar los dos niveles.
+        """⚠️ Two, because one alone cannot justify both tiers.
 
-        `corpus_coverage` **satura**: pasadas las ~50.000 palabras que la lista atestigua, sumar
-        lemas no la mueve. Medido, el ingles llega a su techo de 96,63 % en **57,6 MB**, asi que
-        los 130 MB de `main` compran **cero** cobertura por esa vara. Lo que compran es encontrar
-        lo raro, y eso lo mide `lemma_coverage`: que fraccion del diccionario completo se lleva.
+        `corpus_coverage` **saturates**: beyond the ~50,000 words the list attests, adding lemmas
+        does not move it. Measured, English reaches its ceiling of 96.63 % at **57.6 MB**, so
+        `main`'s 130 MB buy **zero** coverage by that yardstick. What they buy is finding the rare,
+        and that is what `lemma_coverage` measures: what fraction of the full dictionary it takes.
         """
         salida = os.path.join(self.dir, "metricas.db")
         build_core.derivar_en_rango(self.completo, salida, minimo_mb=0.001, maximo_mb=9999,
@@ -230,11 +231,11 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual("100.00", meta["lemma_coverage"])
 
     def test_la_CLI_pide_el_RANGO_y_no_un_presupuesto_suelto(self):
-        """⚠️ **La funcion existia y el pipeline seguia llamando al modo viejo.**
+        """⚠️ **The function existed and the pipeline went on calling the old mode.**
 
-        Es la forma de deuda que no se ve: `derivar_en_rango` con sus tests en verde, y los packs
-        publicados derivados igual con `--budget-mb`, o sea sin garantia de rango. El modo entra
-        por la CLI o no entra.
+        It is the shape of debt that is invisible: `derivar_en_rango` with its tests green, and the
+        published packs derived all the same with `--budget-mb`, that is, with no range guarantee.
+        The mode gets in through the CLI or it does not get in.
         """
         salida = os.path.join(self.dir, "cli-rango.db")
         with _sin_ruido():
@@ -246,9 +247,9 @@ class BuildCoreTest(unittest.TestCase):
         self.assertLessEqual(real, 0.06)
 
     def test_la_CLI_falla_si_el_rango_NO_se_cumple(self):
-        """Salir 0 con un artefacto fuera de rango seria peor que no tener el modo.
+        """Exiting 0 with an out-of-range artifact would be worse than not having the mode.
 
-        El pipeline encadena sobre lo que el paso anterior dejo, y un exit 0 dice *esto cumple*.
+        The pipeline chains onto what the previous step left, and an exit 0 says *this complies*.
         """
         salida = os.path.join(self.dir, "cli-imposible.db")
         with _sin_ruido():
@@ -262,7 +263,7 @@ class BuildCoreTest(unittest.TestCase):
             self.assertIn(lema, vocab, lema)
 
     def test_el_nivel_va_en_el_NOMBRE_y_en_tier(self):
-        """Pedido: *«3 tamanos, core, main y full, y que esto vaya marcado en el nombre»*."""
+        """Asked for: *"3 sizes, core, main and full, and have this marked in the name"*."""
         salida = os.path.join(self.dir, "main.db")
         build_core.derive(self.completo, salida, {"agua", "correr"}, tier="main")
         meta = dict(self._filas(salida, "select key, value from meta"))
@@ -270,12 +271,12 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual("Español (main)", meta["name"])
 
     def test_la_identidad_es_IDIOMA_mas_nivel_y_no_las_fuentes(self):
-        """Pedido: *«los packs son por idioma y en versiones»*.
+        """Asked for: *"packs are by language and in versions"*.
 
-        ⚠️ Antes el `pack_id` era `es-def-wikc-tat-freq-wn-wd`, o sea la lista de fuentes. Eso hace
-        que **anadir una fuente cambie la identidad** y el pack parezca otro: la app no lo
-        reconoceria como el que ya tiene instalado. Las fuentes siguen declaradas en `meta.sources`,
-        que es donde se consultan.
+        ⚠️ The `pack_id` used to be `es-def-wikc-tat-freq-wn-wd`, that is, the list of sources. That
+        makes **adding a source change the identity** and the pack look like another one: the app
+        would not recognize it as the one it already has installed. The sources are still declared
+        in `meta.sources`, which is where they get consulted.
         """
         salida = os.path.join(self.dir, "core.db")
         build_core.derive(self.completo, salida, {"agua"}, tier="core")
@@ -289,10 +290,10 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual(["agua", "correr"], lemas)
 
     def test_los_uid_son_LOS_MISMOS_que_en_el_pack_completo(self):
-        # ⚠️ **La invariante que hace que esto sea un subconjunto y no otro pack.** `uid` es la
-        # identidad logica y la llave de join entre packs (D-055). Si el nucleo recalculara su
-        # `sense_key` contando SUS homografos, "banco" tendria otro uid que en el completo -- que
-        # es exactamente el fallo que D-145 encontro al fusionar. El uid se COPIA, no se recalcula.
+        # ⚠️ **The invariant that makes this a subset and not another pack.** `uid` is the logical
+        # identity and the join key across packs (D-055). If the core recomputed its `sense_key`
+        # counting ITS homographs, "banco" would have a different uid from the full one's -- which
+        # is exactly the failure D-145 found when merging. The uid is COPIED, not recomputed.
         core = self._core({"agua", "banco"})
         antes = dict(self._filas(self.completo, "SELECT headword || ':' || id, uid FROM entry"))
         despues = self._filas(core, "SELECT headword, uid FROM entry")
@@ -300,8 +301,8 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual(uids_completo, {u for _h, u in despues})
 
     def test_un_homografo_entra_ENTERO_o_no_entra(self):
-        # Las dos acepciones de "banco" son dos entradas con el mismo lema: el vocabulario habla
-        # de palabras, no de entradas, asi que entran las dos.
+        # "banco"'s two senses are two entries with the same lemma: the vocabulary speaks of words,
+        # not of entries, so both get in.
         core = self._core({"banco"})
         self.assertEqual(2, len(self._filas(core, "SELECT id FROM entry")))
 
@@ -309,13 +310,14 @@ class BuildCoreTest(unittest.TestCase):
         core = self._core({"agua"})
         meta = dict(self._filas(core, "SELECT key, value FROM meta"))
         self.assertEqual("es-def-wikc", meta["subset_of"])
-        # ⚠️ Era `es-def-wikc-core`, o sea las fuentes + el nivel. Desde D-215 la identidad es
-        # IDIOMA + NIVEL: anadir una fuente ya no cambia el pack_id ni hace que parezca otro pack.
+        # ⚠️ It used to be `es-def-wikc-core`, that is, the sources + the tier. Since D-215 the
+        # identity is LANGUAGE + TIER: adding a source no longer changes the pack_id or makes it
+        # look like another pack.
         self.assertEqual("es-core", meta["pack_id"])
 
     def test_las_formas_flexionadas_del_lema_viajan_con_el(self):
-        # Sin esto, buscar "corriendo" en el nucleo no encontraria "correr", que es el peldano 2
-        # de la cascada.
+        # Without this, searching "corriendo" in the core would not find "correr", which is rung 2
+        # of the cascade.
         core = self._core({"correr"})
         formas = sorted(r[0] for r in self._filas(core, "SELECT norm FROM form"))
         self.assertIn("corriendo", formas)
@@ -337,16 +339,16 @@ class BuildCoreTest(unittest.TestCase):
         self.assertEqual("definición de agua", senses[0]["gloss"])
 
     def test_hereda_la_atribucion_del_completo_y_suma_la_del_corpus(self):
-        # ⚠️ El credito se mueve con el contenido (D-138): el nucleo distribuye las mismas
-        # definiciones, asi que lleva las mismas fuentes; y el corpus que ELIGIO las palabras
-        # tambien se declara, porque `sources` contesta como se armo el pack.
+        # ⚠️ The credit travels with the content (D-138): the core distributes the same
+        # definitions, so it carries the same sources; and the corpus that CHOSE the words is
+        # declared too, because `sources` answers how the pack was assembled.
         core = self._core({"agua"})
         meta = dict(self._filas(core, "SELECT key, value FROM meta"))
         self.assertIn("Wikcionario", meta["sources"])
         self.assertIn("vocabulary", meta["sources"])
 
     def test_un_vocabulario_que_no_matchea_nada_falla_en_vez_de_dar_un_pack_vacio(self):
-        # Un pack de cero entradas se abre sin error y no encuentra nada: es la falla silenciosa
-        # que este repo existe para no tener.
+        # A zero-entry pack opens with no error and finds nothing: it is the silent failure this
+        # repo exists in order not to have.
         with self.assertRaises(ValueError):
             self._core({"palabraqueno existe"})

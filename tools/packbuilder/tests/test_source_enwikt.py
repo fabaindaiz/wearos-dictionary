@@ -1,11 +1,11 @@
-"""La SEGUNDA fuente: ejemplos de uso del Wiktionary ingles, seccion Spanish.
+"""The SECOND source: usage examples from the English Wiktionary, Spanish section.
 
-No define nada -- sus glosas son traducciones al ingles y eso seria un pack bilingue (D-034).
-Lo unico que se le toma son los **ejemplos en español**, para las entradas flacas del pack.
+It defines nothing -- its glosses are English translations and that would be a bilingual pack
+(D-034). The only thing taken from it is the **Spanish examples**, for the pack's thin entries.
 
-⚠️ **Cuatro filtros, y cada uno sale de una medicion sobre el dump, no de una preferencia.**
-Sin ellos el pack sale con notacion de ajedrez y con metatexto en ingles; con ellos entran
-"Hablo frances e ingles" y "-¿Iras a la fiesta? -Nel, estara muy aburrida".
+⚠️ **Four filters, and each comes from a measurement over the dump, not from a preference.**
+Without them the pack comes out with chess notation and English metatext; with them in come
+"Hablo frances e ingles" and "-¿Iras a la fiesta? -Nel, estara muy aburrida".
 """
 
 import json
@@ -61,36 +61,36 @@ class EjemplosTest(unittest.TestCase):
         self.assertEqual({("gripe", "noun"): ["Tengo la gripe."]}, got)
 
     def test_con_VARIAS_acepciones_no_entra_nada(self):
-        """La regla que impide inventar la atribucion, igual que en D-132.
+        """The rule that prevents inventing the attribution, just as in D-132.
 
-        Si alla hay cinco acepciones y en nuestro pack hay una, el ejemplo puede estar
-        ilustrando una acepcion **que nosotros no tenemos**. Medido: le pasa a "y", cuyo
-        ejemplo es "jamon y queso" y alla tiene cinco acepciones.
+        If there are five senses there and one in our pack, the example may be illustrating a sense
+        **we do not have**. Measured: it happens to "y", whose example is "jamon y queso" and which
+        has five senses there.
         """
         got = self.mapa(_raw("y", "conj", [_ej("jamón y queso")], n_acepciones=5))
         self.assertEqual({}, got)
 
     def test_el_metatexto_en_ingles_no_es_un_ejemplo(self):
-        """Los items SIN `type` son notas, no ejemplos. Medido: 191 en el dump.
+        """The items WITHOUT a `type` are notes, not examples. Measured: 191 in the dump.
 
-        "Near-synonym: pedazo", "Coordinate term: ovarios", y un enlace a Wikipedia. Van en
-        `examples` igual que los demas y el unico campo que los separa es `type`.
+        "Near-synonym: pedazo", "Coordinate term: ovarios", and a link to Wikipedia. They go in
+        `examples` like the rest and the only field that separates them is `type`.
         """
         got = self.mapa(_raw("so", "adv", [{"text": "Near-synonym: pedazo"}]))
         self.assertEqual({}, got)
 
     def test_una_cita_sin_traduccion_tampoco(self):
-        """`english` es lo que confirma que `text` es el español (D-135).
+        """`english` is what confirms that `text` is the Spanish (D-135).
 
-        Sin ese campo `text` puede ser cualquier cosa, y lo es: `A` trae "19. Ac4xd5, Ab7xd5",
-        que es notacion de ajedrez de una partida citada.
+        Without that field `text` can be anything, and it is: `A` carries "19. Ac4xd5, Ab7xd5",
+        which is chess notation from a quoted game.
         """
         got = self.mapa(_raw("A", "noun", [_ej("19. Ac4xd5, Ab7xd5", tipo="quotation",
                                                english=None)]))
         self.assertEqual({}, got)
 
     def test_una_cita_CON_traduccion_si_entra(self):
-        # Una quotation es uso real de un texto publicado: es contenido de diccionario, no ruido.
+        # A quotation is real usage from a published text: it is dictionary content, not noise.
         got = self.mapa(_raw("Jamaica", "noun",
                              [_ej("Michael Wallace, deportado a Jamaica.", tipo="quotation")]))
         self.assertEqual({("Jamaica", "noun"): ["Michael Wallace, deportado a Jamaica."]}, got)

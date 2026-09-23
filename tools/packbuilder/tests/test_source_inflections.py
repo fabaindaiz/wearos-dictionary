@@ -10,7 +10,7 @@ from sources import inflections  # noqa: E402
 
 
 def _pack(filas):
-    """Un `.db` minimo con `entry` y `form`, que es lo unico que este modulo lee."""
+    """A minimal `.db` with `entry` and `form`, which is all this module reads."""
     ruta = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
     con = sqlite3.connect(ruta)
     con.execute("CREATE TABLE entry (id INTEGER PRIMARY KEY, norm TEXT NOT NULL)")
@@ -25,10 +25,10 @@ def _pack(filas):
 
 
 class FlexionesDelDestinoTest(unittest.TestCase):
-    """Las flexiones del idioma destino, leidas de un pack ya construido.
+    """The target language's inflections, read from an already built pack.
 
-    El modo de falla que cierran: la direccion inversa encuentra `dogs` solo si alguna glosa
-    escribe `dogs`. Medido, la cobertura del top 8.000 ingles pasa de **78,1 % a 98,9 %**.
+    The failure mode they close: the reverse direction finds `dogs` only if some gloss writes
+    `dogs`. Measured, the English top 8,000's coverage goes from **78.1 % to 98.9 %**.
     """
 
     def setUp(self):
@@ -53,7 +53,7 @@ class FlexionesDelDestinoTest(unittest.TestCase):
         self.assertEqual(["dogs"], inflections.por_lema(ruta, {"dog"})["dog"])
 
     def test_descarta_las_frases(self):
-        """El 38,7 % de las filas de `form` del pack ingles contienen un espacio."""
+        """38.7 % of the English pack's `form` rows contain a space."""
         ruta = _pack({"eat": ["ate", "ate breathed and slept"]})
         self.rutas.append(ruta)
         self.assertEqual(["ate"], inflections.por_lema(ruta, {"eat"})["eat"])
