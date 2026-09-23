@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 494 tests
+hatch run test              # the 511 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -297,6 +297,35 @@ verifier say yes to a pack the app will reject.
 decide whether a pack gets in — it decides **which reason is reported**, which is the only line
 the user reads. The seven schema-3 packs in the data directory came out as "incomplete metadata"
 instead of "another format version" purely from having it backwards.
+
+## `repair_meta.py`: fixing the metadata without re-exporting the content
+
+A full rebuild of the English pack is an hour and needs the dumps. Some defects live entirely in
+the `meta` table, and rewriting those rows takes a second.
+
+```sh
+python3 tools/packbuilder/repair_meta.py ../wearos-dictionary-data/dist/*.db            # reports
+python3 tools/packbuilder/repair_meta.py --write ../wearos-dictionary-data/dist/en-main.db
+gzip -9 -kf ../wearos-dictionary-data/dist/en-main.db          # the .gz carries the size
+python3 tools/packserver.py ../wearos-dictionary-data/dist --index-only \
+    > ../wearos-dictionary-data/dist/index.json                # and so does the catalogue
+```
+
+⚠️ **It touches ONLY `meta`, and that boundary is what makes it safe.** A test hashes every
+other table before and after and requires them identical, so **no repair can change a search
+result**. What it cannot fix is content -- a missing payload channel, a proper noun that slipped
+the frequency filter -- and asking it for more would make it a second, worse builder.
+
+⚠️ **It reports by default and writes only with `--write`**, and that is not politeness. The
+first dry run against the real packs wanted to rename `Español ↔ English` to
+`Español ↔ English (full)`: the bilingual pack DECLARES `tier=full` and its name carries no tier
+**on purpose**, because `build_pack` skips the stamping for `kind == bilingual`. The rule had
+invented a defect out of a deliberate choice, over an artifact nobody would rebuild to check.
+
+⚠️ **It refuses when `data_version` would not move.** That field has minute resolution, and its
+docstring justifies that with *"a build takes minutes, so two never land on the same one"* -- true
+for a build, false for a repair that rewrites six rows in under a second. Two files claiming one
+version is how an installer keeps the broken copy, so it fails out loud and tells you to wait.
 
 ## The coverage lists: what a pack MUST be able to find
 

@@ -189,6 +189,51 @@ FUENTES = {
 }
 
 
+# The sentences a source adds to a pack's description, **in both languages**.
+#
+# WARNING: **they live in one mapping because they are read twice.** `_describir` appends them
+# when building; `repair_meta.py` translates them back when repairing a pack that shipped with
+# the wrong one. Two copies of a sentence is how the repair tool silently stops recognising a
+# sentence somebody reworded here.
+FRASES = {
+    "enwikt-ej": ("With usage examples from a second source.",
+                  "Con ejemplos de uso de una segunda fuente."),
+    "tatoeba": ("With usage sentences from the Tatoeba corpus.",
+                "Con frases de uso del corpus Tatoeba."),
+    "frecuencia": ("Results ordered by real usage frequency.",
+                   "Resultados ordenados por frecuencia de uso real."),
+    "wordnet": ("With WordNet synonyms and antonyms.",
+                "Con sinónimos de WordNet."),
+    "suma": ("With vocabulary from an additional source.",
+             "Con vocabulario de una fuente adicional."),
+}
+
+
+def es_ingles(metadata):
+    """Whether the pack is an English one, by the FIRST of `meta.langs`.
+
+    The bidirectional `es,en` is Spanish-first and described in Spanish on purpose.
+    """
+    return metadata["langs"].split(",")[0].strip() == "en"
+
+
+def _describir(metadata, clave):
+    """Appends one sentence to the description, **in the pack's own language**.
+
+    WARNING: **it exists because four of the five sentences were appended in Spanish to every
+    pack.** The thesaurus block alone chose by language, so all three English packs shipped
+    reading *"English definitions from Wiktionary. (...) Resultados ordenados por frecuencia de
+    uso real. With WordNet synonyms and antonyms."* -- one Spanish sentence wedged into English
+    prose. `en-core` travels inside the APK, so it was on a watch.
+
+    It went unseen because nothing compares a description against the language it declares: each
+    piece is correct on its own and only the assembly is wrong. Taking the choice away from the
+    call site is the same move `_declarar` makes for attribution.
+    """
+    en, es = FRASES[clave]
+    metadata["description"] += " " + (en if es_ingles(metadata) else es)
+
+
 def _declarar(metadata, clave):
     """Adds a source to the pack's manifest: the prose and the structured row, together.
 
@@ -496,7 +541,7 @@ def main(argv):
         # merge, so there is no way to mix the content without moving the credit.
         ejemplos = enwikt_examples.examples_by_entry(dump_ejemplos)
         metadata["pack_id"] += "-" + _declarar(metadata, "enwikt-ej")["codigo"]
-        metadata["description"] += " Con ejemplos de uso de una segunda fuente."
+        _describir(metadata, "enwikt-ej")
     frases = None
     if dump_frases:
         # Same criterion as above and the same reason: the credit moves WITH the content, here, so
@@ -505,7 +550,7 @@ def main(argv):
         # courtesy.
         frases = tatoeba.shortest_by_norm(dump_frases)
         metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
-        metadata["description"] += " Con frases de uso del corpus Tatoeba."
+        _describir(metadata, "tatoeba")
     if lista_frecuencias:
         # ⚠️ **The pack DECLARES that its `rank` is frequency, and that is not decorative.** The
         # merge across packs is ordinal --`score` is the position within the pack's own results--
@@ -529,7 +574,7 @@ def main(argv):
         # the pack, but it **decides the order of the results**, which is content just the same.
         # D-138 does not distinguish.
         metadata["pack_id"] += "-" + _declarar(metadata, "opensubs")["codigo"]
-        metadata["description"] += " Resultados ordenados por frecuencia de uso real."
+        _describir(metadata, "frecuencia")
     tesauro = None
     if dump_tesauro:
         # The format is decided by the pack's LANGUAGE, not by one more option: English has its own
@@ -539,10 +584,7 @@ def main(argv):
         tesauro = wordnet.english(dump_tesauro) if ingles else wordnet.spanish(dump_tesauro)
         metadata["pack_id"] += "-" + _declarar(
             metadata, "oewn-tesauro" if ingles else "mcr")["codigo"]
-        metadata["description"] += (
-            " With WordNet synonyms and antonyms." if ingles
-            else " Con sinónimos de WordNet."
-        )
+        _describir(metadata, "wordnet")
 
     if sumar:
         # ⚠️ **A union of ROWS, not of fields.** The added source contributes LEMMAS the base does
@@ -551,7 +593,7 @@ def main(argv):
         # which splits an entry in two and is still blocked by `uid`'s granularity (D-146).
         metadata["pack_id"] += "-" + _declarar(
             metadata, PACKS[sumar[0]]["fuente_base"])["codigo"]
-        metadata["description"] += " Con vocabulario de una fuente adicional."
+        _describir(metadata, "suma")
 
     # ⚠️ **The final identity: LANGUAGE + TIER, and it is stamped HERE, after every suffix**
     # (D-215). Until here `pack_id` had been accumulating which sources it comes from
