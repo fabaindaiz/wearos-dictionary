@@ -16,6 +16,98 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (9) — Every watched code area reaches zero, and translating a marker broke the check that watches it
+**What.** `dict-core/src/main`, `app/src/main` and `tools/**` translated whole with their ceilings
+dropped to 0 in the same change (D-254); the mirror marker now accepts both spellings while the
+migration runs (D-252); the word of the day shows `verbo · ES` instead of the dictionary's name
+(D-253); `versionCode` 5 → 8; P-2, P-7, P-8 and P-10 answered on the emulator, P-1 answered by the
+owner and P-6 withdrawn by them; and the two escape hatches evaluated with four priced options.
+
+**Areas.** `dict-core/src/main/**`, `app/src/main/**`, `tools/**` (builder, sources, tests, the
+audit and the two Unicode generators), `app/src/test/.../ScreensTest.kt`, `gradle.properties`, and
+the three documents `docs/decisions.md`, `docs/roadmap.md` and `docs/preguntas-del-reloj.md`.
+
+**Why.** Asked for: *«Termina todas las traducciones»*, and then, on the home screen, *«en la
+palabra del día no es necesario que pongas el pack del que viene»* -- only the part of speech and
+the language code. Then: close the session, document the learnings, prepare the commits.
+
+**Architecture.** Complies.
+
+**Measured.**
+- **3,898 lines translated**, 11,928 → 8,030. The four areas the gate watches are all at **0**.
+  What remains: documents (roadmap 2,313, decisions 262, the other five docs 318), test sources
+  (678) and the three `build.gradle.kts` (256), plus the changelog's 4,180 that D-248 argues
+  against translating backwards.
+- **The generated tables regenerate byte for byte**: both generators run with no edit produced an
+  **empty diff**, because this machine's Python 3.9.6 ships exactly the pinned Unicode 13.0.0.
+  That criterion was written before the result was read; a non-empty diff would have stopped the
+  translation.
+- **And the pinned data is provably untouched afterwards.** sha256 over the non-comment lines of
+  `repertoire.txt` and `casefold.txt`, HEAD against the working tree: identical both times
+  (`453d8eb6…`, `2a8461ba…`). That matters beyond tidiness — the digest those files carry is
+  computed over the **encoded blob and not the file**, so a header translation cannot reach it,
+  and therefore cannot invalidate a `sense_code` already written into a pack.
+- **8 mirror declarations** found after D-252's fix — five Python files and three Kotlin.
+- **P-8 answered**: with three packs installed, raising `versionCode` moved all three fingerprints
+  from `.a6` to `.a7`. `es-full`'s **mtime did not change** (`…941484` in both runs), so the
+  re-verification came from the fingerprint rule and not from the file looking different — which
+  is what the two cores alone could not have shown, since an extraction changes their mtime anyway.
+- **The APK is 111 MB** with both cores and `core-index.tsv` inside, and the index matches the
+  `.db` files it describes (`202609231356` on both sides).
+- Gate green by **exit code 0**; audit 32 checks, 0 failures; **494 builder tests** pass.
+
+**Unverified.** **The forms section at 234 dp (P-12) still cannot be looked at**: no pack in
+`dist/` carries the `F` channel — `correr` in `es-full` has tags `A,C,E,P,S,T,Y` and not one
+form. The feature degrades to nothing, which is the design, but it is invisible until a rebuild.
+**And the two escape-hatch defects below were found by READING the code, not by seeing them**: no
+screen was opened with three packs installed, nor with a lone bidirectional one.
+
+**What went wrong.**
+- WARNING: **translating the mirror markers broke `check_mirror_declarations`, and its own guard
+  is what said so.** The regex looked for `ESPEJO`; the moment the eight files said `MIRROR` it
+  matched zero, and `if found == 0` failed the gate instead of reporting success over an empty
+  scan. **The general lesson is bigger than the fix**: any check whose subject is a string of
+  prose is one translation away from being vacuous, and the only thing between *vacuous* and
+  *green* is a guard somebody wrote on purpose.
+- WARNING: **the prose ratchet bit its own author twice more, for four times in three days.**
+  Once over the changelog (4,182 against 4,180) where the two offending lines were a **file
+  path**, `preguntas-del-reloj.md`, and a verbatim Spanish quote of the request — a per-line
+  detector cannot tell a path from a sentence. Once over the roadmap (2,317 against 2,313),
+  where the cause was **me writing new prose in Spanish because its neighbours were Spanish**,
+  which is precisely the drift the check exists to stop. Both times the fix was D-250's — rewrite
+  so English sits on the same line, **never raise the ceiling** — and the roadmap's ceiling was
+  then lowered 2,314 → 2,313 because the tree now holds less.
+- WARNING: **the heredoc interpreted `\uXXXX` as real characters, and that is a NEW variant of a
+  known trap.** A block containing a literal backslash-u arrived at the data file with the
+  character already decoded, so the replacement matched nothing. The known trap was triple quotes
+  inside a heredoc; this one is escape sequences, and the fix is different: the backslash has to
+  be **built** (`chr(92)`) rather than written. Two blocks needed it.
+- **A stray Cyrillic word got into a comment I wrote** — `говорит` in `measure_query_cost.py`,
+  mid-sentence in English prose. Caught by re-reading, not by any check, and fixed. Worth naming
+  because a detector that looks for Spanish would never have seen it.
+- **An off-by-one in a line-slice replacement** and a **stray blank line** from a malformed data
+  block. Both caught by the `assert` in the harness and by reading the result; neither reached a
+  commit.
+- **An earlier claim in this session that gloss words “are not linked” was wrong.** It came from
+  reading a screenshot; the tap proved otherwise (P-2). Retracted where it was made.
+
+**What was left undone.**
+- **The packs are not rebuilt**, and that is the next thing the owner asked for. Four defects live
+  in `dist/`, all content or naming rather than structure: no `F` channel; `en-main` is named
+  **`English (full) (main)`** — the exact bug reported, still in the one pack built before the
+  `name_with_tier` fix; `en-full.description` carries a Spanish sentence inside English prose;
+  and `Eddie`/`Richard` sit at rank 172 and 168 as `pos=noun`, inside the frequency band, having
+  slipped the proper-noun filter.
+- **Two defects in the escape hatches are documented and NOT fixed**, on purpose — options were
+  asked for, not a change. The pill's label names a **pack** while its action switches a
+  **language**, computed independently, so with three packs it can name the wrong file; and the
+  whole block is gated on a second pack existing, so a lone bidirectional pack — the case D-195
+  created — hides the hatch even though it speaks both languages.
+- **The fast watch test suite for P-4** was asked for and not prepared.
+- **~3,850 lines of translation**, roadmap first.
+
+---
+
 ## 2026-09-23 (8) — The English rule becomes a check, and the check bit its own author within the hour
 **What.** A per-area ceiling on Spanish prose that the gate enforces (D-248), `dict-data/src/main`
 translated whole with its ceiling dropped to 0 (D-249), and the rule that new decision rows and
