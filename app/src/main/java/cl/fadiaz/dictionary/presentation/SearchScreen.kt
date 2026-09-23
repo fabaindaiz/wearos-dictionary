@@ -383,18 +383,31 @@ fun SearchScreen(
                         // The escape hatch, and it shows up ONLY here: the user typed something
                         // this language does not have. With results on screen the selector would
                         // cost a row, that is a third of the list (D-073).
-                        val other = state.available
-                            .filterIsInstance<PackHandle.Open>()
-                            .firstOrNull { it.packId != state.active?.packId }
-                        // ⚠️ **The LANGUAGE decides, not the pack.** With a bidirectional one
-                        // installed the "other dictionary" may be the same file: what changes is
-                        // which of its two languages is being searched.
+                        // ⚠️ **The LANGUAGE decides, not the pack**, and that governs BOTH the
+                        // condition and the label. Two defects lived here until 2026-09-23:
+                        //
+                        // 1. The pill was gated on a SECOND PACK existing, so a lone
+                        //    bidirectional pack --the case D-195 created-- hid the hatch
+                        //    entirely, even though that one file speaks both languages and the
+                        //    user had no way out of the one being searched.
+                        // 2. It was labelled with that second pack's NAME while the tap switched
+                        //    a language, computed independently. With three packs installed it
+                        //    could read "Search in English (full)" and activate a language whose
+                        //    representative is a different file -- a label asserting a provenance
+                        //    nobody checked, which is D-080's family.
+                        //
+                        // The tag and not a pack name is also what the rest of the app shows:
+                        // *"it should just be EN, ES, because all I care about is knowing the
+                        // language it comes from"*.
                         val otroIdioma = idiomasDisponibles(state.available)
                             .firstOrNull { it != state.activeLang }
-                        if (other != null && otroIdioma != null) {
+                        if (otroIdioma != null) {
                             item(key = "escotilla-idioma") {
                                 Pill(
-                                    text = stringResource(R.string.home_search_in, other.metadata.name),
+                                    text = stringResource(
+                                        R.string.home_search_in,
+                                        resultTag(otroIdioma).orEmpty(),
+                                    ),
                                     onClick = { onLanguageChange(otroIdioma) },
                                 )
                             }

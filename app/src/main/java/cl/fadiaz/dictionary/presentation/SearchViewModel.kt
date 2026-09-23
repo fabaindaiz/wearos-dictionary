@@ -82,13 +82,28 @@ data class SearchState(
     /** Downloads in flight by `packId`. Empty when there are none. */
     val downloads: Map<String, PackDownload> = emptyMap(),
     /**
-     * Every pack the app knows about. It is what the selector draws.
+     * The packs the selector **offers**, which is not every pack that is open.
      *
-     * ⚠️ **It carries the rejected ones too**, as `PackHandle.Incompatible`, and `offerable` takes
-     * them out of the selector. There is no longer a separate list of strings: a rejected pack is
-     * one more row on the dictionaries screen, with its reason, and not a footnote in the credits.
+     * ⚠️ **It is [offerable]'s output, so two kinds of pack are missing from it**: the rejected
+     * ones, which travel in [rejected], and **an open, bundled pack whose languages another
+     * installed pack already covers** -- offering `Español (core)` next to `Español (full)` is
+     * noise, so the core is hidden while the full one is there.
+     *
+     * ⚠️ **Anything asking "what is loaded" wants [loaded] and not this.** This KDoc used to
+     * claim the field was every pack the app knows about and that it carried the rejected ones;
+     * both were false, and the debug dump believed them -- it reported `abiertos=2` on a launch
+     * whose own startup line said 3. A field whose documentation outranks its assignment is the
+     * same failure as two sources of truth, with the copy nobody diffs being a comment.
      */
     val available: List<PackHandle> = emptyList(),
+    /**
+     * Every pack that is **open**, shadowed ones included. Nothing draws it; it is what the debug
+     * dump reports.
+     *
+     * It exists because the dump's whole job is answering *what is actually loaded* on a device
+     * nobody can attach a debugger to, and the only list it had was the one filtered for display.
+     */
+    val loaded: List<PackHandle.Open> = emptyList(),
     /**
      * The `.db` files that are on disk and **do not load**, with their reason.
      *
@@ -374,6 +389,7 @@ class SearchViewModel(
                         // placeholder, not an option. Its label would also clash -- with the
                         // toy and the real Spanish one the selector read "ES" and "ES".
                         available = offerable(result.all),
+                        loaded = result.all.filterIsInstance<PackHandle.Open>(),
                         rejected = result.all.filterIsInstance<PackHandle.Incompatible>(),
                         history = visibleOnes(visits),
                     )
