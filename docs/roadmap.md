@@ -3463,6 +3463,36 @@ was answered on the emulator on 2026-09-23 — the links exist and they hit — 
 blocks anything. What is missing is the wrist: choosing between A and B depends on how much the
 extra tap annoys, and that is not something a desktop can feel.
 
+### `abiertos=` in the debug dump undercounts — FOUND 2026-09-23, not fixed
+
+**Status.** **Defect, reported and not fixed.** Found while verifying the APK before an upload,
+by reading two readouts of the same launch against each other.
+
+**The evidence, from one run on the emulator.** Startup says `listo: 3 abiertos, 0 rechazados,
+activo=es-full`; the dump, seconds later, says `abiertos=2: en-core@…, es-full@…`. Three packs
+were open. `es-core` is missing from the second.
+
+**The cause.** `MainActivity` feeds the dump `state.available`, whose KDoc says *"every pack the
+app knows about"*. What is assigned to it is `offerable(result.all)`, which **drops a bundled core
+whose languages are all covered by a non-bundled pack** — correct on screen, because offering
+`Español (core)` next to `Español (full)` is noise. So `available` is the offerable subset and
+its own documentation says otherwise; the dump believed the documentation.
+
+⚠️ **Why it is worth a row rather than a shrug.** The dump exists to answer *what is actually
+loaded* on a device nobody can attach a debugger to, and `DebugIntents.dump` says in its own
+comment that a readout describing something other than what you think you are looking at is worse
+than no readout. A core that is open but shadowed reads as **not open**, which sends the next
+session hunting an extraction bug that is not there.
+
+**Until it is fixed, read it this way**: the startup line `listo: N abiertos` is the true count;
+the dump's `abiertos=` is the **offerable** set.
+
+**What would close it.** The dump needs the unfiltered open list, which the state does not carry
+today — so it is either a new field or `result.all` threaded through. ⚠️ **Not a rename**: calling
+the line `ofrecibles=` would make it honest and simultaneously remove the only answer the dump has
+to the question it exists for. The KDoc on `available` should be corrected either way, since it is
+wrong today.
+
 ### The two escape hatches on an empty result — EVALUATED 2026-09-23, not built
 
 **Status.** **Planned**, options priced, nothing built. The owner described the two buttons on
