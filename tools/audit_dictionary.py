@@ -1272,7 +1272,7 @@ def lineas_en_espanol(ruta):
 #: that changes anything.
 TECHO_ESPANOL = (
     ("tools/", 1778),
-    ("app/src/main/", 1293),
+    ("app/src/main/", 0),
     # WARNING: 34 of these lines live in GENERATED files -- UnicodeRepertoire.kt and
     # CaseFolding.kt -- whose prose comes from tools/unicode/gen_*.py. Taking this row to 0
     # means editing those generators and regenerating, which CLAUDE.md calls a deliberate

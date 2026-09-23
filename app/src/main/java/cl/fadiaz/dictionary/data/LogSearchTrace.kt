@@ -4,28 +4,28 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.SearchTrace
 
 /**
- * Lo que la cascada reporta, escrito en `logcat`.
+ * What the cascade reports, written into `logcat`.
  *
- * Es el lado `:app` de [SearchTrace]: ese modulo no puede tocar `android.util.Log` (D-017), asi
- * que reporta en Kotlin puro y esto lo traduce. Ver [DictLog] para como se enciende.
+ * It is [SearchTrace]'s `:app` side: that module cannot touch `android.util.Log` (D-017), so it
+ * reports in pure Kotlin and this translates it. See [DictLog] for how it is switched on.
  *
- * ⚠️ **Los dos eventos van a niveles distintos a proposito.** Un pack que falla al consultarlo se
- * escribe **siempre** (WARN): es un defecto, no telemetria, y es el que estaba invisible. El
- * resumen por consulta va a DEBUG, porque hay uno por pulsacion de tecla con debounce y en
- * produccion nadie lo lee.
+ * ⚠️ **The two events go to different levels on purpose.** A pack that fails when queried is
+ * written **always** (WARN): it is a defect, not telemetry, and it is the one that was invisible.
+ * The per-query summary goes to DEBUG, because there is one per debounced keystroke and in
+ * production nobody reads it.
  */
 object LogSearchTrace : SearchTrace {
 
     /**
-     * Sólo gobierna si vale la pena **armar** el resumen por consulta.
+     * It only governs whether the per-query summary is worth **assembling**.
      *
-     * Se lee en cada busqueda a proposito, y no se cachea: asi `setprop log.tag.Dict DEBUG`
-     * empieza a verse sin reiniciar la app.
+     * It is read on every search on purpose, and not cached: that way `setprop log.tag.Dict DEBUG`
+     * starts showing without restarting the app.
      */
     override val enabled: Boolean get() = DictLog.verbose
 
     override fun packFailed(packId: String, error: String) {
-        // Sin guarda de [enabled]: esto se escribe aunque el detalle este apagado.
+        // No [enabled] guard: this is written even when the detail is switched off.
         DictLog.w { "pack $packId FALLO al consultarlo, la busqueda sigue sin el: $error" }
     }
 
@@ -39,8 +39,8 @@ object LogSearchTrace : SearchTrace {
             val peldanos = if (byKind.isEmpty()) {
                 "sin resultados"
             } else {
-                // En el orden del enum, que es el orden de la cascada: asi se lee de un vistazo
-                // si un peldaño aporto filas que no deberia.
+                // In the enum's order, which is the cascade's order: that way you read at a
+                // glance whether a rung contributed rows it should not have.
                 MatchKind.entries
                     .filter { byKind.containsKey(it) }
                     .joinToString(" ") { "${it.name.lowercase()}=${byKind[it]}" }

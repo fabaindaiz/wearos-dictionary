@@ -85,18 +85,18 @@ import androidx.compose.ui.res.painterResource
 fun SearchScreen(
     state: SearchState,
     onQueryChange: (String) -> Unit,
-    // El teclado abierto suspende la busqueda (D-128). Default vacio: una pantalla de test que
-    // no lo cablea sigue comportandose como antes.
+    // An open keyboard suspends the search (D-128). Empty by default: a test screen that does not
+    // wire it still behaves as before.
     onTypingChanged: (Boolean) -> Unit = {},
     onLanguageChange: (String) -> Unit = {},
-    /** Avisa que el input del sistema va a tapar la app. Ver `SearchViewModel.onLeftApp`. */
+    /** Warns that the system input is about to cover the app. See `SearchViewModel.onLeftApp`. */
     onSystemInputOpening: () -> Unit = {},
     /**
-     * Abrir el input del sistema en cuanto la pantalla exista, porque lo pidió un tile.
+     * Open the system input as soon as the screen exists, because a tile asked for it.
      *
-     * ⚠️ **Una sola vez por composición y no en cada recomposición**: el `LaunchedEffect` lleva
-     * `Unit` como clave a propósito. Sin eso, volver de una ficha reabriría el dictado y no
-     * habría forma de salir.
+     * ⚠️ **Once per composition and not on every recomposition**: the `LaunchedEffect` carries
+     * `Unit` as its key on purpose. Without that, coming back from a card would reopen dictation
+     * and there would be no way out.
      */
     abrirInputAlEntrar: Boolean = false,
     // Deliberately no default: a callback forgotten in MainActivity would be a dead escape
@@ -111,26 +111,26 @@ fun SearchScreen(
     // of the day and each lives in ITS dictionary. Resolving it against the active one would be
     // D-080 again. No default: a word of the day that shows and opens nothing is worse than none.
     onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
-    /** Al historial completo. Default vacío: una pantalla de test que no lo cablea sigue andando. */
+    /** To the full history. Empty by default: a test screen that does not wire it still works. */
     onOpenHistory: () -> Unit = {},
 ) {
-    // ⚠️ **Una sola etiqueta para toda la lista, y eso es consecuencia de dos decisiones.**
-    // La busqueda es estricta por idioma (D-189) y ahora ademas filtra por `entry.lang` dentro
-    // de un pack bidireccional, asi que **todas las filas visibles son del idioma activo**.
-    // Antes era un mapa `packId -> etiqueta`, que con un pack de dos idiomas ya no alcanzaba:
-    // el mismo pack habria tenido que devolver `ES` para unas filas y `EN` para otras.
+    // ⚠️ **One single tag for the whole list, and that follows from two decisions.** The search is
+    // strict by language (D-189) and now also filters by `entry.lang` inside a bidirectional pack,
+    // so **every visible row is in the active language**. It used to be a `packId -> tag` map,
+    // which with a two-language pack no longer sufficed: the same pack would have had to return
+    // `ES` for some rows and `EN` for others.
     val etiqueta = resultTag(state.activeLang)
-    // El historial del inicio lleva el OTRO mecanismo: sus filas pueden ser de un pack que ya no
-    // esta. Ver `historyTags`.
+    // The home's history carries the OTHER mechanism: its rows can come from a pack that is no
+    // longer there. See `historyTags`.
     val etiquetasHistorial = remember(state.available) { historyTags(state.available) }
-    // Las palabras del día que se van a mostrar: **una por idioma, no una por pack** (D-151),
-    // el activo primero. Se calcula acá y no dentro del lambda de la lista porque ahí no hay
-    // `remember` --no es un scope de composición-- y se rehacía en cada recomposición.
-    // ⚠️ **El representante se elige entre los DICCIONARIOS DE DEFINICIONES**, y saltarse ese
-    // filtro hizo desaparecer la palabra del día entera. `representativePacks` elige el pack más
-    // grande de cada idioma, y el bilingüe pasó a ser el más grande de los DOS --209.484 contra
-    // 152.281 del español y 16.652 del núcleo inglés-- así que la pantalla pedía la palabra de un
-    // pack que no genera ninguna. Filtrar antes y no después es lo que lo arregla.
+    // The words of the day that will be shown: **one per language, not one per pack** (D-151), the
+    // active one first. It is computed here and not inside the list's lambda because there is no
+    // `remember` there --it is not a composition scope-- and it was redone on every recomposition.
+    // ⚠️ **The representative is chosen among the DEFINITION DICTIONARIES**, and skipping that
+    // filter made the word of the day disappear entirely. `representativePacks` picks the largest
+    // pack of each language, and the bilingual one became the largest of BOTH --209,484 against
+    // Spanish's 152,281 and the English core's 16,652-- so the screen was asking for the word of a
+    // pack that generates none. Filtering before and not after is what fixes it.
     val ofTheDay = remember(state.available, state.active?.packId, state.wordsOfTheDay) {
         val conDefiniciones = state.available.filter {
             it !is PackHandle.Open || givesWordOfTheDay(it.metadata)
@@ -155,16 +155,17 @@ fun SearchScreen(
         }
     }
 
-    // La etiqueta del input nativo nombra el diccionario, porque el input del sistema dicta en
-    // el idioma DEL RELOJ y no en el del pack: es lo unico que le dice al usuario en que esta
-    // buscando (D-127). Se arma aca y no dentro de la lista: `stringResource` es @Composable y
-    // el scope de un lazy item no lo es.
+    // The native input's label names the dictionary, because the system input dictates in the
+    // WATCH's language and not the pack's: it is the only thing telling the user what they are
+    // searching in (D-127). It is assembled here and not inside the list: `stringResource` is
+    // @Composable and a lazy item's scope is not.
     val voiceLabel = stringResource(
         R.string.home_search_in,
         state.active?.name ?: stringResource(R.string.home_dictionary),
     )
 
-    // El tile pidió buscar: se abre el input apenas hay pantalla. Ver `abrirInputAlEntrar`.
+    // The tile asked to search: the input opens as soon as there is a screen. See
+    // `abrirInputAlEntrar`.
     LaunchedEffect(Unit) {
         if (abrirInputAlEntrar) {
             onSystemInputOpening()
@@ -184,8 +185,8 @@ fun SearchScreen(
             ).focusRequester(focusRequester).requestFocusOnHierarchyActive(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Bajo el reloj. Un item y no padding: como padding, la barra quedaba dentro del
-            // transform del borde y salia con la forma cortada. Ver clockGap().
+            // Below the clock. An item and not padding: as padding, the bar stayed inside the
+            // edge transform and came out with its shape clipped. See clockGap().
             item(key = "bajo-el-reloj") { Spacer(Modifier.height(clockGap())) }
 
             when (val status = state.status) {
@@ -198,7 +199,8 @@ fun SearchScreen(
                     )
                 }
 
-                // Sin diccionario: el ViewModel emite el estado y el texto lo pone aca (D-127).
+                // With no dictionary: the ViewModel emits the state and the text is put here
+                // (D-127).
                 SearchState.Status.NoDictionary -> item {
                     Text(
                         text = stringResource(R.string.pack_none_installed),
@@ -233,23 +235,23 @@ fun SearchScreen(
                     // Wear OS guidance asks to elevate it so you can act without navigating.
                     item(key = "barra") {
                         SearchBar(state.query, onQueryChange, onTypingChanged) {
-                            // Avisa antes de lanzar: el input del sistema tapa la app y su
-                            // `ON_STOP` no puede confundirse con salir. Ver `onLeftApp`.
+                            // It warns before launching: the system input covers the app and its
+                            // `ON_STOP` must not be confused with leaving. See `onLeftApp`.
                             onSystemInputOpening()
                             voice.launch(nativeInputIntent(voiceLabel))
                         }
                     }
 
-                    // ⚠️ **Debajo de la barra y SIEMPRE, no sólo en el inicio** (D-156).
-                    // Vivía dentro del bloque "sin búsqueda", así que desaparecía justo cuando
-                    // más hace falta: mirando resultados que no son los esperados porque el
-                    // idioma activo no era el que uno creía. Cuesta una fila de las ~3 que
-                    // entran, y se paga: el caso que evita es escribir una palabra inglesa con
-                    // español activo y no entender por qué no aparece.
-                    // ⚠️ **Se cuentan IDIOMAS y no archivos, y la diferencia se vio en el
-                    // emulador.** Con sólo el pack bidireccional instalado --un archivo que
-                    // habla dos idiomas-- el selector no se dibujaba, así que no había forma de
-                    // llegar a su mitad inglesa: el pack ofrecía dos y la app, cero.
+                    // ⚠️ **Below the bar and ALWAYS, not only on the home** (D-156). It used to
+                    // live inside the "no search" block, so it disappeared exactly when it is most
+                    // needed: looking at results that are not the expected ones because the active
+                    // language was not the one you thought. It costs one of the ~3 rows that fit,
+                    // and it is worth paying: the case it prevents is typing an English word with
+                    // Spanish active and not understanding why it does not show up.
+                    // ⚠️ **LANGUAGES are counted and not files, and the difference was seen on the
+                    // emulator.** With only the bidirectional pack installed --one file speaking
+                    // two languages-- the selector was not drawn, so there was no way to reach its
+                    // English half: the pack offered two and the app, zero.
                     if (idiomasDisponibles(state.available).size > 1) {
                         item(key = "selector") { LanguageSelector(state, onLanguageChange) }
                     }
@@ -334,8 +336,8 @@ fun SearchScreen(
                                 ),
                             ) { onOpenVisita(visit) }
                         }
-                        // Sólo si hay más: un botón que lleva a la misma lista que ya estás
-                        // viendo es cromo, y en un reloj el cromo se paga en filas.
+                        // Only if there are more: a button leading to the same list you are
+                        // already looking at is chrome, and on a watch chrome is paid in rows.
                         if (hayMas) {
                             item(key = "ver-mas-recientes") {
                                 ListRow(
@@ -384,9 +386,9 @@ fun SearchScreen(
                         val other = state.available
                             .filterIsInstance<PackHandle.Open>()
                             .firstOrNull { it.packId != state.active?.packId }
-                        // ⚠️ **Manda el IDIOMA y no el pack.** Con un bidireccional instalado el
-                        // "otro diccionario" puede ser el mismo archivo: lo que cambia es en cual
-                        // de sus dos idiomas se busca.
+                        // ⚠️ **The LANGUAGE decides, not the pack.** With a bidirectional one
+                        // installed the "other dictionary" may be the same file: what changes is
+                        // which of its two languages is being searched.
                         val otroIdioma = idiomasDisponibles(state.available)
                             .firstOrNull { it != state.activeLang }
                         if (other != null && otroIdioma != null) {
@@ -473,19 +475,20 @@ fun SearchScreen(
 private fun ResultRow(
     suggestion: Suggestion,
     /**
-     * `packId` -> la etiqueta que lleva la fila: el idioma, o la fuente si el idioma no alcanza.
-     * La arma [resultTag], del idioma activo.
+     * `packId` -> the tag the row carries: the language, or the source when the language is not
+     * enough. [resultTag] assembles it, from the active language.
      *
-     * ⚠️ **Un `packId` que no este en el mapa NO recibe etiqueta**, en vez de heredar la del pack
-     * activo. Con varios diccionarios conviviendo (D-136) esa herencia seria afirmar que la
-     * palabra viene de un lugar que nadie comprobo -- la misma familia de falla que D-080.
+     * ⚠️ **A `packId` not in the map gets NO tag**, rather than inheriting the active pack's. With
+     * several dictionaries coexisting (D-136) that inheritance would assert the word comes from
+     * somewhere nobody checked -- the same failure family as D-080.
      */
     etiqueta: String?,
     onClick: () -> Unit,
 ) {
-    // Una sola ranura a la derecha y no dos: en una fila de 234 dp el lema ya compite por el
-    // ancho. El tipo primero porque responde "que clase de palabra es", que es lo que se mira
-    // primero; el idioma despues, que solo desambigua cuando hay mas de un diccionario.
+    // A single slot on the right and not two: in a 234 dp row the lemma already competes for the
+    // width. The part of speech first because it answers "what kind of word is this", which is
+    // what gets looked at first; the language after, which only disambiguates when there is more
+    // than one dictionary.
     ListRow(
         headword = suggestion.headword,
         detail = wordDetail(
@@ -551,8 +554,8 @@ private fun SearchBar(
                     color = MaterialTheme.colorScheme.onSurface,
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                // Tocar Buscar cierra el teclado y suelta el foco. Soltarlo es lo que
-                // DISPARA la consulta (D-128): no hace falta llamarla aca.
+                // Tapping Search closes the keyboard and releases focus. Releasing it is what
+                // FIRES the query (D-128): there is no need to call it here.
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         keyboard?.hide()
@@ -562,17 +565,17 @@ private fun SearchBar(
                         focus.clearFocus()
                     },
                 ),
-                // El foco ES el teclado: mientras el campo lo tiene, se escribe sin buscar
-                // (D-128). Soltarlo --por Buscar, por el gesto del sistema o por tocar fuera--
-                // es lo que dispara la consulta, una sola vez.
+                // Focus IS the keyboard: while the field holds it, you type without searching
+                // (D-128). Releasing it --through Search, the system gesture or tapping outside--
+                // is what fires the query, once.
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { onTypingChanged(it.isFocused) },
             )
         }
-        // ⚠️ **Siempre, no sólo con algo escrito** (D-157). Antes el inicio tenía un botón
-        // grande aparte y los resultados este chico, así que la cabecera cambiaba de forma al
-        // escribir y había que reaprenderla. Una sola cabecera para los dos estados.
+        // ⚠️ **Always, not only with something typed** (D-157). The home used to have a big button
+        // of its own and the results this small one, so the header changed shape as you typed and
+        // had to be relearned. One header for both states.
         run {
             Box(
                 modifier = Modifier
@@ -584,10 +587,10 @@ private fun SearchBar(
                     .width(TOUCH_TARGET),
                 contentAlignment = Alignment.Center,
             ) {
-                // ⚠️ **Un icono y no la palabra «voz»** (D-157). El texto estaba escrito a
-                // mano en español y se dibujaba igual en un reloj en inglés; `check_no_hardcoded
-                // _translations` no lo vio porque exige 4 caracteres y «voz» tiene 3. Un micrófono
-                // no se traduce, y en 48 dp se lee mejor que cualquier palabra.
+                // ⚠️ **An icon and not the word "voz"** (D-157). The text was hardcoded in Spanish
+                // and was drawn just the same on an English watch; `check_no_hardcoded
+                // _translations` did not see it because it requires 4 characters and "voz" has 3.
+                // A microphone does not get translated, and at 48 dp it reads better than any word.
                 Icon(
                     painter = painterResource(R.drawable.ic_mic),
                     contentDescription = stringResource(R.string.home_say_a_word),
@@ -656,13 +659,13 @@ private fun WordOfTheDayRow(
  */
 @Composable
 private fun LanguageSelector(state: SearchState, onLanguageChange: (String) -> Unit) {
-    // `remember` y no la llamada suelta, igual que `historyTags` en el inicio. Desde D-156 esto
-    // se dibuja SIEMPRE --tambien con resultados en pantalla-- asi que reagrupaba los packs en
-    // cada recomposicion, y `available` no cambia entre teclas.
+    // `remember` and not the bare call, same as `historyTags` on the home. Since D-156 this is
+    // drawn ALWAYS --with results on screen too-- so it regrouped the packs on every
+    // recomposition, and `available` does not change between keystrokes.
     //
-    // ⚠️ **No es un arreglo de bateria y no hay que venderlo como tal**: `docs/bateria.md` midio
-    // que el trabajo de este tipo son microsegundos contra minutos de pantalla. Es correccion de
-    // practica, y el motivo de hacerla es que cuesta una linea.
+    // ⚠️ **It is not a battery fix and must not be sold as one**: `docs/bateria.md` measured that
+    // work of this kind is microseconds against minutes of screen. It is a correction of practice,
+    // and the reason to make it is that it costs one line.
     val chips = remember(state.available, state.activeLang) {
         languageChips(state.available, state.activeLang)
     }
@@ -701,40 +704,41 @@ private fun LanguageSelector(state: SearchState, onLanguageChange: (String) -> U
 }
 
 /**
- * Cuántos recientes van en el inicio (D-148).
+ * How many recents go on the home (D-148).
  *
- * No es el tope de lo que se guarda --eso es `MAX_HISTORY`, y es más grande--: es cuántos caben
- * sin empujar los ajustes y la atribución fuera de alcance. El resto vive detrás de "ver más".
+ * It is not the cap on what gets stored --that is `MAX_HISTORY`, and it is larger--: it is how
+ * many fit without pushing settings and attribution out of reach. The rest lives behind "see
+ * more".
  */
 private const val HOME_RECENT = 3
 
-/** La clave con la que el input del sistema devuelve lo dictado o escrito. */
+/** The key the system input returns what was dictated or typed under. */
 private const val KEY_SPOKEN = "spoken"
 
 /**
- * La entrada **nativa del reloj**, no el reconocedor de Google.
+ * The **watch's native** input, not Google's recognizer.
  *
- * `ACTION_REMOTE_INPUT` abre el selector de entrada del sistema, que en un Wear OS ofrece voz,
- * teclado y escritura a mano en una sola superficie — la misma que usa cualquier respuesta rapida
- * del reloj. `RecognizerIntent` abria **solo** el reconocedor de Google, que es una app aparte y
- * no siempre esta.
+ * `ACTION_REMOTE_INPUT` opens the system's input picker, which on Wear OS offers voice, keyboard
+ * and handwriting on a single surface -- the same one any quick reply on the watch uses.
+ * `RecognizerIntent` opened **only** Google's recognizer, which is a separate app and is not
+ * always there.
  *
- * ⚠️ **Lo que se pierde, y no es cosmetico**: `RecognizerIntent` aceptaba
- * `EXTRA_LANGUAGE` con el idioma del pack, asi que se dictaba en ESE idioma. El input del sistema
- * usa el idioma **del reloj**. Con el reloj en español y el pack ingles abierto, dictar va a
- * transcribir en español. Por eso la etiqueta nombra el diccionario: es lo unico que queda para
- * decirle al usuario en que esta buscando.
+ * ⚠️ **What is lost, and it is not cosmetic**: `RecognizerIntent` accepted `EXTRA_LANGUAGE` with
+ * the pack's language, so you dictated in THAT language. The system input uses the **watch's**
+ * language. With the watch in Spanish and the English pack open, dictating will transcribe in
+ * Spanish. That is why the label names the dictionary: it is all that is left to tell the user
+ * what they are searching in.
  */
 private fun nativeInputIntent(label: String): Intent {
     val input = RemoteInput.Builder(KEY_SPOKEN)
         .setLabel(label)
-        // Un diccionario no busca emojis, y quitarlos saca una pestaña del selector.
+        // A dictionary does not search for emoji, and removing them takes a tab out of the picker.
         //
-        // ⚠️ El tipo de accion (Buscar en vez de Enviar) **no se puede fijar desde Kotlin**:
-        // `setInputActionType` es publica pero las constantes `INPUT_ACTION_TYPE_*` de
-        // `WearableRemoteInputExtender` son `internal` en wear-input 1.2.0 --verificado
-        // desarmando el .aar, aparecen como `$wear_input_release`--. Desde Java se ven
-        // publicas; desde Kotlin no. Queda con el default.
+        // ⚠️ The action type (Search instead of Send) **cannot be set from Kotlin**:
+        // `setInputActionType` is public but `WearableRemoteInputExtender`'s `INPUT_ACTION_TYPE_*`
+        // constants are `internal` in wear-input 1.2.0 --verified by disassembling the .aar, they
+        // appear as `$wear_input_release`--. From Java they look public; from Kotlin they do not.
+        // It stays on the default.
         .wearableExtender { setEmojisAllowed(false) }
         .build()
     return RemoteInputIntentHelper.putRemoteInputsExtra(

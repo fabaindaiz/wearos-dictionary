@@ -34,13 +34,14 @@ class HistoryTileService : TileService() {
         val desde = System.nanoTime()
         // Read from SharedPreferences and nothing else: no pack is opened. See TileRender.kt.
         //
-        // Cuantas filas, contra la pantalla REAL. Un tile no scrollea, asi que aca el tamaño si
-        // manda -- al reves que el inicio, donde recortar solo esconderia (D-131).
+        // How many rows, against the REAL screen. A tile does not scroll, so here the size does
+        // decide -- unlike the home, where trimming would only hide (D-131).
         //
-        // ⚠️ Se topea en `MAX_ROWS`, que es el numero medido, y no se deja crecer: el chrome de
-        // un tile --el titulo, los margenes del renderer-- **no esta medido**, y `rowsThatFit`
-        // esta anclado en la PANTALLA. Dejarlo crecer seria afirmar un numero que nadie midio.
-        // Lo que si hace es BAJAR en un reloj chico, que es lo que protege al generico.
+        // ⚠️ It is capped at `MAX_ROWS`, which is the measured number, and not allowed to grow: a
+        // tile's chrome --the title, the renderer's margins-- **is not measured**, and
+        // `rowsThatFit` is anchored to the SCREEN. Letting it grow would assert a number nobody
+        // measured. What it does do is go DOWN on a small watch, which is what protects the
+        // generic one.
         val rows = minOf(
             rowsThatFit(requestParams.deviceConfiguration.screenWidthDp),
             TileContents.MAX_ROWS,
@@ -55,10 +56,10 @@ class HistoryTileService : TileService() {
                 )
             }
         }
-        // ⚠️ El unico rastro de que un tile corrio. `onTileRequest` es `@MainThread` con diez
-        // segundos (D-106) y *"nobody opens a tile on purpose"*: si tarda o se rinde, no hay
-        // pantalla donde verlo. Ademas deja escrito el ancho real, que es el numero que falta
-        // para cerrar el breakpoint de 225 dp.
+        // ⚠️ The only trace that a tile ran. `onTileRequest` is `@MainThread` with ten seconds
+        // (D-106) and *"nobody opens a tile on purpose"*: if it is slow or gives up, there is no
+        // screen to see it on. It also writes down the real width, which is the number missing to
+        // close the 225 dp breakpoint.
         DictLog.i {
             val que = when (content) {
                 is TileContent.ListRows -> "${content.visits.size} visitas"

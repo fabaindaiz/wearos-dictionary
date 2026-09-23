@@ -3,101 +3,100 @@ package cl.fadiaz.dictionary.data
 import cl.fadiaz.dictionary.core.PackRejection
 
 /**
- * Si un pack ya se probó, **con qué resultado**, y si esa prueba sigue valiendo.
+ * Whether a pack has already been tested, **with what result**, and whether that test still holds.
  *
- * ## Los tres momentos, y por qué cada uno usa un método distinto
+ * ## The three moments, and why each uses a different method
  *
- * | Momento | Qué se pregunta | Con qué |
+ * | Moment | What is asked | With what |
  * |---|---|---|
- * | **Instalar o descargar** | ¿Llegaron los bytes que se publicaron? | **sha256 en streaming**, en `PackStore.installAtomically` |
- * | **Descubrir un pack** que la app no instaló | ¿Es un pack válido y están bien sus claves? | la verificación entera de `PackFile.open` |
- * | **Cada arranque** | ¿Es el mismo archivo que ya probé, y qué salió? | la huella de acá |
+ * | **Installing or downloading** | Did the published bytes arrive? | **streaming sha256**, in `PackStore.installAtomically` |
+ * | **Discovering a pack** the app did not install | Is it a valid pack and are its keys right? | the whole verification in `PackFile.open` |
+ * | **Every launch** | Is it the same file I already tested, and what came out? | the fingerprint here |
  *
- * ⚠️ **Un hash NO sirve para el tercero, y ahí está el matiz que importa.** Comprobarlo obligaría
- * a releer el archivo entero --301 MB en el pack de inglés-- que es mucho peor que las 64 filas
- * que se querían evitar. En cambio **sí es lo correcto para el primero**, y ahí sale casi gratis:
- * los bytes ya están pasando para copiarse.
+ * ⚠️ **A hash is NO use for the third, and that is where the nuance lies.** Checking it would
+ * force re-reading the whole file --301 MB in the English pack-- which is far worse than the 64
+ * rows it was meant to avoid. Whereas **it is exactly right for the first**, and there it comes
+ * almost free: the bytes are already going past in order to be copied.
  *
- * ⚠️ **«Descubrir» no necesita mecanismo**: un pack que la app no instaló --uno puesto por
- * `devpack.py`, o por el instalador-- simplemente no tiene entrada en el memo, así que se valida
- * entero la primera vez que se abre. La ausencia de una anotación *es* el descubrimiento.
+ * ⚠️ **"Discovering" needs no mechanism**: a pack the app did not install --one put there by
+ * `devpack.py`, or by the installer-- simply has no entry in the memo, so it is validated whole
+ * the first time it is opened. The absence of an annotation *is* the discovery.
  *
- * ## El memo guarda también los RECHAZOS, y eso cambia el riesgo de signo
+ * ## The memo also stores the REJECTIONS, and that flips the sign of the risk
  *
- * Pedido: que un pack rechazado no se vuelva a escanear y que la pantalla de diccionarios pueda
- * decir **por qué** sin volver a abrirlo. Eso convierte el memo en algo más peligroso de lo que
- * era:
+ * Asked for: that a rejected pack not be scanned again and that the dictionaries screen be able to
+ * say **why** without reopening it. That turns the memo into something more dangerous than it was:
  *
- * - Un **sí** cacheado de más cuesta que un pack malo se use — y para eso hace falta que el
- *   archivo haya cambiado sin cambiar tamaño ni fecha.
- * - Un **no** cacheado de más cuesta que un pack **perfectamente bueno desaparezca para
- *   siempre**. El archivo no cambia, así que nada lo vuelve a mirar nunca.
+ * - One **yes** cached too many costs a bad pack being used -- and for that the file has to have
+ *   changed without changing size or date.
+ * - One **no** cached too many costs a **perfectly good pack disappearing forever**. The file does
+ *   not change, so nothing ever looks at it again.
  *
- * El segundo es el modo de falla que este repo no puede observar, y el único mecanismo que lo
- * impide es que **las reglas enteras entren en la huella**. Si mañana la app entiende
- * `schema_version` 5, todo rechazo por esquema tiene que caducar solo.
+ * The second is the failure mode this repo cannot observe, and the only mechanism that prevents it
+ * is that **the whole rules go into the fingerprint**. If tomorrow the app understands
+ * `schema_version` 5, every schema rejection has to expire on its own.
  *
- * ## Qué problema resuelve, y qué NO deja de hacer
+ * ## What problem it solves, and what it does NOT stop doing
  *
- * Abrir un pack recalcula `norm()` y `fuzzy()` sobre 64 entradas repartidas (D-142) y comprueba
- * que su contenido sea el que `meta` promete. Eso convierte `norm_version` --un número que el
- * pack se pone a sí mismo-- en una prueba, y cubre el modo de falla central del repo: un pack
- * construido con otras reglas **devuelve menos palabras, sin excepción y sin log**.
+ * Opening a pack recomputes `norm()` and `fuzzy()` over 64 spread-out entries (D-142) and checks
+ * that its content is what `meta` promises. That turns `norm_version` --a number the pack assigns
+ * itself-- into a proof, and covers the repo's central failure mode: a pack built under other
+ * rules **returns fewer words, with no exception and no log**.
  *
- * Medido: son **36 de los 42 ms** que cuesta cada arranque del proceso con los dos packs reales
- * instalados, y las comprobaciones de contenido que se le sumaron son **5,7 ms** más sobre el
- * pack inglés de 306,8 MB. Y el pack es **inmutable** (D-001): volver a probar el mismo archivo
- * byte por byte no prueba nada que no se supiera.
+ * Measured: it is **36 of the 42 ms** each process launch costs with the two real packs installed,
+ * and the content checks added to it are **5.7 ms** more over the 306.8 MB English pack. And the
+ * pack is **immutable** (D-001): testing the same file byte for byte again proves nothing that was
+ * not already known.
  *
- * ## Por qué la huella lleva lo que lleva
+ * ## Why the fingerprint carries what it carries
  *
- * - `bytes` y `modifiedAt`: identifican el archivo. `devpack.py` y el instalador escriben el
- *   `.db` **en su lugar** (D-082), así que el nombre no alcanza para decir que es el mismo.
- * - [rules]: **todo lo que puede cambiar el veredicto sin que cambie el archivo.** Ver ahí.
+ * - `bytes` and `modifiedAt`: they identify the file. `devpack.py` and the installer write the
+ *   `.db` **in place** (D-082), so the name is not enough to say it is the same one.
+ * - [rules]: **everything that can change the verdict without the file changing.** See there.
  *
- * ## Por qué no lleva un hash del archivo
+ * ## Why it does not carry a hash of the file
  *
- * Porque costaría más que lo que ahorra: hashear 301 MB en cada arranque es peor que releer 64
- * filas. `(tamaño, mtime)` no distingue dos archivos distintos del mismo tamaño escritos en el
- * mismo milisegundo, y eso es aceptable **acá**: no es una defensa contra un atacante --quien
- * escribe en `filesDir` ya es la app-- sino contra que el usuario reinstale un pack distinto y
- * nadie lo note.
+ * Because it would cost more than it saves: hashing 301 MB on every launch is worse than re-reading
+ * 64 rows. `(size, mtime)` does not distinguish two different files of the same size written in the
+ * same millisecond, and that is acceptable **here**: it is not a defence against an attacker
+ * --whoever writes in `filesDir` is already the app-- but against the user reinstalling a different
+ * pack and nobody noticing.
  *
- * Es puro y sin Android a propósito: así el gate lo cubre en la JVM y no en un dispositivo
- * (D-072). Quién lo guarda es `PackStore`.
+ * It is pure and free of Android on purpose: that way the gate covers it on the JVM and not on a
+ * device (D-072). Who stores it is `PackStore`.
  */
 internal object PackVerification {
 
     /**
-     * Sube cuando cambia **qué se comprueba**, aunque no cambie ninguna constante del formato.
+     * Bumped when **what gets checked** changes, even if no format constant changes.
      *
-     * ⚠️ **Es la vía que más fácil se olvida.** `NORM_VERSION`, `schema_version` y el códec
-     * cambian con ceremonia y hay decisiones que obligan a tocarlos (D-005, D-006). Agregar una
-     * invariante nueva a `PackFile.open` no toca ninguno de los tres — y sin bumpear esto, todo
-     * pack ya anotado como verificado se saltaría la comprobación nueva para siempre, que es
-     * exactamente el agujero que la comprobación venía a tapar.
+     * ⚠️ **It is the path most easily forgotten.** `NORM_VERSION`, `schema_version` and the codec
+     * change with ceremony and there are decisions that force them (D-005, D-006). Adding a new
+     * invariant to `PackFile.open` touches none of the three -- and without bumping this, every
+     * pack already annotated as verified would skip the new check forever, which is exactly the
+     * hole the check came to plug.
      *
-     * 1 → la verificación original: esquema, norm, códec, sha256 del diccionario, muestra de 64.
-     * 2 → suma claves de meta obligatorias, licencia declarada, los dos índices, staging,
-     *     `entry_count` contra las filas reales, `fts_def` 1:1, `norm` vacío y huérfanos.
+     * 1 → the original verification: schema, norm, codec, the dictionary's sha256, a 64 sample.
+     * 2 → adds required meta keys, a declared licence, both indexes, staging, `entry_count`
+     *     against the real rows, `fts_def` 1:1, empty `norm` and orphans.
      */
     const val CHECKS_VERSION: Int = 2
 
-    /** Qué salió cuando este archivo se probó. `null` en [verdict] es *"nunca se probó"*. */
+    /** What came out when this file was tested. `null` in [verdict] is *"never tested"*. */
     sealed interface Verdict {
-        /** Pasó todo. Se puede abrir saltándose lo que ya se comprobó. */
+        /** It passed everything. It can be opened skipping what was already checked. */
         data object Passed : Verdict
 
-        /** No se pudo usar, y por qué. No hace falta volver a abrirlo para saberlo. */
+        /** It could not be used, and why. No need to reopen it to know that. */
         data class Rejected(val rejection: PackRejection) : Verdict
     }
 
     /**
-     * Todo lo que puede cambiar el veredicto **sin que cambie el archivo**.
+     * Everything that can change the verdict **without the file changing**.
      *
-     * Los tres primeros son las constantes contra las que se compara el pack; el cuarto es qué
-     * comprobaciones se corren. Cualquiera que se mueva caduca el memo entero, que es lo que
-     * evita que un rechazo sobreviva a la versión de la app que ya sabría leer ese pack.
+     * The first three are the constants the pack is compared against; the fourth is which checks
+     * get run. Any of them moving expires the whole memo, which is what stops a rejection
+     * outliving the version of the app that would already know how to read that pack.
      *
      * ⚠️ **The fifth is the `versionCode`, and it exists because the other four depend on
      * somebody remembering.** `NORM_VERSION`, `schema_version` and the codec are forced upwards
@@ -126,25 +125,26 @@ internal object PackVerification {
         appVersion: Int,
     ): String = "n$normVersion.s$schemaVersion.$codecId.c$CHECKS_VERSION.a$appVersion"
 
-    /** Qué hace único a un archivo probado, bajo las reglas de hoy. */
+    /** What makes a tested file unique, under today's rules. */
     fun fingerprint(bytes: Long, modifiedAt: Long, rules: String): String =
         "$bytes:$modifiedAt:$rules"
 
-    /** Qué salió la última vez con **este** archivo, o `null` si no consta. */
+    /** What came out last time with **this** file, or `null` if there is no record. */
     fun verdict(stored: String?, name: String, fingerprint: String): Verdict? {
         val anotado = entries(stored)[name] ?: return null
         if (anotado.fingerprint != fingerprint) return null
         return if (anotado.reason == PASSED) {
             Verdict.Passed
         } else {
-            // `fromId` degrada a DAMAGED en vez de lanzar: un motivo escrito por otra versión
-            // de la app significa "hubo un motivo y no sé cuál", y lo seguro es que el pack se
-            // vuelva a mirar, nunca que quede escondido por un código ilegible.
+            // `fromId` degrades to DAMAGED rather than throwing: a reason written by another
+            // version of the app means "there was a reason and I do not know which", and the safe
+            // outcome is that the pack gets looked at again, never that it stays hidden behind an
+            // unreadable code.
             Verdict.Rejected(PackRejection.fromId(anotado.reason))
         }
     }
 
-    /** El memo con este pack anotado. Reemplaza la entrada anterior del mismo nombre. */
+    /** The memo with this pack annotated. It replaces the previous entry of the same name. */
     fun remember(
         stored: String?,
         name: String,
@@ -153,11 +153,11 @@ internal object PackVerification {
     ): String =
         serialize(entries(stored) + (name to Anotacion(fingerprint, rejection?.id ?: PASSED)))
 
-    /** El memo sin los packs que ya no están en el disco, para que no crezca sin techo. */
+    /** The memo without the packs no longer on disk, so it does not grow without a ceiling. */
     fun prune(stored: String?, present: Set<String>): String =
         serialize(entries(stored).filterKeys { it in present })
 
-    /** `"ok"` no es un [PackRejection]: ningún id de motivo puede colisionar con él. */
+    /** `"ok"` is not a [PackRejection]: no reason id can collide with it. */
     private const val PASSED = "ok"
 
     private data class Anotacion(val fingerprint: String, val reason: String)
@@ -165,9 +165,9 @@ internal object PackVerification {
     private fun entries(stored: String?): Map<String, Anotacion> =
         stored.orEmpty().lineSequence()
             .mapNotNull { linea ->
-                // Una línea que no tiene las tres partes es basura --otra versión de la app, una
-                // escritura a medias-- y se ignora en vez de romper. El costo de ignorarla es
-                // volver a probar el pack, que es el comportamiento anterior.
+                // A line without the three parts is garbage --another version of the app, a
+                // half-finished write-- and is ignored rather than breaking. The cost of ignoring
+                // it is testing the pack again, which is the previous behaviour.
                 val campos = linea.split('\t')
                 if (campos.size != 3 || campos.any { it.isEmpty() }) {
                     null
@@ -179,8 +179,8 @@ internal object PackVerification {
 
     private fun serialize(entries: Map<String, Anotacion>): String =
         entries.entries
-            // El nombre lo elige quien instala el pack: un tab ahí adentro partiría la línea en
-            // otro lado y haría pasar por verificado a un pack que no lo está.
+            // The name is chosen by whoever installs the pack: a tab inside it would split the
+            // line somewhere else and pass off an unverified pack as verified.
             .filterNot { (name, _) -> '\t' in name || '\n' in name }
             .joinToString("\n") { (name, a) -> "$name\t${a.fingerprint}\t${a.reason}" }
 }

@@ -34,11 +34,11 @@ import cl.fadiaz.dictionary.data.PackHandle
  * for using the data, not a courtesy. The text is not written here: it comes from `meta.license`
  * and `meta.attribution` of the open pack, so a pack from another source brings its own.
  *
- * ⚠️ **Un pack rechazado NO aparece aca, y antes si.** Esta pantalla acredita a las fuentes del
- * contenido que la app esta usando; un pack que no se carga no aporta contenido, asi que
- * nombrarlo aca era acreditar algo que nadie esta leyendo. Ahora se muestra en la pantalla de
- * diccionarios, que es donde se puede hacer algo con el. Y no hace falta filtrarlo: un
- * `PackHandle.Incompatible` **no tiene `metadata`**, asi que este `filterIsInstance` no lo ve.
+ * ⚠️ **A rejected pack does NOT appear here, and it used to.** This screen credits the sources of
+ * the content the app is using; a pack that does not load contributes no content, so naming it
+ * here was crediting something nobody is reading. It is now shown on the dictionaries screen,
+ * which is where something can be done about it. And no filtering is needed: a
+ * `PackHandle.Incompatible` **has no `metadata`**, so this `filterIsInstance` does not see it.
  */
 @Composable
 fun AttributionScreen(packs: List<PackHandle>) {
@@ -63,9 +63,9 @@ fun AttributionScreen(packs: List<PackHandle>) {
                 val meta = handle.metadata
                 item {
                     Text(
-                        // El separador sale del recurso como en todas las demas filas: era el
-                        // ultimo lugar donde estaba escrito a mano, y con dos copias la que no se
-                        // toca es la que queda distinta.
+                        // The separator comes from the resource, as in every other row: this was
+                        // the last place it was written by hand, and with two copies the one
+                        // nobody touches is the one that ends up different.
                         text = meta.name + stringResource(R.string.entry_list_separator) +
                             packTypeLabel(meta.kind),
                         textAlign = TextAlign.Center,

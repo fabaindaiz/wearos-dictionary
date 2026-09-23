@@ -5,19 +5,21 @@ import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
- * ⚠️ **`Ver traducción` se quitó, y las dos razones que dio el usuario eran ciertas.**
+ * ⚠️ **`View translation` was removed, and both reasons the user gave were true.**
  *
- * *«No hace nada»*: resolvía el lema en el OTRO pack y navegaba sólo si existía ahí. `casa` no es
- * un lema del diccionario inglés, así que el destino era nulo y el botón no hacía nada — sin
- * error, sin mensaje, en silencio. Ofrecer una acción que a veces no ocurre es peor que no
- * ofrecerla (misma familia que D-084: no pintar lo que no navega).
+ * *"It does nothing"*: it resolved the lemma in the OTHER pack and navigated only if it existed
+ * there. `casa` is not a lemma of the English dictionary, so the destination was null and the
+ * button did nothing -- no error, no message, in silence. Offering an action that sometimes does
+ * not happen is worse than not offering it (the same family as D-084: do not paint what does not
+ * navigate).
  *
- * *«Es redundante»*: desde D-179 las traducciones se dibujan **dentro** de la ficha, y desde
- * D-196 la palabra del otro idioma es una entrada de este mismo pack a la que se llega tocándola.
- * La acción mandaba a otra pantalla por lo que ya estaba a la vista.
+ * *"It is redundant"*: since D-179 translations are drawn **inside** the card, and since D-196 the
+ * other language's word is an entry of this same pack, reached by tapping it. The action sent you
+ * to another screen for what was already in plain sight.
  *
- * Se borra en vez de arreglarse porque el caso que quedaba --ir al mismo lema en otro
- * diccionario-- ya lo cubre buscarlo con el otro idioma activo, que es un toque en el chip.
+ * It is deleted rather than fixed because the case that was left --going to the same lemma in
+ * another dictionary-- is already covered by searching for it with the other language active,
+ * which is one tap on the chip.
  */
 
 /**

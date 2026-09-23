@@ -3,57 +3,57 @@ package cl.fadiaz.dictionary.data
 import android.util.Log
 
 /**
- * El unico sitio desde el que esta app escribe en `logcat`.
+ * The only place from which this app writes to `logcat`.
  *
- * ## Como se enciende
+ * ## How it is switched on
  *
  * ```sh
- * adb shell setprop log.tag.Dict DEBUG   # el detalle, sin recompilar ni reinstalar
+ * adb shell setprop log.tag.Dict DEBUG   # the detail, with no recompile and no reinstall
  * adb logcat -s Dict:V
- * adb shell setprop log.tag.Dict INFO    # y se apaga
+ * adb shell setprop log.tag.Dict INFO    # and off again
  * ```
  *
- * ⚠️ **Esto NO es `BuildConfig.DEBUG`, y la diferencia es el motivo por el que existe el
- * archivo.** Con `BuildConfig.DEBUG` R8 borra las llamadas en `release`, y `benchmark` hereda de
- * `release` (ver `build.gradle.kts`) -- o sea que **la build con la que se mide arranque y
- * bateria se quedaria sin logs**, que es justo donde hacen falta. `Log.isLoggable` funciona igual
- * en las tres builds y se controla desde afuera.
+ * ⚠️ **This is NOT `BuildConfig.DEBUG`, and the difference is why the file exists.** With
+ * `BuildConfig.DEBUG` R8 strips the calls in `release`, and `benchmark` inherits from `release`
+ * (see `build.gradle.kts`) -- meaning **the build that startup and battery are measured with would
+ * be left with no logs**, which is exactly where they are needed. `Log.isLoggable` works the same
+ * in all three builds and is controlled from outside.
  *
- * ## El contrato de coste
+ * ## The cost contract
  *
- * Los mensajes se pasan como **lambda, no como String**. `Log.d(TAG, "x=" + x)` construye el
- * String aunque el log este apagado; `d { "x=$x" }` no ejecuta nada si nadie escucha. Eso lo fija
- * un test: [cl.fadiaz.dictionary.data.DictLogTest].
+ * Messages are passed as a **lambda, not a String**. `Log.d(TAG, "x=" + x)` builds the String even
+ * when the log is off; `d { "x=$x" }` executes nothing if nobody is listening. A test pins that:
+ * [cl.fadiaz.dictionary.data.DictLogTest].
  *
- * `INFO` y arriba se ven siempre --son los eventos que se cuentan con los dedos: packs que abren,
- * packs que se rechazan, tiles que se piden--. `DEBUG` es el detalle por consulta y esta apagado
- * salvo que se pida.
+ * `INFO` and above are always visible --they are the events you can count on your fingers: packs
+ * opening, packs being rejected, tiles being requested--. `DEBUG` is the per-query detail and is
+ * off unless asked for.
  */
 object DictLog {
 
-    /** Un solo tag para toda la app: `adb logcat -s Dict:V` y ya esta todo. */
+    /** A single tag for the whole app: `adb logcat -s Dict:V` and that is everything. */
     const val TAG = "Dict"
 
-    /** Eventos que pasan pocas veces y explican el estado: packs, tiles, descargas. */
+    /** Events that happen rarely and explain the state: packs, tiles, downloads. */
     inline fun i(msg: () -> String) {
         if (Log.isLoggable(TAG, Log.INFO)) Log.i(TAG, msg())
     }
 
-    /** Algo salio mal pero la app sigue: un pack rechazado, una descarga que no cuadro. */
+    /** Something went wrong but the app carries on: a rejected pack, a download that did not add up. */
     inline fun w(msg: () -> String) {
         if (Log.isLoggable(TAG, Log.WARN)) Log.w(TAG, msg())
     }
 
-    /** Detalle por consulta. **Apagado** salvo `setprop log.tag.Dict DEBUG`. */
+    /** Per-query detail. **Off** unless `setprop log.tag.Dict DEBUG`. */
     inline fun d(msg: () -> String) {
         if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, msg())
     }
 
-    /** Un fallo con su excepcion. El unico que acepta un `Throwable`. */
+    /** A failure with its exception. The only one that takes a `Throwable`. */
     inline fun e(error: Throwable?, msg: () -> String) {
         if (Log.isLoggable(TAG, Log.ERROR)) Log.e(TAG, msg(), error)
     }
 
-    /** ¿Esta encendido el detalle? Para no armar un reporte que nadie va a leer. */
+    /** Is the detail on? So as not to assemble a report nobody will read. */
     val verbose: Boolean get() = Log.isLoggable(TAG, Log.DEBUG)
 }

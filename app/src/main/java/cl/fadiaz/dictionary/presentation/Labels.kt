@@ -9,24 +9,24 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackRejection
 
 /**
- * Como se NOMBRA en pantalla lo que el pack guarda como codigo.
+ * How what the pack stores as a code is NAMED on screen.
  *
- * Vivia dentro de `SearchScreen.kt` y salio de ahi porque **no es una pantalla**: `posLabel`
- * tambien lo usa un tile, y un Tile importando un simbolo de un archivo de pantalla es una
- * dependencia al reves. Aca la importacion dice lo que pasa de verdad -- dos superficies
- * distintas resolviendo la misma etiqueta.
+ * It used to live inside `SearchScreen.kt` and came out because **it is not a screen**: `posLabel`
+ * is used by a tile too, and a Tile importing a symbol from a screen file is a dependency the
+ * wrong way round. Here the import says what actually happens -- two different surfaces resolving
+ * the same label.
  *
- * La traduccion vive en la UI y no en el pack a proposito: meterla en el `.db` lo ataria a un
- * idioma de interfaz y costaria bytes por entrada, con 152.281 de ellas.
+ * The translation lives in the UI and not in the pack on purpose: putting it in the `.db` would
+ * tie it to an interface language and cost bytes per entry, with 152,281 of them.
  */
 /**
- * El `pos` que guarda el pack es el codigo de kaikki (`noun`, `verb`). Traducirlo es cosa de la
- * UI: meterlo en el pack lo ataria a un idioma de interfaz y costaria bytes por entrada.
+ * The `pos` the pack stores is kaikki's code (`noun`, `verb`). Translating it is the UI's business:
+ * putting it in the pack would tie it to an interface language and cost bytes per entry.
  *
- * Devuelve el **id de recurso** y no el texto porque esto lo usan dos superficies distintas: las
- * pantallas, que resuelven con `stringResource`, y los tiles, que tienen `Context` y resuelven
- * con `getString`. Un codigo que no conocemos devuelve null y se muestra crudo, que es mejor que
- * esconderlo.
+ * It returns the **resource id** and not the text because two different surfaces use this: the
+ * screens, which resolve with `stringResource`, and the tiles, which have a `Context` and resolve
+ * with `getString`. A code we do not know returns null and is shown raw, which is better than
+ * hiding it.
  */
 @StringRes
 internal fun posLabelRes(pos: String): Int? = when (pos) {
@@ -48,19 +48,19 @@ internal fun posLabelRes(pos: String): Int? = when (pos) {
     else -> null
 }
 
-/** [posLabelRes] resuelto en el idioma del reloj; el codigo crudo si no se conoce. */
+/** [posLabelRes] resolved in the watch's language; the raw code if it is not known. */
 @Composable
 internal fun posLabel(pos: String): String = posLabelRes(pos)?.let { stringResource(it) } ?: pos
 
 /**
- * El tipo ESCRITO ENTERO, para la ficha de una palabra.
+ * The part of speech WRITTEN OUT IN FULL, for a word's card.
  *
- * Existe al lado de [posLabel] y no en vez de el: son dos lugares con presupuestos distintos. En
- * una fila de 234 dp el lema es lo unico que importa y "sustantivo" le come el ancho; en la ficha
- * no compite con nada y "sust." es una abreviatura que alguien tiene que descifrar.
+ * It exists alongside [posLabel] and not instead of it: they are two places with different
+ * budgets. In a 234 dp row the lemma is all that matters and "sustantivo" eats its width; on the
+ * card it competes with nothing and "sust." is an abbreviation somebody has to decipher.
  *
- * Cae a la abreviatura --y no al codigo crudo-- si falta la clave larga: un pack puede traer un
- * `pos` que no conocemos, y media etiqueta es mejor que `intj`.
+ * It falls back to the abbreviation --and not to the raw code-- when the long key is missing: a
+ * pack can carry a `pos` we do not know, and half a label beats `intj`.
  */
 @Composable
 internal fun posLabelFull(pos: String): String = when (pos) {
@@ -82,16 +82,16 @@ internal fun posLabelFull(pos: String): String = when (pos) {
     else -> posLabel(pos)
 }
 
-/** [posLabelRes] para quien tiene `Context` y no composicion: los tiles. */
+/** [posLabelRes] for whoever has a `Context` and no composition: the tiles. */
 internal fun posLabel(context: Context, pos: String): String =
     posLabelRes(pos)?.let(context::getString) ?: pos
 
 /**
- * Solo se etiquetan los niveles que sorprenden.
+ * Only the rungs that surprise get labelled.
  *
- * Que un resultado salga por prefijo es lo esperado y no merece una palabra en una pantalla de
- * reloj. Que salga por una forma flexionada o por parecido si: explica por que aparece algo que
- * el usuario no escribio.
+ * That a result came out by prefix is what is expected and does not deserve a word on a watch
+ * screen. That it came out through an inflected form or a near match does: it explains why
+ * something the user did not type is showing up.
  */
 @Composable
 internal fun matchLabel(kind: MatchKind): String? = when (kind) {
@@ -103,17 +103,17 @@ internal fun matchLabel(kind: MatchKind): String? = when (kind) {
 }
 
 /**
- * Por qué un diccionario no se carga, **en una línea**.
+ * Why a dictionary does not load, **in one line**.
  *
- * ⚠️ **Un `when` exhaustivo y no un mapa, y esa es la regla de D-125**: un motivo nuevo en
- * [PackRejection] **no compila** hasta que alguien le escribe un texto. Lo contrario --un mapa
- * con un `?: "desconocido"`-- dejaría entrar motivos mudos, que en la pantalla se leen como un
- * diccionario que desapareció sin explicación.
+ * ⚠️ **An exhaustive `when` and not a map, and that is D-125's rule**: a new reason in
+ * [PackRejection] **does not compile** until somebody writes it a text. The opposite --a map with
+ * a `?: "unknown"`-- would let mute reasons through, and on screen those read as a dictionary that
+ * disappeared with no explanation.
  *
- * ⚠️ **Una línea, y corta, es el requisito y no una preferencia.** Es lo que pidió el usuario y
- * es lo que entra en una fila de reloj bajo el nombre del archivo. Lo que un motivo necesita
- * para depurarse --qué declaraba el pack, qué se esperaba-- va al log y no acá: esa prosa es
- * para `logcat`, y en la muñeca sólo estorba.
+ * ⚠️ **One line, and a short one, is the requirement and not a preference.** It is what the user
+ * asked for and it is what fits in a watch row under the file name. What a reason needs in order
+ * to be debugged --what the pack declared, what was expected-- goes to the log and not here: that
+ * prose is for `logcat`, and on a wrist it only gets in the way.
  */
 @StringRes
 internal fun packRejectionLabelRes(rejection: PackRejection): Int = when (rejection) {

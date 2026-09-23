@@ -3,50 +3,53 @@ package cl.fadiaz.dictionary.presentation
 import cl.fadiaz.dictionary.data.PackHandle
 
 /**
- * De packs a idiomas: el modelo que ordena toda la convivencia de diccionarios.
+ * From packs to languages: the model that governs the whole coexistence of dictionaries.
  *
- * > Un pack no es un diccionario que el usuario elige. Es una **fuente** de un idioma. Lo que el
- * > usuario elige es el idioma; los packs de ese idioma se consultan todos (D-136).
+ * > A pack is not a dictionary the user chooses. It is a **source** for a language. What the user
+ * > chooses is the language; all the packs of that language get queried (D-136).
  *
- * Las tres funciones de aca son la traduccion de esa frase a la pantalla, y estan fuera de
- * `SearchScreen.kt` porque **son decisiones, no dibujo**: el gate las cubre en la JVM con
- * `LanguageChipsTest` en vez de con Robolectric, que es mas lento y mide otra cosa.
+ * The three functions here are that sentence translated into the screen, and they sit outside
+ * `SearchScreen.kt` because **they are decisions, not drawing**: the gate covers them on the JVM
+ * with `LanguageChipsTest` instead of with Robolectric, which is slower and measures something
+ * else.
  */
 /**
- * Un idioma ofrecido por el selector, y el pack que lo representa.
+ * A language offered by the selector, and the pack that represents it.
  *
- * `packId` es a quién se activa al tocarlo: decide **la atribución que se muestra, la palabra del
- * día del tile y qué pack va primero al desempatar**, no en qué packs se busca — desde D-136 se
- * busca en **todos** los del idioma activo.
+ * `packId` is who gets activated on tapping it: it decides **the attribution shown, the tile's
+ * word of the day and which pack goes first on a tie-break**, not which packs are searched --
+ * since D-136 **all** of the active language's are searched.
  */
 internal data class LanguageChip(
     val label: String,
     /**
-     * El idioma, no el pack.
+     * The language, not the pack.
      *
-     * ⚠️ **Antes llevaba un `packId` y con packs bidireccionales eso dejo de alcanzar**: uno
-     * solo habla dos idiomas, asi que elegirlo no dice en cual se busca. Es lo que D-147 ya
-     * empujaba --*«un chip por idioma, no por archivo»*-- llevado hasta el final.
+     * ⚠️ **It used to carry a `packId` and with bidirectional packs that stopped being enough**: a
+     * single one speaks two languages, so choosing it does not say which one is being searched. It
+     * is what D-147 was already pushing --*"one chip per language, not per file"*-- taken all the
+     * way.
      */
     val lang: String,
     val active: Boolean,
 )
 
 /**
- * Agrupa los packs abiertos por idioma: **un chip por idioma, no por archivo** (D-147).
+ * Groups the open packs by language: **one chip per language, not per file** (D-147).
  *
- * ⚠️ **Cierra una incoherencia que D-136 introdujo y no terminó.** Esa decisión dejó escrito que
- * el selector pasa a elegir un idioma porque `SearchRepository` consulta todos los packs del
- * idioma activo — y la pantalla siguió listando packs. Con dos diccionarios de español el inicio
- * mostraba **dos chips "ES"**, los dos activables, y tocarlos no cambiaba en qué se buscaba.
+ * ⚠️ **It closes an inconsistency D-136 introduced and did not finish.** That decision put in
+ * writing that the selector moves to choosing a language because `SearchRepository` queries every
+ * pack of the active language -- and the screen went on listing packs. With two Spanish
+ * dictionaries the home showed **two "ES" chips**, both activable, and tapping them changed
+ * nothing about what was searched.
  *
- * **El representante de un idioma** es el pack activo si ya lo es —tocar otro idioma y volver no
- * puede cambiarte el diccionario elegido por debajo— y si no, **el que más entradas tiene**: es
- * el que más veces va a tener la palabra.
+ * **A language's representative** is the active pack if it already is one --tapping another
+ * language and coming back cannot change the dictionary you chose from under you-- and otherwise
+ * **the one with the most entries**: it is the one that will have the word most often.
  *
- * ⚠️ **El orden es por código de idioma y no el de `available`**, que sale de listar un
- * directorio y no promete orden: si los chips lo siguieran, cambiarían de lugar entre arranques y
- * un control que se mueve solo se toca por error. Mismo criterio que el desempate de D-136.
+ * ⚠️ **The order is by language code and not `available`'s**, which comes from listing a directory
+ * and promises no order: if the chips followed it, they would move between launches, and a control
+ * that moves on its own gets tapped by mistake. Same criterion as D-136's tie-break.
  */
 internal fun languageChips(packs: List<PackHandle>, activoLang: String?): List<LanguageChip> =
     idiomasDisponibles(packs).map { lang ->
@@ -54,16 +57,16 @@ internal fun languageChips(packs: List<PackHandle>, activoLang: String?): List<L
     }
 
 /**
- * Los idiomas que se pueden buscar, ordenados por codigo.
+ * The languages that can be searched, ordered by code.
  *
- * ⚠️ **Un pack aporta UNO POR CADA idioma que declara**, y eso es lo que hace que un bilingue
- * de dos chips: tiene entradas de los dos --`casa` y `house` en el mismo archivo-- asi que
- * elegir `EN` filtra a sus lemas ingleses sin abrir ningun otro pack. Pedido: *«que todas las
- * tareas y consultas se puedan hacer usando solo ese pack»*.
+ * ⚠️ **A pack contributes ONE PER LANGUAGE it declares**, and that is what makes a bilingual one
+ * give two chips: it has entries in both --`casa` and `house` in the same file-- so choosing `EN`
+ * filters to its English lemmas without opening any other pack. Asked for: *"that every task and
+ * query can be done using only that pack"*.
  *
- * ⚠️ **El orden es por codigo y no el de `packs`**, que sale de listar un directorio y no
- * promete orden: si los chips lo siguieran cambiarian de lugar entre arranques, y un control
- * que se mueve solo se toca por error.
+ * ⚠️ **The order is by code and not `packs`'**, which comes from listing a directory and promises
+ * no order: if the chips followed it they would move between launches, and a control that moves on
+ * its own gets tapped by mistake.
  */
 internal fun idiomasDisponibles(packs: List<PackHandle>): List<String> =
     packs.filterIsInstance<PackHandle.Open>()
@@ -72,26 +75,27 @@ internal fun idiomasDisponibles(packs: List<PackHandle>): List<String> =
         .sorted()
 
 /**
- * **Un pack por idioma**: el que lo representa. Ordenados por codigo de idioma.
+ * **One pack per language**: the one that represents it. Ordered by language code.
  *
- * Tres pantallas necesitan lo mismo y por eso vive suelto (D-151): el selector dibuja uno por
- * idioma, la **palabra del dia** se calcula una por idioma, y el tile cachea la del activo. Antes
- * la palabra del dia se calculaba **por pack**, asi que con dos diccionarios de español el inicio
- * mostraba dos palabras del dia del mismo idioma — el bug que D-145 tapo fundiendo los packs en
- * lugar de arreglarlo, y que vuelve en cuanto alguien instale un pack propio.
+ * Three screens need the same thing, which is why it lives on its own (D-151): the selector draws
+ * one per language, the **word of the day** is computed one per language, and the tile caches the
+ * active one's. The word of the day used to be computed **per pack**, so with two Spanish
+ * dictionaries the home showed two words of the day in the same language -- the bug D-145 covered
+ * by merging the packs instead of fixing it, and which comes back the moment somebody installs a
+ * pack of their own.
  *
- * **El representante** es el pack activo si ya lo es —elegir otro idioma y volver no puede
- * cambiarte el diccionario por debajo— y si no, **el que mas entradas tiene**: es el que mas veces
- * va a tener la palabra.
+ * **The representative** is the active pack if it already is one --choosing another language and
+ * coming back cannot change the dictionary from under you-- and otherwise **the one with the most
+ * entries**: it is the one that will have the word most often.
  *
- * ⚠️ **El orden es por codigo de idioma y no el de `packs`**, que sale de listar un directorio y
- * no promete orden. Mismo criterio que el desempate de D-136.
+ * ⚠️ **The order is by language code and not `packs`'**, which comes from listing a directory and
+ * promises no order. Same criterion as D-136's tie-break.
  */
 internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> {
     val abiertos = packs.filterIsInstance<PackHandle.Open>()
-    // ⚠️ **Se agrupa por CADA idioma que el pack declara, no por uno solo.** Un bilingue entra en
-    // los dos grupos, asi que puede representar al ingles aunque tambien hable español -- que es
-    // lo que hace falta cuando es el unico pack instalado.
+    // ⚠️ **It groups by EVERY language the pack declares, not by one.** A bilingual one enters
+    // both groups, so it can represent English even though it also speaks Spanish -- which is what
+    // is needed when it is the only installed pack.
     return idiomasDisponibles(packs).mapNotNull { lang ->
         val delIdioma = abiertos.filter { lang in it.metadata.langs }
         delIdioma.firstOrNull { it.packId == activo }
@@ -101,38 +105,40 @@ internal fun representativePacks(packs: List<PackHandle>, activo: String?): List
 }
 
 /**
- * Que etiqueta lleva cada resultado: **el idioma, y nada mas**.
+ * Which tag each result carries: **the language, and nothing else**.
  *
- * ⚠️ **Antes mostraba la FUENTE cuando habia dos packs del mismo idioma** --`WIKC`, `ENWIKT`--
- * razonando que `ES · ES` no desambigua. Se revirtio a pedido, y el razonamiento que lo revierte
- * es mejor que el que lo puso: *«solo debe ser EN, ES. No me gusta que haya un ENWIK... porque
- * solo me interesa conocer el idioma de proveniencia»*.
+ * ⚠️ **It used to show the SOURCE when there were two packs of the same language** --`WIKC`,
+ * `ENWIKT`-- reasoning that `ES · ES` does not disambiguate. It was reverted on request, and the
+ * reasoning that reverts it is better than the one that put it there: *"it should just be EN, ES.
+ * I do not like having an ENWIK... because all I care about is knowing the language it comes
+ * from"*.
  *
- * Desambiguar **dos packs** es una pregunta de catalogo y tiene su pantalla --gestion de
- * diccionarios--; la fila de resultados contesta otra cosa, que es en que idioma esta la palabra
- * que estoy por abrir. La sigla ademas no se entiende sin conocer el `pack_id`, asi que ocupaba
- * el mismo ancho para decir menos.
+ * Disambiguating **two packs** is a catalog question and has its own screen --dictionary
+ * management--; the results row answers something else, which is what language the word I am about
+ * to open is in. The abbreviation is also unintelligible without knowing the `pack_id`, so it took
+ * the same width to say less.
  *
- * Desde que la busqueda es estricta por idioma ([LanguageScope][cl.fadiaz.dictionary.core.LanguageScope]),
- * todas las filas de una consulta comparten etiqueta; se deja igual porque la ficha la muestra
- * tambien, y porque el modo auto futuro vuelve a mezclar idiomas sin tocar esto.
+ * Since the search became strict by language
+ * ([LanguageScope][cl.fadiaz.dictionary.core.LanguageScope]), every row of a query shares a tag;
+ * it is left as it is because the card shows it too, and because the future auto mode mixes
+ * languages again without touching this.
  */
 internal fun resultTag(lang: String?): String? = lang?.uppercase()
 
 /**
- * La etiqueta de una fila del HISTORIAL o de las guardadas, por `packId`.
+ * The tag of a HISTORY or saved row, by `packId`.
  *
- * ⚠️ **Es un mecanismo distinto del de los resultados, y la diferencia es real.** Una fila de
- * resultados no puede ser de otro idioma: la busqueda filtra por el activo, entre packs (D-189)
- * y dentro de un pack bidireccional. Una fila del historial **si**: se guardo cuando habia otro
- * diccionario instalado, o con otro idioma elegido. Etiquetarla con el idioma activo seria
- * afirmar una procedencia que nadie comprobo -- la misma familia de falla que D-080.
+ * ⚠️ **It is a different mechanism from the results one, and the difference is real.** A results
+ * row cannot be in another language: the search filters by the active one, across packs (D-189)
+ * and inside a bidirectional pack. A history row **can**: it was stored when another dictionary
+ * was installed, or with another language chosen. Tagging it with the active language would assert
+ * a provenance nobody checked -- the same failure family as D-080.
  *
- * ⚠️ **Y un pack bidireccional no recibe etiqueta**, porque no hay una sola verdadera: `casa` y
- * `house` viven en el mismo archivo y `Visit` no guarda el idioma. Se prefiere **sin etiqueta**
- * antes que con la equivocada, que es la misma regla con la que se pintan los enlaces de una
- * glosa. Guardar el idioma en `Visit` lo arreglaria; no se hizo porque cambia lo que hay escrito
- * en las preferencias y eso merece su propia decision.
+ * ⚠️ **And a bidirectional pack gets no tag**, because there is no single true one: `casa` and
+ * `house` live in the same file and `Visit` does not store the language. **No tag** is preferred
+ * over the wrong one, which is the same rule a gloss's links are painted by. Storing the language
+ * in `Visit` would fix it; that was not done because it changes what is written in the preferences
+ * and that deserves a decision of its own.
  */
 internal fun historyTags(packs: List<PackHandle>): Map<String, String> =
     packs.filterIsInstance<PackHandle.Open>()

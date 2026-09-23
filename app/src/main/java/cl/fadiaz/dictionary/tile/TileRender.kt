@@ -52,14 +52,14 @@ const val EXTRA_ENTRY_ID: String = "cl.fadiaz.dictionary.ENTRY_ID"
 const val EXTRA_HEADWORD: String = "cl.fadiaz.dictionary.HEADWORD"
 
 /**
- * Pide que la app abra directamente el **input del sistema** (voz, teclado o escritura a mano).
+ * Asks the app to open the **system input** directly (voice, keyboard or handwriting).
  *
- * ⚠️ **Un tile no acepta texto (D-026), pero sí puede lanzar un intent**, y ésa es la diferencia
- * que esta clave explota. El `bottomSlot` del `primaryLayout` estaba vacío y es exactamente donde
- * la guía de Wear OS pone la acción de un tile.
+ * ⚠️ **A tile accepts no text (D-026), but it can fire an intent**, and that is the difference
+ * this key exploits. The `primaryLayout`'s `bottomSlot` was empty and it is exactly where the Wear
+ * OS guidance puts a tile's action.
  *
- * Lo que ahorra: hoy, buscar desde el carrusel son **tres toques** —abrir la app, tocar el campo,
- * dictar—. Con esto es uno.
+ * What it saves: today, searching from the carousel is **three taps** --open the app, tap the
+ * field, dictate--. With this it is one.
  */
 const val EXTRA_OPEN_INPUT: String = "cl.fadiaz.dictionary.OPEN_INPUT"
 
@@ -98,9 +98,10 @@ private fun openTheEntry(context: Context, visit: Visit): Clickable =
         .build()
 
 /**
- * El botón que abre la app **con el input ya abierto**. Va en el `bottomSlot`.
+ * The button that opens the app **with the input already open**. It goes in the `bottomSlot`.
  *
- * Es la única acción de un tile de diccionario que no es «abrí una palabra concreta»: buscar otra.
+ * It is the only action of a dictionary tile that is not "open this specific word": search for
+ * another one.
  */
 private fun searchAction(context: Context): Clickable =
     Clickable.Builder()
@@ -144,10 +145,10 @@ internal fun MaterialScope.historyRows(
                     textButton(
                         onClick = openTheEntry(context, visit),
                         width = expand(),
-                        // ⚠️ **La MISMA función que la app**, no una copia: la fila decía sólo
-                        // `perro` donde el inicio dice `perro · sust.`, y no por densidad sino
-                        // porque no compartía nada. La guía de tiles pide no mostrar MENOS
-                        // información de la que cabe.
+                        // ⚠️ **The SAME function as the app**, not a copy: the row said just
+                        // `perro` where the home says `perro · sust.`, and not out of density but
+                        // because it shared nothing. The tiles guidance asks not to show LESS
+                        // information than fits.
                         labelContent = {
                             text(
                                 detalleDeFila(context, visit).layoutString,
@@ -176,16 +177,16 @@ internal fun MaterialScope.wordCard(
             )
         },
         mainSlot = {
-            // ⚠️ **La glosa manda sobre el tipo de palabra.** `futuro · sust.` no enseña
-            // nada; la primera acepción es lo que vuelve útil una palabra del día de un
-            // vistazo. El tipo queda como respaldo para un pack que no la traiga, y para una
-            // caché escrita antes de que este campo existiera.
+            // ⚠️ **The gloss wins over the part of speech.** `futuro · sust.` teaches nothing; the
+            // first sense is what makes a word of the day useful at a glance. The part of speech
+            // stays as a fallback for a pack that does not carry it, and for a cache written
+            // before this field existed.
             val cuerpo = visit.gloss ?: partOfSpeech
             titleCard(
                 onClick = openTheEntry(context, visit),
                 title = { text(visit.headword.layoutString, maxLines = 1) },
-                // Dos líneas: una glosa media son 64 caracteres y en una sola se corta casi
-                // siempre. El tile no scrollea, así que lo que no entra no existe.
+                // Two lines: an average gloss is 64 characters and on a single one it is clipped
+                // almost every time. The tile does not scroll, so what does not fit does not exist.
                 content = cuerpo?.let { { text(it.layoutString, maxLines = 2) } },
             )
         },
@@ -193,12 +194,12 @@ internal fun MaterialScope.wordCard(
     )
 
 /**
- * Lo que dice una fila del tile: lo mismo que dice una fila del inicio.
+ * What a tile row says: the same as what a home row says.
  *
- * ⚠️ **Sin la etiqueta de idioma, y a propósito.** En la app sale del idioma ACTIVO, que un tile
- * no conoce: preguntarlo obligaría a abrir un pack, que en un tile está prohibido (D-106). Y una
- * `Visit` no guarda el idioma, así que inventarlo sería afirmar una procedencia que nadie
- * comprobó — la familia de D-080. Mejor decir menos que decir algo falso.
+ * ⚠️ **Without the language tag, and on purpose.** In the app it comes from the ACTIVE language,
+ * which a tile does not know: asking would mean opening a pack, which in a tile is forbidden
+ * (D-106). And a `Visit` does not store the language, so inventing it would assert a provenance
+ * nobody checked -- D-080's family. Better to say less than to say something false.
  */
 private fun detalleDeFila(context: Context, visit: Visit): String =
     listOfNotNull(
@@ -206,7 +207,7 @@ private fun detalleDeFila(context: Context, visit: Visit): String =
         visit.partOfSpeech?.let { posLabel(context, it) },
     ).joinToString(context.getString(R.string.entry_list_separator))
 
-/** El borde inferior: buscar otra palabra, que es la única acción que un tile de esto ofrece. */
+/** The bottom edge: search for another word, the only action a tile of this offers. */
 private fun MaterialScope.searchButton(context: Context) =
     textEdgeButton(
         onClick = searchAction(context),

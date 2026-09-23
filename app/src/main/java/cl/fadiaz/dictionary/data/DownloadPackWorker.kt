@@ -14,21 +14,21 @@ import androidx.work.workDataOf
 import java.io.File
 
 /**
- * Baja un pack **cuando el reloj este cargando y con Wi-Fi sin medir** (D-029).
+ * Downloads a pack **when the watch is charging and on unmetered Wi-Fi** (D-029).
  *
- * ⚠️ **Las restricciones no son una precaucion, son la guia oficial de Wear OS**, que clasifica el
- * acceso a red como *very high impact* -- por encima de encender la pantalla. Y con el ingles en
- * 192 MB comprimidos no es opcional: una descarga asi con la muñeca levantada es el gasto mas caro
- * que esta app puede hacer.
+ * ⚠️ **The constraints are not a precaution, they are the official Wear OS guidance**, which
+ * classifies network access as *very high impact* -- above turning the screen on. And with English
+ * at 192 MB compressed it is not optional: a download like that with the wrist raised is the most
+ * expensive thing this app can do.
  *
- * ⚠️ **La consecuencia hay que decirla en la pantalla, no esconderla**: si el reloj no esta
- * cargando, apretar descargar **no descarga nada todavia**. Un progreso que no se mueve sin
- * explicacion se lee como una app rota.
+ * ⚠️ **The consequence has to be said on screen, not hidden**: if the watch is not charging,
+ * pressing download **downloads nothing yet**. Progress that does not move with no explanation
+ * reads as a broken app.
  *
- * ⚠️ **Quien mira la red es WorkManager y nunca la app.** Por eso el manifest **no** pide
- * `ACCESS_NETWORK_STATE`, y el audit falla si alguien lo agrega: un permiso para mirar el estado
- * de la red es una invitacion a decidir cuando descargar desde aqui, que es justo lo que D-029
- * saco de la app.
+ * ⚠️ **WorkManager watches the network and the app never does.** That is why the manifest does
+ * **not** ask for `ACCESS_NETWORK_STATE`, and the audit fails if somebody adds it: a permission to
+ * look at network state is an invitation to decide when to download from here, which is exactly
+ * what D-029 took out of the app.
  */
 class DownloadPackWorker(
     context: Context,
@@ -62,19 +62,20 @@ class DownloadPackWorker(
         }
         return when (resultado) {
             is DownloadResult.Installed -> {
-                // ⚠️ Se anota que este archivo vino del catalogo, y sin esto hay un downgrade
-                // silencioso: si el pack tambien viene en el APK --los nucleos-- la proxima
-                // version de la app lo re-extraeria y pisaria el recien bajado con el viejo.
-                // Ver `PackStore.assetsToExtract`.
+                // ⚠️ It is recorded that this file came from the catalog, and without that there
+                // is a silent downgrade: if the pack also ships in the APK --the cores-- the next
+                // version of the app would re-extract it and overwrite the freshly downloaded one
+                // with the old one. See `PackStore.assetsToExtract`.
                 PackStore.rememberDownloaded(applicationContext, resultado.file.name)
                 DictLog.i { "worker: $packId instalado" }
                 Result.success(workDataOf(KEY_PACK_ID to packId))
             }
             is DownloadResult.Failed -> {
-                // ⚠️ `retry` y no `failure`: lo que falla aqui es casi siempre la red, y el `.part`
-                // se conserva, asi que el reintento **reanuda** en vez de empezar de cero. El unico
-                // caso en que no conviene --un `.gz` que no cuadra-- ya se resuelve borrando el
-                // parcial dentro de [PackDownloader], y entonces el reintento baja entero.
+                // ⚠️ `retry` and not `failure`: what fails here is almost always the network, and
+                // the `.part` is kept, so the retry **resumes** instead of starting from zero. The
+                // only case where that is wrong --a `.gz` that does not add up-- is already
+                // handled by deleting the partial inside [PackDownloader], and then the retry
+                // downloads the whole thing.
                 DictLog.w { "worker: $packId fallo (${resultado.reason}), se reintentara" }
                 Result.retry()
             }
@@ -92,13 +93,13 @@ class DownloadPackWorker(
         const val KEY_DONE = "done"
         const val KEY_TOTAL = "total"
 
-        /** El nombre unico del trabajo de un pack. Apretar dos veces no baja dos veces. */
+        /** A pack's unique work name. Pressing twice does not download twice. */
         fun workName(packId: String) = "descarga:$packId"
 
         /**
-         * Los datos que el worker necesita. Se pasan sueltos porque `Data` solo lleva primitivos,
-         * y **eso es una ventaja**: obliga a nombrar exactamente lo que la descarga usa, en vez de
-         * serializar un [CatalogPack] entero cuyo resto caducaria en la cola.
+         * The data the worker needs. They are passed loose because `Data` only carries primitives,
+         * and **that is an advantage**: it forces naming exactly what the download uses, instead
+         * of serializing a whole [CatalogPack] whose remainder would go stale in the queue.
          */
         fun datos(base: String, pack: CatalogPack): Data = workDataOf(
             KEY_PACK_ID to pack.packId,
@@ -110,7 +111,7 @@ class DownloadPackWorker(
             KEY_DB_SHA to pack.dbSha256,
         )
 
-        /** D-029, escrito una sola vez. */
+        /** D-029, written once. */
         fun constraints(): Constraints = Constraints.Builder()
             .setRequiresCharging(true)
             .setRequiredNetworkType(NetworkType.UNMETERED)
@@ -121,15 +122,15 @@ class DownloadPackWorker(
                 .setInputData(datos(base, pack))
                 .setConstraints(constraints())
                 .addTag(TAG)
-                // ⚠️ El packId va como TAG y no solo en los datos de entrada, porque `WorkInfo`
-                // **no expone `inputData`**: sin esto no hay forma de saber a que pack pertenece
-                // un progreso que llega desde WorkManager.
+                // ⚠️ The packId goes as a TAG and not only in the input data, because `WorkInfo`
+                // **does not expose `inputData`**: without this there is no way to know which pack
+                // a progress update arriving from WorkManager belongs to.
                 .addTag(packTag(pack.packId))
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 workName(pack.packId),
-                // KEEP y no REPLACE: apretar otra vez mientras baja tiene que NO reiniciar la
-                // descarga, que es lo que un REPLACE haria perdiendo lo ya bajado.
+                // KEEP and not REPLACE: pressing again while it downloads has to NOT restart the
+                // download, which is what a REPLACE would do, losing what was already fetched.
                 ExistingWorkPolicy.KEEP,
                 req,
             )
@@ -137,21 +138,21 @@ class DownloadPackWorker(
         }
 
         /**
-         * Cancela la descarga de [packId] y **libera lo que ya habia bajado**.
+         * Cancels [packId]'s download and **frees what had already been fetched**.
          *
-         * ⚠️ **Borrar el `.part` es una decision, no una limpieza.** Ese archivo es lo unico que
-         * hace real la reanudacion (D-214): conservarlo hace que volver a pedir el pack siga
-         * desde donde iba, y con el ingles en 192 MB eso vale. Pero *cancelar* significa, para
-         * quien lo aprieta, **recuperar el espacio y parar** -- y dejar 150 MB invisibles en
-         * `filesDir` de algo que se cancelo es lo contrario de lo pedido. **El costo, nombrado**:
-         * pedirlo de nuevo baja desde cero.
+         * ⚠️ **Deleting the `.part` is a decision, not a cleanup.** That file is the only thing
+         * that makes resuming real (D-214): keeping it makes asking for the pack again carry on
+         * from where it was, and with English at 192 MB that is worth something. But *cancel*
+         * means, to whoever presses it, **get the space back and stop** -- and leaving 150 MB
+         * invisible in `filesDir` for something that was cancelled is the opposite of what was
+         * asked. **The cost, named**: asking again downloads from zero.
          *
-         * ⚠️ **Se cancela primero y se borra despues.** Al reves, el worker seguiria escribiendo
-         * sobre el archivo recien borrado y lo volveria a crear -- se veria "cancelado" con la
-         * descarga corriendo, que es la misma forma del error que D-104 cerro para el borrado de
-         * un pack.
+         * ⚠️ **It cancels first and deletes afterwards.** The other way round, the worker would
+         * keep writing over the just-deleted file and recreate it -- it would read "cancelled"
+         * with the download running, which is the same shape of error D-104 closed for deleting a
+         * pack.
          *
-         * Devuelve si habia algo parcial que liberar, para poder afirmarlo en un test.
+         * It returns whether there was anything partial to free, so a test can assert it.
          */
         fun cancel(context: Context, packId: String, dir: File, url: String): Boolean {
             WorkManager.getInstance(context).cancelUniqueWork(workName(packId))
@@ -163,12 +164,13 @@ class DownloadPackWorker(
         }
 
         /**
-         * El `.gz.part` que le corresponde a esa url, o `null` si la url no nombra un `.db.gz`.
+         * The `.gz.part` belonging to that url, or `null` if the url does not name a `.db.gz`.
          *
-         * ⚠️ **Deriva el nombre igual que `PackDownloader`, y eso es una duplicacion conocida.**
-         * Lo correcto seria una sola funcion; vive aca porque cancelar no puede depender de
-         * arrancar la descarga. Un test comprueba que las dos derivaciones coincidan: si se
-         * separan, cancelar borra otro archivo o ninguno, **sin error**.
+         * ⚠️ **It derives the name the same way `PackDownloader` does, and that is a known
+         * duplication.** The right thing would be a single function; it lives here because
+         * cancelling cannot depend on starting the download. A test checks that the two
+         * derivations agree: if they drift apart, cancelling deletes another file or none,
+         * **with no error**.
          */
         internal fun partialFor(dir: File, url: String): File? {
             val nombre = url.substringAfterLast('/').removeSuffix(".gz")
@@ -183,10 +185,10 @@ class DownloadPackWorker(
         fun packTag(packId: String) = PACK_TAG + packId
 
         /**
-         * Traduce lo que WorkManager reporta a [PackDownload], o `null` si no es nuestro.
+         * Translates what WorkManager reports into [PackDownload], or `null` if it is not ours.
          *
-         * Se deja aparte y sin `Context` **para poder probarlo**: construir un `WorkInfo` en un
-         * test es barato, levantar WorkManager no.
+         * It is kept apart and without a `Context` **so it can be tested**: building a `WorkInfo`
+         * in a test is cheap, starting WorkManager is not.
          */
         fun toPackDownload(
             tags: Set<String>,
@@ -196,16 +198,16 @@ class DownloadPackWorker(
             val packId = tags.firstOrNull { it.startsWith(PACK_TAG) }
                 ?.removePrefix(PACK_TAG) ?: return null
             val fase = when (state) {
-                // BLOCKED y ENQUEUED son lo mismo para el usuario: **todavia no empezo**, y en
-                // esta app casi siempre es porque el reloj no esta cargando (D-029).
+                // BLOCKED and ENQUEUED are the same thing to the user: **it has not started yet**,
+                // and in this app that is almost always because the watch is not charging (D-029).
                 WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> DownloadPhase.WAITING
                 WorkInfo.State.RUNNING -> DownloadPhase.RUNNING
                 WorkInfo.State.SUCCEEDED -> DownloadPhase.DONE
                 WorkInfo.State.FAILED -> DownloadPhase.FAILED
-                // ⚠️ **CANCELLED NO es FAILED**, y hasta aqui lo era. `FAILED` le dice al usuario
-                // *"fallo, se reintentara"*, que sobre algo que el mismo paro es falso y ademas
-                // alarmante. Con fase propia, la pantalla puede sacar la fila y dejar la oferta
-                // como estaba -- que es lo que "cancelar" significa.
+                // ⚠️ **CANCELLED is NOT FAILED**, and until here it was. `FAILED` tells the user
+                // *"it failed, it will be retried"*, which about something they stopped themselves
+                // is false and also alarming. With a phase of its own, the screen can drop the row
+                // and leave the offer as it was -- which is what "cancel" means.
                 WorkInfo.State.CANCELLED -> DownloadPhase.CANCELLED
             }
             return PackDownload(
