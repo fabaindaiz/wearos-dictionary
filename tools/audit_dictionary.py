@@ -1329,6 +1329,50 @@ def check_spanish_prose_budget(report):
             )
 
 
+#: How long a `docs/decisions.md` row may be before it stops being an index entry.
+#:
+#: Artifact 6 of the method says it plainly: *"the prose and the measurements live in the document
+#: that owns them; this file is the index that finds them"*. A row long enough to hold the
+#: reasoning IS the prose, and then there are two copies of it -- the row and the document that
+#: owns it -- with nothing comparing them.
+#:
+#: WARNING: **the number is a signal and not a limit, which is why this only ever advises.** There
+#: is no length at which a row becomes wrong; what is measurable is the trend, and the trend has
+#: been one way. Measured 2026-09-23 over 262 rows: median 1,049 characters, p90 1,941, longest
+#: 3,996. A budget of 1,200 flags roughly the worst third.
+PRESUPUESTO_FILA_DECISION = 1200
+
+
+def check_decision_rows_stay_an_index(report):
+    """Advisory: how far docs/decisions.md has drifted from being an index. (method artifact 6)
+
+    WARNING: **it never fails.** Turning this into a ratchet is the next rung and it is a
+    decision, not an implementation detail: a failure here would block writing a long row at the
+    moment somebody is trying to record something they just learned, which is the worst possible
+    time to argue about format.
+    """
+    filas = [l for l in read("docs/decisions.md").splitlines() if l.startswith("| D-")]
+    if not filas:
+        # The guard that keeps this from passing by seeing nothing: the file always has rows, so
+        # zero means the shape changed and this check stopped looking at anything.
+        report.failure(
+            "no se encontro ninguna fila de decision en docs/decisions.md",
+            "el patron '| D-' dejo de matchear: cambio el formato del archivo y este check quedo "
+            "mirando la nada",
+        )
+        return
+    largas = sorted((len(l), l[2:7]) for l in filas if len(l) > PRESUPUESTO_FILA_DECISION)
+    if not largas:
+        return
+    peores = ", ".join("%s (%d)" % (d, n) for n, d in largas[-3:][::-1])
+    report.advisory(
+        "%d de %d filas de decisiones pasan de %d caracteres"
+        % (len(largas), len(filas), PRESUPUESTO_FILA_DECISION),
+        "artefacto 6: este archivo es el INDICE que encuentra la prosa, no la prosa. Las mas "
+        "largas: %s. Mover la medicion al documento que la posee y dejar el puntero" % peores,
+    )
+
+
 def check_root_budget(report):
     """Rule: CLAUDE.md is paid for on every request and lives under 200 lines. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -1674,6 +1718,7 @@ def check_no_probes_left_behind(report):
 
 CHECKS = [
     check_no_probes_left_behind,
+    check_decision_rows_stay_an_index,
     check_spanish_prose_budget,
     check_core_index_name,
     check_mirror_declarations,

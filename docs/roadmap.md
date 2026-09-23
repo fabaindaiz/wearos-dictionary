@@ -59,7 +59,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
 pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **421 JVM
-de `:app`** y **32 checks** de auditoría estructural — **1091 tests en total**. Los **46
+de `:app`** y **33 checks** de auditoría estructural — **1092 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3679,6 +3679,53 @@ nothing here says which.
 
 **None is free and none is mine to pick.** The measurement is here so the choice is made against
 numbers rather than against a remembered 60 MB.
+
+### `docs/decisions.md` is in the current format, and drifting in a direction nobody named
+
+**Status.** **Measured 2026-09-23, an advisory now reports it, and the repair is NOT done.**
+Raised as *"the decisions are still in the old format, update them to the new one"*.
+
+⚠️ **The column format is current.** The file's headers are `| # | Decisión | Por qué |
+Enforced in |`, which is artifact 6's four columns. And the one v21 delta that looks like a new
+format — marking rows inline as *decisions, not rules* and *discarded, with the number* — was
+**measured by an earlier session to be byte-identical to v7's spec** and declined with the
+reason recorded in `.agents/method/prompt-context.md`: this repo meets that guarantee **by
+section** (D-224) rather than by inline mark, so re-proposing it is a rename and not a delta.
+
+⚠️ **The real drift is the opposite of the one suspected.** Artifact 6 says *"the prose and the
+measurements live in the document that owns them; this file is the index that finds them"*.
+Measured over the 262 rows:
+
+| | |
+|---|---|
+| rows over 1,200 characters | **101 of 262** |
+| median row | **1,049 characters** |
+| p90 | **1,941** |
+| longest | **3,996** (D-216) |
+
+A 3,996-character table cell is not an index entry. And where a row holds the measurement, there
+are now **two copies of it** — the row and the document that owns it — with nothing comparing
+them, which is the repo's own *second source of truth* failure in the file that exists to prevent
+it. ⚠️ **This session's ten rows are part of it**: 1,073–1,361 characters, above the median.
+
+**What was built**: `check_decision_rows_stay_an_index`, which **only ever advises**. Turning it
+into a ratchet is the next rung and it is a decision: a failure here would block writing a long
+row at the moment somebody is recording something they just learned, which is the worst time to
+argue about format. It carries the zero-rows guard D-253 taught — verified by mutation, a pattern
+that stops matching **fails** instead of passing over nothing.
+
+**What is NOT done**: moving the prose out of the 101 rows. That is real work — each one needs
+its measurement rehomed in the document that owns it and a pointer left behind — and doing it
+badly would lose the measurements, which are the most valuable thing in the file.
+
+**Where this kind of sweep belongs, evaluated lightly as asked:**
+
+| | Home | Fires | Cost |
+|---|---|---|---|
+| | `.agents/method/` | on every carrier | ⚠️ **not available**: a carrier may not write there, and repo-specific conformance does not belong in a shared method anyway |
+| **✓** | the carrier's own gate, as an **advisory** | every run, blocking nothing | ✓ **chosen**: *suggested, the owner decides* is exactly what an advisory is, and it needs no new ritual |
+| | the `state-review` skill | only when a meta-session is asked for | cheap, but it is the ritual that is already easy to skip |
+| | the method, as a general step | on every carrier | proposed as a candidate instead, which is the only route open |
 
 ### An override outlives the tunnel it needs — MEASURED 2026-09-23
 
