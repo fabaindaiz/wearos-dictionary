@@ -17,14 +17,14 @@ import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.TextNormalizer
 
 /**
- * Un pack abierto en modo solo lectura.
+ * A pack opened read-only.
  *
- * Es deliberadamente delgado: abre, valida y expone la conexion. Las consultas viven en la capa
- * de arriba, que todavia no existe -- ver docs/roadmap.md.
+ * Deliberately thin: it opens, validates and exposes the connection. The queries live in the
+ * layer above.
  *
- * NO se usa Room para esto (D-039): `createFromFile()` copia el archivo al directorio de Room,
- * duplicando decenas de MB en un reloj. Y no se usa el SQLite del sistema (D-002): FTS5 no esta
- * garantizado en Android.
+ * Room is NOT used for this (D-039): `createFromFile()` copies the file into Room's directory,
+ * duplicating tens of MB on a watch. Nor is the system SQLite (D-002): FTS5 is not guaranteed on
+ * Android.
  */
 class PackFile private constructor(
     val metadata: PackMetadata,
@@ -32,7 +32,7 @@ class PackFile private constructor(
     private val connection: SQLiteConnection,
 ) : AutoCloseable {
 
-    /** Para las consultas de la capa de arriba y para los tests. */
+    /** For the layer above's queries, and for the tests. */
     fun connection(): SQLiteConnection = connection
 
     override fun close() {
@@ -40,14 +40,14 @@ class PackFile private constructor(
     }
 
     /**
-     * Un pack que no se puede usar, y por que.
+     * A pack that cannot be used, and why.
      *
-     * ⚠️ **Lleva DOS cosas y no una, y esa es la diferencia con la version anterior.**
-     * [rejection] es el motivo como dato: lo lee la pantalla de diccionarios para escribir una
-     * linea traducida, y el memo para no volver a probar el archivo. `message` sigue siendo la
-     * prosa con los valores concretos --que declaraba, que se esperaba-- y sigue siendo **para
-     * `logcat`, no para el usuario**: es lo que se necesita para depurar y lo que nadie quiere
-     * leer en un reloj.
+     * ⚠️ **It carries TWO things rather than one, and that is the difference from the earlier
+     * version.** [rejection] is the reason as data: the dictionaries screen reads it to write a
+     * localized line, and the memo reads it so the file is not tried again. `message` is still
+     * the prose with the concrete values --what was declared, what was expected-- and it is
+     * still **for `logcat`, not for the user**: it is what debugging needs and what nobody wants
+     * to read on a watch.
      */
     class IncompatibleException(
         val rejection: PackRejection,
@@ -55,66 +55,70 @@ class PackFile private constructor(
     ) : Exception(message)
 
     companion object {
-        /** Version de esquema que esta app entiende. Otra distinta se rechaza. */
+        /** The schema version this app understands. Any other is rejected. */
         const val SUPPORTED_SCHEMA_VERSION: Int = 4
 
         /**
-         * Abre un pack, o lanza [IncompatibleException] diciendo por que no.
+         * Opens a pack, or throws [IncompatibleException] saying why not.
          *
-         * ⚠️ **Cada comprobacion cubre una falla que de otro modo seria SILENCIOSA**, y esa es
-         * la vara para agregar una nueva: no "esto podria estar mal" sino "si esto esta mal, el
-         * usuario ve resultados incorrectos o incompletos y nada se lo dice".
+         * ⚠️ **Every check covers a failure that would otherwise be SILENT**, and that is the bar
+         * for adding another: not "this could be wrong" but "if this is wrong, the user sees
+         * incorrect or incomplete results and nothing tells them".
          *
-         * En tres tandas, de mas barata a mas cara:
+         * In three rounds, cheapest first:
          *
-         * 1. **Solo `meta`** (0 ms): esquema, claves obligatorias, `norm_version`, codec y que
-         *    el pack se pueda acreditar. Vive en [PackIntegrity], que el gate si cubre.
-         * 2. **El esquema del archivo** (0 ms, [checkStructure]): los dos indices y que no haya
+         * 1. **`meta` alone** (0 ms): schema, required keys, `norm_version`, codec, and that the
+         *    pack can be credited. It lives in [PackIntegrity], which the gate does cover.
+         * 2. **The file's schema** (0 ms, [checkStructure]): the two indexes, and that no
          *    quedado la tabla de staging.
-         * 3. **El contenido** ([checkContentAgainstMetadata] y [checkKeysAgainstASample]): que
-         *    las filas sean las que `meta` promete y que las claves esten bien calculadas. Es lo
-         *    unico que se saltea cuando el memo dice que este mismo archivo ya paso, porque el
+         * 3. **The content** ([checkContentAgainstMetadata] and [checkKeysAgainstASample]): that
+         *    the rows are the ones `meta` promises and that the keys were computed right. It is
+         *    the only part skipped when the memo says this same file already passed, because the
          *    pack es inmutable (D-001). Medido sobre el pack ingles: 5,7 ms + 14,7 ms.
          *
-         * ⚠️ **Todas rechazan**, tambien las que solo degradan --un indice faltante hace que la
-         * busqueda escanee-- y eso fue una decision de producto tomada contra la recomendacion.
+         * ⚠️ **All of them reject**, including the ones that merely degrade --a missing index
+         * makes the search scan-- and that was a product decision taken against the
+         * recommendation.
          * Ver [PackRejection] y D-217.
          */
         fun open(
             path: String,
             driver: BundledSQLiteDriver = BundledSQLiteDriver(),
             /**
-             * Si hay que recalcular la muestra de claves (D-142).
+             * Whether the key sample has to be recomputed (D-142).
              *
-             * ⚠️ **El default es `true` y tiene que seguir siéndolo**: quien no sepa de esto
-             * obtiene la validación completa. Sólo se apaga cuando el llamador puede demostrar
-             * que **este mismo archivo ya la pasó con estas mismas reglas** — la huella de
+             * ⚠️ **The default is `true` and has to stay that way**: whoever does not know about
+             * this gets the whole validation. It is switched off only when the caller can prove
+             * that **this same file already passed under these same rules** -- the fingerprint
              * `PackVerification` incluye `NORM_VERSION` justo para eso.
              *
-             * Apaga la muestra y nada más: `schema_version`, `norm_version`, `payload_codec` y
-             * el sha256 del diccionario se comprueban siempre, porque son un puñado de
+             * It switches off the sample and nothing else: `schema_version`, `norm_version`,
+             * `payload_codec` and the dictionary's sha256 are always checked, because they are a
+             * handful of
              * milisegundos y cubren fallas distintas.
              */
             verifyKeys: Boolean = true,
         ): PackFile {
             val connection = driver.open(path, SQLITE_OPEN_READONLY)
             try {
-                // query_only es cinturon y tiradores: el archivo ya se abrio read-only, pero
-                // deja el error en el statement y no en el open, que es mas facil de atribuir.
+                // query_only is belt and braces: the file was already opened read-only, but it
+                // puts the error on the statement rather than on the open, which is easier to
+                // attribute.
                 connection.execSQL("PRAGMA query_only = 1")
-                // mmap ayuda a las lecturas aleatorias sobre flash; el cache chico porque en un
-                // reloj la memoria es del sistema antes que nuestra.
+                // mmap helps random reads over flash; the cache is small because on a watch the
+                // memory belongs to the system before it belongs to us.
                 connection.execSQL("PRAGMA mmap_size = 8388608")
                 connection.execSQL("PRAGMA cache_size = -2000")
                 connection.execSQL("PRAGMA temp_store = MEMORY")
 
                 val meta = readMeta(connection)
-                // ⚠️ **Todo lo que se decide mirando solo `meta` vive en `PackIntegrity`, y el
-                // ORDEN es parte de lo que vive ahi.** Aca estaba antes, y estaba mal: exigia
-                // las claves obligatorias del esquema 4 **antes** de mirar `schema_version`, asi
-                // que un pack del esquema 3 --que no trae `langs` ni `fuzzy_profiles` porque
+                // ⚠️ **Everything decided by looking at `meta` alone lives in `PackIntegrity`,
+                // and the ORDER is part of what lives there.** It used to be here, and it was
+                // wrong: it required schema 4's mandatory keys **before** looking at
+                // `schema_version`, so a schema 3 pack --which carries no `langs` and no
+                // `fuzzy_profiles` because
                 // nacieron despues-- se rechazaba como "metadatos incompletos" en vez de "hecho
-                // para otra version de la app". Los dos rechazan; el segundo es el que sirve.
+                // for another version of the app". Both reject; the second is the useful one.
                 //
                 // Mudarlo ademas lo puso bajo el gate: `:dict-data` se prueba en dispositivo y
                 // `:dict-core` en la JVM (D-072).
@@ -128,9 +132,9 @@ class PackFile private constructor(
                 val metadata = try {
                     parseMetadata(meta)
                 } catch (error: Exception) {
-                    // Red de seguridad: `checkMeta` ya comprobo lo que `parseMetadata` exige, asi
-                    // que llegar aca significa que los dos se desincronizaron. Se reporta como
-                    // metadata invalida --que es lo que es-- y no como archivo dañado.
+                    // Safety net: `checkMeta` already checked what `parseMetadata` requires, so
+                    // reaching here means the two drifted apart. It is reported as invalid
+                    // metadata --which is what it is-- and not as a damaged file.
                     throw IncompatibleException(
                         PackRejection.METADATA,
                         "meta no se pudo interpretar: ${error.message}",
@@ -162,16 +166,16 @@ class PackFile private constructor(
         }
 
         /**
-         * Lo que se puede preguntarle al esquema sin tocar una sola fila. Medido: **0,0 ms**
-         * sobre el pack ingles de 306,8 MB, asi que corre **siempre**, tambien cuando el memo
-         * dice que este archivo ya paso.
+         * What the schema can be asked without touching a single row. Measured: **0.0 ms** over
+         * the 306.8 MB English pack, so it runs **always**, including when the memo says this
+         * file already passed.
          *
-         * - **Los dos indices.** Sin `idx_entry_norm` la busqueda por prefijo escanea 956.150
-         *   filas en vez de recorrer un rango del indice de cobertura (D-012). No da un
-         *   resultado equivocado: da el mismo tarde, y en un reloj eso es bateria.
-         * - **La tabla de staging.** `PackBuilder` escribe ahi durante la primera pasada y la
-         *   borra al terminar; que siga existiendo significa que el build se corto a la mitad, y
-         *   un pack a medias **abre sin error y devuelve menos palabras de las que tiene**.
+         * - **The two indexes.** Without `idx_entry_norm` the prefix search scans 956,150 rows
+         *   instead of walking a range of the covering index (D-012). It does not give a wrong
+         *   answer: it gives the same one late, and on a watch that is battery.
+         * - **The staging table.** `PackBuilder` writes there during the first pass and drops it
+         *   at the end; its still being present means the build was cut in half, and a half-built
+         *   pack **opens without error and returns fewer words than it holds**.
          */
         private fun checkStructure(connection: SQLiteConnection) {
             val objetos = mutableSetOf<String>()
@@ -197,25 +201,26 @@ class PackFile private constructor(
         }
 
         /**
-         * Que el contenido sea el que `meta` promete. Corre **una vez por archivo**, junto a la
-         * muestra de claves, porque el pack es inmutable (D-001).
+         * That the content is the one `meta` promises. It runs **once per file**, alongside the
+         * key sample, because the pack is immutable (D-001).
          *
          * Medido sobre el pack ingles real (956.150 entradas, 306,8 MB): **5,7 ms en total**,
-         * contra los 14,7 ms que ya costaban las 64 lecturas de la muestra. Lo caro se quedo en
-         * `verify_pack.py`, donde corre al construir y no en el reloj: `uid` unico son **377 ms**
-         * y los huerfanos completos **672 ms**.
+         * against the 14.7 ms the sample's 64 reads already cost. The expensive checks stayed in
+         * `verify_pack.py`, where they run at build time and not on the watch: unique `uid` is
+         * **377 ms** and the full orphan sweep **672 ms**.
          *
-         * - **`entry_count` contra las filas reales** (4,2 ms). Es lo que agarra un archivo
-         *   truncado: se abre sin error y devuelve menos palabras de las que dice tener.
-         * - **`fts_def` una fila por entrada** (1,4 ms). Su `rowid` **es** `entry.id` (D-011).
-         *   Desalineados, buscar por definicion no devuelve menos resultados: devuelve **otros**,
-         *   que es peor, porque se leen como correctos.
-         * - **`norm` vacio** (0,0 ms, lo contesta el indice). Una entrada con la clave vacia no
-         *   se alcanza por prefijo ni por el nivel tolerante: esta en el archivo y no existe.
-         * - **Huerfanos de `form` y `trans`** (0,1 ms sobre 64 filas). Una flexion que apunta a
-         *   una entrada que no esta es una busqueda que no encuentra nada. Se mira una muestra y
-         *   no la tabla entera porque completa cuesta 672 ms; acota el daño, no lo elimina, que
-         *   es el mismo trato que D-142 hizo con las claves.
+         * - **`entry_count` against the real rows** (4.2 ms). This is what catches a truncated
+         *   file: it opens without error and returns fewer words than it claims to hold.
+         * - **`fts_def`, one row per entry** (1.4 ms). Its `rowid` **is** `entry.id` (D-011).
+         *   Misaligned, searching by definition does not return fewer results: it returns
+         *   **different** ones, which is worse, because they read as correct.
+         * - **Empty `norm`** (0.0 ms, the index answers it). An entry with an empty key is
+         *   reachable neither by prefix nor by the tolerant rung: it is in the file and does not
+         *   exist.
+         * - **Orphans in `form` and `trans`** (0.1 ms over 64 rows). An inflection pointing at an
+         *   entry that is not there is a search that finds nothing. A sample is looked at rather
+         *   than the whole table because the full sweep costs 672 ms; it bounds the damage rather
+         *   than removing it, which is the same treatment D-142 gave the keys.
          */
         private fun checkContentAgainstMetadata(
             connection: SQLiteConnection,
@@ -268,40 +273,41 @@ class PackFile private constructor(
             }
 
         /**
-         * Cuantas entradas se recalculan al abrir. 64 lecturas por rowid, no un scan.
+         * How many entries are recomputed on open. 64 reads by rowid, not a scan.
          *
-         * Con 64 muestras repartidas, un pack cuyo `norm()` difiera en algo sistematico --otra
-         * version de Unicode, minusculas de otra manera, NFC en vez de NFD-- se cae con
-         * probabilidad practicamente 1. Uno que difiera en un solo caracter raro puede pasar, y
-         * eso es aceptable: esto acota el daño, no lo elimina. El que lo elimina es
-         * `verify_pack.py`, que recalcula **todas** las filas, y corre al construir.
+         * With 64 samples spread out, a pack whose `norm()` differs in anything systematic
+         * --another Unicode version, lowercasing done differently, NFC instead of NFD-- fails
+         * with probability essentially 1. One that differs in a single rare character may pass,
+         * and that is acceptable: this bounds the damage, it does not remove it. What removes it
+         * is `verify_pack.py`, which recomputes **every** row and runs at build time.
          */
         private const val KEY_SAMPLE_SIZE = 64
 
         /**
-         * Recalcula `norm()` y `fuzzy()` sobre una muestra y las compara con lo que el pack trae.
+         * Recomputes `norm()` and `fuzzy()` over a sample and compares them with what the pack
+         * carries.
          *
-         * ⚠️ **Convierte una declaracion en una prueba, y por eso existe.** `norm_version` es un
-         * numero que el pack se pone a si mismo: un pack generado por la comunidad puede
-         * declarar la version correcta y haber construido las claves con otras reglas --otra
-         * version de ICU, minusculas locale-dependientes, NFC donde va NFD-- y entonces **faltan
-         * palabras**, sin excepcion, sin log y sin nada en el stack trace. Es el modo de falla
-         * central de este repo (ver `CLAUDE.md`), y hasta ahora solo lo cubria el builder.
+         * ⚠️ **It turns a declaration into a proof, and that is why it exists.** `norm_version` is
+         * a number the pack gives itself: a community-built pack can declare the right version
+         * and have built its keys under other rules --another ICU version, locale-dependent
+         * lowercasing, NFC where NFD belongs-- and then **words are missing**, with no exception,
+         * no log and nothing in the stack trace. It is this repository's central failure mode
+         * (see `CLAUDE.md`), and until now only the builder covered it.
          *
-         * Cuesta 64 lecturas por rowid al abrir, una sola vez por pack. Los rowids van repartidos
-         * a lo largo de la tabla a proposito: un pack correcto solo en las primeras filas --lo
-         * que pasa si alguien construyo la mitad con una version y la mitad con otra-- se agarra
-         * igual.
+         * It costs 64 reads by rowid on open, once per pack. The rowids are spread along the
+         * table on purpose: a pack that is correct only in its first rows --what happens if
+         * somebody built half of it with one version and half with another-- is caught all the
+         * same.
          */
         private fun checkKeysAgainstASample(connection: SQLiteConnection, metadata: PackMetadata) {
             val total = metadata.entryCount
             if (total <= 0) return
             val step = maxOf(1, total / KEY_SAMPLE_SIZE)
-            // ⚠️ **El perfil sale de la FILA y no del pack**, porque en un pack bidireccional
-            // las entradas inglesas se pliegan con el perfil ingles y las españolas con el
-            // español. Comprobar las dos con un solo perfil daria falsos positivos justo en la
-            // mitad del pack -- y esta comprobacion existe para rechazar packs incompatibles,
-            // asi que un falso positivo deja al usuario sin diccionario.
+            // ⚠️ **The profile comes from the ROW and not from the pack**, because in a
+            // bidirectional pack the English entries fold with the English profile and the
+            // Spanish ones with the Spanish. Checking both with a single profile would give
+            // false positives over half the pack -- and this check exists to reject incompatible
+            // packs, so a false positive leaves the user with no dictionary.
             connection.prepare(
                 "SELECT headword, norm, fuzzy, lang FROM entry WHERE id = ?",
             ).use { statement ->
@@ -321,8 +327,8 @@ class PackFile private constructor(
                                     "Faltarian palabras en los resultados sin ningun error",
                             )
                         }
-                        // `fuzzy` puede ser NULL: son las entradas que quedan fuera del nivel
-                        // tolerante a proposito, y `verify_pack.py` las cuenta sin alarmarse.
+                        // `fuzzy` may be NULL: those are the entries deliberately left out of
+                        // the tolerant rung, and `verify_pack.py` counts them without alarm.
                         if (!statement.isNull(2)) {
                             val storedFuzzy = statement.getText(2)
                             val expectedFuzzy = TextNormalizer.fuzzy(
@@ -357,43 +363,44 @@ class PackFile private constructor(
             normVersion = meta.getValue("norm_version").toInt(),
             kind = PackKind.fromId(meta.getValue("kind")),
             name = meta.getValue("name"),
-            // `meta[...]` y no `getValue`: un pack construido antes de D-125 no la trae y
-            // tiene que seguir abriendo.
+            // `meta[...]` and not `getValue`: a pack built before D-125 does not carry it and
+            // has to keep opening.
             description = meta["description"],
-            // ⚠️ **`langs` y no `lang_src`: los idiomas son PARES.** Un pack bidireccional
-            // tiene entradas de los dos y ninguno es el principal.
+            // ⚠️ **`langs` and not `lang_src`: languages are PEERS.** A bidirectional pack has
+            // entries from both and neither is the primary one.
             langs = parseList(meta.getValue("langs")),
             fuzzyProfiles = parseList(meta.getValue("fuzzy_profiles"))
                 .map { FuzzyProfile.fromId(it) },
             tier = PackTier.fromId(meta["tier"]),
-            // `toIntOrNull` y no `toInt`: un pack que declare cualquier cosa degrada a "sin
-            // banda", que es como se comportaban todos antes de D-185.
+            // `toIntOrNull` and not `toInt`: a pack declaring anything at all degrades to "no
+            // band", which is how every pack behaved before D-185.
             rankSignalBoundary = meta["rank_signal_boundary"]?.toIntOrNull(),
-            // `meta[...]`: la trae sólo un pack que declare traducciones.
-            // ⚠️ **Con respaldo a `lang_dst` para un pack BILINGUE anterior a la clave.** Un
-            // bilingue traduce por definicion --sus glosas ya estan en el idioma destino-- asi
-            // que inferirlo es seguro, y sin esto un pack construido antes de D-183 dejaria de
-            // ofrecerse para traducir aunque sea exactamente lo que hace.
-            // ⚠️ **Se infiere del SEGUNDO idioma declarado cuando el pack no lo dice.** Un
-            // bilingue traduce por definicion --sus glosas ya estan en el otro idioma-- asi que
-            // inferirlo es seguro, y sin esto un pack que no declare la capacidad dejaria de
-            // ofrecerse para traducir aunque sea exactamente lo que hace.
+            // `meta[...]`: only a pack that declares translations carries it.
+            // ⚠️ **Falling back to `lang_dst` for a BILINGUAL pack older than the key.** A
+            // bilingual pack translates by definition --its glosses are already in the target
+            // language-- so inferring it is safe, and without this a pack built before D-183
+            // would stop being offered for translation despite being exactly that.
+            // ⚠️ **Inferred from the SECOND declared language when the pack does not say.** A
+            // bilingual pack translates by definition --its glosses are already in the other
+            // language-- so inferring it is safe, and without this a pack that does not declare
+            // the capability would stop being offered for translation despite being exactly
+            // that.
             translationsTo = meta["translations_to"]
                 ?: parseList(meta["langs"]).getOrNull(1)
                     ?.takeIf { meta["kind"] == PackKind.BILINGUAL.id },
-            // `fromId` no lanza ante un id desconocido: un pack mas nuevo puede
-            // traer una base que esta version no sabe leer, y eso degrada bien.
+            // `fromId` does not throw on an unknown id: a newer pack may carry a basis this
+            // version cannot read, and that degrades well.
             rankBasis = RankBasis.fromId(meta["rank_basis"]),
-            // `meta[...]` otra vez: ningun pack de hoy la trae, y el formato no tiene
-            // migraciones (D-001) pero eso aplica a `schema_version`; una clave nueva y aditiva
-            // es justo lo que la tolerancia existe para soportar.
+            // `meta[...]` again: no pack today carries it, and the format has no migrations
+            // (D-001) -- but that applies to `schema_version`; a new, additive key is exactly
+            // what the tolerance exists to support.
             subsetOf = meta["subset_of"],
             entryCount = meta.getValue("entry_count").toInt(),
             dataVersion = meta.getValue("data_version").toLong(),
             license = meta.getValue("license"),
             attribution = meta.getValue("attribution"),
-            // `meta[...]` y no `getValue`: un pack anterior a D-138 no la trae y tiene que
-            // seguir abriendo. `parse` nunca lanza.
+            // `meta[...]` and not `getValue`: a pack older than D-138 does not carry it and has
+            // to keep opening. `parse` never throws.
             sources = PackSource.parse(meta["sources"]),
         )
 

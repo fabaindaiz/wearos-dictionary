@@ -22,21 +22,21 @@ import kotlinx.coroutines.withContext
 /**
  * Consulta un pack. Es la implementacion de [DictionarySource] sobre SQLite.
  *
- * CONFINAMIENTO A UN SOLO HILO
+ * CONFINED TO ONE THREAD
  *
- * El SQLite empacado reporta `THREADSAFE=2`, que es multi-thread y **no** serialized: una
- * conexion no se puede usar desde dos hilos a la vez. Por eso cada pack trae su propio
- * dispatcher de un solo hilo, y toda consulta pasa por ahi. No es una precaucion: es un
- * requisito de la libreria, verificado en `PlatformAssumptionsTest`.
+ * The bundled SQLite reports `THREADSAFE=2`, which is multi-thread and **not** serialized: one
+ * connection cannot be used from two threads at once. So every pack carries its own
+ * single-thread dispatcher and every query goes through it. That is not a precaution: it is a
+ * requirement of the library, verified in `PlatformAssumptionsTest`.
  *
- * El efecto secundario es util: las consultas de un mismo pack se serializan solas, asi que una
- * busqueda vieja que todavia no termino no compite con la nueva.
+ * The side effect is useful: queries against one pack serialize themselves, so an old search
+ * that has not finished does not compete with the new one.
  *
- * CANCELACION
+ * CANCELLATION
  *
- * La busqueda se dispara en cada pulsacion y la anterior se descarta. Cada bucle de filas
- * chequea cancelacion, porque una consulta que sigue leyendo despues de que el usuario siguio
- * escribiendo es trabajo de CPU que el reloj paga en bateria para nada.
+ * The search fires on every keystroke and the previous one is discarded. Every row loop checks
+ * for cancellation, because a query still reading after the user has typed on is CPU work the
+ * watch pays for in battery and nobody uses.
  */
 class SqlitePackSource(
     private val pack: PackFile,
@@ -46,17 +46,17 @@ class SqlitePackSource(
     override val metadata: PackMetadata get() = pack.metadata
 
     /**
-     * Resultados para lo que el usuario lleva escrito.
+     * Results for what the user has typed so far.
      *
-     * La cascada esta ordenada por confianza y por costo: prefijo, forma flexionada,
-     * traduccion, y recien si eso devolvio casi nada, el nivel tolerante a errores. Ese ultimo
-     * se salta en el caso normal porque es el mas caro y el menos confiable.
+     * The cascade is ordered by confidence and by cost: prefix, inflected form, translation, and
+     * only if that returned almost nothing, the error-tolerant rung. That last one is skipped in
+     * the normal case because it is the most expensive and the least trustworthy.
      */
     override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {
         val normalized = TextNormalizer.norm(query)
         if (normalized.isEmpty()) return emptyList()
-        // Un pack de un solo idioma no filtra: el WHERE sobraria y cambiaria su plan de
-        // consulta, que `measure_query_cost.py` replica.
+        // A single-language pack does not filter: the WHERE would be redundant and would change
+        // its query plan, which `measure_query_cost.py` replicates.
         val filtro = lang?.takeIf { pack.metadata.langs.size > 1 }
 
         return withContext(dispatcher) {
@@ -69,19 +69,19 @@ class SqlitePackSource(
             if (accumulated.size < limit) {
                 byTranslation(normalized, limit, filtro).forEach { accumulated.putIfBetter(it) }
             }
-            // El nivel tolerante solo entra cuando lo anterior fue casi vacio. Si ya hay
-            // resultados buenos, agregar candidatos por distancia de edicion solo ensucia.
+            // The tolerant rung only enters when what came before was nearly empty. With good
+            // results already in hand, adding edit-distance candidates only muddies them.
             if (accumulated.size < FUZZY_TRIGGER) {
                 byFuzzy(normalized, query, filtro).forEach { accumulated.putIfBetter(it) }
             }
 
-            // La deduplicacion va DESPUES de ordenar y al final de la cascada, no dentro de un
-            // nivel: `accumulated` esta indexado por entryId, asi que dos entradas distintas con
-            // el mismo lema y el mismo pos sobreviven las dos. Fundirlas antes de ordenar
-            // elegiria una al azar; hacerlo despues conserva la de mejor nivel y mejor score.
+            // Deduplication runs AFTER sorting and at the end of the cascade, not inside one
+            // rung: `accumulated` is keyed by entryId, so two distinct entries with the same
+            // headword and pos both survive. Merging them before sorting would pick one at
+            // random; doing it after keeps the one from the better rung with the better score.
             //
-            // Que no alcanza con deduplicar en byPrefix lo encontro un test: el nivel tolerante
-            // volvia a meter la entrada que el prefijo ya habia fundido.
+            // That deduplicating inside byPrefix is not enough was found by a test: the tolerant
+            // rung put back the entry the prefix rung had already merged.
             accumulated.values
                 .sortedWith(compareBy({ it.matchKind.ordinal }, { it.score }))
                 .distinctBy { it.headword to it.partOfSpeech }
@@ -90,19 +90,20 @@ class SqlitePackSource(
     }
 
     /**
-     * Prefijo del lema: el primer peldano, y el unico que corre cuando alcanza.
+     * Headword prefix: the first rung, and the only one that runs when it suffices.
      *
-     * ⚠️ **Decia "el 95% del uso" y la medicion lo desmintio.** Es cierto MIENTRAS SE ESCRIBE
-     * --37 de 70 prefijos llenan el limite-- y falso para la busqueda que de verdad corre: D-128
-     * no busca con el teclado abierto, busca una vez al cerrarlo y sobre la palabra **completa**,
-     * que es justo el caso donde el prefijo devuelve pocas filas y la cascada sigue. Medido sobre
-     * el pack español, el promedio de una busqueda real es **3,0 peldanos**, no 1. No cambia nada
-     * de este metodo; cambia lo que alguien concluye leyendolo. Ver `docs/bateria.md`.
+     * ⚠️ **It used to say "95 % of use" and a measurement disproved it.** That is true WHILE
+     * TYPING --37 of 70 prefixes fill the limit-- and false for the search that actually runs:
+     * D-128 does not search with the keyboard open, it searches once on closing it and over the
+     * **whole** word, which is exactly the case where the prefix returns few rows and the cascade
+     * continues. Measured over the Spanish pack, a real search averages **3.0 rungs**, not 1. It
+     * changes nothing about this method; it changes what somebody concludes from reading it. See
+     * `docs/bateria.md`.
      *
-     * Sale integra del covering index, sin tocar la tabla y sin leer un solo payload. Se usa un
-     * rango explicito y no `LIKE 'x%'` porque LIKE solo se optimiza a range scan si
-     * `case_sensitive_like` esta en el valor correcto, y ante la duda SQLite hace full scan
-     * (D-012).
+     * It comes whole from the covering index, without touching the table and without reading a
+     * single payload. An explicit range is used rather than `LIKE 'x%'` because LIKE is only
+     * optimized into a range scan when `case_sensitive_like` holds the right value, and in doubt
+     * SQLite does a full scan (D-012).
      */
     private suspend fun byPrefix(
         normalized: String,
@@ -110,13 +111,13 @@ class SqlitePackSource(
         lang: String?,
     ): List<Suggestion> {
         val upper = PrefixRange.upperBound(normalized)
-        // `lang` va al final de `idx_entry_norm`, asi que el filtro sale del mismo indice de
-        // cobertura y no toca la tabla.
+        // `lang` sits at the end of `idx_entry_norm`, so the filter comes from that same
+        // covering index and does not touch the table.
         val porIdioma = if (lang != null) " AND lang = ?" else ""
-        // El rango sale del covering index; el orden NO, y es deliberado (D-068). `norm` es
-        // alfabetico y ordenar por el entierra la palabra comun debajo de las raras que
-        // comparten prefijo. El CASE sube la coincidencia exacta, que es lo que el usuario
-        // acaba de escribir entero y nunca puede faltar.
+        // The range comes from the covering index; the ORDER does NOT, and that is deliberate
+        // (D-068). `norm` is alphabetical, and ordering by it buries the common word under the
+        // rare ones that share its prefix. The CASE lifts the exact match, which is what the user
+        // has just typed in full and can never be missing.
         val order = " ORDER BY CASE WHEN norm = ? THEN 0 ELSE 1 END, rank, norm LIMIT ?"
         val sql = if (upper != null) {
             "SELECT id, headword, pos, rank FROM entry WHERE norm >= ? AND norm < ?" +
@@ -135,13 +136,13 @@ class SqlitePackSource(
             statement.collectSuggestions(MatchKind.PREFIX, rankIndex = 3)
         }
 
-        // Se pide de mas y se deduplica aca, no con GROUP BY: medido sobre el pack real, el
-        // GROUP BY cuesta 7,9 ms p95 con un prefijo de una letra contra 1,8 ms de esta forma,
-        // y ademas no saca los duplicados que se ven, que difieren en pos.
+        // More rows are asked for and deduplicated here rather than with GROUP BY: measured over
+        // the real pack, GROUP BY costs 7.9 ms p95 with a one-letter prefix against 1.8 ms this
+        // way, and it does not even remove the duplicates you can see, which differ in pos.
         return rows.distinctBy { it.headword to it.partOfSpeech }.take(limit)
     }
 
-    /** Se escribio "corriendo" y el lema es "correr". */
+    /** "corriendo" was typed and the headword is "correr". */
     private suspend fun byInflectedForm(
         normalized: String,
         limit: Int,
@@ -160,11 +161,11 @@ class SqlitePackSource(
         }
 
     /**
-     * Lado de la traduccion.
+     * The translation side.
      *
-     * **Deduplica por entrada a proposito.** El rango de prefijo matchea varias claves de la
-     * misma entrada ("to", "to run", "to pass"), y sin el `IN (SELECT ...)` la entrada saldria
-     * una vez por clave.
+     * **It deduplicates per entry on purpose.** The prefix range matches several keys of the same
+     * entry ("to", "to run", "to pass"), and without the `IN (SELECT ...)` the entry would come
+     * out once per key.
      */
     private suspend fun byTranslation(
         normalized: String,
@@ -188,24 +189,24 @@ class SqlitePackSource(
     }
 
     /**
-     * Nivel tolerante a errores.
+     * The error-tolerant rung.
      *
-     * Consulta por un **prefijo** de la clave fuzzy, no por la clave entera: eso trae un
-     * vecindario en vez de solo las colisiones exactas, que es lo que hace falta cuando el
-     * dictado por voz produjo algo que no coincide con nada.
+     * It queries a **prefix** of the fuzzy key rather than the whole key: that brings back a
+     * neighbourhood instead of only the exact collisions, which is what is needed when voice
+     * dictation produced something that matches nothing.
      *
-     * Los candidatos se reordenan en Kotlin por distancia de Damerau-Levenshtein contra la
-     * consulta normalizada. El indice incluye `norm` justamente para poder hacer eso sin leer
-     * la tabla (D-013); recien los sobrevivientes se buscan por id.
+     * The candidates are reordered in Kotlin by Damerau-Levenshtein distance against the
+     * normalized query. The index includes `norm` precisely so that can be done without reading
+     * the table (D-013); only the survivors are then looked up by id.
      */
     private suspend fun byFuzzy(
         normalized: String,
         rawQuery: String,
         lang: String?,
     ): List<Suggestion> {
-        // ⚠️ **El perfil es el DEL IDIOMA buscado, no el del pack.** Plegar una consulta inglesa
-        // con las reglas del español --`ce`→`se`, `v`→`b`-- daria una clave que no existe en la
-        // mitad inglesa del pack, y el peldaño tolerante dejaria de encontrar nada justo ahi.
+        // ⚠️ **The profile is the SEARCHED LANGUAGE's, not the pack's.** Folding an English
+        // query with Spanish rules --`ce`→`se`, `v`→`b`-- would give a key that does not exist in
+        // the English half of the pack, and the tolerant rung would stop finding anything there.
         val fuzzyKey = TextNormalizer.fuzzy(rawQuery, pack.metadata.fuzzyProfileFor(lang))
         if (fuzzyKey.isEmpty()) return emptyList()
 
@@ -264,10 +265,10 @@ class SqlitePackSource(
     }
 
     /**
-     * Texto libre dentro de las definiciones.
+     * Free text inside the definitions.
      *
-     * Es una accion explicita del usuario, **nunca** se dispara mientras escribe: recorre un
-     * indice mucho mas grande que el de lemas.
+     * It is an explicit user action and **never** fires while typing: it walks an index far
+     * larger than the headword one.
      */
     override suspend fun searchDefinitions(
         query: String,
@@ -292,25 +293,27 @@ class SqlitePackSource(
             }
             if (ids.isEmpty()) return@withContext emptyList()
 
-            // El orden que FTS5 acaba de calcular se guarda ANTES de perderlo.
+            // The order FTS5 has just computed is saved BEFORE it is lost.
             //
-            // La consulta de abajo es `WHERE id IN (...)`, que SQLite resuelve por el indice del
-            // PK y devuelve en orden de **rowid**, no de relevancia. Sin esto, `collectSuggestions`
-            // asignaria `score` sobre ese orden y el ranking de bm25 quedaria calculado y tirado:
-            // la definicion que mejor coincide no encabeza. Es la misma clase de bug que hacia que
-            // el prefijo "per" no devolviera "perro".
+            // The query below is `WHERE id IN (...)`, which SQLite resolves through the PK index
+            // and returns in **rowid** order, not relevance order. Without this,
+            // `collectSuggestions` would assign `score` over that order and bm25's ranking would
+            // be computed and thrown away: the best-matching definition would not lead. It is the
+            // same class of bug that made the prefix "per" not return "perro".
             //
-            // Se reordena en memoria y no con un JOIN porque el JOIN cambia el plan de consulta, y
-            // en este repo un plan no se cambia sin medirlo (D-012). Son 30 filas como maximo.
+            // It is reordered in memory rather than with a JOIN, because a JOIN changes the query
+            // plan, and in this repo a plan is not changed without measuring it (D-012). Thirty
+            // rows at most.
             val posicionEnFts = ids.withIndex().associate { (posicion, id) -> id to posicion }
 
-            // fts_def es contentless: solo devuelve rowids, que SON entry.id (D-011).
-            // ⚠️ **El idioma se filtra AQUI y no en el MATCH**, porque `fts_def` es contentless
-            // y no tiene columnas propias que filtrar: solo devuelve rowids. El precio es que el
-            // `LIMIT` de arriba se aplica antes del filtro, asi que una busqueda por definicion
-            // en un pack bidireccional puede devolver menos de `limit`. Se acepta: es una accion
-            // explicita del usuario, no la busqueda incremental, y la alternativa --pedir el
-            // doble y recortar-- duplicaria el peldaño mas caro del pack para un caso raro.
+            // fts_def is contentless: it returns only rowids, which ARE entry.id (D-011).
+            // ⚠️ **The language is filtered HERE and not in the MATCH**, because `fts_def` is
+            // contentless and has no columns of its own to filter on: it returns only rowids. The
+            // price is that the `LIMIT` above applies before the filter, so a definition search
+            // in a bidirectional pack may return fewer than `limit`. That is accepted: it is an
+            // explicit user action rather than the incremental search, and the alternative
+            // --asking for twice as many and trimming-- would double the pack's most expensive
+            // rung for a rare case.
             val porIdioma = if (lang != null) " AND lang = ?" else ""
             val placeholders = ids.joinToString(",") { "?" }
             pack.connection().prepare(
@@ -325,7 +328,7 @@ class SqlitePackSource(
         }
     }
 
-    /** El cuerpo de una entrada. Aca si se lee y descomprime el payload. */
+    /** An entry's body. Here the payload is read and decompressed. */
     override suspend fun entry(entryId: Long): Entry? = withContext(dispatcher) {
         pack.connection().prepare(
             "SELECT headword, pos, payload, uid, lang FROM entry WHERE id = ?",
@@ -337,14 +340,15 @@ class SqlitePackSource(
             Entry(
                 packId = pack.metadata.packId,
                 entryId = entryId,
-                // La fila ya se leyo entera para traer el payload, asi que el uid sale gratis:
-                // es justo el momento en que la composicion entre packs lo necesita.
+                // The row was already read whole to fetch the payload, so the uid comes free:
+                // and this is exactly when composition between packs needs it.
                 uid = statement.getLong(3),
-                // De la FILA y no del pack: en un bidireccional la entrada abierta puede ser del
-                // otro idioma, y es justo el caso al que se llega tocando una traduccion.
+                // From the ROW and not from the pack: in a bidirectional pack the opened entry
+                // may belong to the other language, which is exactly the case reached by tapping
+                // a translation.
                 lang = statement.getTextOrNull(4),
                 headword = statement.getText(0),
-                // El pos de la columna manda sobre el del payload: es el que ordena la lista.
+                // The column's pos wins over the payload's: it is the one the list sorts by.
                 partOfSpeech = statement.getTextOrNull(1) ?: body.partOfSpeech,
                 senses = body.senses,
                 wordTranslations = body.wordTranslations,
@@ -364,11 +368,11 @@ class SqlitePackSource(
             // Un pack de un solo idioma no filtra: el WHERE sobraria.
             val filtro = lang?.takeIf { pack.metadata.langs.size > 1 }
             val porIdioma = if (filtro != null) " AND lang = ?" else ""
-            // SIN `ORDER BY rank`, y es deliberado: ordenar globalmente sobre un `IN` obliga a
-            // SQLite a un TEMP B-TREE y la consulta deja de servirse del covering index (D-012,
-            // y es el mismo efecto que midio D-063). El mejor rank se elige aca abajo, sobre las
-            // pocas filas que devuelve una glosa: con dos entradas por clave no hay nada que
-            // ordenar que valga una tabla temporal.
+            // NO `ORDER BY rank`, and that is deliberate: sorting globally over an `IN` forces
+            // SQLite into a TEMP B-TREE and the query stops being served by the covering index
+            // (D-012, the same effect D-063 measured). The best rank is chosen below, over the
+            // handful of rows a gloss returns: with two entries per key there is nothing worth a
+            // temporary table to sort.
             pack.connection().prepare(
                 "SELECT norm, id, rank FROM entry WHERE norm IN ($huecos)$porIdioma",
             ).use { statement ->
@@ -382,8 +386,8 @@ class SqlitePackSource(
                     val id = statement.getLong(1)
                     val rank = statement.getInt(2)
                     val actual = mejorPorClave[clave]
-                    // Menor rank es mas comun: "arbol" con tilde (45) le gana a la variante sin
-                    // tilde (900), que es la misma regla con la que se ordena la lista (D-068).
+                    // Lower rank is more common: "árbol" with its accent (45) beats the
+                    // accentless variant (900), which is the rule the list sorts by (D-068).
                     if (actual == null || rank < actual.second) {
                         mejorPorClave[clave] = id to rank
                     }
@@ -416,15 +420,15 @@ class SqlitePackSource(
     // ----------------------------------------------------------------- helpers
 
     /**
-     * ⚠️ **`rankIndex` es opcional porque sólo el peldaño de PREFIJO lo trae.** Ahí la consulta
-     * sale del covering index, que ya incluye `rank`, así que pedirlo **no cuesta una fila más**;
-     * en los otros peldaños habría que tocar la tabla para un desempate que no aplica —
-     * `hasFrequencySignal` sólo ordena dentro de `PREFIX`.
+     * ⚠️ **`rankIndex` is optional because only the PREFIX rung carries it.** There the query
+     * comes from the covering index, which already includes `rank`, so asking for it **costs not
+     * one extra row**; on the other rungs the table would have to be touched for a tie-break that
+     * does not apply -- `hasFrequencySignal` only orders within `PREFIX`.
      */
     private suspend fun SQLiteStatement.collectSuggestions(
         kind: MatchKind,
-        // `Int?` y no un centinela `-1`: lint lo rechaza --`getInt` exige >= 0-- y tiene razon,
-        // un valor magico en una posicion de columna es justo donde un off-by-one no se ve.
+        // `Int?` and not a `-1` sentinel: lint rejects it --`getInt` requires >= 0-- and it is
+        // right, a magic value in a column position is exactly where an off-by-one hides.
         rankIndex: Int? = null,
     ): List<Suggestion> {
         val frontera = pack.metadata.rankSignalBoundary
@@ -439,11 +443,11 @@ class SqlitePackSource(
                 headword = getText(1),
                 partOfSpeech = getTextOrNull(2),
                 matchKind = kind,
-                // Menor es mejor: la posicion dentro de su nivel, que ya viene ordenado por rank.
+                // Lower is better: the position within its rung, already ordered by rank.
                 score = position++,
-                // La señal se resuelve ACA, contra la frontera que declara ESTE pack (D-198).
-                // Lo que sale de aca es la respuesta, no el `rank`: la escala no es comparable
-                // entre packs (D-187) y exponerla invitaria justo a esa comparacion.
+                // The signal is resolved HERE, against the boundary THIS pack declares (D-198).
+                // What comes out is the answer, not the `rank`: the scale is not comparable
+                // across packs (D-187) and exposing it would invite exactly that comparison.
                 hasFrequencySignal = frontera != null &&
                     rankIndex != null &&
                     getInt(rankIndex) < frontera,
@@ -467,26 +471,27 @@ class SqlitePackSource(
     }
 
     companion object {
-        /** Si la cascada confiable devolvio menos que esto, se intenta el nivel tolerante. */
+        /** If the trustworthy cascade returned fewer than this, the tolerant rung is tried. */
         const val FUZZY_TRIGGER: Int = 5
 
         /**
-         * Cuantas filas se piden por cada resultado que se va a mostrar, para que la
+         * How many rows are asked for per result that will be shown, so that the
          * deduplicacion no deje la lista corta.
          *
-         * 3 sale de medir el pack real: con el prefijo mas productivo de una letra (22.358
+         * 3 comes from measuring the real pack: with the most productive one-letter prefix
+         * (22,358
          * filas), pedir 90 y deduplicar en memoria deja 30 lemas distintos y cuesta 1,8 ms
-         * p95 en escritorio. El numero del reloj falta: es lo que O-1 existe para dar.
+         * p95 on the desktop. The watch's number is missing: that is what O-1 exists to give.
          */
         const val PREFIX_OVERFETCH: Int = 3
 
         /**
-         * Tope de claves por consulta al resolver las palabras de una glosa.
+         * Cap on keys per query when resolving a gloss's words.
          *
-         * No es una optimizacion sino un limite duro: cada clave es un parametro enlazado y
+         * Not an optimization but a hard limit: every key is a bound parameter and
          * SQLite tiene un maximo. La glosa mas larga medida en el pack real tiene bastante menos
-         * que esto, asi que el tope no recorta nada real; existe para que un texto anomalo
-         * --un ejemplo de 917 caracteres colado donde va una glosa-- falle recortando y no
+         * than this, so the cap trims nothing real; it exists so that an anomalous text
+         * --a 917-character example slipped in where a gloss belongs-- fails by trimming and not
          * tirando.
          */
         const val MAX_PALABRAS_POR_CONSULTA: Int = 64
@@ -494,25 +499,25 @@ class SqlitePackSource(
         /** Cuantos caracteres de la clave fuzzy definen el vecindario. */
         const val FUZZY_PREFIX_LENGTH: Int = 4
 
-        /** Tope de candidatos a reordenar por distancia de edicion. */
+        /** Cap on candidates to reorder by edit distance. */
         const val FUZZY_CANDIDATES: Int = 200
 
         /** Cuantos sobreviven al reordenamiento. */
         const val FUZZY_RESULTS: Int = 10
 
-        /** Mas alla de esto ya no es un error de tipeo, es otra palabra. */
+        /** Beyond this it is no longer a typo, it is a different word. */
         const val MAX_EDIT_DISTANCE: Int = 2
 
         /**
-         * Un hilo por pack, por `THREADSAFE=2`. `limitedParallelism(1)` sobre IO y no un
-         * executor propio: reusa el pool del proceso en vez de sumarle un hilo.
+         * One thread per pack, because of `THREADSAFE=2`. `limitedParallelism(1)` over IO rather
+         * than an executor of its own: it reuses the process pool instead of adding a thread.
          */
         fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.IO.limitedParallelism(1)
 
         /**
-         * Convierte texto libre en una expresion MATCH de FTS5.
+         * Turns free text into an FTS5 MATCH expression.
          *
-         * Cada token va entre comillas para que lo que escriba el usuario **nunca** se
+         * Every token is quoted so that what the user types can **never** be
          * interprete como sintaxis de FTS5: un `"` suelto o un `OR` cambiarian la consulta o la
          * harian fallar.
          */
