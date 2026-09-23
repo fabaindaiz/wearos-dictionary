@@ -105,6 +105,17 @@ object DebugKnobs {
         data class BadValue(val key: String, val value: String, val expected: String) : Written
     }
 
+    /**
+     * Validates a write. **[Knob.sensitive] is deliberately NOT consulted here.**
+     *
+     * ⚠️ **Sensitive means "the Settings screen must not offer this", never "`adb` must not
+     * set it".** Blocking it here would remove the only reason the flag's subject exists: aiming
+     * a build at a development catalogue without rebuilding it. And it would buy nothing --
+     * `adb` reaches only a build that ships the receiver at all, which release does not.
+     *
+     * Written out because it is the obvious-looking hardening for somebody skimming, and a test
+     * pins it.
+     */
     fun write(key: String, value: String): Written {
         val knob = knob(key) ?: return Written.UnknownKey(key)
         if (value.isBlank()) return Written.Cleared(key)

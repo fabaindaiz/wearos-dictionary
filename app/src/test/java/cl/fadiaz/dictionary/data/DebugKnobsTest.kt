@@ -68,6 +68,23 @@ class DebugKnobsTest {
     }
 
     @Test
+    fun aSensitiveKnobIsStillWritableFromAdb() {
+        // ⚠️ **The flag governs the SCREEN, not the door**, and this test exists because the
+        // opposite reading is the obvious-looking hardening: someone skims `sensitive = true`,
+        // makes `write` refuse it, and removes the only reason the knob exists -- aiming a build
+        // at a development catalogue without rebuilding 112 MB.
+        //
+        // It would also buy nothing: `adb` reaches only a build that ships the receiver, and
+        // release folds it out of the dex entirely.
+        val knob = DebugKnobs.knob(DebugKnobs.CATALOG)!!
+        assertTrue(knob.sensitive, "the premise of this test")
+        assertEquals(
+            DebugKnobs.Written.Ok(DebugKnobs.CATALOG, "http://localhost:8799"),
+            DebugKnobs.write(DebugKnobs.CATALOG, "http://localhost:8799"),
+        )
+    }
+
+    @Test
     fun everyKnobSaysWhatItIsAndWhatItTakes() {
         // Cheap, and it is what stops the fifth knob from arriving with an empty description:
         // the help text is the only documentation anybody reads at a prompt.
