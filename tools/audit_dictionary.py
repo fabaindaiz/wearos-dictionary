@@ -1456,7 +1456,44 @@ def check_xml_comments(report):
                 )
 
 
+def check_core_index_name(report):
+    """Regla: el nombre del indice de versiones coincide en el build y en la app. (D-229)
+
+    `bundlePacks` escribe `assets/<CORE_INDEX>` con el `data_version` de cada pack incluido, y
+    `PackStore` lo lee por el mismo nombre. Son los dos extremos de un archivo y **no hay forma de
+    compartir una constante entre un script de Gradle y el codigo de la app**.
+
+    El modo de falla es el que este repo no puede ver: si los literales se separan, el indice
+    **no se encuentra y nada falla**. `coreIndex` devuelve un mapa vacio --por diseno, para que un
+    APK sin indice degrade-- asi que los nucleos quedan sin version declarada y **no se actualizan
+    nunca**. Sin excepcion, sin log de error, y con la app funcionando.
+    """
+    build = read("app/build.gradle.kts")
+    store = read("app/src/main/java/cl/fadiaz/dictionary/data/PackStore.kt")
+
+    en_build = re.search(r'val\s+CORE_INDEX\s*=\s*"([^"]+)"', build)
+    en_app = re.search(r'const\s+val\s+CORE_INDEX\s*=\s*"([^"]+)"', store)
+
+    if en_build is None or en_app is None:
+        report.failure(
+            "no se encuentra CORE_INDEX en los dos lados",
+            "build.gradle.kts=%s, PackStore.kt=%s; sin los dos no se puede comprobar que "
+            "coincidan, y si no coinciden el indice no se lee y nada falla"
+            % (en_build is not None, en_app is not None),
+        )
+        return
+
+    if en_build.group(1) != en_app.group(1):
+        report.failure(
+            "CORE_INDEX no coincide entre el build y la app",
+            "build.gradle.kts escribe %r y PackStore.kt lee %r: el indice no se encuentra, los "
+            "nucleos quedan sin version declarada y no se actualizan nunca, en silencio"
+            % (en_build.group(1), en_app.group(1)),
+        )
+
+
 CHECKS = [
+    check_core_index_name,
     check_mirror_declarations,
     check_version_constants,
     check_rejection_mirror,

@@ -38,24 +38,90 @@ class PackStoreTest {
     private fun content(n: Int) = ByteArray(n) { (it % 251).toByte() }
 
     @Test
-    fun `un pack incluido que se ACTUALIZO desde el catalogo no se re-extrae`() {
+    fun `un pack incluido que se ACTUALIZO desde el catalogo NUNCA se pisa a ciegas`() {
         // ⚠️ Visto en el emulador el 2026-09-22, y es un defecto que la descarga CREO. `es-core.db`
         // viene en el APK; actualizarlo desde el catalogo reescribe ese mismo archivo. Sin esto, la
         // siguiente version de la app re-extrae todos sus assets y **pisa en silencio el pack nuevo
         // con el viejo**: un downgrade que nadie reporta, porque el pack sigue abriendo.
-        //
-        // La regla: el catalogo gana sobre el APK. Lo incluido existe para arrancar de cero.
-        assertEquals(
-            emptyList(),
-            PackStore.assetsToExtract(
-                assets = listOf("es-core.db"),
-                installed = listOf("es-core.db"),
-                last = 4,
-                current = 5,
-                downloaded = setOf("es-core.db"),
-            ),
-            "una version nueva de la app no puede pisar lo que se bajo del catalogo",
+        val plan = PackStore.assetsToExtract(
+            assets = listOf("es-core.db"),
+            installed = listOf("es-core.db"),
+            last = 4,
+            current = 5,
+            downloaded = setOf("es-core.db"),
         )
+        assertEquals(
+            emptyList(), plan.copy,
+            "una version nueva de la app no puede pisar a ciegas lo que se bajo del catalogo",
+        )
+        // ⚠️ Y **tampoco se lo ignora para siempre**, que era el defecto simetrico: hasta aqui
+        // la regla era *"el catalogo gana"* a secas, asi que un nucleo bajado hace meses le
+        // ganaba al del APK de hoy aunque el de hoy fuera mas nuevo. Va a `compare`: gana el
+        // `data_version` mayor, y quien lo resuelve es `extractIfNewer`.
+        assertEquals(listOf("es-core.db"), plan.compare)
+    }
+
+    @Test
+    fun `un pack marcado del catalogo que ya no esta en disco se copia, no se compara`() {
+        // No hay contra que comparar. Hoy `deletePack` limpia la marca al borrar, asi que esto
+        // no deberia pasar -- y por eso mismo, si pasa, lo seguro es terminar CON el pack y no
+        // sin el.
+        val plan = PackStore.assetsToExtract(
+            assets = listOf("es-core.db"),
+            installed = emptyList(),
+            last = 4,
+            current = 5,
+            downloaded = setOf("es-core.db"),
+        )
+        assertEquals(listOf("es-core.db"), plan.copy)
+        assertEquals(emptyList(), plan.compare)
+    }
+
+    // --- El indice de versiones de los packs incluidos ---------------------------------------
+
+    @Test
+    fun `el indice declara la version de cada nucleo`() {
+        val indice = PackStore.parseCoreIndex("es-core.db\t202609231356\nen-core.db\t202609222020\n")
+        assertEquals(202609231356L, indice["es-core.db"])
+        assertEquals(202609222020L, indice["en-core.db"])
+    }
+
+    @Test
+    fun `una linea rota deja SIN version a ese pack y no a los demas`() {
+        // ⚠️ **El modo de falla de este parser es devolver un mapa vacio, no lanzar.** Sin
+        // versiones declaradas los nucleos del APK no se actualizan nunca -- sin excepcion, sin
+        // log de error y con la app funcionando. Romper por una linea mala dejaria sin version a
+        // TODOS los packs, que es el peor resultado posible para un archivo mal escrito.
+        val indice = PackStore.parseCoreIndex(
+            "\n" +
+                "es-core.db\tno-es-un-numero\n" +
+                "en-core.db\t202609222020\n" +
+                "sobran\tcampos\ty\tmas\n" +
+                "\t202609220000\n",
+        )
+        assertEquals(mapOf("en-core.db" to 202609222020L), indice)
+    }
+
+    @Test
+    fun `un indice vacio no declara nada, y eso es el estado seguro`() {
+        // Es lo que pasa cuando el build no encontro `index.json` o lo encontro desactualizado.
+        // La app entonces deja el pack del usuario como esta, en vez de pisarlo a ciegas.
+        assertEquals(emptyMap(), PackStore.parseCoreIndex(""))
+    }
+
+    @Test
+    fun `sin cambio de version no se compara nada`() {
+        // El mismo APK que la ultima vez: su contenido no cambio. Comparar costaria copiar 50 MB
+        // en CADA arranque para contestar lo mismo que el arranque anterior.
+        val plan = PackStore.assetsToExtract(
+            assets = listOf("es-core.db"),
+            installed = listOf("es-core.db"),
+            last = 5,
+            current = 5,
+            downloaded = setOf("es-core.db"),
+        )
+        assertEquals(emptyList(), plan.copy)
+        assertEquals(emptyList(), plan.compare)
     }
 
     @Test
@@ -69,7 +135,7 @@ class PackStoreTest {
                 last = 4,
                 current = 5,
                 downloaded = setOf("es-core.db"),
-            ),
+            ).copy,
         )
     }
 
@@ -156,7 +222,7 @@ class PackStoreTest {
     fun theBundledPackIsExtractedTheFirstTime() {
         assertEquals(
             listOf("es-core.db"),
-            PackStore.assetsToExtract(listOf("es-core.db"), emptyList(), last = 0, current = 4),
+            PackStore.assetsToExtract(listOf("es-core.db"), emptyList(), last = 0, current = 4).copy,
         )
     }
 
@@ -166,7 +232,7 @@ class PackStoreTest {
         assertEquals(
             emptyList(),
             PackStore.assetsToExtract(
-                listOf("es-core.db"), listOf("es-core.db"), last = 4, current = 4),
+                listOf("es-core.db"), listOf("es-core.db"), last = 4, current = 4).copy,
         )
     }
 
@@ -179,7 +245,7 @@ class PackStoreTest {
             PackStore.assetsToExtract(
                 listOf("es-core.db"), listOf("es-core.db", "es-def-wikc.db"),
                 last = 4, current = 4,
-            ),
+            ).copy,
         )
     }
 
@@ -198,7 +264,7 @@ class PackStoreTest {
             PackStore.assetsToExtract(
                 listOf("es-core.db", "en-core.db"), listOf("es-core.db", "en-core.db"),
                 last = 3, current = 4,
-            ),
+            ).copy,
         )
     }
 
@@ -211,7 +277,7 @@ class PackStoreTest {
             PackStore.assetsToExtract(
                 listOf("es-core.db"), listOf("es-core.db", "es-def-wikc.db"),
                 last = 3, current = 4,
-            ),
+            ).copy,
         )
     }
 
@@ -222,7 +288,7 @@ class PackStoreTest {
         assertEquals(
             listOf("es-core.db"),
             PackStore.assetsToExtract(
-                listOf("es-core.db"), listOf("es-def-wikc.db"), last = 4, current = 4),
+                listOf("es-core.db"), listOf("es-def-wikc.db"), last = 4, current = 4).copy,
         )
     }
 

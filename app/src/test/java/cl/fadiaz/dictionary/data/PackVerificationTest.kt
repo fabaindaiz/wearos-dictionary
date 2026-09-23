@@ -25,7 +25,8 @@ class PackVerificationTest {
         normVersion: Int = 3,
         schemaVersion: Int = 4,
         codecId: String = "deflate-v2",
-    ) = PackVerification.rules(normVersion, schemaVersion, codecId)
+        appVersion: Int = 4,
+    ) = PackVerification.rules(normVersion, schemaVersion, codecId, appVersion)
 
     private fun huella(
         bytes: Long = 75_161_600L,
@@ -54,6 +55,32 @@ class PackVerificationTest {
         // que volver a probarse: sus claves se calcularon con otras reglas. Un caché que
         // sobreviviera a esto haría exactamente el daño que D-142 existe para evitar.
         assertTrue(huella(rules = reglas(normVersion = 3)) != huella(rules = reglas(normVersion = 4)))
+    }
+
+    @Test
+    fun installingANewAppVersionInvalidatesEveryPack() {
+        // ⚠️ **La vía que no depende de que nadie se acuerde.** Las otras cuatro partes de la
+        // huella son constantes que alguien tiene que subir a mano; agregar una invariante a
+        // `PackFile.open` sin tocar `CHECKS_VERSION` deja a todo pack ya anotado saltándose la
+        // comprobación nueva **para siempre**. El `versionCode` no se puede olvidar: el
+        // instalador de Android rechaza un downgrade (D-095).
+        assertTrue(huella(rules = reglas(appVersion = 4)) != huella(rules = reglas(appVersion = 5)))
+    }
+
+    @Test
+    fun aNewAppVersionAlsoRetriesWhatItHadREJECTED() {
+        // ⚠️ **La mitad que más importa, y la que se olvida al leer «caduca el memo».** Un sí
+        // cacheado de más cuesta que se use un pack malo; un **no** cacheado de más cuesta que
+        // un pack bueno desaparezca sin log, porque el archivo no cambia y nada lo vuelve a
+        // mirar. Una app nueva es exactamente el momento en que un rechazo puede haber dejado
+        // de ser cierto — y tiene que volver a mirarse aunque el motivo no fuera el esquema.
+        val memo = memoCon(
+            fingerprint = huella(rules = reglas(appVersion = 4)),
+            rejection = PackRejection.DAMAGED,
+        )
+        assertNull(
+            PackVerification.verdict(memo, "es-def.db", huella(rules = reglas(appVersion = 5))),
+        )
     }
 
     @Test

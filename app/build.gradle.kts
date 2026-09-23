@@ -351,28 +351,151 @@ kotlin {
  * De paso, el build de Android **deja de depender de Python**: `build_toy.py` ya solo genera el
  * fixture de los tests instrumentados, desde `:dict-data`.
  *
- * El directorio se configura con `dictionary.packsDir`; por defecto es `../wearos-dictionary-data`,
- * que es donde ya estan.
+ * El directorio se configura con `dictionary.packsDir`; por defecto es
+ * `../wearos-dictionary-data/dist`.
+ *
+ * ⚠️ **El default apuntaba a `../wearos-dictionary-data` a secas y por eso el APK viajaba SIN
+ * diccionario.** El rebuild del 2026-09-22 movio lo publicable a `dist/` --que es la unica
+ * carpeta que `packserver.py` sirve, y lo que `tools/CLAUDE.md` documenta-- y esta ruta se quedo
+ * atras. El sintoma es exactamente el que este repo no puede ver: **el build sigue verde**,
+ * porque `filter { it.isFile }` deja la lista vacia y eso es un caso soportado a proposito (un
+ * clone limpio no tiene los packs, D-175). Lo unico que se nota es que la app arranca diciendo
+ * *"No hay ningun diccionario instalado"* -- en el reloj, despues de instalar.
+ *
+ * Comprobado el 2026-09-23: `src/main/assets/` tenia solo el `.gitkeep`.
  */
 val packsDir = providers.gradleProperty("dictionary.packsDir")
-    .getOrElse("../wearos-dictionary-data")
+    .getOrElse("../wearos-dictionary-data/dist")
+/**
+ * Como se llama, en `assets/`, el indice de versiones de los packs incluidos.
+ *
+ * El mismo literal vive en `PackStore.CORE_INDEX`: son los dos extremos de un archivo, y no hay
+ * forma de compartir una constante entre el script de build y el codigo de la app. Lo que si hay
+ * es un enforcer -- `check_core_index_name` en el audit -- que falla si dejan de coincidir.
+ */
+val CORE_INDEX = "core-index.tsv"
+
 val nucleos = listOf("es-core.db", "en-core.db")
     .map { rootProject.layout.projectDirectory.file("$packsDir/$it").asFile }
     .filter { it.isFile }
+
+/**
+ * El **indice**: el `data_version` de cada nucleo que viaja en el APK.
+ *
+ * ⚠️ **Existe para que la app NO tenga que extraer un pack de 50 MB para preguntarle su version.**
+ * La primera version de D-226 copiaba el asset a un `.candidate`, lo abria y comparaba: correcto,
+ * y caro. La observacion que lo corrige: *«puedo tener guardada la version del pack incluido en la
+ * app, es un caso excepcional y hace la funcion de indice que si tiene el server web»*. Y es
+ * literalmente eso — el archivo que se lee aca es **el mismo `index.json` que `packserver.py`
+ * sirve** (`--index-only`), no un formato nuevo.
+ *
+ * ⚠️ **`db_bytes` es el guardian de frescura, y sin el esto seria peor que el metodo caro.** Un
+ * indice viejo al lado de un `.db` nuevo declararia una version que no es, y la app decidiria un
+ * reemplazo con un numero equivocado -- el downgrade silencioso que D-226 viene a cerrar, por otra
+ * puerta. Si el tamano no coincide, el pack se queda **sin version declarada** y la app lo trata
+ * como desconocido, que es el estado seguro.
+ *
+ * Se regenera con:
+ *
+ *     python3 tools/packserver.py <packsDir> --index-only > <packsDir>/index.json
+ */
+fun versionesDeclaradas(dirDePacks: File, packs: List<File>): Map<String, Long> {
+    val indice = File(dirDePacks, "index.json")
+    if (!indice.isFile) return emptyMap()
+    val raiz = runCatching {
+        @Suppress("UNCHECKED_CAST")
+        (groovy.json.JsonSlurper().parse(indice) as Map<String, Any?>)["packs"] as? List<Any?>
+    }.getOrNull() ?: return emptyMap()
+    val porNombre = packs.associateBy { it.name }
+    val salida = mutableMapOf<String, Long>()
+    for (fila in raiz) {
+        @Suppress("UNCHECKED_CAST")
+        val entrada = fila as? Map<String, Any?> ?: continue
+        val nombre = (entrada["db_url"] as? String)?.substringAfterLast('/') ?: continue
+        val archivo = porNombre[nombre] ?: continue
+        val version = (entrada["data_version"] as? Number)?.toLong() ?: continue
+        val declarados = (entrada["db_bytes"] as? Number)?.toLong()
+        // El guardian: un indice que no describe a ESTE archivo no se usa.
+        if (declarados == null || declarados != archivo.length()) continue
+        salida[nombre] = version
+    }
+    return salida
+}
 
 val bundlePacks = tasks.register("bundlePacks") {
     group = "build"
     description = "Pone en assets/ los packs nucleo. Si no estan, el APK viaja sin diccionario."
     val destino = layout.projectDirectory.dir("src/main/assets").asFile
+    val dondeSeBusco = rootProject.layout.projectDirectory.file(packsDir).asFile
+    val indice = File(dondeSeBusco, "index.json")
     inputs.files(nucleos)
+    // El indice es entrada: cambiarlo tiene que re-correr la tarea, o el APK quedaria declarando
+    // una version que ya no es la del pack que lleva adentro.
+    //
+    // ⚠️ **`inputs.files` en plural y no `inputs.file(...).optional()`**, y la diferencia rompe el
+    // build: con la forma singular Gradle 9 valida la existencia ANTES de mirar el `optional()` y
+    // falla con *«Input file does not exist»*. Un clone sin el directorio de datos --que es un
+    // caso soportado, D-086 y D-175-- no compilaba. Lo agarro verificar el commit en un worktree,
+    // que es exactamente donde ese directorio no esta.
+    inputs.files(indice)
     outputs.dir(destino)
     val aCopiar = nucleos
+    // ⚠️ **Se resuelve en CONFIGURACION y no dentro del `doLast`**, y no es estilo: el
+    // configuration cache no puede serializar una referencia a una funcion del script, asi que
+    // llamar a [versionesDeclaradas] desde la accion hace fallar el build entero. Lo que viaja al
+    // `doLast` es el Map ya calculado, que si es serializable.
+    val indiceDeVersiones = versionesDeclaradas(dondeSeBusco, nucleos)
+    val versiones = indiceDeVersiones
+    // ⚠️ Copia local del nombre, por el mismo motivo: leer una `val` de nivel de script desde el
+    // `doLast` captura el objeto del script y el configuration cache lo rechaza.
+    val nombreDelIndice = CORE_INDEX
     doLast {
+        // ⚠️ **Avisa fuerte cuando no hay nucleos, y eso NO es cosmetica.** Que la lista venga
+        // vacia es un caso soportado --un clone limpio no tiene los packs, que pesan 372 MB y
+        // viven fuera del repo (D-175, D-086: un clone limpio tiene que seguir compilando)-- asi
+        // que el build no puede fallar aqui. Pero el silencio ya costo: el 2026-09-22 el rebuild
+        // movio los packs a `dist/`, esta ruta se quedo atras, y **el build siguio verde
+        // publicando un APK sin diccionario**. El sintoma aparecia recien en el reloj.
+        if (aCopiar.isEmpty()) {
+            logger.warn(
+                "bundlePacks: NO hay nucleos y el APK va a viajar SIN diccionario.\n" +
+                    "  se buscaron es-core.db y en-core.db en: $dondeSeBusco\n" +
+                    "  si estan en otro lado: ./gradlew ... -Pdictionary.packsDir=<ruta>",
+            )
+        }
         destino.mkdirs()
         // Se limpia lo anterior: dejar un pack viejo al lado de uno nuevo significa que la app
         // abre los dos, y el viejo contesta con datos de otra construccion.
         destino.listFiles()?.filter { it.name.endsWith(".db") }?.forEach { it.delete() }
         aCopiar.forEach { it.copyTo(File(destino, it.name), overwrite = true) }
+
+        // El indice de versiones. Ver [versionesDeclaradas]: sin el, la app no puede saber si el
+        // nucleo del APK es mas nuevo que el que el usuario bajo, y lo deja como esta.
+        val manifiesto = File(destino, nombreDelIndice)
+        if (versiones.isEmpty()) {
+            manifiesto.delete()
+            if (aCopiar.isNotEmpty()) {
+                logger.warn(
+                    "bundlePacks: hay nucleos pero NINGUNA version declarada.\n" +
+                        "  la app no va a poder actualizarlos al instalar una version nueva:\n" +
+                        "  se queda con el que el usuario tenga (ver D-226).\n" +
+                        "  regeneralo con:\n" +
+                        "    python3 tools/packserver.py $dondeSeBusco --index-only \\\n" +
+                        "      > $indice",
+                )
+            }
+        } else {
+            // TSV y no JSON: son dos lineas y el parser vive en el reloj. Un formato que se
+            // parsea con `split('\t')` no puede tirar una excepcion que nadie espera.
+            manifiesto.writeText(
+                versiones.entries.sortedBy { it.key }
+                    .joinToString("\n") { (nombre, v) -> "$nombre\t$v" } + "\n",
+            )
+            logger.lifecycle("bundlePacks: ${versiones.size} nucleo(s) con version declarada")
+            aCopiar.filterNot { it.name in versiones }.forEach {
+                logger.warn("bundlePacks: ${it.name} viaja SIN version declarada (indice ausente o desactualizado)")
+            }
+        }
     }
 }
 

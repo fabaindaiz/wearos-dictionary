@@ -98,9 +98,34 @@ internal object PackVerification {
      * Los tres primeros son las constantes contra las que se compara el pack; el cuarto es qué
      * comprobaciones se corren. Cualquiera que se mueva caduca el memo entero, que es lo que
      * evita que un rechazo sobreviva a la versión de la app que ya sabría leer ese pack.
+     *
+     * ⚠️ **El quinto es el `versionCode`, y existe porque los otros cuatro dependen de que
+     * alguien se acuerde.** `NORM_VERSION`, `schema_version` y el códec los obligan a subir
+     * D-005 y D-006; [CHECKS_VERSION] no lo obliga nadie — agregar una invariante a
+     * `PackFile.open` no toca ninguna de las tres, y olvidarse deja a **todo pack ya anotado
+     * saltándose la comprobación nueva para siempre**, que es exactamente el agujero que la
+     * comprobación venía a tapar.
+     *
+     * El `versionCode` no se puede olvidar: el instalador de Android **rechaza un downgrade**
+     * (D-095), así que una app que llega al reloj trae un número mayor que la anterior, siempre.
+     * Con él adentro, instalar una versión nueva **caduca el memo entero** y el primer arranque
+     * vuelve a probar cada pack bajo las reglas de hoy.
+     *
+     * ⚠️ **Y caduca los RECHAZOS, que es la mitad que más importa.** Un sí cacheado de más
+     * cuesta que se use un pack malo; un **no** cacheado de más cuesta que un pack bueno
+     * desaparezca sin log y sin que nada lo vuelva a mirar. Una app nueva es justo el momento en
+     * que un rechazo puede haber dejado de ser cierto.
+     *
+     * **Lo que cuesta**: el primer arranque después de cada actualización paga la muestra de 64
+     * claves de D-142 sobre cada pack — medido en D-164, **41,33 ms contra 6,30** con los dos
+     * packs reales. Una vez por actualización de la app, no una vez por arranque.
      */
-    fun rules(normVersion: Int, schemaVersion: Int, codecId: String): String =
-        "n$normVersion.s$schemaVersion.$codecId.c$CHECKS_VERSION"
+    fun rules(
+        normVersion: Int,
+        schemaVersion: Int,
+        codecId: String,
+        appVersion: Int,
+    ): String = "n$normVersion.s$schemaVersion.$codecId.c$CHECKS_VERSION.a$appVersion"
 
     /** Qué hace único a un archivo probado, bajo las reglas de hoy. */
     fun fingerprint(bytes: Long, modifiedAt: Long, rules: String): String =
