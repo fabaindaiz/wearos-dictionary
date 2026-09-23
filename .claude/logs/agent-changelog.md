@@ -16,6 +16,85 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (12) — The build reaches a wrist, and three of the four things it taught were about reading signals
+**What.** The watch went from `versionCode` 4 with 472 MB of packs from 2026-09-21 to
+`versionCode` 10 with 542 MB rebuilt and repaired; P-9 answered on hardware; the APK's 111 MB
+accounted for line by line; and three requested items recorded in the roadmap, one of which
+turned out to be already half built.
+
+**Areas.** No source changed. `docs/roadmap.md`, `docs/preguntas-del-reloj.md` and this log. On
+the device: every pack replaced, the app reinstalled, the catalogue pointed at a dev server.
+
+**Why.** Asked for: *"tell me when everything is ready to connect the watch, then delete all the
+packs, install the new app and change the server url"*, then the full and translation packs, then
+three roadmap items.
+
+**Architecture.** Complies. Nothing in `:app` or `:dict-core` was touched.
+
+**Measured, all of it on the SM-L715F.**
+- **Installing 111 MB over wireless adb: 2 min 17 s.** That is P-9, open since the brief was
+  written. The first launch after it: **3,904 ms to be ready to search**, the one-off cost of
+  extracting 94 MB of cores out of the APK. With the cores already on disk and five packs open:
+  **1,302 ms**, 0 rejected.
+- **The catalogue override works on hardware**: `catalogo=http://localhost:8799` after one
+  broadcast, and it **survived the watch dropping, reconnecting and a cold start**.
+- **542 MB transferred**, sha256 verified on each: `es-full` 74.0, `es-en` 64.1, `en-full` 314.3,
+  plus the two cores extracted from the APK.
+- **The repaired `en-core` reached the wrist**: `dataVersion=202609231947`, which is the
+  `repair_meta` fix of two sessions ago arriving end to end.
+- **The APK's 111 MB, from `unzip -v`**: 45.2 MB of dex **stored uncompressed** (ART mmaps it),
+  24.9 + 32.2 MB of cores, ~8.8 MB of everything else. The cores were **16.8 MB** on the watch
+  before this: the 2026-09-22 rebuild re-cut the core tier by corpus coverage and grew them
+  **5.3x**, and nobody carried that number back to the APK.
+
+**Unverified.** **No search was run on the watch.** The packs are there and open, but nothing was
+typed or seeded: result order, the escape hatches and the gloss links (P-11) are all still
+unverified on hardware. **And no battery or performance number was taken** beyond install and
+startup, which is what D-043 says the watch is actually for.
+
+**What went wrong.**
+- WARNING: **three different "done" signals were read wrong in one day, and the third names the
+  class.** A pipeline's exit code taken for Gradle's, printing `EXIT=0` over a failed build; an
+  empty `grep` read as a clean result; and a progress monitor announcing
+  `LISTO: los tres packs transferidos` while the last pack was **53 of 314 MB** in, because
+  `^en-full.db` has an unescaped `.` that matched `en-full.db.part` -- **the very file whose
+  existence means *not yet***. All three are the same mistake: asking a question whose *false*
+  answer is indistinguishable from silence or from success. It is the shape of
+  `check_mirror_declarations` going vacuous and of `connectedAndroidTest` reporting
+  `BUILD SUCCESSFUL` over zero tests, both already written down here, and still not enough.
+- **A first proof that the definitions search is not redundant was wrong**, and reading the
+  result caught it: comparing against `entry.headword` said `cuadrupedo` was not a lemma, but
+  `norm()` strips accents and the lemma is `cuadrúpedo`. The honest demonstration turned out to
+  be a **phrase**, which cannot be a lemma at all: `color del cielo` is in 2 definitions and no
+  headword. ⚠️ **Querying a pack by the wrong column is this repo's central invariant failing in
+  miniature.**
+- **The watch dropped mid-probe**, seconds after the url was set, and that exposed a real
+  asymmetry rather than just costing time: **the override survives in preferences, `adb reverse`
+  does not.** What a user sees is a catalogue that will not load, with the url right and the
+  tunnel gone -- opposite fixes, and nothing on screen distinguishing them.
+
+**What was corrected.**
+- **The language code was reported missing from the word of the day, and on this build it is
+  there** -- verified on the watch, `ligar / verb · ES` and `postal / adj. · EN`. ⚠️ **The report
+  was almost certainly right when it was made**: the watch had been running `versionCode` 4,
+  which predates D-253, until minutes earlier. What is genuinely missing it is the **Recent**
+  list, for a documented reason.
+- **`full` + `main` of the same origin is already handled, in both directions.** `meta.subset_of`
+  plus `packsToQuery` drops any pack whose absorber is installed. The gap is elsewhere: the
+  shadowed pack keeps 103 MB nobody reads, the catalogue will still sell it to you, and
+  `representativePacks` does not honour `subset_of` at all -- it lands correctly today only
+  because an absorber always has more entries than its subset, which is a coincidence.
+
+**What was left undone.**
+- **Nothing was searched on the watch**, which is the one thing the hardware was for.
+- **The fast watch suite for P-4** -- owed for four turns now, and the watch was connected the
+  whole time.
+- The **pack rebuild** (`Eddie`/`Richard`, the `F` channel), the **no-packs dead end**, the
+  **charger constraint**, the **language code on history rows**, the three `subset_of` gaps, and
+  **~3,850 lines of translation**.
+
+---
+
 ## 2026-09-23 (11) — The app's knobs move from `adb`, and a language finally gets named at the right level
 **What.** `DEBUG_SET` changes the app's internal knobs without a rebuild and an override expires
 with the `versionCode` (D-259, D-260); a language is named at three levels and the escape hatch
