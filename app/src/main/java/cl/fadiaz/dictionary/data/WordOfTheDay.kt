@@ -122,6 +122,47 @@ internal object WordOfTheDay {
     private const val CATEGORY_PASS = -1
 
     /**
+     * The most common words are skipped, because "the most common of the candidates" is a
+     * function word in every language.
+     *
+     * ⚠️ **This is what a core pack broke, and it turned out to be broken everywhere.** A core is
+     * the 8,000 most frequent words, so picking the lowest rank among the candidates lands on
+     * `a`, `de`, `el` every time -- which is why `givesWordOfTheDay` used to exclude cores
+     * outright. That was treating the symptom in one pack: the full packs have the same bias,
+     * just diluted.
+     *
+     * **Measured over 112 simulated days on the four real packs**, days landing below this floor:
+     *
+     * | | before | with the floor |
+     * |---|---|---|
+     * | `es-core` | 84 % | **0 %** |
+     * | `en-core` | 94 % | **0 %** |
+     * | `es-full` | 41 % | **0 %** |
+     * | `en-full` | 16 % | **0 %** |
+     *
+     * What `en-core` produced before: `'m`, `TOLD`, `a`, `ah`, `as`. After: `Christmas`,
+     * `accept`, `afternoon`, `arrest`, `beauty`. And **variety does not drop** -- 101 distinct
+     * words became 100 in `es-core`, 109 became 111 in `es-full`.
+     *
+     * ⚠️ **A single constant is defensible here in a way the old per-language thresholds were
+     * not**, and that distinction is the whole justification. The rejected ones (912 for Spanish,
+     * 978 for English) measured page richness, which has no shared scale. Since D-185 `rank` is
+     * **Zipf frequency**, and the packs say so themselves: both declare
+     * `rank_signal_boundary = 500`. Measured at the same rank in both languages: 0 gives
+     * `a, la, no, y` and `a, and, i, it`; 100 gives `ahora, muy` and `hear, listen, remember`;
+     * **150 gives `amable, ataque, avión, cámara` and `attack, bag, clothes, expect`**. The scale
+     * means the same thing on both sides, so one number serves a third language too.
+     *
+     * 200 was measured as well and is equally clean, but it discards words worth teaching --
+     * `acción`, `accept`, `afternoon`. 150 is the first floor where **both** languages are clean.
+     *
+     * ⚠️ **It applies ONLY to packs that rank by frequency**, the same guard
+     * [CATEGORY_ROTATION] already uses and for the same reason: on a page-richness pack
+     * `rank = 150` means nothing at all, so the floor would discard at random.
+     */
+    const val RANK_FLOOR: Int = 150
+
+    /**
      * Today's entry, or null if the pack is empty.
      *
      * Returns the **lowest rank** --most common-- among the candidates that are not proper nouns.
@@ -135,18 +176,20 @@ internal object WordOfTheDay {
         read: suspend (Long) -> EntrySummary?,
         candidates: Int = CANDIDATES,
         /**
-         * Como calculo su `rank` el pack. Ver [CATEGORY_ROTATION].
+         * How the pack computed its `rank`. See [CATEGORY_ROTATION].
          *
-         * El defecto es [RankBasis.PAGE_RICHNESS] a proposito: es lo que era **todo** pack antes
-         * de D-185, y un sitio de llamada que se olvide de pasarlo degrada al comportamiento de
-         * siempre en vez de a uno nuevo.
+         * The default is [RankBasis.PAGE_RICHNESS] on purpose: it is what **every** pack was
+         * before D-185, so a call site that forgets to pass it degrades to the old behaviour
+         * rather than to a new one.
          */
         rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
     ): EntrySummary? {
         if (entryCount <= 0) return null
 
-        // Con frecuencia real no hay categoria del dia: manda el rank y punto.
+        // With real frequency there is no category of the day: rank decides, full stop. And the
+        // floor only applies there, because on a page-richness pack a rank of 150 means nothing.
         val rotate = rankBasis != RankBasis.FREQUENCY
+        val floor = if (rankBasis == RankBasis.FREQUENCY) RANK_FLOOR else 0
         val categoryOfTheDay = CATEGORY_ROTATION[
             positiveModulo(
                 seed(date, packId, CATEGORY_PASS),
@@ -157,6 +200,10 @@ internal object WordOfTheDay {
         var bestInCategory: EntrySummary? = null
         var best: EntrySummary? = null
         var bestEvenIfProperNoun: EntrySummary? = null
+        // ⚠️ The net below the floor. A small pack --or one whose 96 draws all land in the
+        // common zone-- still has to yield a word: a hole on screen is worse than a word that is
+        // too common, which is the same criterion as the proper-noun net.
+        var bestBelowFloor: EntrySummary? = null
         for (pass in 0 until candidates) {
             // The ids are dense and start at 1, so the modulus always lands on an entry that
             // exists. If they ever stopped being dense, `read` returns null and we move on.
@@ -171,6 +218,13 @@ internal object WordOfTheDay {
             // Strict, not `<=`: on a tie the first one wins, so the result stays deterministic
             // when several candidates share a rank --which with this distribution happens
             // often--.
+            if (candidate.rank < floor) {
+                val previousBelow = bestBelowFloor
+                if (previousBelow == null || candidate.rank < previousBelow.rank) {
+                    bestBelowFloor = candidate
+                }
+                continue
+            }
             val previous = best
             if (previous == null || candidate.rank < previous.rank) best = candidate
 
@@ -181,9 +235,10 @@ internal object WordOfTheDay {
                 }
             }
         }
-        // The order of the three safety nets: the day's category, any valid one, and as a last
-        // resort an excluded one. A hole in the screen is worse than all three.
-        return bestInCategory ?: best ?: bestEvenIfProperNoun
+        // The order of the safety nets: the day's category, any valid one above the floor, any
+        // valid one below it, and as a last resort an excluded one. A hole in the screen is
+        // worse than all four.
+        return bestInCategory ?: best ?: bestBelowFloor ?: bestEvenIfProperNoun
     }
 
     private fun isExcluded(pos: String?): Boolean = pos != null && pos in EXCLUDED_POS

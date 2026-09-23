@@ -115,21 +115,24 @@ internal fun answersFor(pack: DictionarySource, idioma: String?): Boolean =
  * y no en el tile (D-203), y tenerla escrita dos veces es exactamente cómo vuelve a pasar. Los
  * tres caminos —la pantalla, la caché del tile y el cálculo— consultan esta.
  *
- * Quedan fuera dos clases, por motivos distintos:
+ * **One** class stays out: translation packs (D-200). A reverse entry has no senses (D-196), so
+ * the card would say *"you say `perro`"* and nothing else.
  *
- * - **Los de traducción** (D-200): una entrada inversa no tiene acepciones (D-196), así que la
- *   ficha diría *«se dice `perro`»* y nada más.
- * - **Los núcleos**: son las **8.000 palabras más frecuentes**, y elegir la de mejor rank da *la
- *   más común de las más comunes* — siempre una palabra funcional. Visto en el emulador con sólo
- *   los núcleos del APK: `my` y `un`.
+ * ⚠️ **Core packs DO give a word of the day, and until now they did not.** They were excluded
+ * because a core is the 8,000 most frequent words, so picking the best rank gave *the most common
+ * of the most common* — `my`, `un`, `a`, `de`. Measured, the defect was not the core's but the
+ * selection rule's: the full packs carry the same bias, only diluted (41 % of days in Spanish,
+ * 16 % in English landed in the function-word zone just the same). With `WordOfTheDay.RANK_FLOOR`
+ * all four real packs drop to **0 %**, and a core returns `acción`, `anillo`, `Christmas`,
+ * `afternoon`. Excluding cores treated the symptom in one half.
  *
- * ⚠️ **Pregunta por lo que el pack DECLARA** —`kind` y `tier` (D-198)— y nunca por su nombre ni
- * por cuántas entradas tiene: un pack ajeno puede llamarse como quiera, y lo único que la app
- * puede creer es lo que el artefacto declara y `verify_pack.py` comprueba.
+ * ⚠️ **It asks what the pack DECLARES** —`kind` (D-198)— and never its name or its entry count:
+ * somebody else's pack can call itself anything, and all the app may believe is what the artefact
+ * declares and `verify_pack.py` checks.
  *
- * ⚠️ **Consecuencia, escrita para que nadie la redescubra**: una instalación recién hecha lleva
- * sólo los núcleos del APK, así que **no muestra palabra del día hasta instalar un diccionario
- * completo**. Es la degradación correcta — mejor sin palabra que con una que no enseña.
+ * ⚠️ **The consequence, written so nobody rediscovers it**: a fresh install —which carries only
+ * the APK's cores— **now shows a word of the day**. It did not before, and that was an empty home
+ * screen on every user's first launch.
  */
 internal fun givesWordOfTheDay(meta: PackMetadata): Boolean =
-    meta.kind != PackKind.BILINGUAL && meta.tier != PackTier.CORE
+    meta.kind != PackKind.BILINGUAL

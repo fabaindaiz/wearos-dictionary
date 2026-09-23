@@ -1259,31 +1259,33 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun unPackNUCLEO_tampoco_genera_palabra_del_dia() = runTest {
-        // ⚠️ **Visto en el emulador con sólo los núcleos instalados: `my` y `un`.** Un núcleo son
-        // las **8.000 palabras más frecuentes**, y D-193 elige la de mejor rank — o sea **la más
-        // común de las más comunes**, que es siempre una palabra funcional. Una palabra del día
-        // existe para enseñar algo, y `un` no enseña nada.
+    fun unPackNUCLEO_SI_genera_palabra_del_dia() = runTest {
+        // ⚠️ **Esto invierte la regla anterior, y el motivo es que el defecto no era del núcleo.**
+        // Se los excluía porque un núcleo son las 8.000 palabras más frecuentes y elegir la de
+        // mejor rank daba *la más común de las más comunes*: en el emulador salieron `my` y `un`.
+        // Pero los packs COMPLETOS tienen el mismo sesgo, sólo diluido — medido sobre 112 días,
+        // el 41 % (es) y el 16 % (en) de los días caían igual en la zona funcional. La regla de
+        // selección era el problema; excluir los núcleos lo tapaba en una mitad.
         //
-        // ⚠️ **Se pregunta por `tier`, que el pack DECLARA (D-198)**, y no por el nombre ni por
-        // el conteo de entradas: es la misma razón por la que `tier` se agregó — un pack de la
-        // comunidad puede llamarse como quiera, y lo único que la app puede creer es lo que el
-        // artefacto declara y `verify_pack.py` comprueba.
+        // Lo arregla `WordOfTheDay.RANK_FLOOR`: con él los cuatro packs reales caen a **0 %** y
+        // un núcleo devuelve `acción`, `anillo`, `Christmas`, `afternoon`.
         //
-        // ⚠️ **La consecuencia, dicha para que nadie la redescubra**: una instalación recién
-        // hecha sólo lleva los núcleos del APK, así que **no muestra palabra del día hasta que
-        // se instale un diccionario completo**. Es la degradación correcta — mejor sin palabra
-        // que con una que no enseña.
-        var palabras: Map<String, EntrySummary> = emptyMap()
+        // ⚠️ **Lo que esto cierra**: una instalación recién hecha lleva sólo los núcleos del APK,
+        // así que hasta acá el inicio no mostraba palabra del día **en el primer arranque de
+        // cada usuario**. Ahora sí.
         val nucleo = FakeDictionary("es-core", "es", entryCount = 300, tier = PackTier.CORE)
-        nucleo.summaries = (1L..300L).associateWith { EntrySummary(it, "nucleo$it", "noun", 100) }
+        // Por encima del piso: es un núcleo real, no una muestra de palabras funcionales.
+        nucleo.summaries = (1L..300L).associateWith { EntrySummary(it, "nucleo$it", "noun", 400) }
         val vm = SearchViewModel(
             { PackSet.Ready(handle(nucleo), listOf(handle(nucleo))) },
             todayDate = { "2026-10-01" },
         )
         advanceUntilIdle()
-        palabras = vm.state.value.wordsOfTheDay
-        assertEquals(emptyMap(), palabras, "un núcleo no genera palabra del día: $palabras")
+        val palabras = vm.state.value.wordsOfTheDay
+        assertEquals(
+            setOf("es-core"), palabras.keys,
+            "un núcleo tiene que generar palabra del día: $palabras",
+        )
     }
 
     @Test

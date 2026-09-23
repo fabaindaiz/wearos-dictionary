@@ -158,7 +158,11 @@ class WordOfTheDayTest {
                 date = "2026-10-%02d".format(day),
                 read = pack(
                     pos = { id -> listOf("noun", "verb", "adj", "adv")[(id % 4L).toInt()] },
-                    rank = { id -> if (id % 4L == 0L) 100 else 900 },
+                    // ⚠️ 200 y no 100: `RANK_FLOOR` descarta lo mas comun, y lo que este test
+                    // afirma es OTRA cosa --que la categoria del dia no pisa a la palabra comun--
+                    // asi que el fixture se mueve por encima del piso en vez de apagarlo. El piso
+                    // tiene sus propios tests abajo.
+                    rank = { id -> if (id % 4L == 0L) 200 else 900 },
                 ),
                 rankBasis = RankBasis.FREQUENCY,
             )?.partOfSpeech
@@ -168,6 +172,61 @@ class WordOfTheDayTest {
             categorias,
             "con rank de frecuencia manda la palabra comun, no la categoria del dia",
         )
+    }
+
+    // --- El piso de rank -----------------------------------------------------------------
+
+    @Test
+    fun conFRECUENCIA_la_palabra_mas_comun_NO_es_la_del_dia() = runTest {
+        // ⚠️ **El defecto que esto cierra, medido sobre los cuatro packs reales.** "La mas comun
+        // de las candidatas" es una palabra funcional en cualquier idioma, y en un nucleo --que
+        // ES las 8.000 mas frecuentes-- lo es siempre: `en-core` daba `'m`, `TOLD`, `a`, `ah`.
+        // Sobre 112 dias simulados, los dias que caian por debajo del piso eran el 84 % en
+        // es-core, el 94 % en en-core, el 41 % en es-full y el 16 % en en-full. Con el piso, 0 %
+        // en los cuatro.
+        //
+        // Aca: una palabra funcional muy comun (rank 10) contra una ensenable (rank 400).
+        val picked = pick(
+            read = pack(rank = { id -> if (id % 7L == 0L) 10 else 400 }),
+            rankBasis = RankBasis.FREQUENCY,
+        )
+        assertNotNull(picked)
+        // ⚠️ **Contra un LITERAL y no contra `RANK_FLOOR`.** La primera version de este aserto
+        // decia `picked.rank >= WordOfTheDay.RANK_FLOOR`, y una sonda lo delato: poner la
+        // constante en 0 --o sea, quitar el piso entero-- dejaba el test en verde, porque el
+        // aserto mueve el poste junto con lo que deberia vigilar. Un test que se compara contra
+        // la constante que prueba no prueba la constante.
+        assertEquals(
+            400, picked.rank,
+            "gano la palabra funcional (rank 10) en vez de la ensenable (rank 400)",
+        )
+    }
+
+    @Test
+    fun elPISO_no_se_aplica_a_un_pack_de_RIQUEZA_DE_PAGINA() = runTest {
+        // ⚠️ **El piso es una posicion en la escala Zipf, y en un pack que calibra por riqueza de
+        // pagina esa escala no existe**: un rank de 150 no significa "comun", significa nada. Si
+        // se aplicara igual, descartaria al azar. Es el mismo guardia que ya usa la rotacion de
+        // categorias, y por el mismo motivo.
+        val picked = pick(
+            read = pack(rank = { id -> if (id % 7L == 0L) 10 else 400 }),
+            rankBasis = RankBasis.PAGE_RICHNESS,
+        )
+        assertNotNull(picked)
+        assertEquals(10, picked.rank, "sin frecuencia real manda el rank y punto")
+    }
+
+    @Test
+    fun siTODO_cae_bajo_el_piso_igual_hay_palabra_del_dia() = runTest {
+        // Un hueco en la pantalla es peor que una palabra demasiado comun: el mismo criterio que
+        // la red de los nombres propios. Un pack chico --o uno cuyas 96 tiradas caigan todas en
+        // la zona comun-- tiene que seguir dando algo.
+        val picked = pick(
+            read = pack(rank = { 5 }),
+            rankBasis = RankBasis.FREQUENCY,
+        )
+        assertNotNull(picked, "el piso dejo la pantalla sin palabra del dia")
+        assertEquals(5, picked.rank)
     }
 
     @Test
