@@ -1,45 +1,45 @@
-"""Genera la tabla de repertorio Unicode que comparten el builder y la app.
+"""Generates the pinned Unicode repertoire table shared by the builder and the app.
 
     python3 tools/unicode/gen_repertoire.py
 
-Escribe dos artefactos, los dos commiteados:
+It writes two artifacts, both committed:
 
-    tools/unicode/repertoire.txt                       <- datos, fuente de verdad
-    dict-core/src/main/.../UnicodeRepertoire.kt        <- generado desde el .txt
+    tools/unicode/repertoire.txt                       <- data, the source of truth
+    dict-core/src/main/.../UnicodeRepertoire.kt        <- generated from the .txt
 
-POR QUE EXISTE ESTO
--------------------
-norm() clasifica cada code point en letra/digito, marca combinante, o separador. Al principio
-esa clasificacion se delegaba en Character.getType (Kotlin) y unicodedata.category (Python), y
-eso estaba roto: cada plataforma trae su propia version de Unicode.
+WHY THIS EXISTS
+---------------
+norm() classifies every code point as letter/digit, combining mark, or separator. At first that
+classification was delegated to Character.getType (Kotlin) and unicodedata.category (Python), and
+that was broken: every platform ships its own Unicode version.
 
     Python 3.9 -> Unicode 13.0        Java 26 -> Unicode 16
-    Android    -> una version distinta POR CADA release del sistema
+    Android    -> a different version FOR EVERY system release
 
-Medido sobre el repertorio completo: 14.773 code points se clasifican distinto entre Python 13
-y Java 16, todos por estar asignados despues de Unicode 13. El sintoma en la app no es un error
-sino una palabra que no aparece, y el MISMO pack se comportaria distinto en dos relojes con
-distinta version de Wear OS.
+Measured over the full repertoire: 14,773 code points classify differently between Python 13 and
+Java 16, all of them because they were assigned after Unicode 13. The symptom in the app is not an
+error but a word that does not appear, and the SAME pack would behave differently on two watches
+with different Wear OS versions.
 
-POR QUE SE FIJA EN UNICODE 13
------------------------------
-13.0 es el piso: es lo que trae Python 3.9 (el interprete del builder) y esta por debajo de lo
-que trae Android 13, que es el minSdk 33 de la app (Unicode 14). Toda plataforma por encima del
-piso conoce el repertorio entero, y eso es lo que hace seguro seguir delegando las otras dos
-operaciones. Verificado sobre los 133.730 code points de la tabla:
+WHY IT IS PINNED TO UNICODE 13
+------------------------------
+13.0 is the floor: it is what Python 3.9 ships (the builder's interpreter) and it is below what
+Android 13 ships, which is the app's minSdk 33 (Unicode 14). Every platform above the floor knows
+the whole repertoire, and that is what makes it safe to keep delegating the other two operations.
+Verified over the table's 133,730 code points:
 
-    lowercase() Java 26 vs Python 3.9 -> 0 diferencias
-    NFD         Java 26 vs Python 3.9 -> 0 diferencias
+    lowercase() Java 26 vs Python 3.9 -> 0 differences
+    NFD         Java 26 vs Python 3.9 -> 0 differences
 
-NFD y lowercase siguen viniendo de la plataforma; la clasificacion no.
+NFD and lowercase still come from the platform; the classification does not.
 
-SUBIR DE VERSION UNICODE
-------------------------
-Es un acto deliberado, no un efecto secundario de actualizar Python:
-  1. Comprobar que el nuevo piso lo soporten TODAS las plataformas (el Python mas viejo que
-     construya packs y el Android mas viejo que corra la app).
-  2. Regenerar con este script y revisar el diff de repertoire.txt.
-  3. Subir NORM_VERSION en normalize.py y TextNormalizer.kt. Los packs viejos se rechazan solos.
+RAISING THE UNICODE VERSION
+---------------------------
+It is a deliberate act, not a side effect of upgrading Python:
+  1. Check that the new floor is supported by ALL platforms (the oldest Python that builds packs
+     and the oldest Android that runs the app).
+  2. Regenerate with this script and review repertoire.txt's diff.
+  3. Bump NORM_VERSION in normalize.py and TextNormalizer.kt. Old packs reject themselves.
 """
 
 import hashlib
@@ -49,11 +49,11 @@ import unicodedata
 
 PINNED_UNICODE_VERSION = "13.0.0"
 
-CLASS_OTHER = 0           # separador: puntuacion, simbolos, y todo lo no asignado en el piso
+CLASS_OTHER = 0           # separator: punctuation, symbols, and everything unassigned at the floor
 CLASS_LETTER = 1
 CLASS_COMBINING_MARK = 2
-CLASS_DIGIT = 3           # separado de letra porque fuzzy() colapsa letras repetidas y
-                          # digitos no: "1000" no debe volverse "10"
+CLASS_DIGIT = 3           # kept apart from letter because fuzzy() collapses repeated letters and
+                          # digits it does not: "1000" must not become "10"
 
 LETTER_CATEGORIES = ("Lu", "Ll", "Lt", "Lm", "Lo")
 
@@ -79,11 +79,11 @@ def base36(value):
 
 
 def compute_ranges():
-    """Clasifica todo el espacio de code points y lo colapsa en rangos."""
+    """Classifies the whole code point space and collapses it into ranges."""
     rows = []
     for cp in range(0x110000):
         if 0xD800 <= cp <= 0xDFFF:
-            continue  # los surrogates no son code points por si mismos
+            continue  # surrogates are not code points on their own
         category = unicodedata.category(chr(cp))
         if category in LETTER_CATEGORIES:
             rows.append((cp, CLASS_LETTER))
@@ -91,8 +91,8 @@ def compute_ranges():
             rows.append((cp, CLASS_DIGIT))
         elif category == "Mn":
             rows.append((cp, CLASS_COMBINING_MARK))
-        # El resto no se guarda: la ausencia ES CLASS_OTHER. Eso mantiene la tabla chica y
-        # hace que un code point no asignado en el piso caiga en "separador" por defecto.
+        # The rest is not stored: absence IS CLASS_OTHER. That keeps the table small and makes a
+        # code point unassigned at the floor fall into "separator" by default.
 
     ranges = []
     start = previous = rows[0][0]
@@ -109,10 +109,10 @@ def compute_ranges():
 
 
 def encode(ranges):
-    """Codificacion compacta: inicio como delta del rango anterior, largo, clase. Base 36.
+    """Compact encoding: start as a delta from the previous range, length, class. Base 36.
 
-    El delta importa: los rangos estan muy juntos, asi que los deltas son chicos y la tabla
-    entera entra en pocos KB de texto.
+    The delta matters: the ranges sit very close together, so the deltas are small and the whole
+    table fits in a few KB of text.
     """
     parts = []
     last_end = 0
@@ -126,8 +126,8 @@ def main():
     actual = unicodedata.unidata_version
     if actual != PINNED_UNICODE_VERSION:
         print(
-            "ERROR: este Python trae Unicode %s pero la tabla esta fijada en %s.\n"
-            "Subir de version es deliberado: leer el encabezado de este archivo."
+            "ERROR: this Python ships Unicode %s but the table is pinned to %s.\n"
+            "Raising the version is deliberate: read this file's header."
             % (actual, PINNED_UNICODE_VERSION),
             file=sys.stderr,
         )
@@ -140,14 +140,14 @@ def main():
 
     with open(DATA_PATH, "w", encoding="ascii") as handle:
         handle.write(
-            "# Repertorio Unicode fijado, generado por tools/unicode/gen_repertoire.py.\n"
-            "# NO EDITAR A MANO. Leer el encabezado del generador para saber por que existe.\n"
+            "# Pinned Unicode repertoire, generated by tools/unicode/gen_repertoire.py.\n"
+            "# DO NOT EDIT BY HAND. Read the generator's header to learn why it exists.\n"
             "#\n"
-            "# Lo leen tools/packbuilder/repertoire.py y (ya decodificado en Kotlin generado)\n"
-            "# dict-core UnicodeRepertoire.kt. El sha256 ata las dos copias: si alguien\n"
-            "# regenera una sola, los tests de los dos lados fallan.\n"
+            "# It is read by tools/packbuilder/repertoire.py and (already decoded into\n"
+            "# generated Kotlin) by dict-core UnicodeRepertoire.kt. The sha256 ties the two\n"
+            "# copies together: if somebody regenerates only one, both sides' tests fail.\n"
             "#\n"
-            "# Clases: 1 = letra, 2 = marca combinante, 3 = digito. Lo ausente es separador.\n"
+            "# Classes: 1 = letter, 2 = combining mark, 3 = digit. What is absent is a separator.\n"
             "unicode_version %s\n"
             "ranges %d\n"
             "code_points %d\n"
@@ -157,7 +157,7 @@ def main():
 
     _write_kotlin(blob, digest, len(ranges), covered)
 
-    print("unicode %s | %d rangos | %d code points | %.1f KB"
+    print("unicode %s | %d ranges | %d code points | %.1f KB"
           % (PINNED_UNICODE_VERSION, len(ranges), covered, len(blob) / 1024.0))
     print("  %s" % DATA_PATH)
     print("  %s" % KOTLIN_PATH)
@@ -165,33 +165,33 @@ def main():
 
 
 def _write_kotlin(blob, digest, range_count, covered):
-    # El blob se parte en trozos para no acercarse al limite de 64 KB de una constante String
-    # en el class file, y para que el archivo generado siga siendo legible en un diff.
+    # The blob is split into chunks to stay away from the 64 KB limit on a String constant in the
+    # class file, and so the generated file stays readable in a diff.
     chunks = [blob[i : i + 100] for i in range(0, len(blob), 100)]
     literal = "\n".join('        "%s" +' % chunk for chunk in chunks).rstrip(" +")
 
     with open(KOTLIN_PATH, "w", encoding="utf-8") as handle:
         handle.write('''package cl.fadiaz.dictionary.core
 
-// ARCHIVO GENERADO por tools/unicode/gen_repertoire.py -- NO EDITAR A MANO.
-// Fuente de verdad: tools/unicode/repertoire.txt
+// GENERATED FILE, by tools/unicode/gen_repertoire.py -- DO NOT EDIT BY HAND.
+// Source of truth: tools/unicode/repertoire.txt
 //
-// Clasifica cada code point en letra/digito, marca combinante o separador, con datos propios
-// en vez de Character.getType. Motivo: cada plataforma trae su propia version de Unicode
-// (Python 3.9 -> 13.0, Java 26 -> 16, y Android una distinta por cada release), y eso hacia
-// que el builder y la app clasificaran 14.773 code points de forma distinta. El sintoma no era
-// un error sino una palabra que no aparecia, y el mismo pack se comportaba distinto segun la
-// version de Wear OS del reloj.
+// Classifies every code point as letter/digit, combining mark or separator, from its own data
+// instead of Character.getType. The reason: every platform ships its own Unicode version
+// (Python 3.9 -> 13.0, Java 26 -> 16, and Android a different one per release), and that made
+// the builder and the app classify 14,773 code points differently. The symptom was not an error
+// but a word that did not appear, and the same pack behaved differently depending on the watch's
+// Wear OS version.
 //
-// Fijado en Unicode %s. Ver el encabezado del generador antes de tocar la version.
+// Pinned to Unicode %s. Read the generator's header before touching the version.
 //
-// Kotlin puro y sin dependencias: esta es una de las piezas que permiten que :dict-core
-// compile para cualquier target de Kotlin Multiplatform.
+// Pure Kotlin with no dependencies: this is one of the pieces that let :dict-core compile for
+// any Kotlin Multiplatform target.
 internal object UnicodeRepertoire {
 
     const val UNICODE_VERSION: String = "%s"
 
-    /** sha256 del blob codificado. Ata esta copia a tools/unicode/repertoire.txt. */
+    /** sha256 of the encoded blob. Ties this copy to tools/unicode/repertoire.txt. */
     const val DIGEST: String = "%s"
 
     const val RANGE_COUNT: Int = %d
@@ -200,10 +200,10 @@ internal object UnicodeRepertoire {
     const val CLASS_LETTER: Int = 1
     const val CLASS_COMBINING_MARK: Int = 2
 
-    /** Separado de letra porque fuzzy() colapsa letras repetidas y digitos no. */
+    /** Kept apart from letter because fuzzy() collapses repeated letters and digits it does not. */
     const val CLASS_DIGIT: Int = 3
 
-    /** Inicio como delta del fin anterior, largo, clase. Base 36, separado por comas. */
+    /** Start as a delta from the previous end, length, class. Base 36, comma separated. */
     internal const val ENCODED: String =
 %s
 
@@ -231,12 +231,12 @@ internal object UnicodeRepertoire {
     }
 
     /**
-     * Clase de un code point segun el repertorio fijado.
+     * A code point's class according to the pinned repertoire.
      *
-     * Un code point que no este en la tabla -- porque es puntuacion, un simbolo, o porque se
-     * asigno en una version de Unicode posterior al piso -- devuelve [CLASS_OTHER], que norm()
-     * trata como separador. Esa es justamente la decision que antes tomaba la plataforma y
-     * cada una respondia distinto.
+     * A code point not in the table -- because it is punctuation, a symbol, or because it was
+     * assigned in a Unicode version later than the floor -- returns [CLASS_OTHER], which norm()
+     * treats as a separator. That is precisely the decision the platform used to take, and every
+     * platform answered differently.
      */
     fun classify(codePoint: Int): Int {
         var low = 0

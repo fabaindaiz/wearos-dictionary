@@ -1271,13 +1271,25 @@ def lineas_en_espanol(ruta):
 #: the ceiling buys there is that **new entries get written in English**, which is the only part
 #: that changes anything.
 TECHO_ESPANOL = (
-    ("tools/", 1778),
+    # Translated whole on 2026-09-23: the builder, the sources, the 35 tests, the audit itself
+    # and the two Unicode generators. WARNING: translating the "THIS FILE HAS A MIRROR" markers
+    # broke `check_mirror_declarations`, which was looking for the Spanish spelling -- it failed
+    # loudly through its own `found == 0` guard, which exists precisely so a check cannot pass
+    # by seeing nothing. Both spellings are accepted now; see the comment there.
+    ("tools/", 0),
+    # Translated whole on 2026-09-23: 27 files, the whole Wear OS surface. The largest single
+    # file was SearchViewModel.kt at 192 lines. WARNING: the row is left at 0 rather than
+    # deleted -- a removed row is a ceiling nobody watches.
     ("app/src/main/", 0),
-    # WARNING: 34 of these lines live in GENERATED files -- UnicodeRepertoire.kt and
-    # CaseFolding.kt -- whose prose comes from tools/unicode/gen_*.py. Taking this row to 0
-    # means editing those generators and regenerating, which CLAUDE.md calls a deliberate
-    # act because the tables are pinned to Unicode 13.0.0.
-    ("dict-core/src/main/", 530),
+    # Translated whole on 2026-09-23, including the 34 lines that live in GENERATED files --
+    # UnicodeRepertoire.kt and CaseFolding.kt -- whose prose comes from tools/unicode/gen_*.py.
+    # WARNING: those two were reached by editing the generators and regenerating, never by
+    # hand, and the regeneration was validated the only way that proves anything: running both
+    # generators BEFORE any edit and checking the diff was empty. It was -- this machine's
+    # Python 3.9.6 ships exactly the pinned Unicode 13.0.0 -- so every line the second run
+    # changed is provably prose. Had that first diff been non-empty, the translation would have
+    # silently re-pinned the tables and invalidated every sense_code already written.
+    ("dict-core/src/main/", 0),
     # Translated whole on 2026-09-23: the first module of stage 3, smallest first. The row
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),

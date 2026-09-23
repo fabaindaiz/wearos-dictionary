@@ -1,24 +1,24 @@
 package cl.fadiaz.dictionary.core
 
-// ARCHIVO GENERADO por tools/unicode/gen_repertoire.py -- NO EDITAR A MANO.
-// Fuente de verdad: tools/unicode/repertoire.txt
+// GENERATED FILE, by tools/unicode/gen_repertoire.py -- DO NOT EDIT BY HAND.
+// Source of truth: tools/unicode/repertoire.txt
 //
-// Clasifica cada code point en letra/digito, marca combinante o separador, con datos propios
-// en vez de Character.getType. Motivo: cada plataforma trae su propia version de Unicode
-// (Python 3.9 -> 13.0, Java 26 -> 16, y Android una distinta por cada release), y eso hacia
-// que el builder y la app clasificaran 14.773 code points de forma distinta. El sintoma no era
-// un error sino una palabra que no aparecia, y el mismo pack se comportaba distinto segun la
-// version de Wear OS del reloj.
+// Classifies every code point as letter/digit, combining mark or separator, from its own data
+// instead of Character.getType. The reason: every platform ships its own Unicode version
+// (Python 3.9 -> 13.0, Java 26 -> 16, and Android a different one per release), and that made
+// the builder and the app classify 14,773 code points differently. The symptom was not an error
+// but a word that did not appear, and the same pack behaved differently depending on the watch's
+// Wear OS version.
 //
-// Fijado en Unicode 13.0.0. Ver el encabezado del generador antes de tocar la version.
+// Pinned to Unicode 13.0.0. Read the generator's header before touching the version.
 //
-// Kotlin puro y sin dependencias: esta es una de las piezas que permiten que :dict-core
-// compile para cualquier target de Kotlin Multiplatform.
+// Pure Kotlin with no dependencies: this is one of the pieces that let :dict-core compile for
+// any Kotlin Multiplatform target.
 internal object UnicodeRepertoire {
 
     const val UNICODE_VERSION: String = "13.0.0"
 
-    /** sha256 del blob codificado. Ata esta copia a tools/unicode/repertoire.txt. */
+    /** sha256 of the encoded blob. Ties this copy to tools/unicode/repertoire.txt. */
     const val DIGEST: String = "9b26b03aa3ee859b822b9ce9e733152e416130f4822536050ea999e98e484754"
 
     const val RANGE_COUNT: Int = 1010
@@ -27,10 +27,10 @@ internal object UnicodeRepertoire {
     const val CLASS_LETTER: Int = 1
     const val CLASS_COMBINING_MARK: Int = 2
 
-    /** Separado de letra porque fuzzy() colapsa letras repetidas y digitos no. */
+    /** Kept apart from letter because fuzzy() collapses repeated letters and digits it does not. */
     const val CLASS_DIGIT: Int = 3
 
-    /** Inicio como delta del fin anterior, largo, clase. Base 36, separado por comas. */
+    /** Start as a delta from the previous end, length, class. Base 36, comma separated. */
     internal const val ENCODED: String =
         "1c.9.3,8.p.1,7.p.1,1c.0.1,b.0.1,5.0.1,6.m.1,2.u.1,2.cp.1,5.b.1,f.4.1,8.0.1,2.0.1,i.33.2,1.4.1,2.1.1," +
         "3.3.1,2.0.1,7.0.1,2.2.1,2.0.1,2.j.1,2.2a.1,2.3u.1,2.4.2,3.4l.1,2.11.1,3.0.1,7.14.1,9.18.2,2.0.2,2.1." +
@@ -120,12 +120,12 @@ internal object UnicodeRepertoire {
     }
 
     /**
-     * Clase de un code point segun el repertorio fijado.
+     * A code point's class according to the pinned repertoire.
      *
-     * Un code point que no este en la tabla -- porque es puntuacion, un simbolo, o porque se
-     * asigno en una version de Unicode posterior al piso -- devuelve [CLASS_OTHER], que norm()
-     * trata como separador. Esa es justamente la decision que antes tomaba la plataforma y
-     * cada una respondia distinto.
+     * A code point not in the table -- because it is punctuation, a symbol, or because it was
+     * assigned in a Unicode version later than the floor -- returns [CLASS_OTHER], which norm()
+     * treats as a separator. That is precisely the decision the platform used to take, and every
+     * platform answered differently.
      */
     fun classify(codePoint: Int): Int {
         var low = 0

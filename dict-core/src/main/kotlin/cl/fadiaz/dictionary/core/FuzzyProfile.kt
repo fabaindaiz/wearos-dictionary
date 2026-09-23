@@ -1,33 +1,33 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Reglas de plegado fonetico por idioma, aplicadas en orden sobre la salida de
+ * Per-language phonetic folding rules, applied in order over the output of
  * [TextNormalizer.norm].
  *
- * ESTE ARCHIVO TIENE UN ESPEJO: tools/packbuilder/normalize.py
+ * THIS FILE HAS A MIRROR: tools/packbuilder/normalize.py
  *
- * Cada pack declara su perfil en `meta.fuzzy_profile`. El orden de las reglas importa y es
- * parte del contrato: "ce" -> "se" tiene que correr antes que "c" -> "k", si no "cerrar"
- * termina en "kerar" y deja de colisionar con "serrar".
+ * Each pack declares its profile in `meta.fuzzy_profile`. Rule order matters and is part of the
+ * contract: "ce" -> "se" has to run before "c" -> "k", or "cerrar" ends up as "kerar" and stops
+ * colliding with "serrar".
  *
- * Son heuristicas ortograficas, no un algoritmo fonetico completo. El objetivo es que las
- * confusiones frecuentes de cada idioma (y los errores tipicos del dictado por voz) caigan
- * en la misma clave, no transcribir pronunciacion.
+ * These are orthographic heuristics, not a full phonetic algorithm. The goal is that each
+ * language's frequent confusions (and the typical errors of voice dictation) land on the same
+ * key, not to transcribe pronunciation.
  */
 enum class FuzzyProfile(val id: String, val rules: List<Pair<String, String>>) {
 
-    /** Sin plegado fonetico: solo el colapso de letras repetidas que hace [TextNormalizer.fuzzy]. */
+    /** No phonetic folding: only the repeated-letter collapse [TextNormalizer.fuzzy] does. */
     GENERIC("generic", emptyList()),
 
     /**
-     * Espanol. Cubre seseo (c/z/s), b/v, y/ll, h muda y u muda de que/qui/gue/gui.
+     * Spanish. Covers seseo (c/z/s), b/v, y/ll, silent h and the silent u of que/qui/gue/gui.
      *
-     * "ch" se protege con un marcador numerico antes de borrar la h y se restaura al final;
-     * si no, "chico" perderia la h y colisionaria con cosas que no corresponden.
+     * "ch" is protected with a numeric marker before the h is deleted and restored at the end;
+     * otherwise "chico" would lose its h and collide with things it should not.
      *
-     * Limitacion conocida: "mexico" -> "mesiko" y "mejico" -> "mejiko" no colisionan. La x
-     * del espanol de Mexico suena como j, pero tratarla asi romperia "examen" -> "esamen",
-     * que es el caso mucho mas frecuente. Lo cubre el reordenamiento por distancia de edicion.
+     * Known limitation: "mexico" -> "mesiko" and "mejico" -> "mejiko" do not collide. The x of
+     * Mexican Spanish sounds like a j, but treating it that way would break "examen" -> "esamen",
+     * which is the far more frequent case. The edit-distance reordering covers it.
      */
     SPANISH(
         "es",
@@ -50,7 +50,7 @@ enum class FuzzyProfile(val id: String, val rules: List<Pair<String, String>>) {
         ),
     ),
 
-    /** Ingles. Digrafos mudos (kn, wr, gh), ph/f, c dura y blanda, x/ks, y/i. */
+    /** English. Silent digraphs (kn, wr, gh), ph/f, hard and soft c, x/ks, y/i. */
     ENGLISH(
         "en",
         listOf(
@@ -70,7 +70,7 @@ enum class FuzzyProfile(val id: String, val rules: List<Pair<String, String>>) {
         ),
     ),
 
-    /** Aleman. sch/s, v/f, w/v, z/ts y digrafos con h. La ss de la eszett ya la produjo norm. */
+    /** German. sch/s, v/f, w/v, z/ts and h digraphs. The eszett's ss was already produced by norm. */
     GERMAN(
         "de",
         listOf(
@@ -89,9 +89,9 @@ enum class FuzzyProfile(val id: String, val rules: List<Pair<String, String>>) {
 
     companion object {
         /**
-         * Resuelve el perfil declarado en `meta.fuzzy_profile`. Un id desconocido cae en
-         * [GENERIC] en vez de fallar: un pack construido con un perfil mas nuevo sigue
-         * siendo utilizable, solo pierde tolerancia a errores.
+         * Resolves the profile declared in `meta.fuzzy_profile`. An unknown id falls back to
+         * [GENERIC] instead of failing: a pack built with a newer profile stays usable, it just
+         * loses typo tolerance.
          */
         fun fromId(id: String?): FuzzyProfile =
             entries.firstOrNull { it.id == id } ?: GENERIC

@@ -1,167 +1,169 @@
 package cl.fadiaz.dictionary.core
 
-/** Que clase de diccionario trae un pack. Se declara en `meta.kind`. */
+/** Which kind of dictionary a pack carries. Declared in `meta.kind`. */
 enum class PackKind(val id: String) {
-    /** Par de idiomas con traducciones: "correr" -> "to run". */
+    /** A language pair with translations: "correr" -> "to run". */
     BILINGUAL("bilingual"),
 
-    /** Un solo idioma con definiciones: "correr" -> "moverse rapidamente...". */
+    /** A single language with definitions: "correr" -> "moverse rapidamente...". */
     MONOLINGUAL("monolingual"),
     ;
 
     companion object {
         fun fromId(id: String): PackKind =
             entries.firstOrNull { it.id == id }
-                ?: throw IllegalArgumentException("meta.kind desconocido: $id")
+                ?: throw IllegalArgumentException("unknown meta.kind: $id")
     }
 }
 
 /**
- * Contenido de la tabla `meta` de un pack. Se lee completa al abrirlo, una vez.
+ * How a pack computed its `rank`, that is, **what the number it sorts by means**.
  *
- * [schemaVersion] y [normVersion] se validan contra lo que soporta la app: un pack con
- * normVersion distinta esta indexado con otras reglas de normalizacion y hay que rechazarlo,
- * porque no fallaria, simplemente devolveria menos resultados de los que corresponde.
- */
-/**
- * Cómo calculó su `rank` un pack, o sea **qué significa el número** con el que ordena.
+ * ⚠️ **It exists because merging across packs could not know it any other way, and that was
+ * costing order.** The merge is already **ordinal** --`Suggestion.score` is the position within
+ * the pack's own results, so the `rank` scale cancels out-- which makes it immune to one pack
+ * using 0..1000 and another 900..1000. What that does **not** fix: a badly calibrated pack puts
+ * the wrong word in position 0, and on interleaving it carries the same weight as a well
+ * calibrated one.
  *
- * ⚠️ **Existe porque la fusión entre packs no puede saberlo de otra forma, y eso costaba orden.**
- * La fusión ya es **ordinal** --`Suggestion.score` es la posición dentro del propio pack, así que
- * la escala de `rank` se cancela sola-- y eso la hace inmune a que un pack use 0..1000 y otro
- * 900..1000. Lo que **no** arregla: un pack mal calibrado pone la palabra equivocada en la
- * posición 0, y al interlevar recibe el mismo peso que uno bien calibrado.
+ * Measured over the real packs: `es-def-wikc` ranges 668..1997 and `es-def-wd` 911..997 --the same
+ * language with different formulas, because `sources/wikidata.py` has its own-- and nothing told
+ * the app.
  *
- * Medido sobre los packs reales: `es-def-wikc` tiene rank 668..1997 y `es-def-wd` 911..997 --el
- * mismo idioma con fórmulas distintas, porque `sources/wikidata.py` tiene la suya-- y nada se lo
- * decía a la app.
- *
- * Se lee con `meta[...]`: un pack anterior no la trae y por defecto se asume [PAGE_RICHNESS], que
- * es lo que todos eran.
+ * Read with `meta[...]`: an older pack does not carry it and [PAGE_RICHNESS] is assumed, which is
+ * what all of them were.
  */
 enum class RankBasis(val id: String) {
-    /** `rank` sale de la frecuencia de uso real, en escala Zipf. El calibrado bueno. */
+    /** `rank` comes from real usage frequency, on a Zipf scale. The good calibration. */
     FREQUENCY("frequency-zipf-v1"),
 
     /**
-     * `rank` sale de la riqueza de la página del dump: acepciones, ejemplos, **formas**.
+     * `rank` comes from the richness of the dump's page: senses, examples, **forms**.
      *
-     * Medido: correlaciona **-0,250** con la frecuencia real de uso, donde se esperaría -1,
-     * porque un verbo español trae hasta 222 formas y las cuenta todas.
+     * Measured: it correlates **-0.250** with real usage frequency, where -1 would be expected,
+     * because a Spanish verb carries up to 222 forms and it counts every one.
      */
     PAGE_RICHNESS("page-richness-v1"),
     ;
 
     companion object {
-        /** Un id desconocido **no lanza**: un pack más nuevo puede traer una base que no leemos. */
+        /** An unknown id **does not throw**: a newer pack may carry a basis we do not read. */
         fun fromId(id: String?): RankBasis = entries.firstOrNull { it.id == id } ?: PAGE_RICHNESS
     }
 }
 
+/**
+ * The contents of a pack's `meta` table. Read whole when it is opened, once.
+ *
+ * [schemaVersion] and [normVersion] are validated against what the app supports: a pack with a
+ * different normVersion is indexed under different normalization rules and has to be rejected,
+ * because it would not fail -- it would simply return fewer results than it should.
+ */
 data class PackMetadata(
     val packId: String,
     val schemaVersion: Int,
     val normVersion: Int,
     val kind: PackKind,
     /**
-     * El nombre CORTO, para una fila de reloj. "Español", no "Español - definiciones".
+     * The SHORT name, for a watch row. "Español", not "Español - definiciones".
      *
-     * Medido a ojo sobre el reloj: en la fila de la pantalla de diccionarios, despues del check
-     * reservado, los paddings y el boton de borrar, al nombre le quedan ~140 dp. "Español -
-     * definiciones" son 22 caracteres y se cortaba en los cuatro lugares donde se muestra. Lo
-     * que el nombre largo decia --que trae definiciones-- ahora sale de [kind], que es un dato
-     * y no una cadena que hay que leer.
+     * Measured by eye on the watch: in the dictionaries screen row, after the reserved check, the
+     * paddings and the delete button, the name is left with ~140 dp. "Español - definiciones" is
+     * 22 characters and was clipped in all four places it is shown. What the long name said --that
+     * it carries definitions-- now comes from [kind], which is data rather than a string somebody
+     * has to read.
      */
     val name: String,
     /**
-     * El texto largo, para la pantalla de atribucion. Null en un pack anterior a D-125.
+     * The long text, for the attribution screen. Null in a pack older than D-125.
      *
-     * Opcional a proposito: se lee con `meta[...]` y no con `getValue`, asi que un pack viejo
-     * sigue abriendo. El formato no tiene migraciones (D-001) pero eso aplica a
-     * `schema_version`; una clave nueva y aditiva es justo lo que la tolerancia existe para
-     * soportar.
+     * Optional on purpose: it is read with `meta[...]` and not with `getValue`, so an old pack
+     * still opens. The format has no migrations (D-001) but that applies to `schema_version`; a
+     * new, additive key is exactly what this tolerance exists to support.
      */
     val description: String?,
     /**
-     * El idioma de las traducciones que el pack lleva en su payload, o null si no lleva.
+     * The language of the translations the pack carries in its payload, or null if it carries none.
      *
-     * ⚠️ **Es una CAPACIDAD, y por eso vive aparte de [kind].** `kind` contesta *«en qué idioma
-     * están las definiciones»*; esto contesta *«¿traduce?»*. Son preguntas distintas y el pack
-     * español es la prueba: es `MONOLINGUAL` --define en español-- y **traduce al inglés**.
-     * Mientras la app preguntaba por `kind`, la acción de traducir no aparecía nunca sobre él.
+     * ⚠️ **It is a CAPABILITY, which is why it lives apart from [kind].** `kind` answers *"which
+     * language are the definitions in"*; this answers *"does it translate?"*. They are different
+     * questions and the Spanish pack is the proof: it is `MONOLINGUAL` --it defines in Spanish--
+     * and **it translates into English**. While the app asked `kind`, the translate action never
+     * appeared over it.
      *
-     * Opcional y leída con `meta[...]`: un pack anterior no la trae y tiene que seguir abriendo.
+     * Optional and read with `meta[...]`: an older pack does not carry it and must still open.
      */
     val translationsTo: String? = null,
-    /** Qué significa el `rank` de este pack. Ver [RankBasis]. */
+    /** What this pack's `rank` means. See [RankBasis]. */
     val rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
     /**
-     * Los idiomas del pack, **como pares y en orden de declaracion**.
+     * The pack's languages, **as peers and in declaration order**.
      *
-     * ⚠️ **Reemplaza a `langSource`/`langTarget`, y el cambio es conceptual antes que
-     * mecanico.** Aquel par decia que un idioma era el de origen y otro el destino, que es
-     * cierto de un pack que traduce EN UNA direccion. Un pack bidireccional tiene entradas de
-     * los dos --`casa` y `house` en el mismo archivo, cada una con su `entry.lang`-- y ninguno
-     * es el principal. Pedido: *«que declares a la par ambos idiomas y no uno como principal»*.
+     * ⚠️ **It replaces `langSource`/`langTarget`, and the change is conceptual before it is
+     * mechanical.** That pair said one language was the source and the other the target, which is
+     * true of a pack that translates IN ONE direction. A bidirectional pack has entries of both
+     * --`casa` and `house` in the same file, each with its own `entry.lang`-- and neither is the
+     * main one. Asked for: *"declare both languages as peers and not one as the main one"*.
      *
-     * Un pack monolingue declara uno solo y nada cambia para el. **El orden es declaracion, no
-     * jerarquia**: lo unico que decide es cual usa una entrada que no declare el suyo.
+     * A monolingual pack declares a single one and nothing changes for it. **The order is
+     * declaration, not hierarchy**: the only thing it decides is which one an entry that declares
+     * none of its own uses.
      */
     val langs: List<String>,
     /**
-     * El perfil de plegado de cada idioma, **posicional contra [langs]**.
+     * Each language's folding profile, **positional against [langs]**.
      *
-     * Existe porque el plegado tolerante a errores SI depende del idioma --`ce`→`se` es una
-     * regla del español-- mientras que `norm()` no. Ver [fuzzyProfileFor].
+     * It exists because typo-tolerant folding DOES depend on the language --`ce`→`se` is a Spanish
+     * rule-- while `norm()` does not. See [fuzzyProfileFor].
      */
     val fuzzyProfiles: List<FuzzyProfile>,
     /**
-     * Que clase de pack es: `full` o `core`.
+     * Which class of pack this is: `full` or `core`.
      *
-     * ⚠️ **Lo DECLARA el artefacto en vez de inferirse del nombre.** Un nucleo se hace a un lado
-     * cuando el completo esta instalado, y hasta aca eso salia de `subsetOf` --que nombra al
-     * otro pack-- o de que el `pack_id` terminara en `-core`, que es adivinar del nombre lo que
-     * D-138 decidio que se declara. `subsetOf` contesta *«soy parte de ESE»* y esto contesta
-     * *«soy un nucleo»*, que es lo que hace falta sin conocer al otro.
+     * ⚠️ **The artifact DECLARES it instead of it being inferred from the name.** A core steps
+     * aside when the full one is installed, and until here that came from `subsetOf` --which names
+     * the other pack-- or from the `pack_id` ending in `-core`, which is guessing from the name
+     * what D-138 decided gets declared. `subsetOf` answers *"I am part of THAT one"* and this
+     * answers *"I am a core"*, which is what is needed without knowing the other.
      */
     val tier: PackTier = PackTier.FULL,
     /**
-     * Donde termina la banda de `rank` que tiene senal de frecuencia, si el pack la declara.
+     * Where the band of `rank` that carries a frequency signal ends, if the pack declares it.
      *
-     * ⚠️ **Declarado y no copiado, y eso evita un tercer contrato cruzado.** `rank` son dos
-     * bandas disjuntas cuando [rankBasis] es frecuencia (D-185); la app necesita el corte --la
-     * palabra del dia lo usa-- y la alternativa era copiar el `500` del builder en Kotlin, que
-     * es exactamente la clase de constante que se desincroniza en silencio, como `norm()` y
-     * `sense_code`. Nulo = el pack no lo dice, y entonces no hay banda que respetar.
+     * ⚠️ **Declared and not copied, and that avoids a third cross-language contract.** `rank` is
+     * two disjoint bands when [rankBasis] is frequency (D-185); the app needs the cut --word of
+     * the day uses it-- and the alternative was copying the builder's `500` into Kotlin, which is
+     * exactly the class of constant that drifts in silence, like `norm()` and `sense_code`. Null =
+     * the pack does not say, and then there is no band to respect.
      */
     val rankSignalBoundary: Int? = null,
     val entryCount: Int,
     /**
-     * Que build del pack es esto: `AAAAMMDDHHMM`, del reloj del build.
+     * Which build of the pack this is: `YYYYMMDDHHMM`, off the build's clock.
      *
-     * ⚠️ **`Long` y no `Int`, y no es un detalle de estilo**: `202609211432` pasa el tope de un
-     * `Int` de 32 bits, asi que con `Int` el pack revienta al ABRIR en el reloj con un
-     * NumberFormatException que no nombra la clave (D-070). Hay un test del builder que lo fija
-     * desde el otro lado.
+     * ⚠️ **`Long` and not `Int`, and that is not a style detail**: `202609211432` passes the top
+     * of a 32-bit `Int`, so with `Int` the pack blows up on OPENING on the watch with a
+     * NumberFormatException that does not name the key (D-070). A builder test pins it from the
+     * other side.
      *
-     * **No es la fecha del dump**, que es `meta.source_date` y es informativa. Esto ordena: un
-     * instalador compara dos numeros para saber cual pack es mas nuevo, y dos builds del mismo
-     * dump tienen que dar numeros distintos o un pack mejor no se propaga.
+     * **It is not the dump's date**, which is `meta.source_date` and is informative. This one
+     * orders: an installer compares two numbers to know which pack is newer, and two builds of the
+     * same dump have to give different numbers or a better pack does not propagate.
      */
     val dataVersion: Long,
     /**
-     * El `pack_id` del diccionario que **contiene a éste**, o null.
+     * The `pack_id` of the dictionary that **contains this one**, or null.
      *
-     * Es una afirmación de CONTENIDO, no de tamaño ni de versión: *«todo lo que yo tengo, ése lo
-     * tiene»*. Eso es justo lo que no se puede deducir en el reloj —comparar 150.000 lemas
-     * costaría más que la búsqueda— y por eso se declara, igual que `pack_id` declara la
-     * identidad en vez de adivinarla del nombre del archivo (D-138).
+     * It is a claim about CONTENT, not about size or version: *"everything I have, that one
+     * has"*. That is precisely what cannot be worked out on the watch --comparing 150,000 lemmas
+     * would cost more than the search-- and so it is declared, just as `pack_id` declares identity
+     * instead of guessing it from the file name (D-138).
      *
-     * ⚠️ **`entry_count` NO sirve para esto.** Dice cuál es más grande, que es otra cosa: dos
-     * packs de fuentes distintas pueden ser los dos grandes sin que ninguno contenga al otro, y
-     * ahí consultarlos a los dos es exactamente lo que se quiere (D-136).
+     * ⚠️ **`entry_count` is NO use for this.** It says which is bigger, which is another thing:
+     * two packs from different sources can both be big without either containing the other, and
+     * there querying both is exactly what is wanted (D-136).
      *
-     * Null en cualquier pack anterior a esto, que es el caso de todos los de hoy.
+     * Null in any pack older than this, which is the case for every one today.
      */
     val subsetOf: String? = null,
     val license: String,
@@ -182,39 +184,40 @@ data class PackMetadata(
     val sources: List<PackSource> = emptyList(),
 ) {
     init {
-        require(langs.isNotEmpty()) { "un pack declara al menos un idioma en meta.langs" }
+        require(langs.isNotEmpty()) { "a pack declares at least one language in meta.langs" }
         require(fuzzyProfiles.size == langs.size) {
-            "meta.fuzzy_profiles trae ${fuzzyProfiles.size} perfiles para ${langs.size} idiomas"
+            "meta.fuzzy_profiles carries ${fuzzyProfiles.size} profiles for ${langs.size} languages"
         }
-        // ⚠️ Un bilingue declara DOS, como pares. Antes exigia `lang_dst`, que presuponia un
-        // origen y un destino; ahora lo que se exige es que haya dos y ninguno sea el principal.
+        // ⚠️ A bilingual declares TWO, as peers. It used to require `lang_dst`, which presupposed
+        // a source and a target; what is required now is that there be two and neither be the
+        // main one.
         require(kind != PackKind.BILINGUAL || langs.size >= 2) {
-            "un pack bilingue declara sus dos idiomas en meta.langs (declara $langs)"
+            "a bilingual pack declares both its languages in meta.langs (it declares $langs)"
         }
     }
 }
 
-/** Como se llego a un resultado. Ordena la lista antes que cualquier otro criterio. */
+/** How a result was arrived at. It orders the list ahead of any other criterion. */
 enum class MatchKind {
-    /** El lema empieza con lo escrito. El camino normal. */
+    /** The lemma starts with what was typed. The normal path. */
     PREFIX,
 
-    /** Coincide una forma flexionada: se escribio "corriendo" y el lema es "correr". */
+    /** An inflected form matches: "corriendo" was typed and the lemma is "correr". */
     INFLECTED_FORM,
 
-    /** Coincide del lado de la traduccion: se escribio "run" en un pack es->en. */
+    /** The translation side matches: "run" was typed in an es->en pack. */
     TRANSLATION,
 
-    /** Coincide la clave tolerante a errores. Solo se intenta si lo anterior no dio nada. */
+    /** The typo-tolerant key matches. Only attempted when the above returned nothing. */
     FUZZY,
 
-    /** Coincide el texto de la definicion. Solo por accion explicita del usuario. */
+    /** The definition text matches. Only on an explicit action by the user. */
     DEFINITION,
 }
 
 /**
- * Una fila de la lista de resultados. Se sirve entera desde el indice de cobertura, sin leer
- * ni descomprimir el payload: el cuerpo de la entrada se busca solo cuando el usuario la abre.
+ * One row of the results list. It is served whole from the covering index, without reading or
+ * decompressing the payload: an entry's body is fetched only when the user opens it.
  */
 data class Suggestion(
     val packId: String,
@@ -222,48 +225,48 @@ data class Suggestion(
     val headword: String,
     val partOfSpeech: String?,
     val matchKind: MatchKind,
-    /** Menor es mejor. Distancia de edicion en FUZZY; posicion relativa en el resto. */
+    /** Lower is better. Edit distance in FUZZY; relative position in the rest. */
     val score: Int,
     /**
-     * Si este lema cae en la banda de `rank` que tiene **frecuencia de uso real** (D-185).
+     * Whether this lemma falls in the band of `rank` that carries **real usage frequency** (D-185).
      *
-     * ⚠️ **Es un booleano y NO el `rank`, y esa forma es la decisión.** El `rank` crudo no es
-     * comparable entre packs --cada uno lo calcula contra su propio volcado con su propia
-     * fórmula (D-187)-- así que exponerlo invitaría justo a la comparación que no vale. Cada
-     * pack resuelve la señal contra **su** `meta.rank_signal_boundary` (D-198) y lo que cruza la
-     * frontera es la respuesta, no la escala.
+     * ⚠️ **It is a boolean and NOT the `rank`, and that shape is the decision.** Raw `rank` is not
+     * comparable across packs --each computes it against its own dump with its own formula
+     * (D-187)-- so exposing it would invite exactly the comparison that is worthless. Each pack
+     * resolves the signal against **its** `meta.rank_signal_boundary` (D-198) and what crosses the
+     * boundary is the answer, not the scale.
      *
-     * ⚠️ **Existe por un defecto medido en inglés.** `coverageBand` premia los lemas cortos
-     * --teclear `wat` cubre `wat` al 100 % y `water` al 60 %-- y el Wiktionary inglés está lleno
-     * de fragmentos de tres letras: interjecciones, siglas, formas ligadas. La posición media de
-     * la palabra obvia era **5,1** sobre una primera pantalla de tres filas.
+     * ⚠️ **It exists because of a defect measured in English.** `coverageBand` rewards short
+     * lemmas --typing `wat` covers `wat` 100 % and `water` 60 %-- and the English Wiktionary is
+     * full of three-letter fragments: interjections, initialisms, bound forms. The mean position
+     * of the obvious word was **5.1** on a first screen of three rows.
      *
-     * `false` para un pack que no declara la frontera, que es como se comportaban todos.
+     * `false` for a pack that does not declare the boundary, which is how all of them behaved.
      */
     val hasFrequencySignal: Boolean = false,
 )
 
 /**
- * Que clase de pack es, de las dos que la app trata distinto.
+ * Which class of pack this is, of the two the app treats differently.
  *
- * `fromId` no lanza ante un id desconocido: un pack mas nuevo puede traer una clase que esta
- * version no conoce, y tratarlo como completo es la degradacion segura -- se consulta de mas,
- * que es trabajo, no un resultado equivocado.
+ * `fromId` does not throw on an unknown id: a newer pack may carry a class this version does not
+ * know, and treating it as full is the safe degradation -- it gets queried unnecessarily, which is
+ * work, not a wrong result.
  */
 enum class PackTier(val id: String) {
-    /** Todo el diccionario, sin filtrar. Es el pack construido, no uno derivado. */
+    /** The whole dictionary, unfiltered. The pack that was built, not one derived from it. */
     FULL("full"),
 
     /**
-     * Un filtro menos estricto que [CORE]: ante la duda sobre una palabra, se queda.
+     * A filter less strict than [CORE]: in doubt about a word, it stays.
      *
-     * ⚠️ **Un idioma cuyo `full` ya cabe en el presupuesto de `main` NO tiene `main`**, y eso es
-     * deliberado: el espanol completo son 73,6 MB, por debajo del presupuesto, asi que un `main`
-     * espanol seria un segundo pack con el mismo contenido. El catalogo lista lo que existe.
+     * ⚠️ **A language whose `full` already fits the `main` budget has NO `main`**, and that is
+     * deliberate: full Spanish is 73.6 MB, under the budget, so a Spanish `main` would be a second
+     * pack with the same content. The catalog lists what exists.
      */
     MAIN("main"),
 
-    /** Las palabras importantes y de uso general. El mas chico. */
+    /** The important, general-use words. The smallest one. */
     CORE("core"),
     ;
 
@@ -273,119 +276,119 @@ enum class PackTier(val id: String) {
 }
 
 /**
- * Por que un pack **no se carga**, como dato y no como cadena de log.
+ * Why a pack **does not load**, as data and not as a log string.
  *
- * ⚠️ **Existe porque el motivo llego a la pantalla.** Hasta aca un rechazo era el `message` de
- * una excepcion, escrito para `logcat` y en un solo idioma: util para depurar y **imposible de
- * mostrarle a alguien** que solo ve que le falta un diccionario. Un tipo se traduce (D-127), se
- * guarda en el memo de verificacion sin arrastrar prosa, y **no compila** hasta que alguien le
- * da un texto -- la misma regla que D-125 le puso a `PackKind`.
+ * ⚠️ **It exists because the reason reached the screen.** Until here a rejection was an
+ * exception's `message`, written for `logcat` and in a single language: useful for debugging and
+ * **impossible to show somebody** who only sees that a dictionary is missing. A type gets
+ * translated (D-127), is stored in the verification memo without dragging prose along, and **does
+ * not compile** until somebody gives it a text -- the same rule D-125 put on `PackKind`.
  *
- * ⚠️ **Todas rechazan, y eso fue una decision de producto tomada contra la recomendacion.** Se
- * propuso separar las que MIENTEN --claves mal calculadas, `fts_def` desalineada, un pack
- * truncado-- de las que solo DEGRADAN --falta un indice, y la busqueda pasa a escanear--, y
- * rechazar solo las primeras. Se eligio la regla simple: *cualquier invariante rota rechaza*,
- * porque una segunda categoria se llena de excepciones y deja de ser honesta. **El costo
- * aceptado**: un diccionario perfectamente legible al que le falta un indice desaparece de la
- * lista, y lo unico que el usuario lee es una linea diciendo por que. Ver D-217.
+ * ⚠️ **They all reject, and that was a product decision taken against the recommendation.** It was
+ * proposed to separate the ones that LIE --miscomputed keys, a misaligned `fts_def`, a truncated
+ * pack-- from the ones that merely DEGRADE --an index is missing and the search falls back to
+ * scanning-- and reject only the first group. The simple rule was chosen: *any broken invariant
+ * rejects*, because a second category fills up with exceptions and stops being honest. **The
+ * accepted cost**: a perfectly readable dictionary missing one index disappears from the list, and
+ * all the user reads is one line saying why. See D-217.
  *
- * El orden de declaracion es el de comprobacion, de mas barato a mas caro, y eso importa: un
- * pack con el esquema equivocado se rechaza **antes** de contar sus filas.
+ * Declaration order is checking order, cheapest to most expensive, and that matters: a pack with
+ * the wrong schema is rejected **before** its rows are counted.
  */
 enum class PackRejection(val id: String) {
-    /** `meta` no trae alguna clave sin la cual no se puede ni saber que es el archivo. */
+    /** `meta` is missing a key without which you cannot even tell what the file is. */
     METADATA("metadata"),
 
-    /** `schema_version` distinta: las consultas apuntarian a columnas que cambiaron (D-001). */
+    /** A different `schema_version`: queries would point at columns that changed (D-001). */
     SCHEMA_VERSION("schema"),
 
-    /** `norm_version` distinta: indexado con otras reglas, devolveria menos palabras (D-006). */
+    /** A different `norm_version`: indexed under other rules, it would return fewer words (D-006). */
     NORM_VERSION("norm"),
 
-    /** `payload_codec` que esta app no sabe leer. */
+    /** A `payload_codec` this app cannot read. */
     PAYLOAD_CODEC("codec"),
 
     /**
-     * No declara de donde sale su contenido, o alguna fuente no declara licencia.
+     * It does not declare where its content comes from, or some source declares no licence.
      *
-     * ⚠️ **Rechaza, y con eso se resuelve solo el pedido de que un pack incompatible no aparezca
-     * en los creditos**: no hay que acordarse de excluirlo de la pantalla de atribucion, porque
-     * no llega a existir para el resto de la app. D-031 dice que esa pantalla no es opcional, y
-     * un pack que no se puede acreditar la vuelve imposible de cumplir.
+     * ⚠️ **It rejects, and that settles on its own the requirement that an incompatible pack not
+     * appear in the credits**: nobody has to remember to exclude it from the attribution screen,
+     * because it never comes to exist for the rest of the app. D-031 says that screen is not
+     * optional, and a pack that cannot be credited makes it impossible to comply with.
      */
     LICENSE("license"),
 
-    /** Falta `idx_entry_norm` o `idx_entry_fuzzy`: la busqueda escanearia la tabla entera. */
+    /** `idx_entry_norm` or `idx_entry_fuzzy` is missing: the search would scan the whole table. */
     MISSING_INDEX("index"),
 
-    /** Quedo la tabla de staging del builder: el pack se construyo a medias. */
+    /** The builder's staging table was left behind: the pack was built half way. */
     HALF_BUILT("staging"),
 
-    /** `meta.entry_count` no coincide con las filas reales: el archivo esta truncado. */
+    /** `meta.entry_count` does not match the real rows: the file is truncated. */
     ENTRY_COUNT("count"),
 
     /**
-     * `fts_def` no tiene una fila por entrada.
+     * `fts_def` does not have one row per entry.
      *
-     * Su `rowid` **es** `entry.id` (D-011). Si se desalinean, buscar por definicion devuelve
-     * **otras** entradas -- no menos, sino equivocadas, que es peor.
+     * Its `rowid` **is** `entry.id` (D-011). If they drift apart, searching by definition returns
+     * **other** entries -- not fewer, but wrong ones, which is worse.
      */
     FTS_MISALIGNED("fts"),
 
-    /** Alguna entrada tiene `norm` vacio: no se llega a ella por ningun camino de busqueda. */
+    /** Some entry has an empty `norm`: no search path reaches it. */
     EMPTY_KEY("emptykey"),
 
-    /** Una forma flexionada o una traduccion apunta a una entrada que no existe. */
+    /** An inflected form or a translation points at an entry that does not exist. */
     ORPHAN_ROW("orphan"),
 
-    /** Las claves recalculadas no coinciden con las que el pack trae (D-142). */
+    /** The recomputed keys do not match the ones the pack carries (D-142). */
     KEYS("keys"),
 
-    /** El diccionario de compresion no es el que el pack declara: el texto saldria corrupto. */
+    /** The compression dictionary is not the one the pack declares: the text would come out corrupt. */
     PAYLOAD_DICTIONARY("dict"),
 
-    /** Cualquier otra cosa: el archivo no es un pack, o SQLite no pudo abrirlo. */
+    /** Anything else: the file is not a pack, or SQLite could not open it. */
     DAMAGED("damaged"),
     ;
 
     companion object {
         /**
-         * El motivo con este id, o [DAMAGED] si no se reconoce.
+         * The reason with this id, or [DAMAGED] if it is not recognized.
          *
-         * ⚠️ **No lanza a proposito**: el id viene del memo en `SharedPreferences`, que lo pudo
-         * escribir otra version de la app. Un id desconocido significa *"habia un motivo y esta
-         * version no sabe cual"*, y tratarlo como dañado hace que el pack se vuelva a probar --
-         * que es la degradacion correcta, no esconderlo para siempre.
+         * ⚠️ **It does not throw, on purpose**: the id comes from the memo in `SharedPreferences`,
+         * which another version of the app may have written. An unknown id means *"there was a
+         * reason and this version does not know which"*, and treating it as damaged makes the pack
+         * get tried again -- which is the right degradation, not hiding it forever.
          */
         fun fromId(id: String?): PackRejection = entries.firstOrNull { it.id == id } ?: DAMAGED
     }
 }
 
 /**
- * El perfil de plegado del idioma dado, o el del primero si el pack no lo conoce.
+ * The folding profile for the given language, or the first one's if the pack does not know it.
  *
- * ⚠️ **Nunca lanza, y esa es la decision.** Un idioma que el pack no declara es un bug del
- * builder o de quien llama, pero fallar aca dejaria la busqueda muerta; caer al primer perfil
- * devuelve resultados ligeramente peores en el peldaño tolerante, que es el ultimo de la
- * cascada y el menos confiable de todos modos.
+ * ⚠️ **It never throws, and that is the decision.** A language the pack does not declare is a bug
+ * in the builder or in the caller, but failing here would leave the search dead; falling back to
+ * the first profile returns slightly worse results on the tolerant rung, which is the last of the
+ * cascade and the least trustworthy anyway.
  */
 fun PackMetadata.fuzzyProfileFor(lang: String?): FuzzyProfile {
     val indice = langs.indexOf(lang)
     return fuzzyProfiles.getOrNull(indice) ?: fuzzyProfiles.firstOrNull() ?: FuzzyProfile.GENERIC
 }
 
-/** Si el pack tiene entradas de este idioma. Un pack bidireccional contesta `true` por los dos. */
+/** Whether the pack has entries in this language. A bidirectional pack answers `true` for both. */
 fun PackMetadata.speaks(lang: String?): Boolean = lang != null && lang in langs
 
 /**
- * La cabecera barata de una entrada: lo que se puede saber **sin descomprimir el payload**.
+ * An entry's cheap header: what can be known **without decompressing the payload**.
  *
- * Existe porque hay decisiones que necesitan `rank` y `pos` de una entrada concreta y no su
- * cuerpo --elegir la palabra del dia es la primera--, y abrir el payload para eso seria pagar un
- * inflate por candidato descartado.
+ * It exists because some decisions need a specific entry's `rank` and `pos` and not its body
+ * --picking the word of the day is the first-- and opening the payload for that would mean paying
+ * an inflate per discarded candidate.
  *
- * No es un [Suggestion]: ese es una fila de resultado y lleva `matchKind` y `score`, que aca no
- * significan nada. Y lleva `rank`, que [Suggestion] deliberadamente no expone.
+ * It is not a [Suggestion]: that one is a result row and carries `matchKind` and `score`, which
+ * mean nothing here. And it carries `rank`, which [Suggestion] deliberately does not expose.
  */
 data class EntrySummary(
     val entryId: Long,
@@ -409,94 +412,95 @@ data class EntrySummary(
  */
 data class Example(val text: String, val citation: String? = null)
 
-/** Una acepcion de una entrada. */
+/** One sense of an entry. */
 data class Sense(
     val gloss: String,
     val examples: List<Example> = emptyList(),
     val translations: List<String> = emptyList(),
     /**
-     * Sinonimos de ESTA acepcion, no de la entrada (D-117).
+     * Synonyms of THIS sense, not of the entry (D-117).
      *
-     * La distincion importa: "domingo" tiene `mesada, paga` en una acepcion y `pollerudo,
-     * calzonazos` en otra. Juntos no significan nada.
+     * The distinction matters: "domingo" has `mesada, paga` in one sense and `pollerudo,
+     * calzonazos` in another. Together they mean nothing.
      *
-     * **Los dos idiomas los traen** (D-124). El español los declara con `sense_index` y el
-     * ingles los sirve anidados dentro de cada acepcion; las dos formas dan la misma atribucion.
+     * **Both languages carry them** (D-124). Spanish declares them with `sense_index` and English
+     * serves them nested inside each sense; both shapes give the same attribution.
      *
-     * Va ultimo a proposito: los diez call sites existentes son posicionales de tres argumentos
-     * o menos, y asi compilan sin tocarse.
+     * It goes last on purpose: the ten existing call sites are positional with three arguments or
+     * fewer, and so they compile untouched.
      */
     val synonyms: List<String> = emptyList(),
     /**
-     * Antonimos de ESTA acepcion (D-126).
+     * Antonyms of THIS sense (D-126).
      *
-     * Misma regla que [synonyms] y **peor consecuencia si se atribuye mal**: un sinonimo en la
-     * acepcion equivocada se lee como raro, un antonimo se lee como lo contrario de otra cosa.
+     * Same rule as [synonyms] and **a worse consequence when attributed wrong**: a synonym under
+     * the wrong sense reads as odd, an antonym reads as the opposite of something else.
      *
-     * A diferencia de los sinonimos, **no entran a `fts_def`**: buscar "frio" para encontrar
-     * "caliente" no es lo que nadie hace, y meterlos al indice de texto libre solo agregaria
-     * ruido a una busqueda que ya tiene el orden como deuda abierta (D-067).
+     * Unlike synonyms, **they do not go into `fts_def`**: searching "frio" to find "caliente" is
+     * not what anybody does, and putting them in the free-text index would only add noise to a
+     * search whose ordering is already open debt (D-067).
      */
     val antonyms: List<String> = emptyList(),
     /**
-     * Palabras **relacionadas** de esta acepcion: hiperonimo, hiponimo o pariente morfologico
-     * (D-132). No son sinonimos y la lista separada es toda la diferencia: "frances" trae `galo`,
-     * que no es equivalente sino vecino, y presentarlo como sinonimo seria afirmar algo falso.
+     * **Related** words of this sense: a hypernym, a hyponym or a morphological relative (D-132).
+     * They are not synonyms and the separate list is the whole difference: "frances" carries
+     * `galo`, which is not an equivalent but a neighbour, and presenting it as a synonym would
+     * assert something false.
      *
-     * Existen por las **entradas flacas**, que son el 70,4 % del pack español: una acepcion sola
-     * sin ejemplo. Medido, 2.142 de 29.817 flacas ganan algo por aca (7,2 %).
+     * They exist because of the **thin entries**, which are 70.4 % of the Spanish pack: a single
+     * sense with no example. Measured, 2,142 of 29,817 thin ones gain something here (7.2 %).
      *
-     * **Solo vienen llenas cuando la entrada tiene una sola acepcion**, porque la fuente las
-     * declara a nivel de entrada y sin `sense_index`: con varias no hay dato de a cual pertenecen.
-     * Ver `sources/kaikki._relacionadas` en el builder.
+     * **They only come filled when the entry has a single sense**, because the source declares
+     * them at entry level and without `sense_index`: with several there is no datum saying which
+     * one they belong to. See `sources/kaikki._relacionadas` in the builder.
      *
-     * Tampoco entran a `fts_def`, por la misma razon que los antonimos: nadie busca "camelido"
-     * esperando "guanaco", y el orden de resultados ya es deuda abierta (D-067).
+     * They do not go into `fts_def` either, for the same reason as the antonyms: nobody searches
+     * "camelido" expecting "guanaco", and result ordering is already open debt (D-067).
      */
     val related: List<String> = emptyList(),
 )
 
-/** El cuerpo completo de una entrada, tal como sale del payload descomprimido. */
+/** An entry's full body, as it comes out of the decompressed payload. */
 data class Entry(
     val packId: String,
     val entryId: Long,
     /**
-     * Identidad **logica** de la entrada: estable entre reconstrucciones del pack, y la clave
-     * por la que un pack auxiliar (sinonimos, traducciones) le suma informacion a esta misma
-     * entrada.
+     * The entry's **logical** identity: stable across rebuilds of the pack, and the key by which
+     * an auxiliary pack (synonyms, translations) adds information to this same entry.
      *
-     * [entryId] no sirve para eso: es el rowid local y se corre entero cuando el pack se
-     * reconstruye con datos nuevos.
+     * [entryId] is no use for that: it is the local rowid and it shifts wholesale when the pack is
+     * rebuilt with new data.
      *
-     * Lo calcula el builder; la app **nunca** lo recalcula, solo lo lee. Esa es la diferencia
-     * con `norm`/`fuzzy`, y es lo que evita que sea un segundo contrato entre dos lenguajes.
+     * The builder computes it; the app **never** recomputes it, it only reads it. That is the
+     * difference with `norm`/`fuzzy`, and it is what stops it being a second contract between two
+     * languages.
      *
-     * No esta en [Suggestion] a proposito: la lista se sirve entera desde el covering index sin
-     * tocar la tabla, y agregar el uid ahi obligaria a leer cada fila. La composicion ocurre al
-     * abrir una entrada, no al listarla.
+     * It is not in [Suggestion] on purpose: the list is served whole from the covering index
+     * without touching the table, and adding the uid there would force every row to be read.
+     * Composition happens when an entry is opened, not when it is listed.
      */
     val uid: Long,
     /**
-     * El idioma de ESTA entrada, que en un pack bidireccional no es el del pack.
+     * THIS entry's language, which in a bidirectional pack is not the pack's.
      *
-     * ⚠️ **Es lo que hace honesta la etiqueta de la ficha (D-190).** La fila de resultados puede
-     * deducir el idioma de la lista --esta filtrada a uno-- pero la ficha no: se llega a ella
-     * tocando una traduccion, y entonces la entrada abierta es **del otro idioma**. Sin este
-     * campo la etiqueta afirmaria el idioma equivocado, que es peor que no ponerla.
+     * ⚠️ **It is what makes the card's label honest (D-190).** A result row can deduce the
+     * language from the list --it is filtered to one-- but the card cannot: it is reached by
+     * tapping a translation, and then the opened entry is **in the other language**. Without this
+     * field the label would assert the wrong language, which is worse than leaving it off.
      *
-     * Nulo = un pack anterior a `schema_version` 4. No puede pasar --la app rechaza esos packs--
-     * pero el tipo lo dice en vez de confiar.
+     * Null = a pack older than `schema_version` 4. It cannot happen --the app rejects those
+     * packs-- but the type says so instead of trusting.
      */
     val lang: String? = null,
     val headword: String,
     val partOfSpeech: String?,
     val senses: List<Sense>,
     /**
-     * Traducciones de la palabra entera, que la fuente **no** pudo atribuir a una acepcion.
+     * Translations of the whole word, which the source **could not** attribute to a sense.
      *
-     * Van aparte de [Sense.translations] y no mezcladas: una lista dibujada bajo una acepcion
-     * **afirma** que pertenece a esa acepcion, y colgar ahi lo no atribuido es el error de
-     * D-117 --se lee plausible y no lo agarra nadie. Medido, son el 37,7 % del dato.
+     * They go apart from [Sense.translations] and not mixed in: a list drawn under a sense
+     * **asserts** that it belongs to that sense, and hanging unattributed data there is the D-117
+     * mistake -- it reads plausible and nobody catches it. Measured, they are 37.7 % of the data.
      */
     val wordTranslations: List<String> = emptyList(),
     /**

@@ -1,44 +1,43 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Formato del cuerpo de una entrada (columna `entry.payload`).
+ * The format of an entry's body (the `entry.payload` column).
  *
- * ESTE ARCHIVO TIENE UN ESPEJO: tools/packbuilder/payload.py
+ * THIS FILE HAS A MIRROR: tools/packbuilder/payload.py
  *
- * El payload va comprimido con deflate crudo y un diccionario precargado compartido por todo
- * el pack, guardado en `meta.payload_dict`. Las entradas son de unos cientos de bytes, o sea
- * demasiado cortas para que deflate encuentre redundancia por si solo; el diccionario le da la
- * ventana ya primada con los fragmentos frecuentes del corpus.
+ * The payload is compressed with raw deflate and a preloaded dictionary shared by the whole pack,
+ * stored in `meta.payload_dict`. Entries are a few hundred bytes, that is, far too short for
+ * deflate to find redundancy on its own; the dictionary hands it a window already primed with the
+ * corpus's frequent fragments.
  *
- * Se eligio deflate y no zstd aunque comprime menos, porque deflate esta en `java.util.zip`
- * (plataforma Android, sin .so extra) y en el `zlib` de la stdlib de Python. zstd obligaria a
- * una libreria nativa en el reloj ADEMAS de la de SQLite, y a una dependencia de pip en el
- * builder, para ganar unos puntos de compresion.
+ * deflate was chosen over zstd even though it compresses less, because deflate is in
+ * `java.util.zip` (the Android platform, no extra .so) and in Python's stdlib `zlib`. zstd would
+ * force a native library on the watch ON TOP of SQLite's, and a pip dependency in the builder, to
+ * gain a few points of compression.
  *
- * Una vez descomprimido es texto UTF-8, una linea por campo:
+ * Once decompressed it is UTF-8 text, one line per field:
  *
- *     P<TAB>verb                     (part of speech, opcional, antes de cualquier S)
- *     S<TAB>moverse rapidamente      (abre una acepcion)
- *     E<TAB>corrio hasta la esquina  (ejemplo de la acepcion abierta)
- *     T<TAB>to run                   (traduccion de la acepcion abierta)
- *     Y<TAB>bobo                     (sinonimo de la acepcion abierta)
- *     S<TAB>dicho del tiempo...      (abre la siguiente acepcion)
+ *     P<TAB>verb                     (part of speech, optional, before any S)
+ *     S<TAB>moverse rapidamente      (opens a sense)
+ *     E<TAB>corrio hasta la esquina  (example of the open sense)
+ *     T<TAB>to run                   (translation of the open sense)
+ *     Y<TAB>bobo                     (synonym of the open sense)
+ *     S<TAB>dicho del tiempo...      (opens the next sense)
  *
- * Se usa texto delimitado en vez de JSON o CBOR a proposito: se parsea sin ninguna
- * dependencia en los dos lenguajes, se puede leer con la vista al depurar un pack, y despues
- * de comprimir la diferencia de tamano con un formato binario es ruido.
+ * Delimited text is used instead of JSON or CBOR on purpose: it parses with no dependency at all
+ * in either language, it can be read by eye when debugging a pack, and after compression the size
+ * difference against a binary format is noise.
  *
- * Los tags desconocidos se ignoran, asi un builder mas nuevo puede agregar campos sin romper
- * una app vieja.
+ * Unknown tags are ignored, so a newer builder can add fields without breaking an old app.
  *
- * Aun asi [CODEC_ID] sube cuando cambia el formato del texto, porque `PackFile.open` lo compara
- * con `!=` y rechaza el pack. Hoy eso cuesta reconstruir y volver a sideloadear, y nada mas.
- * **Cuando exista el instalador, un tag ADITIVO no lo sube** (D-119): forzar a redescargar
- * 300 MB por un campo que el lector viejo ignora tiraria justamente esta propiedad.
+ * Even so [CODEC_ID] is bumped when the text format changes, because `PackFile.open` compares it
+ * with `!=` and rejects the pack. Today that costs a rebuild and a re-sideload, and nothing more.
+ * **Once the installer exists, an ADDITIVE tag does not bump it** (D-119): forcing a 300 MB
+ * re-download for a field the old reader ignores would throw away precisely this property.
  */
 object PayloadCodec {
 
-    /** Sube cuando cambia el formato. Se escribe en `meta.payload_codec` como "deflate-v<n>". */
+    /** Bumped when the format changes. Written to `meta.payload_codec` as "deflate-v<n>". */
     const val PAYLOAD_VERSION: Int = 2
 
     const val CODEC_ID: String = "deflate-v2"
@@ -50,19 +49,20 @@ object PayloadCodec {
     private const val TAG_SYNONYM = 'Y'
 
     /**
-     * Antonimo de esta acepcion (D-126).
+     * An antonym of this sense (D-126).
      *
-     * **No sube `CODEC_ID` y eso es deliberado.** D-119 dejo escrito que un tag aditivo no debe
-     * subirlo: para eso existe que los tags desconocidos se ignoren. Un pack con antonimos
-     * abierto por un lector viejo muestra la entrada sin ellos.
+     * **It does not bump `CODEC_ID` and that is deliberate.** D-119 put it in writing that an
+     * additive tag must not bump it: that is what ignoring unknown tags exists for. A pack with
+     * antonyms opened by an old reader shows the entry without them.
      */
     private const val TAG_ANTONYM = 'A'
 
     /**
-     * Palabra relacionada de esta acepcion (D-132): hiperonimo, hiponimo o pariente morfologico.
-     * Aditivo igual que [TAG_ANTONYM], asi que **tampoco sube [CODEC_ID]**.
+     * A related word of this sense (D-132): a hypernym, a hyponym or a morphological relative.
+     * Additive like [TAG_ANTONYM], so **it does not bump [CODEC_ID]** either.
      *
-     * Tag propio y no reusar [TAG_SYNONYM]: `galo` es related de "frances", no equivalente.
+     * Its own tag rather than reusing [TAG_SYNONYM]: `galo` is related to "frances", not
+     * equivalent to it.
      */
     private const val TAG_RELATED = 'R'
 
@@ -82,16 +82,16 @@ object PayloadCodec {
     private const val TAG_CITATION = 'C'
 
     /**
-     * Traducciones de la PALABRA, sin acepcion atribuida.
+     * Translations of the WORD, with no sense attributed.
      *
-     * Aditivo igual que [TAG_ANTONYM] y [TAG_RELATED], asi que **tampoco sube [CODEC_ID]**: un
-     * lector viejo lo cae por el `else -> Unit` y muestra la entrada sin la lista, que es la
-     * degradacion correcta.
+     * Additive like [TAG_ANTONYM] and [TAG_RELATED], so **it does not bump [CODEC_ID]** either: an
+     * old reader drops it through the `else -> Unit` and shows the entry without the list, which
+     * is the right degradation.
      *
-     * ⚠️ **Existe para que la opcion deshonesta deje de ser la barata.** Con `T` solo --que vive
-     * dentro de una acepcion-- un builder con una traduccion que la fuente no atribuyo podia
-     * tirarla o colgarla de la primera acepcion, y lo segundo se lee plausible y no lo agarra
-     * nadie (D-117). Medido: es el **37,7 %** de las traducciones del dump español.
+     * ⚠️ **It exists so that the dishonest option stops being the cheap one.** With `T` alone
+     * --which lives inside a sense-- a builder holding a translation the source did not attribute
+     * could either drop it or hang it off the first sense, and the second reads plausible and
+     * nobody catches it (D-117). Measured: it is **37.7 %** of the Spanish dump's translations.
      */
     private const val TAG_WORD_TRANSLATION = 'W'
 
@@ -117,11 +117,11 @@ object PayloadCodec {
     /** Separates the key from the form inside a [TAG_FORM]. Mirrors `payload.FORM_SEPARATOR`. */
     private const val FORM_SEPARATOR = ':'
 
-    /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
+    /** The decoded body, without the data that already comes in `entry`'s columns. */
     data class Body(
         val partOfSpeech: String?,
         val senses: List<Sense>,
-        /** Traducciones de la palabra entera, sin acepcion. Ver [TAG_WORD_TRANSLATION]. */
+        /** Translations of the whole word, with no sense. See [TAG_WORD_TRANSLATION]. */
         val wordTranslations: List<String> = emptyList(),
         /**
          * The word's principal parts, in the order the builder chose. See [TAG_FORM].
@@ -142,17 +142,17 @@ object PayloadCodec {
     data class InflectedForm(val key: String, val form: String)
 
     /**
-     * Separa un item de traduccion en `(termino, acepcion a la que apunta)`.
+     * Splits a translation item into `(term, the sense it points at)`.
      *
-     * ⚠️ **Las tres partes de una referencia `(pack, palabra, acepcion)` viven en lugares
-     * distintos, y ese reparto es el diseño**: el **pack no se nombra** --el destino se declara
-     * por IDIOMA en `meta.translations_to`, así cualquier pack instalado de ese idioma lo
-     * resuelve y el enlace no muere con el núcleo en vez del completo (D-180)--, la
-     * **palabra** es el termino que ya se muestra, y la **acepcion** es este sufijo opcional,
-     * porque solo existe cuando la fuente la supo.
+     * ⚠️ **The three parts of a `(pack, word, sense)` reference live in different places, and that
+     * split is the design**: the **pack is not named** --the target is declared by LANGUAGE in
+     * `meta.translations_to`, so any installed pack of that language resolves it and the link does
+     * not die because the user has the core instead of the full one (D-180)--, the **word** is the
+     * term already on screen, and the **sense** is this optional suffix, because it only exists
+     * when the source knew it.
      *
-     * De ahi sale la propiedad que importa: **una traduccion sin acepcion ya es un enlace a la
-     * palabra, y no cuesta un solo byte extra**.
+     * From that comes the property that matters: **a translation with no sense is already a link
+     * to the word, and it costs not one extra byte**.
      */
     fun splitRef(value: String): Pair<String, String?> {
         val cut = value.indexOf(REF_SEPARATOR)
@@ -160,41 +160,41 @@ object PayloadCodec {
         else value.substring(0, cut) to value.substring(cut + 1).ifEmpty { null }
     }
 
-    /** El mismo juntador que usa `stable_uid()`. El builder lo saca de cualquier dato de fuente. */
+    /** The same joiner `stable_uid()` uses. The builder strips it out of any source data. */
     private const val REF_SEPARATOR = '\u001f'
 
     /**
-     * Hash del diccionario precargado, a comparar contra `meta.payload_dict_sha256` UNA VEZ al
-     * abrir el pack (no por entrada).
+     * Hash of the preloaded dictionary, to be compared against `meta.payload_dict_sha256` ONCE on
+     * opening the pack (not per entry).
      *
-     * Hace falta porque deflate NO detecta un diccionario equivocado: si tiene el largo
-     * suficiente descomprime sin lanzar nada y devuelve texto corrupto. Esta verificado que
-     * "moverse rapidamente" sale como " nadrse rapidamente" sin ninguna excepcion. Sin este
-     * chequeo, un pack con el diccionario mal llenaria la pantalla de basura sin una sola pista
-     * del motivo, y el usuario lo leeria como "la app esta rota".
+     * It is needed because deflate does NOT detect a wrong dictionary: given enough length it
+     * decompresses without throwing anything and returns corrupt text. It is verified that
+     * "moverse rapidamente" comes out as " nadrse rapidamente" with no exception at all. Without
+     * this check, a pack with the wrong dictionary would fill the screen with garbage without a
+     * single clue why, and the user would read it as "the app is broken".
      */
     fun dictionaryDigest(dictionary: ByteArray): String = sha256Hex(dictionary)
 
     /**
-     * Pliega una glosa para decidir si dos fuentes escribieron **la misma** acepcion.
+     * Folds a gloss to decide whether two sources wrote **the same** sense.
      *
-     * ⚠️ **ESPEJO de `payload.fold_gloss`.**
+     * ⚠️ **A MIRROR of `payload.fold_gloss`.**
      *
-     * El plegado de caja **sigue el estandar**: [CaseFolding.fold] implementa `toCaseFold()`, la
-     * regla R4 de la seccion 3.13 del Estandar Unicode, que es la operacion que UAX #31 define
-     * para *caseless matching*. `lowercase()` es la equivocada -- el estandar separa las dos:
-     * case mapping para MOSTRAR, case folding para COMPARAR.
+     * The case folding **follows the standard**: [CaseFolding.fold] implements `toCaseFold()`,
+     * rule R4 of section 3.13 of the Unicode Standard, which is the operation UAX #31 defines for
+     * *caseless matching*. `lowercase()` is the wrong one -- the standard separates the two: case
+     * mapping to DISPLAY, case folding to COMPARE.
      *
-     * ⚠️ **Lo que si es una regla NUESTRA y versionada es quitar la puntuacion final**: ningun
-     * estandar lo hace, es una decision de contenido, y cambiarla invalida todos los enlaces ya
-     * escritos.
+     * ⚠️ **What IS a rule of OURS, and versioned, is stripping trailing punctuation**: no standard
+     * does it, it is a content decision, and changing it invalidates every link already written.
      *
-     * Ligero a proposito y **no** saca acentos: `publico` y `público` son palabras distintas.
+     * Light on purpose and it does **not** strip accents: `publico` and `público` are different
+     * words.
      *
-     * ⚠️ **El espacio se enumera a mano y NO se usa `\s`**: en Python `\s` sobre `str` es
-     * Unicode y en Java es ASCII, asi que un espacio duro (U+00A0) se colapsaria de un lado y
-     * del otro no, y los dos codigos de la misma acepcion quedarian distintos **sin error y sin
-     * log**.
+     * ⚠️ **Whitespace is enumerated by hand and `\s` is NOT used**: in Python `\s` over `str` is
+     * Unicode and in Java it is ASCII, so a hard space (U+00A0) would collapse on one side and not
+     * the other, and the two codes for the same sense would come out different **with no error and
+     * no log**.
      */
     fun foldGloss(gloss: String): String =
         ESPACIO.replace(CaseFolding.fold(toNfc(gloss).trim()), " ").trim(*CIERRE)
@@ -202,46 +202,46 @@ object PayloadCodec {
     private val ESPACIO = Regex("[ \t\n\r\u000C\u000B]+")
     private val CIERRE = charArrayOf(' ', '.', ';', ':', ',')
 
-    /** Cuantos caracteres hex nombran una acepcion. Espejo de `SENSE_CODE_LENGTH`. */
+    /** How many hex characters name a sense. Mirrors `SENSE_CODE_LENGTH`. */
     const val SENSE_CODE_LENGTH = 12
 
     /**
-     * Nombra una acepcion **sin nombrar un pack**: unico para `(idioma, palabra, acepcion)`.
+     * Names a sense **without naming a pack**: unique for `(language, word, sense)`.
      *
-     * ⚠️ **ESTE ES UN ESPEJO de `payload.sense_code`**, y si los dos calculan distinto los
-     * enlaces entre packs apuntan a la nada **sin error y sin log** -- el modo de falla central
-     * de este repo. Lo fija el mismo vector en los dos lados: `sense_code(1, "casa")` es
+     * ⚠️ **THIS IS A MIRROR of `payload.sense_code`**, and if the two compute differently the
+     * links between packs point at nothing **with no error and no log** -- this repo's central
+     * failure mode. The same vector pins it on both sides: `sense_code(1, "casa")` is
      * `8ec316909e48`.
      *
-     * El idioma y la palabra ya estan dentro de [Entry.uid] --`stable_uid(lang, headword, pos,
-     * sense_key)`-- asi que alcanza con combinarlo con la glosa. De ahi salen las tres
-     * propiedades que se pidieron:
+     * The language and the word are already inside [Entry.uid] --`stable_uid(lang, headword, pos,
+     * sense_key)`-- so combining that with the gloss is enough. From there come the three
+     * properties that were asked for:
      *
-     * 1. **No nombra un pack**, asi que cualquier pack instalado de ese idioma puede resolverlo:
-     *    el enlace no muere porque el usuario tenga el nucleo en vez del completo.
-     * 2. **El nucleo y el completo lo comparten.** Verificado sobre los packs reales: los 21.534
-     *    codigos del nucleo español son identicos en el completo, porque `build_core.py` copia
-     *    el uid en vez de recalcularlo (D-175).
-     * 3. **Degrada a la palabra**: el codigo es un sufijo del termino, no lo reemplaza, asi que
-     *    si ningun pack tiene la acepcion pero alguno tiene la palabra, el enlace sigue sirviendo.
+     * 1. **It does not name a pack**, so any installed pack of that language can resolve it: the
+     *    link does not die because the user has the core instead of the full one.
+     * 2. **The core and the full one share it.** Verified over the real packs: the 21,534 codes of
+     *    the Spanish core are identical in the full one, because `build_core.py` copies the uid
+     *    instead of recomputing it (D-175).
+     * 3. **It degrades to the word**: the code is a suffix on the term, it does not replace it, so
+     *    if no pack has the sense but some pack has the word, the link still works.
      *
-     * ⚠️ **Sobre la glosa CRUDA en NFC y NO sobre `norm()`**, que es el precedente de D-055: si
-     * pasara por `norm()`, un bump de `NORM_VERSION` --permitido por D-005 en cualquier momento--
-     * cambiaria todos los codigos y romperia cada enlace de cada pack ya construido.
+     * ⚠️ **Over the RAW gloss in NFC and NOT over `norm()`**, which is the precedent of D-055: if
+     * it went through `norm()`, a `NORM_VERSION` bump --allowed by D-005 at any time-- would change
+     * every code and break every link of every pack already built.
      */
     fun senseCode(uid: Long, gloss: String): String =
         sha256Hex("$uid\u001f${foldGloss(gloss)}".encodeToByteArray()).take(SENSE_CODE_LENGTH)
 
     /**
-     * Descomprime y parsea el payload.
+     * Decompresses and parses the payload.
      *
-     * @param dictionary el diccionario precargado del pack (`meta.payload_dict`). Tiene que ser
-     *   exactamente el que uso el builder: con otro, deflate falla o produce basura.
+     * @param dictionary the pack's preloaded dictionary (`meta.payload_dict`). It has to be
+     *   exactly the one the builder used: with another, deflate either fails or produces garbage.
      */
     fun decode(compressed: ByteArray, dictionary: ByteArray): Body =
         parse(inflateRaw(compressed, dictionary).decodeToString())
 
-    /** Solo lo usa el lado de tests: en produccion los packs se construyen con Python. */
+    /** Only the test side uses it: in production packs are built with Python. */
     fun encode(body: Body, dictionary: ByteArray): ByteArray =
         deflateRaw(render(body).encodeToByteArray(), dictionary)
 
@@ -251,16 +251,16 @@ object PayloadCodec {
         val wordTranslations = mutableListOf<String>()
         val forms = mutableListOf<InflectedForm>()
 
-        // La acepcion cuyo ULTIMO ejemplo todavia puede recibir una cita, o null. La pone un
-        // `E` y la borra cualquier otra linea: un `C` que no venga pegado a su `E` se descarta
-        // en vez de elegirle un ejemplo. Ver [TAG_CITATION].
+        // The sense whose LAST example can still receive a citation, or null. An `E` sets it and
+        // any other line clears it: a `C` that does not come right after its `E` is discarded
+        // rather than having an example picked for it. See [TAG_CITATION].
         var citable: MutableSense? = null
 
         for (line in text.split('\n')) {
             if (line.isEmpty()) continue
             val separator = line.indexOf('\t')
-            // Una linea sin tab esta corrupta o es de un formato futuro: se ignora en vez de
-            // tirar la entrada completa.
+            // A line with no tab is either corrupt or from a future format: it is ignored rather
+            // than throwing the whole entry away.
             if (separator != 1) continue
             val value = line.substring(separator + 1)
             if (value.isEmpty()) continue
@@ -275,7 +275,7 @@ object PayloadCodec {
             when (line[0]) {
                 TAG_PART_OF_SPEECH -> if (partOfSpeech == null) partOfSpeech = value
                 TAG_SENSE -> senses.add(MutableSense(value))
-                // Un ejemplo o traduccion antes de la primera acepcion no tiene donde colgar.
+                // An example or translation before the first sense has nothing to hang off.
                 TAG_EXAMPLE -> senses.lastOrNull()?.let {
                     it.examples.add(Example(value))
                     citable = it
@@ -284,15 +284,15 @@ object PayloadCodec {
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
                 TAG_RELATED -> senses.lastOrNull()?.related?.add(value)
-                // Sin guarda de `senses`: es de la ENTRADA, asi que su posicion en el texto no
-                // decide nada. Si decidiera, un `W` mal ubicado se volveria traduccion de
-                // acepcion -- la atribucion inventada que este canal existe para evitar.
+                // No `senses` guard: it belongs to the ENTRY, so its position in the text decides
+                // nothing. If it did, a misplaced `W` would become a sense translation -- the
+                // invented attribution this channel exists to prevent.
                 TAG_WORD_TRANSLATION -> wordTranslations.add(value)
-                // Sin guarda de `senses`, por lo mismo que `W`: describe la ENTRADA.
+                // No `senses` guard, for the same reason as `W`: it describes the ENTRY.
                 TAG_FORM -> {
                     val cut = value.indexOf(FORM_SEPARATOR)
-                    // Una linea sin separador se ignora: perder una forma es barato, y lanzar
-                    // aqui perderia la entrada entera por una linea mal escrita.
+                    // A line with no separator is ignored: losing one form is cheap, and throwing
+                    // here would lose the whole entry over a single malformed line.
                     if (cut > 0 && cut < value.length - 1) {
                         forms.add(
                             InflectedForm(value.substring(0, cut), value.substring(cut + 1)),
@@ -321,14 +321,14 @@ object PayloadCodec {
     }
 
     /**
-     * Vuelve a texto un [Body], para el ida y vuelta de los tests.
+     * Turns a [Body] back into text, for the tests' round trip.
      *
-     * ⚠️ **NO deduplica las listas, y el lado Python SI, y la asimetria es deliberada.**
-     * `payload.render` es el paso por el que pasan todos los packs **al construirse**, asi que
-     * ahi la deduplicacion decide que se guarda. Aca se esta LEYENDO un pack que ya existe:
-     * alterar en silencio lo que el archivo trae escondería que un pack ajeno viene con la misma
-     * palabra dos veces, en vez de dejarlo a la vista. Mostrar lo que el pack dice es la
-     * respuesta correcta para un lector.
+     * ⚠️ **It does NOT deduplicate the lists, the Python side DOES, and the asymmetry is
+     * deliberate.** `payload.render` is the step every pack goes through **while being built**, so
+     * there deduplication decides what gets stored. Here a pack that already exists is being READ:
+     * silently altering what the file carries would hide that a foreign pack ships the same word
+     * twice, instead of leaving it in plain sight. Showing what the pack says is the right answer
+     * for a reader.
      */
     fun render(body: Body): String {
         val out = StringBuilder()
@@ -337,7 +337,7 @@ object PayloadCodec {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')
             for (example in sense.examples) {
                 out.append(TAG_EXAMPLE).append('\t').append(example.text).append('\n')
-                // Pegada a su ejemplo, que es lo que [parse] exige para aceptarla.
+                // Right after its example, which is what [parse] requires to accept it.
                 example.citation?.let {
                     out.append(TAG_CITATION).append('\t').append(it).append('\n')
                 }
