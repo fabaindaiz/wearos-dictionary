@@ -16,6 +16,73 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (11) — The app's knobs move from `adb`, and a language finally gets named at the right level
+**What.** `DEBUG_SET` changes the app's internal knobs without a rebuild and an override expires
+with the `versionCode` (D-259, D-260); a language is named at three levels and the escape hatch
+uses the right one (D-261); the `adb`-only-in-debug request is recorded with the conflict it has;
+`versionCode` 10.
+
+**Areas.** `app/src/main/.../DebugKnobs.kt` (new), `DebugIntents.kt`, `MainActivity.kt`,
+`PackGrouping.kt`, `SearchScreen.kt`, two test files, `app/CLAUDE.md`, `docs/decisions.md` and
+`docs/roadmap.md`.
+
+**Why.** Asked for, in order: a way to change the pack server url from `adb`; whether these
+belong in Settings and a general mechanism for the non-sensitive ones; that they refresh when a
+new version runs; and the language button spelled out rather than abbreviated.
+
+**Architecture.** Complies.
+
+**Measured.**
+- **The override works end to end**: `packserver.py` on 8799, an `adb` broadcast, and the server
+  logged `GET /index.json HTTP/1.1" 200` — **no rebuild, no restart**. Before this, aiming the
+  app at a development server was a rebuild and a 112 MB reinstall.
+- **The expiry works on device**: 9 → 10 logged *"los overrides eran de la version 9 y esta es
+  la 10: se descartan"* and the url fell back to the built-in one.
+- **The definitions button is NOT redundant**, which was the question. The normal cascade is
+  prefix → inflected form → translation → fuzzy; `MatchKind.DEFINITION` says *"only on an
+  explicit action by the user"*. On `es-full`: **`color del cielo` is not a lemma and sits inside
+  2 definitions**; `instrumento musical` matches 1 lemma and **112 definitions**.
+- **The pack-less APK is 53.96 MB, or 111 MB if you do not delete the old one first** — AGP
+  packages incrementally and leaves removed assets as orphaned bytes. The zip is valid and
+  nothing warns.
+- Gate exit 0; **421 JVM tests**, 511 builder tests.
+
+**Unverified.** **Nothing on a wrist.** All of it on `emulator-5554`. And the `benchmark` build
+type was **not** rebuilt or measured after these changes — its `DEBUG_INTENTS` is true and now
+carries more surface than before.
+
+**What went wrong.**
+- **A first proof of the definitions claim was wrong and I caught it by reading the result.**
+  Comparing the query against `entry.headword` said `cuadrupedo` was not a lemma; the app found
+  it anyway, because `norm()` strips accents and the lemma is `cuadrúpedo`. The comparison had to
+  move to `entry.norm`, and the honest demonstration turned out to be a **phrase**, which cannot
+  be a lemma at all. ⚠️ **Querying a pack with the wrong column is this repo's central invariant
+  failing in miniature** — the builder writes `norm`, the app searches `norm`, and anything that
+  reads `headword` is asking a different question.
+- **Lint broke the gate over `SharedPreferences.edit`**, twice in one file, after it had compiled
+  clean. `compileDebugKotlin` is not the gate, and I read it as if it were.
+- **I read `EXIT=0` from a pipeline's exit code rather than Gradle's** — the exact trap
+  `CLAUDE.md` names — over a build that had failed. Caught because the printed output
+  contradicted the number.
+
+**What was left undone.**
+- **`adb` debug in `benchmark` was NOT switched off**, though the request said *"only in debug"*.
+  It is true in `benchmark` on purpose (D-166): that is the build startup and battery are
+  measured on, and it would go back to needing a finger. Recorded with three priced options and
+  a recommendation; **the owner decides**, and the safety half — nothing in `release` — already
+  holds by a constant that R8 folds out.
+- **No check pins `DEBUG_INTENTS=false` in release.** ~10 lines of grep in the audit would make
+  it a rule rather than a comment. Proposed, not executed.
+- **`LanguageScope.FALLBACK` is built, tested and unreachable** since D-189, and is the strongest
+  candidate for a real behaviour setting. Its price is already measured: 321 of 400 common
+  English lemmas.
+- **The definitions button's LABEL was not changed.** It says what will be searched, not what
+  will be searched for, which is what caused the question. A user-facing string is the owner's.
+- **The no-packs dead end**, the **pack rebuild** (`Eddie`/`Richard`, the `F` channel), the
+  **fast watch suite for P-4** — owed for three turns now — and **~3,850 lines of translation**.
+
+---
+
 ## 2026-09-23 (10) — Three app defects nobody had seen, and a pack repaired without rebuilding it
 **What.** The escape hatch out of a language now follows the language in both its condition and
 its label (D-255); the debug dump reports what is loaded instead of what is drawn (D-256); a

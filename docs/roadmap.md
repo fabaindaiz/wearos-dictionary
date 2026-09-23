@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **420 JVM
-de `:app`** y **32 checks** de auditoría estructural — **1090 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **421 JVM
+de `:app`** y **32 checks** de auditoría estructural — **1091 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3494,6 +3494,82 @@ today — so it is either a new field or `result.all` threaded through. ⚠️ *
 the line `ofrecibles=` would make it honest and simultaneously remove the only answer the dump has
 to the question it exists for. The KDoc on `available` should be corrected either way, since it is
 wrong today.
+
+### `LanguageScope.FALLBACK` is built, tested and unreachable — FOUND 2026-09-23
+
+**Status.** **Dead-but-working code**, found while answering what belongs in Settings.
+
+`SearchRepository` takes a `scope: LanguageScope = LanguageScope.STRICT` and branches on it
+(`if (scope == LanguageScope.STRICT) return false`). **Nothing in the app ever constructs it with
+`FALLBACK`.** D-189 turned the cross-language fallback off and deliberately kept it *as a value*
+rather than deleting it — the row says so — but no caller was ever given a way to pick it.
+
+⚠️ **It is the strongest candidate for a real behaviour setting the app does not have.** The
+Settings screen holds exactly one thing today (`textScale`), and the escape hatches exist
+precisely because the fallback is off: *"if the Spanish pack finds nothing in the core, look in
+the other pack"* is the owner's own description of what they wanted. A switch would turn two
+manual pills into a preference.
+
+⚠️ **And the price is already measured, which is unusual for a roadmap item**: D-189 records
+that **321 of 400 common English lemmas** stop appearing with Spanish active. That number is the
+whole argument in both directions — it is why the fallback existed, and why turning it off was
+worth it. A setting hands the choice to whoever is wearing the watch.
+
+**Not built**: it is a behaviour change and a UI row, and both are the owner's call.
+
+### The APK keeps dead bytes when assets are removed — MEASURED 2026-09-23
+
+**Status.** **A trap, written down.** Not a defect in this repo: AGP packages incrementally.
+
+Building with `-Pdictionary.packsDir=<empty>` — which is how you get a pack-less APK to test the
+first-run path — leaves the previous build's packs in the file as **orphaned bytes**. Measured:
+the APK contained **no `.db` at all** and 54 MB of entries, and weighed **111 MB**. Deleting the
+`.apk` first and rebuilding gave **53.96 MB**.
+
+⚠️ **It is silent and it costs exactly where it hurts**: pushing 111 MB to a watch over
+wireless `adb` for an app that is 54, which is minutes, to test the state that needs the *least*
+data. Nothing warns; the zip is valid, because readers use the central directory.
+
+```sh
+rm -f app/build/outputs/apk/debug/app-debug.apk        # or --rerun-tasks
+./gradlew :app:assembleDebug -Pdictionary.packsDir=<an empty directory>
+```
+
+### The `adb` debug surface should exist only in a debug build — ASKED 2026-09-23, **conflicts with benchmark**
+
+**Status.** **Requested and NOT applied**, because applying it as stated would break a measuring
+workflow that was decided on purpose. Asked for verbatim: *«deja en el roadmap que este debug adb
+solo quede disponible en build de debug»*.
+
+**What is true today**, read off `app/build.gradle.kts`:
+
+| Build type | `DEBUG_INTENTS` | Why |
+|---|---|---|
+| `debug` | **true** | where probes run |
+| `release` | **false** | an exported receiver in production is attack surface and battery. R8 folds the `if`, the class **leaves the dex** — it does not exist, rather than going unused |
+| `benchmark` | **true** | ⚠️ **deliberate, and it is the conflict.** It inherits from `release` and is the build startup and battery are measured on (D-166), and the only release-like one that installs. If it were the only build unable to seed a query, measuring a search would need a finger again |
+
+⚠️ **So the request is already satisfied for the build that ships and not for the one that
+measures**, and those are different questions. The part that matters for safety — *nothing
+reaches a user's watch* — holds today and is enforced by a constant rather than by a convention:
+`release` cannot register the receiver because the code is not in the APK.
+
+**What is actually open**, and it is narrower than the sentence suggests:
+
+| | Option | Cost | What it closes |
+|---|---|---|---|
+| **A** | Leave it: `debug` + `benchmark`, `release` never | 0 | Today's behaviour, and the reasoning is written down in both places. ⚠️ The cost is that *"debug-only"* is **not literally true**, so anyone reading only this line would be wrong |
+| **B** | Turn it off in `benchmark` too | measuring a search goes back to needing a finger on a watch whose IME reorders keystrokes | Makes the sentence literally true. ⚠️ It pays a real, measured cost to close a gap nobody has shown is a gap: a `benchmark` APK is sideloaded by hand, never distributed |
+| **C** | Keep it in `benchmark` but require an extra flag at install time | a build property, and one more thing to forget | Honest middle. ⚠️ Something you must remember to pass is something you will fail to pass exactly when you are measuring under pressure |
+
+**Recommendation: A, with the wording fixed** — say *"never in `release`"* rather than *"only in
+`debug`"*, because that is the property that protects anybody and it is the one a constant
+enforces. **Not decided alone**: the ask was explicit, and the owner may want B anyway.
+
+⚠️ **And there is no check.** Nothing fails if a future build type is added with
+`DEBUG_INTENTS` left true, or if the `release` line is edited. A grep in `audit_dictionary.py`
+asserting that the `release` block sets it to `false` is ~10 lines and would make this a rung-3
+rule instead of a comment. That is the cheapest half of whatever option wins.
 
 ### With no packs the home is a dead end — SEEN 2026-09-23, not built
 
