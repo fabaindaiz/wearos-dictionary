@@ -2055,6 +2055,8 @@ class ScreensTest {
                 packs = packs,
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 appVersion = "9.9.9",
+                buildCommit = "abc1234567+dirty",
+                buildTime = "2026-09-23 15:02 UTC",
                 uiLanguage = uiLanguage,
                 onUiLanguageChange = onUiLanguageChange,
                 onManagePacks = {},
@@ -2063,6 +2065,20 @@ class ScreensTest {
                 hasHistory = hasHistory,
             )
         }
+    }
+
+    @Test
+    // El mismo calificador que el de abajo, y por la misma razon: el bloque About es lo ultimo de
+    // la lista mas larga de la app, y a 900 dp no llega a componerse -- el aserto medieria nada.
+    @Config(qualifiers = "+w234dp-h1600dp")
+    fun `el diagnostico dice de QUE build se trata, no solo su version`() {
+        // ⚠️ **`versionName` es el mismo en diez builds del mismo dia.** Sin el commit, *«el
+        // arreglo no funciono»* y *«el reloj corre el APK de ayer»* son el mismo reporte, y en un
+        // reloj el segundo es probable: cada cache entre la maquina y la muneca lo favorece.
+        // El `+dirty` es la mitad honesta -- casi todo lo que se instala sale de un arbol sin
+        // commitear, y ahi el hash NO identifica lo que corre.
+        showSettings()
+        compose.onNodeWithText("abc1234567+dirty", substring = true).assertExists()
     }
 
     @Test
@@ -2102,7 +2118,7 @@ class ScreensTest {
 
     @Test
     @Config(qualifiers = "+w234dp-h1600dp")
-    fun elDIAGNOSTICO_es_SOLO_LA_VERSION_y_va_al_fondo() {
+    fun elDIAGNOSTICO_va_al_FONDO_y_no_nombra_diccionarios() {
         // The user asked for them at the bottom: they are looked up once, when something is
         // wrong, and they must not push the settings anybody actually changes off the screen.
         // The 1600 dp qualifier is not a claim about any watch: it is the only way both ends of

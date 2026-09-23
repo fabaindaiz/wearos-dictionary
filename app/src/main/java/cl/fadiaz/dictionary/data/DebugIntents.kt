@@ -133,9 +133,16 @@ object DebugIntents {
         rejected: List<String>,
         memo: String?,
         appVersion: Int,
+        /**
+         * La identidad del build: commit, `+dirty`, y cuándo.
+         *
+         * ⚠️ **Va PRIMERO y no al final**, porque decide si el resto del volcado sirve: un
+         * readout que describe un APK que no es el que se cree estar mirando es peor que ninguno.
+         */
+        buildId: String = "",
     ): List<String> = buildList {
         add("--- volcado ---")
-        add("app versionCode=$appVersion")
+        add("app versionCode=$appVersion${buildId.takeIf { it.isNotBlank() }?.let { " build=$it" }.orEmpty()}")
         add("activo=${active ?: "(ninguno)"}")
         add("abiertos=${opened.size}${if (opened.isEmpty()) "" else ": " + opened.joinToString()}")
         add(
