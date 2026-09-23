@@ -163,12 +163,11 @@ object PackStore {
     )
 
     /**
-     * El memo de verificación tal cual está guardado, **para poder mirarlo en el dispositivo**.
+     * The verification memo exactly as stored, **so it can be looked at on the device**.
      *
-     * Existe por el ítem 3 de las herramientas de depuración del roadmap: hasta acá el memo sólo
-     * se podía leer con `run-as`, que no funciona sobre un APK de `benchmark`. Y es justo el dato
-     * con el que se comprueba que instalar una versión nueva lo caducó (D-225). Lo consume
-     * `DebugIntents.dump`.
+     * It exists for item 3 of the roadmap's debug tooling: until now the memo could only be read
+     * with `run-as`, which does not work over a `benchmark` APK. And it is precisely the datum
+     * that proves installing a new version expired it (D-225). `DebugIntents.dump` consumes it.
      */
     fun verificationMemo(context: Context): String? =
         prefs(context).getString(KEY_VERIFIED, null)
@@ -616,15 +615,15 @@ object PackStore {
         }.getOrDefault(emptyMap())
 
     /**
-     * El parser del indice, **puro y sin Android para que el gate lo cubra** (D-072).
+     * The index parser, **pure and free of Android so the gate covers it** (D-072).
      *
-     * ⚠️ **Es codigo que falla devolviendo un mapa vacio**, que es la forma exacta de falla que
-     * este repo no puede ver: sin versiones declaradas los nucleos no se actualizan nunca, y no
-     * hay excepcion ni log de error. Por eso se separa de la lectura del asset y se prueba.
+     * ⚠️ **This is code that fails by returning an empty map**, which is the exact failure shape
+     * this repo cannot see: with no declared versions the cores never update, and there is no
+     * exception and no error log. That is why it is split from reading the asset, and tested.
      *
-     * Una linea que no se entiende se ignora en vez de romper: el costo de ignorarla es que ese
-     * pack quede sin version declarada, que es el estado seguro. Romper por una linea mala
-     * dejaria sin version a **todos**.
+     * A line that cannot be parsed is ignored rather than fatal: the cost of ignoring it is that
+     * pack having no declared version, which is the safe state. Throwing on one bad line would
+     * leave **every** pack without one.
      */
     internal fun parseCoreIndex(texto: String): Map<String, Long> =
         texto.lineSequence()
@@ -671,9 +670,9 @@ object PackStore {
                 TextNormalizer.NORM_VERSION,
                 PackFile.SUPPORTED_SCHEMA_VERSION,
                 PayloadCodec.CODEC_ID,
-                // ⚠️ **Instalar una app nueva caduca el memo entero**, y es la única de las cinco
-                // que nadie puede olvidarse de subir: el instalador rechaza un downgrade (D-095).
-                // Ver [PackVerification.rules].
+                // ⚠️ **Installing a new app expires the whole memo**, and it is the only one of
+                // the five nobody can forget to raise: the installer rejects a downgrade (D-095).
+                // See [PackVerification.rules].
                 versionCode(context),
             ),
         )

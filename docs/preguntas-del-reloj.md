@@ -1,74 +1,75 @@
-# Preguntas que sólo el reloj contesta
+# Questions only the watch can answer
 
-**Lo que este documento es.** La lista permanente de preguntas abiertas cuya respuesta **no está
-en esta máquina**, cada una con el readout que la contesta y con qué desbloquea. No es una lista
-de tareas: es lo que hay que llevarse encima la próxima vez que haya un reloj en la muñeca, para
-que esa sesión vuelva con **decisiones** y no con impresiones.
+**What this document is.** The standing list of open questions whose answer **is not on this
+machine**, each with the readout that answers it and what it unblocks. It is not a task list: it
+is what to take along the next time there is a watch on a wrist, so that session comes back with
+**decisions** rather than impressions.
 
-**Por qué existe.** Es la segunda mitad del principio 7 del método. La primera —nombrar la clase
-de bug que este repo no puede ver y darle un chequeo pre-ship— ya está: el invariante central, los
-vectores compartidos, `verify_pack.py`. La segunda es **observar después de shippear**, y acá el
-lugar donde el software corre es una muñeca y quien lo mira no está frente a una terminal.
+**Why it exists.** It is the second half of the method's principle 7. The first half —naming the
+class of bug this repo cannot see and giving it a pre-ship check— is already here: the central
+invariant, the shared vectors, `verify_pack.py`. The second is **observing after shipping**, and
+the place this software runs is a wrist, watched by somebody who is not at a terminal.
 
-> Sin este documento, una pasada con el reloj contesta lo que se le ocurra a quien lo tenga puesto.
-> Con él, contesta lo que estaba bloqueando algo — y la respuesta entra a `docs/decisions.md`.
+> Without this document, a pass with the watch answers whatever occurs to whoever is wearing it.
+> With it, it answers what was blocking something — and the answer goes into `docs/decisions.md`.
 
-**Cómo se usa.**
+**How it is used.**
 
-1. Antes de una pasada: se lee entero y se eligen las preguntas que el tiempo alcanza.
-2. Durante: se captura el readout **tal cual**, no la interpretación.
-3. Después: cada pregunta contestada se tacha acá con la fecha y el número, y si decidió algo, su
-   fila va a `docs/decisions.md`. Una pregunta que se contestó y no se tachó vuelve a preguntarse.
+1. Before a pass: read it whole and pick the questions the time allows.
+2. During: capture the readout **verbatim**, not the interpretation.
+3. After: each answered question is struck through here with its date and its number, and if it
+   settled something, its row goes to `docs/decisions.md`. A question answered and not struck
+   through gets asked again.
 
-**Cómo entra una pregunta.** Una afirmación que una sesión **no pudo verificar** lo dice en su
-entrada del changelog **y agrega su pregunta acá en el mismo cambio** (`CLAUDE.md` §Logging
-obligation). Ése es el único camino: si entra por otro lado, nadie sabe qué sesión la dejó abierta.
+**How a question gets in.** A claim a session **could not verify** says so in its changelog entry
+**and adds its question here in the same change** (`CLAUDE.md` §Logging obligation). That is the
+only route: arriving any other way, nobody knows which session left it open.
 
 ---
 
-## Lo que ya se puede preguntar sin un dedo
+## What can already be asked without a finger
 
-Desde D-232 la app se puede manejar por `adb` en cualquier build que no sea `release`. **Casi
-todas las preguntas de abajo se contestan así**, y eso es nuevo: hasta el 2026-09-23 dependían de
-escribir en un campo que no toma foco con un tap sintético.
+Since D-232 the app can be driven over `adb` on any build that is not `release`. **Almost every
+question below is answered that way**, and that is new: until 2026-09-23 they depended on typing
+into a field that does not take focus from a synthetic tap.
 
 ```sh
 adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_SEARCH -e q "hous"
 adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_CLEAR
 adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_DUMP
 adb logcat -s Dict:V
-adb shell setprop log.tag.Dict DEBUG      # el detalle por consulta
+adb shell setprop log.tag.Dict DEBUG      # the per-query detail
 ```
 
-⚠️ **`-p` va antes del extra.** Un extra vacío no sobrevive a `adb shell`: medido el 2026-09-23,
-`-e q "" -p cl.fadiaz.dictionary` dejó la app buscando literalmente `-p`. Por eso vaciar tiene su
-propia acción.
+⚠️ **`-p` goes before the extra.** An empty extra does not survive `adb shell`: measured
+2026-09-23, `-e q "" -p cl.fadiaz.dictionary` left the app searching for the literal `-p`. That is
+why clearing has its own action.
 
 ---
 
-## Las preguntas abiertas
+## The open questions
 
-| # | La pregunta | El readout que la contesta | Qué desbloquea |
+| # | The question | The readout that answers it | What it unblocks |
 |---|---|---|---|
-| P-1 | ¿El respaldo entre idiomas devuelve algo cuando el activo no tiene nada? | `DEBUG_SEARCH` con una palabra que sólo existe en el otro idioma, y `buscar '…' -> N (…) RESPALDO` en `logcat` | **D-168**, sin verificar desde el 2026-09-21 *teniendo el reloj en la mano* |
-| P-2 | ¿Los sinónimos de una glosa son tocables y abren la entrada correcta? | `DEBUG_SEARCH`, abrir la ficha, tocar un sinónimo, y comparar el `packId`+`entryId` del log contra el de la glosa | **D-169**, mismo caso que P-1 |
-| P-3 | ¿Los dos tiles **dibujan**, y con R8? | Agregarlos al carrusel a mano —es un gesto del usuario, no hay `adb` que lo haga— y `tile historial: pantalla=NNNdp filas=N` en `logcat` | **D-149** y **D-163**. El package manager resuelve los dos `TileService`, así que R8 no los borró; que **rendericen** es lo que falta |
-| P-4 | ¿Cuánto tarda de verdad un arranque en frío, y cuánto una consulta a p99? | `am start -W` sobre el build **`benchmark`**, y `buscar … en N ms` con `log.tag.Dict DEBUG` | **O-1** y el presupuesto que reemplazó a D-207. ⚠️ Un número de emulador **no** sirve (D-043) |
-| P-5 | ¿Cuánto gasta de batería una ráfaga de uso real? | `dumpsys batterystats` antes y después, sobre `benchmark` | **O-4** y `docs/bateria.md`, que hoy no tiene una sola cifra medida |
-| P-6 | ¿Los 46 instrumentados pasan en **hardware**, no en emulador? | `./gradlew :dict-data:connectedDebugAndroidTest` con el reloj conectado. **Leer el conteo, nunca el color**: un dispositivo que se cae a mitad reporta `BUILD SUCCESSFUL` con cero tests | Las asunciones sobre ICU y SQLite del dispositivo. Corrieron en emulador API 33 y 37; en hardware, nunca |
-| P-7 | ¿`extractIfNewer` reemplaza el núcleo cuando el APK trae uno más nuevo? | Instalar un núcleo viejo desde el catálogo, subir de `versionCode`, y `<asset>: el APK trae uno mas nuevo (…)` en `logcat` | **D-226/D-229**. El gate cubre el plan y el parser; el cableado necesita dos `data_version` distintos, y hoy los dos salen del mismo `dist/` |
-| P-8 | ¿Instalar una versión nueva caduca el memo sobre los **cinco packs completos**? | `DEBUG_DUMP` antes y después de subir de `versionCode`: la huella termina en `.aN` | **D-225**. Verificado el 2026-09-23 **con dos núcleos en un emulador**; con 450 MB de packs reales el costo del primer arranque es otro número |
-| P-9 | ¿Cuánto tarda realmente instalar un APK de 111 MB por adb inalámbrico? | El tiempo de `installDebug`, y si se corta, a cuántos MB | La subida de 315 MB **ya se cortó una vez a los 75**. El APK pasó de 5,48 a 111 MB: si esto no es viable, el núcleo inglés no puede viajar dentro |
-| P-10 | ¿Una palabra del día de un pack **núcleo** se lee como algo que valga la pena aprender? | `DEBUG_DUMP` nombra el pack activo; el inicio muestra la palabra. Comparar contra la simulación: `acción`, `anillo`, `Christmas`, `afternoon` | **D-240**. El piso de rank se ajustó sobre tiradas simuladas contra los packs reales, nunca sobre la pantalla, y de él depende el primer arranque de cada instalación nueva |
+| P-1 | Does the language fallback return anything when the active one has nothing? | `DEBUG_SEARCH` with a word that exists only in the other language, and `buscar '…' -> N (…) RESPALDO` in `logcat` | **D-168**, unverified since 2026-09-21 *with the watch in hand* |
+| P-2 | Are a gloss's synonyms tappable, and do they open the right entry? | `DEBUG_SEARCH`, open the card, tap a synonym, and compare the log's `packId`+`entryId` against the gloss's | **D-169**, same case as P-1 |
+| P-3 | Do both tiles **draw**, and with R8? | Add them to the carousel by hand —a user gesture, no `adb` for it— and `tile historial: pantalla=NNNdp filas=N` in `logcat` | **D-149** and **D-163**. The package manager resolves both `TileService`s, so R8 did not strip them; whether they **render** is what is missing |
+| P-4 | How long does a cold start really take, and a query at p99? | `am start -W` over the **`benchmark`** build, and `buscar … en N ms` with `log.tag.Dict DEBUG` | **O-1**, and the budget that replaced D-207. ⚠️ **It also gates the pack-size levers**: `detail=none` was measured at **−38 MB on the English pack** and is being held until there is a real start-up number to protect. An emulator figure does **not** count (D-043) |
+| P-5 | How much battery does a real burst of use cost? | `dumpsys batterystats` before and after, over `benchmark` | **O-4** and `docs/bateria.md`, which today holds no measured figure at all |
+| P-6 | Do the 46 instrumented tests pass on **hardware**, not an emulator? | `./gradlew :dict-data:connectedDebugAndroidTest` with the watch attached. **Read the count, never the colour**: a device that drops mid-run reports `BUILD SUCCESSFUL` with zero tests | The assumptions about the device's ICU and SQLite. They ran on emulator API 33 and 37; on hardware, never |
+| P-7 | Does `extractIfNewer` replace the core when the APK carries a newer one? | Install an old core from the catalog, raise `versionCode`, and look for `<asset>: el APK trae uno mas nuevo (…)` in `logcat` | **D-226/D-229**. The gate covers the plan and the parser; the wiring needs two different `data_version`s, and today both come from the same `dist/` |
+| P-8 | Does installing a new version expire the memo over the **five full packs**? | `DEBUG_DUMP` before and after raising `versionCode`: the fingerprint ends in `.aN` | **D-225**. Verified 2026-09-23 **with two cores on an emulator**; with 450 MB of real packs the first launch costs a different number |
+| P-9 | How long does installing a 111 MB APK over wireless adb actually take? | The time `installDebug` takes, and if it breaks, at how many MB | The 315 MB upload **already broke once at 75**. The APK went from 5.48 to 111 MB: if this is not viable, the English core cannot travel inside it |
+| P-10 | Does a word of the day from a **core pack** read like something worth learning? | `DEBUG_DUMP` names the active pack; the home screen shows the word. Compare against the simulation: `acción`, `anillo`, `Christmas`, `afternoon` | **D-240**. The rank floor was fitted on simulated draws over the real packs, never on a watch, and the first launch of every fresh install now depends on it |
 
 ---
 
-## Contestadas
+## Answered
 
-*Se tachan con su fecha y su número; no se borran, porque una pregunta borrada vuelve el trimestre
-que viene sin memoria de qué la cerró.*
+*Struck through with their date and their number; never deleted, because a deleted question comes
+back next quarter with no memory of what closed it.*
 
-| # | La pregunta | Contestada | Con qué |
+| # | The question | Answered | With what |
 |---|---|---|---|
-| — | ¿Un pack núcleo del APK devuelve resultados por la vía del usuario? | **2026-09-23**, emulador `wear_sm_l715f` | `DEBUG_SEARCH hous` → `house` primero en pantalla. Cerró la duda que había obligado a contestar leyendo el `.db` con `sqlite3` |
-| — | ¿La pantalla son 192 dp o 234? | **2026-09-19**, SM-L715F | `sw234dp w234dp h234dp 340dpi`. Movió cinco decisiones de layout |
+| — | Does a core pack from the APK return results through the user's own path? | **2026-09-23**, emulator `wear_sm_l715f` | `DEBUG_SEARCH hous` → `house` first on screen. Closed the doubt that had forced an answer by reading the `.db` with `sqlite3` |
+| — | Is the screen 192 dp or 234? | **2026-09-19**, SM-L715F | `sw234dp w234dp h234dp 340dpi`. Moved five layout decisions |
