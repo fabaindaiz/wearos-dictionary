@@ -36,6 +36,16 @@ for base, dirs, files in os.walk(ROOT):
             MARKDOWN.append(os.path.join(base, name))
 
 
+#: Las fuentes que una sonda de mutacion podria ensuciar. Los `.md` quedan fuera a proposito: un
+#: documento que EXPLICA que es una sonda no es una sonda, y este mismo archivo las nombra.
+FUENTES = []
+for base, dirs, files in os.walk(ROOT):
+    dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__")]
+    for name in files:
+        if name.endswith((".kt", ".kts", ".py", ".java")):
+            FUENTES.append(os.path.relpath(os.path.join(base, name), ROOT))
+
+
 class Report:
     def __init__(self):
         self.failures = []
@@ -1492,7 +1502,42 @@ def check_core_index_name(report):
         )
 
 
+def check_no_probes_left_behind(report):
+    """Regla: una sonda de mutacion no sobrevive a la sesion que la corrio. (D-236)
+
+    El paso 3 del session loop del metodo: *las sondas las encuentra el audit y las limpia quien
+    las corrio*. Antes de esto dependia de acordarse, y acordarse no es un mecanismo.
+
+    ⚠️ **El modo de falla es el peor que tiene este repo: una mutacion olvidada NO rompe nada.**
+    Se escribe para que un test falle, se comprueba que falla, y si el restore no vuelve --o
+    vuelve a medias-- lo que queda es codigo deliberadamente equivocado con todos los tests en
+    verde, porque el test que la detectaba es justo el que se estaba probando. Ya mordio una vez
+    de otra forma: macOS cachea bytecode fuera del repo y una mutacion del mismo ancho sobrevivio
+    a un restore.
+
+    Busca los marcadores que este repo usa al sondear. No cubre una mutacion sin marcar --nada
+    puede-- y por eso el marcador es la convencion: **una sonda se escribe con su marca**, y esta
+    regla convierte olvidarla en la unica forma de que pase desapercibida.
+    """
+    marcadores = ("MUTACION", "MUTACIÓN", "MUTATION PROBE", "SONDA:")
+    # Este archivo se nombra a si mismo; excluirlo es la unica exencion, y va escrita.
+    exento = os.path.join("tools", "audit_dictionary.py")
+    for ruta in FUENTES:
+        if ruta == exento:
+            continue
+        contenido = read(ruta)
+        for n, linea in enumerate(contenido.splitlines(), 1):
+            if any(m in linea for m in marcadores):
+                report.failure(
+                    "quedo una sonda de mutacion sin limpiar: %s:%d" % (ruta, n),
+                    "una mutacion olvidada no rompe NADA --el test que la detectaba es el que se "
+                    "estaba probando-- asi que queda codigo deliberadamente equivocado con el "
+                    "gate en verde. La linea: %s" % linea.strip()[:100],
+                )
+
+
 CHECKS = [
+    check_no_probes_left_behind,
     check_core_index_name,
     check_mirror_declarations,
     check_version_constants,
