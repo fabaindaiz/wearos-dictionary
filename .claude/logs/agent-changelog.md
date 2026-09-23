@@ -92,6 +92,12 @@ screen was opened with three packs installed, nor with a lone bidirectional one.
   reading a screenshot; the tap proved otherwise (P-2). Retracted where it was made.
 
 **What was left undone.**
+- **`abiertos=` in the debug dump undercounts, found after this entry was first written** and
+  left unfixed on purpose, because the build was being prepared for an upload. Startup reported
+  `3 abiertos`; the dump reported `abiertos=2`. `state.available` is the **offerable** set --
+  `offerable()` drops a bundled core whose languages a full pack already covers -- while its own
+  KDoc claims it is every pack the app knows about. Found by reading two readouts of one launch
+  against each other, which is the only reason it was found at all.
 - **The packs are not rebuilt**, and that is the next thing the owner asked for. Four defects live
   in `dist/`, all content or naming rather than structure: no `F` channel; `en-main` is named
   **`English (full) (main)`** — the exact bug reported, still in the one pack built before the
