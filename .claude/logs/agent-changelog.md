@@ -52,6 +52,15 @@ type was **not** rebuilt or measured after these changes — its `DEBUG_INTENTS`
 carries more surface than before.
 
 **What went wrong.**
+- WARNING: **three different “done” signals were read wrong in one session, and the third names
+  the class.** A pipeline's exit code was taken for Gradle's and printed `EXIT=0` over a failed
+  build; an empty `grep` was read as a clean result; and a progress monitor announced
+  `LISTO: los tres packs transferidos` while the last pack was 53 of 314 MB in, because the
+  pattern `^en-full.db` has an unescaped `.` that matched `en-full.db.part`. **All three are the
+  same mistake**: asking a question whose *false* answer is indistinguishable from silence or
+  from success. It is the shape of `check_mirror_declarations` going vacuous, and of
+  `connectedAndroidTest` reporting BUILD SUCCESSFUL over zero tests — both already written down
+  in this repo, and still not enough to stop the author repeating it three times in a day.
 - **A first proof of the definitions claim was wrong and I caught it by reading the result.**
   Comparing the query against `entry.headword` said `cuadrupedo` was not a lemma; the app found
   it anyway, because `norm()` strips accents and the lemma is `cuadrúpedo`. The comparison had to
