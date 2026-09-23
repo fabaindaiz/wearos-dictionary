@@ -208,7 +208,10 @@ def _meta_del_nivel(meta, tier, cobertura=None, lemas=None):
     # por ejemplo español (core) o english (main)»*. Y con el token en ingles --`core`, `main`,
     # `full`-- y no traducido, porque es el identificador del nivel y tiene que leerse igual en
     # cualquier idioma de la interfaz.
-    salida["name"] = "%s (%s)" % (salida.get("name", ""), tier)
+    # ⚠️ **Por `name_with_tier` y no por concatenacion**: el pack del que se deriva YA trae su
+    # nivel en el nombre --`build_pack` lo cierra como `Español (full)`-- asi que pegarle `(core)`
+    # encima daba `Español (full) (core)`, que es lo que se veia en el reloj.
+    salida["name"] = build.name_with_tier(salida.get("name", ""), tier)
     # El credito se mueve con el contenido (D-138): el nucleo distribuye las mismas definiciones,
     # asi que hereda las mismas fuentes. Y el corpus que ELIGIO las palabras se declara tambien,
     # porque `sources` contesta como se armo el pack -- aunque no se distribuya una sola frase suya.
@@ -344,7 +347,15 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
         derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
         mb = os.path.getsize(salida) / 1048576
         informe.update(mb=mb, vueltas=vuelta, cobertura=cobertura, lemas=lemas,
-                       entradas=len(vocabulario))
+                       # ⚠️ **`palabras` y no `entradas`, y el rotulo importa.** Esto es el
+                       # tamano del VOCABULARIO elegido --`count(DISTINCT norm)` en el pack que
+                       # sale-- y no las filas de `entry`, que son mas porque un lema con dos
+                       # categorias son dos entradas. Medido sobre `es-core`: 39.021 palabras,
+                       # 41.219 lemas distintos y **48.292 filas**, que es lo que declara
+                       # `meta.entry_count`. Llamar "entradas" al primero hizo que el numero del
+                       # changelog pareciera contradecir al del artefacto, y costo una sesion
+                       # dejarlo escrito como inexplicado.
+                       palabras=len(vocabulario))
         if minimo_mb <= mb <= maximo_mb:
             informe["en_rango"] = True
             return informe
@@ -426,8 +437,8 @@ def main(argv):
         minimo, maximo = float(argv[i + 1]), float(argv[i + 2])
         informe = derivar_en_rango(completo, salida, minimo, maximo, tier=tier,
                                    frecuencias=_frecuencias_de(argv))
-        print("%s: %d entradas, %.1f MB (rango %g-%g MB, nivel %s, %d vuelta%s)%s"
-              % (os.path.basename(salida), informe["entradas"], informe["mb"], minimo, maximo,
+        print("%s: %d palabras, %.1f MB (rango %g-%g MB, nivel %s, %d vuelta%s)%s"
+              % (os.path.basename(salida), informe["palabras"], informe["mb"], minimo, maximo,
                  tier, informe["vueltas"], "" if informe["vueltas"] == 1 else "s",
                  "" if informe.get("cobertura") is None
                  else ", cubre %.2f %% del corpus y %.2f %% de los lemas"

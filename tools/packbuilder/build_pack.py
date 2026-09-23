@@ -66,7 +66,7 @@ import sys
 
 from sources import bilingual, enwikt_examples, kaikki, oewn, tatoeba, wikidata, wordnet
 
-from build import PackBuilder
+from build import PackBuilder, name_with_tier
 
 # El CATALOGO de fuentes, y la razon de que sea una tabla y no texto suelto (D-138).
 #
@@ -561,7 +561,9 @@ def main(argv):
         idioma = metadata["langs"].split(",")[0].strip()
         metadata["pack_id"] = "%s-full" % idioma
         metadata["tier"] = "full"
-        metadata["name"] = "%s (full)" % metadata["name"]
+        # Por el mismo helper que `build_core`, para que el nivel se estampe UNA vez aunque el
+        # nombre ya traiga uno. Ver `build.name_with_tier`.
+        metadata["name"] = name_with_tier(metadata["name"], "full")
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
