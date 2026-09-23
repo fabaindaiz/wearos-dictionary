@@ -54,6 +54,10 @@ fun SettingsScreen(
      */
     uiLanguage: String?,
     appVersion: String,
+    /** El commit del que salió este APK, con `+dirty` si el árbol no estaba limpio. */
+    buildCommit: String,
+    /** Cuándo se armó, al minuto y en UTC. */
+    buildTime: String,
     onManagePacks: () -> Unit,
     onScaleChange: (TextScale) -> Unit,
     onUiLanguageChange: (String?) -> Unit,
@@ -189,6 +193,14 @@ fun SettingsScreen(
             // push the settings somebody actually changes off the screen.
             item(key = "cabecera-acerca") { ListHeader { Text(stringResource(R.string.settings_about)) } }
             item(key = "version") { Diagnostic(stringResource(R.string.settings_version, appVersion)) }
+            // ⚠️ **La identidad del build, y es la fila que decide si vale la pena leer el resto.**
+            // `versionName` es el mismo en diez builds del mismo día; esto dice de cuál se trata.
+            // Sin ella, *«el arreglo no funcionó»* y *«el reloj corre el APK de ayer»* son el
+            // mismo reporte. El `+dirty` es la mitad honesta: casi todo lo que se instala en el
+            // reloj sale de un árbol sin commitear, y ahí el hash NO identifica lo que corre.
+            item(key = "build") {
+                Diagnostic(stringResource(R.string.settings_build, buildCommit, buildTime))
+            }
             // ⚠️ **La cuenta de entradas por diccionario se quitó a pedido.** Era un dato de
             // diagnóstico que nadie usa para decidir nada: cuántos lemas trae un pack no dice si
             // funciona, y ocupaba una fila por diccionario en la pantalla más larga de la app.

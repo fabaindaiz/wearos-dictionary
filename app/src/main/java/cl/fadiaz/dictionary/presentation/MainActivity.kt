@@ -222,6 +222,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                     .getPackageInfo(context.packageName, 0)
                                     .longVersionCode.toInt()
                             }.getOrDefault(0),
+                            buildId = "${BuildConfig.BUILD_COMMIT} ${BuildConfig.BUILD_TIME}",
                         ).forEach { linea -> DictLog.i { linea } }
                     },
                 )
@@ -526,6 +527,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         scale = state.settings.textScale,
                         uiLanguage = uiLanguage,
                         appVersion = BuildConfig.VERSION_NAME,
+                        buildCommit = BuildConfig.BUILD_COMMIT,
+                        buildTime = BuildConfig.BUILD_TIME,
                         onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         onScaleChange = viewModel::onTextScaleChange,
                         onUiLanguageChange = { tag ->

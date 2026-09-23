@@ -1,4 +1,7 @@
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -49,6 +52,49 @@ val catalogUrl: String =
     providers.gradleProperty("catalogUrl").getOrElse("http://localhost:8765")
 
 /**
+ * La **identidad del build**, generada aca y nunca tecleada.
+ *
+ * ⚠️ **Sin esto, *«el arreglo no funciono»* y *«el reloj corre el APK de ayer»* son el mismo
+ * reporte**, y cada cache entre esta maquina y la muneca vuelve probable el segundo: Gradle
+ * incremental, el package manager, y un `installDebug` que fallo sin que nadie mirara su codigo
+ * de salida. El `versionName` no alcanza --se sube a mano y a destiempo-- y el `versionCode`
+ * tampoco: los dos son iguales en diez builds distintos del mismo dia.
+ *
+ * Lleva **el commit, la hora y si el arbol estaba sucio**. ⚠️ `dirty` importa mas de lo que
+ * parece: casi todo lo que se instala en un reloj sale de un arbol con trabajo sin commitear, y
+ * entonces el hash **no identifica** lo que corre. Decirlo es la unica forma de que el numero no
+ * mienta.
+ *
+ * ⚠️ **Se calculan ACA y no dentro de `defaultConfig`**, y no es estilo: ahi dentro `java`
+ * resuelve a una propiedad de Gradle. ⚠️ **Y a nivel de script pasa lo mismo** --resuelve al
+ * accessor de `JavaPluginExtension`-- asi que `java.text.SimpleDateFormat` tampoco compila y hay
+ * que IMPORTAR los tres tipos. El error dice `Unresolved reference 'text'`, que no lo insinua.
+ *
+ * `providers.exec` y no un `Runtime.exec`: es una entrada declarada, asi que el configuration
+ * cache se invalida cuando el commit cambia. Degrada a `"unknown"` en vez de romper, porque un
+ * tarball sin `.git` tiene que seguir compilando (D-086).
+ */
+val buildCommit: String = run {
+    val sha = providers.exec {
+        commandLine("git", "rev-parse", "--short=10", "HEAD")
+    }.standardOutput.asText.map { it.trim() }.orElse("unknown").get()
+    val sucio = providers.exec {
+        commandLine("git", "status", "--porcelain=v1")
+    }.standardOutput.asText.map { it.isNotBlank() }.orElse(false).get()
+    if (sucio) "$sha+dirty" else sha
+}
+
+/**
+ * Cuando se armo, **al minuto y en UTC**.
+ *
+ * Al segundo cambiaria en cada build sin decir nada que el commit no diga, y en hora local el
+ * mismo APK contaria dos historias distintas segun quien lo lea.
+ */
+val buildTime: String = SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply {
+    timeZone = TimeZone.getTimeZone("UTC")
+}.format(Date())
+
+/**
  * Los datos de firma del release, o null si no hay ninguno configurado.
  *
  * Cascada variable de entorno -> local.properties, la misma que usan `:dict-data:devicePrecheck`
@@ -88,6 +134,10 @@ android {
     defaultConfig {
         // Ver [catalogUrl] arriba: se sobreescribe con -PcatalogUrl=...
         buildConfigField("String", "CATALOG_URL", "\"$catalogUrl\"")
+
+        // La identidad del build. Se calcula arriba, fuera de `android { }`: ver [buildCommit].
+        buildConfigField("String", "BUILD_COMMIT", "\"$buildCommit\"")
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
 
         applicationId = "cl.fadiaz.dictionary"
         minSdk = 33

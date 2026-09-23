@@ -26,13 +26,31 @@ class DebugIntentsTest {
         rejected: List<String> = emptyList(),
         memo: String? = null,
         appVersion: Int = 5,
-    ) = DebugIntents.dump(opened, active, rejected, memo, appVersion)
+        buildId: String = "",
+    ) = DebugIntents.dump(opened, active, rejected, memo, appVersion, buildId)
 
     @Test
     fun `el volcado lleva la version de la app, que es la que caduca el memo`() {
         // Sin este número no se puede comprobar D-225 en un dispositivo: la huella del memo
         // termina en `.aN` y hay que poder contrastar ese N con el APK que está corriendo.
         assertTrue(volcado(appVersion = 7).any { "versionCode=7" in it })
+    }
+
+    @Test
+    fun `la identidad del build va en la primera linea util, no al final`() {
+        // ⚠️ **Decide si el resto del volcado sirve.** Un readout que describe un APK que no es el
+        // que se cree estar mirando es peor que ninguno, y en un reloj ese caso es el NORMAL: casi
+        // todo lo que se instala sale de un arbol sin commitear. Por eso va arriba y por eso el
+        // `+dirty` viaja con el hash.
+        val lineas = volcado(buildId = "46e7ea7b0f+dirty 2026-09-23 15:02 UTC")
+        assertTrue("46e7ea7b0f+dirty" in lineas[1], "la identidad no esta arriba: $lineas")
+    }
+
+    @Test
+    fun `sin identidad de build el volcado no inventa una`() {
+        // Una identidad vacia impresa como `build=` se lee como un build sin commit. Mejor que no
+        // aparezca: la ausencia es honesta, un campo vacio no.
+        assertTrue(volcado().none { "build=" in it })
     }
 
     @Test

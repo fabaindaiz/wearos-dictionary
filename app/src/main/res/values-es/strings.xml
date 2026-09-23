@@ -97,6 +97,7 @@
     <string name="settings_ui_language_note">Automático usa el idioma configurado en el reloj.</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_version">App %1$s</string>
+    <string name="settings_build">Build %1$s · %2$s</string>
 
     <!-- Gestión de diccionarios -->
     <string name="packs_on_watch">En el reloj</string>
