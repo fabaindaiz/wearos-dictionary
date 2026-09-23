@@ -32,7 +32,17 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import cl.fadiaz.dictionary.data.TextScale
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -509,8 +519,11 @@ private fun SenseBlock(
     onOpenWord: (WordLink) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Text(
-            text = annotatedGloss("$number. ", sense.gloss, links, onOpenWord),
+        val glosa = annotatedGloss("$number. ", sense.gloss, links)
+        LinkedText(
+            text = glosa.text,
+            targets = glosa.targets,
+            onOpenWord = onOpenWord,
             style = MaterialTheme.typography.bodyMedium,
         )
         sense.examples.forEach { ejemplo ->
@@ -614,8 +627,11 @@ private fun TermList(
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = 6.dp, start = indent),
     )
-    Text(
-        text = linkedTerms(terms, links, onOpenWord),
+    val contenido = linkedTerms(terms, links)
+    LinkedText(
+        text = contenido.text,
+        targets = contenido.targets,
+        onOpenWord = onOpenWord,
         style = if (prominent) {
             MaterialTheme.typography.bodyMedium
         } else {
@@ -631,28 +647,115 @@ private fun TermList(
 private fun linkedTerms(
     terms: List<String>,
     links: Map<String, WordLink>,
-    onOpenWord: (WordLink) -> Unit,
-): AnnotatedString {
+): LinkedContent {
     val separator = stringResource(R.string.entry_list_separator)
-    val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
-    return remember(terms, links, separator, style) {
-        buildAnnotatedString {
+    val color = MaterialTheme.colorScheme.primary
+    return remember(terms, links, separator, color) {
+        val targets = mutableListOf<Pair<IntRange, WordLink>>()
+        val text = buildAnnotatedString {
             terms.forEachIndexed { index, term ->
                 if (index > 0) append(separator)
                 val target = links[TextNormalizer.norm(term)]
                 if (target == null) {
                     append(term)
                 } else {
-                    withLink(
-                        LinkAnnotation.Clickable("termino:${target.packId}:${target.entryId}", style)
-                            { onOpenWord(target) },
-                    ) {
-                        append(term)
-                    }
+                    val desde = length
+                    withStyle(SpanStyle(color = color)) { append(term) }
+                    targets += (desde until length) to target
                 }
             }
         }
+        LinkedContent(text, targets)
     }
+}
+
+/**
+ * A text whose linked words are resolved **by proximity**, not by hitting the glyph.
+ *
+ * ⚠️ **This replaces `LinkAnnotation.Clickable`, and the reason is geometry.** That API makes the
+ * touch area exactly the painted glyph: measured on these packs, a word of average length is
+ * about 40 x 14 dp at `labelSmall` on 234 dp, against Android's 48 x 48 minimum. The height is
+ * 3.4x under, and a mis-tap was the normal case rather than the exception.
+ *
+ * The decision of *which* word a tap meant is [GlossTap], which is pure and covered by the gate.
+ * What lives here is only the measuring: turning each linked range into the rectangles it
+ * occupies, which needs a `TextLayoutResult` and therefore a device.
+ *
+ * ⚠️ **A word that wraps produces one box per line**, not one box spanning both. A single
+ * rectangle around a wrapped word would cover the whole width of the paragraph between its two
+ * halves, and every tap in that band would snap to it.
+ */
+@Composable
+private fun LinkedText(
+    text: AnnotatedString,
+    targets: List<Pair<IntRange, WordLink>>,
+    onOpenWord: (WordLink) -> Unit,
+    style: TextStyle,
+    // `modifier` first among the optionals: lint requires it, and lint breaks the build here.
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+) {
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        onTextLayout = { layout = it },
+        // ⚠️ **Keyed on `targets` ALONE, never on `layout`.** The first version added `layout`
+        // and that is a recomposition loop: the layout arrives after the first pass, re-keys
+        // `pointerInput`, which recomposes, which lays out again. Robolectric reported it as
+        // *"Compose did not get idle after 60 SECONDS"* on a screen that has nothing to do with
+        // gestures. The lambda reads the current `layout` through the state it captured, so it
+        // does not need to be a key to be up to date.
+        modifier = modifier.pointerInput(targets) {
+            detectTapGestures { position ->
+                val resultado = layout ?: return@detectTapGestures
+                if (targets.isEmpty()) return@detectTapGestures
+                val cajas = buildList {
+                    targets.forEachIndexed { index, (rango, _) ->
+                        val primera = resultado.getLineForOffset(rango.first)
+                        val ultima = resultado.getLineForOffset(rango.last)
+                        for (linea in primera..ultima) {
+                            val izquierda = if (linea == primera) {
+                                resultado.getHorizontalPosition(rango.first, usePrimaryDirection = true)
+                            } else {
+                                resultado.getLineLeft(linea)
+                            }
+                            val derecha = if (linea == ultima) {
+                                resultado.getHorizontalPosition(rango.last + 1, usePrimaryDirection = true)
+                            } else {
+                                resultado.getLineRight(linea)
+                            }
+                            add(
+                                GlossTap.LinkBox(
+                                    index = index,
+                                    line = linea,
+                                    left = minOf(izquierda, derecha),
+                                    top = resultado.getLineTop(linea),
+                                    right = maxOf(izquierda, derecha),
+                                    bottom = resultado.getLineBottom(linea),
+                                ),
+                            )
+                        }
+                    }
+                }
+                // The radius comes from the REAL line height, not a dp constant: it is the
+                // only form that survives the text-scale setting. See GlossTap.radiusFor.
+                val alto = if (resultado.lineCount > 0) {
+                    resultado.getLineBottom(0) - resultado.getLineTop(0)
+                } else {
+                    0f
+                }
+                val elegido = GlossTap.linkAt(
+                    cajas,
+                    position.x,
+                    position.y,
+                    GlossTap.radiusFor(alto),
+                ) ?: return@detectTapGestures
+                onOpenWord(targets[elegido].second)
+            }
+        },
+    )
 }
 
 /**
@@ -668,24 +771,31 @@ private fun annotatedGloss(
     prefijo: String,
     gloss: String,
     links: Map<String, WordLink>,
-    onOpenWord: (WordLink) -> Unit,
-): AnnotatedString {
-    val style = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary))
-    return remember(prefijo, gloss, links, style) {
-        buildAnnotatedString {
+): LinkedContent {
+    val color = MaterialTheme.colorScheme.primary
+    return remember(prefijo, gloss, links, color) {
+        val targets = mutableListOf<Pair<IntRange, WordLink>>()
+        val text = buildAnnotatedString {
             append(prefijo)
             var cursor = 0
             for (word in GlossTokenizer.tokenize(gloss)) {
                 val target = links[word.norm] ?: continue
                 if (word.start > cursor) append(gloss.substring(cursor, word.start))
-                withLink(
-                    LinkAnnotation.Clickable("palabra:${target.packId}:${target.entryId}", style) { onOpenWord(target) },
-                ) {
+                val desde = length
+                withStyle(SpanStyle(color = color)) {
                     append(gloss.substring(word.start, word.end))
                 }
+                targets += (desde until length) to target
                 cursor = word.end
             }
             if (cursor < gloss.length) append(gloss.substring(cursor))
         }
+        LinkedContent(text, targets)
     }
 }
+
+/** A text and where its linked words are, so the tap can be resolved by proximity. */
+private data class LinkedContent(
+    val text: AnnotatedString,
+    val targets: List<Pair<IntRange, WordLink>>,
+)
