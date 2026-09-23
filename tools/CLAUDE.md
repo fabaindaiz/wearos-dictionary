@@ -322,6 +322,13 @@ first dry run against the real packs wanted to rename `Español ↔ English` to
 **on purpose**, because `build_pack` skips the stamping for `kind == bilingual`. The rule had
 invented a defect out of a deliberate choice, over an artifact nobody would rebuild to check.
 
+⚠️ **Repairing a pack that travels in the APK also needs `dictionary.versionCode` bumped.** The
+app skips the comparison entirely when the installed `versionCode` equals the running one, on the
+stated assumption that the same APK carries the same content -- true of every build until this
+tool made it possible to change a pack's bytes without touching a line of Kotlin. Measured on the
+emulator: a repaired `en-core` under an unchanged versionCode never replaced the old one and
+**logged nothing**. The two cores are the bundled packs today.
+
 ⚠️ **It refuses when `data_version` would not move.** That field has minute resolution, and its
 docstring justifies that with *"a build takes minutes, so two never land on the same one"* -- true
 for a build, false for a repair that rewrites six rows in under a second. Two files claiming one

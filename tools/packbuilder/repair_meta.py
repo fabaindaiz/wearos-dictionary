@@ -31,6 +31,14 @@ file's size and its sha256:
     gzip -9 -k -f <pack>.db
     python3 tools/packserver.py <dist> --index-only > <dist>/index.json
 
+⚠️ **Repairing a BUNDLED pack also needs `dictionary.versionCode` bumped.** The app skips the
+whole comparison when the installed `versionCode` equals the running one -- `assetsToExtract`
+says so in as many words: *"the same APK as last time: its content did not change"*. That was
+true of every build until this tool made it possible to change a pack's bytes without touching a
+line of Kotlin. Measured on the emulator 2026-09-23: a repaired `en-core` inside an unchanged
+versionCode 8 never replaced the old one, and **nothing was logged** -- the app simply opened the
+stale pack. The cores are the bundled ones today.
+
 Usage:
     python3 tools/packbuilder/repair_meta.py <pack.db> [...]      # says what it would do
     python3 tools/packbuilder/repair_meta.py --write <pack.db>    # does it
