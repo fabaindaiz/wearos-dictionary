@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import java.io.File
 
 /**
  * Baja un pack **cuando el reloj este cargando y con Wi-Fi sin medir** (D-029).
@@ -135,6 +136,46 @@ class DownloadPackWorker(
             DictLog.i { "worker: encolado ${pack.packId} (cargando + Wi-Fi sin medir)" }
         }
 
+        /**
+         * Cancela la descarga de [packId] y **libera lo que ya habia bajado**.
+         *
+         * ⚠️ **Borrar el `.part` es una decision, no una limpieza.** Ese archivo es lo unico que
+         * hace real la reanudacion (D-214): conservarlo hace que volver a pedir el pack siga
+         * desde donde iba, y con el ingles en 192 MB eso vale. Pero *cancelar* significa, para
+         * quien lo aprieta, **recuperar el espacio y parar** -- y dejar 150 MB invisibles en
+         * `filesDir` de algo que se cancelo es lo contrario de lo pedido. **El costo, nombrado**:
+         * pedirlo de nuevo baja desde cero.
+         *
+         * ⚠️ **Se cancela primero y se borra despues.** Al reves, el worker seguiria escribiendo
+         * sobre el archivo recien borrado y lo volveria a crear -- se veria "cancelado" con la
+         * descarga corriendo, que es la misma forma del error que D-104 cerro para el borrado de
+         * un pack.
+         *
+         * Devuelve si habia algo parcial que liberar, para poder afirmarlo en un test.
+         */
+        fun cancel(context: Context, packId: String, dir: File, url: String): Boolean {
+            WorkManager.getInstance(context).cancelUniqueWork(workName(packId))
+            val parcial = partialFor(dir, url) ?: return false
+            val habia = parcial.isFile
+            parcial.delete()
+            DictLog.i { "worker: cancelado $packId${if (habia) " (se libero el parcial)" else ""}" }
+            return habia
+        }
+
+        /**
+         * El `.gz.part` que le corresponde a esa url, o `null` si la url no nombra un `.db.gz`.
+         *
+         * ⚠️ **Deriva el nombre igual que `PackDownloader`, y eso es una duplicacion conocida.**
+         * Lo correcto seria una sola funcion; vive aca porque cancelar no puede depender de
+         * arrancar la descarga. Un test comprueba que las dos derivaciones coincidan: si se
+         * separan, cancelar borra otro archivo o ninguno, **sin error**.
+         */
+        internal fun partialFor(dir: File, url: String): File? {
+            val nombre = url.substringAfterLast('/').removeSuffix(".gz")
+            if (nombre.isEmpty() || !nombre.endsWith(".db")) return null
+            return File(dir, "$nombre.gz.part")
+        }
+
         const val TAG = "descarga-pack"
 
         private const val PACK_TAG = "pack:"
@@ -160,7 +201,12 @@ class DownloadPackWorker(
                 WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> DownloadPhase.WAITING
                 WorkInfo.State.RUNNING -> DownloadPhase.RUNNING
                 WorkInfo.State.SUCCEEDED -> DownloadPhase.DONE
-                WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> DownloadPhase.FAILED
+                WorkInfo.State.FAILED -> DownloadPhase.FAILED
+                // ⚠️ **CANCELLED NO es FAILED**, y hasta aqui lo era. `FAILED` le dice al usuario
+                // *"fallo, se reintentara"*, que sobre algo que el mismo paro es falso y ademas
+                // alarmante. Con fase propia, la pantalla puede sacar la fila y dejar la oferta
+                // como estaba -- que es lo que "cancelar" significa.
+                WorkInfo.State.CANCELLED -> DownloadPhase.CANCELLED
             }
             return PackDownload(
                 packId = packId,

@@ -168,6 +168,16 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             startDownload = { pack ->
                                 DownloadPackWorker.enqueue(context, BuildConfig.CATALOG_URL, pack)
                             },
+                            // El `.gz.part` vive junto a los packs: cancelar tiene que poder
+                            // borrarlo, o queda ocupando disco algo que el usuario ya paro.
+                            cancelDownload = { pack ->
+                                DownloadPackWorker.cancel(
+                                    context,
+                                    pack.packId,
+                                    PackStore.packsDir(context),
+                                    pack.url,
+                                )
+                            },
                             // Lo que WorkManager reporta, traducido. Es un Flow y no una lectura
                             // puntual porque el estado cambia SOLO --al conectar el cargador, por
                             // ejemplo-- y la pantalla tiene que enterarse sin que nadie pregunte.
@@ -465,6 +475,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         onCheckCatalog = viewModel::onCheckCatalog,
                         downloads = state.downloads,
                         onDownload = viewModel::onDownload,
+                        onCancel = viewModel::onCancelDownload,
                     )
                 }
                 composable(ROUTE_SETTINGS) {

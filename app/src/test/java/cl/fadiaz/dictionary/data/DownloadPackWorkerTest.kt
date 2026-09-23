@@ -45,7 +45,10 @@ class DownloadPackWorkerTest {
         assertEquals(DownloadPhase.RUNNING, mapa(WorkInfo.State.RUNNING)?.phase)
         assertEquals(DownloadPhase.DONE, mapa(WorkInfo.State.SUCCEEDED)?.phase)
         assertEquals(DownloadPhase.FAILED, mapa(WorkInfo.State.FAILED)?.phase)
-        assertEquals(DownloadPhase.FAILED, mapa(WorkInfo.State.CANCELLED)?.phase)
+        // ⚠️ **CANCELLED dejo de ser FAILED**, y el caso propio esta abajo
+        // (`una descarga CANCELADA no se reporta como fallida`). Aca solo se afirma que NO se
+        // confunde con un fallo: lo que se le dice al usuario es distinto.
+        assertEquals(DownloadPhase.CANCELLED, mapa(WorkInfo.State.CANCELLED)?.phase)
     }
 
     @Test
@@ -85,5 +88,43 @@ class DownloadPackWorkerTest {
         assertEquals(10L, d.getLong(DownloadPackWorker.KEY_BYTES, -1))
         // Lo que NO viaja: la descripcion y la licencia caducarian en la cola y no deciden nada.
         assertNull(d.getString("description"))
+    }
+
+    // --- Cancelar ---------------------------------------------------------------------------
+
+    @Test
+    fun `el parcial que cancelar borra es EL MISMO que la descarga escribe`() {
+        // ⚠️ **Este test existe por una duplicacion conocida.** `PackDownloader` deriva el nombre
+        // del `.gz.part` de la url, y `DownloadPackWorker.partialFor` lo vuelve a derivar --no
+        // puede reusar el otro, porque cancelar no puede depender de arrancar una descarga--.
+        // Si las dos derivaciones se separan, **cancelar borra otro archivo o ninguno**: el
+        // usuario ve "cancelado", el disco no se libera, y no hay ningun error.
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "cancel-test")
+        assertEquals(
+            java.io.File(dir, "es-core.db.gz.part"),
+            DownloadPackWorker.partialFor(dir, "packs/es-core.db.gz"),
+        )
+    }
+
+    @Test
+    fun `una url que no nombra un db no produce ningun parcial que borrar`() {
+        // Devolver un File igual seria borrar un archivo elegido por un catalogo ajeno, dentro
+        // de `filesDir`. `null` es la respuesta segura.
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "cancel-test")
+        assertNull(DownloadPackWorker.partialFor(dir, "packs/"))
+        assertNull(DownloadPackWorker.partialFor(dir, "packs/algo.zip"))
+        assertNull(DownloadPackWorker.partialFor(dir, "packs/..gz"))
+    }
+
+    @Test
+    fun `una descarga CANCELADA no se reporta como fallida`() {
+        // ⚠️ `FAILED` le dice al usuario *"fallo, se reintentara"*. Sobre algo que el mismo paro
+        // eso es falso y ademas alarmante, y deja una fila muerta que no se puede quitar.
+        val d = DownloadPackWorker.toPackDownload(
+            setOf(DownloadPackWorker.TAG, DownloadPackWorker.packTag("es-core")),
+            WorkInfo.State.CANCELLED,
+            Data.EMPTY,
+        )
+        assertEquals(DownloadPhase.CANCELLED, d?.phase)
     }
 }

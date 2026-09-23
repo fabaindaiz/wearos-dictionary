@@ -83,6 +83,15 @@ enum class DownloadPhase {
 
     /** Fallo; WorkManager reintentara. El `.part` se conserva, asi que reanudara. */
     FAILED,
+
+    /**
+     * La paro el usuario. **No es [FAILED]**, y la diferencia es lo que se le dice.
+     *
+     * `FAILED` promete un reintento; esto no lo tiene. La pantalla la trata como *"no hay
+     * descarga"*: la fila vuelve a ser una oferta, que es lo que cancelar significa. Y el `.part`
+     * ya no esta --ver `DownloadPackWorker.cancel`-- asi que volver a pedirla baja desde cero.
+     */
+    CANCELLED,
 }
 
 /** El progreso de la descarga de un pack, tal como lo reporta WorkManager. */
