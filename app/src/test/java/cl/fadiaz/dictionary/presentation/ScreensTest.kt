@@ -1999,7 +1999,7 @@ class ScreensTest {
         showPacks(listOf(handle(meta(packId = "es-core-wikc", name = "Español")).copy(
             isBundled = true, bytes = 7_500_000,
         )))
-        compose.onNodeWithText("Incluido en la app", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Incluido", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -2008,7 +2008,7 @@ class ScreensTest {
         showPacks(listOf(handle(meta()).copy(fileName = "es-def-wikc.db", bytes = 71_000_000)))
         assertEquals(
             0,
-            compose.onAllNodesWithText("Incluido en la app", substring = true)
+            compose.onAllNodesWithText("Incluido", substring = true)
                 .fetchSemanticsNodes().size,
         )
     }

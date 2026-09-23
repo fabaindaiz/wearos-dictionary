@@ -43,6 +43,8 @@ import cl.fadiaz.dictionary.BuildConfig
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
 import androidx.work.WorkManager
+import cl.fadiaz.dictionary.data.DebugIntents
+import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.DownloadPackWorker
 import kotlinx.coroutines.flow.map
 import cl.fadiaz.dictionary.data.CatalogClient
@@ -193,6 +195,38 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 },
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
+
+            // Los intents de depuracion. `install` devuelve null en release --la constante es
+            // `false` y R8 se lleva la clase-- asi que aqui no hay nada que preguntar. Ver
+            // [DebugIntents].
+            DisposableEffect(Unit) {
+                val baja = DebugIntents.install(
+                    context,
+                    // Entra por la MISMA puerta que el teclado: si entrara por otra, lo que se
+                    // verifica desde adb no seria lo que hace el usuario.
+                    onSearch = { texto ->
+                        navController.popBackStack(ROUTE_SEARCH, inclusive = false)
+                        viewModel.onQueryChange(texto)
+                    },
+                    onDump = {
+                        val estado = viewModel.state.value
+                        DebugIntents.dump(
+                            opened = estado.available
+                                .filterIsInstance<PackHandle.Open>()
+                                .map { "${it.packId}@${it.metadata.dataVersion}" },
+                            active = estado.active?.packId,
+                            rejected = estado.rejected.map { "${it.fileName}:${it.rejection.id}" },
+                            memo = PackStore.verificationMemo(context),
+                            appVersion = runCatching {
+                                context.packageManager
+                                    .getPackageInfo(context.packageName, 0)
+                                    .longVersionCode.toInt()
+                            }.getOrDefault(0),
+                        ).forEach { linea -> DictLog.i { linea } }
+                    },
+                )
+                onDispose { baja?.invoke() }
+            }
 
             // ⚠️ **Al salir de la app se vuelve al inicio limpio** (ver `onLeftApp`). Un reloj no
             // se cierra, se baja la muñeca: volver tres horas después a la ficha de otro momento

@@ -94,7 +94,7 @@
     <string name="settings_confirm">Confirmar</string>
     <string name="settings_ui_language">Idioma de la app</string>
     <string name="settings_ui_language_auto">Automático</string>
-    <string name="settings_ui_language_note">Automático sigue al reloj; si no hay traducción, inglés.</string>
+    <string name="settings_ui_language_note">Automático usa el idioma configurado en el reloj.</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_version">App %1$s</string>
 
@@ -102,7 +102,7 @@
     <string name="packs_on_watch">En el reloj</string>
     <string name="packs_to_download">Para descargar</string>
     <string name="packs_wip">Toca para ver qué diccionarios se pueden descargar.</string>
-    <string name="packs_bundled">Incluido en la app</string>
+    <string name="packs_bundled">Incluido</string>
     <string name="packs_delete_question">¿Borrar %1$s?</string>
     <string name="packs_delete_cost">Ocupa %1$s. Para recuperarlo hay que volver a instalarlo desde la computadora.</string>
     <string name="packs_delete">Borrar</string>
