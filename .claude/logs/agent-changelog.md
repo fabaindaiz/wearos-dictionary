@@ -16,6 +16,69 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (14) — The conformance sweep, and the drift was in the field names I invented
+**What.** Every one of the method's ten artifacts checked against the repository. Three gaps
+found and closed: the changelog's English field names had been translated on the fly rather than
+taken from the reference, `Deviation from the plan` had never once been written in English, and
+the root-budget check permitted exactly the state its own docstring forbade. Two checks added,
+both proven by mutation. The root budget rises to 220 at the owner's request (D-262).
+
+**Areas.** `.claude/logs/agent-changelog.md` (the reference and six entries),
+`tools/audit_dictionary.py`, `docs/decisions.md`, `.agents/tracking/candidates.md`.
+
+**Why.** Asked for: verify every new standard and definition in `.agents` and apply them before
+ending the meta-session; then raise the root budget to 220.
+
+**Architecture.** Complies. ⚠️ D-262 is a **recorded deviation** from artifact 1's *"under 200
+lines"*, taken on artifact 19's rule that the host's shapes win and the method's guarantees do.
+
+**Measured.**
+- **All ten artifacts exist.** The four `<area>/CLAUDE.md`, the settings file, the changelog, the
+  decisions log, the references register, the roadmap, the audit, the README, `architecture.md`
+  and `.editorconfig`.
+- **The changelog's field names had drifted where the language changed.** Spanish entries use the
+  reference's names correctly — `Sin verificar` 2, `Desviación del plan` 2. The English ones
+  invented `Unverified` **5 times** and wrote `Deviation from the plan` **zero times in seven
+  entries**. Renamed, and the reference now pins both sets so nobody translates them again.
+- **10 of 112 entries are missing a required field**, almost always *Por qué*. Their sessions are
+  gone and nobody can honestly reconstruct the answer, so it is a **ratchet at 10** rather than a
+  zero: it fails the author of an incomplete entry at the moment they write it.
+- **The root-budget check contradicted its own docstring**: *under 200* in the prose, `> 200` in
+  the code, and the file had been sitting at exactly 200 across many commits — settled precisely
+  in the one-line gap. Now `>=`, at 220.
+- **101 of 262 decision rows exceed 1,200 characters** (previous entry), now reported every run.
+
+**Deviation from the plan.** The sweep's mandate was *verify and **apply***, and one finding was
+**not** applied: artifact 1's *under 200* would require evicting a line from `CLAUDE.md`, and
+every line in it is load-bearing — no double blanks, no filler. Choosing which rule leaves the
+file loaded on every request is the owner's call, not a conformance detail, so it was reported
+instead. ⚠️ **The owner then resolved it by raising the budget**, which is a decision about the
+guarantee rather than a fix for the gap.
+
+**Not verified.** **Principles 1–19 were not swept**, only the ten artifacts. The principles are
+prose obligations — *"measure before claiming"*, *"look at the output, not only the numbers"* —
+and checking a repository against them is a reading, not a comparison. Nothing here claims they
+hold.
+
+**What went wrong.**
+- **The drift the sweep found was mine.** Six of this week's entries carried a field name I
+  invented by translating the Spanish reference on the fly instead of reading whether an English
+  spelling was already defined. ⚠️ **And a field I never named is a field I never noticed
+  missing**: `Deviation from the plan` applied to at least one entry this session and went
+  unwritten because nothing on screen was called that.
+- **I wrote a decision row in Spanish again**, for the seventh time in three days, because its
+  neighbours are Spanish. Caught by the ratchet, rewritten in English.
+
+**What was left undone.**
+- **The 101 over-long decision rows.** Rehoming each measurement in the document that owns it is
+  real work, and doing it badly loses the measurements.
+- **The ten incomplete changelog entries**, deliberately: the ratchet holds the number instead.
+- Everything still open from entries 12 and 13: the pack rebuild, the P-4 suite, the no-packs
+  dead end, the charger constraint, the history language tag, the three `subset_of` gaps, and
+  ~3,850 lines of translation.
+
+---
+
 ## 2026-09-23 (13) — Meta-session: the format document had lost a channel, and the design learnings were never harvested
 **What.** A full `state-review`, sections 0 to 8. Section 0 routes to `prompt-harvest.md`; the
 harvest added **11 candidates**, eight of them about this repository's *design* rather than its
@@ -57,7 +120,16 @@ honestly.
 - **Section 8**: 111 entries, **98 carry a *what went wrong* field** (88 %), so the detours are
   not being edited out. 12 roadmap items marked done.
 
-**Unverified.** **The generality of all 11 candidates.** Each says what it lacks, and for most of
+**Deviation from the plan.** The request was to include every new learning **in `.agents`**;
+they went into **`.agents/tracking/candidates.md` only**, and nothing was written as a knowledge
+note or a method document. That is not a smaller version of the request — it is a different
+shape, and the owner may have meant notes. The reason it was not done: the method forbids a
+carrier that in as many words, *"never write outside `tracking/`"* and *"never promote a
+candidate to a note here, however obviously true it is"*, and the owner had also set it as a
+standing constraint earlier in this session. ⚠️ **Recorded rather than assumed settled**: if
+notes are what was wanted, the route is a release of the lineage, not this repository.
+
+**Not verified.** **The generality of all 11 candidates.** Each says what it lacks, and for most of
 them that is *a second repository* — which this session cannot supply and must not pretend to:
 *"never invent a second occurrence; one repository seeing something twice is one repository"*.
 
@@ -108,7 +180,7 @@ three roadmap items.
   before this: the 2026-09-22 rebuild re-cut the core tier by corpus coverage and grew them
   **5.3x**, and nobody carried that number back to the APK.
 
-**Unverified.** **No search was run on the watch.** The packs are there and open, but nothing was
+**Not verified.** **No search was run on the watch.** The packs are there and open, but nothing was
 typed or seeded: result order, the escape hatches and the gloss links (P-11) are all still
 unverified on hardware. **And no battery or performance number was taken** beyond install and
 startup, which is what D-043 says the watch is actually for.
@@ -187,7 +259,7 @@ new version runs; and the language button spelled out rather than abbreviated.
   nothing warns.
 - Gate exit 0; **421 JVM tests**, 511 builder tests.
 
-**Unverified.** **Nothing on a wrist.** All of it on `emulator-5554`. And the `benchmark` build
+**Not verified.** **Nothing on a wrist.** All of it on `emulator-5554`. And the `benchmark` build
 type was **not** rebuilt or measured after these changes — its `DEBUG_INTENTS` is true and now
 carries more surface than before.
 
@@ -266,7 +338,7 @@ error, and review the roadmap before uploading the build.
   claims and are corrected; three are dated records and stay.
 - Gate exit 0 throughout; **511 builder tests**, 413 JVM tests.
 
-**Unverified.** **Nothing here was seen on a wrist.** Every probe ran on `emulator-5554`, which
+**Not verified.** **Nothing here was seen on a wrist.** Every probe ran on `emulator-5554`, which
 is what D-043 says closes correctness and nothing else. The 2,675 ms startup after the update is
 the one-off cost of extracting 94 MB and is an emulator number, not a watch one.
 
@@ -344,7 +416,7 @@ the language code. Then: close the session, document the learnings, prepare the 
   `.db` files it describes (`202609231356` on both sides).
 - Gate green by **exit code 0**; audit 32 checks, 0 failures; **494 builder tests** pass.
 
-**Unverified.** **The forms section at 234 dp (P-12) still cannot be looked at**: no pack in
+**Not verified.** **The forms section at 234 dp (P-12) still cannot be looked at**: no pack in
 `dist/` carries the `F` channel — `correr` in `es-full` has tags `A,C,E,P,S,T,Y` and not one
 form. The feature degrades to nothing, which is the design, but it is invisible until a rebuild.
 **And the two escape-hatch defects below were found by READING the code, not by seeing them**: no
@@ -6562,4 +6634,26 @@ medición que lo decidió. Se omite si no hubo.
 pregunta. Se omite si se verificó todo.
 **Qué salió mal.** Qué erró el primer intento y qué lo agarró. Se omite solo si no erró nada.
 **Qué quedó sin hacer.** La deuda que este cambio creó o esquivó, nombrada.
+```
+
+**The same nine fields in English**, which is how entries have been written since 2026-09-23.
+⚠️ **They are pinned here because translating them on the fly already went wrong**: the first
+English entries invented `Unverified` instead of `Not verified`, and **`Deviation from the plan`
+was not written once in seven entries**. A field is omitted by decision, not by having had
+nothing to put in it — and a field with no name is not omitted, it is forgotten.
+
+```
+## YYYY-MM-DD (n) — <one-line title>
+**What.** What changed, concretely.
+**Areas.** Files or folders.
+**Why.** The reason, including the request that prompted it.
+**Architecture.** ✅ Complies · ⚠️ Deviation · REVIEW — and why.
+**Measured.** The number, if a claim was made, with its date and the environment.
+**Deviation from the plan.** Where what was built departs from what the human approved, and the
+measurement that decided it. Omit when there is none.
+**Not verified.** What could not be checked in this environment, and where the question now
+waits. Omit when everything was.
+**What went wrong.** What the first attempt got wrong, and what caught it. Omit only if nothing
+did.
+**What was left undone.** Debt this change created or walked past, named.
 ```

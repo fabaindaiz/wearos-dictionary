@@ -1343,6 +1343,56 @@ def check_spanish_prose_budget(report):
 PRESUPUESTO_FILA_DECISION = 1200
 
 
+#: How many changelog entries may be missing one of artifact 5's required fields.
+#:
+#: A ceiling and not a zero, for the reason the prose budget gives: ten historical entries are
+#: missing one --almost always *Por qué*-- and their sessions are gone, so nobody can honestly
+#: reconstruct the answer. What this watches is that the number does not GROW, which fails the
+#: author of an incomplete entry at the moment they write it, when fixing it is free.
+TECHO_ENTRADAS_INCOMPLETAS = 10
+
+#: The four fields artifact 5 requires, each in both spellings the file uses.
+#:
+#: WARNING: **both spellings are listed because translating them on the fly already went wrong.**
+#: The first English entries invented `Unverified` where the reference says `Sin verificar`, and
+#: `Deviation from the plan` went unwritten in seven entries -- a field with no name is not
+#: omitted, it is forgotten. The reference at the end of the changelog now carries both sets.
+CAMPOS_REQUERIDOS = (("Qué", "What"), ("Áreas", "Areas"),
+                     ("Por qué", "Why"), ("Arquitectura", "Architecture"))
+
+
+def check_changelog_entries_are_complete(report):
+    """Rule: every changelog entry carries artifact 5's required fields. (method artifact 5)"""
+    texto = read(".claude/logs/agent-changelog.md")
+    partes = re.split(r"^## (20\d\d-\d\d-\d\d[^\n]*)$", texto, flags=re.M)
+    entradas = list(zip(partes[1::2], partes[2::2]))
+    if not entradas:
+        # The guard that keeps this from passing by seeing nothing (D-253).
+        report.failure(
+            "no se encontro ninguna entrada en el changelog",
+            "el patron '## AAAA-MM-DD' dejo de matchear y este check quedo mirando la nada",
+        )
+        return
+    incompletas = [
+        titulo for titulo, cuerpo in entradas
+        if any("**%s.**" % es not in cuerpo and "**%s.**" % en not in cuerpo
+               for es, en in CAMPOS_REQUERIDOS)
+    ]
+    n = len(incompletas)
+    if n > TECHO_ENTRADAS_INCOMPLETAS:
+        report.failure(
+            "%d de %d entradas del changelog no traen algun campo requerido, contra un techo "
+            "de %d" % (n, len(entradas), TECHO_ENTRADAS_INCOMPLETAS),
+            "artefacto 5 pide Que / Areas / Por que / Arquitectura en cada entrada. La mas "
+            "reciente sin completar: %s" % incompletas[0][:60],
+        )
+    elif n < TECHO_ENTRADAS_INCOMPLETAS:
+        report.advisory(
+            "el techo de entradas incompletas quedo alto: %d contra %d" % (n, TECHO_ENTRADAS_INCOMPLETAS),
+            "baja TECHO_ENTRADAS_INCOMPLETAS a %d para que el ratchet no se afloje" % n,
+        )
+
+
 def check_decision_rows_stay_an_index(report):
     """Advisory: how far docs/decisions.md has drifted from being an index. (method artifact 6)
 
@@ -1373,22 +1423,43 @@ def check_decision_rows_stay_an_index(report):
     )
 
 
+#: The root file's line budget.
+#:
+#: WARNING: **220 and not the method's 200, and that is a deliberate deviation set by the owner
+#: on 2026-09-23** (D-262). Artifact 1 says *"under 200 lines"*; artifact 19 says the host's
+#: shapes win and the method's guarantees do, and the guarantee here is *the only file loaded on
+#: every request stays small enough to read*, which a number 10 % larger still honours. It is
+#: written here rather than remembered so the next method update re-proposes 200 against a
+#: recorded answer instead of against silence.
+#:
+#: WARNING: **what it buys is room to evict deliberately, not room to grow.** The file had been
+#: pinned at exactly 200 across many commits -- 198 once, refilled immediately -- which is a file
+#: that stopped having a budget and got a queue, where every addition is a silent eviction and
+#: nothing records what left.
+PRESUPUESTO_RAIZ = 220
+
+
 def check_root_budget(report):
-    """Rule: CLAUDE.md is paid for on every request and lives under 200 lines. (CLAUDE.md)"""
+    """Rule: CLAUDE.md is paid for on every request and stays inside its budget. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
-    if lines > 200:
+    if lines >= PRESUPUESTO_RAIZ:
         report.failure(
             "CLAUDE.md paso su presupuesto",
-            "%d lineas. Que seccion crecio? Una seccion que crece se volvio un documento" % lines,
+            "%d lineas contra %d. Que seccion crecio? Una seccion que crece se volvio un "
+            "documento" % (lines, PRESUPUESTO_RAIZ),
         )
-    elif lines > 175:
-        report.advisory("CLAUDE.md cerca del limite", "%d de 200 lineas" % lines)
+    elif lines > PRESUPUESTO_RAIZ - 25:
+        report.advisory(
+            "CLAUDE.md cerca del limite",
+            "%d de %d lineas. La proxima regla que entre conviene que NOMBRE que desaloja"
+            % (lines, PRESUPUESTO_RAIZ),
+        )
 
 
 def check_skills_reachable(report):
     """Rule: a rule that leaves CLAUDE.md stays reachable. (D-222)
 
-    CLAUDE.md is paid for on every request and lives under 200 lines, so the less specific rules
+    CLAUDE.md is paid for on every request and lives inside a line budget, so the less specific rules
     move to a skill. The problem is that a skill **does not load on its own**: it loads when its
     `description` matches what the user said. So moving a rule and leaving the pointer is not
     enough -- the rule stops being read exactly in the situation it governs.
@@ -1719,6 +1790,7 @@ def check_no_probes_left_behind(report):
 CHECKS = [
     check_no_probes_left_behind,
     check_decision_rows_stay_an_index,
+    check_changelog_entries_are_complete,
     check_spanish_prose_budget,
     check_core_index_name,
     check_mirror_declarations,
