@@ -1200,6 +1200,26 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aShadowedBundledPackIsStillReportedAsLoaded() = runTest {
+        // Measured on the emulator 2026-09-23 and the reason `loaded` exists: startup logged
+        // `listo: 3 abiertos` and the debug dump, seconds later, said `abiertos=2`. Three packs
+        // were open; `es-core` was missing because the dump read `available`, which hides a
+        // bundled core whose language a full pack already covers.
+        //
+        // The dump's whole job is answering what is actually loaded on a device nobody can
+        // attach a debugger to, so the two lists have to stay distinguishable: `available` is
+        // for drawing, `loaded` is for reporting.
+        val core = FakeDictionary("es-core", "es")
+        val full = FakeDictionary("es-full", "es")
+        val vm = SearchViewModel({
+            PackSet.Ready(handle(full), listOf(handle(core, isBundled = true), handle(full)))
+        })
+        advanceUntilIdle()
+        assertEquals(listOf("es-full"), vm.state.value.available.map { it.packId })
+        assertEquals(listOf("es-core", "es-full"), vm.state.value.loaded.map { it.packId })
+    }
+
+    @Test
     fun withOnlyTheDemoPackThatOneIsUsed() = runTest {
         // That is what it exists for: so a freshly installed app has something to show.
         val demo = FakeDictionary("toy-es-en", "es")

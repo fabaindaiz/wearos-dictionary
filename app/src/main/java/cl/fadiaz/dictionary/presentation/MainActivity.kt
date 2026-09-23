@@ -210,8 +210,11 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     onDump = {
                         val estado = viewModel.state.value
                         DebugIntents.dump(
-                            opened = estado.available
-                                .filterIsInstance<PackHandle.Open>()
+                            // `loaded` and NOT `available`: the latter is what the selector
+                            // offers, and it hides a bundled core whose language a full pack
+                            // already covers. Reading it here made the dump report `abiertos=2`
+                            // on a launch whose startup line said 3.
+                            opened = estado.loaded
                                 .map { "${it.packId}@${it.metadata.dataVersion}" },
                             active = estado.active?.packId,
                             rejected = estado.rejected.map { "${it.fileName}:${it.rejection.id}" },

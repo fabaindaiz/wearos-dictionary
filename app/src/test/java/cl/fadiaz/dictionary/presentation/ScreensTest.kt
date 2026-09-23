@@ -1803,9 +1803,42 @@ class ScreensTest {
     @Test
     fun withNoResultsItOffersSearchingTheOtherLanguage() {
         // It is the escape hatch: you typed something this language does not have.
+        //
+        // ⚠️ **It names the LANGUAGE and not the pack**, and it used to read "Buscar en
+        // English" -- the second pack's name -- while the tap switched a language computed
+        // independently of it. With three packs installed those two disagree: the pill could
+        // name one file and activate a language whose representative is another. A label
+        // asserting a provenance nobody checked is D-080's family.
         showSearch(twoPackState().copy(query = "dog", submitted = "dog"))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
-        compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Buscar en EN", substring = true).assertIsDisplayed()
+        assertEquals(
+            0,
+            compose.onAllNodesWithText("Buscar en English", substring = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun aLoneBidirectionalPackStillOffersTheOtherLanguage() {
+        // ⚠️ **The hatch used to be gated on a SECOND PACK existing**, so the one case D-195
+        // created -- a single file speaking two languages -- hid it completely: `es-tr-enwikt`
+        // has `casa` and `house`, the user searching `es` got nothing for `dog`, and there was
+        // no way out of the language even though the same pack could answer.
+        //
+        // What decides is the LANGUAGE, and `idiomasDisponibles` gets both from one pack.
+        val bidi = meta("es-en", "es", "Español ↔ English", langs = listOf("es", "en"))
+        val state = readyState().copy(
+            query = "dog",
+            submitted = "dog",
+            results = emptyList(),
+            active = bidi,
+            activeLang = "es",
+            available = listOf(handle(bidi)),
+        )
+        showSearch(state)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Buscar en", substring = true))
+        compose.onNodeWithText("Buscar en EN", substring = true).assertIsDisplayed()
     }
 
     @Test
