@@ -697,3 +697,44 @@ class PlegadoDeGlosaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartesPrincipalesTest(unittest.TestCase):
+    """El canal que la ficha muestra al lado del lema."""
+
+    def test_van_antes_de_las_acepciones(self):
+        # Describen la PALABRA, no una de sus acepciones, igual que las traducciones sueltas.
+        texto = payload.render("verb", [{"gloss": "g"}], forms=[("ger", "corriendo")])
+        self.assertLess(texto.index("F\tger"), texto.index("S\tg"))
+
+    def test_la_clave_viaja_neutra_y_la_forma_con_su_ortografia(self):
+        # ⚠️ Es todo el punto de este canal: `form` guarda `corrais` porque es una clave de
+        # busqueda, y una ficha que muestre `corrais` esta mal escrita.
+        texto = payload.render("verb", [{"gloss": "g"}], forms=[("part", "corrído")])
+        self.assertIn("F\tpart:corrído\n", texto)
+
+    def test_se_leen_de_vuelta(self):
+        texto = payload.render("adj", [{"gloss": "g"}],
+                               forms=[("pl", "altos"), ("fem", "alta")])
+        self.assertEqual([("pl", "altos"), ("fem", "alta")], payload.parse_forms(texto))
+
+    def test_una_linea_sin_separador_se_ignora_y_no_tira_la_entrada(self):
+        # Romper por una forma mal escrita perderia la entrada entera, que es mucho peor.
+        self.assertEqual([("pl", "casas")],
+                         payload.parse_forms("F\tsinsep\nF\tpl:casas\nS\tg\n"))
+
+    def test_un_pack_sin_formas_no_emite_nada(self):
+        # La degradacion: un pack construido antes de este canal simplemente no lo trae, y la
+        # ficha no muestra la seccion. Sin excepcion y sin hueco.
+        self.assertEqual("", "".join(
+            l for l in payload.render("noun", [{"gloss": "g"}]).splitlines(True)
+            if l.startswith("F\t")))
+        self.assertEqual([], payload.parse_forms("P\tnoun\nS\tg\n"))
+
+    def test_un_tab_en_la_forma_no_parte_la_linea(self):
+        # Mismo saneo que el resto del payload: un tab perdido corromperia la entrada.
+        # `sanitize` lo cambia por un espacio en vez de borrarlo, que es lo que hace con el
+        # resto del payload: lo que importa es que la linea NO se parte y la forma sobrevive.
+        texto = payload.render("noun", [{"gloss": "g"}], forms=[("pl", "ca\tsas")])
+        self.assertEqual([("pl", "ca sas")], payload.parse_forms(texto))
+        self.assertEqual(1, texto.count("F\t"))

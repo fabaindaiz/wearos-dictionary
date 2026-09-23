@@ -65,6 +65,12 @@
     <string name="entry_options">Options</string>
     <string name="entry_back_to_search">Search</string>
     <string name="entry_word_translations_title">Word translations</string>
+    <string name="entry_forms_title">Forms</string>
+    <string name="entry_form_item">%1$s (%2$s)</string>
+    <string name="entry_form_gerund">gerund</string>
+    <string name="entry_form_participle">participle</string>
+    <string name="entry_form_plural">plural</string>
+    <string name="entry_form_feminine">feminine</string>
     <string name="entry_translations_title">Translation</string>
     <string name="entry_synonyms_title">Synonyms</string>
     <string name="entry_antonyms_title">Antonyms</string>

@@ -31,7 +31,12 @@ _DATA = [
         ("moverse rapidamente de un lugar a otro",
          [{"text": "corrio hasta la esquina", "ref": "1897, Richard Marsh"}], ["to run"]),
         ("dicho del tiempo: transcurrir", [], ["to pass", "to elapse"]),
-    ], ["corriendo", "corri", "corre", "corremos", "corrio"]),
+    ], ["corriendo", "corri", "corre", "corremos", "corrio"], None, (),
+        # WARNING: the only entry with PRINCIPAL PARTS (tag `F`), and deliberately so, for the
+        # same reason the one below is the only one with `W`: a channel with no fixture breaks
+        # with nothing to warn. And they carry an ACCENT, which is the property this channel
+        # exists to hold up -- the `form` table stores `corrio`, not `corrió`.
+        (("ger", "corriendo"), ("part", "corrído"))),
     # ⚠️ **La unica entrada con traducciones de NIVEL DE ENTRADA (tag `W`), y esta a proposito.**
     # Sin ella el toy no ejercita el segundo canal (D-179) --el que existe para que embadurnar
     # dato no atribuible deje de ser gratis-- y los tests instrumentados nunca verian un `W`.
@@ -206,6 +211,10 @@ def _propias():
         # Septima posicion, opcional: las traducciones de la PALABRA, que la fuente no atribuyo
         # a ninguna acepcion (tag `W`, D-179).
         word_translations = tuple(item[6]) if len(item) > 6 else ()
+        # Eighth, optional: the principal parts the card SHOWS (tag `F`). Keyed by convention,
+        # because the toy has no grammatical tags -- what this fixture has to exercise is the
+        # channel, not the selection, which lives in `kaikki._display_forms` with its own tests.
+        display_forms = tuple(item[7]) if len(item) > 7 else ()
         translations = []
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
@@ -223,6 +232,7 @@ def _propias():
             part_of_speech=pos,
             rank=rank,
             forms=forms,
+            display_forms=display_forms,
             # El canal de busqueda lleva las dos, igual que en un pack real, **y la forma
             # desnuda de un infinitivo**: el volcado escribe "to run" y quien busca teclea
             # "run". Hasta aca eso lo resolvia el tokenizado de `trans` (D-014); vaciada esa

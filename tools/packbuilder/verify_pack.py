@@ -124,6 +124,7 @@ TAGS_CONOCIDOS = frozenset((
     payload_codec.TAG_CITATION,
     payload_codec.TAG_TRANSLATION,
     payload_codec.TAG_SYNONYM,
+    payload_codec.TAG_FORM,
     payload_codec.TAG_ANTONYM,
     payload_codec.TAG_RELATED,
     payload_codec.TAG_WORD_TRANSLATION,

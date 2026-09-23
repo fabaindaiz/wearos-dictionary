@@ -95,13 +95,51 @@ object PayloadCodec {
      */
     private const val TAG_WORD_TRANSLATION = 'W'
 
+    /**
+     * A **principal part** of the word: gerund, participle, plural or feminine.
+     *
+     * ⚠️ **The value is `key:form`, and the key is deliberately neutral.** Storing the label
+     * already translated --"gerundio"-- would put the interface's language *inside* the pack, and
+     * the same pack is shared by a user running the app in Spanish and one running it in English.
+     * The app maps the key to its localized string, which is where translation belongs.
+     *
+     * ⚠️ **Few and chosen, not the whole conjugation.** `correr` carries 137 forms in the source
+     * and 202 rows in `form`; dumping those into the card would be unreadable on a watch and
+     * expensive in bytes -- `form` is already 42 % of the Spanish pack. What travels here are the
+     * parts the rest derive from, which is what a printed dictionary puts beside the headword.
+     *
+     * ⚠️ **And it is NOT the `form` table.** That one stores `norm(form)` --`corrais`, not
+     * `corráis`-- because its job is to be a search key. A card that showed `corrais` would be
+     * misspelled, and that is exactly why this channel had to exist at all.
+     */
+    private const val TAG_FORM = 'F'
+
+    /** Separates the key from the form inside a [TAG_FORM]. Mirrors `payload.FORM_SEPARATOR`. */
+    private const val FORM_SEPARATOR = ':'
+
     /** El cuerpo decodificado, sin los datos que ya vienen en las columnas de `entry`. */
     data class Body(
         val partOfSpeech: String?,
         val senses: List<Sense>,
         /** Traducciones de la palabra entera, sin acepcion. Ver [TAG_WORD_TRANSLATION]. */
         val wordTranslations: List<String> = emptyList(),
+        /**
+         * The word's principal parts, in the order the builder chose. See [TAG_FORM].
+         *
+         * Empty for every pack built before this channel existed, which is the degradation: the
+         * card simply has no forms section. Nothing fails and nothing is left blank.
+         */
+        val forms: List<InflectedForm> = emptyList(),
     )
+
+    /**
+     * One principal part: a neutral [key] and the form with its own spelling.
+     *
+     * [key] is a token the pack chose (`ger`, `part`, `pl`, `fem`) and the app localizes. An
+     * unknown key is shown without a label rather than dropped: a form the reader can see is
+     * worth more than a label the app happens to know.
+     */
+    data class InflectedForm(val key: String, val form: String)
 
     /**
      * Separa un item de traduccion en `(termino, acepcion a la que apunta)`.
@@ -211,6 +249,7 @@ object PayloadCodec {
         var partOfSpeech: String? = null
         val senses = mutableListOf<MutableSense>()
         val wordTranslations = mutableListOf<String>()
+        val forms = mutableListOf<InflectedForm>()
 
         // La acepcion cuyo ULTIMO ejemplo todavia puede recibir una cita, o null. La pone un
         // `E` y la borra cualquier otra linea: un `C` que no venga pegado a su `E` se descarta
@@ -249,6 +288,17 @@ object PayloadCodec {
                 // decide nada. Si decidiera, un `W` mal ubicado se volveria traduccion de
                 // acepcion -- la atribucion inventada que este canal existe para evitar.
                 TAG_WORD_TRANSLATION -> wordTranslations.add(value)
+                // Sin guarda de `senses`, por lo mismo que `W`: describe la ENTRADA.
+                TAG_FORM -> {
+                    val cut = value.indexOf(FORM_SEPARATOR)
+                    // Una linea sin separador se ignora: perder una forma es barato, y lanzar
+                    // aqui perderia la entrada entera por una linea mal escrita.
+                    if (cut > 0 && cut < value.length - 1) {
+                        forms.add(
+                            InflectedForm(value.substring(0, cut), value.substring(cut + 1)),
+                        )
+                    }
+                }
                 else -> Unit
             }
         }
@@ -256,6 +306,7 @@ object PayloadCodec {
         return Body(
             partOfSpeech = partOfSpeech,
             wordTranslations = wordTranslations.toList(),
+            forms = forms.toList(),
             senses = senses.map {
                 Sense(
                     it.gloss,
