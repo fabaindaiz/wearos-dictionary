@@ -1261,7 +1261,11 @@ def lineas_en_espanol(ruta):
 TECHO_ESPANOL = (
     ("tools/", 1778),
     ("app/src/main/", 1293),
-    ("dict-core/src/main/", 587),
+    # WARNING: 34 of these lines live in GENERATED files -- UnicodeRepertoire.kt and
+    # CaseFolding.kt -- whose prose comes from tools/unicode/gen_*.py. Taking this row to 0
+    # means editing those generators and regenerating, which CLAUDE.md calls a deliberate
+    # act because the tables are pinned to Unicode 13.0.0.
+    ("dict-core/src/main/", 530),
     # Translated whole on 2026-09-23: the first module of stage 3, smallest first. The row
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),

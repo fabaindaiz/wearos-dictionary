@@ -55,9 +55,17 @@ this file.
 - **A heredoc with triple quotes broke the script for the fourth time this week.** The content
   goes to a file and the script reads it; the habit is still not a reflex.
 
+**Also in this session**: four of `dict-core`'s files translated, taking the module from 587 to
+530 with its ceiling lowered in the same commit (D-251). ⚠️ **It cannot reach zero the way
+`dict-data` did**: 34 of the remaining lines live in generated files whose prose comes from
+`tools/unicode/gen_*.py`, and regenerating those tables is a deliberate act because both are
+pinned to Unicode 13.0.0. ⚠️ **And `CaseFolding.kt` declares itself generated while nothing
+protects it** -- not `permissions.deny`, not `CLAUDE.md`'s list, not the new hook. Found by
+counting its Spanish lines, not by any check.
+
 **What was left undone.**
-- **6,595 lines remain**, with the order already fixed: `dict-core` (587), `app/src/main`
-  (1,293), `tools/**` (1,778), and `docs/roadmap.md` (2,314) last.
+- **6,538 lines remain**, with the order already fixed: `dict-core` (530, of which 34 are
+  generated), `app/src/main` (1,293), `tools/**` (1,778), and `docs/roadmap.md` (2,314) last.
 - **The emulator checks that were asked for** --P-2, P-7, P-8-- have not been run: P-7 needs a
   catalog pack whose `data_version` differs from the APK's, and P-8 needs the five full packs on
   the emulator, which is 450 MB over `adb`.

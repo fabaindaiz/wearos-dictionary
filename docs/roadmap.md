@@ -4502,6 +4502,16 @@ was written by the sessions of the 22nd and the 23rd, which is to say by an agen
 rule loaded and broke it anyway — which by D-234 is the signal to raise its rung rather than
 repeat it.
 
+✅ **Stage 3 started on 2026-09-23.** `dict-data/src/main` is **at zero** (D-249) and `dict-core`
+dropped **587 → 530** (D-251), both with their ceilings lowered in the same commit. The rule is
+now a check: `check_spanish_prose_budget` fails when an area grows (D-248), and it refused its own
+author's decision rows within the hour (D-250).
+
+⚠️ **`dict-core` cannot reach zero the way `dict-data` did**: 34 of its remaining lines live in
+**generated** files, `UnicodeRepertoire.kt` and `CaseFolding.kt`, whose prose comes from
+`tools/unicode/gen_*.py`. Regenerating them is a deliberate act — both tables are pinned to
+Unicode 13.0.0 — so it needs its own session with the table compared byte for byte afterwards.
+
 **The order was settled on 2026-09-23**: dedicated sessions, stage 3 first and module by module,
 smallest up — `dict-data` (203 lines) → `dict-core` (587) → `app/src/main` (1,293) → `tools/**`
 (1,778) — and `docs/roadmap.md` (2,265) **last**, because it is the one that changes most and
