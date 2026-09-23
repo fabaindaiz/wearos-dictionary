@@ -453,6 +453,76 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun `se pueden borrar TODOS los descargados y quedarse solo con los nucleos`() = runTest {
+        // ⚠️ **Pedido explicito, y el test existe porque la premisa hay que sostenerla, no
+        // suponerla**: *«que se puedan eliminar todos los packs descargados y quedarse con
+        // ninguno, porque en teoria los packs core siempre estan disponibles»*.
+        //
+        // Lo que se comprueba es que **no hay un piso**: ni un "no podes borrar el ultimo", ni un
+        // pack que se niegue por ser el activo. Se borran los dos completos, uno tras otro, y lo
+        // que queda es exactamente el nucleo del APK -- que sigue contestando, asi que la app no
+        // cae en `NoPack`.
+        val esCore = FakeDictionary(packId = "es-core")
+        val esFull = FakeDictionary(packId = "es-def")
+        val enFull = FakeDictionary(packId = "en-def")
+        var quedan = listOf(esCore, esFull, enFull)
+        val vm = SearchViewModel(
+            { listos(*quedan.toTypedArray(), demos = setOf("es-core")) },
+            deleteFromDisk = { fileName ->
+                quedan = quedan.filterNot { it.metadata.packId + ".db" == fileName }
+                true
+            },
+        )
+        advanceUntilIdle()
+        // `es-core` no se ofrece: el completo de espanol ya habla ese idioma. Los dos completos si.
+        assertEquals(listOf("es-def", "en-def"), vm.state.value.available.map { it.packId })
+
+        vm.deletePack("es-def")
+        advanceUntilIdle()
+        vm.deletePack("en-def")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("es-core"), vm.state.value.available.map { it.packId },
+            "borrar todos los descargados tiene que dejar el nucleo, no un error",
+        )
+        // Y sigue habiendo con que buscar: el nucleo queda ACTIVO. Sin esto el test pasaria
+        // igual con una app que borro todo y se quedo sin diccionario activo.
+        assertEquals("es-core", vm.state.value.active?.packId)
+    }
+
+    @Test
+    fun `el nucleo de otro idioma SOBREVIVE a tener un diccionario completo instalado`() = runTest {
+        // ⚠️ **El defecto que este test encontro, y es la forma exacta del bug que el repo no
+        // puede ver.** La regla de D-088 era *"si hay algun pack instalado, esconder todos los
+        // del APK"*, escrita cuando lo incluido era un juguete de 28 entradas cuya etiqueta
+        // chocaba con la del pack real. D-175 puso ahi los **nucleos de verdad** y nadie volvio a
+        // mirar la regla.
+        //
+        // Con el espanol completo descargado, el filtro se llevaba **los dos** nucleos: `en-core`
+        // quedaba instalado, abierto y consultable, y **sin chip de idioma**. El ingles
+        // desaparecia entero de la interfaz sin un error, sin un log y sin nada que fallara.
+        val esCore = FakeDictionary(packId = "es-core", lang = "es")
+        val enCore = FakeDictionary(packId = "en-core", lang = "en")
+        val esFull = FakeDictionary(packId = "es-def", lang = "es")
+        val vm = SearchViewModel(
+            { listos(esFull, esCore, enCore, demos = setOf("es-core", "en-core")) },
+        )
+        advanceUntilIdle()
+
+        val ofrecidos = vm.state.value.available.map { it.packId }
+        assertTrue(
+            "en-core" in ofrecidos,
+            "el nucleo de ingles desaparecio y no hay otro pack que hable ingles: $ofrecidos",
+        )
+        // Y la mitad que D-088 queria sigue valiendo: el nucleo de espanol SI se hace a un lado,
+        // porque el completo ya habla ese idioma. Sin esto el arreglo seria "mostrarlo todo".
+        assertTrue("es-core" !in ofrecidos, "el nucleo de espanol sobraba: $ofrecidos")
+        // Lo que el usuario ve: dos idiomas elegibles, no uno.
+        assertEquals(listOf("en", "es"), idiomasDisponibles(vm.state.value.available))
+    }
+
+    @Test
     fun theDemoPackCannotBeDeleted() = runTest {
         // It comes inside the APK and `PackStore.open` re-extracts it on reopening, so deleting
         // it would be an action that does nothing: the pack comes back on its own. Offering it

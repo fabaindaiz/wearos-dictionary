@@ -61,6 +61,10 @@ replay_pid*
 # El pack de demo lo genera :app:buildDemoPack en cada build; los diccionarios reales pesan
 # decenas o cientos de MB y ni siquiera viajan en el APK. Ninguno va al repo.
 app/src/main/assets/*.db
+# El indice de versiones de los packs incluidos: lo escribe `:app:bundlePacks` en cada build
+# leyendo `index.json` del directorio de datos (D-229). Commitearlo crearia una segunda fuente de
+# verdad sobre que version trae el APK -- y una que se queda vieja sin que nada lo note.
+app/src/main/assets/core-index.tsv
 !app/src/main/assets/.gitkeep
 
 # Los packs reales, que build_pack.py escribe donde le digas -- y toda la documentacion lo

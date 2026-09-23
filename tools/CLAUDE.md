@@ -71,6 +71,17 @@ directory of packs, stdlib only.
 adb reverse tcp:8765 tcp:8765                                       # the tunnel, first
 python3 tools/packserver.py ../wearos-dictionary-data/dist --port 8765
 python3 tools/packserver.py ../wearos-dictionary-data --index-only   # just print the index
+
+# ⚠️ **El indice TAMBIEN lo consume el build del APK**, y por eso conviene dejarlo escrito en
+# `dist/`. `:app:bundlePacks` lo lee para saber que `data_version` tiene cada nucleo que empaqueta
+# y lo copia a `assets/core-index.tsv` (D-229). Sin el, la app no puede decidir si el nucleo del
+# APK es mas nuevo que el que el usuario bajo, y **deja el del usuario** -- que es seguro, pero
+# significa que un nucleo actualizado desde el catalogo no vuelve a actualizarse nunca.
+#
+# Se regenera despues de construir packs. Si queda desactualizado NO miente: `bundlePacks` compara
+# el `db_bytes` declarado contra el archivo real y, si no coinciden, no declara version.
+python3 tools/packserver.py ../wearos-dictionary-data/dist --index-only \
+    > ../wearos-dictionary-data/dist/index.json
 ```
 
 ⚠️ **Start with `adb reverse`, and the reason is measured.** The app's default catalogue URL used
@@ -366,9 +377,16 @@ sea un acto explícito es lo que hace que un renombrado se note. **Verificado po
 python3 tools/packserver.py <dir> --index-only > app/src/test/resources/catalog-index-fixture.json
 ```
 
-⚠️ **El fixture incluye a propósito un pack de esquema VIEJO** (`es-def-wd`, schema 3), porque el
-directorio de datos real lo tiene. Así el test comprueba también que se clasifique como
-incompatible, que es lo que evita descargar 192 MB para tirarlos.
+⚠️ **El fixture incluye a propósito un pack de esquema VIEJO** (`es-def-wd`, schema 3). Así el
+test comprueba también que se clasifique como incompatible, que es lo que evita descargar 192 MB
+para tirarlos.
+
+⚠️ **Ya NO describe el directorio real, y eso es deliberado.** Decía *«porque el directorio de
+datos real lo tiene»* y dejó de ser cierto con el rebuild del 2026-09-22: `dist/` tiene seis packs
+y **ninguno de esquema 3** (comprobado el 2026-09-23). Regenerar el fixture desde el directorio de
+hoy **debilitaría el test** —se quedaría sin el caso incompatible, que es la mitad de lo que
+vigila— así que el fixture se queda como está y pasa a ser un caso sintético. Quien lo regenere
+tiene que volver a meter a mano un pack de esquema viejo.
 
 Los dos fallan igual: sin excepción, sin log, y con el pack pasando todas sus invariantes. El
 segundo lo fija un vector idéntico en ambos lados — `sense_code(1, "casa")` = `8ec316909e48`.

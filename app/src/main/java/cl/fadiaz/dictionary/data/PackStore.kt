@@ -87,15 +87,80 @@ object PackStore {
          * --lo que pisaria el pack nuevo con el viejo sin un error, porque el viejo abre igual de
          * bien--.
          *
-         * La regla que lo resuelve: **el catalogo gana sobre el APK**. Lo incluido existe para
-         * arrancar de cero, no para mandar sobre lo que el usuario instalo despues.
+         * Desde [ExtractionPlan] la regla dejo de ser *"el catalogo gana"* a secas: gana el
+         * `data_version` mayor, venga de donde venga. Ver ahi.
          */
         downloaded: Set<String> = emptySet(),
-    ): List<String> {
-        if (last != current) return assets.filterNot { it in downloaded }.sorted()
+    ): ExtractionPlan {
         val alreadyOnDisk = installed.toSet()
-        return assets.filterNot { it in alreadyOnDisk || it in downloaded }.sorted()
+        if (last == current) {
+            // El mismo APK que la ultima vez: su contenido no cambio, asi que no hay nada que
+            // comparar. Solo se copia lo que falta del disco.
+            return ExtractionPlan(
+                copy = assets.filterNot { it in alreadyOnDisk || it in downloaded }.sorted(),
+                compare = emptyList(),
+            )
+        }
+        val (delCatalogo, propios) = assets.partition { it in downloaded }
+        // ⚠️ Marcado como "del catalogo" pero **ausente del disco** no es un conflicto: no hay
+        // contra que comparar, asi que se copia. Hoy `deletePack` limpia la marca al borrar, asi
+        // que esto no deberia pasar -- y por eso mismo, si pasa, lo seguro es tener el pack.
+        val (presentes, desaparecidos) = delCatalogo.partition { it in alreadyOnDisk }
+        return ExtractionPlan(
+            copy = (propios + desaparecidos).sorted(),
+            compare = presentes.sorted(),
+        )
     }
+
+    /**
+     * Que hacer con cada pack del APK cuando la app subio de version.
+     *
+     * ⚠️ **Dos listas y no una, porque son dos preguntas y mezclarlas ya costo un bug.** D-172
+     * dejo escrita la leccion: *una regla que filtra una lista no sirve si otro camino construye
+     * esa lista de nuevo*. Devolver un plan --y no dos funciones que alguien puede llamar por
+     * separado-- hace que olvidarse de una mitad no compile.
+     */
+    internal data class ExtractionPlan(
+        /**
+         * Se copian y pisan lo que haya: ese archivo es del APK y nadie mas lo toco.
+         */
+        val copy: List<String>,
+        /**
+         * Vinieron del catalogo y **siguen en el disco**: se copia solo si el APK trae un
+         * `data_version` mayor.
+         *
+         * ⚠️ **Esto reemplaza a *"el catalogo gana sobre el APK"*, que era la regla de D-214 y
+         * tenia el defecto simetrico al que venia a arreglar.** Ahi el problema era que una app
+         * nueva pisaba con su nucleo viejo el que el usuario acababa de bajar; la regla *"el
+         * catalogo gana"* lo cerro, y abrio el otro: un nucleo bajado hace meses le gana **para
+         * siempre** al que trae el APK de hoy, aunque el de hoy sea mas nuevo. Ninguno de los
+         * dos falla con un error -- los dos packs abren bien -- asi que lo unico que se ve es un
+         * diccionario que no se actualiza nunca.
+         *
+         * **La regla que cierra las dos: gana el `data_version` mayor, venga de donde venga.** Es
+         * el mismo entero monotono con el que `Catalog.classify` decide si hay novedad (D-170),
+         * asi que la app usa una sola nocion de *"cual es mas nuevo"* y no dos.
+         *
+         * ⚠️ **La version del APK se lee de un INDICE, no del asset**, y esa es la parte que
+         * hace que esto sea barato. SQLite no abre un `.db` dentro del APK --verificado con
+         * `javap` sobre `sqlite-bundled 2.7.1`: la superficie entera es `open(String)`, sin VFS
+         * propio y sin `sqlite3_deserialize` (D-173)-- asi que preguntarle su version al asset
+         * obligaria a **copiar los 50,8 MB del nucleo espanol** para leer un entero de 12
+         * digitos. La primera version de esto hacia exactamente eso.
+         *
+         * En su lugar, `bundlePacks` deja la version escrita en `assets/core-index.tsv` durante
+         * el build, leyendola del **mismo `index.json` que sirve `packserver.py`** -- el pack
+         * incluido es un caso excepcional y puede permitirse declarar su version, igual que el
+         * servidor declara la de los suyos. Ver [coreIndex]. Coste en el reloj: dos lineas de
+         * texto.
+         *
+         * ⚠️ **Y el indice trae su propio riesgo, cerrado en el build**: uno desactualizado al
+         * lado de un `.db` nuevo declararia una version que no es. `bundlePacks` compara el
+         * tamano declarado contra el archivo real y, si no coinciden, **no declara nada** -- y la
+         * app entonces deja el pack del usuario como esta, que es el estado seguro.
+         */
+        val compare: List<String>,
+    )
 
     /** Qué packs del APK fueron reemplazados desde el catálogo. Ver [assetsToExtract]. */
     fun downloadedPacks(context: Context): Set<String> =
@@ -135,22 +200,31 @@ object PackStore {
         dir.mkdirs()
 
         val instaladaAntes = prefs(context).getInt(KEY_EXTRACTED_BY, 0)
-        val missing = assetsToExtract(
+        val plan = assetsToExtract(
             packAssets(context),
             installedPacks(dir).map { it.name },
             last = instaladaAntes,
             current = versionCode(context),
             downloaded = downloadedPacks(context),
         )
-        if (missing.isNotEmpty()) {
+        if (plan.copy.isNotEmpty() || plan.compare.isNotEmpty()) {
             onExtracting()
-            DictLog.i { "extrayendo del APK: ${missing.joinToString()}" }
-            for (asset in missing) {
+            DictLog.i {
+                "extrayendo del APK: ${plan.copy.joinToString().ifEmpty { "nada" }}" +
+                    plan.compare.takeIf { it.isNotEmpty() }
+                        ?.let { " · comparando version: ${it.joinToString()}" }.orEmpty()
+            }
+            for (asset in plan.copy) {
                 // ⚠️ El `runCatching` se traga el fallo a proposito --la app arranca igual con los
                 // packs que ya esten-- pero sin este log un nucleo que nunca se extrae es
                 // invisible: la pantalla solo muestra que ese idioma no esta.
                 runCatching { installAtomically(context.assets.open(asset), dir, asset) }
                     .onFailure { e -> DictLog.e(e) { "no se pudo extraer $asset del APK" } }
+            }
+            val declaradas = coreIndex(context)
+            for (asset in plan.compare) {
+                runCatching { extractIfNewer(context, dir, asset, declaradas[asset]) }
+                    .onFailure { e -> DictLog.e(e) { "no se pudo comparar $asset con el APK" } }
             }
         }
         // Se anota DESPUÉS de copiar: si la extracción falla a medias, el próximo arranque la
@@ -455,6 +529,106 @@ object PackStore {
     }
 
     /**
+     * Copia el nucleo del APK **solo si trae un `data_version` mayor** que el que hay en disco.
+     *
+     * Es la mitad ejecutable de [ExtractionPlan.compare]. El orden es el mismo contrato que en
+     * [installAtomically]: primero se decide, despues se pisa. Comparar despues de copiar no
+     * seria comparar.
+     *
+     * ⚠️ **La version del asset se LEE DEL INDICE, no del asset.** La primera version de esto
+     * extraia el pack a un `.candidate` para poder abrirlo y preguntarle --SQLite no abre un
+     * `.db` dentro del APK (D-173)-- lo que costaba copiar 50,8 MB para leer un entero de 12
+     * digitos. El indice lo resuelve a coste cero: `bundlePacks` lo escribe en el build, desde el
+     * **mismo `index.json` que sirve `packserver.py`**. Ver [coreIndex].
+     *
+     * ⚠️ **Si no hay version declarada, NO se toca nada**, y ese es el estado seguro: sin saber
+     * cual es mas nuevo, pisar el pack del usuario es exactamente el downgrade silencioso que
+     * esto viene a evitar. El build avisa cuando eso pasa.
+     *
+     * ⚠️ **Cuando gana el APK se olvida la marca del catalogo**, porque el archivo volvio a ser
+     * el del APK y la marca diria lo contrario.
+     */
+    private fun extractIfNewer(context: Context, dir: File, asset: String, delApk: Long?) {
+        val enDisco = File(dir, asset)
+        if (delApk == null) {
+            DictLog.w { "$asset: el APK no declara version, se deja el de disco" }
+            return
+        }
+        val delUsuario = dataVersionOf(enDisco)
+        if (delUsuario == null) {
+            // No se pudo abrir lo que hay. NO es lo mismo que "es viejo": puede ser el disco o un
+            // archivo a medio copiar, y pisarlo borraria un pack que manana abriria bien.
+            DictLog.w { "$asset: no se pudo leer la version del de disco, se lo deja" }
+            return
+        }
+        if (delApk <= delUsuario) {
+            DictLog.i { "$asset: el de disco es igual o mas nuevo ($delUsuario >= $delApk)" }
+            return
+        }
+        installAtomically(context.assets.open(asset), dir, asset)
+        // El archivo volvio a ser el del APK: la marca del catalogo ya no es cierta.
+        forgetDownloaded(context, asset)
+        DictLog.i { "$asset: el APK trae uno mas nuevo ($delApk > $delUsuario), reemplazado" }
+    }
+
+    /**
+     * El `data_version` que declara un pack **en disco**, o `null` si no se puede saber.
+     *
+     * `verifyKeys = false` a proposito: aca la pregunta es **cual de los dos es mas nuevo**, no si
+     * el pack sirve. Eso se contesta despues, al abrirlo de verdad, con la muestra de 64 claves de
+     * D-142 -- la que D-164 midio en 36 ms y que no hace falta pagar dos veces. Lo barato
+     * (`schema_version`, `norm_version`, el codec y el sha256 del diccionario) se comprueba igual,
+     * porque `PackFile.open` lo comprueba siempre.
+     */
+    private fun dataVersionOf(file: File): Long? =
+        runCatching { PackFile.open(file.path, verifyKeys = false).use { it.metadata.dataVersion } }
+            .getOrNull()
+
+    /**
+     * Las versiones que el APK declara para los packs que lleva adentro.
+     *
+     * ⚠️ **Es el indice, y hace en el APK lo que `index.json` hace en el servidor.** Lo escribe
+     * `bundlePacks` en el build, leyendo el mismo `index.json` que `packserver.py --index-only`
+     * produce, y validando que el tamano declarado coincida con el archivo -- un indice viejo al
+     * lado de un pack nuevo declararia una version que no es, y eso seria peor que no declarar
+     * ninguna.
+     *
+     * Formato: `nombre<TAB>data_version`, una linea por pack. TSV y no JSON porque son dos lineas
+     * y el parser corre en un reloj: `split('\t')` no puede lanzar una excepcion que nadie espera.
+     *
+     * Una linea que no se entiende se **ignora**, y el costo de ignorarla es que ese pack se trate
+     * como sin version declarada, que es el estado seguro.
+     */
+    private fun coreIndex(context: Context): Map<String, Long> =
+        runCatching {
+            parseCoreIndex(context.assets.open(CORE_INDEX).bufferedReader().use { it.readText() })
+        }.getOrDefault(emptyMap())
+
+    /**
+     * El parser del indice, **puro y sin Android para que el gate lo cubra** (D-072).
+     *
+     * ⚠️ **Es codigo que falla devolviendo un mapa vacio**, que es la forma exacta de falla que
+     * este repo no puede ver: sin versiones declaradas los nucleos no se actualizan nunca, y no
+     * hay excepcion ni log de error. Por eso se separa de la lectura del asset y se prueba.
+     *
+     * Una linea que no se entiende se ignora en vez de romper: el costo de ignorarla es que ese
+     * pack quede sin version declarada, que es el estado seguro. Romper por una linea mala
+     * dejaria sin version a **todos**.
+     */
+    internal fun parseCoreIndex(texto: String): Map<String, Long> =
+        texto.lineSequence()
+            .mapNotNull { linea ->
+                val campos = linea.split('\t')
+                val version = campos.getOrNull(1)?.trim()?.toLongOrNull()
+                if (campos.size == 2 && campos[0].isNotBlank() && version != null) {
+                    campos[0].trim() to version
+                } else {
+                    null
+                }
+            }
+            .toMap()
+
+    /**
      * Abre un pack, salteando la muestra de claves **si este mismo archivo ya la pasó**.
      *
      * Medido: la muestra son 36 de los 42 ms que costaba cada arranque con los dos packs reales,
@@ -486,6 +660,10 @@ object PackStore {
                 TextNormalizer.NORM_VERSION,
                 PackFile.SUPPORTED_SCHEMA_VERSION,
                 PayloadCodec.CODEC_ID,
+                // ⚠️ **Instalar una app nueva caduca el memo entero**, y es la única de las cinco
+                // que nadie puede olvidarse de subir: el instalador rechaza un downgrade (D-095).
+                // Ver [PackVerification.rules].
+                versionCode(context),
             ),
         )
         val anotado = PackVerification.verdict(memo, file.name, fingerprint)
@@ -525,6 +703,17 @@ object PackStore {
             putString(KEY_VERIFIED, PackVerification.remember(memo, name, fingerprint, rejection))
         }
     }
+
+    /**
+     * El indice de versiones que `bundlePacks` deja en `assets/`.
+     *
+     * ⚠️ **El mismo literal vive en `app/build.gradle.kts` (`CORE_INDEX`)**: son los dos extremos
+     * de un archivo y no hay forma de compartir una constante entre el script de build y el
+     * codigo. Si dejan de coincidir, el indice **no se lee y nada falla** -- los nucleos quedan
+     * sin version declarada y no se actualizan nunca. Por eso lo vigila
+     * `audit_dictionary.check_core_index_name`.
+     */
+    internal const val CORE_INDEX = "core-index.tsv"
 
     private const val BUFFER = 256 * 1024
 }

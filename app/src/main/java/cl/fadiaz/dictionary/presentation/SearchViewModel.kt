@@ -738,13 +738,43 @@ class SearchViewModel(
         notifyTiles()
     }
 
+    /**
+     * De los packs abiertos, cuales se **ofrecen**: al selector, a la palabra del dia, a la
+     * pantalla de diccionarios y a los creditos.
+     *
+     * ⚠️ **La regla era *"si hay algun pack instalado, esconder TODOS los del APK"*, y con los
+     * nucleos reales adentro eso escondia un diccionario entero.** Escrita para D-088, cuando lo
+     * incluido era un juguete de 28 entradas cuya etiqueta chocaba con la del pack real: el
+     * selector leia *ES* y *ES* sin forma de distinguirlos. D-175 reemplazo ese juguete por los
+     * **nucleos de espanol e ingles**, y la regla no se volvio a mirar.
+     *
+     * **El defecto, medido con `elNucleoDeOtroIdiomaSOBREVIVE...`**: con el espanol completo
+     * descargado, `opened.any { !isBundled }` es verdadero y el filtro se lleva **los dos**
+     * nucleos. `en-core.db` queda instalado, abierto y consultable, y **sin chip**: el usuario
+     * pierde el ingles entero de la interfaz sin que nada falle ni se loguee. Es la forma exacta
+     * del bug que este repo no puede ver.
+     *
+     * **La regla que lo cierra: un pack del APK se hace a un lado solo si otro pack ya habla
+     * TODOS sus idiomas.** Es la misma forma que la contencion de `packsToQuery` --hacerse a un
+     * lado por quien te contiene-- y conserva lo que D-088 queria: con el espanol completo
+     * instalado, `es-core` se esconde; `en-core` no, porque nadie mas habla ingles.
+     *
+     * ⚠️ **El respaldo es `opened` y no `all`, y eso dejo de ser lo mismo.** Mientras `all`
+     * solo traia packs abiertos los dos eran identicos; ahora trae tambien los rechazados, y
+     * devolverlos aca los pondria en el selector del inicio -- un chip de idioma que no
+     * busca nada. Los rechazados van por su propio canal, a la pantalla de diccionarios.
+     */
     private fun offerable(all: List<PackHandle>): List<PackHandle> {
         val opened = all.filterIsInstance<PackHandle.Open>()
-        // ⚠️ **El respaldo es `opened` y no `all`, y eso dejo de ser lo mismo.** Mientras `all`
-        // solo traia packs abiertos los dos eran identicos; ahora trae tambien los rechazados, y
-        // devolverlos aca los pondria en el selector del inicio -- un chip de idioma que no
-        // busca nada. Los rechazados van por su propio canal, a la pantalla de diccionarios.
-        return if (opened.any { !it.isBundled }) opened.filterNot { it.isBundled } else opened
+        val cubiertos = opened.filterNot { it.isBundled }
+            .flatMap { it.metadata.langs }
+            .toSet()
+        return opened
+            .filterNot { pack -> pack.isBundled && pack.metadata.langs.all { it in cubiertos } }
+            // Un pack que no declara ningun idioma cumpliria `all {}` de forma vacia y se
+            // escaparia por el filtro. No puede pasar --`meta.langs` es obligatoria desde el
+            // esquema 4-- y por eso mismo no se paga con quedarse sin nada que ofrecer.
+            .ifEmpty { opened }
     }
 
     /** Only those from open packs: a row that opens nothing is worse than no row at all. */
