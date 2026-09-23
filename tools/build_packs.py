@@ -1,44 +1,44 @@
 #!/usr/bin/env python3
-"""Construye TODOS los packs, en orden, y separa lo intermedio de lo que se publica.
+"""Builds ALL the packs, in order, and separates the intermediate from what gets published.
 
-    python3 tools/build_packs.py <raiz-de-datos> [--dry-run] [--solo es|en]
+    python3 tools/build_packs.py <data-root> [--dry-run] [--solo es|en]
 
-## Por que existe
+## Why it exists
 
-El orden del rebuild estaba escrito **solo en prosa** (`tools/CLAUDE.md`), y ahi no se puede
-correr ni comprobar. Y no es un detalle: `--flexiones` lee un pack YA CONSTRUIDO del idioma
-destino, asi que el bilingue **tiene que** ir despues del ingles. Saltarse un flag no da error --
-el pack sale bien formado, pasa `verify_pack.py` y es **peor en silencio**: sin `--flexiones`, la
-cobertura inversa del bilingue cae 8,6 puntos, medidos.
+The rebuild's order was written **only in prose** (`tools/CLAUDE.md`), and there it can neither be
+run nor checked. And it is not a detail: `--flexiones` reads an ALREADY BUILT pack of the target
+language, so the bilingual one **has to** come after English. Skipping a flag raises no error --
+the pack comes out well formed, passes `verify_pack.py` and is **worse in silence**: without
+`--flexiones`, the bilingual's reverse coverage drops 8.6 points, measured.
 
-Pedido: *«que los scripts que construyen estos packs esten en el repo pero los packs no, porque
-son muy pesados»*. Esto es ese script. Los artefactos siguen fuera del repo, y `.gitignore` ya
-cubre `/*.db`.
+Asked for: *"that the scripts building these packs be in the repo but the packs not, because they
+are very heavy"*. This is that script. The artifacts stay outside the repo, and `.gitignore`
+already covers `/*.db`.
 
-## La estructura que espera
+## The structure it expects
 
-    <raiz>/dumps/   las entradas: los .jsonl de kaikki, los corpus, WordNet, Wikidata
+    <root>/dumps/   the inputs: kaikki's .jsonl files, the corpora, WordNet, Wikidata
 
-⚠️ **Cada paso tiene que recibir el dump que SU lector sabe leer, y no es obvio**: los
-cuatro son formatos distintos y tres de ellos vienen comprimidos. `sources/wikidata` hace
-`json.loads` por linea sobre el bz2 de lexemas; `wordnet.spanish` abre el `.tab` de OMW
-como TEXTO PLANO y parte por tabs; `wordnet.english` lee WN-LMF comprimido. Pasarle a
-cualquiera de ellos el archivo de otro **revienta en la primera linea**, que es la suerte
-de este caso: la version anterior le pasaba los volcados de DBnary a los dos primeros.
+⚠️ **Each step has to receive the dump ITS reader knows how to read, and that is not obvious**:
+the four are different formats and three of them come compressed. `sources/wikidata` does a
+`json.loads` per line over the lexemes bz2; `wordnet.spanish` opens OMW's `.tab` as PLAIN TEXT
+and splits on tabs; `wordnet.english` reads compressed WN-LMF. Handing any of them another's
+file **blows up on the first line**, which is this case's good fortune: the previous version
+handed DBnary's dumps to the first two.
 
-⚠️ **Y DBnary no era una alternativa razonable, era un descuido**: esta en
-`docs/fuentes.md` como **rechazada y medida** --misma fuente que el Wikcionario, la mitad
-del rendimiento--, y sus `.ttl` estan en el directorio porque se bajaron para medirla.
-Lo fija `test_build_packs`, que ahora comprueba los nombres ademas del orden.
-    <raiz>/build/   los INTERMEDIOS: packs que son entrada de un merge y no se distribuyen
-    <raiz>/dist/    lo que se publica, y lo unico que `packserver.py` debe servir
+⚠️ **And DBnary was not a reasonable alternative, it was an oversight**: it is in
+`docs/fuentes.md` as **rejected and measured** --the same source as Wiktionary, half the
+yield-- and its `.ttl` files are in the directory because they were downloaded to measure it.
+`test_build_packs` pins that, and now checks the names as well as the order.
+    <root>/build/   the INTERMEDIATES: packs that are an input to a merge and are not distributed
+    <root>/dist/    what gets published, and the only thing `packserver.py` should serve
 
-⚠️ **La separacion es el punto.** Con todo en un directorio plano, `es-def-wd` --que es una
-ENTRADA del merge espanol, no un diccionario para nadie-- aparecio en el catalogo del emulador
-como un pack descargable. Un diccionario de una sola fuente es justo el modelo que se descarto.
+⚠️ **The separation is the point.** With everything in one flat directory, `es-def-wd` --which is
+an INPUT to the Spanish merge, not a dictionary for anybody-- showed up in the emulator's catalog
+as a downloadable pack. A single-source dictionary is exactly the model that was discarded.
 
-⚠️ **El ingles completo esta en `dist/` aunque TAMBIEN sea una entrada** (del bilingue, por
-`--flexiones`). Es las dos cosas, y lo que decide donde vive es si se distribuye.
+⚠️ **Full English is in `dist/` even though it is ALSO an input** (to the bilingual, through
+`--flexiones`). It is both things, and what decides where it lives is whether it is distributed.
 """
 
 from __future__ import annotations
@@ -55,30 +55,29 @@ VERIFY = os.path.join(AQUI, "packbuilder", "verify_pack.py")
 
 DUMPS, BUILD, DIST = "dumps", "build", "dist"
 
-#: El rango de cada nivel, en MB: `(minimo, maximo)` que el ARCHIVO tiene que cumplir (D-215,
-#: D-220).
+#: Each tier's range, in MB: the `(minimum, maximum)` the FILE has to satisfy (D-215, D-220).
 #:
-#: ⚠️ **Es un rango y no un numero porque un numero no se puede cumplir.** El tamaño del derivado
-#: se estima escalando los payloads por la proporcion del pack de ORIGEN, y el derivado tiene otra
-#: --se lleva las formas de sus lemas y no las de los demas--: pedir 25 MB dio **17,7 MB**. El
-#: rango se cumple midiendo el archivo y volviendo a derivar, que es lo que hace
-#: `build_core.derivar_en_rango`.
+#: ⚠️ **It is a range and not a number because a number cannot be met.** The derived pack's size is
+#: estimated by scaling the payloads by the SOURCE pack's ratio, and the derived one has a
+#: different ratio --it takes its own lemmas' forms and not the others'--: asking for 25 MB gave
+#: **17.7 MB**. The range is met by measuring the file and deriving again, which is what
+#: `build_core.derivar_en_rango` does.
 #:
-#: ⚠️ **Cada numero sale de una medicion, y la que los ata esta en D-220.** En una linea:
-#: **30** es el codo de la curva cobertura/tamaño del idioma **mas exigente** (el ingles: +10 MB
-#: compran ahi menos de 0,5 puntos); **x1,5 de ancho** porque la razon archivo/presupuesto se
-#: mueve entre 0,60 y 1,26 y un rango mas angosto que esa dispersion no converge; **x2 de salto**
-#: entre `maximo(core)` y `minimo(main)` para que los dos rangos no puedan solaparse.
+#: ⚠️ **Every number comes from a measurement, and the one that ties them is D-220.** In one line:
+#: **30** is the elbow of the coverage/size curve of the **most demanding** language (English:
+#: +10 MB buys under 0.5 points there); **x1.5 of width** because the file/budget ratio moves
+#: between 0.60 and 1.26 and a range narrower than that spread does not converge; **x2 of gap**
+#: between `maximum(core)` and `minimum(main)` so the two ranges cannot overlap.
 #:
-#: ⚠️ **Los MAXIMOS no los valida ninguna metrica de contenido, y eso se dice.** La cobertura
-#: satura (96,63 % en 45,2 MB, el valor del pack completo) y `lemma_coverage` es **convexa** --
-#: acelera: 0,168, 0,248, 0,301 y 0,388 puntos por MB--, asi que por esa vara siempre conviene
-#: gastar mas. El maximo es una decision de producto sobre cuanto se le pide al reloj; lo unico
-#: medido es el ANCHO.
+#: ⚠️ **The MAXIMA are validated by no content metric, and that is said.** Coverage saturates
+#: (96.63 % at 45.2 MB, the full pack's value) and `lemma_coverage` is **convex** -- it
+#: accelerates: 0.168, 0.248, 0.301 and 0.388 points per MB -- so by that yardstick spending more
+#: is always better. The maximum is a product decision about how much is asked of the watch; the
+#: only measured thing is the WIDTH.
 RANGO = {"core": (30, 50), "main": (100, 150)}
 
-#: La lista de frecuencias de cada idioma. Es la misma con la que se construyo el `full`, y usar
-#: la misma importa: el corte de un nivel y el `rank` del pack tienen que hablar del mismo corpus.
+#: Each language's frequency list. It is the same one the `full` was built with, and using the
+#: same one matters: a tier's cut and the pack's `rank` have to speak about the same corpus.
 LISTAS_DE_FRECUENCIA = {"en": "freq-en-opensubs.txt", "es": "freq-es-opensubs.txt"}
 
 
@@ -87,20 +86,20 @@ def _ruta(raiz, *partes):
 
 
 def _niveles(raiz, idioma, tamano_full_mb):
-    """Los niveles derivados que le tocan a un idioma, dado lo que pesa su `full`."""
+    """The derived tiers a language gets, given what its `full` weighs."""
     pasos = []
     full = _ruta(raiz, DIST, "%s-full.db" % idioma)
     for nivel in ("core", "main"):
         minimo, maximo = RANGO[nivel]
-        # ⚠️ Un `full` que ya cabe entero en el rango de `main` haria de `main` una copia suya.
+        # ⚠️ A `full` that already fits whole in `main`'s range would make `main` a copy of it.
         if nivel == "main" and tamano_full_mb is not None and tamano_full_mb <= maximo:
             continue
         pasos.append({
             "nombre": "%s-%s" % (idioma, nivel),
             "salida": _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
-            # ⚠️ **`--frecuencias` no es opcional en la practica.** Sin la lista el nivel se
-            # corta por `rank`, y eso esta medido: entre 0,97 y 1,53 puntos menos de cobertura
-            # del corpus, con menos lemas adentro. `build_core` avisa por stderr si falta.
+            # ⚠️ **`--frecuencias` is not optional in practice.** Without the list the tier is cut
+            # by `rank`, and that is measured: between 0.97 and 1.53 points less corpus coverage,
+            # with fewer lemmas inside. `build_core` warns on stderr when it is missing.
             "comando": [sys.executable, BUILD_CORE, full,
                         _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
                         "--rango-mb", str(minimo), str(maximo), "--tier", nivel,
@@ -111,14 +110,14 @@ def _niveles(raiz, idioma, tamano_full_mb):
 
 
 def plan(raiz, solo=None, tamanos=None):
-    """El plan completo, **sin ejecutar nada**.
+    """The complete plan, **without running anything**.
 
-    Se devuelve en vez de correrse para que el gate pueda comprobar el ORDEN sin tener los dumps,
-    que son 4,4 GB. Es el mismo reparto que `devpack.py`: la forma del plan entra al gate, correrlo
-    necesita los datos y no entra.
+    It is returned rather than run so the gate can check the ORDER without holding the dumps,
+    which are 4.4 GB. It is the same split as `devpack.py`: the plan's shape enters the gate,
+    running it needs the data and does not.
 
-    `tamanos` mapea idioma -> MB de su `full` ya construido, para decidir si toca un `main`. En un
-    plan en seco no se sabe, y entonces se planean los dos niveles.
+    `tamanos` maps language -> MB of its already built `full`, to decide whether a `main` applies.
+    In a dry plan that is unknown, and then both tiers are planned.
     """
     tamanos = tamanos or {}
     pasos = []
@@ -138,10 +137,10 @@ def plan(raiz, solo=None, tamanos=None):
         })
 
     if solo in (None, "es"):
-        # ⚠️ **Wikidata NO se construye como pack aparte, y eso lo corrigio el rebuild.** El plan
-        # construia `build/es-def-wd.db` creyendo que era *una entrada del merge*; `--sumar` lee
-        # el **dump**, asi que ese archivo no lo consumia nadie: 30 s y 4,5 MB para nada. Lo que
-        # entra al pack español es el dump, fundido por D-146.
+        # ⚠️ **Wikidata is NOT built as a separate pack, and the rebuild corrected that.** The plan
+        # built `build/es-def-wd.db` believing it was *an input to the merge*; `--sumar` reads the
+        # **dump**, so nobody consumed that file: 30 s and 4.5 MB for nothing. What goes into the
+        # Spanish pack is the dump, merged by D-146.
         pasos.append({
             "nombre": "es-full",
             "salida": _ruta(raiz, DIST, "es-full.db"),
@@ -151,16 +150,16 @@ def plan(raiz, solo=None, tamanos=None):
                         "--frases", _ruta(raiz, DUMPS, "tatoeba-spa.tsv"),
                         "--tesauro", _ruta(raiz, DUMPS, "wn-data-spa.tab"),
                         "--frecuencias", _ruta(raiz, DUMPS, "freq-es-opensubs.txt"),
-                        # ⚠️ **`--sumar <pack> <dump>` lee el DUMP, no un pack construido.** El
-                        # nombre `es-wd` selecciona el lector y la atribucion (D-146); la ruta es
-                        # el dump que ese lector parsea.
+                        # ⚠️ **`--sumar <pack> <dump>` reads the DUMP, not a built pack.** The name
+                        # `es-wd` selects the reader and the attribution (D-146); the path is the
+                        # dump that reader parses.
                         "--sumar", "es-wd",
                         _ruta(raiz, DUMPS, "wikidata-lexemes.json.bz2")],
             "verifica": True,
         })
 
-    # El bilingue, DESPUES del ingles. No tiene niveles: su proposito no es un tamano del mismo
-    # diccionario, sino otra cosa (D-215).
+    # The bilingual one, AFTER English. It has no tiers: its purpose is not a size of the same
+    # dictionary but something else (D-215).
     if solo is None:
         pasos.append({
             "nombre": "es-en (bilingue)",
@@ -209,8 +208,8 @@ def main(argv=None):
         if subprocess.call(paso["comando"]) != 0:
             print("  fallo %s; se para aqui" % paso["nombre"], file=sys.stderr)
             return 1
-        # ⚠️ **Se verifica cada pack ANTES de seguir.** Un pack a medias se abre sin error y
-        # devuelve menos palabras de las que tiene; encadenar sobre el propaga el defecto.
+        # ⚠️ **Every pack is verified BEFORE going on.** A half-built pack opens with no error and
+        # returns fewer words than it holds; chaining onto it propagates the defect.
         if paso["verifica"] and subprocess.call([sys.executable, VERIFY, paso["salida"]]) != 0:
             print("  %s no paso verify_pack; se para aqui" % paso["nombre"], file=sys.stderr)
             return 1

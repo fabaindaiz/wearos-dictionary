@@ -1,61 +1,62 @@
-"""Ejemplos de uso en español, tomados del Wiktionary INGLES, seccion Spanish.
+"""Spanish usage examples, taken from the ENGLISH Wiktionary, Spanish section.
 
-Es la **segunda fuente** del pack español, y lo unico que se le toma son los ejemplos. Sus
-glosas son traducciones al ingles: traerlas convertiria el pack en bilingue, que es otra cosa
-(D-034). Aca no se define nada, se ilustra.
+It is the Spanish pack's **second source**, and the only thing taken from it is the examples. Its
+glosses are English translations: bringing them in would turn the pack bilingual, which is
+something else (D-034). Nothing is defined here, things are illustrated.
 
-**Por que existe.** El 70,4 % del pack español son entradas de una acepcion sin ejemplo, y el
-dump del Wikcionario español ya no tiene nada mas que darles: medido en D-132, de los campos
-sin usar solo quedaba un 7 % aprovechable y ya se uso.
+**Why it exists.** 70.4 % of the Spanish pack is single-sense entries with no example, and the
+Spanish Wiktionary dump has nothing more to give them: measured in D-132, of the unused fields
+only 7 % was usable and it has been used.
 
-⚠️ **Y por que NO esta encendida por defecto** (D-135). El numero honesto es chico --**326
-entradas, el 0,28 % del pack**-- y el precio no es el codigo sino la **atribucion**: usar dos
-fuentes obliga a nombrar a las dos en cada pack, para siempre. Las dos son CC BY-SA 4.0, asi
-que no hay incompatibilidad de licencia; hay una obligacion permanente por un 0,28 %. La
-decision de pagarla es del usuario, y por eso esto es una opcion de la CLI y no un default.
+⚠️ **And why it is NOT on by default** (D-135). The honest number is small --**326 entries, 0.28 %
+of the pack**-- and the price is not the code but the **attribution**: using two sources forces
+naming both in every pack, forever. Both are CC BY-SA 4.0, so there is no licence incompatibility;
+there is a permanent obligation for 0.28 %. The decision to pay it is the user's, and that is why
+this is a CLI option and not a default.
 
-**Como se llego a 326, que es la parte que no hay que redescubrir.** El roadmap estimaba 5.307
-cruzando por lema. Ese numero cuenta casos donde **habria que inventar la atribucion**: entradas
-nuestras con varias acepciones, donde no se sabe a cual pega el ejemplo. Los cuatro filtros de
-abajo son lo que queda cuando no se inventa nada, y cada uno sale de mirar el dump:
+**How 326 was reached, which is the part not to rediscover.** The roadmap estimated 5,307 by
+crossing on the lemma. That number counts cases where **the attribution would have to be
+invented**: entries of ours with several senses, where it is unknown which one the example
+illustrates. The four filters below are what is left when nothing is invented, and each comes from
+looking at the dump:
 
-    cruce por lema, sin filtros                     ~5.300
-    + nuestra entrada tiene UNA acepcion             2.172
-    + alla tambien tiene UNA, y el mismo `pos`         510
-    + `english` presente (confirma que `text` es
-      el español y no notacion ni metatexto)           326
+    crossing on the lemma, unfiltered               ~5,300
+    + our entry has ONE sense                        2,172
+    + theirs also has ONE, and the same `pos`          510
+    + `english` present (confirms that `text` is
+      the Spanish and not notation or metatext)        326
 
-Lo que cada filtro saca, con el caso que lo justifica:
+What each filter removes, with the case that justifies it:
 
-    una acepcion alla    "y" tiene 5 acepciones alla y 1 aca: el ejemplo "jamon y queso"
-                         puede estar ilustrando una acepcion que nuestro pack no tiene
-    mismo `pos`          sin el entra "A" (noun) con el ejemplo de "A" como notacion
-    `type`               191 items sin `type` son notas, no ejemplos: "Near-synonym: pedazo",
-                         "Coordinate term: ovarios", un enlace a Wikipedia
-    `english`            sin el entra "19. Ac4xd5, Ab7xd5" -- ajedrez de una partida citada
+    one sense there   "y" has 5 senses there and 1 here: the example "jamon y queso" may be
+                      illustrating a sense our pack does not have
+    same `pos`        without it "A" (noun) comes in with the example of "A" as notation
+    `type`            191 items with no `type` are notes, not examples: "Near-synonym: pedazo",
+                      "Coordinate term: ovarios", a link to Wikipedia
+    `english`         without it "19. Ac4xd5, Ab7xd5" comes in -- chess from a quoted game
 """
 
 import json
 
-# Los dos tipos que son uso de la palabra. Medido en el dump: 3.729 `example` (redactados) y
-# 1.950 `quotation` (citados de un texto publicado, con `ref`). Los dos son contenido de
-# diccionario. Los 191 SIN `type` no lo son, y por eso el filtro lista en vez de excluir.
+# The two types that are uses of the word. Measured in the dump: 3,729 `example` (written) and
+# 1,950 `quotation` (quoted from a published text, with a `ref`). Both are dictionary content. The
+# 191 WITHOUT a `type` are not, which is why the filter lists rather than excludes.
 TIPOS_QUE_SON_USO = ("example", "quotation")
 
-# Un ejemplo mas largo que esto no entra en una pantalla de reloj sin comerse la definicion.
-# El numero es el ancho de dos renglones a 234 dp; los que caen son 7 de 250 (2,8 %).
+# An example longer than this does not fit on a watch screen without eating the definition. The
+# number is the width of two lines at 234 dp; the ones that fall out are 7 of 250 (2.8 %).
 MAX_LARGO = 90
 
-# Un ejemplo alcanza para lo que esto resuelve --una entrada que se ve vacia-- y dos ya empujan
-# la definicion fuera de pantalla. Mismo criterio que MAX_EXAMPLES_PER_SENSE en kaikki.py.
+# One example is enough for what this solves --an entry that looks empty-- and two already push
+# the definition off screen. Same criterion as MAX_EXAMPLES_PER_SENSE in kaikki.py.
 MAX_POR_ENTRADA = 1
 
 
 def examples_by_entry(path):
-    """Mapa `(headword, pos) -> [ejemplos]`, listo para que el builder lo consulte.
+    """A `(headword, pos) -> [examples]` map, ready for the builder to consult.
 
-    La clave lleva el `pos` porque sin el "A" como sustantivo hereda el ejemplo de otra cosa.
-    Cabe en memoria de sobra: son unos pocos miles de entradas, no el dump entero.
+    The key carries the `pos` because without it "A" as a noun inherits another thing's example.
+    It fits in memory easily: it is a few thousand entries, not the whole dump.
     """
     out = {}
     with open(path, encoding="utf-8") as handle:
@@ -66,7 +67,8 @@ def examples_by_entry(path):
             if raw.get("lang_code") != "es":
                 continue
             senses = raw.get("senses") or []
-            # Con mas de una acepcion no se sabe a cual pega el ejemplo. Ver el docstring.
+            # With more than one sense it is unknown which the example illustrates. See the
+            # docstring.
             if len(senses) != 1:
                 continue
             word, pos = raw.get("word"), raw.get("pos")

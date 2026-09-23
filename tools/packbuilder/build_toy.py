@@ -1,10 +1,10 @@
-"""Construye el pack de juguete que consumen los tests de :dict-data.
+"""Builds the toy pack :dict-data's tests consume.
 
-    python3 build_toy.py [salida.db]
+    python3 build_toy.py [output.db]
 
-Por defecto escribe en el directorio de assets de :dict-data. El pack es determinista: dos
-corridas sobre los mismos datos dan el mismo contenido, asi que no ensucia el diff si no cambio
-nada (salvo meta.built_at).
+By default it writes into :dict-data's assets directory. The pack is deterministic: two runs over
+the same data give the same content, so it does not dirty the diff when nothing changed (except
+meta.built_at).
 """
 
 import os

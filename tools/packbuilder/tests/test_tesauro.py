@@ -1,10 +1,11 @@
-"""Pegar sinonimos y antonimos de WordNet a las entradas del pack (D-144).
+"""Gluing WordNet's synonyms and antonyms to the pack's entries (D-144).
 
-Tres reglas, y cada una evita una forma distinta de contenido incorrecto que parece correcto:
+Three rules, and each prevents a different shape of incorrect content that looks correct:
 
-  - **una acepcion**, o no se sabe de cual son (D-117);
-  - **no repetir** lo que el wiki ya puso, o la linea del reloj se gasta dos veces;
-  - **no aceptar una flexion del propio lema** como sinonimo, que es el ruido del MCR español.
+  - **one sense**, or it is unknown which they belong to (D-117);
+  - **do not repeat** what the wiki already put there, or the watch's line is spent twice;
+  - **do not accept an inflection of the lemma itself** as a synonym, which is the Spanish MCR's
+    noise.
 """
 
 import os
@@ -70,13 +71,13 @@ class TesauroTest(unittest.TestCase):
         self.assertEqual([[], []], [s["synonyms"] for s in got["banco"]])
 
     def test_UNA_FLEXION_DEL_LEMA_NO_ES_UN_SINONIMO(self):
-        """EL TEST QUE PAGA ESTE ARCHIVO.
+        """THE TEST THAT PAYS FOR THIS FILE.
 
-        El MCR español se construyo automaticamente y mete flexiones dentro del synset:
-        "coreano" aparece con "coreana", "coreanos", "coreanas". Emitirlas como sinonimos llena
-        la linea del reloj con la misma palabra declinada.
+        The Spanish MCR was built automatically and puts inflections inside the synset: "coreano"
+        appears with "coreana", "coreanos", "coreanas". Emitting them as synonyms fills the watch's
+        line with the same word declined.
 
-        Se detecta contra la tabla `form` del propio pack, que es un dato que ya tenemos.
+        It is detected against the pack's own `form` table, which is a datum we already have.
         """
         got = self.construir(
             [rec("coreano", "Originario de Corea.", pos="adj",
@@ -99,9 +100,9 @@ class TesauroTest(unittest.TestCase):
         self.assertEqual([], got["die"][0]["synonyms"], "un antonimo no puede salir de sinonimo")
 
     def test_el_sinonimo_entra_al_INDICE_y_el_antonimo_NO(self):
-        """D-118 y D-126 siguen valiendo para los que llegan por esta via.
+        """D-118 and D-126 still hold for the ones arriving this way.
 
-        Buscar "coche" tiene que encontrar "carruaje"; buscar "be born" NO puede devolver "die".
+        Searching "coche" has to find "carruaje"; searching "be born" must NOT return "die".
         """
         self.construir([rec("carruaje", "Vehículo.", pos="noun"),
                         rec("die", "To stop living.", pos="verb")],

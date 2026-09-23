@@ -1,23 +1,23 @@
-"""Verifica las invariantes de un pack construido.
+"""Verifies a built pack's invariants.
 
-    python3 verify_pack.py ruta/al/pack.db
-    python3 verify_pack.py --como-la-app pack.db [...]   # lo que la APP comprueba, y nada mas
-    python3 verify_pack.py pack.db --frecuencias <lista>  # ademas, recalcula meta.corpus_coverage
+    python3 verify_pack.py path/to/pack.db
+    python3 verify_pack.py --como-la-app pack.db [...]   # what the APP checks, and nothing more
+    python3 verify_pack.py pack.db --frecuencias <list>  # plus, recompute meta.corpus_coverage
 
-Corre sobre el pack final, no sobre el builder: chequea el artefacto que realmente se va a
-descargar al reloj. Un pack a medio construir o con la normalizacion desfasada se abre sin
-ningun error y devuelve menos resultados de los que corresponde, asi que estas comprobaciones
-son el unico lugar donde ese problema se vuelve visible.
+It runs over the final pack, not over the builder: it checks the artifact that will really be
+downloaded to the watch. A half-built pack, or one whose normalization has drifted, opens with no
+error at all and returns fewer results than it should, so these checks are the only place where
+that problem becomes visible.
 
-`--como-la-app` contesta otra pregunta, y es la de antes de subir un pack al reloj: *si lo
-instalo, ¿aparece?*. Corre **exactamente** las comprobaciones por las que `PackFile.open`
-rechazaria el pack, en el mismo orden, e imprime el `PackRejection` que el usuario veria. Acepta
-varios packs porque la pregunta natural es "¿pasan todos los que voy a subir?".
+`--como-la-app` answers another question, the one before putting a pack on the watch: *if I
+install it, does it appear?*. It runs **exactly** the checks `PackFile.open` would reject the pack
+by, in the same order, and prints the `PackRejection` the user would see. It accepts several packs
+because the natural question is "do all the ones I am about to upload pass?".
 
-⚠️ **Es un espejo, el cuarto de este repo, y nace con enforcer**: `audit_dictionary.py` compara
-sus motivos contra el enum `PackRejection` de Kotlin. Ver [MOTIVOS_DE_LA_APP].
+⚠️ **It is a mirror, this repo's fourth, and it is born with an enforcer**: `audit_dictionary.py`
+compares its reasons against Kotlin's `PackRejection` enum. See [MOTIVOS_DE_LA_APP].
 
-Sale con codigo 1 si algo falla.
+It exits with code 1 if anything fails.
 """
 
 import os
@@ -34,10 +34,11 @@ import build
 # Techo de la parte de nombres propios en un pack 'lexical-only'. Ver el check de estructura.
 PROPER_NOUN_SHARE_MAX = 0.05
 
-# El rank mas bajo (= mas comun) que un nombre propio puede tener en un pack 'definitions-only'.
+# The lowest rank (= most common) a proper noun can have in a 'definitions-only' pack.
 #
-# Espeja `CASTIGO_NOMBRE_PROPIO` de sources/kaikki.py, y espejarlo es el punto: el builder aplica
-# el castigo y esto comprueba el ARTEFACTO, que es lo unico que se publica. Ver el check.
+# It mirrors `CASTIGO_NOMBRE_PROPIO` from sources/kaikki.py, and mirroring it is the point: the
+# builder applies the penalty and this checks the ARTIFACT, which is the only thing published. See
+# the check.
 RANK_MINIMO_NOMBRE_PROPIO = 1000
 
 REQUIRED_META = (
@@ -56,51 +57,53 @@ REQUIRED_META = (
     "payload_codec",
     "payload_dict",
     "payload_dict_sha256",
-    # Que politica de contenido se aplico (D-116). Va en REQUIRED_META y no solo en el codigo
-    # porque el pack tiene que poder explicarse solo: sin esta clave nadie sabe si a un pack le
-    # faltan los nombres propios porque se decidio, o porque la fuente venia rota.
+    # Which content policy was applied (D-116). It goes in REQUIRED_META and not only in the code
+    # because the pack has to be able to explain itself: without this key nobody knows whether a
+    # pack is missing its proper nouns because that was decided, or because the source came broken.
     "proper_nouns",
     "schema_version",
-    # Estaba documentada en docs/formato-pack.md y NO estaba exigida: un pack sin source_url
-    # pasaba el validador y despues no habia como saber de que dump salio.
+    # It was documented in docs/formato-pack.md and was NOT required: a pack with no source_url
+    # passed the validator and afterwards there was no way to know which dump it came from.
     "source_url",
     "uid_recipe",
 )
 
-# Los tres valores que `meta.proper_nouns` puede tomar. Se listan aca --y no se infieren del
-# `if`-- porque el check estructural es OPCIONAL por diseño: "included" no comprueba nada, y sin
-# esta lista un typo como "lexical_only" es indistinguible de "included". O sea que el pack se
-# declara podado, el validador no cuenta un solo nombre propio, y sale verde.
-# La gramatica del `pack_id`, que es el CODIGO del pack (D-138).
+# The three values `meta.proper_nouns` can take. They are listed here --and not inferred from the
+# `if`-- because the structural check is OPTIONAL by design: "included" checks nothing, and without
+# this list a typo like "lexical_only" is indistinguishable from "included". That is, the pack
+# declares itself pruned, the validator does not count a single proper noun, and it comes out
+# green.
+# The `pack_id`'s grammar, which is the pack's CODE (D-138).
 #
-#     <idioma>-<tipo>-<fuente>[-<variante>]*
-#     es-def-wikc            español, definiciones, del Wikcionario
-#     es-def-wikc-tat        el mismo, con frases de Tatoeba
-#     en-def-wikt            ingles, definiciones, del Wiktionary
+#     <language>-<type>-<source>[-<variant>]*
+#     es-def-wikc            Spanish, definitions, from Wiktionary
+#     es-def-wikc-tat        the same, with Tatoeba sentences
+#     en-def-wikt            English, definitions, from Wiktionary
 #
-# ⚠️ **Existe por la colision, no por prolijidad.** Desde D-136 dos packs del mismo idioma y de
-# fuentes distintas se instalan y se consultan juntos: comparten idioma y tipo, y **lo unico que
-# los separa es el codigo de fuente**. Con un `pack_id` generico --"espanol", "dict"-- uno pisa
-# al otro al instalarse, y el historial y las guardadas del reloj quedan apuntando a entradas de
-# un pack que ya no esta. Es un fallo que no lanza: el pack que quedo abre y funciona.
+# ⚠️ **It exists because of the collision, not out of tidiness.** Since D-136 two packs of the same
+# language and different sources are installed and queried together: they share a language and a
+# type, and **the only thing that separates them is the source code**. With a generic `pack_id`
+# --"espanol", "dict"-- one overwrites the other on installation, and the watch's history and saved
+# words end up pointing at entries of a pack that is no longer there. It is a failure that does not
+# throw: the pack that remained opens and works.
 #
-# El idioma son dos letras (ISO 639-1); el tipo es `def` o `tr`; la fuente y las variantes salen
-# del catalogo de `build_pack.FUENTES` y de las opciones de la CLI.
-#: Las dos formas que puede tener un `pack_id`, y son dos por una razon.
+# The language is two letters (ISO 639-1); the type is `def` or `tr`; the source and the variants
+# come from `build_pack.FUENTES`'s catalog and from the CLI's options.
+#: The two shapes a `pack_id` can have, and they are two for a reason.
 #:
-#: ⚠️ **`<idioma>-<nivel>` es la forma NUEVA (D-215)**, y existe porque la vieja ataba la identidad
-#: a las fuentes: `es-def-wikc-tat-freq-wn-wd` cambia de id **al anadir una fuente**, y entonces el
-#: pack parece otro y la app no lo reconoce como el que ya esta instalado. Las fuentes siguen
-#: declaradas en `meta.sources`, que es donde se consultan.
+#: ⚠️ **`<language>-<tier>` is the NEW shape (D-215)**, and it exists because the old one tied the
+#: identity to the sources: `es-def-wikc-tat-freq-wn-wd` changes its id **on adding a source**, and
+#: then the pack looks like another one and the app does not recognize it as the one already
+#: installed. The sources are still declared in `meta.sources`, which is where they get consulted.
 #:
-#: La forma vieja `<idioma>-<tipo>-<fuente>` se sigue aceptando porque el pack **bilingue** no
-#: tiene niveles --su proposito es otro-- y porque los packs ya construidos la usan.
+#: The old shape `<language>-<type>-<source>` is still accepted because the **bilingual** pack has
+#: no tiers --its purpose is another-- and because the already built packs use it.
 NIVELES_DE_PACK = ("core", "main", "full")
 GRAMATICA_DE_PACK_ID = re.compile(
     r"^[a-z]{2}-(?:(?:core|main|full)|(?:def|tr)-[a-z0-9]{2,8}(?:-[a-z0-9]{1,16})*)$"
 )
 
-# Cuantos campos tiene una fila de `meta.sources`. Espeja PackSource.CAMPOS en Kotlin.
+# How many fields a `meta.sources` row has. It mirrors PackSource.CAMPOS in Kotlin.
 CAMPOS_DE_FUENTE = 5
 
 POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "definitions-only",
@@ -108,15 +111,15 @@ POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "definitions-only",
 
 REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 
-# Cuantas entradas se descomprimen para comprobar los payloads. Descomprimir el pack completo
-# en un diccionario real tomaria minutos; una muestra al azar detecta lo mismo.
+# How many entries get decompressed to check the payloads. Decompressing the whole pack on a real
+# dictionary would take minutes; a random sample detects the same thing.
 PAYLOAD_SAMPLE = 200
 
-#: La lista con la que comprobar `meta.corpus_coverage`, o None. La pone `main` desde la CLI.
+#: The list to check `meta.corpus_coverage` against, or None. `main` sets it from the CLI.
 FRECUENCIAS_PARA_VERIFICAR = None
 
-# Los tags que el formato define hoy. Se listan y no se derivan de `dir(payload_codec)` para que
-# agregar uno sea un acto explicito: un tag nuevo tiene que entrar aca **y** en el espejo Kotlin.
+# The tags the format defines today. They are listed and not derived from `dir(payload_codec)` so
+# adding one is an explicit act: a new tag has to go in here **and** in the Kotlin mirror.
 TAGS_CONOCIDOS = frozenset((
     payload_codec.TAG_PART_OF_SPEECH,
     payload_codec.TAG_SENSE,
@@ -161,10 +164,10 @@ def verify(path):
     missing = [key for key in REQUIRED_META if key not in meta]
     report.check(not missing, "estan todas las claves obligatorias%s" % (
         "" if not missing else " (faltan: %s)" % ", ".join(missing)))
-    # La app parsea estas tres como enteros (`PackFile.parseMetadata`). Un valor que no lo sea
-    # NO falla aca ni al construir: falla al ABRIR el pack, en el reloj, con un
-    # NumberFormatException que no nombra la clave. Paso de verdad: el primer pack real se
-    # construyo con data_version = "2026-09-15" y este archivo dio verde.
+    # The app parses these three as integers (`PackFile.parseMetadata`). A value that is not one
+    # does NOT fail here or while building: it fails on OPENING the pack, on the watch, with a
+    # NumberFormatException that does not name the key. It really happened: the first real pack was
+    # built with data_version = "2026-09-15" and this file came out green.
     for key in ("schema_version", "norm_version", "data_version"):
         valor = meta.get(key, "")
         report.check(
@@ -198,10 +201,10 @@ def verify(path):
         meta.get("tier") in NIVELES_DE_PACK,
         "meta.tier declara que clase de pack es (%r)" % meta.get("tier"),
     )
-    # ⚠️ **Ningun `entry.lang` puede quedar fuera de lo declarado.** Es la invariante que hace
-    # util la columna: la app filtra por idioma con ella, asi que una entrada con un idioma que
-    # el pack no declara **no aparece nunca** -- sin error, sin log, y con el pack pasando todo
-    # lo demas. Es la misma clase de falla que `norm()`.
+    # ⚠️ **No `entry.lang` may fall outside what is declared.** It is the invariant that makes the
+    # column useful: the app filters by language with it, so an entry with a language the pack does
+    # not declare **never appears** -- with no error, no log, and the pack passing everything else.
+    # It is the same class of failure as `norm()`.
     usados = {row[0] for row in db.execute("SELECT DISTINCT lang FROM entry")}
     report.check(
         usados <= set(declarados),
@@ -215,10 +218,10 @@ def verify(path):
             len(declarados) == 2,
             "un pack bilingue declara sus DOS idiomas en meta.langs (%r)" % declarados,
         )
-        # ⚠️ **Y tiene entradas de los dos, que es lo que lo vuelve bidireccional POR
-        # CONSTRUCCION.** Sin esto un pack puede declararse bilingue con el otro idioma vacio,
-        # que es exactamente lo que era antes: `dog` encontraba `perro` por `trans` pero `dog`
-        # no era un lema, y nada en el artefacto lo decia.
+        # ⚠️ **And it has entries of both, which is what makes it bidirectional BY CONSTRUCTION.**
+        # Without this a pack can declare itself bilingual with the other language empty, which is
+        # exactly what it was before: `dog` found `perro` through `trans` but `dog` was not a
+        # lemma, and nothing in the artifact said so.
         report.check(
             usados == set(declarados),
             "un pack bilingue tiene ENTRADAS de sus dos idiomas (tiene %r de %r)"
@@ -235,12 +238,12 @@ def verify(path):
         "no quedo la tabla de staging",
     )
 
-    # La politica de contenido se comprueba contra el ARTEFACTO, no contra el flag que la pidio.
-    # Un flag mal cableado pasa los tests de la fuente y deja el pack con los nombres propios
-    # adentro igual; lo unico que lo agarra es contar filas en el pack terminado.
+    # The content policy is checked against the ARTIFACT, not against the flag that asked for it. A
+    # miswired flag passes the source's tests and leaves the pack with the proper nouns inside all
+    # the same; the only thing that catches it is counting rows in the finished pack.
     #
-    # Los DOS vocabularios de `pos`: kaikki emite "name", sources/toy.py emite "proper noun".
-    # Excluir uno solo deja pasar el otro, y ya paso una vez.
+    # BOTH `pos` vocabularies: kaikki emits "name", sources/toy.py emits "proper noun". Excluding
+    # only one lets the other through, and that already happened once.
     pack_id = meta.get("pack_id") or ""
     report.check(
         bool(GRAMATICA_DE_PACK_ID.match(pack_id)),
@@ -248,9 +251,10 @@ def verify(path):
         "para los packs por idioma, o <idioma>-<tipo>-<fuente> para el bilingue)" % pack_id,
     )
 
-    # El manifiesto: que aporto cada fuente y bajo que licencia. Sin esto el pack abre, busca y
-    # funciona, y **no se puede saber si se puede redistribuir** -- que es justo lo que alguien
-    # que recibe un .db de 68 MB necesita contestar sin preguntarle a nadie (D-138).
+    # The manifest: what each source contributed and under which licence. Without this the pack
+    # opens, searches and works, and **there is no way to know whether it can be redistributed** --
+    # which is exactly what somebody receiving a 68 MB .db needs to answer without asking anybody
+    # (D-138).
     filas = [f.split("\t") for f in (meta.get("sources") or "").strip().split("\n") if f.strip()]
     report.check(bool(filas), "meta.sources declara al menos una fuente")
     bien_formadas = [f for f in filas if len(f) == CAMPOS_DE_FUENTE]
@@ -262,7 +266,8 @@ def verify(path):
     sin_nombre = [f for f in bien_formadas if not f[1].strip()]
     sin_licencia = [f for f in bien_formadas if not f[3].strip()]
     report.check(not sin_nombre, "cada fuente declara un nombre (%d sin nombre)" % len(sin_nombre))
-    # Declarar la fuente y callar la licencia es PEOR que no declarar nada: parece completo.
+    # Declaring the source and staying silent about the licence is WORSE than declaring nothing: it
+    # looks complete.
     report.check(
         not sin_licencia,
         "cada fuente declara su licencia (%d sin licencia: %s)"
@@ -275,11 +280,11 @@ def verify(path):
         "meta.proper_nouns declara una politica conocida (%r)" % politica,
     )
     if politica == "definitions-only":
-        # Esta politica deja entrar nombres propios a proposito, asi que el techo de proporcion
-        # no aplica. Lo que la vuelve segura es otra cosa, y es lo que se comprueba: **que
-        # ninguno pueda ganarle en rank a una palabra comun**. Si el castigo se cablea mal el
-        # pack sale entero, abre sin error y devuelve el toponimo arriba -- el modo de falla que
-        # D-116 midio 4.267 veces en ingles. No hay otra cosa que lo vea.
+        # This policy lets proper nouns in on purpose, so the proportion ceiling does not apply.
+        # What makes it safe is something else, and that is what gets checked: **that none of them
+        # can beat a common word on rank**. If the penalty is miswired the pack comes out whole,
+        # opens with no error and returns the toponym at the top -- the failure mode D-116 measured
+        # 4,267 times in English. There is nothing else that sees it.
         sin_castigar = db.execute(
             "SELECT COUNT(*) FROM entry WHERE pos IN ('name', 'proper noun') AND rank < ?",
             (RANK_MINIMO_NOMBRE_PROPIO,),
@@ -301,12 +306,12 @@ def verify(path):
                 % propios,
             )
         else:
-            # 'lexical-only' deja pasar los que tienen vida lexica: los meses, los paises, los
-            # idiomas. Aca no se puede recalcular esa señal --no tenemos el dump-- asi que se
-            # comprueba lo unico visible desde el pack: que sean una MINORIA. Medido: 0,2 % en
-            # ingles y 0,6 % en español, contra 17-22 % en un pack sin podar. El margen es tan
-            # ancho que el umbral no necesita calibracion fina; lo que caza es que la poda no
-            # haya corrido en absoluto.
+            # 'lexical-only' lets through the ones with lexical life: the months, the countries,
+            # the languages. That signal cannot be recomputed here --we do not have the dump-- so
+            # the only thing visible from the pack is checked: that they be a MINORITY. Measured:
+            # 0.2 % in English and 0.6 % in Spanish, against 17-22 % in an unpruned pack. The
+            # margin is so wide that the threshold needs no fine calibration; what it catches is
+            # the pruning not having run at all.
             share = propios / filas if filas else 0
             report.check(
                 share < PROPER_NOUN_SHARE_MAX,
@@ -325,12 +330,12 @@ def verify(path):
         "fts_def tiene una fila por entrada",
     )
 
-    # ⚠️ **La cobertura declarada se RECALCULA, o no vale nada.** Un nivel escribe en
-    # `meta.corpus_coverage` que fraccion de los tokens del corpus tiene adentro, y ese numero es
-    # lo unico que justifica su corte (D-219). Declararlo sin comprobarlo lo vuelve una intencion:
-    # el artefacto se recorta mal y sigue diciendo que cubre el 96 %.
+    # ⚠️ **The declared coverage gets RECOMPUTED, or it is worth nothing.** A tier writes into
+    # `meta.corpus_coverage` what fraction of the corpus's tokens it holds inside, and that number
+    # is the only thing justifying its cut (D-219). Declaring it without checking it turns it into
+    # an intention: the artifact gets trimmed badly and goes on saying it covers 96 %.
     #
-    # Sin la lista NO se puede comprobar, y entonces se dice que no se comprobo en vez de callarlo.
+    # Without the list it CANNOT be checked, and then that is said rather than swallowed.
     if "corpus_coverage" in meta:
         declarada = float(meta["corpus_coverage"])
         if FRECUENCIAS_PARA_VERIFICAR:
@@ -350,8 +355,8 @@ def verify(path):
     _verify_vocabulary(db, meta, report)
 
     print("\n[integridad referencial]")
-    # SQLite no aplica claves foraneas aca (las tablas no las declaran, para no pagar el
-    # chequeo en cada insert del builder), asi que se verifica explicitamente.
+    # SQLite does not enforce foreign keys here (the tables do not declare them, so as not to pay
+    # the check on every builder insert), so it is verified explicitly.
     for table in ("form", "trans"):
         orphans = db.execute(
             "SELECT COUNT(*) FROM %s t WHERE NOT EXISTS"
@@ -359,21 +364,21 @@ def verify(path):
         ).fetchone()[0]
         report.check(orphans == 0, "%s no tiene entry_id huerfanos" % table)
 
-    # ⚠️ **Las claves de `form` y `trans` no las miraba NADIE, y son el camino de entrada de
-    # 1.499.895 palabras en el pack español.** D-142 recalcula una muestra de `entry`, pero la
-    # tabla `form` es la que resuelve una flexion --`palpitaciones` -> `palpitacion`-- y una
-    # clave suya construida con otras reglas es exactamente el modo de falla central del repo:
-    # la palabra esta en el archivo y ninguna busqueda la alcanza.
+    # ⚠️ **NOBODY was looking at `form`'s and `trans`'s keys, and they are the way in for 1,499,895
+    # words in the Spanish pack.** D-142 recomputes a sample of `entry`, but the `form` table is the
+    # one that resolves an inflection --`palpitaciones` -> `palpitacion`-- and one of its keys built
+    # under other rules is exactly the repo's central failure mode: the word is in the file and no
+    # search reaches it.
     #
-    # Se comprueba por **idempotencia** (`norm(k) == k`) y no recalculando desde la forma
-    # original, porque la forma original no se guarda: la tabla es `(norm, entry_id)` y nada mas.
-    # Eso detecta una clave plegada con otro Unicode, con otro casefold o sin NFD; no detecta una
-    # clave que sea el `norm()` correcto de OTRA palabra. Acota, no elimina -- el mismo trato que
-    # D-142 hizo con la muestra.
+    # It is checked by **idempotence** (`norm(k) == k`) and not by recomputing from the original
+    # form, because the original form is not stored: the table is `(norm, entry_id)` and nothing
+    # more. That detects a key folded with another Unicode, with another casefold or without NFD;
+    # it does not detect a key that is the correct `norm()` of ANOTHER word. It bounds, it does not
+    # eliminate -- the same deal D-142 made with the sample.
     #
-    # Medido: **7,6 s** sobre las 1.309.880 claves distintas del pack español y **4,3 s** sobre
-    # las 801.758 del ingles. Caro para un reloj y barato para un build de una hora, que es
-    # justamente por que vive aca y no en `PackFile`.
+    # Measured: **7.6 s** over the Spanish pack's 1,309,880 distinct keys and **4.3 s** over
+    # English's 801,758. Expensive for a watch and cheap for an hour-long build, which is precisely
+    # why it lives here and not in `PackFile`.
     for table in ("form", "trans"):
         malas = []
         total_claves = 0
@@ -388,10 +393,10 @@ def verify(path):
             % (total_claves, table,
                "" if not malas else " (mal: %s)" % ", ".join(repr(x) for x in malas)),
         )
-    # `norm` vacio y `fuzzy` vacio NO son el mismo problema, y tratarlos igual hacia fallar el
-    # primer pack real por dos entradas legitimas: "h" y "H", la letra. Sin `norm` la entrada es
-    # inalcanzable por cualquier camino. Sin `fuzzy` solo queda fuera del nivel tolerante, que es
-    # exactamente lo que corresponde a un lema de una letra muda.
+    # An empty `norm` and an empty `fuzzy` are NOT the same problem, and treating them alike made
+    # the first real pack fail over two legitimate entries: "h" and "H", the letter. With no `norm`
+    # the entry is unreachable by any path. With no `fuzzy` it merely falls outside the tolerant
+    # rung, which is exactly right for a one-silent-letter lemma.
     report.check(
         db.execute("SELECT COUNT(*) FROM entry WHERE norm = ''").fetchone()[0] == 0,
         "ninguna entrada tiene norm vacio",
@@ -404,11 +409,11 @@ def verify(path):
         )
 
     print("\n[normalizacion: las columnas coinciden con normalize.py]")
-    # La comprobacion mas importante del archivo. Si el pack se construyo con otra version de
-    # normalize.py, las claves guardadas no son las que la app va a calcular y simplemente
-    # faltarian palabras, sin ningun error.
-    # Un perfil por idioma: en un pack bidireccional las entradas inglesas se pliegan con el
-    # perfil ingles y las españolas con el español, en el mismo archivo.
+    # The most important check in the file. If the pack was built with another version of
+    # normalize.py, the stored keys are not the ones the app will compute and words would simply be
+    # missing, with no error at all.
+    # One profile per language: in a bidirectional pack the English entries fold with the English
+    # profile and the Spanish ones with Spanish's, in the same file.
     por_idioma = dict(zip(
         [x.strip() for x in meta.get("langs", "").split(",") if x.strip()],
         [x.strip() for x in meta.get("fuzzy_profiles", "").split(",") if x.strip()],
@@ -425,9 +430,9 @@ def verify(path):
     report.check(mismatched_fuzzy == 0, "entry.fuzzy == fuzzy(headword) en todas las filas")
 
     print("\n[identidad logica: entry.uid]")
-    # entry.uid es la clave con la que un pack auxiliar le suma informacion a estas entradas
-    # (D-055). Si se repite, el auxiliar apunta a dos entradas a la vez; si no coincide con la
-    # receta, apunta a la equivocada. Ninguna de las dos cosas produce un error en el reloj.
+    # entry.uid is the key an auxiliary pack adds information to these entries by (D-055). If it
+    # repeats, the auxiliary points at two entries at once; if it does not match the recipe, it
+    # points at the wrong one. Neither of those produces an error on the watch.
     report.check(
         meta.get("uid_recipe") == build.UID_RECIPE,
         "meta.uid_recipe es %s" % build.UID_RECIPE,
@@ -439,9 +444,9 @@ def verify(path):
     distinct_uid = db.execute("SELECT COUNT(DISTINCT uid) FROM entry").fetchone()[0]
     report.check(distinct_uid == entry_count, "entry.uid es unico en las %d entradas" % entry_count)
 
-    # Se recalcula la receta solo donde se puede: el sense_key que desambigua homografos no se
-    # guarda en el pack, asi que las entradas que comparten (headword, pos) se saltean. En un
-    # pack real son una minoria y el resto queda cubierto.
+    # The recipe is recomputed only where it can be: the sense_key that disambiguates homographs is
+    # not stored in the pack, so the entries sharing a (headword, pos) are skipped. In a real pack
+    # they are a minority and the rest is covered.
     lang = meta.get("langs", "").split(",")[0].strip()
     ambiguous = {
         row[0]
@@ -452,9 +457,9 @@ def verify(path):
     }
     mismatched_uid = 0
     checked_uid = 0
-    # ⚠️ **Con `entry.lang` y no con el idioma del pack.** En un pack bidireccional `casa` y
-    # `house` viven en el mismo archivo y su uid lleva idiomas distintos -- que es justo lo que
-    # hace que no puedan colisionar entre packs (D-055).
+    # ⚠️ **With `entry.lang` and not with the pack's language.** In a bidirectional pack `casa` and
+    # `house` live in the same file and their uid carries different languages -- which is exactly
+    # what stops them colliding across packs (D-055).
     for row in db.execute("SELECT headword, pos, uid, lang FROM entry"):
         if (row["headword"] + "\x1f" + (row["pos"] or "")) in ambiguous:
             continue
@@ -469,8 +474,8 @@ def verify(path):
     print("\n[payloads]")
     dictionary = bytes.fromhex(meta.get("payload_dict", ""))
     report.note("diccionario de compresion: %d bytes" % len(dictionary))
-    # deflate no detecta un diccionario equivocado: descomprime sin error y devuelve texto
-    # corrupto. Este hash es la unica defensa, y la app lo comprueba al abrir el pack.
+    # deflate does not detect a wrong dictionary: it decompresses with no error and returns corrupt
+    # text. This hash is the only defence, and the app checks it when opening the pack.
     report.check(
         payload_codec.dictionary_digest(dictionary) == meta.get("payload_dict_sha256"),
         "meta.payload_dict_sha256 corresponde al diccionario guardado",
@@ -478,11 +483,11 @@ def verify(path):
     decoded = 0
     senses_total = 0
     failures_before = len(report.failures)
-    # ⚠️ **Repartida a lo largo de la tabla, no las primeras 200.** Era `ORDER BY id LIMIT 200`,
-    # que es exactamente lo que D-142 argumenta que no sirve: un pack correcto solo en sus
-    # primeras filas --lo que pasa si alguien construyo la mitad con una version y la mitad con
-    # otra-- pasaba entero. Y en un pack BIDIRECCIONAL es peor todavia: las entradas inversas
-    # viven en la segunda mitad de la tabla (D-196), asi que la muestra vieja no miraba ni una.
+    # ⚠️ **Spread along the table, not the first 200.** It was `ORDER BY id LIMIT 200`, which is
+    # exactly what D-142 argues is no use: a pack correct only in its first rows --which happens if
+    # somebody built half with one version and half with another-- passed whole. And in a
+    # BIDIRECTIONAL pack it is worse still: the reverse entries live in the table's second half
+    # (D-196), so the old sample did not look at a single one.
     total_entradas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
     paso_muestra = max(1, total_entradas // PAYLOAD_SAMPLE)
     for row in db.execute(
@@ -493,38 +498,38 @@ def verify(path):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
             _pos, senses, palabra = payload_codec.parse(text)
-            # ⚠️ **Sin acepciones se acepta SOLO si trae traducciones de palabra**, y esa
-            # excepcion es el lado inverso de un pack bidireccional: `dog` contesta *«como se
-            # dice»* --`perro`, `can`-- y no *«que significa»*, que es trabajo del pack
-            # monolingue ingles. Lo que sigue prohibido es una entrada VACIA: ocupa una fila,
-            # aparece en la lista y al abrirla no hay nada.
+            # ⚠️ **With no senses it is accepted ONLY if it carries word translations**, and that
+            # exception is a bidirectional pack's reverse side: `dog` answers *"how is it said"*
+            # --`perro`, `can`-- and not *"what does it mean"*, which is the English monolingual
+            # pack's job. What is still forbidden is an EMPTY entry: it takes a row, appears in the
+            # list, and on opening it there is nothing.
             if not senses and not palabra:
                 report.check(
                     False,
                     "la entrada %s no tiene ni acepciones ni traducciones" % row["headword"])
-            # ⚠️ **Toda acepcion tiene que ser alcanzable por `(idioma, palabra, acepcion)`.**
-            # El codigo sale de `(uid, glosa)`, asi que dos acepciones de la misma entrada con la
-            # glosa identica comparten codigo y una queda **inalcanzable** -- un enlace escrito
-            # contra ella lleva a la otra, sin error y sin log. `payload.merge_duplicate_senses`
-            # lo impide al construir; esto lo comprueba sobre los bytes, que es lo unico que vale
-            # para un pack que no construimos nosotros.
-            # ⚠️ **Sobre los BYTES y no sobre `senses`, y ahi esta el valor.** `payload.parse`
-            # ya descarta la cita huerfana --degradacion correcta para el lector-- asi que
-            # mirar la estructura parseada no puede ver el problema nunca. Un pack construido
-            # por otro con la cita desplazada mostraria un ejemplo sin la atribucion que el pack
-            # dice traer, o peor, se la colgaria al ejemplo equivocado si alguien relaja la
-            # regla. Es el primer chequeo de CONTENIDO del payload que este validador tiene.
+            # ⚠️ **Every sense has to be reachable by `(language, word, sense)`.** The code comes
+            # from `(uid, gloss)`, so two senses of the same entry with an identical gloss share a
+            # code and one becomes **unreachable** -- a link written against it leads to the other,
+            # with no error and no log. `payload.merge_duplicate_senses` prevents it while
+            # building; this checks it over the bytes, which is the only thing that counts for a
+            # pack we did not build.
+            # ⚠️ **Over the BYTES and not over `senses`, and that is where the value is.**
+            # `payload.parse` already discards the orphaned citation --the right degradation for
+            # the reader-- so looking at the parsed structure can never see the problem. A pack
+            # built by somebody else with the citation displaced would show an example without the
+            # attribution the pack says it carries, or worse, would hang it off the wrong example
+            # if somebody relaxed the rule. It is the first payload CONTENT check this validator
+            # has.
             huerfanas = _citas_huerfanas(text)
             if huerfanas:
                 report.check(False,
                              "la entrada %s tiene %d cita(s) que no siguen a un ejemplo"
                              % (row["headword"], huerfanas))
-            # ⚠️ **Ninguna lista repite un item** (D-218). Lo encontro barrer los packs
-            # construidos: el 3,1 % de las entradas con traducciones de palabra del bilingue
-            # repetian un termino --`where` traia `donde, donde`-- y en una fila de reloj eso es
-            # la misma palabra dos veces, en un ancho que ya se corta. `payload.render` lo
-            # deduplica al construir; esto lo comprueba sobre los BYTES, que es lo unico que
-            # vale para un pack que no construimos nosotros.
+            # ⚠️ **No list repeats an item** (D-218). Sweeping the built packs found it: 3.1 % of
+            # the bilingual's entries with word translations repeated a term --`where` carried
+            # `donde, donde`-- and in a watch row that is the same word twice, in a width that is
+            # already being clipped. `payload.render` deduplicates it while building; this checks it
+            # over the BYTES, which is the only thing that counts for a pack we did not build.
             repetidas = []
             for sense in senses:
                 for campo in ("examples", "translations", "synonyms", "antonyms", "related"):
@@ -540,10 +545,10 @@ def verify(path):
                              "la entrada %s repite items en %s"
                              % (repetidas[0][0], ", ".join(c for _, c in repetidas[:4])))
 
-            # ⚠️ **Ningun tag desconocido.** El lector los ignora a proposito --es lo que deja
-            # agregar un campo sin romper una app vieja (D-119)-- y por eso mismo un tag que el
-            # builder escribio mal es invisible: no lanza, no loguea, y su contenido no se ve
-            # nunca. Aca es el unico lugar donde se puede notar.
+            # ⚠️ **No unknown tag.** The reader ignores them on purpose --it is what allows adding a
+            # field without breaking an old app (D-119)-- and for that very reason a tag the builder
+            # wrote wrongly is invisible: it throws nothing, logs nothing, and its content is never
+            # seen. Here is the only place it can be noticed.
             for linea in text.split("\n"):
                 if len(linea) >= 2 and linea[1] == "\t" and linea[0] not in TAGS_CONOCIDOS:
                     report.check(False,
@@ -587,11 +592,11 @@ def verify(path):
 
 
 def _citas_huerfanas(text):
-    """Cuantas lineas `C` del cuerpo no vienen inmediatamente despues de su `E`.
+    """How many of the body's `C` lines do not come immediately after their `E`.
 
-    Espejo exacto de la regla de `payload.parse` y de `PayloadCodec.parse`. Si los tres se
-    separaran, el mismo pack mostraria atribuciones distintas segun quien lo lea, y este
-    validador diria que esta bien.
+    An exact mirror of `payload.parse`'s and `PayloadCodec.parse`'s rule. If the three drifted
+    apart, the same pack would show different attributions depending on who read it, and this
+    validator would say it is fine.
     """
     huerfanas = 0
     anterior = None
@@ -605,26 +610,26 @@ def _citas_huerfanas(text):
 
 
 
-#: Donde viven las listas de palabras que un pack TIENE que encontrar.
+#: Where the lists of words a pack MUST find live.
 VECTORES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vectors")
 
 
-#: La directiva que un grupo de la lista puede llevar en su encabezado.
+#: The directive a list group can carry in its header.
 #:
-#: ⚠️ **Existe porque no toda palabra obliga a todo nivel, y confundirlo rompe el chequeo en las
-#: dos direcciones.** Medido sobre `freq-en-opensubs.txt`: `blockchain`, `deepfake` y `workaround`
-#: tienen **cero** apariciones, asi que un corte por frecuencia **no puede** traerlas -- y el
-#: grupo que las contiene no defiende al corte: defiende que la FUENTE traiga vocabulario de hoy
-#: (D-120), que es una propiedad del pack completo. Exigirselas a un `core` convierte el chequeo
-#: en ruido que alguien termina apagando; no exigirselas a nadie pierde la señal.
+#: ⚠️ **It exists because not every word binds every tier, and confusing that breaks the check in
+#: both directions.** Measured over `freq-en-opensubs.txt`: `blockchain`, `deepfake` and
+#: `workaround` have **zero** occurrences, so a frequency cut **cannot** bring them -- and the group
+#: containing them does not defend the cut: it defends that the SOURCE carries today's vocabulary
+#: (D-120), which is a property of the full pack. Requiring them of a `core` turns the check into
+#: noise somebody ends up switching off; requiring them of nobody loses the signal.
 #:
-#: Lo que NO lleva directiva obliga a todo nivel, y ese es el default correcto: los meses, los
-#: verbos y el vocabulario cotidiano son frecuentes, asi que si faltan **el corte esta roto**.
+#: What carries NO directive binds every tier, and that is the right default: the months, the verbs
+#: and everyday vocabulary are frequent, so if they are missing **the cut is broken**.
 DIRECTIVA_SOLO_COMPLETO = "#! solo el pack completo"
 
 
 def lista_de_cobertura(lang):
-    """Lo que `lang` exige, como `(palabra, obliga_en_todo_nivel)`; None si no declara lista."""
+    """What `lang` requires, as `(word, binds_every_tier)`; None if it declares no list."""
     ruta = os.path.join(VECTORES, "cobertura-%s.txt" % lang)
     if not os.path.exists(ruta):
         return None
@@ -634,8 +639,8 @@ def lista_de_cobertura(lang):
         for linea in handle:
             linea = linea.strip()
             if not linea:
-                # La linea en blanco cierra el grupo, asi que la directiva no se filtra al que
-                # sigue. Es la misma separacion que el archivo ya usa para agrupar.
+                # The blank line closes the group, so the directive does not leak into the next
+                # one. It is the same separation the file already uses to group.
                 todo_nivel = True
                 continue
             if linea.startswith("#"):
@@ -647,33 +652,35 @@ def lista_de_cobertura(lang):
 
 
 def _verify_vocabulary(db, meta, report):
-    """Que las palabras que el idioma exige se puedan encontrar.
+    """That the words the language requires can be found.
 
-    ⚠️ **Es lo unico que pregunta si el CONTENIDO sirve**, y por eso existe. Todo lo demas de
-    este archivo comprueba invariantes: que los indices esten, que `fts_def.rowid` sea
-    `entry.id`, que `norm` coincida. Nada de eso sabe **que palabras deberia tener un
-    diccionario**, y por eso dos fallas reales pasaron con el gate en verde, `verify_pack.py` en
-    verde y los tests en verde: el 39,6 % de las entradas del pack español no definia nada, y la
-    poda por `pos = name` borraba **6 de los 12 meses en ingles**.
+    ⚠️ **It is the only thing that asks whether the CONTENT is any good**, and that is why it
+    exists. Everything else in this file checks invariants: that the indexes are there, that
+    `fts_def.rowid` is `entry.id`, that `norm` matches. None of that knows **which words a
+    dictionary ought to have**, which is why two real failures got through with the gate green,
+    `verify_pack.py` green and the tests green: 39.6 % of the Spanish pack's entries defined
+    nothing, and the `pos = name` pruning deleted **6 of the 12 months in English**.
 
-    ⚠️ **Se corre solo si existe la lista del idioma, y eso es a proposito**: una bandera se
-    olvida justo la vez que importa. Un idioma sin lista se reporta como tal en vez de pasar en
-    silencio, porque "no hay lista" y "la lista pasa" no son lo mismo.
+    ⚠️ **It only runs if the language's list exists, and that is on purpose**: a flag gets
+    forgotten exactly the time it matters. A language with no list is reported as such rather than
+    passing in silence, because "there is no list" and "the list passes" are not the same thing.
 
-    ⚠️ **Una palabra cuenta si es lema O forma flexionada.** `fui` llega a `ir` por la tabla
-    `form`, y eso es exactamente lo que el usuario experimenta al buscarla: exigir que sea lema
-    convertiria el chequeo en uno sobre la lematizacion de la fuente, que es otra cosa.
+    ⚠️ **A word counts if it is a lemma OR an inflected form.** `fui` reaches `ir` through the
+    `form` table, and that is exactly what the user experiences when searching for it: requiring it
+    to be a lemma would turn the check into one about the source's lemmatization, which is
+    something else.
     """
     idiomas = [x.strip() for x in (meta.get("langs") or "").split(",") if x.strip()]
-    # ⚠️ **A un bilingue se le exige el idioma del que es diccionario, que es el de ORIGEN.** Su
-    # lado destino existe para la direccion inversa --`went` llega a `go` por la tabla `form`
-    # (D-196)--, no para ser un diccionario de ese idioma: sus entradas son las que alguna
-    # palabra del origen tradujo. Exigirle la lista completa mide una promesa que ese pack no
-    # hizo. Lo encontro el rebuild: `es-en` reprobaba por `tuesday` porque `martes` trae su
-    # traduccion **glosada dentro de la acepcion** en vez de un termino limpio.
+    # ⚠️ **A bilingual is required to satisfy the language it is a dictionary OF, which is the
+    # SOURCE one.** Its target side exists for the reverse direction --`went` reaches `go` through
+    # the `form` table (D-196)-- not to be a dictionary of that language: its entries are the ones
+    # some source word translated to. Requiring the full list of it measures a promise that pack
+    # never made. The rebuild found it: `es-en` failed on `tuesday` because `martes` carries its
+    # translation **glossed inside the sense** rather than as a clean term.
     #
-    # ⚠️ **Pero no se calla, se informa.** Esa señal es real -- buscar `tuesday` en el bilingue no
-    # devuelve nada-- y silenciarla seria perder justo lo que este chequeo existe para ver.
+    # ⚠️ **But it is not silenced, it is reported.** That signal is real --searching `tuesday` in
+    # the bilingual returns nothing-- and silencing it would lose exactly what this check exists to
+    # see.
     exigidos = idiomas[:1] if meta.get("kind") == "bilingual" else idiomas
     for lang in idiomas:
         palabras = lista_de_cobertura(lang)
@@ -681,17 +688,17 @@ def _verify_vocabulary(db, meta, report):
             report.note("no hay vectors/cobertura-%s.txt: el contenido de ese idioma no se "
                         "comprueba" % lang)
             continue
-        # ⚠️ **Un pack con menos entradas que palabras tiene la lista no es un diccionario**, es
-        # un fixture -- el de juguete tiene 82 entradas--, y sobre el este chequeo mediria tamaño
-        # y no cobertura. La regla se escala sola con la lista en vez de fijar un numero.
+        # ⚠️ **A pack with fewer entries than the list has words is not a dictionary**, it is a
+        # fixture --the toy one has 82 entries-- and over it this check would measure size and not
+        # coverage. The rule scales itself with the list instead of pinning a number.
         entradas = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
         if entradas < len(palabras):
             report.note("%s: %d entradas para una lista de %d palabras; es un fixture, no se "
                         "comprueba la cobertura" % (lang, entradas, len(palabras)))
             continue
-        # ⚠️ Un nivel derivado solo responde por lo que obliga a todo nivel. Ver
-        # [DIRECTIVA_SOLO_COMPLETO]: pedirle a un corte por frecuencia una palabra sin frecuencia
-        # es pedirle algo que su metrica no puede entregar.
+        # ⚠️ A derived tier only answers for what binds every tier. See
+        # [DIRECTIVA_SOLO_COMPLETO]: asking a frequency cut for a word with no frequency is asking
+        # it for something its metric cannot deliver.
         es_completo = meta.get("tier", "full") == "full"
         exigidas = [p for p, todo_nivel in palabras if todo_nivel or es_completo]
         faltan = []
@@ -715,10 +722,10 @@ def _verify_vocabulary(db, meta, report):
 
 
 def _verify_query_plans(db, report):
-    """Confirma que la busqueda por prefijo usa el indice de cobertura.
+    """Confirms that the prefix search uses the covering index.
 
-    Es la afirmacion central del diseno: si el plan cambia a un scan de tabla, la busqueda
-    incremental deja de cumplir el presupuesto de latencia y nada mas lo notaria.
+    It is the design's central claim: if the plan changes to a table scan, the incremental search
+    stops meeting the latency budget and nothing else would notice.
     """
     plan = " ".join(
         row[-1]
@@ -748,15 +755,15 @@ def _verify_query_plans(db, report):
 
 
 def _verify_search_paths(db, report, profile):
-    """Ejercita los cinco caminos de busqueda sobre el pack real.
+    """Exercises the five search paths over the real pack.
 
-    Estas son las consultas de referencia que implementa :dict-data. Dos detalles que se
-    descubrieron aca y que son faciles de escribir mal:
+    These are the reference queries :dict-data implements. Two details that were discovered here
+    and are easy to write wrongly:
 
-      - La inversa necesita DISTINCT por entrada: el rango de prefijo matchea varias claves de
-        la misma entrada ("to", "to run", "to pass") y sin deduplicar sale repetida.
-      - El nivel tolerante consulta por un PREFIJO de la clave fuzzy, no por la clave completa,
-        para traer un vecindario y no solo las colisiones exactas.
+      - The reverse one needs DISTINCT per entry: the prefix range matches several keys of the
+        same entry ("to", "to run", "to pass") and without deduplicating it comes out repeated.
+      - The tolerant rung queries by a PREFIX of the fuzzy key, not by the whole key, so as to
+        bring a neighbourhood and not only the exact collisions.
     """
     first = db.execute("SELECT headword FROM entry ORDER BY rank LIMIT 1").fetchone()
     if first is None:
@@ -809,7 +816,7 @@ def _verify_search_paths(db, report, profile):
         "el vecindario tolerante de %r trae candidatos (%d)" % (fuzzy_prefix, found),
     )
 
-    # Una palabra que exista en el texto indexado, tomada del propio pack.
+    # A word that exists in the indexed text, taken from the pack itself.
     sample = db.execute("SELECT id, payload FROM entry ORDER BY rank LIMIT 1").fetchone()
     dictionary = bytes.fromhex(
         db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
@@ -820,14 +827,14 @@ def _verify_search_paths(db, report, profile):
         report.note("no se encontro una palabra utilizable para probar FTS")
     else:
         term = words[0]
-        # SIN LIMIT, y eso es el punto de la comprobacion. La invariante es que FTS **encuentre**
-        # la entrada, no que la rankee alto: bm25 castiga las glosas largas, asi que una entrada
-        # correcta con una definicion extensa y un termino muy frecuente queda fuera del top 30.
-        # Paso con el pack de ingles --"you" por "people", posicion 721 de 890-- y la
-        # comprobacion fallaba por un pack sano.
+        # NO LIMIT, and that is the point of the check. The invariant is that FTS **find** the
+        # entry, not that it rank it high: bm25 penalizes long glosses, so a correct entry with an
+        # extensive definition and a very frequent term falls outside the top 30. It happened with
+        # the English pack --"you" for "people", position 721 of 890-- and the check was failing
+        # over a healthy pack.
         #
-        # El modo de falla real sigue cubierto: si `fts_def.rowid` se desalineara de `entry.id`
-        # (D-011), la entrada no apareceria en NINGUNA posicion.
+        # The real failure mode is still covered: if `fts_def.rowid` drifted from `entry.id`
+        # (D-011), the entry would appear at NO position.
         rows = db.execute(
             "SELECT rowid FROM fts_def WHERE fts_def MATCH ?",
             ('"%s"' % term,),
@@ -840,7 +847,7 @@ def _verify_search_paths(db, report, profile):
 
 
 def _upper_bound(prefix):
-    """Espejo de PrefixRange.upperBound para las consultas de verificacion."""
+    """A mirror of PrefixRange.upperBound for the verification queries."""
     if not prefix:
         return None
     codepoints = [ord(ch) for ch in prefix]
@@ -855,41 +862,42 @@ def _upper_bound(prefix):
 
 
 def _section_sizes(db):
-    """Bytes por tabla e indice, para ver donde se va el tamano del pack."""
+    """Bytes per table and index, to see where the pack's size goes."""
     try:
         rows = db.execute(
             "SELECT name, SUM(pgsize) FROM dbstat GROUP BY name ORDER BY 2 DESC"
         ).fetchall()
         return [(row[0], row[1]) for row in rows]
     except sqlite3.OperationalError:
-        # dbstat es un modulo opcional; si el sqlite local no lo trae no es un fallo del pack.
+        # dbstat is an optional module; if the local sqlite does not ship it that is not the pack's
+        # failure.
         return [("(dbstat no disponible en este sqlite)", 0)]
 
 
 # ---------------------------------------------------------------------------------------------
-# El modo espejo: "¿esta app rechazaria este pack, y con que motivo?"
+# The mirror mode: "would this app reject this pack, and with what reason?"
 # ---------------------------------------------------------------------------------------------
 #
-# ESTE BLOQUE TIENE UN ESPEJO:
+# THIS BLOCK HAS A MIRROR:
 #     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/Model.kt -> PackRejection
 #     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/PackIntegrity.kt -> checkMeta
 #     dict-data/src/main/kotlin/cl/fadiaz/dictionary/data/PackFile.kt -> open
 #
-# ⚠️ **Es el CUARTO contrato cruzado de este repo, y nace con enforcer porque los otros tres
-# ensenaron que sin el se separan.** `tools/audit_dictionary.py` compara los ids de
-# [MOTIVOS_DE_LA_APP] contra los de `PackRejection`, en el mismo orden: agregar un motivo en
-# Kotlin sin agregarlo aca --o cambiar el orden de uno solo de los dos lados-- rompe el gate.
+# ⚠️ **It is this repo's FOURTH cross-language contract, and it is born with an enforcer because
+# the other three taught that without one they drift apart.** `tools/audit_dictionary.py` compares
+# [MOTIVOS_DE_LA_APP]'s ids against `PackRejection`'s, in the same order: adding a reason in Kotlin
+# without adding it here --or changing the order on only one of the two sides-- breaks the gate.
 #
-# ⚠️ **Y el ORDEN es parte del contrato, no una casualidad.** Todas las comprobaciones rechazan
-# (D-217), asi que el orden no decide si un pack entra: decide **que motivo se reporta**, que es
-# la unica linea que el usuario lee. Los siete packs de `schema_version` 3 del directorio de
-# datos salian como "metadatos incompletos" en vez de "otra version del formato" justamente por
-# tener el orden al reves.
+# ⚠️ **And the ORDER is part of the contract, not a coincidence.** Every check rejects (D-217), so
+# the order does not decide whether a pack gets in: it decides **which reason gets reported**,
+# which is the only line the user reads. The data directory's seven `schema_version` 3 packs came
+# out as "incomplete metadata" instead of "another version of the format" precisely because the
+# order was the wrong way round.
 #
-# Lo que este modo NO es: un reemplazo de `verify()`. Aquel mira mucho mas --recalcula TODAS las
-# claves, cruza `uid`, comprueba planes de consulta-- porque corre al construir y puede gastar
-# segundos. Este contesta una sola pregunta, la que importa antes de subir un pack al reloj:
-# *si lo instalo, ¿aparece?*
+# What this mode is NOT: a replacement for `verify()`. That one looks at far more --it recomputes
+# ALL the keys, cross-checks `uid`, checks query plans-- because it runs at build time and can
+# spend seconds. This one answers a single question, the one that matters before putting a pack on
+# the watch: *if I install it, does it appear?*
 
 # Cuantas filas de `form`/`trans` mira el modo espejo buscando huerfanas.
 # Espeja ORPHAN_SAMPLE_SIZE de PackFile.kt.
@@ -898,8 +906,8 @@ APP_ORPHAN_SAMPLE = 64
 # Cuantas entradas recalcula el modo espejo. Espeja KEY_SAMPLE_SIZE de PackFile.kt.
 APP_KEY_SAMPLE = 64
 
-# Las claves que `PackIntegrity.REQUIRED_META` exige. **No es [REQUIRED_META]**, que es lo que
-# este verificador pide de mas: la app no necesita `built_at` ni `proper_nouns` para abrir.
+# The keys `PackIntegrity.REQUIRED_META` requires. **It is not [REQUIRED_META]**, which is what
+# this verifier asks for on top: the app needs neither `built_at` nor `proper_nouns` to open.
 APP_REQUIRED_META = (
     "pack_id", "schema_version", "norm_version", "kind", "name", "langs",
     "fuzzy_profiles", "entry_count", "data_version", "license", "attribution",
@@ -908,7 +916,7 @@ APP_REQUIRED_META = (
 
 
 def _app_metadata(meta, db):
-    """`METADATA`: sin estas claves no se puede ni decir que archivo es esto."""
+    """`METADATA`: without these keys you cannot even say what file this is."""
     faltan = [k for k in APP_REQUIRED_META if k not in meta]
     if faltan:
         return "a meta le faltan claves obligatorias: %s" % ", ".join(faltan)
@@ -928,7 +936,7 @@ def _app_metadata(meta, db):
 
 
 def _app_schema(meta, db):
-    """`SCHEMA_VERSION`: se mira ANTES que las claves. Ver el ⚠️ del encabezado."""
+    """`SCHEMA_VERSION`: looked at BEFORE the keys. See the ⚠️ in the header."""
     crudo = meta.get("schema_version", "").strip()
     if not crudo.lstrip("-").isdigit():
         return "schema_version ausente o ilegible: %r" % meta.get("schema_version")
@@ -952,7 +960,7 @@ def _app_codec(meta, db):
 
 
 def _app_license(meta, db):
-    """`LICENSE`: D-031 dice que la atribucion no es opcional, asi que no poder acreditar rechaza."""
+    """`LICENSE`: D-031 says attribution is not optional, so being uncreditable rejects."""
     fuentes = [l for l in (meta.get("sources") or "").split("\n") if l.strip()]
     if not fuentes:
         return "meta.sources vacio: el pack no declara de donde sale su contenido (D-138)"
@@ -1020,7 +1028,7 @@ def _app_orphan(meta, db):
 
 
 def _app_keys(meta, db):
-    """`KEYS`: la muestra de 64 repartida de D-142, recalculada con el codigo del builder."""
+    """`KEYS`: D-142's spread sample of 64, recomputed with the builder's code."""
     total = int(meta["entry_count"])
     if total <= 0:
         return None
@@ -1058,12 +1066,12 @@ def _app_dict(meta, db):
 
 
 def _app_damaged(meta, db):
-    """`DAMAGED` no se comprueba: es lo que queda cuando abrir el archivo lanza."""
+    """`DAMAGED` is not checked: it is what is left when opening the file throws."""
     return None
 
 
-# ⚠️ **El orden es el de `PackFile.open`, y el de `PackRejection`.** La auditoria compara los
-# ids de esta tabla contra el enum, en orden. Ver el ⚠️ del encabezado del bloque.
+# ⚠️ **The order is `PackFile.open`'s, and `PackRejection`'s.** The audit compares this table's ids
+# against the enum, in order. See the ⚠️ in the block's header.
 MOTIVOS_DE_LA_APP = (
     ("metadata", _app_metadata),
     ("schema", _app_schema),
@@ -1081,9 +1089,9 @@ MOTIVOS_DE_LA_APP = (
     ("damaged", _app_damaged),
 )
 
-# El orden de EVALUACION no es el de declaracion: `PackIntegrity.checkMeta` mira el esquema antes
-# que las claves obligatorias --es la clave que dice que otras claves tienen que existir-- y el
-# enum se declara en el orden en que se leen los motivos, no en el que se evaluan.
+# EVALUATION order is not declaration order: `PackIntegrity.checkMeta` looks at the schema before
+# the required keys --it is the key that says which other keys have to exist-- and the enum is
+# declared in the order the reasons are read, not the order they are evaluated.
 ORDEN_DE_EVALUACION = (
     "schema", "metadata", "norm", "codec", "license", "index", "staging",
     "count", "fts", "emptykey", "orphan", "keys", "dict",
@@ -1091,7 +1099,7 @@ ORDEN_DE_EVALUACION = (
 
 
 def como_la_app(path):
-    """Corre sobre el pack lo que la app corre al abrirlo. 0 si lo aceptaria, 1 si no."""
+    """Runs over the pack what the app runs when opening it. 0 if it would accept it, 1 if not."""
     checkers = dict(MOTIVOS_DE_LA_APP)
     try:
         db = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
@@ -1126,7 +1134,8 @@ def main(argv):
         print(__doc__)
         return 2
     if "--como-la-app" in banderas:
-        # Varios packs de una: la pregunta natural es "¿pasan TODOS los que voy a subir?".
+        # Several packs at once: the natural question is "do ALL the ones I am about to upload
+        # pass?".
         return max(como_la_app(p) for p in argumentos)
     if len(argumentos) != 1:
         print(__doc__)

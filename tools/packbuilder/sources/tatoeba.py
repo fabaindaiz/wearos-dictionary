@@ -1,32 +1,33 @@
-"""Frases de uso en español, del corpus Tatoeba.
+"""Spanish usage sentences, from the Tatoeba corpus.
 
-**No es un diccionario y no define nada.** Es un corpus de oraciones sueltas, contribuidas por
-gente, y lo unico que aporta es lo que al pack le falta: **uso real**. El 70,4 % del pack español
-son entradas de una acepcion sin ningun ejemplo, y D-132 dejo medido que el dump del Wikcionario
-ya no tiene nada mas que darles.
+**It is not a dictionary and defines nothing.** It is a corpus of standalone sentences,
+contributed by people, and the only thing it brings is what the pack lacks: **real usage**. 70.4 %
+of the Spanish pack is single-sense entries with no example at all, and D-132 left measured that
+the Wiktionary dump has nothing more to give them.
 
-**Cuanto rinde, contra la otra fuente de ejemplos.** Medido sobre el mismo pack:
+**How much it yields, against the other source of examples.** Measured over the same pack:
 
-    enwiktionary §Spanish (D-135)      307 entradas
-    Tatoeba                          7.019 entradas      23 veces mas
+    enwiktionary §Spanish (D-135)      307 entries
+    Tatoeba                          7,019 entries      23 times more
 
-La diferencia no es que Tatoeba tenga mas texto: es que **un ejemplo no necesita que las dos
-fuentes coincidan en como numeran las acepciones**. Solo necesita contener la palabra. Por eso
-la regla de atribucion de D-132 --que mato el 94 % del rendimiento de enwiktionary-- aca no
-muerde: no hay dos listas de acepciones que conciliar.
+The difference is not that Tatoeba has more text: it is that **an example does not need the two
+sources to agree on how they number the senses**. It only needs to contain the word. That is why
+D-132's attribution rule --which killed 94 % of enwiktionary's yield-- does not bite here: there
+are no two lists of senses to reconcile.
 
-⚠️ **La ambiguedad se resuelve del lado del pack, no de aca.** Este modulo entrega
-`norm(palabra) -> frase` sin saber nada del diccionario; es `build.py` el que exige que esa
-`norm` lleve a **una sola** entrada (lema o forma flexionada) antes de pegar nada. Es la
-condicion que importa: "vino" es lema y tambien forma de "venir", y colgarle una frase a la
-equivocada es contenido incorrecto que parece correcto. Ese filtro cuesta caro --de 14.023
-entradas alcanzables se baja a 7.019-- y se paga entero.
+⚠️ **The ambiguity is resolved on the pack's side, not here.** This module yields
+`norm(word) -> sentence` knowing nothing about the dictionary; it is `build.py` that requires that
+`norm` to lead to **one single** entry (a lemma or an inflected form) before gluing anything. That
+is the condition that matters: "vino" is a lemma and also a form of "venir", and hanging a
+sentence off the wrong one is incorrect content that looks correct. That filter is expensive --of
+14,023 reachable entries it comes down to 7,019-- and it is paid in full.
 
-⚠️ **Licencia.** Las frases son **CC BY 2.0 FR**, no CC0. El export `sentences_CC0` existe y es
-la primera cosa que se probo: trae **37 frases en español** de 562.186, asi que no sirve. Hay
-atribucion obligatoria, igual que en D-135, y por eso esto tambien es una opcion y no un default.
+⚠️ **Licence.** The sentences are **CC BY 2.0 FR**, not CC0. The `sentences_CC0` export exists and
+was the first thing tried: it brings **37 Spanish sentences** out of 562,186, so it is no use.
+There is compulsory attribution, just as in D-135, and that is why this too is an option and not a
+default.
 
-Fuente: https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2
+Source: https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2
 """
 
 import os
@@ -37,75 +38,76 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import normalize  # noqa: E402
 
-# El codigo ISO 639-3 del español en Tatoeba. La columna 2 del TSV.
+# Spanish's ISO 639-3 code in Tatoeba. Column 2 of the TSV.
 LANG = "spa"
 
-# La ventana de largo, en caracteres.
+# The length window, in characters.
 #
-# El piso saca las frases que no ilustran nada ("Si.", "Ya."). El techo es lo que entra en dos
-# renglones a 234 dp sin empujar la definicion fuera de pantalla -- el mismo numero que
-# `enwikt_examples.MAX_LARGO`, porque el renglon del reloj no cambia segun de donde salga el texto.
+# The floor removes the sentences that illustrate nothing ("Si.", "Ya."). The ceiling is what fits
+# in two lines at 234 dp without pushing the definition off screen -- the same number as
+# `enwikt_examples.MAX_LARGO`, because the watch's line does not change with where the text came
+# from.
 MIN_LARGO = 15
 MAX_LARGO = 80
 
-# Que cuenta como palabra: letras, ningun digito. `\w` traeria "25" y "covid19".
+# What counts as a word: letters, no digits. `\w` would bring in "25" and "covid19".
 _PALABRA = re.compile(r"[^\W\d_]+", re.UNICODE)
 
 
 def shortest_by_norm(path, lang=LANG):
-    """Mapa `norm(palabra) -> la frase mas corta que la contiene`.
+    """A `norm(word) -> the shortest sentence containing it` map.
 
-    **La mas corta y no la primera**: en un reloj el renglon es el recurso escaso y las dos son
-    igual de validas como ejemplo. Ademas vuelve el resultado **independiente del orden del
-    archivo**, que es lo que hace que dos builds del mismo dump den el mismo pack.
+    **The shortest and not the first**: on a watch the line is the scarce resource and both are
+    equally valid as an example. It also makes the result **independent of the file's order**,
+    which is what makes two builds of the same dump give the same pack.
 
-    La clave es `norm()`, el mismo que indexa el pack: cualquier otra cosa --minusculas a mano,
-    quitar tildes con una tabla-- seria una segunda definicion de la igualdad de palabras, que es
-    exactamente lo que el invariante central de este repo existe para impedir.
+    The key is `norm()`, the same one that indexes the pack: anything else --lowercasing by hand,
+    stripping accents with a table-- would be a second definition of word equality, which is
+    exactly what this repo's central invariant exists to prevent.
     """
     comunes = _vistas_en_minuscula(path, lang)
     out = {}
     for texto in _frases(path, lang):
         for palabra in _PALABRA.findall(texto):
             clave = normalize.norm(palabra)
-            # ⚠️ El filtro que salvo a "nadal". Ver `_vistas_en_minuscula`.
+            # ⚠️ The filter that saved "nadal". See `_vistas_en_minuscula`.
             if not clave or clave not in comunes:
                 continue
             previa = out.get(clave)
-            # Empate por largo: gana la menor alfabeticamente, para que el mapa no dependa del
-            # orden en que el archivo sirvio las frases.
+            # A tie on length: the alphabetically smaller wins, so the map does not depend on the
+            # order in which the file served the sentences.
             if previa is None or (len(texto), texto) < (len(previa), previa):
                 out[clave] = texto
     return out
 
 
 def frequencies(path, lang=LANG):
-    """Mapa `norm(palabra) -> cuantas frases la usan`. La senal de **uso** de un pack nucleo.
+    """A `norm(word) -> how many sentences use it` map. A core pack's signal of **usage**.
 
-    ⚠️ **Existe porque `rank` no sirve para elegir vocabulario, y eso esta medido.** `rank` es
-    riqueza de pagina del diccionario, no frecuencia de habla. Un nucleo de 14.388 entradas
-    elegido por `rank` se lleva **1.366.667 de las 1.499.895 formas flexionadas** del pack
-    espanol --el 91 % de la tabla, que es la mas grande del archivo-- porque las paginas mas ricas
-    son los verbos y un verbo espanol tiene 33 formas. Elegido por uso, no.
+    ⚠️ **It exists because `rank` is no use for choosing vocabulary, and that is measured.** `rank`
+    is richness of the dictionary's page, not frequency of speech. A 14,388-entry core chosen by
+    `rank` takes **1,366,667 of the Spanish pack's 1,499,895 inflected forms** --91 % of the table,
+    which is the largest in the file-- because the richest pages are the verbs and a Spanish verb
+    has 33 forms. Chosen by usage, it does not.
 
-    ⚠️ **Cuenta sobre TODAS las frases del idioma, no sobre la ventana de [shortest_by_norm].**
-    Ese filtro de largo existe porque un ejemplo tiene que entrar en dos renglones de reloj;
-    aplicarlo aca sesgaria la cuenta hacia las frases de largo medio, que no tienen por que usar
-    las palabras mas comunes.
+    ⚠️ **It counts over ALL the language's sentences, not over [shortest_by_norm]'s window.** That
+    length filter exists because an example has to fit in two watch lines; applying it here would
+    bias the count towards medium-length sentences, which have no reason to use the most common
+    words.
 
-    ⚠️ **Y descarta lo que el corpus nunca escribe en minuscula**, por el mismo hecho que salvo a
-    "nadal" (ver [_vistas_en_minuscula]) y con un motivo medido propio: **"Tom" aparece en 36.694
-    de las 442.135 frases espanolas, el 8,3 %**. Sin el filtro seria una de las palabras mas
-    frecuentes del idioma y entraria al nucleo antes que "agua".
+    ⚠️ **And it discards what the corpus never writes in lowercase**, by the same fact that saved
+    "nadal" (see [_vistas_en_minuscula]) and with a measured reason of its own: **"Tom" appears in
+    36,694 of the 442,135 Spanish sentences, 8.3 %**. Without the filter it would be one of the
+    language's most frequent words and would enter the core ahead of "agua".
 
-    Cuenta **frases que la contienen** y no apariciones: una frase que repite una palabra no la
-    hace mas comun, la hace mas enfatica.
+    It counts **sentences containing it** and not occurrences: a sentence that repeats a word does
+    not make it more common, it makes it more emphatic.
     """
-    # ⚠️ **Sobre TODAS las frases tambien para este filtro, y no sobre la ventana de ejemplos.**
-    # "una palabra escrita en minuscula alguna vez" es un hecho del CORPUS; restringir la
-    # evidencia a las frases de 15 a 80 caracteres lo vuelve menos cierto, y con un corpus chico
-    # --el ingles tiene 41.512 frases contra 442.135 del espanol-- deja fuera palabras comunes de
-    # verdad. `shortest_by_norm` se queda con la ventana porque su trabajo SI es elegir ejemplos.
+    # ⚠️ **Over ALL the sentences for this filter too, and not over the examples window.** "a word
+    # written in lowercase at least once" is a fact about the CORPUS; restricting the evidence to
+    # the sentences of 15 to 80 characters makes it less true, and with a small corpus --English
+    # has 41,512 sentences against Spanish's 442,135-- it leaves genuinely common words out.
+    # `shortest_by_norm` keeps the window because its job IS choosing examples.
     comunes = _mayormente_en_minuscula(path, lang)
     out = {}
     for texto in _todas_las_frases(path, lang):
@@ -116,29 +118,30 @@ def frequencies(path, lang=LANG):
     return out
 
 
-# Que proporcion de sus apariciones tiene que ir en minuscula para contar como palabra comun.
+# What proportion of its occurrences has to be lowercase for it to count as a common word.
 #
-# ⚠️ **Medido, y la separacion es enorme**: `tom` 0,0 % (1 de 36.749), `maria` 0,3 %, `juan` y
-# `john` 0,0 %, contra `agua` 99,4 %, `water` 98,1 % y `enero` 89,2 %. Cualquier numero entre 5 y
-# 85 separa igual de bien; 50 % se lee como "el corpus la escribe en minuscula mas veces que no".
+# ⚠️ **Measured, and the separation is enormous**: `tom` 0.0 % (1 of 36,749), `maria` 0.3 %, `juan`
+# and `john` 0.0 %, against `agua` 99.4 %, `water` 98.1 % and `enero` 89.2 %. Any number between 5
+# and 85 separates them equally well; 50 % reads as "the corpus writes it lowercase more often than
+# not".
 UMBRAL_MINUSCULA = 0.5
 
 
 def _mayormente_en_minuscula(path, lang):
-    """Las claves que el corpus escribe en minuscula **la mayoria de las veces**.
+    """The keys the corpus writes in lowercase **most of the time**.
 
-    ⚠️ **"Alguna vez" no alcanza para elegir vocabulario, y eso se midio.** Es la regla que usa
-    [_vistas_en_minuscula] y sirve para lo suyo --elegir un ejemplo-- pero en 442.135 frases casi
-    cualquier palabra aparece en minuscula una vez, y **"tom" pasaba con 1 de 36.749 apariciones**,
-    quedando en el puesto 11 de las palabras mas frecuentes del espanol.
+    ⚠️ **"At least once" is not enough for choosing vocabulary, and that was measured.** It is the
+    rule [_vistas_en_minuscula] uses and it serves its own purpose --choosing an example-- but in
+    442,135 sentences almost any word appears in lowercase once, and **"tom" passed with 1 of
+    36,749 occurrences**, landing in position 11 of Spanish's most frequent words.
 
-    El costo de equivocarse es distinto en cada caso y por eso son dos reglas: un ejemplo mal
-    elegido es una frase rara en una ficha; un vocabulario mal elegido es un pack nucleo lleno de
-    nombres propios.
+    The cost of being wrong differs in each case, which is why there are two rules: a badly chosen
+    example is an odd sentence on a card; a badly chosen vocabulary is a core pack full of proper
+    nouns.
 
-    ⚠️ **Y tiene una consecuencia conocida en ingles**: los dias y los meses se escriben siempre
-    en mayuscula --`monday` 0,0 %-- asi que quedan fuera del nucleo. En espanol no pasa, porque
-    `enero` va en minuscula el 89,2 % de las veces. El pack completo los tiene igual.
+    ⚠️ **And it has a known consequence in English**: the days and months are always written
+    capitalized --`monday` 0.0 %-- so they fall outside the core. In Spanish that does not happen,
+    because `enero` goes lowercase 89.2 % of the time. The full pack has them either way.
     """
     minusculas, total = {}, {}
     for texto in _todas_las_frases(path, lang):
@@ -153,7 +156,7 @@ def _mayormente_en_minuscula(path, lang):
 
 
 def _todas_las_frases(path, lang):
-    """Todas las frases del idioma, sin la ventana de largo. Una pasada, sin cargar nada."""
+    """All the language's sentences, without the length window. One pass, loading nothing."""
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             partes = line.rstrip("\n").split("\t")
@@ -165,7 +168,7 @@ def _todas_las_frases(path, lang):
 
 
 def _frases(path, lang):
-    """Las frases del idioma pedido que entran en una pantalla. Una pasada, sin cargar nada."""
+    """The requested language's sentences that fit on a screen. One pass, loading nothing."""
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             partes = line.rstrip("\n").split("\t")
@@ -177,26 +180,26 @@ def _frases(path, lang):
 
 
 def _vistas_en_minuscula(path, lang, frases=None):
-    """Las claves que el corpus escribe en minuscula **alguna vez**: las palabras comunes.
+    """The keys the corpus writes in lowercase **at least once**: the common words.
 
-    ⚠️ **Existe por un error que ningun test veia y que aparecio leyendo el pack construido.**
-    La palabra dialectal "nadal" (Navidad) habia recibido *"Alonso, Nadal y Pau Gasol, entre los
-    mejor pagados del mundo."*: `norm()` baja a minusculas, asi que el apellido del tenista
-    colisiona con el sustantivo comun.
+    ⚠️ **It exists because of an error no test could see and that turned up reading the built
+    pack.** The dialectal word "nadal" (Christmas) had been given *"Alonso, Nadal y Pau Gasol,
+    entre los mejor pagados del mundo."*: `norm()` lowercases, so the tennis player's surname
+    collides with the common noun.
 
-    Y el filtro de ambiguedad del builder **no puede verlo**: D-116 poda los nombres propios del
-    pack, asi que no existe una segunda entrada con la que "nadal" empate. La clave parece
-    inequivoca precisamente porque su competidor fue podado.
+    And the builder's ambiguity filter **cannot see it**: D-116 prunes the pack's proper nouns, so
+    there is no second entry for "nadal" to tie with. The key looks unambiguous precisely because
+    its competitor was pruned.
 
-    ⚠️ **El primer intento fue descartar las mayusculas a mitad de frase, y NO alcanzo**:
-    *"Nadal, mejor deportista español de la historia..."* empieza con el apellido y pasaba por la
-    excepcion de la primera palabra -- toda frase empieza en mayuscula, asi que esa excepcion no
-    se puede quitar. Lo que separa de verdad no es una posicion sino **un hecho del corpus**: una
-    palabra escrita en minuscula alguna vez es comun; una escrita siempre en mayuscula, en
-    442.135 oraciones, es un nombre propio.
+    ⚠️ **The first attempt was discarding capitals mid-sentence, and it was NOT enough**: *"Nadal,
+    mejor deportista español de la historia..."* starts with the surname and passed through the
+    first-word exception -- every sentence starts capitalized, so that exception cannot be removed.
+    What really separates them is not a position but **a fact about the corpus**: a word written in
+    lowercase at least once is common; one always written capitalized, across 442,135 sentences, is
+    a proper noun.
 
-    Cuesta una segunda pasada sobre el archivo --40 MB, sin descomprimir-- y nada de memoria
-    extra que no fuera a hacer falta igual.
+    It costs a second pass over the file --40 MB, uncompressed-- and no extra memory that would not
+    have been needed anyway.
     """
     vistas = set()
     for texto in (frases or _frases)(path, lang):

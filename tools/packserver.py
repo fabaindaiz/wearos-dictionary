@@ -1,51 +1,51 @@
 #!/usr/bin/env python3
-"""Servidor de archivos de DESARROLLO para probar la descarga de packs.
+"""A DEVELOPMENT file server for exercising pack downloads.
 
-No es el instalador ni el catalogo de produccion: es lo que falta para poder ejercitar el
-camino de descarga sin haber decidido donde se hostea nada (roadmap, Instalador de packs).
-Sirve un directorio de packs y **genera el indice leyendo los packs mismos**.
+It is neither the installer nor the production catalog: it is what is missing in order to exercise
+the download path without having decided where anything is hosted (roadmap, Pack installer). It
+serves a directory of packs and **generates the index by reading the packs themselves**.
 
-⚠️ **El indice se genera, no se escribe a mano, y eso es correctitud y no comodidad.** Cada
-campo sale de la tabla `meta` del `.db` o de medir el archivo, asi que no puede divergir de lo
-que se sirve. Un catalogo a mano que dice `data_version` 202609211937 para un archivo que ya es
-otro es exactamente el fallo que este repo no puede observar: la app se cree la version y no
-vuelve a descargar.
+⚠️ **The index is generated, not hand-written, and that is correctness and not convenience.** Every
+field comes out of the `.db`'s `meta` table or from measuring the file, so it cannot diverge from
+what is served. A hand-written catalog saying `data_version` 202609211937 for a file that is
+already another one is exactly the failure this repo cannot observe: the app believes the version
+and never downloads again.
 
-## Lo que el indice lleva, y por que cada cosa
+## What the index carries, and why each thing
 
-- `schema_version` y `norm_version` **antes de la url**: son las dos que hacen que un pack se
-  rechace entero al abrirlo (D-001, D-006). Publicarlas deja que la app descarte un pack
-  incompatible **sin descargar 192 MB para tirarlos**.
-- `data_version`: el entero monotono que ya escribe el builder. Es con lo que se decide
-  "actualizar" contra "descargar".
-- **Dos hashes**: `sha256` es del `.db.gz` que viaja, `db_sha256` del `.db` que queda en disco.
-  Hacen falta los dos porque se verifica en dos momentos -- al terminar la transferencia y
-  despues de descomprimir -- y `installAtomically` compara contra el segundo (D-165).
-- `name`, `description`, `entry_count`, `license`: lo que la pantalla de descarga muestra. Sale
-  del pack para que nadie lo reescriba distinto.
+- `schema_version` and `norm_version` **before the url**: they are the two that get a pack
+  rejected whole on opening (D-001, D-006). Publishing them lets the app discard an incompatible
+  pack **without downloading 192 MB to throw them away**.
+- `data_version`: the monotonic integer the builder already writes. It is what decides "update"
+  against "download".
+- **Two hashes**: `sha256` is of the `.db.gz` that travels, `db_sha256` of the `.db` that stays on
+  disk. Both are needed because verification happens at two moments -- when the transfer finishes
+  and after decompressing -- and `installAtomically` compares against the second (D-165).
+- `name`, `description`, `entry_count`, `license`: what the download screen shows. It comes from
+  the pack so nobody rewrites it differently.
 
-⚠️ **Un pack de esquema viejo se publica igual, y es a proposito.** `es-def-wd` es
-`schema_version` 3 y por eso **no trae `langs`** --ese campo nacio con el 4-- pero aparece en el
-indice con su version. La app lo descarta sin descargar, que es exactamente para lo que se
-publican esas dos versiones, y en desarrollo sirve para ejercitar ese camino.
+⚠️ **A pack with an old schema is published all the same, on purpose.** `es-def-wd` is
+`schema_version` 3 and therefore **carries no `langs`** --that field was born with 4-- but it
+appears in the index with its version. The app discards it without downloading, which is exactly
+what those two versions are published for, and in development it serves to exercise that path.
 
-## Por que se sirve `.db.gz` como archivo opaco y no con `Content-Encoding: gzip`
+## Why `.db.gz` is served as an opaque file and not with `Content-Encoding: gzip`
 
-Medido: el pack espanol pasa de 73,6 a ~37 MB y el ingles de 306,8 a ~192. Pero con
-`Content-Encoding` la descompresion es transparente, y entonces `Range` corre sobre el flujo
-**descomprimido**: no se puede reanudar, y `Content-Length` miente. Sobre un reloj que descarga
-192 MB solo mientras carga, perder la reanudacion es peor que el ahorro. Asi que el `.gz` viaja
-como un archivo mas y la app lo descomprime a mano.
+Measured: the Spanish pack goes from 73.6 to ~37 MB and English from 306.8 to ~192. But with
+`Content-Encoding` the decompression is transparent, and then `Range` runs over the
+**decompressed** stream: you cannot resume, and `Content-Length` lies. On a watch that downloads
+192 MB only while charging, losing resumption is worse than the saving. So the `.gz` travels as
+one more file and the app decompresses it by hand.
 
-⚠️ **Y se sirve TAMBIEN el `.db` en crudo, a proposito.** Una actualizacion delta por bloques
-(zsync) necesita `Range` sobre bytes que se parezcan a la version anterior, y un `.gz` normal no
-se parece en nada tras el primer byte que cambia. Dejar el crudo disponible no cuesta nada en una
-maquina de desarrollo y es lo que mantiene esa puerta abierta. Ver `docs/roadmap.md`.
+⚠️ **And the raw `.db` is served TOO, on purpose.** A block-level delta update (zsync) needs
+`Range` over bytes that resemble the previous version, and a normal `.gz` resembles nothing after
+the first byte that changes. Leaving the raw one available costs nothing on a development machine
+and is what keeps that door open. See `docs/roadmap.md`.
 
-## Uso
+## Usage
 
     python3 tools/packserver.py ../wearos-dictionary-data --port 8765
-    # y en el reloj / emulador:  http://<ip-de-esta-maquina>:8765/index.json
+    # and on the watch / emulator:  http://<this-machine-ip>:8765/index.json
 """
 
 from __future__ import annotations
@@ -66,8 +66,8 @@ BUFFER = 1 << 20
 CATALOG = "index.json"
 PACKS_DIR = "packs"
 
-# Los campos de `meta` que van al indice, con el tipo al que se convierten. Lo que no este aca
-# no se publica: `payload_dict` son 32 KB de binario y no tiene nada que hacer en un catalogo.
+# The `meta` fields that go into the index, with the type they are converted to. What is not here
+# is not published: `payload_dict` is 32 KB of binary and has no business in a catalog.
 META_FIELDS = {
     "pack_id": str,
     "name": str,
@@ -81,14 +81,15 @@ META_FIELDS = {
     "norm_version": int,
     "license": str,
 }
-# ⚠️ `attribution` NO se publica, a proposito: son ~600 caracteres por pack --el nucleo espanol
-# cita cinco fuentes-- y **el pack ya lo lleva dentro**, asi que la app lo lee despues de
-# instalar. En el indice solo duplicaria el dato y engordaria lo que el reloj baja al apretar el
-# boton. `license` si va, porque es corto y la pantalla lo muestra antes de descargar.
+# ⚠️ `attribution` is NOT published, on purpose: it is ~600 characters per pack --the Spanish core
+# cites five sources-- and **the pack already carries it inside**, so the app reads it after
+# installing. In the index it would only duplicate the datum and fatten what the watch downloads
+# on pressing the button. `license` does go, because it is short and the screen shows it before
+# downloading.
 
 
 def sha256_of(path: str) -> str:
-    """El sha256 de un archivo, leido por trozos: los packs no caben en memoria."""
+    """A file's sha256, read in chunks: the packs do not fit in memory."""
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
         for chunk in iter(lambda: handle.read(BUFFER), b""):
@@ -97,10 +98,10 @@ def sha256_of(path: str) -> str:
 
 
 def pack_metadata(db_path: str) -> dict:
-    """La tabla `meta` de un pack, solo los campos publicables.
+    """A pack's `meta` table, only the publishable fields.
 
-    Se abre **read-only por URI**: el pack es inmutable (D-001) y abrirlo de otra forma podria
-    dejarle un `-wal` al lado, que en un directorio que se sirve seria basura publicada.
+    It is opened **read-only by URI**: the pack is immutable (D-001) and opening it any other way
+    could leave a `-wal` beside it, which in a served directory would be published garbage.
     """
     uri = f"file:{db_path}?mode=ro"
     with sqlite3.connect(uri, uri=True) as conn:
@@ -117,11 +118,11 @@ def pack_metadata(db_path: str) -> dict:
 
 
 def gzip_if_stale(db_path: str, gz_path: str) -> bool:
-    """Comprime el pack si el `.gz` falta o es mas viejo. Devuelve si hizo trabajo.
+    """Compresses the pack if the `.gz` is missing or older. Returns whether it did work.
 
-    Comprimir el ingles son varios minutos, asi que no se rehace en cada arranque. El criterio
-    es la fecha de modificacion, no el hash: calcular el hash de 306 MB para decidir si hay que
-    comprimir 306 MB cuesta casi lo mismo que comprimirlos.
+    Compressing English is several minutes, so it is not redone on every startup. The criterion is
+    the modification date, not the hash: computing the hash of 306 MB to decide whether to
+    compress 306 MB costs nearly as much as compressing them.
     """
     if os.path.exists(gz_path) and os.path.getmtime(gz_path) >= os.path.getmtime(db_path):
         return False
@@ -133,24 +134,25 @@ def gzip_if_stale(db_path: str, gz_path: str) -> bool:
 
 
 def es_publicable(meta):
-    """¿Este pack es un producto final, o un paso intermedio del merge?
+    """Is this pack a final product, or an intermediate step of the merge?
 
-    ⚠️ **El filtro es SEMANTICO y no por nombre**, y eso importa: se vio `es-def-wd` en el catalogo
-    del emulador, y no es un pack descargable -- es una **entrada** del merge, que el pack espanol
-    lleva fundido dentro. Publicarlo ofrece un diccionario de una sola fuente, que es justo el
-    modelo que se descarto.
+    ⚠️ **The filter is SEMANTIC and not by name**, and that matters: `es-def-wd` was seen in the
+    emulator's catalog, and it is not a downloadable pack -- it is an **input** to the merge, which
+    the Spanish pack carries fused inside. Publishing it offers a single-source dictionary, which
+    is exactly the model that was discarded.
 
-    Un pack publicable **declara su nivel** (`tier`, D-215). Un intermedio no declara ninguno, asi
-    que se cae solo y **renombrar el archivo no lo cuela**.
+    A publishable pack **declares its tier** (`tier`, D-215). An intermediate declares none, so it
+    falls out on its own and **renaming the file does not sneak it through**.
 
-    ⚠️ **El bilingue es la excepcion, y esta escrita en vez de adivinada**: no tiene niveles porque
-    su proposito no es un tamano del mismo diccionario. Se reconoce por `kind`, que el pack declara.
+    ⚠️ **The bilingual one is the exception, and it is written rather than guessed**: it has no
+    tiers because its purpose is not a size of the same dictionary. It is recognized by `kind`,
+    which the pack declares.
     """
     return bool(meta.get("tier")) or meta.get("kind") == "bilingual"
 
 
 def catalog_entry(db_path: str, gz_path: str) -> dict:
-    """Una fila del indice: lo que dice el pack, mas lo que miden los dos archivos."""
+    """One index row: what the pack says, plus what the two files measure."""
     entry = pack_metadata(db_path)
     entry.update(
         url=f"{PACKS_DIR}/{os.path.basename(gz_path)}",
@@ -164,16 +166,16 @@ def catalog_entry(db_path: str, gz_path: str) -> dict:
 
 
 def is_pack(name: str) -> bool:
-    """Un `.db` que no sea un respaldo.
+    """A `.db` that is not a backup.
 
-    ⚠️ El directorio de datos tiene `en-def-wikt.OLD.db` y `es-tr-enwikt.OLD2.db` al lado de los
-    buenos. Publicarlos serviria packs viejos como si fueran el catalogo.
+    ⚠️ The data directory holds `en-def-wikt.OLD.db` and `es-tr-enwikt.OLD2.db` beside the good
+    ones. Publishing them would serve old packs as if they were the catalog.
     """
     return name.endswith(".db") and ".OLD" not in name
 
 
 def build_catalog(directory: str, compress: bool = True) -> dict:
-    """El indice completo del directorio, ordenado por `pack_id` para que sea diffeable."""
+    """The directory's complete index, ordered by `pack_id` so it is diffable."""
     packs = []
     for name in sorted(os.listdir(directory)):
         if not is_pack(name):
@@ -193,10 +195,10 @@ def build_catalog(directory: str, compress: bool = True) -> dict:
 
 
 def etag_for(payload: bytes) -> str:
-    """Un ETag fuerte del cuerpo.
+    """A strong ETag of the body.
 
-    Sirve para que apretar el boton dos veces cueste un 304 sin cuerpo en vez del indice
-    entero. Es lo unico que hace falta para eso: el indice es chico y se regenera igual.
+    It serves to make pressing the button twice cost a bodyless 304 instead of the whole index. It
+    is the only thing needed for that: the index is small and gets regenerated anyway.
     """
     return '"' + hashlib.sha256(payload).hexdigest()[:32] + '"'
 
@@ -205,20 +207,20 @@ RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 
 
 def parse_range(header: str | None, size: int) -> tuple[int, int] | None:
-    """Traduce un `Range: bytes=...` a `(primero, ultimo)` inclusivo, o `None`.
+    """Translates a `Range: bytes=...` into an inclusive `(first, last)`, or `None`.
 
-    ⚠️ **`SimpleHTTPRequestHandler` no implementa `Range`**, y sin esto una caida de Wi-Fi al
-    90 % de 192 MB obliga a empezar de cero. D-040 eligio `HttpURLConnection` justamente porque
-    hace `Range`; un servidor que no lo soporta hace inverificable esa decision.
+    ⚠️ **`SimpleHTTPRequestHandler` does not implement `Range`**, and without this a Wi-Fi drop at
+    90 % of 192 MB forces starting from zero. D-040 chose `HttpURLConnection` precisely because it
+    does `Range`; a server that does not support it makes that decision unverifiable.
 
-    Las tres formas de RFC 9110 §14.1.1, y un `None` para todo lo demas:
+    RFC 9110 §14.1.1's three forms, and a `None` for everything else:
 
-    - `bytes=0-99`   los primeros 100
-    - `bytes=100-`   desde el 100 hasta el final  (el caso de reanudar)
-    - `bytes=-100`   los ultimos 100
+    - `bytes=0-99`   the first 100
+    - `bytes=100-`   from 100 to the end  (the resume case)
+    - `bytes=-100`   the last 100
 
-    Devuelve `None` cuando no hay cabecera o no se entiende --se responde 200 completo-- y
-    `(-1, -1)` cuando se entiende pero **no se puede satisfacer**, que es un 416 distinto.
+    It returns `None` when there is no header or it is not understood --a full 200 is answered--
+    and `(-1, -1)` when it is understood but **cannot be satisfied**, which is a different 416.
     """
     if not header:
         return None
@@ -243,9 +245,9 @@ def parse_range(header: str | None, size: int) -> tuple[int, int] | None:
 
 
 def local_ips() -> list[str]:
-    """Las IPs por las que el reloj puede llegar a esta maquina.
+    """The IPs by which the watch can reach this machine.
 
-    `localhost` no sirve: el reloj esta en la otra punta del Wi-Fi.
+    `localhost` is no use: the watch is at the other end of the Wi-Fi.
     """
     out = []
     try:
@@ -259,7 +261,7 @@ def local_ips() -> list[str]:
 
 
 class PackHandler(SimpleHTTPRequestHandler):
-    """Sirve el directorio con `Range` y `ETag`, que es lo que le falta al de la stdlib."""
+    """Serves the directory with `Range` and `ETag`, which is what the stdlib's lacks."""
 
     catalog: dict = {}
     root: str = "."

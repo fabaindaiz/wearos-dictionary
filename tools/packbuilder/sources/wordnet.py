@@ -1,38 +1,38 @@
-"""Tesauro desde WordNet: sinonimos y antonimos que el Wikcionario no tiene.
+"""A thesaurus from WordNet: synonyms and antonyms Wiktionary does not have.
 
-**Por que hace falta otra fuente.** Los sinonimos del pack salen del wiki, que los escribe a
-mano y por lo tanto de forma desigual: **18,4 % de las entradas en español y 15,4 % en ingles**.
-WordNet esta construido al reves -- agrupa por SIGNIFICADO, asi que cada *synset* **es** un
-conjunto de sinonimos, y la cobertura no depende de que alguien se acordara de escribirlos.
+**Why another source is needed.** The pack's synonyms come from the wiki, which writes them by
+hand and therefore unevenly: **18.4 % of the Spanish entries and 15.4 % of the English ones**.
+WordNet is built the other way round -- it groups by MEANING, so each *synset* **is** a set of
+synonyms, and the coverage does not depend on somebody having remembered to write them.
 
-**Dos formatos, dos idiomas, la misma idea:**
+**Two formats, two languages, the same idea:**
 
-    ingles    Open English WordNet 2024, formato WN-LMF (XML).  CC BY 4.0
-              120.630 synsets, 161.646 pares lema+pos, 7.996 relaciones de antonimia
-    español   Multilingual Central Repository via OMW, formato .tab.  CC BY 3.0
-              78.417 synsets con lemas españoles, 90.899 lemas
+    English   Open English WordNet 2024, WN-LMF format (XML).  CC BY 4.0
+              120,630 synsets, 161,646 lemma+pos pairs, 7,996 antonymy relations
+    Spanish   Multilingual Central Repository via OMW, .tab format.  CC BY 3.0
+              78,417 synsets with Spanish lemmas, 90,899 lemmas
 
-⚠️ **La regla de atribucion es la de siempre y aca muerde fuerte**: un synset es *una* acepcion.
-Si nuestra entrada tiene varias, o si el lema esta en varios synsets de su categoria, **no se
-sabe de cual son** esos sinonimos, y colgarlos de la primera acepcion es el error de D-117.
-Solo entran cuando hay **una acepcion de nuestro lado y un synset del suyo**.
+⚠️ **The attribution rule is the usual one and here it bites hard**: a synset is *one* sense. If
+our entry has several, or if the lemma is in several synsets of its category, **it is unknown which
+one** those synonyms belong to, and hanging them off the first sense is D-117's mistake. They only
+get in when there is **one sense on our side and one synset on theirs**.
 
-**Lo que rinde, medido contra los packs reales:**
+**What it yields, measured against the real packs:**
 
-    ingles    21.143 entradas ganan sinonimos  ·  2.486 ganan antonimos
-    español    5.504 entradas ganan sinonimos
+    English   21,143 entries gain synonyms  ·  2,486 gain antonyms
+    Spanish    5,504 entries gain synonyms
 
-⚠️ **Y el español trae ruido que el ingles no.** El MCR se construyo automaticamente y mete
-flexiones dentro del synset --"coreano" con "coreana, coreanos"-- y algun synset mal mapeado
-("uno" con "dos"). Las flexiones se filtran contra la tabla `form` del propio pack, que es un
-dato que ya tenemos; el synset mal mapeado no tiene filtro estructural y pasa. Medido: de 5.737
-entradas candidatas, 233 pierden algun candidato por flexion o grafia.
+⚠️ **And Spanish brings noise English does not.** The MCR was built automatically and puts
+inflections inside the synset --"coreano" with "coreana, coreanos"-- and the odd badly mapped
+synset ("uno" with "dos"). The inflections are filtered against the pack's own `form` table, which
+is a datum we already have; the badly mapped synset has no structural filter and gets through.
+Measured: of 5,737 candidate entries, 233 lose some candidate to an inflection or a spelling.
 
-**La antonimia solo viene del ingles, y es deliberado.** En WordNet es una relacion **lexica**,
-entre acepciones y no entre synsets, asi que **no se puede transferir a otro idioma** por el
-synset compartido: el MCR da lemas por synset y eso no alcanza para saber que acepcion española
-es el opuesto de cual. Inventarlo seria peor que no tenerlo, porque un antonimo mal atribuido se
-lee como lo contrario de otra cosa (D-126).
+**Antonymy comes only from English, and that is deliberate.** In WordNet it is a **lexical**
+relation, between senses and not between synsets, so **it cannot be transferred to another
+language** through the shared synset: the MCR gives lemmas per synset and that is not enough to
+know which Spanish sense is the opposite of which. Inventing it would be worse than not having it,
+because a badly attributed antonym reads as the opposite of something else (D-126).
 """
 
 import collections
@@ -46,28 +46,29 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import normalize  # noqa: E402
 
-# Las categorias de WordNet mapeadas al vocabulario de `pos` del pack. "s" es "adjetivo
-# satelite", que en WordNet es un matiz de adjetivo y en un reloj no es una distincion util.
+# WordNet's categories mapped to the pack's `pos` vocabulary. "s" is "satellite adjective", which
+# in WordNet is a shade of adjective and on a watch is not a useful distinction.
 POS = {"n": "noun", "v": "verb", "a": "adj", "s": "adj", "r": "adv"}
 
-# Mismo tope que el resto del pipeline: un renglon de reloj.
+# The same cap as the rest of the pipeline: one watch line.
 MAX_POR_ACEPCION = 4
 
-# Un termino tiene que EMPEZAR con letra y no traer digitos ni simbolos raros. Saca los "1" y
-# los "2" que el MCR mete en el synset de los numerales.
+# A term has to START with a letter and carry no digits or odd symbols. It removes the "1"s and
+# "2"s the MCR puts in the numerals' synset.
 _TERMINO = re.compile(r"^[^\W\d_][\w\s'’.-]*$", re.UNICODE)
 
 
-# Cuando dos terminos son **la misma palabra con otra terminacion** y no dos palabras distintas.
+# When two terms are **the same word with a different ending** and not two different words.
 #
-# El MCR mete `decolorarse` con `decolorar`, `organismos` con `organismo`, `basicamente` con
-# `básicamente`. No es informacion: es la palabra otra vez, y en un reloj gasta el unico renglon.
+# The MCR puts `decolorarse` with `decolorar`, `organismos` with `organismo`, `basicamente` with
+# `básicamente`. That is not information: it is the word again, and on a watch it spends the only
+# line.
 #
-# La regla no sabe español: **uno es prefijo del otro y solo cambia una terminacion corta**. El
-# piso de raiz evita matar abreviaturas legitimas ("Oct" de "October"), y el techo de diferencia
-# evita matar parientes de verdad ("ente"/"entidad", que difieren en cuatro).
+# The rule knows no Spanish: **one is a prefix of the other and only a short ending changes**. The
+# stem floor avoids killing legitimate abbreviations ("Oct" for "October"), and the difference
+# ceiling avoids killing real relatives ("ente"/"entidad", which differ by four).
 #
-# Medido sobre el tesauro español: saca 6.318 de 99.292 candidatos (6,4 %).
+# Measured over the Spanish thesaurus: it removes 6,318 of 99,292 candidates (6.4 %).
 RAIZ_MINIMA = 4
 DIFERENCIA_MAXIMA = 3
 
@@ -87,13 +88,13 @@ def _limpio(termino):
 
 
 def english(path):
-    """Tesauro del Open English WordNet (WN-LMF comprimido).
+    """A thesaurus from the Open English WordNet (compressed WN-LMF).
 
-    Devuelve `(lema, pos) -> {"synonyms": [...], "antonyms": [...]}`, **solo para los lemas que
-    estan en UN synset de su categoria**: con varios no se sabe de cual acepcion son.
+    It returns `(lemma, pos) -> {"synonyms": [...], "antonyms": [...]}`, **only for the lemmas that
+    are in ONE synset of their category**: with several it is unknown which sense they belong to.
 
-    Los antonimos no llevan esa restriccion porque en WordNet **la antonimia es una relacion
-    entre acepciones concretas**, no entre synsets: la atribucion ya viene dada.
+    The antonyms do not carry that restriction because in WordNet **antonymy is a relation between
+    concrete senses**, not between synsets: the attribution comes already given.
     """
     miembros = collections.defaultdict(list)
     synsets_de = collections.defaultdict(set)
@@ -139,10 +140,10 @@ def english(path):
 
 
 def spanish(path):
-    """Tesauro del MCR via OMW (formato `.tab` de tres columnas).
+    """A thesaurus from the MCR via OMW (three-column `.tab` format).
 
-    `synset<TAB>spa:lemma<TAB>termino`. Solo sinonimos: ver el docstring del modulo sobre por que
-    la antonimia no se transfiere.
+    `synset<TAB>spa:lemma<TAB>term`. Synonyms only: see the module docstring on why antonymy is not
+    transferred.
     """
     miembros = collections.defaultdict(list)
     synsets_de = collections.defaultdict(set)
@@ -172,7 +173,7 @@ def spanish(path):
 
 
 def _hermanos(miembros_del_synset, clave):
-    """Los otros lemas del synset, limpios, deduplicados y topeados."""
+    """The synset's other lemmas, cleaned, deduplicated and capped."""
     out = []
     for termino, _pos in miembros_del_synset:
         limpio = _limpio(termino)

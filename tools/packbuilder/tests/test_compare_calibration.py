@@ -1,8 +1,8 @@
-"""La correlacion que dice si dos calibraciones se pueden comparar (D-142).
+"""The correlation that says whether two calibrations can be compared (D-142).
 
-Es una funcion numerica, asi que se fija con casos cuyo resultado se conoce de antemano: si
-alguien la "optimiza" y deja de ser Spearman, el numero que la herramienta imprime deja de
-significar lo que su propia documentacion dice.
+It is a numeric function, so it is pinned with cases whose result is known in advance: if somebody
+"optimizes" it and it stops being Spearman, the number the tool prints stops meaning what its own
+documentation says.
 """
 
 import os
@@ -23,16 +23,16 @@ class SpearmanTest(unittest.TestCase):
         self.assertAlmostEqual(-1.0, cc.spearman([1, 2, 3, 4], [4, 3, 2, 1]))
 
     def test_es_de_ORDENES_y_no_de_valores(self):
-        """Lo que la vuelve util aca: dos packs pueden usar escalas distintas y estar de acuerdo.
+        """What makes it useful here: two packs can use different scales and still agree.
 
-        El nuestro va 0..1000 y otro podria ir 0..100, o al reves. Lo unico que importa es si
-        coinciden en cual palabra va antes.
+        Ours runs 0..1000 and another might run 0..100, or the other way round. All that matters is
+        whether they agree on which word comes first.
         """
         self.assertAlmostEqual(1.0, cc.spearman([1, 2, 3, 4], [10, 200, 3000, 40000]))
 
     def test_los_empates_no_la_rompen(self):
-        # Un pack puede darle el mismo rank a miles de entradas; con rangos sin promediar esto
-        # daria un resultado distinto o una division por cero.
+        # A pack can give thousands of entries the same rank; with unaveraged ranks this would give
+        # a different result or a division by zero.
         self.assertIsInstance(cc.spearman([1, 1, 1, 2], [5, 5, 5, 9]), float)
 
     def test_con_menos_de_dos_puntos_no_lanza(self):
@@ -40,5 +40,5 @@ class SpearmanTest(unittest.TestCase):
         self.assertEqual(0.0, cc.spearman([1], [1]))
 
     def test_sin_varianza_no_divide_por_cero(self):
-        # Todas las entradas con el mismo rank: no hay orden que correlacionar.
+        # Every entry with the same rank: there is no order to correlate.
         self.assertEqual(0.0, cc.spearman([1, 1, 1], [1, 2, 3]))

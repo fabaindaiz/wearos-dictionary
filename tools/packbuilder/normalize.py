@@ -1,32 +1,31 @@
-"""Normalizacion de texto para construir los packs.
+"""Text normalization for building the packs.
 
-ESTE ARCHIVO TIENE UN ESPEJO:
+THIS FILE HAS A MIRROR:
     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/TextNormalizer.kt
     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/FuzzyProfile.kt
 
-Las claves `norm` y `fuzzy` se calculan aca al construir el pack y se vuelven a calcular en
-el reloj sobre lo que escribe el usuario. Si las dos implementaciones divergen aunque sea en
-un caracter, la consulta deja de matchear y el sintoma es "falta esa palabra": sin error, sin
-crash, sin log. Por eso cualquier cambio aca se replica en Kotlin en el mismo commit, se
-agregan casos a vectors/normalization-vectors.tsv (que testea ambos lados) y se sube
-NORM_VERSION.
+The `norm` and `fuzzy` keys are computed here while building the pack and computed again on the
+watch over what the user types. If the two implementations diverge by even one character, the
+query stops matching and the symptom is "that word is missing": no error, no crash, no log. So any
+change here is replicated in Kotlin in the same commit, cases are added to
+vectors/normalization-vectors.tsv (which tests both sides), and NORM_VERSION is bumped.
 
-Se usa solo str.replace() y nunca expresiones regulares: el reemplazo literal tiene semantica
-identica en Python y en Kotlin (global, izquierda a derecha, sin solapamiento), mientras que
-dos regex "equivalentes" son justo el tipo de cosa que diverge en silencio.
+Only str.replace() is used and never regular expressions: literal replacement has identical
+semantics in Python and in Kotlin (global, left to right, non-overlapping), whereas two
+"equivalent" regexes are exactly the kind of thing that diverges in silence.
 """
 
 import unicodedata
 
 import repertoire
 
-# Sube cuando cambia el resultado de norm() o fuzzy(). Se escribe en meta.norm_version.
+# Bumped when the result of norm() or fuzzy() changes. Written to meta.norm_version.
 #
-# 1 -> 2: la clasificacion de code points paso de unicodedata.category a repertoire.py.
+# 1 -> 2: code point classification moved from unicodedata.category to repertoire.py.
 NORM_VERSION = 2
 
-# Letras que NFD no descompone y que igual queremos plegar, para que "Straße" y "strasse"
-# caigan en la misma clave.
+# Letters NFD does not decompose and that we want folded anyway, so that "Straße" and "strasse"
+# land on the same key.
 EXPANSIONS = {
     "ß": "ss",
     "æ": "ae",
@@ -39,33 +38,33 @@ EXPANSIONS = {
     "ı": "i",
     "ŋ": "ng",
     "ſ": "s",
-    # Ligaduras latinas: NFD no las descompone (eso es NFKD, que traeria otros efectos
-    # menos predecibles como "½" -> "1/2").
+    # Latin ligatures: NFD does not decompose them (that is NFKD, which would bring other,
+    # less predictable effects such as "½" -> "1/2").
     "ﬁ": "fi",
     "ﬂ": "fl",
     "ﬀ": "ff",
 }
 
-# La clasificacion de code points NO sale de unicodedata: sale de repertoire.py, que trae sus
-# propios datos fijados en Unicode 13.
+# Code point classification does NOT come from unicodedata: it comes from repertoire.py, which
+# carries its own data pinned to Unicode 13.
 #
-# Motivo: cada plataforma trae su propia version de Unicode (este Python -> 13.0, Java 26 -> 16,
-# y Android una distinta por cada release del sistema). Medido sobre el repertorio completo,
-# 14.773 code points se clasificaban distinto entre Python y Java, y eso hacia que el mismo pack
-# se comportara distinto en dos relojes con distinta version de Wear OS.
+# The reason: every platform ships its own Unicode version (this Python -> 13.0, Java 26 -> 16,
+# and Android a different one per system release). Measured over the whole repertoire, 14,773 code
+# points classified differently between Python and Java, and that made the same pack behave
+# differently on two watches with different Wear OS versions.
 #
-# unicodedata se sigue usando SOLO para NFD, y eso es seguro: sobre los 133.730 code points del
-# repertorio fijado, la NFD de Java 26 y la de Python 3.9 dan cero diferencias.
+# unicodedata is still used ONLY for NFD, and that is safe: over the 133,730 code points of the
+# pinned repertoire, Java 26's NFD and Python 3.9's give zero differences.
 
-# Reglas de plegado fonetico por idioma, en orden. El orden es parte del contrato:
-# "ce" -> "se" tiene que correr antes que "c" -> "k", si no "cerrar" termina en "kerar" y
-# deja de colisionar con "serrar".
+# Per-language phonetic folding rules, in order. The order is part of the contract:
+# "ce" -> "se" has to run before "c" -> "k", or "cerrar" ends up as "kerar" and stops
+# colliding with "serrar".
 FUZZY_PROFILES = {
     "generic": (),
-    # Espanol: seseo (c/z/s), b/v, y/ll, h muda, u muda de que/qui/gue/gui.
-    # "ch" se protege con un marcador numerico antes de borrar la h y se restaura al final.
-    # Limitacion conocida: "mexico" -> "mesiko" y "mejico" -> "mejiko" no colisionan; tratar
-    # la x como j romperia "examen" -> "esamen", que es el caso mas frecuente.
+    # Spanish: seseo (c/z/s), b/v, y/ll, silent h, silent u of que/qui/gue/gui.
+    # "ch" is protected with a numeric marker before the h is deleted and restored at the end.
+    # Known limitation: "mexico" -> "mesiko" and "mejico" -> "mejiko" do not collide; treating
+    # the x as a j would break "examen" -> "esamen", which is the more frequent case.
     "es": (
         ("ch", "8"),
         ("qu", "k"),
@@ -99,7 +98,7 @@ FUZZY_PROFILES = {
         ("x", "ks"),
         ("y", "i"),
     ),
-    # Aleman: sch/s, v/f, w/v, z/ts, digrafos con h. La ss de la eszett ya la produjo norm().
+    # German: sch/s, v/f, w/v, z/ts, h digraphs. The eszett's ss was already produced by norm().
     "de": (
         ("sch", "s"),
         ("ck", "k"),
@@ -115,10 +114,10 @@ FUZZY_PROFILES = {
 
 
 def norm(text):
-    """Clave de indexado: minusculas, sin diacriticos, solo letras/digitos, espacios colapsados.
+    """The indexing key: lowercase, no diacritics, letters/digits only, spaces collapsed.
 
-    El resultado se compara con collation BINARY, asi que no hace falta ICU en el reloj y el
-    comportamiento es identico en todos los dispositivos.
+    The result is compared under BINARY collation, so no ICU is needed on the watch and the
+    behaviour is identical on every device.
     """
     lowered = text.lower()
     expanded = "".join(EXPANSIONS.get(ch, ch) for ch in lowered)
@@ -128,7 +127,7 @@ def norm(text):
     for ch in decomposed:
         klass = repertoire.classify(ord(ch))
         if klass == repertoire.CLASS_COMBINING_MARK:
-            # Las marcas combinantes son los diacriticos que dejo NFD.
+            # Combining marks are the diacritics NFD left behind.
             continue
         if klass in (repertoire.CLASS_LETTER, repertoire.CLASS_DIGIT):
             kept.append(ch)
@@ -140,11 +139,11 @@ def norm(text):
 
 
 def fuzzy(text, profile):
-    """Clave tolerante a errores: norm() mas plegado fonetico y colapso de letras repetidas.
+    """The typo-tolerant key: norm() plus phonetic folding and a collapse of repeated letters.
 
-    Es deliberadamente agresiva porque solo se usa como ultimo recurso, cuando la busqueda por
-    prefijo no dio resultados, y despues se reordena por distancia de edicion. Falsos positivos
-    aca son baratos; falsos negativos no.
+    It is deliberately aggressive because it is only used as a last resort, when the prefix search
+    returned nothing, and afterwards it is reordered by edit distance. False positives are cheap
+    here; false negatives are not.
     """
     if profile not in FUZZY_PROFILES:
         raise ValueError("perfil fuzzy desconocido: %r" % (profile,))
@@ -155,10 +154,10 @@ def fuzzy(text, profile):
 
 
 def _collapse_doubled_letters(text):
-    """Colapsa letras repetidas adyacentes: "correr" -> "corer".
+    """Collapses adjacent repeated letters: "correr" -> "corer".
 
-    Solo letras: colapsar digitos convertiria "1000" en "10", que es el motivo de que el
-    repertorio separe las dos clases.
+    Letters only: collapsing digits would turn "1000" into "10", which is why the repertoire
+    separates the two classes.
     """
     out = []
     previous = None

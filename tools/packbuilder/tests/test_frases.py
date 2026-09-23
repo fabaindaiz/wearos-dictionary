@@ -1,13 +1,13 @@
-"""Pegar una frase de corpus a una entrada, sin colgarsela a la palabra equivocada.
+"""Gluing a corpus sentence to an entry, without hanging it off the wrong word.
 
-Este archivo existe por **un** modo de falla, y es el peor que tiene este repo: contenido
-incorrecto que parece correcto. "vino" es un lema (la bebida) y tambien una forma de "venir".
-Una frase que dice "Ella vino ayer" colgada de la bebida no lanza, no loguea, no lo agarra
-`verify_pack.py` y sale del pack como una definicion con su ejemplo.
+This file exists because of **one** failure mode, and it is the worst this repo has: incorrect
+content that looks correct. "vino" is a lemma (the drink) and also a form of "venir". A sentence
+saying "Ella vino ayer" hung off the drink throws nothing, logs nothing, is not caught by
+`verify_pack.py` and comes out of the pack as a definition with its example.
 
-Por eso la regla no es "buscar la palabra": es **que esa palabra lleve a una sola entrada en
-todo el pack**, lema o forma flexionada. Cuesta la mitad del rendimiento (14.023 entradas
-alcanzables -> 7.019) y se paga entero.
+So the rule is not "find the word": it is **that that word lead to a single entry in the whole
+pack**, lemma or inflected form. It costs half the yield (14,023 reachable entries -> 7,019) and
+it is paid in full.
 """
 
 import os
@@ -75,10 +75,11 @@ class FrasesTest(unittest.TestCase):
         self.assertEqual(["El hiragana es un silabario."], got["hiragana"][0][0]["examples"])
 
     def test_EL_HOMOGRAFO_NO_RECIBE_NADA(self):
-        """EL TEST QUE PAGA ESTE ARCHIVO.
+        """THE TEST THAT PAYS FOR THIS FILE.
 
-        "vino" es lema (la bebida) y forma de "venir". La frase "Ella vino ayer." ilustra el
-        verbo; colgada de la bebida seria un ejemplo que contradice su propia definicion.
+        "vino" is a lemma (the drink) and a form of "venir". The sentence "Ella vino ayer."
+        illustrates the verb; hung off the drink it would be an example that contradicts its own
+        definition.
         """
         got = self.construir(
             [rec("vino", "Bebida alcohólica de uva."),
@@ -90,7 +91,7 @@ class FrasesTest(unittest.TestCase):
                          "el verbo tampoco: la clave es ambigua y no se sabe cual es")
 
     def test_una_forma_flexionada_INEQUIVOCA_si_sirve(self):
-        # Es la mitad del rendimiento: 790.611 de las 867.826 claves del pack son formas.
+        # It is half the yield: 790,611 of the pack's 867,826 keys are forms.
         got = self.construir([rec("lixiviar", "Extraer partes solubles.", pos="verb",
                                   forms=("lixiviaba",))],
                              {"lixiviaba": "El agua lixiviaba el mineral."})
@@ -98,24 +99,24 @@ class FrasesTest(unittest.TestCase):
                          got["lixiviar"][0][0]["examples"])
 
     def test_una_entrada_de_VARIAS_acepciones_no_recibe_nada(self):
-        # Misma regla que D-132 y D-135: no se sabe cual de las acepciones ilustra.
+        # Same rule as D-132 and D-135: it is unknown which of the senses it illustrates.
         got = self.construir([rec("banco", "Asiento largo.",
                                   mas_acepciones=["Entidad financiera."])],
                              {"banco": "Me senté en el banco."})
         self.assertEqual([[], []], [s["examples"] for s in got["banco"][0]])
 
     def test_una_entrada_que_YA_tiene_ejemplo_no_se_toca(self):
-        # El ejemplo del Wikcionario es de la acepcion; el de corpus solo la contiene. Ante la
-        # duda gana el que la fuente atribuyo.
+        # Wiktionary's example belongs to the sense; the corpus one merely contains it. In doubt,
+        # the one the source attributed wins.
         got = self.construir([rec("correr", "Moverse rápido.", pos="verb",
                                   examples=["Corrió hasta la esquina."])],
                              {"correr": "Me gusta correr por la mañana."})
         self.assertEqual(["Corrió hasta la esquina."], got["correr"][0][0]["examples"])
 
     def test_la_frase_tambien_se_puede_buscar_por_texto_libre(self):
-        # Los ejemplos ya entraban a `fts_def` (D-118 los incluye); una frase pegada despues
-        # tiene que entrar igual, o la busqueda por definicion veria un pack distinto al que se
-        # muestra. Es la clase de desalineacion que D-011 existe para impedir.
+        # The examples already went into `fts_def` (D-118 includes them); a sentence glued later
+        # has to go in just the same, or searching by definition would see a different pack from
+        # the one displayed. It is the class of misalignment D-011 exists to prevent.
         self.construir([rec("hiragana", "Silabario japonés.")],
                        {"hiragana": "El hiragana es un silabario."})
         filas = self.db.execute(

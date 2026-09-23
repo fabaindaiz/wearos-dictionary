@@ -1,8 +1,8 @@
-"""El segundo pack base de español: lexemas de Wikidata (D-139).
+"""Spanish's second base pack: Wikidata lexemes (D-139).
 
-No mejora el pack del Wikcionario: es **otro diccionario** que se instala al lado y se consulta
-junto con el (D-136). Lo que se comprueba aca es la poda --que sin glosa en español no hay
-entrada-- y que la identidad venga de la fuente y no del orden del archivo.
+It does not improve the Wiktionary pack: it is **another dictionary** installed alongside and
+queried together with it (D-136). What gets checked here is the pruning --that with no Spanish
+gloss there is no entry-- and that the identity come from the source and not from the file's order.
 """
 
 import json
@@ -66,9 +66,9 @@ class WikidataTest(unittest.TestCase):
         self.assertEqual("elemento químico de número atómico 4", got[0].senses[0]["gloss"])
 
     def test_SIN_glosa_en_español_no_es_una_entrada(self):
-        """El 76,4 % del dump. El lexema existe --tiene formas y categoria-- pero no dice nada.
+        """76.4 % of the dump. The lexeme exists --it has forms and a category-- but says nothing.
 
-        Es la poda que decide el tamaño del pack: 66.935 lexemas en español, 15.814 utiles.
+        It is the pruning that decides the pack's size: 66,935 Spanish lexemes, 15,814 usable.
         """
         got = self.records(_lex("L2", "algo", glosas=(None,)))
         self.assertEqual([], got)
@@ -78,35 +78,35 @@ class WikidataTest(unittest.TestCase):
         self.assertEqual([], got)
 
     def test_las_locuciones_se_mapean_a_su_nucleo(self):
-        # En un reloj la etiqueta dice que clase de palabra es; "locucion nominal" no cabe.
+        # On a watch the label says what class of word it is; "locución nominal" does not fit.
         got = self.records(_lex("L4", "año nuevo", categoria="Q29888377"),
                            _lex("L5", "hacer coro", categoria="Q10976085"),
                            _lex("L6", "entre tanto", categoria="Q5978303"))
         self.assertEqual(["noun", "verb", "adv"], [r.part_of_speech for r in got])
 
     def test_un_nombre_propio_entra_por_defecto_y_se_poda_si_se_pide(self):
-        # Q147276 se mapea a "name" justamente para que las politicas de D-116/D-134 lo agarren
-        # sin que este modulo tenga que saber nada de ellas. Por defecto **entra** (D-141).
+        # Q147276 maps to "name" precisely so D-116/D-134's policies catch it without this module
+        # having to know anything about them. By default it **gets in** (D-141).
         propio = _lex("L7", "Portugal", categoria="Q147276")
         self.assertEqual(["Portugal"], [r.headword for r in self.records(propio)])
         self.assertEqual([], [r.headword for r in self.records(propio, politica="lexical-only")])
 
     def test_los_DOS_homografos_llevan_clave_no_solo_el_segundo(self):
-        """Si solo la llevara el segundo, el uid del primero dependeria del orden del dump.
+        """If only the second carried it, the first's uid would depend on the dump's order.
 
-        El dump no viene agrupado por lema, asi que saber que hay homografo obliga a contar en
-        una pasada previa. `verify_pack.py` agarro exactamente esta falla.
+        The dump does not come grouped by lemma, so knowing there is a homograph forces counting in
+        a prior pass. `verify_pack.py` caught exactly this failure.
         """
         got = self.records(_lex("L10", "bajo"), _lex("L11", "bajo"))
         self.assertEqual(["L10", "L11"], [r.sense_key for r in got])
 
     def test_una_entrada_SIN_homografo_no_lleva_clave(self):
-        """⚠️ La convencion tiene que ser la MISMA en todos los packs o `uid` deja de unir.
+        """⚠️ The convention has to be the SAME in every pack or `uid` stops joining.
 
-        El id del lexema es una identidad estable declarada por la fuente --mas de lo que kaikki
-        tiene-- y la tentacion es usarlo siempre. No se puede: `uid` existe para unir la misma
-        entrada entre packs (D-055), y si este pack mete `L12345` en el hash y el del Wikcionario
-        no mete nada, la entrada de "vino" de los dos deja de unir.
+        The lexeme's id is a stable identity declared by the source --more than kaikki has-- and
+        the temptation is to use it always. It cannot be done: `uid` exists to join the same entry
+        across packs (D-055), and if this pack puts `L12345` into the hash and Wiktionary's puts
+        nothing, the two packs' "vino" entries stop joining.
         """
         got = self.records(_lex("L20", "berilio"))
         self.assertIsNone(got[0].sense_key)
@@ -116,8 +116,8 @@ class WikidataTest(unittest.TestCase):
         self.assertEqual(("corriendo", "corrió"), got[0].forms)
 
     def test_una_categoria_desconocida_no_tira_la_entrada(self):
-        # Perder una definicion por no reconocer un Q-id seria tirar contenido bueno. Se pierde
-        # la etiqueta, que es opcional en el payload, no la entrada.
+        # Losing a definition for not recognizing a Q-id would be throwing away good content. What
+        # is lost is the label, which is optional in the payload, not the entry.
         got = self.records(_lex("L13", "cosa", categoria="Q99999999"))
         self.assertEqual(1, len(got))
         self.assertIsNone(got[0].part_of_speech)

@@ -13,7 +13,7 @@ from sources import bilingual  # noqa: E402
 
 
 def _bilingue(word, senses):
-    """Un registro bilingue real, pasando por `bilingual.records` y su JSONL."""
+    """A real bilingual record, going through `bilingual.records` and its JSONL."""
     handle = tempfile.NamedTemporaryFile(
         mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
     with handle:
@@ -106,16 +106,17 @@ class TranslationKeysTest(unittest.TestCase):
 
 
 class CanalDeLecturaTest(unittest.TestCase):
-    """El pack bilingue tambien LLENA el payload, no solo el indice de busqueda.
+    """The bilingual pack also FILLS the payload, not only the search index.
 
-    ⚠️ **Hasta hoy calculaba las claves limpias y las tiraba**: `record.translations` alimenta la
-    tabla `trans` --que `PackBuilder` normaliza y D-014 tokeniza-- asi que lo que quedaba en el
-    pack servia para buscar y no para leer. Medido: **206.727 filas de `trans` y CERO en `T`/`W`**,
-    o sea el pack con mas traducciones del catalogo era el unico que no podia mostrarlas.
+    ⚠️ **Until today it computed the clean keys and threw them away**: `record.translations` feeds
+    the `trans` table --which `PackBuilder` normalizes and D-014 tokenizes-- so what stayed in the
+    pack served for searching and not for reading. Measured: **206,727 `trans` rows and ZERO in
+    `T`/`W`**, meaning the catalog's pack with the most translations was the only one that could
+    not show them.
 
-    ⚠️ **La atribucion aca es ESTRUCTURAL, como los sinonimos anidados de D-124**: cada termino
-    sale de la glosa de **esa** acepcion, asi que no hay nada que adivinar y nada cae en el canal
-    de nivel de entrada.
+    ⚠️ **The attribution here is STRUCTURAL, like D-124's nested synonyms**: each term comes out of
+    **that** sense's gloss, so there is nothing to guess and nothing falls into the entry-level
+    channel.
     """
 
     def test_cada_acepcion_se_queda_con_los_terminos_de_SU_glosa(self):
@@ -123,9 +124,9 @@ class CanalDeLecturaTest(unittest.TestCase):
             {"glosses": ["to run, to jog"], "sense_index": "1"},
             {"glosses": ["to flow"], "sense_index": "2"},
         ])
-        # ⚠️ La ficha muestra la forma que la fuente escribio --`to run`-- y NO la derivada.
-        # Las dos juntas ("to run, run, to jog, jog") son ruido en 234 dp; el canal de busqueda
-        # si lleva las dos, porque nadie teclea la preposicion.
+        # ⚠️ The card shows the form the source wrote --`to run`-- and NOT the derived one. Both
+        # together ("to run, run, to jog, jog") are noise at 234 dp; the search channel does carry
+        # both, because nobody types the preposition.
         self.assertEqual(["to run", "to jog"], record.senses[0]["translations"])
         self.assertEqual(["to flow"], record.senses[1]["translations"])
 
@@ -138,19 +139,19 @@ class CanalDeLecturaTest(unittest.TestCase):
             self.assertIn(clave, record.translations)
 
     def test_una_glosa_que_DESCRIBE_no_deja_termino_en_la_ficha(self):
-        """La misma regla conservadora del modulo: una descripcion no es una traduccion."""
+        """The module's same conservative rule: a description is not a translation."""
         record = _bilingue("abada", [
             {"glosses": ["a large mammal of the family Rhinocerotidae"], "sense_index": "1"},
         ])
         self.assertEqual([], record.senses[0]["translations"])
 
     def test_el_prior_de_frecuencia_TAMBIEN_llega_al_bilingue(self):
-        """⚠️ Es el pack donde el defecto de orden era PEOR y casi se queda sin el arreglo.
+        """⚠️ It is the pack where the ordering defect was WORST and it nearly went without the fix.
 
-        `orderFor` aplica la banda de cobertura de D-142 solo a `MatchKind.PREFIX`; el peldaño
-        `TRANSLATION` ordena por `rank` puro. Medido sobre el pack real: `house` devolvia
-        `solar, alojar, albergar` y nunca `casa`. Si `bilingual.records` no encadenara las
-        frecuencias, ese peldaño seguiria roto con todo lo demas arreglado.
+        `orderFor` applies D-142's coverage band only to `MatchKind.PREFIX`; the `TRANSLATION` rung
+        orders by raw `rank`. Measured over the real pack: `house` returned `solar, alojar,
+        albergar` and never `casa`. If `bilingual.records` did not chain the frequencies, that rung
+        would still be broken with everything else fixed.
         """
         import tempfile, json as _json
         handle = tempfile.NamedTemporaryFile(
@@ -169,7 +170,7 @@ class CanalDeLecturaTest(unittest.TestCase):
         self.assertLess(got["casa"], got["solar"], "la palabra comun tiene que ganar")
 
     def test_nada_cae_en_el_canal_de_nivel_de_entrada(self):
-        """Todo termino viene de una acepcion concreta, asi que `W` queda vacio por construccion."""
+        """Every term comes from a concrete sense, so `W` stays empty by construction."""
         record = _bilingue("casa", [{"glosses": ["house"], "sense_index": "1"}])
         self.assertEqual((), record.word_translations)
 
@@ -188,7 +189,7 @@ def _todos_con_flexiones(entradas, flexiones):
 
 
 def _todos(entradas):
-    """Todos los registros de un JSONL bilingue, en orden."""
+    """Every record of a bilingual JSONL, in order."""
     handle = tempfile.NamedTemporaryFile(
         mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
     with handle:
@@ -201,18 +202,17 @@ def _todos(entradas):
 
 
 class LadoInversoTest(unittest.TestCase):
-    """Las entradas del OTRO idioma, que hacen el pack bidireccional por construccion.
+    """The OTHER language's entries, which make the pack bidirectional by construction.
 
-    ⚠️ **Hasta aca el pack era bidireccional para BUSCAR y no para LEER.** Las palabras inglesas
-    vivian solo en `trans` --un indice de `norm` a entrada española--, asi que `dog` encontraba
-    `perro` pero `dog` no era un lema: no habia ficha que abrir ni forma de saber que el pack lo
-    conocia. Pedido: *«redefinir las traducciones como bidireccionales por construccion y que
-    declares a la par ambos idiomas»*.
+    ⚠️ **Until here the pack was bidirectional for SEARCHING and not for READING.** The English
+    words lived only in `trans` --an index from `norm` to a Spanish entry-- so `dog` found `perro`
+    but `dog` was not a lemma: there was no card to open and no way to know the pack knew it. Asked
+    for: *"redefine the translations as bidirectional by construction and declare both languages as
+    peers"*.
 
-    ⚠️ **Se DERIVAN del propio volcado que ya se leyo, no de una fuente nueva**, que es el mismo
-    razonamiento de D-175 para el nucleo: derivar hace la afirmacion cierta por construccion. Si
-    `dog` lleva a `perro`, es porque la glosa de `perro` decia `dog` -- no porque dos fuentes
-    coincidieran.
+    ⚠️ **They are DERIVED from the same dump already read, not from a new source**, which is
+    D-175's same reasoning for the core: deriving makes the claim true by construction. If `dog`
+    leads to `perro`, it is because `perro`'s gloss said `dog` -- not because two sources agreed.
     """
 
     def test_una_palabra_inglesa_se_vuelve_ENTRADA_con_su_idioma(self):
@@ -237,8 +237,8 @@ class LadoInversoTest(unittest.TestCase):
         self.assertEqual({"perro", "can"}, set(dog.word_translations))
 
     def test_el_lado_inverso_NO_llena_trans(self):
-        # ⚠️ Seria una segunda copia del mismo indice: buscar "dog" ya funciona por `entry.norm`.
-        # Medido sobre el pack real, `trans` pesaba 474.849 filas y 13,3 MiB.
+        # ⚠️ It would be a second copy of the same index: searching "dog" already works through
+        # `entry.norm`. Measured over the real pack, `trans` weighed 474,849 rows and 13.3 MiB.
         registros = _todos([{
             "word": "perro", "pos": "noun", "lang_code": "es", "lang": "Spanish",
             "pos_title": "Noun", "senses": [{"glosses": ["dog"]}],
@@ -248,18 +248,18 @@ class LadoInversoTest(unittest.TestCase):
                              "en un pack bidireccional `trans` sobra: %r" % r.headword)
 
     def test_la_entrada_inglesa_recibe_SUS_FLEXIONES(self):
-        # ⚠️ **La regresion que esto cierra la encontro una medicion, no un test.** Al volver
-        # entradas las palabras inglesas y vaciar `trans`, la cobertura de la direccion inversa
-        # cayo de **98,4 % a 89,8 %** en las 1.000 palabras inglesas mas frecuentes.
+        # ⚠️ **A measurement found the regression this closes, not a test.** On turning the English
+        # words into entries and emptying `trans`, the reverse direction's coverage fell from
+        # **98.4 % to 89.8 %** over the 1,000 most frequent English words.
         #
-        # La causa: `trans` estaba TOKENIZADA (D-014), y `--flexiones` metia ahi las flexiones
-        # inglesas -- `got`, `been`, `were`, `could`-- que asi llegaban al lema español. Con
-        # `trans` vacia esa ruta desaparecio, y las respuestas que se perdian eran **correctas**:
+        # The cause: `trans` was TOKENIZED (D-014), and `--flexiones` put the English inflections in
+        # there --`got`, `been`, `were`, `could`-- which thereby reached the Spanish lemma. With
+        # `trans` empty that route disappeared, and the answers being lost were **correct**:
         # `been -> ser, estar, tener`, `could -> poder`.
         #
-        # El lugar correcto en el modelo nuevo es `form` de la entrada INGLESA: `got` es una
-        # flexion de `get`, y `get` ahora es un lema. Queda simetrico con el lado español, que
-        # es justo lo que el pack bidireccional afirma.
+        # The right place in the new model is the ENGLISH entry's `form`: `got` is an inflection of
+        # `get`, and `get` is now a lemma. It comes out symmetric with the Spanish side, which is
+        # exactly what the bidirectional pack asserts.
         registros = _todos_con_flexiones(
             [{"word": "conseguir", "pos": "verb", "lang_code": "es", "lang": "Spanish",
               "pos_title": "Verb", "senses": [{"glosses": ["to get"]}]}],

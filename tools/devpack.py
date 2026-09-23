@@ -1,50 +1,50 @@
-"""Sideload de packs de diccionario por adb, para desarrollo.
+"""Sideloading dictionary packs over adb, for development.
 
-El instalador de packs esta bloqueado en una decision de producto --donde se hostea el catalogo
-(docs/roadmap.md)-- asi que el unico camino real para meter un diccionario en un reloj sigue
-siendo adb, y va a seguir siendolo un rato. Esto es esa capa de desarrollo, y NO es el
-instalador: no descarga, no verifica catalogos, no sabe de WorkManager ni de D-029.
+The pack installer is blocked on a product decision --where the catalog is hosted
+(docs/roadmap.md)-- so the only real way to get a dictionary onto a watch is still adb, and will
+be for a while. This is that development layer, and it is NOT the installer: it downloads nothing,
+verifies no catalogs, and knows nothing of WorkManager or D-029.
 
     python3 tools/devpack.py install <pack.db> [-s SERIAL] [--no-restart] [--verify] [--dry-run]
     python3 tools/devpack.py list   [-s SERIAL]
     python3 tools/devpack.py rm     <pack-id> [-s SERIAL]
     python3 tools/devpack.py devices
 
-POR QUE NO ES UN `adb push` Y YA
+WHY IT IS NOT JUST AN `adb push`
 
-Tres razones, y ninguna es comodidad:
+Three reasons, and none of them is convenience:
 
-1. **Atomicidad.** Se escribe a `<pack>.db.part` y recien al final se renombra. `packsInstalados`
-   filtra por extension `.db`, asi que un `.part` es invisible para la app -- la misma convencion
-   que ya usa `PackStore.instalarAtomico`. Un push cortado a la mitad directo sobre el `.db`
-   deja un pack truncado, **que se abre sin error y devuelve menos palabras de las que tiene**.
-   Ese es el sintoma que este repo no puede observar.
+1. **Atomicity.** It writes to `<pack>.db.part` and only renames at the end. `packsInstalados`
+   filters by the `.db` extension, so a `.part` is invisible to the app -- the same convention
+   `PackStore.instalarAtomico` already uses. A push cut off half way straight onto the `.db`
+   leaves a truncated pack, **which opens with no error and returns fewer words than it holds**.
+   That is the symptom this repo cannot observe.
 
-2. **Pico de disco.** La ruta `/data/local/tmp` + `cp` duplica el pack en el reloj: 590,2 MiB
-   transitorios para el ingles (295,1 MiB x 2). Por defecto se manda el archivo por stdin
-   directo al destino, con pico 1x.
+2. **Disk peak.** The `/data/local/tmp` + `cp` route duplicates the pack on the watch: 590.2 MiB
+   transient for English (295.1 MiB x 2). By default the file is sent over stdin straight to the
+   destination, with a 1x peak.
 
-   **Medido el 2026-09-17** (emulador wear_api33, adb 1.0.41 / 37.0.1): `adb shell` es
-   binary-clean por stdin -- 1 MiB aleatorio da el mismo sha256 de los dos lados. Y las dos
-   rutas tardan lo mismo sobre el pack de español de 68,9 MiB: **0,73-0,88 s por el pipe contra
-   0,80-0,92 s por tmp**. O sea que **el tiempo no decide nada y el pico de disco decide todo**.
-   El fallback (`--tmp`) queda por si un device se porta distinto; que aca no haga falta no dice
-   nada de un reloj fisico (D-043).
+   **Measured on 2026-09-17** (wear_api33 emulator, adb 1.0.41 / 37.0.1): `adb shell` is
+   binary-clean over stdin -- 1 MiB of random data gives the same sha256 on both sides. And the
+   two routes take the same time over the 68.9 MiB Spanish pack: **0.73-0.88 s through the pipe
+   against 0.80-0.92 s through tmp**. Which means **time decides nothing and the disk peak decides
+   everything**. The fallback (`--tmp`) stays in case a device behaves differently; that it is not
+   needed here says nothing about a physical watch (D-043).
 
-3. **Se comprueba que llego entero.** sha256 de los dos lados antes de renombrar. Si el device
-   no trae `sha256sum`, se compara el tamaño y **se dice**, porque no es lo mismo.
+3. **It checks that it arrived whole.** sha256 on both sides before renaming. If the device does
+   not ship `sha256sum`, the size is compared and **it says so**, because they are not the same.
 
-`--verify` corre `verify_pack.py` antes de mandar nada, y **no es el default**: son 3,42 s sobre
-el pack de español (146.194 entradas, medido el 2026-09-17), y esa comprobacion pertenece al
-build del pack --el `pack-workflow` skill ya la manda-- no a cada instalacion. Lo que este
-comando promete es que los bytes llegan intactos, no que el pack este bien construido.
+`--verify` runs `verify_pack.py` before sending anything, and **it is not the default**: it is
+3.42 s over the Spanish pack (146,194 entries, measured on 2026-09-17), and that check belongs to
+the pack's build --the `pack-workflow` skill already requires it-- not to every installation. What
+this command promises is that the bytes arrive intact, not that the pack is well built.
 
-La app no tiene rescan: el escaneo es one-shot en el init del ViewModel. Por eso se hace
-force-stop antes y se relanza despues. Eso ademas es el orden correcto: nunca se pisa un `.db`
-que la app tiene abierto.
+The app has no rescan: the scan is one-shot in the ViewModel's init. Hence the force-stop before
+and the relaunch after. That is also the right order: a `.db` the app has open is never
+overwritten.
 
-Se usa argparse, a diferencia del resto de los ejecutables de tools/, porque son subcomandos con
-flags y a mano queda ilegible. Es stdlib: D-045 se sostiene.
+argparse is used, unlike the rest of tools/'s executables, because these are subcommands with
+flags and doing it by hand comes out unreadable. It is stdlib: D-045 holds.
 """
 
 import argparse
@@ -60,7 +60,7 @@ from collections import namedtuple
 PAQUETE = "cl.fadiaz.dictionary"
 ACTIVITY = PAQUETE + "/.presentation.MainActivity"
 
-# Relativo al directorio de datos de la app: `run-as` hace chdir ahi. Tiene que coincidir con
+# Relative to the app's data directory: `run-as` chdirs there. It has to match
 # PackStore.packsDir (filesDir/packs).
 DIR_PACKS = "files/packs"
 TMP_REMOTO = "/data/local/tmp"
@@ -69,12 +69,12 @@ BLOQUE = 1024 * 1024
 UMBRAL_PROGRESO = 4 * 1024 * 1024
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Un pack_id llega a ser un nombre de archivo. Sin esto, uno con "/" o ".." escribe fuera de
+# A pack_id ends up being a file name. Without this, one with "/" or ".." writes outside
 # files/packs.
 PACK_ID_VALIDO = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
-#: Un paso del plan. `argv` None significa que el paso es local (no habla con el device), y
-#: `stdin` es la ruta del archivo que se le manda por entrada estandar, si corresponde.
+#: One step of the plan. `argv` None means the step is local (it does not talk to the device), and
+#: `stdin` is the path of the file sent to it over standard input, when that applies.
 Paso = namedtuple("Paso", "nombre argv stdin")
 
 
@@ -94,11 +94,11 @@ class FalloRemoto(Exception):
 
 
 def destino(meta):
-    """Como se va a llamar el archivo en el reloj: sale de `meta.pack_id`, no del nombre local.
+    """What the file will be called on the watch: it comes from `meta.pack_id`, not the local name.
 
-    Que el nombre del archivo y el pack_id coincidan era una convencion no verificada. Derivarlo
-    la convierte en una propiedad: dos builds del mismo pack pisan el mismo archivo en vez de
-    dejar dos copias que la app abre como dos diccionarios.
+    That the file name and the pack_id matched was an unverified convention. Deriving it turns it
+    into a property: two builds of the same pack overwrite the same file instead of leaving two
+    copies the app opens as two dictionaries.
     """
     pack_id = (meta.get("pack_id") or "").strip()
     if not pack_id:
@@ -109,11 +109,11 @@ def destino(meta):
 
 
 def plan_install(adb, pack_local, meta, pipe=True, relanzar=True):
-    """La secuencia completa, como valor inspeccionable.
+    """The complete sequence, as an inspectable value.
 
-    Es puro a proposito: armar el plan entra al gate, ejecutarlo necesita un dispositivo y no.
-    El orden es lo que hay que conservar -- el `mv` al `.db` definitivo va **despues** de
-    comparar los hashes, y nada antes toca ese nombre.
+    Pure on purpose: assembling the plan enters the gate, running it needs a device and does not.
+    The order is what has to be preserved -- the `mv` to the final `.db` goes **after** comparing
+    the hashes, and nothing before that touches that name.
     """
     nombre = destino(meta)
     final = "%s/%s" % (DIR_PACKS, nombre)
@@ -121,9 +121,9 @@ def plan_install(adb, pack_local, meta, pipe=True, relanzar=True):
     tmp = "%s/%s.part" % (TMP_REMOTO, nombre)
 
     def remoto(nombre_paso, comando, stdin=None):
-        # Un solo argumento despues de "shell": adb se lo pasa verbatim a la shell del device.
-        # Partirlo deja que la shell LOCAL se coma el redirect, y `cat > files/packs/x` termina
-        # escribiendo en el cwd del usuario shell, que no puede escribir en el dir de la app.
+        # A single argument after "shell": adb passes it verbatim to the device's shell. Splitting
+        # it lets the LOCAL shell eat the redirect, and `cat > files/packs/x` ends up writing into
+        # the shell user's cwd, which cannot write into the app's directory.
         return Paso(nombre_paso, list(adb) + ["shell", comando], stdin)
 
     def como_app(nombre_paso, comando, stdin=None):
@@ -132,7 +132,7 @@ def plan_install(adb, pack_local, meta, pipe=True, relanzar=True):
     pasos = [
         remoto("force-stop", "am force-stop %s" % PAQUETE),
         como_app("mkdir", "mkdir -p %s" % DIR_PACKS),
-        # Un .part huerfano de un intento anterior arranca con basura y encima ocupa disco.
+        # A `.part` orphaned by an earlier attempt starts with garbage and takes disk on top.
         como_app("limpiar", "rm -f %s" % parcial),
     ]
 
@@ -141,14 +141,14 @@ def plan_install(adb, pack_local, meta, pipe=True, relanzar=True):
     else:
         pasos.append(Paso("push", list(adb) + ["push", pack_local, tmp], None))
         pasos.append(como_app("escribir", "cp %s %s" % (tmp, parcial)))
-        # Sin esto el pico de disco de 2x se vuelve permanente.
+        # Without this the 2x disk peak becomes permanent.
         pasos.append(remoto("rm-tmp", "rm -f %s" % tmp))
 
     pasos.append(como_app("sha256-device", "sha256sum %s" % parcial))
     pasos.append(Paso("comparar", None, None))
-    # Un pack extraido del APK queda 0600; `cat >` lo crea con el umask de la shell (0666).
-    # El directorio es privado igual, pero los dos caminos tienen que dejar el mismo archivo:
-    # que la app no los distinga es justamente el diseño.
+    # A pack extracted from the APK ends up 0600; `cat >` creates it with the shell's umask
+    # (0666). The directory is private either way, but both routes have to leave the same file:
+    # that the app cannot tell them apart is precisely the design.
     pasos.append(como_app("chmod", "chmod 600 %s" % parcial))
     pasos.append(como_app("mv", "mv %s %s" % (parcial, final)))
     if relanzar:
@@ -157,10 +157,10 @@ def plan_install(adb, pack_local, meta, pipe=True, relanzar=True):
 
 
 def elegir_dispositivo(salida, pedido=None):
-    """Cual de los dispositivos de `adb devices -l`.
+    """Which of `adb devices -l`'s devices.
 
-    Este repo pide **un emulador por nivel de API** (33 y 37) porque las versiones de ICU
-    difieren. Con dos levantados, `adb` a secas falla con un mensaje que no dice cual elegir.
+    This repo asks for **one emulator per API level** (33 and 37) because the ICU versions differ.
+    With two running, a bare `adb` fails with a message that does not say which to pick.
     """
     listos, otros = [], []
     for linea in salida.splitlines()[1:]:
@@ -195,11 +195,11 @@ def elegir_dispositivo(salida, pedido=None):
 
 
 def decidir(meta_local, remotos):
-    """Que hacer, dado lo que ya hay en el reloj.
+    """What to do, given what is already on the watch.
 
-    `remotos` es {nombre_archivo: meta_o_None}. El None es real y no un caso defensivo: sin
-    `sqlite3` en el device no hay forma de saber que pack_id tiene cada archivo, y eso se
-    informa en vez de adivinarse.
+    `remotos` is {file_name: meta_or_None}. The None is real and not a defensive case: with no
+    `sqlite3` on the device there is no way to know which pack_id each file has, and that gets
+    reported rather than guessed.
     """
     nombre = destino(meta_local)
     pack_id = meta_local.get("pack_id")
@@ -232,10 +232,10 @@ def decidir(meta_local, remotos):
 
 
 def comparar_hashes(esperado, salida_sha256):
-    """Que dice la salida de `sha256sum` del device sobre lo que se mando.
+    """What the device's `sha256sum` output says about what was sent.
 
-    Es la unica comprobacion de que llego entero, asi que vive separada y con test propio:
-    "ok" renombra el .part al .db definitivo, cualquier otra cosa no.
+    It is the only check that it arrived whole, so it lives apart and with a test of its own:
+    "ok" renames the .part to the final .db, anything else does not.
     """
     campos = (salida_sha256 or "").split()
     if campos and re.match(r"^[0-9a-f]{64}$", campos[0]):
@@ -248,11 +248,11 @@ def _version(meta):
     return int(valor) if valor.isdigit() else None
 
 
-# --------------------------------------------------------------------------- lo que toca el mundo
+# ------------------------------------------------------------------ what touches the outside world
 
 
 def buscar_adb():
-    """Mismo orden que dict-data/build.gradle.kts: env, local.properties, PATH."""
+    """The same order as dict-data/build.gradle.kts: env, local.properties, PATH."""
     for var in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
         sdk = os.environ.get(var)
         if sdk:
@@ -279,7 +279,7 @@ def buscar_adb():
 
 
 def leer_meta(ruta):
-    """La tabla meta del pack local. Read-only, igual que la abre la app y verify_pack.py."""
+    """The local pack's meta table. Read-only, the way the app and verify_pack.py open it."""
     if not os.path.isfile(ruta):
         raise PackInvalido("no existe: %s" % ruta)
     try:
@@ -303,10 +303,10 @@ def sha256_local(ruta):
 
 
 def correr(paso, silencioso=False, con_errores=False):
-    """Ejecuta un paso remoto y devuelve su stdout.
+    """Runs a remote step and returns its stdout.
 
-    Con `con_errores=True` devuelve `(stdout, stderr)`. Hace falta porque **adb manda los
-    fallos de `run-as` a stderr**, y quien los quiera detectar no los ve en el stdout.
+    With `con_errores=True` it returns `(stdout, stderr)`. That is needed because **adb sends
+    `run-as`'s failures to stderr**, and whoever wants to detect them does not see them in stdout.
     """
     if paso.argv is None:
         return (None, "") if con_errores else None
@@ -322,12 +322,13 @@ def correr(paso, silencioso=False, con_errores=False):
 
 
 def _enviar(paso, silencioso):
-    """Manda el archivo por stdin, con progreso.
+    """Sends the file over stdin, with progress.
 
-    `adb push` muestra progreso solo; por el pipe hay que ponerlo, y con 295 MiB no es adorno.
+    `adb push` shows progress on its own; through the pipe it has to be added, and with 295 MiB
+    that is not decoration.
     """
     total = os.path.getsize(paso.stdin)
-    # Con 53 KB el progreso es ruido; con 295 MiB es lo unico que dice que no se colgo.
+    # At 53 KB the progress is noise; at 295 MiB it is the only thing saying it has not hung.
     silencioso = silencioso or total < UMBRAL_PROGRESO
     proceso = subprocess.Popen(
         paso.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -341,9 +342,9 @@ def _enviar(paso, silencioso):
                 sys.stdout.write("\r  enviando  %5.1f %%" % (100.0 * enviado / total))
                 sys.stdout.flush()
     proceso.stdin.close()
-    # `communicate()` despues de cerrar stdin a mano intenta flushearlo y revienta con
-    # "flush of closed file". Se leen las dos tuberias a mano: la salida de `cat > archivo` es
-    # una linea de error o nada, asi que no hay riesgo de llenar el buffer.
+    # `communicate()` after closing stdin by hand tries to flush it and blows up with "flush of
+    # closed file". Both pipes are read by hand: the output of `cat > file` is either one error
+    # line or nothing, so there is no risk of filling the buffer.
     salida, errores = proceso.stdout.read(), proceso.stderr.read()
     proceso.wait()
     if not silencioso and total:
@@ -352,10 +353,10 @@ def _enviar(paso, silencioso):
 
 
 def meta_remota(adb, nombre):
-    """Lee la meta de un pack ya instalado, si el device trae sqlite3. Si no, None.
+    """Reads an already installed pack's meta, if the device ships sqlite3. Otherwise, None.
 
-    No es un detalle: sin esto no se puede distinguir "el mismo pack de nuevo" de "otro pack con
-    otro nombre", y el aviso de duplicados se degrada a una advertencia generica.
+    It is not a detail: without this "the same pack again" cannot be told from "another pack under
+    another name", and the duplicates warning degrades to a generic one.
     """
     claves = "'pack_id','data_version','entry_count','name'"
     consulta = (
@@ -372,14 +373,13 @@ def meta_remota(adb, nombre):
 
 
 def packs_remotos(adb):
-    """{nombre: meta_o_None} de lo que hay en files/packs."""
-    # Se miran stdout Y stderr: adb manda los fallos de `run-as` a stderr, asi que mirar solo
-    # stdout dejaba pasar el caso mas comun --la app no esta instalada-- y el install seguia
-    # hasta morir con un BrokenPipeError con 295 MB adentro, sin decir que hacer.
+    """{name: meta_or_None} of what is in files/packs."""
+    # Both stdout AND stderr are looked at: adb sends `run-as`'s failures to stderr, so looking at
+    # stdout alone let the commonest case through --the app is not installed-- and the install
+    # carried on until dying with a BrokenPipeError 295 MB in, without saying what to do.
     #
-    # Que la app no este es NORMAL, no una rareza: `connectedAndroidTest` la desinstala al
-    # terminar, asi que correr los tests y despues instalar un pack es una secuencia de todos
-    # los dias.
+    # The app not being there is NORMAL, not an oddity: `connectedAndroidTest` uninstalls it when
+    # it finishes, so running the tests and then installing a pack is an everyday sequence.
     salida, errores = correr(
         Paso("ls", list(adb) + ["shell", "run-as %s ls %s" % (PAQUETE, DIR_PACKS)], None),
         silencioso=True,
@@ -519,7 +519,7 @@ def cmd_install(args):
 
 
 def _comprobar(adb, meta, esperado, tamano, salida_sha):
-    """Que lo que quedo en el reloj sea byte a byte lo que se mando."""
+    """That what ended up on the watch is byte for byte what was sent."""
     parcial = "%s/%s.part" % (DIR_PACKS, destino(meta))
     veredicto = comparar_hashes(esperado, salida_sha)
     if veredicto == "ok":
@@ -531,7 +531,8 @@ def _comprobar(adb, meta, esperado, tamano, salida_sha):
             % (esperado[:16], salida_sha.split()[0][:16])
         )
         return False
-    # Sin sha256sum en el device queda el tamaño, que agarra el truncado pero no la corrupcion.
+    # With no sha256sum on the device the size is what is left, which catches truncation but not
+    # corruption.
     salida = correr(
         Paso("stat", adb + ["shell", "run-as %s stat -c %%s %s" % (PAQUETE, parcial)], None),
         silencioso=True,

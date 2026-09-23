@@ -1,13 +1,13 @@
-"""Genera el fixture del payload que consume el test de Kotlin.
+"""Generates the payload fixture the Kotlin test consumes.
 
     python3 gen_payload_fixture.py
 
-Escribe vectors/payload-fixture.tsv con casos comprimidos por Python. El test de Kotlin
-(PayloadCodecTest) los descomprime con java.util.zip y compara. Es el equivalente, para el
-codec, de lo que normalization-vectors.tsv es para las claves de busqueda: sin esto, que los
-dos lados usen deflate "igual" es un supuesto sin verificar.
+It writes vectors/payload-fixture.tsv with cases compressed by Python. The Kotlin test
+(PayloadCodecTest) decompresses them with java.util.zip and compares. It is, for the codec, the
+equivalent of what normalization-vectors.tsv is for the search keys: without it, that both sides
+use deflate "the same way" is an unverified assumption.
 
-El fixture se regenera solo cuando cambia el formato; se commitea junto al cambio.
+The fixture is regenerated only when the format changes; it is committed alongside the change.
 """
 
 import os
@@ -17,7 +17,7 @@ import payload as payload_codec
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUTPUT = os.path.join(HERE, "vectors", "payload-fixture.tsv")
 
-# Texto de muestra para el diccionario precargado, con la redundancia tipica de un diccionario.
+# Sample text for the preloaded dictionary, with a dictionary's typical redundancy.
 SAMPLES = [
     payload_codec.render("verb", [{"gloss": "to move quickly", "translations": ["correr"]}]),
     payload_codec.render("verb", [{"gloss": "to move slowly", "translations": ["caminar"]}]),
@@ -46,11 +46,11 @@ CASES = [
     ("tabs y saltos en la fuente se sanean a espacios", "verb", [
         {"gloss": "con\tun tab\ny un salto", "examples": ["dos\t\tseguidos"]},
     ]),
-    # Los sinonimos van POR ACEPCION (D-117). El caso trae dos acepciones con sinonimos
-    # distintos a proposito: es lo unico que detecta un parser que los atribuye mal.
-    # Los antonimos comparten el molde de los sinonimos pero NO el tag (D-126). El caso los
-    # trae JUNTOS y cruzados a proposito: es lo unico que detecta un parser que confunde "Y"
-    # con "A", y confundirlos no da un resultado raro sino uno invertido.
+    # Synonyms go PER SENSE (D-117). The case carries two senses with different synonyms on
+    # purpose: it is the only thing that detects a parser attributing them wrongly.
+    # Antonyms share the synonyms' mould but NOT the tag (D-126). The case carries them TOGETHER
+    # and crossed on purpose: it is the only thing that detects a parser confusing "Y" with "A",
+    # and confusing them gives not an odd result but an inverted one.
     ("sinonimos y antonimos en la misma acepcion", "adjective", [
         {"gloss": "de temperatura elevada",
          "examples": ["el agua está caliente"],
@@ -60,9 +60,9 @@ CASES = [
          "synonyms": ["furioso"],
          "antonyms": ["calmado"]},
     ]),
-    # Una entrada FLACA con relacionadas (D-132), que es el caso para el que existen: una sola
-    # acepcion, sin ejemplo. Trae los TRES tags de listas a la vez -- Y, A y R -- porque lo unico
-    # que detecta un parser que confunde relacionada con sinonimo es verlos juntos y distintos.
+    # A THIN entry with related words (D-132), which is the case they exist for: a single sense,
+    # no example. It carries all THREE list tags at once -- Y, A and R -- because the only thing
+    # that detects a parser confusing related with synonym is seeing them together and distinct.
     ("una entrada flaca con relacionadas", "noun", [
         {"gloss": "mamífero camélido sudamericano",
          "synonyms": ["huanaco"],
@@ -76,13 +76,13 @@ CASES = [
          "examples": ["es un pollerudo"],
          "synonyms": ["pollerudo", "calzonazos"]},
     ]),
-    # La cita del ejemplo, tag `C`. Las DOS acepciones estan a proposito: una con cita y otra
-    # sin ella, porque el caso comun --medido, el 24,5 % de los ejemplos del dump ingles-- es el
-    # ejemplo sin fuente, y un lector que devolviera una cita vacia en vez de ninguna pasaria un
-    # fixture que solo trajera el caso citado.
+    # The example's citation, tag `C`. BOTH senses are there on purpose: one with a citation and
+    # one without, because the common case --measured, 24.5 % of the English dump's examples-- is
+    # the example with no source, and a reader returning an empty citation instead of none would
+    # pass a fixture that only carried the cited case.
     #
-    # La tercera acepcion trae un `Y` entre el ejemplo y lo que sigue: fija que la cita se
-    # escribe PEGADA a su ejemplo y no al final del bloque.
+    # The third sense carries a `Y` between the example and what follows: it pins that the
+    # citation is written RIGHT AFTER its example and not at the end of the block.
     ("ejemplo con cita", "noun", [
         {"gloss": "moverse rapidamente de un lugar a otro",
          "examples": [{"text": "corrio hasta la esquina", "ref": "1897, Richard Marsh"}]},
@@ -115,8 +115,8 @@ def main():
     for description, part_of_speech, senses in CASES:
         text = payload_codec.render(part_of_speech, senses)
         blob = payload_codec.compress(text, dictionary)
-        # Comprobacion propia antes de escribir: si Python no puede leer lo que escribio, el
-        # fixture esta mal y no tiene sentido pedirle a Kotlin que lo lea.
+        # A check of its own before writing: if Python cannot read what it wrote, the fixture is
+        # wrong and there is no sense asking Kotlin to read it.
         assert payload_codec.decompress(blob, dictionary) == text, description
         escaped = text.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t")
         lines.append("%s\t%s\t%s" % (description, blob.hex(), escaped))

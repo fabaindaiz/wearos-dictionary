@@ -1,27 +1,27 @@
-"""Crea un emulador que reporta lo MISMO que el reloj del proyecto (D-150).
+"""Creates an emulator that reports the SAME thing as the project's watch (D-150).
 
     python3 tools/avd_como_el_reloj.py [--nombre wear_sm_l715f]
 
-**Por que hace falta.** El AVD que trae Android Studio para Wear es `wearos_small_round`:
-**384x384 a 320 dpi**, que da `sw192dp`, y ademas `hw.lcd.circular=false`. El reloj del proyecto
---un SM-L715F-- es **498x498 a 340 dpi**, que da `sw234dp`, y es redondo.
+**Why it is needed.** The AVD Android Studio ships for Wear is `wearos_small_round`: **384x384 at
+320 dpi**, which gives `sw192dp`, and on top of that `hw.lcd.circular=false`. The project's watch
+--an SM-L715F-- is **498x498 at 340 dpi**, which gives `sw234dp`, and it is round.
 
-O sea que el emulador por defecto **miente en las dos cosas que este repo mas pelea**: el ancho
-en dp, contra el que se cotizaron cinco decisiones (D-073, D-075, D-078, D-084, D-085) antes de
-medir el reloj de verdad, y la forma redonda, de la que dependen el edge transform y el recorte
-de los bordes. Un layout que se ve bien en el emulador por defecto puede estar roto en la muñeca,
-y al reves.
+So the default emulator **lies about the two things this repo fights hardest**: the width in dp,
+against which five decisions were priced (D-073, D-075, D-078, D-084, D-085) before the real watch
+was measured, and the round shape, which the edge transform and the border clipping depend on. A
+layout that looks fine on the default emulator can be broken on the wrist, and the other way
+round.
 
-**Lo que este AVD reporta, verificado contra el reloj:**
+**What this AVD reports, verified against the watch:**
 
-    reloj      ...-sw234dp-w234dp-h234dp-small-notlong-round-...-340dpi-...
-    este AVD   ...-sw234dp-w234dp-h234dp-small-notlong-round-...-340dpi-...
+    watch      ...-sw234dp-w234dp-h234dp-small-notlong-round-...-340dpi-...
+    this AVD   ...-sw234dp-w234dp-h234dp-small-notlong-round-...-340dpi-...
 
-Coinciden en todo lo que decide un layout. Difieren en `highdr`/`lowdr` --el rango dinamico de la
-pantalla, que no participa de ninguna medida-- y en que el emulador simula una SIM.
+They agree on everything that decides a layout. They differ in `highdr`/`lowdr` --the screen's
+dynamic range, which takes part in no measurement-- and in the emulator simulating a SIM.
 
-⚠️ **Lo que un emulador sigue sin poder decir** (D-043): rendimiento y bateria. El AVD iguala la
-GEOMETRIA, no el hardware. Para eso sigue haciendo falta el reloj.
+⚠️ **What an emulator still cannot say** (D-043): performance and battery. The AVD matches the
+GEOMETRY, not the hardware. For that the watch is still needed.
 """
 
 import argparse
@@ -29,20 +29,20 @@ import os
 import subprocess
 import sys
 
-# Lo que hay que imitar, medido con `am get-config` en el reloj el 2026-09-20.
+# What has to be imitated, measured with `am get-config` on the watch on 2026-09-20.
 RELOJ = {
     "hw.lcd.width": "498",
     "hw.lcd.height": "498",
     # 340 no es un bucket estandar de Android y no pasa nada: 498 / (340/160) = 234,35 -> 234 dp.
     "hw.lcd.density": "340",
-    # El default de los perfiles de Wear es `false`, lo cual es sorprendente en un reloj redondo.
+    # The Wear profiles' default is `false`, which is surprising on a round watch.
     "hw.lcd.circular": "yes",
-    # El pack ingles son 315 MB y la app los abre al arrancar; con el default se nota.
+    # The English pack is 315 MB and the app opens it at startup; with the default it shows.
     "hw.ramSize": "1536",
 }
 
-# El perfil base. Da 454x454, que se sobreescribe -- pero trae el resto de la definicion de un
-# reloj (sin telefonia real, sin camara, los sensores que corresponden).
+# The base profile. It gives 454x454, which gets overwritten -- but it brings the rest of a
+# watch's definition (no real telephony, no camera, the right sensors).
 PERFIL = "wearos_large_round"
 
 
@@ -54,7 +54,7 @@ def _sdk():
 
 
 def _imagen(sdk):
-    """La system image de Wear mas nueva que este instalada."""
+    """The newest installed Wear system image."""
     base = os.path.join(sdk, "system-images")
     candidatas = []
     for api in sorted(os.listdir(base)) if os.path.isdir(base) else []:
@@ -72,7 +72,7 @@ def _imagen(sdk):
 
 
 def _parchar(config, valores):
-    """Reescribe las claves de `config.ini`, agregando las que falten."""
+    """Rewrites `config.ini`'s keys, adding whichever are missing."""
     with open(config, encoding="utf-8") as handle:
         lineas = handle.read().split("\n")
     puestas = set()

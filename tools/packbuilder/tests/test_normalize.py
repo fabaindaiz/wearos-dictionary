@@ -1,8 +1,8 @@
-"""Verifica normalize.py contra los vectores compartidos con :dict-core.
+"""Verifies normalize.py against the vectors shared with :dict-core.
 
-El mismo archivo de vectores lo corre el test de Kotlin
-(dict-core/src/test/kotlin/.../NormalizationVectorsTest.kt). Es el unico mecanismo que detecta
-que las dos implementaciones se separaron.
+The Kotlin test runs the same vectors file
+(dict-core/src/test/kotlin/.../NormalizationVectorsTest.kt). It is the only mechanism that detects
+that the two implementations have drifted apart.
 """
 
 import os
@@ -21,10 +21,10 @@ VECTORS = os.path.join(
 
 
 def load_vectors(path):
-    """Devuelve (numero_de_linea, funcion, perfil, entrada, esperado).
+    """Returns (line_number, function, profile, input, expected).
 
-    No se hace strip de los campos, solo del salto de linea: los espacios dentro de un campo
-    son parte del caso.
+    The fields are not stripped, only the line break: the spaces inside a field are part of the
+    case.
     """
     cases = []
     with open(path, encoding="utf-8") as handle:
@@ -66,7 +66,7 @@ class NormalizationVectorsTest(unittest.TestCase):
 
 
 class NormEdgeCasesTest(unittest.TestCase):
-    """Casos que no se pueden expresar en el TSV sin que un editor los arruine."""
+    """Cases that cannot be expressed in the TSV without an editor ruining them."""
 
     def test_empty_string(self):
         self.assertEqual("", normalize.norm(""))
@@ -79,14 +79,14 @@ class NormEdgeCasesTest(unittest.TestCase):
         self.assertEqual("a b", normalize.norm("a\t\nb"))
 
     def test_norm_is_idempotent(self):
-        # Importante porque fuzzy() llama a norm() y el builder normaliza en varios pasos.
+        # Important because fuzzy() calls norm() and the builder normalizes in several steps.
         for text in ["Straße", "İstanbul", "self-made", "Łódź", "COVID-19"]:
             once = normalize.norm(text)
             self.assertEqual(once, normalize.norm(once), "norm no es idempotente en %r" % text)
 
     def test_unknown_profile_is_rejected(self):
-        # El builder debe fallar ruidosamente: un perfil mal escrito produciria un pack
-        # con claves fuzzy que el reloj nunca va a generar.
+        # The builder must fail loudly: a misspelled profile would produce a pack with fuzzy keys
+        # the watch will never generate.
         with self.assertRaises(ValueError):
             normalize.fuzzy("hola", "klingon")
 

@@ -9,18 +9,19 @@ import payload  # noqa: E402
 
 
 class CaseFoldingTest(unittest.TestCase):
-    """La tabla fijada que implementa `toCaseFold()` en los dos lenguajes.
+    """The pinned table that implements `toCaseFold()` in both languages.
 
-    ⚠️ **El estandar separa dos operaciones que se parecen**: `toLowerCase()` es *case mapping*,
-    para MOSTRAR texto, y `toCaseFold()` --regla R4, seccion 3.13-- es *case folding*, para
-    COMPARARLO. El codigo de acepcion compara, asi que le toca la segunda.
+    ⚠️ **The standard separates two operations that look alike**: `toLowerCase()` is *case
+    mapping*, to DISPLAY text, and `toCaseFold()` --rule R4, section 3.13-- is *case folding*, to
+    COMPARE it. The sense code compares, so the second is its business.
 
-    Se usaba `lower()`. Medido sobre el repertorio fijado, **242 de 133.730** code points difieren.
+    `lower()` was being used. Measured over the pinned repertoire, **242 of 133,730** code points
+    differ.
     """
 
     def test_el_ejemplo_del_propio_estandar(self):
-        """«Μάϊος» y «ΜΆΪΟΣ» tienen que casar. Con `lower()` solo NO casan: la sigma final queda
-        distinta, y es el caso que la documentacion de Unicode usa de ejemplo."""
+        """"Μάϊος" and "ΜΆΪΟΣ" have to match. With `lower()` alone they do NOT: the final sigma
+        comes out different, and it is the case Unicode's documentation uses as its example."""
         self.assertEqual(casefold.fold("Μάϊος"), casefold.fold("ΜΆΪΟΣ"))
 
     def test_la_ese_alemana(self):
@@ -31,13 +32,13 @@ class CaseFoldingTest(unittest.TestCase):
         self.assertEqual(casefold.fold("ß"), casefold.fold("ss"))
 
     def test_los_acentos_se_conservan(self):
-        """Plegar la caja no es plegar el acento: `publico` y `público` son palabras distintas."""
+        """Folding case is not folding the accent: `publico` and `público` are different words."""
         self.assertNotEqual(casefold.fold("publico"), casefold.fold("público"))
 
     def test_viene_de_la_tabla_y_no_de_str_casefold(self):
-        """⚠️ Si este lado llamara a `str.casefold()` y el otro leyera la tabla, se separarian el
-        dia que cambie la version de Python **sin error y sin log**. Java no tiene `toCaseFold()`,
-        asi que la tabla es la unica forma de que los dos hagan lo mismo."""
+        """⚠️ If this side called `str.casefold()` and the other read the table, they would drift
+        apart the day Python's version changes **with no error and no log**. Java has no
+        `toCaseFold()`, so the table is the only way for both to do the same thing."""
         self.assertGreater(casefold.PAIR_COUNT, 0)
         self.assertEqual("13.0.0", casefold.UNICODE_VERSION,
                          "la tabla tiene que estar fijada a la misma version que el repertorio")
@@ -46,8 +47,8 @@ class CaseFoldingTest(unittest.TestCase):
         self.assertEqual(payload.sense_code(1, "ß"), payload.sense_code(1, "ss"))
 
     def test_el_vector_compartido_con_Kotlin(self):
-        """⚠️ El mismo numero esta fijado en `PayloadCodecTest.kt`. Si los dos lados pliegan
-        distinto, los enlaces entre packs apuntan a la nada sin excepcion y sin log."""
+        """⚠️ The same number is pinned in `PayloadCodecTest.kt`. If the two sides fold
+        differently, the links between packs point at nothing with no exception and no log."""
         self.assertEqual("8ec316909e48", payload.sense_code(1, "Casa."))
 
 

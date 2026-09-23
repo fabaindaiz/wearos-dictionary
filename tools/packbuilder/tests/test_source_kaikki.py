@@ -1,16 +1,16 @@
-"""Tests de la fuente kaikki: la poda, que es donde se decide el tamano del pack.
+"""Tests of the kaikki source: the pruning, which is where the pack's size gets decided.
 
-El builder ya tiene sus tests. Aca se verifica lo otro: que de un registro de kaikki.org salga
-lo que queremos y **nada mas**. Las tres cosas que ninguna invariante del pack agarra:
+The builder already has its tests. Here the other thing gets verified: that what comes out of a
+kaikki.org record is what we want and **nothing more**. The three things no pack invariant catches:
 
-  - una entrada que en realidad es una forma flexionada ("amigo" como presente de "amigar")
-    no es una entrada: es una forma que tiene que llevar a su lema;
-  - una glosa vacia no es una acepcion, y un registro sin acepciones usables no es una entrada;
-  - dos homografos que comparten word Y pos Y pos_title existen de verdad (leonino) y sin
-    sense_key hacen fallar el build.
+  - an entry that is really an inflected form ("amigo" as the present of "amigar") is not an
+    entry: it is a form that has to lead to its lemma;
+  - an empty gloss is not a sense, and a record with no usable senses is not an entry;
+  - two homographs sharing word AND pos AND pos_title genuinely exist (leonino) and without a
+    sense_key they make the build fail.
 
-Los fixtures son registros reales del dump del Wikcionario, recortados a los campos que la
-poda mira. Ver docs/formato-pack.md.
+The fixtures are real records from the Wiktionary dump, trimmed to the fields the pruning looks
+at. See docs/formato-pack.md.
 """
 
 import json
@@ -70,7 +70,7 @@ class PodaTest(unittest.TestCase):
         self.assertEqual(got[0].senses[0]["examples"], ["La casa de la esquina."])
 
     def test_lo_que_no_es_definicion_se_descarta(self):
-        """Etimologia, sonidos y categorias son la mitad del peso del dump y no se muestran."""
+        """Etymology, sounds and categories are half the dump's weight and are not displayed."""
         got = self.records(_raw(
             "casa", "noun", [_sense("Edificio para habitar.")],
             etymology_texts=["Del latín casa."],
@@ -83,7 +83,7 @@ class PodaTest(unittest.TestCase):
             self.assertNotIn(veneno, rendered)
 
     def test_el_pack_monolingue_no_lleva_traducciones(self):
-        """D-034: en monolingue `trans` duplica lo que fts_def ya indexa mejor."""
+        """D-034: in a monolingual pack `trans` duplicates what fts_def already indexes better."""
         got = self.records(_raw(
             "casa", "noun", [_sense("Edificio para habitar.")],
             translations=[{"word": "house", "lang_code": "en"},
@@ -93,7 +93,7 @@ class PodaTest(unittest.TestCase):
         self.assertEqual(tuple(got[0].senses[0].get("translations", ())), ())
 
     def test_una_pagina_de_forma_flexionada_no_es_una_entrada(self):
-        """El 82,33 % del dump son estas paginas. No se muestran: se buscan y caen en el lema."""
+        """82.33 % of the dump is these pages. They are not shown: they are searched and land on the lemma."""
         got = self.records(
             _raw("amigar", "verb", [_sense("Hacer amigos a quienes estaban reñidos.")],
                  forms=[{"form": "amigo"}, {"form": "amigas"}]),
@@ -106,9 +106,9 @@ class PodaTest(unittest.TestCase):
         self.assertIn("amigo", got[0].forms)
 
     def test_la_forma_llega_al_lema_aunque_el_lema_no_la_declare(self):
-        """Es la razon de que la fuente sea de dos pasadas, y esta medida: el `forms` del lema
-        deja **7,66 % de las palabras-forma sin cubrir** (53.708 de 700.959). Cada una es una
-        busqueda que no encuentra nada. "palpitaciones" -> "palpitacion" es una de ellas."""
+        """It is the reason the source has two passes, and it is measured: the lemma's `forms`
+        leaves **7.66 % of the form-words uncovered** (53,708 of 700,959). Each is a search that
+        finds nothing. "palpitaciones" -> "palpitacion" is one of them."""
         got = self.records(
             _raw("palpitación", "noun", [_sense("Latido del corazón.")]),
             _raw("palpitaciones", "noun", [
@@ -156,8 +156,8 @@ class PodaTest(unittest.TestCase):
         self.assertEqual(sorted(got[0].forms), ["japonesas", "japoneses"])
 
     def test_los_homografos_con_el_mismo_pos_title_se_separan_con_sense_key(self):
-        """leonino/adj aparece tres veces, distinguido solo por etimologia. Sin sense_key,
-        stable_uid() colisiona y el build falla."""
+        """leonino/adj appears three times, distinguished only by etymology. Without a sense_key,
+        stable_uid() collides and the build fails."""
         got = self.records(
             _raw("leonino", "adj", [_sense("Que concierne al león.")],
                  etymology_texts=["Del latín leoninus."]),
@@ -170,16 +170,16 @@ class PodaTest(unittest.TestCase):
         self.assertEqual(len({r.sense_key for r in got}), 3)
 
     def test_un_registro_unico_no_lleva_sense_key(self):
-        """sense_key entra en el uid: ponerlo cuando no hace falta lo vuelve inestable."""
+        """sense_key goes into the uid: setting it when it is not needed makes it unstable."""
         got = self.records(_raw("casa", "noun", [_sense("Edificio para habitar.")]))
         self.assertIsNone(got[0].sense_key)
 
 
 class IdiomaTest(unittest.TestCase):
-    """La poda es la misma para todos los idiomas; lo que cambia es la calibracion del rank.
+    """The pruning is the same for every language; what changes is the rank's calibration.
 
-    Estos tests existen para que eso no se olvide: el dia que alguien meta una heuristica que
-    dependa del español, el caso de ingles lo agarra.
+    These tests exist so that does not get forgotten: the day somebody puts in a heuristic that
+    depends on Spanish, the English case catches it.
     """
 
     def setUp(self):
@@ -190,8 +190,8 @@ class IdiomaTest(unittest.TestCase):
             os.unlink(path)
 
     def test_la_poda_funciona_igual_sobre_un_dump_de_ingles(self):
-        # Los tags de wiktextract estan en ingles y son los mismos en todos los dumps: la
-        # deteccion de forma flexionada no depende del idioma del contenido.
+        # wiktextract's tags are in English and are the same in every dump: the inflected-form
+        # detection does not depend on the content's language.
         path = _jsonl(
             _raw("run", "verb", [_sense("To move at a fast pace.")],
                  pos_title="Verb", forms=[{"form": "running"}, {"form": "ran"}]),
@@ -205,15 +205,16 @@ class IdiomaTest(unittest.TestCase):
         self.assertIn("ran", got[0].forms)
 
     def test_un_idioma_sin_perfil_falla_ruidosamente(self):
-        # Silencio aca seria construir un pack con el rank de otro idioma.
+        # Silence here would mean building a pack with another language's rank.
         path = _jsonl(_raw("run", "verb", [_sense("To move fast.")]))
         self.paths.append(path)
         with self.assertRaises(KeyError):
             list(kaikki.records(path, lang="klingon"))
 
     def test_la_politica_lexical_only_poda_los_nombres_propios(self):
-        # D-116 sigue disponible y sigue haciendo lo que hacia; lo que cambio es que **ya no es
-        # el default** (D-141). Se pide por nombre, y es la que produjo los numeros de D-116.
+        # D-116 is still available and still does what it did; what changed is that **it is no
+        # longer the default** (D-141). It is asked for by name, and it is the one that produced
+        # D-116's numbers.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
@@ -223,12 +224,12 @@ class IdiomaTest(unittest.TestCase):
         self.assertEqual(["run"], got)
 
     def test_un_nombre_propio_con_senal_lexica_se_conserva(self):
-        """"January" no es "Ivanivka", y la fuente lo puede distinguir sin mirar el texto.
+        """"January" is not "Ivanivka", and the source can tell them apart without reading the text.
 
-        Medido: January tiene 69 entre traducciones, descendientes y derivados; February 50;
-        Paris 172; Moscow 330. Un apellido (Hopewell) y una aldea (Ivanivka) tienen 0. La
-        señal es estructural --son campos de wiktextract-- asi que la poda sigue sin depender
-        del idioma (D-076).
+        Measured: January has 69 across translations, descendants and derivatives; February 50;
+        Paris 172; Moscow 330. A surname (Hopewell) and a village (Ivanivka) have 0. The signal is
+        structural --they are wiktextract fields-- so the pruning still does not depend on the
+        language (D-076).
         """
         path = _jsonl(_raw("January", "name", [_sense("The first month of the year.")],
                            descendants=[{"word": "w%d" % i} for i in range(6)]))
@@ -237,25 +238,25 @@ class IdiomaTest(unittest.TestCase):
         self.assertEqual(["January"], got)
 
     def test_un_nombre_propio_sin_senal_lexica_se_va_igual(self):
-        # 163.470 de estos en ingles, 32.305 en español. Son el 99 % de los nombres propios.
+        # 163,470 of these in English, 32,305 in Spanish. They are 99 % of the proper nouns.
         path = _jsonl(
             _raw("Ivanivka", "name", [_sense("A village in Cherkasy Oblast, Ukraine.")]),
             _raw("Hopewell", "name", [_sense("A surname.")], derived=[{"word": "uno"}]),
         )
         self.paths.append(path)
-        # ⚠️ **Ya no es el default** (D-141). Se pidio explicitamente que ninguna fuente pierda
-        # palabras: "quiero que vayan completas antes que tener que decidir que eliminar y que no
-        # y hacerlo erroneamente". La poda sigue existiendo y se pide por nombre.
+        # ⚠️ **It is no longer the default** (D-141). It was explicitly asked that no source lose
+        # words: "I want them to go in complete rather than having to decide what to remove and
+        # what not and getting it wrong". The pruning still exists and is asked for by name.
         self.assertEqual(
             [], [r.headword for r in kaikki.records(path, lang="en", politica="lexical-only")])
 
     def test_por_DEFECTO_no_se_pierde_ninguna_palabra(self):
-        """El default es `included`: ninguna fuente pierde entradas (D-141).
+        """The default is `included`: no source loses entries (D-141).
 
-        ⚠️ **Lo que vuelve seguro este default es el castigo de rank**, no la esperanza de que no
-        molesten. D-116 midio 4.267 casos en ingles donde el toponimo le gana en rank a la palabra
-        comun; con `CASTIGO_NOMBRE_PROPIO` el mejor nombre propio queda debajo de la peor palabra
-        comun, asi que entran **sin desplazar nada**.
+        ⚠️ **What makes this default safe is the rank penalty**, not the hope that they will not
+        get in the way. D-116 measured 4,267 cases in English where the toponym beats the common
+        word on rank; with `CASTIGO_NOMBRE_PROPIO` the best proper noun sits below the worst common
+        word, so they get in **without displacing anything**.
         """
         path = _jsonl(
             _raw("Ivanivka", "name", [_sense("A village in Cherkasy Oblast, Ukraine.")]),
@@ -268,7 +269,7 @@ class IdiomaTest(unittest.TestCase):
                            "el nombre propio tiene que entrar DEBAJO de la palabra comun")
 
     def test_la_politica_included_los_trae_de_vuelta_a_todos(self):
-        # La medicion sigue siendo posible: es lo que produjo el numero de D-116.
+        # The measurement is still possible: it is what produced D-116's number.
         path = _jsonl(
             _raw("London", "name", [_sense("The capital of England.")]),
             _raw("run", "verb", [_sense("To move at a fast pace.")]),
@@ -279,19 +280,19 @@ class IdiomaTest(unittest.TestCase):
 
 
 class PoliticaDefinitionsOnlyTest(unittest.TestCase):
-    """La tercera politica: entra el nombre propio que DEFINE, no el que solo se registra.
+    """The third policy: the proper noun that DEFINES gets in, not the one that merely registers.
 
-    `lexical-only` poda por señal lexica, y eso se lleva puesto a "Fez" y a "Puruándiro" junto con
-    los 26.708 apellidos. Medido sobre el pack español con `--con-nombres`: de las 31.549 entradas
-    que hoy se descartan, **28.314 solo dicen su categoria** ("Apellido.", "Nombre de pila de
-    mujer.") y **3.235 traen una definicion de verdad** -- ciudades, generos taxonomicos, grafias
-    anticuadas, el caballo del Cid.
+    `lexical-only` prunes by lexical signal, and that takes "Fez" and "Puruándiro" along with the
+    26,708 surnames. Measured over the Spanish pack with `--con-nombres`: of the 31,549 entries
+    discarded today, **28,314 say nothing but their category** ("Apellido.", "Nombre de pila de
+    mujer.") and **3,235 carry a real definition** -- cities, taxonomic genera, archaic spellings,
+    El Cid's horse.
 
-    ⚠️ **El marcador es `categories`, y eso NO es una heuristica sobre el texto.** Un filtro por
-    la prosa de la glosa seria un patron en español que no sirve en ingles, justo lo que el punto
-    4 del docstring del modulo dice que no se hace. `categories` lo emite wiktextract desde la
-    categorizacion del propio wiki: 26.708 acepciones en `ES:Apellidos` y 2.398 en los tres
-    `ES:Antropónimos`. La lista vive en el `Perfil`, que ya es la pieza que se calibra por idioma.
+    ⚠️ **The marker is `categories`, and that is NOT a heuristic over the text.** A filter over the
+    gloss's prose would be a pattern in Spanish that is no use in English, exactly what point 4 of
+    the module's docstring says is not done. `categories` is emitted by wiktextract from the wiki's
+    own categorization: 26,708 senses in `ES:Apellidos` and 2,398 in the three `ES:Antropónimos`.
+    The list lives in the `Perfil`, which is already the piece calibrated per language.
     """
 
     def setUp(self):
@@ -313,7 +314,7 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
         self.assertEqual([], got)
 
     def test_una_ciudad_QUE_DEFINE_si_entra(self):
-        """El caso que la politica existe para rescatar, y que `lexical-only` tira."""
+        """The case the policy exists to rescue, and that `lexical-only` throws away."""
         path = _jsonl(_raw("Puruándiro", "name",
                            [_sense("Ciudad del estado de Michoacán en México.")]))
         self.paths.append(path)
@@ -325,8 +326,8 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
                                                              politica="definitions-only")])
 
     def test_con_una_acepcion_que_define_alcanza(self):
-        # "Estrella" es nombre de pila Y estrella. Podarla por la primera acepcion perderia la
-        # segunda, que es vocabulario.
+        # "Estrella" is a given name AND a star. Pruning it by the first sense would lose the
+        # second, which is vocabulary.
         path = _jsonl(_raw("Estrella", "name", [
             _sense("Nombre de pila de mujer.", categories=self._cats("ES:Antropónimos femeninos")),
             _sense("Cuerpo celeste que brilla con luz propia."),
@@ -336,11 +337,11 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
         self.assertEqual(["Estrella"], got)
 
     def test_el_nombre_propio_que_entra_PIERDE_prioridad(self):
-        """Pedido asi: no borrar, bajar de prioridad.
+        """Asked for that way: do not delete, demote.
 
-        Sin esto la politica empeora la busqueda en vez de mejorarla: es exactamente el efecto
-        que D-116 midio en ingles --4.267 casos donde el toponimo le gana en rank a la palabra
-        comun-- y volveria por la puerta de atras.
+        Without this the policy makes the search worse instead of better: it is exactly the effect
+        D-116 measured in English --4,267 cases where the toponym beats the common word on rank--
+        and it would come back through the back door.
         """
         path = _jsonl(
             _raw("Fez", "name", [_sense("Una de las principales ciudades de Marruecos.")]),
@@ -353,8 +354,8 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
                            "el nombre propio tiene que quedar DEBAJO (rank mayor = menos comun)")
 
     def test_una_politica_desconocida_no_se_traga_en_silencio(self):
-        # Un typo en la CLI no puede construir un pack con la politica por defecto y no decirlo:
-        # el pack saldria bien y con otro contenido del pedido.
+        # A typo in the CLI cannot build a pack with the default policy and not say so: the pack
+        # would come out fine and with different content from the one asked for.
         path = _jsonl(_raw("x", "noun", [_sense("una glosa")]))
         self.paths.append(path)
         with self.assertRaises(ValueError):
@@ -362,11 +363,11 @@ class PoliticaDefinitionsOnlyTest(unittest.TestCase):
 
 
 class MarkupEditorialTest(unittest.TestCase):
-    """Las etiquetas de mantenimiento del wiki no son parte de la definicion (D-121).
+    """The wiki's maintenance tags are not part of the definition (D-121).
 
-    wiktextract las deja incrustadas en `glosses` y no hay version limpia: `raw_glosses` es
-    None en todos los casos medidos. En un reloj, "Pene.^([cita requerida])" gasta media
-    pantalla en decirle al lector que un editor del Wikcionario queria una fuente.
+    wiktextract leaves them embedded in `glosses` and there is no clean version: `raw_glosses` is
+    None in every measured case. On a watch, "Pene.^([cita requerida])" spends half the screen
+    telling the reader that a Wiktionary editor wanted a source.
     """
 
     def setUp(self):
@@ -382,7 +383,7 @@ class MarkupEditorialTest(unittest.TestCase):
         return next(iter(kaikki.records(path, lang=lang))).senses[0]["gloss"]
 
     def test_se_saca_la_etiqueta_de_cita_requerida(self):
-        # 671 casos en el dump español.
+        # 671 cases in the Spanish dump.
         self.assertEqual("Pene.", self._gloss("Pene.^([cita requerida])"))
 
     def test_se_saca_la_de_definicion_imprecisa(self):
@@ -393,29 +394,29 @@ class MarkupEditorialTest(unittest.TestCase):
         )
 
     def test_el_punto_que_queda_colgando_no_duplica(self):
-        # "...los labios.^([cita requerida])." termina en DOS puntos si solo se borra el tag.
+        # "...los labios.^([cita requerida])." ends in TWO full stops if only the tag is deleted.
         self.assertEqual("Lamer con la boca.",
                          self._gloss("Lamer con la boca.^([cita requerida])."))
 
     def test_la_notacion_matematica_NO_se_toca(self):
-        """El filtro es la forma con CORCHETES, y esto es por que.
+        """The filter is the form WITH SQUARE BRACKETS, and this is why.
 
-        En ingles `^(...)` es superindice matematico: 10^(100), 2^(2/r), e^(iπ). Un filtro
-        sobre `^(...)` a secas destruiria contenido real en vez de limpiarlo.
+        In English `^(...)` is a mathematical superscript: 10^(100), 2^(2/r), e^(iπ). A filter over
+        a bare `^(...)` would destroy real content instead of cleaning it.
         """
         self.assertEqual("A number, 10^(100).", self._gloss("A number, 10^(100).", lang="en"))
         self.assertEqual("Equal to e^(iπ).", self._gloss("Equal to e^(iπ).", lang="en"))
 
 
 class SinonimosTest(unittest.TestCase):
-    """Los sinonimos van a SU acepcion. Esta clase cubre la forma de ARRIBA (D-117).
+    """Synonyms go to THEIR sense. This class covers the TOP-LEVEL shape (D-117).
 
-    Es la que usa el dump español: `raw["synonyms"]` con un `sense_index` declarado. La forma
-    anidada, que es la que usa el ingles, vive en `SinonimosAnidadosTest`.
+    It is the one the Spanish dump uses: `raw["synonyms"]` with a declared `sense_index`. The
+    nested shape, the one English uses, lives in `SinonimosAnidadosTest`.
 
-    El modo de falla que estos tests existen para impedir: un sinonimo atribuido a la acepcion
-    equivocada. No lanza, no loguea, no lo agarra `verify_pack.py` -- sale del pack como
-    contenido correcto y lo descubre un lector dentro de un año.
+    The failure mode these tests exist to prevent: a synonym attributed to the wrong sense. It
+    throws nothing, logs nothing, is not caught by `verify_pack.py` -- it comes out of the pack as
+    correct content and a reader discovers it a year later.
     """
 
     def setUp(self):
@@ -440,11 +441,11 @@ class SinonimosTest(unittest.TestCase):
         self.assertEqual(["mesada", "paga"], got.senses[1]["synonyms"])
 
     def test_un_sinonimo_de_una_acepcion_podada_no_se_cuelga_de_otra(self):
-        """El test mas importante del cambio.
+        """The change's most important test.
 
-        `_senses()` descarta la acepcion form-of ANTES de emitir, asi que los ordinales se
-        corren. Una implementacion por posicion (`enumerate`) le cuelga "corrido" a la acepcion
-        que sobrevive, y el pack sale con un sinonimo que no lo es.
+        `_senses()` discards the form-of sense BEFORE emitting, so the ordinals shift. An
+        implementation by position (`enumerate`) hangs "corrido" off the sense that survives, and
+        the pack comes out with a synonym that is not one.
         """
         path = _jsonl(_raw("corrido", "noun", [
             _sense("", sense_index="1", tags=["form-of"], form_of=[{"word": "correr"}]),
@@ -474,8 +475,8 @@ class SinonimosTest(unittest.TestCase):
         self.assertEqual(4, len(got.senses[0]["synonyms"]))
 
     def test_un_sinonimo_igual_al_lema_no_se_emite(self):
-        # Mismo criterio que _forms(). En ingles pasa de verdad: "cat" se lista como sinonimo
-        # de "cat".
+        # Same criterion as _forms(). In English it really happens: "cat" is listed as a synonym of
+        # "cat".
         path = _jsonl(_raw("casa", "noun", [_sense("edificio para habitar", sense_index="1")],
                            synonyms=[{"word": "casa", "sense_index": "1"},
                                      {"word": "vivienda", "sense_index": "1"}]))
@@ -484,17 +485,17 @@ class SinonimosTest(unittest.TestCase):
         self.assertEqual(["vivienda"], got.senses[0]["synonyms"])
 
     def test_la_forma_de_arriba_sin_sense_index_no_se_cuelga_de_nada(self):
-        """Lo que protegia la lista de idiomas, ahora sin la lista.
+        """What the language list protected, now without the list.
 
-        Antes habia una puerta por idioma --`IDIOMAS_CON_SINONIMOS = {"es"}`-- y este test
-        afirmaba que el ingles no traia ningun sinonimo. **Esa afirmacion era incorrecta**: se
-        habia medido solo la forma de arriba. El ingles sirve 338.200 items anidados dentro de
-        cada acepcion, que es donde la atribucion es estructural (ver `SinonimosAnidadosTest`).
+        There used to be a per-language gate --`IDIOMAS_CON_SINONIMOS = {"es"}`-- and this test
+        asserted that English brought no synonyms at all. **That assertion was incorrect**: only
+        the top-level shape had been measured. English serves 338,200 items nested inside each
+        sense, which is where the attribution is structural (see `SinonimosAnidadosTest`).
 
-        Lo que si sigue valiendo es la regla, y no necesita saber de que idioma es el dump: en
-        la forma de ARRIBA, un item sin `sense_index` no se puede atribuir a ninguna acepcion y
-        se descarta. Medido: 0 de los 43.679 items de arriba del dump ingles lo traen --traen
-        `_dis1`, un vector de pesos-- asi que se caen solos, sin puerta.
+        What does still hold is the rule, and it needs to know nothing about the dump's language:
+        in the TOP-LEVEL shape, an item with no `sense_index` cannot be attributed to any sense and
+        is discarded. Measured: 0 of the English dump's 43,679 top-level items carry one --they
+        carry `_dis1`, a weight vector-- so they fall out on their own, with no gate.
         """
         path = _jsonl(_raw("cat", "noun", [_sense("a small feline", sense_index="1")],
                            synonyms=[{"word": "feline", "_dis1": "50 50"}]))
@@ -506,16 +507,16 @@ class SinonimosTest(unittest.TestCase):
 
 
 class UltimaPalabraDelDumpTest(unittest.TestCase):
-    """La ultima palabra del archivo recibe las mismas opciones que todas las demas.
+    """The file's last word receives the same options as every other.
 
-    ⚠️ **El bug que esto fija ya ocurrio y ningun test lo agarraba.** Los registros se agrupan por
-    `word` y el grupo se vacia al ver uno distinto; el **ultimo grupo** sale por una llamada a
-    `_emit` **fuera del bucle**. Mientras las opciones se encadenaban a mano, olvidar esa segunda
-    llamada hacia que la ultima palabra del dump perdiera ese dato **en silencio** -- sin error,
-    sin log, y con el pack entero pasando `verify_pack.py`.
+    ⚠️ **The bug this pins already happened and no test caught it.** The records are grouped by
+    `word` and the group is flushed on seeing a different one; the **last group** comes out through
+    an `_emit` call **outside the loop**. While the options were threaded by hand, forgetting that
+    second call made the dump's last word lose that datum **in silence** -- no error, no log, and
+    with the whole pack passing `verify_pack.py`.
 
-    Ningun test existente podia verlo porque ninguno tenia dos palabras donde la segunda fuera la
-    ultima. `Opciones` cerro la puerta; esto fija que siga cerrada.
+    No existing test could see it because none had two words where the second was the last.
+    `Opciones` closed the door; this pins that it stays closed.
     """
 
     def setUp(self):
@@ -552,18 +553,18 @@ class UltimaPalabraDelDumpTest(unittest.TestCase):
 
 
 class RankPorFrecuenciaTest(unittest.TestCase):
-    """El prior de orden sale de la frecuencia de uso, y la riqueza queda de respaldo.
+    """The ordering prior comes from usage frequency, and richness stays as the fallback.
 
-    ⚠️ **El defecto que cierra, medido**: `rank` correlacionaba **-0,250** con la frecuencia real
-    --se esperaria -1-- porque contaba formas flexionadas y un verbo español trae hasta 222. En los
-    peldaños sin banda de cobertura (D-142 solo defiende `PREFIX`) eso se veia crudo:
-    `house` devolvia `solar, alojar, albergar` y nunca `casa`.
+    ⚠️ **The defect it closes, measured**: `rank` correlated **-0.250** with the real frequency
+    --where -1 would be expected-- because it counted inflected forms and a Spanish verb carries up
+    to 222. On the rungs with no coverage band (D-142 only defends `PREFIX`) that showed raw:
+    `house` returned `solar, alojar, albergar` and never `casa`.
 
-    ⚠️ **Dos bandas disjuntas y no una escala mezclada.** Solo el **17,4 %** de los lemas tiene
-    señal de frecuencia; mezclar riqueza y frecuencia en un mismo numero exigiria calibrar cuanta
-    riqueza *vale* un punto de Zipf, que es una decision que nadie midio. Con bandas, quien tiene
-    señal se ordena por ella y quien no queda debajo **en bloque**, conservando entre pares el
-    orden de riqueza de siempre.
+    ⚠️ **Two disjoint bands and not one mixed scale.** Only **17.4 %** of the lemmas have a
+    frequency signal; mixing richness and frequency into one number would require calibrating how
+    much richness a Zipf point *is worth*, which is a decision nobody measured. With bands, whoever
+    has a signal is ordered by it and whoever does not sits below **as a block**, keeping the usual
+    richness order among peers.
     """
 
     def setUp(self):
@@ -586,31 +587,31 @@ class RankPorFrecuenciaTest(unittest.TestCase):
         self.assertLess(comun, raro, "mayor Zipf tiene que dar menor rank")
 
     def test_lo_que_tiene_señal_le_gana_a_CUALQUIER_cosa_sin_señal(self):
-        """La afirmacion central de las dos bandas.
+        """The two bands' central claim.
 
-        ⚠️ Sin esto, una entrada riquisima sin señal --un verbo con 80 formas-- seguiria ganandole
-        a una palabra comun, que es exactamente el defecto que esto viene a cerrar.
+        ⚠️ Without this, an extremely rich entry with no signal --a verb with 80 forms-- would go
+        on beating a common word, which is exactly the defect this comes to close.
         """
         apenas_comun = self._rank_de("casa", {"casa": 1.0})
         riquisima_sin_señal = self._rank_de("zurriagazo", {}, formas=["z%d" % i for i in range(80)])
         self.assertLess(apenas_comun, riquisima_sin_señal)
 
     def test_sin_señal_se_conserva_el_orden_de_riqueza_entre_pares(self):
-        """No aparecer en 50.000 palabras de subtitulos es evidencia de rareza, pero entre raras
-        la riqueza sigue siendo la mejor pista que hay."""
+        """Not appearing in 50,000 words of subtitles is evidence of rarity, but among rare words
+        richness is still the best clue there is."""
         rica = self._rank_de("zzz", {}, formas=["a", "b", "c", "d"])
         pobre = self._rank_de("zzz", {})
         self.assertLess(rica, pobre)
 
     def test_sin_mapa_de_frecuencias_nada_cambia(self):
-        """Un pack construido sin la lista tiene que salir igual que antes: `oewn` y `wikidata`
-        tienen su propia formula y no pasan por aca."""
+        """A pack built without the list has to come out as before: `oewn` and `wikidata` have
+        their own formula and do not come through here."""
         self.assertEqual(self._rank_de("zzz", None), self._rank_de("zzz", {}))
 
     def test_el_castigo_de_nombre_propio_se_suma_ENCIMA(self):
-        """⚠️ `verify_pack.py` exige `rank >= 1000` para nombres propios bajo la politica estricta.
-        Si la frecuencia se aplicara despues del castigo, `Madrid` --que es frecuente-- entraria
-        por debajo de ese piso y el pack fallaria la verificacion."""
+        """⚠️ `verify_pack.py` requires `rank >= 1000` for proper nouns under the strict policy. If
+        the frequency were applied after the penalty, `Madrid` --which is frequent-- would come in
+        below that floor and the pack would fail verification."""
         path = _jsonl(_raw("Madrid", "name", [_sense("capital de España")]))
         self.paths.append(path)
         got = next(iter(kaikki.records(path, lang="es", politica="included",
@@ -622,19 +623,20 @@ class RankPorFrecuenciaTest(unittest.TestCase):
 
 
 class TraduccionesTest(unittest.TestCase):
-    """Las traducciones van a SU acepcion, y lo que no se puede atribuir NO se cuelga de la 1.
+    """Translations go to THEIR sense, and what cannot be attributed is NOT hung off sense 1.
 
-    Misma forma que los sinonimos de D-117 --`raw["translations"]` con `sense_index` declarado--
-    con dos diferencias que estos tests fijan:
+    The same shape as D-117's synonyms --`raw["translations"]` with a declared `sense_index`-- with
+    two differences these tests pin:
 
-    1. **Hay que filtrar por idioma.** El dump trae la tabla entera: medido sobre el dump español,
-       `en` son 34.710 de 281.022 items; el resto es frances, aleman, italiano, neerlandes...
-       Sin filtro, una entrada española mostraria su traduccion al polaco.
-    2. **El indice puede ser un rango.** Medido: 53,6 % simple, 8,6 % compuesto (`1-2`, `1, 4`) y
-       37,7 % sin indice. Los sinonimos son 100 % simples, asi que expandir rangos no los toca.
+    1. **They have to be filtered by language.** The dump carries the whole table: measured over
+       the Spanish dump, `en` is 34,710 of 281,022 items; the rest is French, German, Italian,
+       Dutch... Without the filter, a Spanish entry would show its Polish translation.
+    2. **The index can be a range.** Measured: 53.6 % simple, 8.6 % compound (`1-2`, `1, 4`) and
+       37.7 % with no index. The synonyms are 100 % simple, so expanding ranges does not touch
+       them.
 
-    El modo de falla que existen para impedir es el de D-117: una traduccion colgada de la
-    acepcion equivocada se lee perfectamente plausible y no la agarra `verify_pack.py`.
+    The failure mode they exist to prevent is D-117's: a translation hung off the wrong sense reads
+    perfectly plausible and `verify_pack.py` does not catch it.
     """
 
     def setUp(self):
@@ -679,11 +681,11 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual(["house"], got.senses[0]["translations"])
 
     def test_una_traduccion_sin_indice_no_se_cuelga_de_la_primera(self):
-        """La regla de D-117, y la razon por la que existe el modo lista.
+        """D-117's rule, and the reason the list mode exists.
 
-        Colgarla de la acepcion 1 acierta a veces y falla otras **sin dejar rastro**. Se descarta
-        aca; el lugar honesto para este dato es el canal de nivel de entrada, que todavia no
-        existe (roadmap §Naming a sense from another pack).
+        Hanging it off sense 1 gets it right sometimes and wrong other times **with no trace**. It
+        is discarded here; the honest place for this datum is the entry-level channel, which does
+        not yet exist (roadmap §Naming a sense from another pack).
         """
         path = _jsonl(_raw("banco", "noun", [
             _sense("asiento para varias personas", sense_index="1"),
@@ -695,18 +697,18 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual([], got.senses[1]["translations"])
 
     def test_el_dump_ingles_traduce_por_el_canal_de_la_palabra(self):
-        """⚠️ Una conclusion anterior era demasiado fuerte y este test la corrige.
+        """⚠️ An earlier conclusion was too strong and this test corrects it.
 
-        **De caracterizacion**: pasa sin codigo nuevo, porque el canal `W` ya lo resolvia. Se
-        escribe igual porque lo que fija --que el ingles SI puede traducir-- contradice lo que
-        el changelog de esta misma sesion habia dejado escrito, y sin el la proxima sesion
-        volveria a creerle al numero viejo.
+        **Characterization**: it passes with no new code, because the `W` channel already resolved
+        it. It is written all the same because what it pins --that English CAN translate--
+        contradicts what this same session's changelog had left written, and without it the next
+        session would believe the old number again.
 
-        Se habia medido que el dump ingles trae **0 `sense_index` de 9.987** traducciones al
-        español y de ahi se concluyo que *«el pack ingles no puede tener traducciones»*. Eso
-        valia solo para el canal `T`, que exige atribucion. Con el canal `W` --que existe
-        justamente para lo no atribuible-- esas 9.987 si tienen donde vivir, y ademas llenan
-        `trans`, que es lo que hace que `perro` encuentre `dog`.
+        It had been measured that the English dump carries **0 `sense_index` of 9,987**
+        translations into Spanish, and from there it was concluded that *"the English pack cannot
+        have translations"*. That held only for the `T` channel, which demands attribution. With
+        the `W` channel --which exists precisely for the unattributable-- those 9,987 do have
+        somewhere to live, and they fill `trans` as well, which is what makes `perro` find `dog`.
         """
         path = _jsonl({
             "word": "dog", "pos": "noun", "lang_code": "en", "lang": "English",
@@ -719,14 +721,14 @@ class TraduccionesTest(unittest.TestCase):
         })
         self.paths.append(path)
         got = next(iter(kaikki.records(path, lang="en", translations_to="es")))
-        # Sin indice: no se cuelga de la acepcion, va al canal de la palabra.
+        # With no index: it is not hung off the sense, it goes to the word channel.
         self.assertEqual([], got.senses[0]["translations"])
         self.assertEqual(("perro",), got.word_translations)
-        # Y entra al canal de busqueda, que es lo que cierra la direccion inversa.
+        # And it enters the search channel, which is what closes the reverse direction.
         self.assertEqual(("perro",), got.translations)
 
     def test_las_no_atribuidas_van_al_canal_de_la_palabra(self):
-        """El 37,7 % del dato, que antes se tiraba por no tener donde vivir."""
+        """37.7 % of the data, which used to be thrown away for having nowhere to live."""
         path = _jsonl(_raw("banco", "noun", [
             _sense("asiento para varias personas", sense_index="1"),
             _sense("entidad financiera", sense_index="2"),
@@ -742,10 +744,10 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual(("bank",), got.word_translations)
 
     def test_el_canal_de_busqueda_lleva_las_dos(self):
-        """`translations` alimenta la tabla `trans`, y para buscar da igual la atribucion.
+        """`translations` feeds the `trans` table, and for searching the attribution is irrelevant.
 
-        Esto es lo que hace que un pack MONOLINGUE se pueda buscar en el otro idioma: escribir
-        `bank` encuentra `banco` sin que haya un pack bilingue instalado.
+        This is what makes a MONOLINGUAL pack searchable in the other language: typing `bank` finds
+        `banco` with no bilingual pack installed.
         """
         path = _jsonl(_raw("banco", "noun", [_sense("entidad financiera", sense_index="1")],
                            translations=[
@@ -757,7 +759,7 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual(("bank", "bench"), got.translations)
 
     def test_lo_que_ya_salio_por_acepcion_no_se_repite_abajo(self):
-        """Repetirlo diria que la palabra significa eso *ademas*, y es lo mismo mejor atribuido."""
+        """Repeating it would say the word means that *as well*, and it is the same thing better attributed."""
         path = _jsonl(_raw("casa", "noun", [_sense("edificacion para vivir", sense_index="1")],
                            translations=[
                                {"word": "house", "code": "en", "sense_index": "1"},
@@ -769,7 +771,7 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual((), got.word_translations)
 
     def test_sin_idioma_destino_no_se_emite_ninguna(self):
-        """El pack ingles no declara destino, y no tiene que ganar traducciones por accidente."""
+        """The English pack declares no target, and must not gain translations by accident."""
         path = _jsonl(_raw("casa", "noun", [_sense("edificacion", sense_index="1")],
                            translations=[{"word": "house", "code": "en", "sense_index": "1"}]))
         self.paths.append(path)
@@ -778,20 +780,19 @@ class TraduccionesTest(unittest.TestCase):
 
 
 class SinonimosAnidadosTest(unittest.TestCase):
-    """La OTRA forma en que la fuente sirve sinonimos, que es la unica que usa el ingles.
+    """The OTHER shape in which the source serves synonyms, the only one English uses.
 
-    Medido sobre 120.000 registros de cada dump, ya sin `pos = name`:
+    Measured over 120,000 records of each dump, already without `pos = name`:
 
-        | forma                        | español | ingles |
-        |------------------------------|---------|--------|
-        | `synonyms` arriba            |  16,5 % |  5,6 % |
-        | `synonyms` dentro de `senses`|   0,0 % | 25,8 % |
-        | las dos a la vez             |   0,0 % |  0,0 % |
+        | shape                         | Spanish | English |
+        |-------------------------------|---------|---------|
+        | top-level `synonyms`          |  16.5 % |   5.6 % |
+        | `synonyms` inside `senses`    |   0.0 % |  25.8 % |
+        | both at once                  |   0.0 % |   0.0 % |
 
-    Los dos dumps usan **una sola forma cada uno y no la misma**, asi que no hay precedencia que
-    decidir. Y la anidada **no necesita `sense_index`**: viene dentro de la acepcion, que es
-    exactamente la atribucion que D-117 exige. Medido: 0 de 338.200 traen `sense_index`, y no
-    hace falta.
+    The two dumps use **one shape each and not the same one**, so there is no precedence to decide.
+    And the nested one **needs no `sense_index`**: it comes inside the sense, which is exactly the
+    attribution D-117 requires. Measured: 0 of 338,200 carry a `sense_index`, and none is needed.
     """
 
     def setUp(self):
@@ -814,8 +815,8 @@ class SinonimosAnidadosTest(unittest.TestCase):
         self.assertEqual(["vocabulary"], got.senses[1]["synonyms"])
 
     def test_la_forma_anidada_no_necesita_sense_index(self):
-        # La diferencia de fondo con la forma española: aca la atribucion es estructural, no
-        # declarada. Exigir `sense_index` tiraria los 338.200 items del dump ingles.
+        # The fundamental difference from the Spanish shape: here the attribution is structural,
+        # not declared. Requiring a `sense_index` would throw away the English dump's 338,200 items.
         path = _jsonl(_raw("free", "adj", [
             _sense("unconstrained", synonyms=[{"word": "unfettered"}]),
         ]))
@@ -824,8 +825,8 @@ class SinonimosAnidadosTest(unittest.TestCase):
         self.assertEqual(["unfettered"], got.senses[0]["synonyms"])
 
     def test_una_acepcion_form_of_se_lleva_sus_anidados(self):
-        # Gratis, y es la ventaja estructural sobre la forma española: la acepcion podada se va
-        # ENTERA, asi que sus sinonimos no pueden colgarse de otra. No hay ordinal que se corra.
+        # Free, and it is the structural advantage over the Spanish shape: the pruned sense goes
+        # WHOLE, so its synonyms cannot hang off another. There is no ordinal to shift.
         path = _jsonl(_raw("dogs", "noun", [
             _sense("", sense_index="1", tags=["form-of"], form_of=[{"word": "dog"}],
                    synonyms=[{"word": "NO-DEBE-APARECER"}]),
@@ -848,7 +849,7 @@ class SinonimosAnidadosTest(unittest.TestCase):
         self.assertEqual(["large", "s0", "s1", "s2"], got.senses[0]["synonyms"])
 
     def test_un_sinonimo_anidado_igual_al_lema_no_se_emite(self):
-        # Medido: 1,9 % de los 338.200 items ingleses. "cat" se lista como sinonimo de "cat".
+        # Measured: 1.9 % of the 338,200 English items. "cat" is listed as a synonym of "cat".
         path = _jsonl(_raw("cat", "noun", [
             _sense("a small feline", synonyms=[{"word": "cat"}, {"word": "feline"}]),
         ]))
@@ -857,12 +858,12 @@ class SinonimosAnidadosTest(unittest.TestCase):
         self.assertEqual(["feline"], got.senses[0]["synonyms"])
 
     def test_el_orden_del_dump_se_respeta(self):
-        """No se reordena por fuente, y eso se midio antes de decidirlo.
+        """No reordering by source, and that was measured before it was decided.
 
-        El 74,5 % de los items ingleses traen `source: "Thesaurus:*"` y aparecen primero, asi que
-        parecia que el tope de 4 se quedaria con lo oscuro. **Medido: cambia 91 acepciones de
-        4.872 mezcladas (1,9 %)**, y en la muestra el resultado reordenado es PEOR --`craft`
-        pasa de `ability, aptitude` a `craftiness, foxiness`--. La hipotesis no sobrevivio.
+        74.5 % of the English items carry `source: "Thesaurus:*"` and appear first, so it looked as
+        though the cap of 4 would keep the obscure ones. **Measured: it changes 91 senses of 4,872
+        mixed ones (1.9 %)**, and in the sample the reordered result is WORSE --`craft` goes from
+        `ability, aptitude` to `craftiness, foxiness`--. The hypothesis did not survive.
         """
         path = _jsonl(_raw("craft", "noun", [
             _sense("skill", synonyms=[
@@ -877,20 +878,20 @@ class SinonimosAnidadosTest(unittest.TestCase):
 
 
 class AntonimosTest(unittest.TestCase):
-    """Los antonimos, en las MISMAS dos formas que los sinonimos (D-126).
+    """The antonyms, in the SAME two shapes as the synonyms (D-126).
 
-    Medido sobre 120.000 registros vivos de cada dump, y el espejo es exacto:
+    Measured over 120,000 live records of each dump, and the mirror is exact:
 
-        | forma                         | español | ingles |
-        |-------------------------------|---------|--------|
-        | `antonyms` arriba con index   |   2,1 % |  0,0 % |
-        | `antonyms` dentro de `senses` |   0,0 % |  3,2 % |
+        | shape                          | Spanish | English |
+        |--------------------------------|---------|---------|
+        | top-level `antonyms` with index|   2.1 % |   0.0 % |
+        | `antonyms` inside `senses`     |   0.0 % |   3.2 % |
 
-    Cobertura mucho menor que los sinonimos --3,2 % contra 25,8 % en ingles-- y por eso el costo
-    tambien: 0,80 B por entrada viva.
+    Far lower coverage than the synonyms --3.2 % against 25.8 % in English-- and so is the cost:
+    0.80 B per live entry.
 
-    **Atribuir mal un antonimo es peor que atribuir mal un sinonimo**: un sinonimo en la acepcion
-    equivocada se lee como una eleccion rara, un antonimo se lee como lo contrario de otra cosa.
+    **Misattributing an antonym is worse than misattributing a synonym**: a synonym under the wrong
+    sense reads as an odd choice, an antonym reads as the opposite of something else.
     """
 
     def setUp(self):
@@ -924,8 +925,8 @@ class AntonimosTest(unittest.TestCase):
         self.assertEqual(["mild"], got.senses[1]["antonyms"])
 
     def test_un_antonimo_de_arriba_sin_sense_index_se_descarta(self):
-        # Misma regla que los sinonimos: colgarlo de la primera acepcion seria inventar la
-        # atribucion, y aca inventarla significa afirmar un opuesto que la fuente no afirmo.
+        # Same rule as the synonyms: hanging it off the first sense would be inventing the
+        # attribution, and here inventing it means asserting an opposite the source did not assert.
         path = _jsonl(_raw("caliente", "adj", [_sense("de temperatura alta", sense_index="1")],
                            antonyms=[{"word": "frio"}]))
         self.paths.append(path)
@@ -961,19 +962,19 @@ class AntonimosTest(unittest.TestCase):
 
 
 class RelacionadasTest(unittest.TestCase):
-    """Palabras relacionadas para las entradas FLACAS, y solo donde no hay nada que inventar.
+    """Related words for the THIN entries, and only where there is nothing to invent.
 
-    El 70,4 % del pack español son entradas de **una sola acepcion y sin ejemplo**: 80.744. Son
-    las que se sienten vacias, y la fuente tiene algo para ellas que el builder tiraba --
-    `hypernyms`, `hyponyms` y `related`.
+    70.4 % of the Spanish pack is entries with **a single sense and no example**: 80,744. They are
+    the ones that feel empty, and the source has something for them the builder was throwing away
+    -- `hypernyms`, `hyponyms` and `related`.
 
-    ⚠️ **Solo entran si la entrada tiene UNA acepcion, y esa es toda la regla.** La fuente los
-    trae a nivel de ENTRADA, no de acepcion; colgarlos de la primera acepcion de una entrada con
-    varias seria inventar la atribucion, que es exactamente el error que D-117 existe para
-    impedir. Con una sola acepcion no hay a que otra cosa pertenecer.
+    ⚠️ **They only get in if the entry has ONE sense, and that is the whole rule.** The source
+    brings them at ENTRY level, not at sense level; hanging them off the first sense of an entry
+    with several would be inventing the attribution, which is exactly the error D-117 exists to
+    prevent. With a single sense there is nothing else for them to belong to.
 
-    Medido sobre 174.395 registros vivos: de las 29.817 flacas, 2.142 ganan algo por esta via
-    (7,2 %). Los sinonimos alcanzan a mas --20,3 %-- pero esos ya entraban por D-117.
+    Measured over 174,395 live records: of the 29,817 thin ones, 2,142 gain something this way
+    (7.2 %). The synonyms reach more --20.3 %-- but those already came in through D-117.
     """
 
     def setUp(self):
@@ -998,10 +999,10 @@ class RelacionadasTest(unittest.TestCase):
         self.assertEqual(["lengua", "valenciano"], got.senses[0]["related"])
 
     def test_con_VARIAS_acepciones_no_entra_ninguna(self):
-        """EL TEST QUE PAGA LA REGLA.
+        """THE TEST THAT PAYS FOR THE RULE.
 
-        La fuente los trae a nivel de entrada. Con dos acepciones no se sabe de cual son, y
-        colgarlos de la primera seria contenido incorrecto que parece correcto.
+        The source brings them at entry level. With two senses it is unknown which they belong to,
+        and hanging them off the first would be incorrect content that looks correct.
         """
         path = _jsonl(_raw("frances", "noun", [
             _sense("originario de Francia", sense_index="1"),
@@ -1026,7 +1027,7 @@ class RelacionadasTest(unittest.TestCase):
         self.assertEqual(4, len(got.senses[0]["related"]))
 
     def test_no_duplica_lo_que_ya_es_sinonimo(self):
-        """Un sinonimo ya se muestra en su linea; repetirlo abajo gasta una pantalla de reloj."""
+        """A synonym is already shown on its line; repeating it below spends a watch screen."""
         path = _jsonl(_raw("domingo", "noun", [_sense("marido dominado", sense_index="1")],
                            synonyms=[{"word": "pollerudo", "sense_index": "1"}],
                            related=[{"word": "pollerudo"}, {"word": "calzonazos"}]))
@@ -1036,12 +1037,12 @@ class RelacionadasTest(unittest.TestCase):
         self.assertEqual(["calzonazos"], got.senses[0]["related"])
 
     def test_las_ANIDADAS_entran_aunque_haya_varias_acepciones(self):
-        """La forma del dump INGLES, y la razon por la que la regla de arriba no las alcanza.
+        """The ENGLISH dump's shape, and the reason the rule above does not reach them.
 
-        Medido sobre 185.972 registros vivos del dump ingles: 13,8 % traen relacionadas ANIDADAS
-        dentro de la acepcion contra 9,6 % a nivel de entrada. Misma asimetria que los sinonimos
-        (D-124). Anidadas la atribucion es **estructural** --el item ya vive en su acepcion-- asi
-        que exigir una sola acepcion tiraria justamente la forma mas frecuente.
+        Measured over 185,972 live records of the English dump: 13.8 % carry related words NESTED
+        inside the sense against 9.6 % at entry level. The same asymmetry as the synonyms (D-124).
+        Nested, the attribution is **structural** --the item already lives in its sense-- so
+        requiring a single sense would throw away precisely the more frequent shape.
         """
         path = _jsonl(_raw("bank", "noun", [
             dict(_sense("financial institution", sense_index="1"),
@@ -1055,7 +1056,7 @@ class RelacionadasTest(unittest.TestCase):
         self.assertEqual(["riverbank"], got.senses[1]["related"])
 
     def test_con_una_acepcion_se_suman_las_anidadas_y_las_de_la_entrada(self):
-        """Union, no precedencia: el mismo criterio que `_senses` ya aplica a los sinonimos."""
+        """A union, not a precedence: the same criterion `_senses` already applies to the synonyms."""
         path = _jsonl(_raw("guanaco", "noun", [
             dict(_sense("mamifero sudamericano", sense_index="1"),
                  related=[{"word": "chulengo"}]),
@@ -1066,17 +1067,17 @@ class RelacionadasTest(unittest.TestCase):
 
 
     def test_el_markup_del_wikcionario_no_es_una_palabra(self):
-        """Medido: 1.072 de 267.721 items (0,40 %) no son palabras sino referencias internas.
+        """Measured: 1,072 of 267,721 items (0.40 %) are not words but internal references.
 
-        Poco en el total y **mucho donde importa**: en una muestra de seis entradas flacas del
-        pack ingles salio `abbacy -> abbe, more at abbot § Related terms`, y en una entrada flaca
-        esa linea es lo unico que hay debajo de la glosa. Las tres formas medidas:
+        Little in the total and **a lot where it matters**: in a sample of six thin entries from
+        the English pack, `abbacy -> abbe, more at abbot § Related terms` came out, and in a thin
+        entry that line is the only thing under the gloss. The three measured shapes:
 
-            "abbot § Related terms"        145 items   una referencia a una seccion
-            "Appendix:Months", "mul:12"    927 items   un namespace del wiki, o un codigo
-            "more at ..."                    4 items   una frase, no un lema
+            "abbot § Related terms"        145 items   a reference to a section
+            "Appendix:Months", "mul:12"    927 items   a wiki namespace, or a code
+            "more at ..."                    4 items   a phrase, not a lemma
 
-        Ninguna se puede mostrar ni se puede abrir como entrada: `norm()` no las encuentra.
+        None can be displayed and none can be opened as an entry: `norm()` does not find them.
         """
         path = _jsonl(_raw("abbacy", "noun", [_sense("dignidad de un abad", sense_index="1")],
                            related=[{"word": "abbé"},
@@ -1120,19 +1121,19 @@ class RankTest(unittest.TestCase):
 
 
 class CitaEnEspanolTest(unittest.TestCase):
-    """El Wikcionario sirve el `ref` con OTRA forma, y por eso el separador vive en el `Perfil`.
+    """Wiktionary serves the `ref` in ANOTHER shape, which is why the separator lives in the `Perfil`.
 
-    | | ingles | español |
+    | | English | Spanish |
     |---|---|---|
-    | forma | `1897, Richard Marsh, The Beetle:` | `Miguel Nicolau. Iniciacion a la Teologia. Pagina 85. 1984.` |
-    | orden | año primero | **autor primero, año ultimo** |
-    | separador | coma | **punto** |
-    | ejemplos con `ref` | 75,5 % | **68,4 %** |
-    | `ref` completo | 119 B | **92 B** |
+    | shape | `1897, Richard Marsh, The Beetle:` | `Miguel Nicolau. Iniciacion a la Teologia. Pagina 85. 1984.` |
+    | order | year first | **author first, year last** |
+    | separator | comma | **full stop** |
+    | examples with a `ref` | 75.5 % | **68.4 %** |
+    | complete `ref` | 119 B | **92 B** |
 
-    ⚠️ **Y trae un problema que el ingles no tiene: las INICIALES.** `J. R. R. Tolkien` son cuatro
-    campos si se parte por punto a secas, y los dos primeros serian `J` y `R`. Por eso el perfil
-    declara **dos** cosas: con que se parte, y si hay que fusionar iniciales.
+    ⚠️ **And it brings a problem English does not have: the INITIALS.** `J. R. R. Tolkien` is four
+    fields if split naively on the full stop, and the first two would be `J` and `R`. That is why
+    the profile declares **two** things: what to split on, and whether initials have to be fused.
     """
 
     def setUp(self):
@@ -1151,7 +1152,7 @@ class CitaEnEspanolTest(unittest.TestCase):
         return got[0].senses[0]["examples"][0]
 
     def test_se_recorta_a_autor_y_obra(self):
-        # El `ref` real del dump, medido.
+        # The dump's real `ref`, measured.
         self.assertEqual(
             {"text": "la casa de la esquina", "ref": "Miguel Nicolau. Iniciación a la Teología"},
             self._cita("Miguel Nicolau. Iniciación a la Teología. Página 85. "
@@ -1159,15 +1160,15 @@ class CitaEnEspanolTest(unittest.TestCase):
         )
 
     def test_las_INICIALES_no_cuentan_como_campo(self):
-        # ⚠️ El caso que obliga a la segunda regla. Sin fusionar, los dos primeros campos de
-        # `J. R. R. Tolkien. El Señor de los Anillos.` son `J` y `R`.
+        # ⚠️ The case that forces the second rule. Without fusing, the first two fields of
+        # `J. R. R. Tolkien. El Señor de los Anillos.` are `J` and `R`.
         self.assertEqual(
             "J. R. R. Tolkien. El Señor de los Anillos",
             self._cita("J. R. R. Tolkien. El Señor de los Anillos. Página 12. 1954.")["ref"],
         )
 
     def test_un_ref_que_empieza_con_puntuacion_no_la_arrastra(self):
-        # Visto en el dump: hay `ref` con el campo de autor vacio, que empiezan con `. `.
+        # Seen in the dump: there are `ref` values with an empty author field, starting with `. `.
         self.assertEqual(
             "Anónimo. Ordinación dada a la ciudad de Zaragoza",
             self._cita(". Anónimo. Ordinación dada a la ciudad de Zaragoza. Página 3. 1414.")["ref"],
@@ -1182,32 +1183,32 @@ class CitaEnEspanolTest(unittest.TestCase):
         self.assertEqual(["la casa"], got[0].senses[0]["examples"])
 
     def test_el_separador_INGLES_no_parte_una_cita_espanola(self):
-        # La cita española no tiene comas de nivel superior: si el perfil se equivocara de
-        # separador, saldria entera en vez de recortada. Es la degradacion segura, y este caso
-        # fija que el perfil español declara el punto.
+        # The Spanish citation has no top-level commas: if the profile got the separator wrong, it
+        # would come out whole instead of trimmed. That is the safe degradation, and this case pins
+        # that the Spanish profile declares the full stop.
         cita = self._cita("Emilio Castelar. Discursos politicos y literarios. Página 372. 1861.")
         self.assertEqual("Emilio Castelar. Discursos politicos y literarios", cita["ref"])
 
 
 class SubindicesDeReferenciaTest(unittest.TestCase):
-    """Los subindices de referencia cruzada se sacan de la glosa **solo en español**.
+    """The cross-reference subscripts are stripped from the gloss **only in Spanish**.
 
-    ⚠️ **La medicion que define el alcance, y sin ella el arreglo "barato" rompe contenido.**
-    El roadmap lo describia como *"un `str.translate` en `_gloss()`"*, que es compartido por los
-    dos idiomas. Medido sobre los packs de hoy:
+    ⚠️ **The measurement that defines the scope, and without it the "cheap" fix breaks content.**
+    The roadmap described it as *"a `str.translate` in `_gloss()`"*, which is shared by both
+    languages. Measured over today's packs:
 
-    | | con subindice | que son |
+    | | with a subscript | what they are |
     |---|---|---|
-    | español | ~1.890 | **referencias cruzadas**: `mudanza₁`, `ejercito₂`, `abdicar₁` (62 de 69) |
-    | ingles | ~4.584 | **formulas quimicas**: `C₇H₅NO₃S`, `FeO₂²⁻`, `MnO₂` (23 de 26, y las otras 3 tambien) |
+    | Spanish | ~1,890 | **cross-references**: `mudanza₁`, `ejercito₂`, `abdicar₁` (62 of 69) |
+    | English | ~4,584 | **chemical formulas**: `C₇H₅NO₃S`, `FeO₂²⁻`, `MnO₂` (23 of 26, and the other 3 too) |
 
-    Aplicarlo a los dos convierte la sacarina en algo que no es una formula, en un lugar donde
-    nadie mira. Es la misma leccion de D-121, donde un patron mas ancho habria destruido el
-    superindice matematico ingles.
+    Applying it to both turns saccharin into something that is not a formula, in a place nobody
+    looks. It is D-121's same lesson, where a wider pattern would have destroyed the English
+    mathematical superscript.
 
-    ⚠️ **Y pierde informacion aun en español**: el subindice dice **que acepcion** de la palabra
-    referida. Se acepta a sabiendas -- en un reloj, `ejercito₂` se lee como un error de
-    codificacion, y la acepcion exacta no es recuperable desde la ficha de todas formas.
+    ⚠️ **And it loses information even in Spanish**: the subscript says **which sense** of the
+    referred word. That is accepted knowingly -- on a watch, `ejercito₂` reads as an encoding
+    error, and the exact sense is not recoverable from the card anyway.
     """
 
     def setUp(self):
@@ -1227,7 +1228,7 @@ class SubindicesDeReferenciaTest(unittest.TestCase):
                          self._glosa("En particular, ejército₂ terrestre."))
 
     def test_el_INGLES_conserva_sus_formulas(self):
-        # ⚠️ El contra-caso, y es la mitad que define el alcance.
+        # ⚠️ The counter-case, and it is the half that defines the scope.
         formula = "A white powder, C₇H₅NO₃S, used as a sweetener."
         self.assertEqual(formula, self._glosa(formula, lang="en"))
 
@@ -1236,20 +1237,20 @@ class SubindicesDeReferenciaTest(unittest.TestCase):
 
 
 class LavadoDeFrecuenciaTest(unittest.TestCase):
-    """Una palabra con mayuscula no cobra la frecuencia de su homografo en minuscula.
+    """A capitalized word does not collect its lowercase homograph's frequency.
 
-    ⚠️ **El problema, medido sobre `en-def-wikt.db`:** 6.462 entradas con mayuscula y
-    `pos != name` estaban en la banda de frecuencia real `[0,500)`, que tiene 55.903 -- el
-    **11,6 %** de la banda "mas frecuente". La causa es que `frequency.key()` baja a minusculas
-    --correcto, D-186: en español el acento distingue palabras-- y la lista de OpenSubtitles
-    **ya viene toda en minusculas**, asi que `TO` cobra las apariciones de `to`.
+    ⚠️ **The problem, measured over `en-def-wikt.db`:** 6,462 entries with a capital and
+    `pos != name` were in the real frequency band `[0,500)`, which has 55,903 -- **11.6 %** of the
+    "most frequent" band. The cause is that `frequency.key()` lowercases --correctly, D-186: in
+    Spanish the accent distinguishes words-- and the OpenSubtitles list **already comes entirely in
+    lowercase**, so `TO` collects `to`'s occurrences.
 
-    ⚠️ **Se arregla SOLO la clase que tiene regla, y eso fue la decision.** Las 4.246 con
-    homografo en minuscula son siglas y formas honorificas --`TO`, `OF`, `IS`, `WE`, `ME`, `HE`,
-    `NO`, `ARE`, `BE`, `CAN`-- y ahi la regla es inequivoca: **la frecuencia es del lema en
-    minuscula, que ya tiene su propia entrada**. Las otras dos clases --1.333 con hermano
-    `pos=name` y 883 sin ninguna de las dos senales-- mezclan `Thomas` con `Christmas`, y no hay
-    dato que las separe: el truco de D-137 se midio y **no transfiere al ingles**.
+    ⚠️ **ONLY the class that has a rule gets fixed, and that was the decision.** The 4,246 with a
+    lowercase homograph are initialisms and honorific forms --`TO`, `OF`, `IS`, `WE`, `ME`, `HE`,
+    `NO`, `ARE`, `BE`, `CAN`-- and there the rule is unambiguous: **the frequency belongs to the
+    lowercase lemma, which already has its own entry**. The other two classes --1,333 with a
+    `pos=name` sibling and 883 with neither signal-- mix `Thomas` in with `Christmas`, and there is
+    no datum that separates them: D-137's trick was measured and **does not transfer to English**.
     """
 
     def setUp(self):
@@ -1277,10 +1278,10 @@ class LavadoDeFrecuenciaTest(unittest.TestCase):
             "la sigla cobro la frecuencia de `to`: sale en la banda de los mas frecuentes")
 
     def test_sin_homografo_en_minuscula_la_frecuencia_SI_se_cobra(self):
-        # ⚠️ El contra-caso, y es la mitad que define el alcance. `Christmas` y `American` son
-        # vocabulario ingles frecuente y no tienen homografo en minuscula: tienen que conservar
-        # su frecuencia. Negarsela por llevar mayuscula seria el falso positivo que hizo descartar
-        # la regla mas amplia.
+        # ⚠️ The counter-case, and it is the half that defines the scope. `Christmas` and
+        # `American` are frequent English vocabulary and have no lowercase homograph: they have to
+        # keep their frequency. Denying it to them for carrying a capital would be the false
+        # positive that got the wider rule discarded.
         got = self.records(
             _raw("Christmas", "noun", [_sense("The feast.")], lang_code="en"),
             frequencies={"christmas": 5.0},
@@ -1288,9 +1289,9 @@ class LavadoDeFrecuenciaTest(unittest.TestCase):
         self.assertLess(got["Christmas"].rank, kaikki.FRONTERA_CON_SENAL)
 
     def test_el_homografo_tiene_que_ser_una_ENTRADA_y_no_una_pagina_de_forma(self):
-        # Una pagina `form-of` no es una entrada del pack: se invierte como forma de su lema
-        # (D-065). Si contara, cualquier mayuscula cuya minuscula sea una flexion perderia su
-        # frecuencia sin que exista ninguna entrada que la reclame.
+        # A `form-of` page is not an entry of the pack: it is inverted as a form of its lemma
+        # (D-065). If it counted, any capitalized word whose lowercase is an inflection would lose
+        # its frequency with no entry existing to claim it.
         got = self.records(
             _raw("ran", "verb", [
                 _sense("simple past of run", tags=["form-of"], form_of=[{"word": "run"}]),
@@ -1340,16 +1341,16 @@ class CitaDelEjemploTest(unittest.TestCase):
         return got[0].senses[0]["examples"][0]
 
     def test_la_cita_se_recorta_a_ano_y_autor(self):
-        # El `ref` real de la entrada que disparo todo esto.
+        # The real `ref` of the entry that set all this off.
         self.assertEqual(
             {"text": "prove them Thomases", "ref": "1897, Richard Marsh"},
             self._example("1897, Richard Marsh, The Beetle:"),
         )
 
     def test_una_coma_dentro_de_un_titulo_entrecomillado_no_corta(self):
-        # ⚠️ El caso que mato la regla ingenua: partir por coma a secas dejaba
-        # «2019 June 6, “A gaggle» -- un titular cortado al medio que se lee como un error de
-        # datos. Medido, le pasa a 320 citas (1,1 %) y arreglarlo cuesta 1 byte de promedio.
+        # ⚠️ The case that killed the naive rule: splitting naively on the comma left
+        # "2019 June 6, “A gaggle" -- a headline cut in half that reads as a data error. Measured,
+        # it happens to 320 citations (1.1 %) and fixing it costs 1 byte on average.
         ref = ("2019 June 6, “A gaggle, a confusion and a conspiracy - bizarre animal "
                "collective group names”, in BBC:")
         self.assertEqual(
@@ -1363,36 +1364,36 @@ class CitaDelEjemploTest(unittest.TestCase):
         self.assertEqual("1611, The Holy Bible", self._example(ref)["ref"])
 
     def test_los_corchetes_tampoco_se_parten(self):
-        # ⚠️ **Este caso lo encontro LEER el pack construido, no un test.** El `ref` real de
-        # `captive` salia como `1850, [Alfred` -- un corchete abierto que nunca cierra, que se
-        # lee como dato roto. El Wiktionary usa corchetes para el nombre editorial del autor
-        # (`[Alfred, Lord Tennyson]`, `[William Tyndale, transl.]`, `[i.e., Ben Jonson]`) y esa
-        # coma es interna. Medido sobre el dump: **369 citas (1,3 %)**, y TODAS salian con el
-        # corchete desbalanceado. Cerrarlo cuesta 1 byte de promedio (31 -> 32).
+        # ⚠️ **This case was found by READING the built pack, not by a test.** `captive`'s real
+        # `ref` came out as `1850, [Alfred` -- an opened bracket that never closes, which reads as
+        # broken data. Wiktionary uses brackets for the author's editorial name (`[Alfred, Lord
+        # Tennyson]`, `[William Tyndale, transl.]`, `[i.e., Ben Jonson]`) and that comma is
+        # internal. Measured over the dump: **369 citations (1.3 %)**, and ALL of them came out
+        # with the bracket unbalanced. Closing it costs 1 byte on average (31 -> 32).
         ref = "1850, [Alfred, Lord Tennyson], In Memoriam A. H. H., London: Edward Moxon:"
         self.assertEqual("1850, [Alfred, Lord Tennyson]", self._example(ref)["ref"])
 
     def test_un_ref_envuelto_entero_en_corchetes_se_desenvuelve(self):
-        # La otra forma que el Wiktionary usa: encerrar la cita ENTERA entre corchetes cuando la
-        # fuente es indirecta. El corchete no cierra dentro de los dos primeros campos, asi que
-        # la profundidad nunca vuelve a cero y **no se corta nada**: salia el `ref` completo,
-        # con el corchete abierto. Medido: 184 citas (0,64 %).
+        # The other shape Wiktionary uses: enclosing the WHOLE citation in brackets when the source
+        # is indirect. The bracket does not close within the first two fields, so the depth never
+        # returns to zero and **nothing is cut**: the complete `ref` came out, with the bracket
+        # open. Measured: 184 citations (0.64 %).
         ref = "[1755 April 15, Samuel Johnson, “Lexico′grapher”, in A Dictionary of the English Language:"
         self.assertEqual("1755 April 15, Samuel Johnson", self._example(ref)["ref"])
 
     def test_el_desenvoltorio_NO_se_aplica_cuando_el_par_si_cierra(self):
-        # ⚠️ **La version ingenua de la regla de arriba --sacar el delimitador inicial siempre--
-        # ROMPE estos dos**, y se vio midiendo: `[1877], Anna Sewell` quedaba `1877], Anna
-        # Sewell`. Por eso se desenvuelve solo si el corte quedo desbalanceado.
+        # ⚠️ **The naive version of the rule above --always removing the leading delimiter--
+        # BREAKS these two**, and that was seen by measuring: `[1877], Anna Sewell` became `1877],
+        # Anna Sewell`. That is why it only unwraps if the cut came out unbalanced.
         self.assertEqual("[1877], Anna Sewell",
                          self._example("[1877], Anna Sewell, “A Strike for Liberty”:")["ref"])
         self.assertEqual("(Can we date this quote?), Sir T. Browne",
                          self._example("(Can we date this quote?), Sir T. Browne, (Please provide):")["ref"])
 
     def test_ninguna_cita_sale_con_un_par_sin_cerrar(self):
-        """La propiedad, no el caso: lo que se lee como roto es el par desbalanceado.
+        """The property, not the case: what reads as broken is the unbalanced pair.
 
-        Medido sobre el dump entero con esta regla: **0 de 28.744**.
+        Measured over the whole dump with this rule: **0 of 28,744**.
         """
         for ref in (
             "1850, [Alfred, Lord Tennyson], In Memoriam:",
@@ -1414,9 +1415,9 @@ class CitaDelEjemploTest(unittest.TestCase):
         self.assertEqual("BBC News", self._example("BBC News:")["ref"])
 
     def test_un_ejemplo_sin_ref_queda_como_cadena_pelada(self):
-        # La forma canonica: el 24,5 % de los ejemplos del dump no declara fuente, y devolver un
-        # dict con `ref: None` obligaria a cada consumidor a distinguir dos formas del mismo
-        # caso. Ver `payload._example_parts`.
+        # The canonical shape: 24.5 % of the dump's examples declare no source, and returning a
+        # dict with `ref: None` would force every consumer to distinguish two shapes of the same
+        # case. See `payload._example_parts`.
         got = self.english(_raw("dog", "noun", [
             _sense("A mammal.", examples=[{"text": "the dog barks"}]),
         ]))
@@ -1429,14 +1430,14 @@ class CitaDelEjemploTest(unittest.TestCase):
         self.assertEqual(["the dog barks"], got[0].senses[0]["examples"])
 
     def test_cada_idioma_recorta_con_SU_separador(self):
-        """⚠️ Lo que este caso protege es que el separador NO sea global.
+        """⚠️ What this case protects is that the separator NOT be global.
 
-        Los dos dumps sirven el `ref` con formas distintas --el ingles pone el año primero y
-        separa por coma; el Wikcionario pone el autor primero y separa por punto-- asi que un
-        separador compartido produce basura en uno de los dos. Vive en el `Perfil`, junto a los
-        pesos del rank y por la misma razon que ellos (D-076).
+        The two dumps serve the `ref` in different shapes --English puts the year first and splits
+        on the comma; Wiktionary puts the author first and splits on the full stop-- so a shared
+        separator produces garbage in one of the two. It lives in the `Perfil`, next to the rank
+        weights and for the same reason as them (D-076).
 
-        El español entro despues que el ingles, y este caso es el que fija que los dos convivan.
+        Spanish came in after English, and this case is the one that pins that both coexist.
         """
         path = _jsonl(_raw("casa", "noun", [
             _sense("Edificio.", examples=[{"text": "la casa",
@@ -1455,16 +1456,16 @@ if __name__ == "__main__":
 
 
 class PartesPrincipalesTest(unittest.TestCase):
-    """Que formas llegan a la FICHA. Distinto de `forms`, que alimenta la busqueda."""
+    """Which forms reach the CARD. Different from `forms`, which feeds the search."""
 
     def _forms(self, *items):
         return kaikki._display_forms({"forms": list(items)}, "correr")
 
     def test_elige_la_simple_y_descarta_la_compuesta(self):
-        # ⚠️ **El caso que una sonda descubrio sin cubrir.** La fuente etiqueta `corriendo` y
-        # `habiendo corrido` EXACTAMENTE igual --las dos llevan `['impersonal', 'gerund']`-- asi
-        # que ninguna etiqueta las separa: lo unico que las distingue es el espacio. Con la
-        # compuesta primero en la lista, un selector sin ese filtro se la lleva.
+        # ⚠️ **The case a probe discovered uncovered.** The source tags `corriendo` and `habiendo
+        # corrido` EXACTLY alike --both carry `['impersonal', 'gerund']`-- so no tag separates
+        # them: the only thing that distinguishes them is the space. With the compound one first in
+        # the list, a selector without that filter takes it.
         self.assertEqual(
             (("ger", "corriendo"),),
             self._forms({"form": "habiendo corrido", "tags": ["impersonal", "gerund"]},
@@ -1472,8 +1473,8 @@ class PartesPrincipalesTest(unittest.TestCase):
         )
 
     def test_impersonal_NO_descalifica(self):
-        # ⚠️ Creerlo dejo a `correr` sin ninguna parte principal en la primera version: el
-        # español marca asi TODAS sus formas no personales.
+        # ⚠️ Believing it left `correr` with no principal part at all in the first version: Spanish
+        # marks ALL its non-finite forms that way.
         self.assertEqual(
             (("part", "corrido"),),
             self._forms({"form": "corrido", "tags": ["impersonal", "participle"]}),
@@ -1498,19 +1499,19 @@ class PartesPrincipalesTest(unittest.TestCase):
         self.assertEqual((), self._forms({"form": "correr", "tags": ["gerund"]}))
 
     def test_sin_etiquetas_no_se_adivina_nada(self):
-        # Una fuente sin `tags` no permite decir que es cada forma, y una etiqueta inventada es
-        # peor que ninguna forma.
+        # A source with no `tags` gives no way to say what each form is, and an invented label is
+        # worse than no form at all.
         self.assertEqual((), self._forms({"form": "corriendo"}))
 
     def test_un_femenino_plural_no_es_ninguna_de_las_dos(self):
-        # `altas` es plural Y femenino, asi que no es el plural llano (`altos`) ni el femenino
-        # singular (`alta`): las dos filas lo prohiben y no sale ninguna. Mostrarlo bajo
-        # cualquiera de las dos claves seria una etiqueta equivocada, que es peor que ninguna.
+        # `altas` is plural AND feminine, so it is neither the plain plural (`altos`) nor the
+        # feminine singular (`alta`): both rows forbid it and neither comes out. Showing it under
+        # either key would be a wrong label, which is worse than none.
         self.assertEqual((), self._forms({"form": "altas", "tags": ["plural", "feminine"]}))
 
     def test_una_forma_no_se_repite_bajo_dos_claves(self):
-        # `corriendo` califica como gerundio y nada mas; si una forma calificara dos veces, la
-        # ficha la mostraria dos veces con etiquetas distintas.
+        # `corriendo` qualifies as a gerund and nothing else; if a form qualified twice, the card
+        # would show it twice with different labels.
         salida = self._forms({"form": "corriendo", "tags": ["gerund"]},
                              {"form": "corrido", "tags": ["participle"]})
         self.assertEqual(len({f for _, f in salida}), len(salida))

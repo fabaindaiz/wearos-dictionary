@@ -1,13 +1,13 @@
-"""Lee el repertorio Unicode fijado que comparten el builder y la app.
+"""Reads the pinned Unicode repertoire shared by the builder and the app.
 
-ESTE ARCHIVO TIENE UN ESPEJO GENERADO:
+THIS FILE HAS A GENERATED MIRROR:
     dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt
 
-Los dos salen de tools/unicode/repertoire.txt. A diferencia de normalize.py / TextNormalizer.kt,
-que son espejos escritos a mano, estos dos se GENERAN del mismo origen y el sha256 los ata: si
-alguien regenera uno solo, los tests de ambos lados fallan.
+Both come out of tools/unicode/repertoire.txt. Unlike normalize.py / TextNormalizer.kt, which are
+hand-written mirrors, these two are GENERATED from the same origin and the sha256 ties them: if
+somebody regenerates only one, both sides' tests fail.
 
-Ver el encabezado de tools/unicode/gen_repertoire.py para el motivo de existir.
+See the header of tools/unicode/gen_repertoire.py for why it exists.
 """
 
 import bisect
@@ -17,7 +17,7 @@ import os
 CLASS_OTHER = 0
 CLASS_LETTER = 1
 CLASS_COMBINING_MARK = 2
-# Separado de letra porque fuzzy() colapsa letras repetidas y digitos no.
+# Kept apart from letter because fuzzy() collapses repeated letters and digits it does not.
 CLASS_DIGIT = 3
 
 _DATA_PATH = os.path.join(
@@ -70,11 +70,11 @@ RANGE_COUNT = len(_STARTS)
 
 
 def classify(code_point):
-    """Clase de un code point segun el repertorio fijado.
+    """A code point's class according to the pinned repertoire.
 
-    Un code point ausente de la tabla -- puntuacion, simbolo, o asignado en una version de
-    Unicode posterior al piso -- devuelve CLASS_OTHER, que norm() trata como separador. Esa es
-    justamente la decision que antes tomaba unicodedata y que difiere entre plataformas.
+    A code point absent from the table -- punctuation, a symbol, or one assigned in a Unicode
+    version later than the floor -- returns CLASS_OTHER, which norm() treats as a separator. That
+    is precisely the decision unicodedata used to take, and it differs between platforms.
     """
     index = bisect.bisect_right(_STARTS, code_point) - 1
     if index >= 0 and code_point <= _ENDS[index]:

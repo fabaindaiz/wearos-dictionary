@@ -1,63 +1,65 @@
-"""Construye un pack real monolingue desde un dump de kaikki.org.
+"""Builds a real monolingual pack from a kaikki.org dump.
 
-    python3 build_pack.py <lang> <kaikki.jsonl> <salida.db> [--sample N] [--nombres POLITICA]
+    python3 build_pack.py <lang> <kaikki.jsonl> <output.db> [--sample N] [--nombres POLICY]
                           [--ejemplos <es-en-wikt.jsonl>] [--frases <tatoeba-spa.tsv>]
                           [--tesauro <wordnet>] [--sumar <pack> <dump>]
-                          [--flexiones <pack-del-idioma-destino.db>]
-                          [--frecuencias <lista-opensubtitles.txt>]
+                          [--flexiones <target-language-pack.db>]
+                          [--frecuencias <opensubtitles-list.txt>]
 
-`--sample N` construye un pack piloto con 1 de cada N lemas, elegidos por hash del headword:
-determinista y **sin sesgo posicional**, a diferencia de cortar por las primeras N lineas. Sirve
-para mirar el contenido y estimar el tamano antes de gastar el build completo.
+`--sample N` builds a pilot pack with 1 in every N lemmas, chosen by hashing the headword:
+deterministic and **with no positional bias**, unlike cutting the first N lines. It serves to look
+at the content and estimate the size before spending the full build.
 
-Los dumps se bajan de kaikki.org (paginas procesadas por idioma; el formato crudo esta
-deprecado). **Cual es cual es el error facil**, porque los tres existen y son datasets distintos:
+The dumps are downloaded from kaikki.org (per-language processed pages; the raw format is
+deprecated). **Which is which is the easy mistake**, because all three exist and are different
+datasets:
 
-    es -> https://kaikki.org/eswiktionary/Español/...   definiciones EN ESPAÑOL de palabras
-                                                        españolas. 1,42 GB.
-    en -> https://kaikki.org/dictionary/English/...     definiciones EN INGLES de palabras
-                                                        inglesas. 3,24 GB.
+    es -> https://kaikki.org/eswiktionary/Español/...   definitions IN SPANISH of Spanish
+                                                        words. 1.42 GB.
+    en -> https://kaikki.org/dictionary/English/...     definitions IN ENGLISH of English
+                                                        words. 3.24 GB.
 
-    enwiktionary seccion Spanish da palabras españolas con glosa **en ingles**: eso es un pack
-    BILINGUE y no lo construye este script.
+    enwiktionary's Spanish section gives Spanish words with a gloss **in English**: that is a
+    BILINGUAL pack and this script does not build it.
 
-**Los nombres propios no entran** (D-116): apellidos, toponimos y nombres de pila se descartan
-por defecto. Lo que se saca: 32.305 entradas en español (22,1 %, de las cuales 26.265 definen
-solamente "Apellido.") y 163.470 en ingles (17,1 %, 40,7 MB).
+**Proper nouns do not get in** (D-116): surnames, toponyms and given names are discarded by
+default. What that removes: 32,305 entries in Spanish (22.1 %, of which 26,265 define only
+"Apellido.") and 163,470 in English (17.1 %, 40.7 MB).
 
-`--nombres POLITICA` cambia eso. Son tres y estan medidas en español (D-134):
+`--nombres POLICY` changes that. There are three and they are measured in Spanish (D-134):
 
-    lexical-only       el default. 114.619 entradas, 68,3 MB
-    definitions-only   entra el que DEFINE y no el que solo se registra, con el rank
-                       castigado. Rescata ciudades, generos taxonomicos, grafias anticuadas
-    included           entran todos. 146.193 entradas, 73,3 MB. Existe para MEDIR
+    lexical-only       the default. 114,619 entries, 68.3 MB
+    definitions-only   the one that DEFINES gets in and the one that merely registers does
+                       not, with a penalized rank. It rescues cities, taxonomic genera,
+                       archaic spellings
+    included           they all get in. 146,193 entries, 73.3 MB. It exists to MEASURE
 
-Las dos que no son el default **sufijan el `pack_id`**, asi que se pueden instalar al lado del
-pack normal y compararse en el reloj. `--con-nombres` sigue funcionando como alias de
+The two that are not the default **suffix the `pack_id`**, so they can be installed beside the
+normal pack and compared on the watch. `--con-nombres` still works as an alias for
 `--nombres included`.
 
-`--ejemplos` suma una **segunda fuente**: los ejemplos de uso en español del Wiktionary ingles,
-seccion Spanish (D-135). Solo llena entradas flacas y solo donde no hay atribucion que inventar,
-asi que el numero es chico -- **326 entradas, 0,28 %**. ⚠️ **Cambia la atribucion del pack**,
-porque usar dos fuentes obliga a nombrar a las dos: por eso es una opcion y no un default. Las
-dos son CC BY-SA 4.0.
+`--ejemplos` adds a **second source**: the Spanish usage examples of the English Wiktionary,
+Spanish section (D-135). It only fills thin entries and only where there is no attribution to
+invent, so the number is small -- **326 entries, 0.28 %**. ⚠️ **It changes the pack's
+attribution**, because using two sources forces naming both: that is why it is an option and not a
+default. Both are CC BY-SA 4.0.
 
-`--frases` suma una **tercera fuente**: el corpus Tatoeba (D-137). Rinde **23 veces mas** que
-`--ejemplos` --7.019 entradas contra 307-- porque un ejemplo de corpus no necesita que las dos
-fuentes coincidan en como numeran las acepciones: solo necesita contener la palabra **sin
-ambiguedad**, y eso lo comprueba el builder contra su propio indice. ⚠️ Tatoeba es **CC BY 2.0
-FR** y tambien cambia la atribucion. Las dos opciones se pueden combinar.
+`--frases` adds a **third source**: the Tatoeba corpus (D-137). It yields **23 times more** than
+`--ejemplos` --7,019 entries against 307-- because a corpus example does not need the two sources
+to agree on how they number the senses: it only needs to contain the word **unambiguously**, and
+the builder checks that against its own index. ⚠️ Tatoeba is **CC BY 2.0 FR** and it too changes
+the attribution. Both options can be combined.
 
-`--sumar <pack> <dump>` funde el **vocabulario** de otro pack del catalogo dentro de este: entran
-los lemas que la fuente base no tiene y se descartan los repetidos (D-146). `--sumar es-wd
-<lexemas>` aporta **6.092 lemas** al pack español --gentilicios regionales, locuciones-- por
-~1,5 MB. ⚠️ Es una union de FILAS: no parte ninguna entrada, asi que no necesita composicion.
+`--sumar <pack> <dump>` merges another catalog pack's **vocabulary** into this one: the lemmas the
+base source does not have get in and the duplicates are discarded (D-146). `--sumar es-wd
+<lexemes>` contributes **6,092 lemmas** to the Spanish pack --regional demonyms, set phrases-- for
+~1.5 MB. ⚠️ It is a union of ROWS: it splits no entry, so it needs no composition.
 
-`--tesauro` suma **sinonimos y antonimos de WordNet** (D-144), que estan agrupados por
-SIGNIFICADO y por lo tanto no dependen de que alguien los escribiera a mano. El formato lo elige
-el idioma del pack: **WN-LMF** (`english-wordnet-*.xml.gz`, CC BY 4.0) para el ingles y el
-**`.tab` de OMW** (`wn-data-spa.tab`, CC BY 3.0) para el español. Rinde **21.143 entradas** en
-ingles --mas 2.486 con antonimos-- y **5.504** en español. ⚠️ Tambien cambia la atribucion.
+`--tesauro` adds **WordNet's synonyms and antonyms** (D-144), which are grouped by MEANING and
+therefore do not depend on somebody having written them by hand. The pack's language picks the
+format: **WN-LMF** (`english-wordnet-*.xml.gz`, CC BY 4.0) for English and **OMW's `.tab`**
+(`wn-data-spa.tab`, CC BY 3.0) for Spanish. It yields **21,143 entries** in English --plus 2,486
+with antonyms-- and **5,504** in Spanish. ⚠️ It changes the attribution too.
 """
 
 import hashlib
@@ -68,19 +70,19 @@ from sources import bilingual, enwikt_examples, kaikki, oewn, tatoeba, wikidata,
 
 from build import PackBuilder, name_with_tier
 
-# El CATALOGO de fuentes, y la razon de que sea una tabla y no texto suelto (D-138).
+# The CATALOG of sources, and the reason it is a table and not loose text (D-138).
 #
-# Cada fila es una declaracion: quien aporto que, desde donde, y bajo que licencia. De aca salen
-# **las dos** cosas que el pack lleva -- la prosa de `meta.attribution` y la lista estructurada de
-# `meta.sources` -- asi que **no hay forma de sumar contenido sin sumar el credito**: es un dato,
-# no un parrafo que alguien tiene que acordarse de editar.
+# Each row is a declaration: who contributed what, from where, and under which licence. From here
+# come **both** things the pack carries -- `meta.attribution`'s prose and `meta.sources`'s
+# structured list -- so **there is no way to add content without adding the credit**: it is a
+# datum, not a paragraph somebody has to remember to edit.
 #
-# ⚠️ **Una licencia por fuente, no una por pack.** El pack español con `--frases` mezcla
-# definiciones CC BY-SA 4.0 con frases CC BY 2.0 FR. Un solo nombre para todo el pack o reclama de
-# mas o acredita de menos, y la atribucion es la CONDICION de uso del dato (D-031).
+# ⚠️ **One licence per source, not one per pack.** The Spanish pack with `--frases` mixes CC BY-SA
+# 4.0 definitions with CC BY 2.0 FR sentences. A single name for the whole pack either over-claims
+# or under-credits, and the attribution is the CONDITION of using the data (D-031).
 #
-# `codigo` es tambien el que aparece en el `pack_id` (ver GRAMATICA_DE_PACK_ID), para que dos
-# packs del mismo idioma y distinta fuente no colisionen.
+# `codigo` is also the one that appears in the `pack_id` (see GRAMATICA_DE_PACK_ID), so two packs
+# of the same language from different sources do not collide.
 FUENTES = {
     "wikc": {
         "codigo": "wikc",
@@ -112,8 +114,9 @@ FUENTES = {
         "prosa": ("Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección "
                   "Spanish, licencia CC BY-SA 4.0."),
     },
-    # El MISMO volcado que "enwikt-ej", con otro rol: alla aporta ejemplos a un pack espanol,
-    # aca aporta las definiciones enteras -- y en ingles, que es lo que lo vuelve bilingue.
+    # The SAME dump as "enwikt-ej", in another role: there it contributes examples to a Spanish
+    # pack, here it contributes the whole definitions -- and in English, which is what makes it
+    # bilingual.
     "enwikt": {
         "codigo": "enwikt",
         "rol": "definitions",
@@ -150,8 +153,8 @@ FUENTES = {
         "url": "https://www.wikidata.org/wiki/Wikidata:Lexicographical_data",
         "licencia": "CC0 1.0",
         "licencia_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-        # Se declara igual aunque CC0 no lo exija: de donde viene un dato es util saberlo
-        # aunque no sea obligatorio decirlo.
+        # It is declared all the same even though CC0 does not require it: where a datum comes from
+        # is useful to know even when saying so is not compulsory.
         "prosa": ("Definiciones de Wikidata Lexemes (wikidata.org), dedicadas al dominio "
                   "público bajo CC0 1.0."),
     },
@@ -187,11 +190,11 @@ FUENTES = {
 
 
 def _declarar(metadata, clave):
-    """Suma una fuente al manifiesto del pack: la prosa y la fila estructurada, juntas.
+    """Adds a source to the pack's manifest: the prose and the structured row, together.
 
-    Es una sola funcion para que **no exista** una forma de agregar contenido y olvidar el
-    credito. El modo de falla que evita es silencioso: el pack sale entero, abre, funciona, y
-    esta mal licenciado -- nada en el contenido lo delata.
+    It is a single function so that **there is no** way to add content and forget the credit. The
+    failure mode it prevents is silent: the pack comes out whole, opens, works, and is badly
+    licensed -- nothing in the content gives it away.
     """
     fuente = FUENTES[clave]
     fila = "\t".join((fuente["rol"], fuente["nombre"], fuente["url"],
@@ -201,52 +204,52 @@ def _declarar(metadata, clave):
     metadata["attribution"] = (prosa + " " + fuente["prosa"]).strip()
     return fuente
 
-# D-031: el contenido es CC BY-SA y la pantalla de atribucion no es opcional. Estas dos claves
-# son lo que la app tiene que mostrar; sin ellas el pack no cumple la licencia de los datos.
+# D-031: the content is CC BY-SA and the attribution screen is not optional. These two keys are
+# what the app has to show; without them the pack does not comply with the data's licence.
 #
-# `name` es CORTO y `description` lleva el texto largo (D-125). El nombre se muestra en una
-# fila de reloj --en el selector del inicio, en la pantalla de diccionarios, en el dialogo de
-# borrar y en la atribucion-- y "Español - definiciones" son 22 caracteres: se cortaba en los
-# cuatro. Lo que el nombre largo decia --que trae definiciones-- sale ahora de `kind`, que es un
-# dato y no una cadena que alguien tiene que leer.
+# `name` is SHORT and `description` carries the long text (D-125). The name is shown in a watch row
+# --in the home's selector, in the dictionaries screen, in the delete dialog and in the
+# attribution-- and "Español - definiciones" is 22 characters: it was clipped in all four. What the
+# long name said --that it carries definitions-- now comes from `kind`, which is a datum and not a
+# string somebody has to read.
 #
-# `proper_nouns` declara la politica de contenido del pack (D-116). Se escribe en `meta` el
-# valor EFECTIVO, no el declarado: meta tiene que decir que paso, no que se pretendia.
+# `proper_nouns` declares the pack's content policy (D-116). The EFFECTIVE value is written into
+# `meta`, not the declared one: meta has to say what happened, not what was intended.
 #
-# ⚠️ **Y `description` tiene la misma obligacion, que se estaba incumpliendo.** Los dos packs
-# decian "proper nouns pruned" / "sin nombres propios" mientras `proper_nouns` decia
-# `included` y el ingles llevaba 163.470 nombres propios adentro. No es un comentario: es el
-# texto que el usuario lee en la pantalla de atribucion, afirmando lo contrario de lo que el
-# pack es. Una `description` que describe una politica **se desactualiza sola** cuando la
-# politica cambia -- asi que ahora no la nombra, y quien quiera saberla lee `proper_nouns`.
+# ⚠️ **And `description` carries the same obligation, which was being broken.** Both packs said
+# "proper nouns pruned" / "sin nombres propios" while `proper_nouns` said `included` and English
+# carried 163,470 proper nouns inside. It is not a comment: it is the text the user reads on the
+# attribution screen, asserting the opposite of what the pack is. A `description` that describes a
+# policy **goes stale on its own** when the policy changes -- so now it does not name it, and
+# whoever wants to know reads `proper_nouns`.
 #
-# "lexical-only" y no "excluded" porque la poda tiene una excepcion medida: el nombre propio con
-# vida lexica --los meses, los paises, los idiomas-- se conserva. Ver SENAL_LEXICA_MINIMA en
-# sources/kaikki.py.
+# "lexical-only" and not "excluded" because the pruning has a measured exception: a proper noun
+# with lexical life --the months, the countries, the languages-- is kept. See SENAL_LEXICA_MINIMA
+# in sources/kaikki.py.
 #
-# `source_date` es la fecha del DUMP en AAAAMMDD, y es informativa: dice de que volcado sale el
-# contenido. **No es la version del pack.** Esa la deriva el builder del reloj del build
-# (`build.data_version`), porque reconstruir el mismo dump con otro builder tiene que dar un
-# numero distinto -- si no, `devpack.py` y el instalador leen "es el mismo pack" y un pack mejor
-# no se propaga nunca.
+# `source_date` is the DUMP's date in YYYYMMDD, and it is informative: it says which dump the
+# content comes from. **It is not the pack's version.** That one the builder derives from the
+# build's clock (`build.data_version`), because rebuilding the same dump with another builder has
+# to give a different number -- otherwise `devpack.py` and the installer read "it is the same
+# pack" and a better pack never propagates.
 def _destino(clave):
-    """El SEGUNDO idioma declarado, o None si el pack tiene uno solo.
+    """The SECOND declared language, or None if the pack has only one.
 
-    Segundo tampoco es secundario: es el otro. Lo que decide es si el lector emite tambien las
-    entradas inversas, que es lo unico que distingue un pack bidireccional de uno que solo sabe
-    buscar en la otra direccion.
+    Second is not secondary either: it is the other one. What it decides is whether the reader also
+    emits the reverse entries, which is the only thing distinguishing a bidirectional pack from one
+    that merely knows how to search in the other direction.
     """
     declarados = [x.strip() for x in PACKS[clave]["langs"].split(",")]
     return declarados[1] if len(declarados) > 1 else None
 
 
 def _primario(clave):
-    """El primer idioma declarado por un pack de [PACKS].
+    """The first language declared by a [PACKS] pack.
 
-    ⚠️ **Primero no es principal.** Es orden de declaracion, y lo unico que decide es el idioma
-    por defecto de un `Record` que no declare el suyo, y de que corpus de frases se lee. En un
-    pack bidireccional los dos idiomas son pares: las entradas de cada uno llevan su propio
-    `entry.lang` y su propio perfil fuzzy.
+    ⚠️ **First is not main.** It is declaration order, and the only things it decides are the
+    default language of a `Record` that declares none, and which sentence corpus gets read. In a
+    bidirectional pack the two languages are peers: each one's entries carry their own `entry.lang`
+    and their own fuzzy profile.
     """
     return PACKS[clave]["langs"].split(",")[0].strip()
 
@@ -261,35 +264,34 @@ PACKS = {
             "y palabras relacionadas por acepción."
         ),
         "langs": "es",
-        # ⚠️ **El idioma en que estan las traducciones del payload, y es una DECLARACION que el
-        # lector necesita**: sin ella la ficha muestra una lista de palabras inglesas sin decir
-        # que son inglesas. No convierte el pack en bilingue --`kind` sigue siendo monolingual y
-        # el pack declara un solo idioma-- porque no se puede BUSCAR por ellas: son contenido
-        # de lectura. El canal de busqueda es `trans`, que en este pack sigue vacia.
-        # El canal de busqueda es la tabla `trans`, que en este pack sigue vacia.
-        # ⚠️ **El IDIOMA al que apuntan las traducciones, y a proposito no un pack.**
+        # ⚠️ **The language the payload's translations are in, and it is a DECLARATION the reader
+        # needs**: without it the card shows a list of English words without saying they are
+        # English. It does not make the pack bilingual --`kind` is still monolingual and the pack
+        # declares a single language-- because they cannot be SEARCHED by: they are reading
+        # content. The search channel is `trans`, which in this pack stays empty.
+        # ⚠️ **The LANGUAGE the translations point at, and deliberately not a pack.**
         #
-        # La primera version declaraba tambien `translations_pack = "en-def-wikt"`. Se saco: si
-        # el usuario tiene instalado el **nucleo** ingles y no el completo, el enlace moria
-        # aunque hubiera un diccionario ingles perfectamente capaz de resolverlo. Nombrar el
-        # idioma deja que lo resuelva cualquier pack instalado de ese idioma.
+        # The first version also declared `translations_pack = "en-def-wikt"`. It was removed: if
+        # the user has the English **core** installed and not the full one, the link died even
+        # though there was an English dictionary perfectly able to resolve it. Naming the language
+        # lets any installed pack of that language resolve it.
         #
-        # La acepcion viaja aparte, como sufijo del item, con un codigo que **tampoco** nombra un
-        # pack (ver `payload.sense_code`): es unico para `(idioma, palabra, acepcion)` y el
-        # nucleo y el completo lo comparten por construccion.
+        # The sense travels separately, as a suffix on the item, with a code that **also** names no
+        # pack (see `payload.sense_code`): it is unique for `(language, word, sense)` and the core
+        # and the full one share it by construction.
         "translations_to": "en",
         "fuzzy_profile": "es",
         "source_date": "20260915",
         "license": "CC-BY-SA-4.0",
-        # La atribucion NO se escribe aca: se deriva de FUENTES[fuente_base] (D-138), para
-        # que sumar contenido y sumar credito sean el mismo acto.
+        # The attribution is NOT written here: it is derived from FUENTES[fuente_base] (D-138), so
+        # that adding content and adding credit are the same act.
         "fuente_base": "wikc",
         "source_url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
         "proper_nouns": "included",
     },
-    # El SEGUNDO pack base de español (D-139). No reemplaza al del Wikcionario: se instala al
-    # lado y se consulta junto con el (D-136), y la ganancia es la union de lemas -- 5.283 que el
-    # otro no tiene, medidos. Es ademas el unico CC0 del catalogo.
+    # The SECOND Spanish base pack (D-139). It does not replace Wiktionary's: it is installed
+    # alongside and queried together with it (D-136), and the gain is the union of lemmas -- 5,283
+    # the other does not have, measured. It is also the catalog's only CC0 one.
     "es-wd": {
         "pack_id": "es-def-wd",
         "kind": "monolingual",
@@ -306,26 +308,26 @@ PACKS = {
         "source_url": "https://dumps.wikimedia.org/wikidatawiki/entities/",
         "proper_nouns": "included",
     },
-    # El tercer pack: BILINGUE, y el unico que llena `trans`.
+    # The third pack: BILINGUAL, and the only one that fills `trans`.
     #
-    # ⚠️ **Un solo pack sirve para las dos direcciones, y la clave es `trans`**: las entradas son
-    # palabras espanolas con glosas en ingles, asi que buscar "perro" la encuentra por prefijo y
-    # buscar "dog" la encuentra por el indice inverso (peldano 3 de la cascada). Lo que NO da es
-    # la calidad de un pack escrito en la otra direccion: `trans` se deriva de las glosas, no
-    # viene en el volcado. Ver sources/bilingual.py.
+    # ⚠️ **A single pack serves both directions, and the key is `trans`**: the entries are Spanish
+    # words with English glosses, so searching "perro" finds it by prefix and searching "dog" finds
+    # it through the reverse index (rung 3 of the cascade). What it does NOT give is the quality of
+    # a pack written in the other direction: `trans` is derived from the glosses, it does not come
+    # in the dump. See sources/bilingual.py.
     "es-en": {
         "pack_id": "es-tr-enwikt",
         "kind": "bilingual",
-        # ⚠️ **Un pack bilingue TAMBIEN lo declara, y olvidarlo fue una regresion real.** Desde
-        # D-183 la app pregunta por esta clave y no por `kind`, asi que sin ella el pack cuyo
-        # proposito entero es traducir dejaba de ofrecerse. Que coincida con el segundo idioma
-        # de `meta.langs` no lo vuelve redundante: `langs` dice que idiomas TIENE el pack, esto
-        # dice en que idioma estan las traducciones del payload.
+        # ⚠️ **A bilingual pack declares it TOO, and forgetting that was a real regression.** Since
+        # D-183 the app asks for this key and not for `kind`, so without it the pack whose entire
+        # purpose is translating stopped being offered. That it coincides with `meta.langs`'s
+        # second language does not make it redundant: `langs` says which languages the pack HAS,
+        # this says which language the payload's translations are in.
         "translations_to": "en",
-        # ⚠️ **La flecha es de DOS puntas desde D-196**, y no es cosmetica: el pack tiene
-        # entradas de los dos idiomas --`casa` y `house` en el mismo archivo-- y el nombre es lo
-        # que el usuario lee en el inicio y en la gestion de diccionarios. Una flecha en una
-        # direccion afirmaba algo que dejo de ser cierto.
+        # ⚠️ **The arrow is TWO-headed since D-196**, and that is not cosmetic: the pack has
+        # entries in both languages --`casa` and `house` in the same file-- and the name is what
+        # the user reads on the home and in dictionary management. A one-way arrow asserted
+        # something that had stopped being true.
         "name": "Español ↔ English",
         "description": (
             "Diccionario bilingüe en las dos direcciones: palabras españolas definidas en "
@@ -348,11 +350,12 @@ PACKS = {
             "English definitions from Wiktionary. Includes synonyms, antonyms, "
             "related words and the source of each quoted example."
         ),
-        # ⚠️ **El ingles SI traduce, por el canal de la palabra.** Se habia concluido que no
-        # podia, midiendo que sus 9.987 traducciones al español traen **0 `sense_index`** -- pero
-        # eso solo cierra el canal `T`, que exige atribucion por acepcion. El canal `W` existe
-        # justamente para lo no atribuible, asi que esas 9.987 entran, y de paso llenan `trans`:
-        # es lo que hace que buscar `perro` encuentre `dog` en el pack ingles.
+        # ⚠️ **English DOES translate, through the word channel.** It had been concluded that it
+        # could not, by measuring that its 9,987 translations into Spanish carry **0
+        # `sense_index`** -- but that only closes the `T` channel, which demands per-sense
+        # attribution. The `W` channel exists precisely for the unattributable, so those 9,987 get
+        # in, and they fill `trans` along the way: it is what makes searching `perro` find `dog` in
+        # the English pack.
         "translations_to": "es",
         "langs": "en",
         "fuzzy_profile": "en",
@@ -362,30 +365,30 @@ PACKS = {
         "source_url": "https://kaikki.org/dictionary/English/",
         "proper_nouns": "included",
     },
-    # SPIKE (D-120). Existe para medir, no es un pack de produccion: no esta en el catalogo y
-    # no se sube al reloj. Ver sources/oewn.py.
+    # SPIKE (D-120). It exists to measure, it is not a production pack: it is not in the catalog
+    # and it does not go onto the watch. See sources/oewn.py.
     "en-core": {
         "pack_id": "en-core-oewn",
         "kind": "monolingual",
         "name": "English core",
         "description": "Spike: Open English WordNet 2025. Not a production pack (D-120).",
-        # `langs` se queda en "en" y NO en "en-core": entra en stable_uid(), y mantenerlo
-        # igual al pack de kaikki es lo unico que deja comparable la identidad logica de las
-        # dos fuentes si algun dia se quieren cruzar.
+        # `langs` stays "en" and NOT "en-core": it goes into stable_uid(), and keeping it the same
+        # as kaikki's pack is the only thing that leaves the two sources' logical identity
+        # comparable if they are ever to be crossed.
         "langs": "en",
         "fuzzy_profile": "en",
         "source_date": "20251231",
         "license": "CC-BY-4.0",
         "fuente_base": "oewn",
         "source_url": "https://en-word.net/",
-        # La edicion estandar de OEWN 2025 no trae nombres propios: estan en Open English
-        # Namenet / la edicion 2025+. La fuente de referencia del dominio llego a D-116 sola.
+        # The standard OEWN 2025 edition carries no proper nouns: they are in Open English Namenet
+        # / the 2025+ edition. The domain's reference source arrived at D-116 on its own.
         "proper_nouns": "excluded",
     },
 }
 
-# De que modulo sale cada pack. Dos lineas en vez de un build_spike_oewn.py aparte, que
-# duplicaria el manejo de --sample, de la metadata y de PackBuilder.
+# Which module each pack comes from. Two lines instead of a separate build_spike_oewn.py, which
+# would duplicate the handling of --sample, of the metadata and of PackBuilder.
 READERS = {"es": kaikki, "en": kaikki, "en-core": oewn, "es-wd": wikidata,
            "es-en": bilingual}
 
@@ -398,19 +401,19 @@ def _keep(headword, sample):
 
 
 def _con_sense_key_del_pack_final(nuevos):
-    """Recalcula `sense_key` mirando los homografos del pack FUSIONADO, no los de la fuente.
+    """Recomputes `sense_key` looking at the MERGED pack's homographs, not the source's.
 
-    ⚠️ **Lo agarro `verify_pack.py` y es un fallo silencioso de los caros.** Cada fuente decide
-    si una entrada necesita `sense_key` mirando SUS propios homografos. Al fusionar, un lexema que
-    tenia gemelo en Wikidata puede perderlo --porque el gemelo ya estaba en la fuente base y se
-    descarto-- y se queda con una clave que ya no corresponde a nada.
+    ⚠️ **`verify_pack.py` caught it and it is one of the expensive silent failures.** Each source
+    decides whether an entry needs a `sense_key` by looking at ITS own homographs. On merging, a
+    lexeme that had a twin in Wikidata can lose it --because the twin was already in the base
+    source and got discarded-- and is left with a key that no longer corresponds to anything.
 
-    Eso rompe `uid`, que es la identidad logica y **la llave del join entre packs** (D-055): el
-    mismo lema calculado con clave en un pack y sin clave en otro **deja de unir**. Es el mismo
-    error que D-139 documenta, entrando por otra puerta.
+    That breaks `uid`, which is the logical identity and **the join key across packs** (D-055): the
+    same lemma computed with a key in one pack and without one in another **stops joining**. It is
+    the same error D-139 documents, coming in through another door.
 
-    La regla que vale es la del pack final: lleva clave el que tiene homografo **ahi**. Por eso
-    los registros se bufferean --son miles, no millones-- en vez de emitirse en streaming.
+    The rule that holds is the final pack's: a key goes to whoever has a homograph **there**. That
+    is why the records are buffered --they are thousands, not millions-- instead of streamed.
     """
     cuenta = {}
     for record in nuevos:
@@ -423,12 +426,13 @@ def _con_sense_key_del_pack_final(nuevos):
 
 
 def _pegar_ejemplo(record, ejemplos):
-    """Le pega a una entrada FLACA el ejemplo de la segunda fuente. Ver `sources/enwikt_examples`.
+    """Glues the second source's example onto a THIN entry. See `sources/enwikt_examples`.
 
-    ⚠️ **Solo si la entrada tiene una acepcion y ninguna todavia**, que es la mitad de la regla
-    que impide inventar la atribucion -- la otra mitad la aplica la fuente, exigiendo que alla
-    tambien haya una sola. Con varias acepciones nuestras no se sabe a cual pegarlo, y pegarlo a
-    la primera es contenido incorrecto que parece correcto: el lector no tiene como sospecharlo.
+    ⚠️ **Only if the entry has one sense and none yet**, which is half the rule that prevents
+    inventing the attribution -- the other half is applied by the source, requiring that there be
+    only one there too. With several senses of ours it is unknown which to glue it to, and gluing
+    it to the first is incorrect content that looks correct: the reader has no way of suspecting
+    it.
     """
     if not ejemplos or len(record.senses) != 1 or record.senses[0]["examples"]:
         return
@@ -472,65 +476,65 @@ def main(argv):
         sumar = (argv[i + 1], argv[i + 2])
 
     metadata = dict(PACKS[lang])
-    # El manifiesto se arma antes que nada: la fuente base primero, para que quede arriba en la
-    # lista, y cada opcion agrega la suya donde mezcla su contenido.
+    # The manifest is assembled before anything else: the base source first, so it sits at the top
+    # of the list, and each option adds its own where it mixes its content in.
     _declarar(metadata, metadata.pop("fuente_base"))
     if sample > 1:
         metadata["pack_id"] += "-sample%d" % sample
         metadata["name"] += " (piloto 1/%d)" % sample
     if politica != kaikki.POLITICA_POR_DEFECTO:
-        # El pack por defecto conserva el pack_id pelado: si cambiara, el `pack_activo`, el
-        # historial y los favoritos del reloj quedarian apuntando a un pack que ya no existe.
-        # Los otros lo sufijan para que dos politicas puedan convivir instaladas y compararse.
+        # The default pack keeps the bare pack_id: if it changed, the watch's `pack_activo`, its
+        # history and its favourites would point at a pack that no longer exists. The others suffix
+        # it so two policies can be installed side by side and compared.
         metadata["pack_id"] += "-" + politica.replace("-", "")
         metadata["proper_nouns"] = politica
     ejemplos = {}
     if dump_ejemplos:
-        # ⚠️ Dos fuentes obligan a nombrar a las DOS, y eso es lo caro de esta opcion (D-135).
-        # No es una formalidad: la atribucion es la condicion de la licencia con la que se
-        # distribuye el pack, y las dos fuentes son CC BY-SA 4.0. Se escribe aca, junto al
-        # merge, para que no exista manera de mezclar el contenido sin mover el credito.
+        # ⚠️ Two sources force naming BOTH, and that is what is expensive about this option
+        # (D-135). It is not a formality: the attribution is the condition of the licence the pack
+        # is distributed under, and both sources are CC BY-SA 4.0. It is written here, next to the
+        # merge, so there is no way to mix the content without moving the credit.
         ejemplos = enwikt_examples.examples_by_entry(dump_ejemplos)
         metadata["pack_id"] += "-" + _declarar(metadata, "enwikt-ej")["codigo"]
         metadata["description"] += " Con ejemplos de uso de una segunda fuente."
     frases = None
     if dump_frases:
-        # Mismo criterio que arriba y misma razon: el credito se mueve JUNTO con el contenido,
-        # aca, para que no exista una forma de mezclar sin atribuir. Tatoeba es CC BY 2.0 FR
-        # --el export CC0 trae 37 frases en español de 562.186-- asi que la atribucion es
-        # obligatoria, no cortesia.
+        # Same criterion as above and the same reason: the credit moves WITH the content, here, so
+        # there is no way to mix without attributing. Tatoeba is CC BY 2.0 FR --the CC0 export
+        # brings 37 Spanish sentences out of 562,186-- so the attribution is compulsory, not a
+        # courtesy.
         frases = tatoeba.shortest_by_norm(dump_frases)
         metadata["pack_id"] += "-" + _declarar(metadata, "tatoeba")["codigo"]
         metadata["description"] += " Con frases de uso del corpus Tatoeba."
     if lista_frecuencias:
-        # ⚠️ **El pack DECLARA que su `rank` es frecuencia, y eso no es decorativo.** La fusion
-        # entre packs es ordinal --`score` es la posicion dentro del propio pack-- asi que la
-        # escala se cancela sola. Lo que eso no arregla: un pack mal calibrado pone la palabra
-        # equivocada en la posicion 0 y al interlevar pesa igual que uno bien calibrado. Con esta
-        # clave, a igual posicion manda el mejor calibrado. Sin ella la app no tiene como saberlo,
-        # y **no se puede agregar despues sin reconstruir el pack**.
+        # ⚠️ **The pack DECLARES that its `rank` is frequency, and that is not decorative.** The
+        # merge across packs is ordinal --`score` is the position within the pack's own results--
+        # so the scale cancels out. What that does not fix: a badly calibrated pack puts the wrong
+        # word at position 0 and on interleaving weighs the same as a well calibrated one. With
+        # this key, at equal position the better calibrated one wins. Without it the app has no way
+        # of knowing, and **it cannot be added later without rebuilding the pack**.
         metadata["rank_basis"] = "frequency-zipf-v1"
-        # ⚠️ **Donde termina la banda con señal, DECLARADO y no hardcodeado en el reloj.**
+        # ⚠️ **Where the band with signal ends, DECLARED and not hardcoded on the watch.**
         #
-        # `rank` son dos bandas disjuntas (D-185): `[0, frontera)` sale del Zipf y el resto de
-        # la riqueza de pagina. La app necesita saber donde esta el corte --la palabra del dia
-        # lo usa (D-193)-- y la unica alternativa era copiar el 500 en Kotlin, creando un
-        # **tercer contrato cruzado** que al cambiar rompe en silencio, como `norm()` y
-        # `sense_code`. Declararlo lo convierte en un dato del artefacto.
+        # `rank` is two disjoint bands (D-185): `[0, boundary)` comes from the Zipf and the rest
+        # from page richness. The app needs to know where the cut is --word of the day uses it
+        # (D-193)-- and the only alternative was copying the 500 into Kotlin, creating a **third
+        # cross-language contract** that breaks in silence when it changes, like `norm()` and
+        # `sense_code`. Declaring it turns it into a datum of the artifact.
         #
-        # Es la misma leccion de `rank_basis`: una clave que no se puede agregar sin
-        # reconstruir, y este build es la oportunidad.
+        # It is `rank_basis`'s same lesson: a key that cannot be added without rebuilding, and this
+        # build is the opportunity.
         metadata["rank_signal_boundary"] = str(kaikki.FRONTERA_CON_SENAL)
-        # El credito viaja con el contenido, igual que arriba: la lista de frecuencias NO aporta
-        # texto al pack, pero **decide el orden de los resultados**, que es contenido de la misma
-        # forma. D-138 no distingue.
+        # The credit travels with the content, as above: the frequency list contributes NO text to
+        # the pack, but it **decides the order of the results**, which is content just the same.
+        # D-138 does not distinguish.
         metadata["pack_id"] += "-" + _declarar(metadata, "opensubs")["codigo"]
         metadata["description"] += " Resultados ordenados por frecuencia de uso real."
     tesauro = None
     if dump_tesauro:
-        # El formato lo decide el IDIOMA del pack, no una opcion mas: el ingles tiene su propio
-        # WordNet en WN-LMF y el español llega por el .tab de OMW. Son la misma idea servida
-        # distinto, igual que las dos formas de los sinonimos del wiki (D-124).
+        # The format is decided by the pack's LANGUAGE, not by one more option: English has its own
+        # WordNet in WN-LMF and Spanish arrives through OMW's .tab. They are the same idea served
+        # differently, like the wiki's two shapes of synonyms (D-124).
         ingles = metadata["langs"].split(",")[0].strip() == "en"
         tesauro = wordnet.english(dump_tesauro) if ingles else wordnet.spanish(dump_tesauro)
         metadata["pack_id"] += "-" + _declarar(
@@ -541,92 +545,94 @@ def main(argv):
         )
 
     if sumar:
-        # ⚠️ **Una union de FILAS, no de campos.** La fuente sumada aporta LEMAS que la base no
-        # tiene; los que comparten se quedan con la definicion de la base y no hay nada que
-        # arbitrar. Eso es lo que la vuelve barata -- y lo que distingue esto de la composicion,
-        # que parte una entrada en dos y sigue bloqueada por la granularidad de `uid` (D-146).
+        # ⚠️ **A union of ROWS, not of fields.** The added source contributes LEMMAS the base does
+        # not have; the ones they share keep the base's definition and there is nothing to
+        # arbitrate. That is what makes it cheap -- and what distinguishes this from composition,
+        # which splits an entry in two and is still blocked by `uid`'s granularity (D-146).
         metadata["pack_id"] += "-" + _declarar(
             metadata, PACKS[sumar[0]]["fuente_base"])["codigo"]
         metadata["description"] += " Con vocabulario de una fuente adicional."
 
-    # ⚠️ **La identidad final: IDIOMA + NIVEL, y se estampa AQUI, despues de todos los sufijos**
-    # (D-215). Hasta aqui `pack_id` fue acumulando de que fuentes viene --`es-def-wikc-tat-freq-
-    # wn-wd`-- y eso tiene un defecto: **anadir una fuente cambia la identidad**, asi que el pack
-    # parece otro y la app no lo reconoce como el que ya esta instalado. Las fuentes no se
-    # pierden: siguen enteras en `meta.sources`, que es donde se consultan (D-138).
+    # ⚠️ **The final identity: LANGUAGE + TIER, and it is stamped HERE, after every suffix**
+    # (D-215). Until here `pack_id` had been accumulating which sources it comes from
+    # --`es-def-wikc-tat-freq-wn-wd`-- and that has a defect: **adding a source changes the
+    # identity**, so the pack looks like another one and the app does not recognize it as the one
+    # already installed. The sources are not lost: they stay whole in `meta.sources`, which is
+    # where they get consulted (D-138).
     #
-    # ⚠️ **El bilingue queda fuera, a proposito**: no tiene niveles porque su proposito no es un
-    # tamano del mismo diccionario, es otra cosa. Conserva su `pack_id` de siempre.
+    # ⚠️ **The bilingual one is left out, on purpose**: it has no tiers because its purpose is not
+    # a size of the same dictionary, it is something else. It keeps its usual `pack_id`.
     if metadata.get("kind") != "bilingual":
         idioma = metadata["langs"].split(",")[0].strip()
         metadata["pack_id"] = "%s-full" % idioma
         metadata["tier"] = "full"
-        # Por el mismo helper que `build_core`, para que el nivel se estampe UNA vez aunque el
-        # nombre ya traiga uno. Ver `build.name_with_tier`.
+        # Through the same helper as `build_core`, so the tier is stamped ONCE even if the name
+        # already carries one. See `build.name_with_tier`.
         metadata["name"] = name_with_tier(metadata["name"], "full")
 
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
-        # ⚠️ **El prior de orden.** Sin esto `rank` es riqueza de pagina --acepciones, ejemplos y
-        # sobre todo FORMAS-- y eso premia verbos: medido, correlaciona **-0,250** con la
-        # frecuencia real de uso donde se esperaria -1. El sintoma se ve donde la banda de
-        # cobertura de D-142 no llega: `house` devolvia `solar, alojar, albergar` y nunca `casa`.
+        # ⚠️ **The ordering prior.** Without this `rank` is page richness --senses, examples and
+        # above all FORMS-- and that rewards verbs: measured, it correlates **-0.250** with real
+        # usage frequency where -1 would be expected. The symptom shows where D-142's coverage band
+        # does not reach: `house` returned `solar, alojar, albergar` and never `casa`.
         #
-        # Se combinan las dos fuentes en escala Zipf: OpenSubtitles manda y Tatoeba --que ya esta
-        # en disco y ya se declara-- rellena lo que aquella no cubre. Cada lema toma su valor de
-        # UNA fuente; promediar ocurrencias contra frases-que-la-contienen seria una calibracion
-        # que nadie midio.
+        # The two sources are combined on the Zipf scale: OpenSubtitles decides and Tatoeba
+        # --already on disk and already declared-- fills in what it does not cover. Each lemma
+        # takes its value from ONE source; averaging occurrences against
+        # sentences-that-contain-it would be a calibration nobody measured.
         mapa_frecuencias = None
         if lista_frecuencias:
             from sources import frequency
             principal = frequency.to_zipf(frequency.load(lista_frecuencias))
             relleno = {}
-            # ⚠️ `dump_frases` y NO `frases`: a esta altura `frases` ya es el diccionario de
-            # oraciones que arma `shortest_by_norm`, no la ruta del corpus.
+            # ⚠️ `dump_frases` and NOT `frases`: by this point `frases` is already the dictionary
+            # of sentences `shortest_by_norm` assembles, not the corpus's path.
             if dump_frases:
                 lang_corpus = {"es": "spa", "en": "eng"}.get(_primario(lang))
                 relleno = frequency.to_zipf(
                     tatoeba.frequencies(dump_frases, lang=lang_corpus))
             mapa_frecuencias = frequency.combined(principal, relleno)
         reader = READERS[lang]
-        # El lector bilingue recibe el idioma de ORIGEN y no la clave del CLI: "es-en"
-        # nombra al pack, pero el perfil de normalizacion y los `PERFILES` de kaikki son los
-        # del espanol.
+        # The bilingual reader receives the SOURCE language and not the CLI's key: "es-en" names
+        # the pack, but the normalization profile and kaikki's `PERFILES` are Spanish's.
         argumentos = (
             (source, lang) if reader is oewn
-            # ⚠️ El cuarto argumento es lo que vuelve el pack BIDIRECCIONAL: con el, las
-            # palabras inglesas dejan de ser claves de `trans` y pasan a ser entradas con su
-            # propio `entry.lang`. Sale de `meta.langs`, asi que lo que el pack declara y lo
-            # que el lector emite no se pueden separar.
+            # ⚠️ The fourth argument is what makes the pack BIDIRECTIONAL: with it, the English
+            # words stop being `trans` keys and become entries with their own `entry.lang`. It
+            # comes from `meta.langs`, so what the pack declares and what the reader emits cannot
+            # be separated.
             else (source, _primario(lang), politica, mapa_frecuencias, _destino(lang))
             if reader is bilingual
-            # `translations_to` sale de la misma tabla que lo declara en `meta`, para que la
-            # promesa del pack y lo que el lector emite no puedan separarse.
+            # `translations_to` comes from the same table that declares it in `meta`, so the pack's
+            # promise and what the reader emits cannot be separated.
             else (source, lang, politica, PACKS[lang].get("translations_to"), mapa_frecuencias)
             if reader is kaikki
             else (source, lang, politica)
         )
         vistos = set()
-        # ⚠️ **Las flexiones del idioma DESTINO, leidas de un pack ya construido.** Cierran la
-        # direccion inversa, que estaba floja por un motivo estructural: el lado español tiene
-        # `form` y toda flexion llega a su lema, el lado ingles solo tenia las claves derivadas,
-        # asi que `dogs` se encontraba unicamente si alguna glosa lo escribia. Medido sobre las
-        # palabras inglesas mas usadas: **78,1 % -> 98,9 %** en el top 8.000.
+        # ⚠️ **The TARGET language's inflections, read from an already built pack.** They close the
+        # reverse direction, which was weak for a structural reason: the Spanish side has `form`
+        # and every inflection reaches its lemma, the English side only had the derived keys, so
+        # `dogs` was found only if some gloss wrote it. Measured over the most used English words:
+        # **78.1 % -> 98.9 %** in the top 8,000.
         #
-        # Se expanden dentro de `record.translations`, o sea dentro de la tabla `trans`, y **eso
-        # no toca el esquema ni la consulta**: son mas filas de lo mismo. La alternativa medida
-        # --una tabla de indireccion-- pesa 1,84 MB contra 5,88, pero pide tabla nueva, peldaño
-        # nuevo y dos viajes por busqueda. Queda anotada como optimizacion con su numero.
+        # They expand inside `record.translations`, that is, inside the `trans` table, and **that
+        # touches neither the schema nor the query**: they are more rows of the same. The measured
+        # alternative --an indirection table-- weighs 1.84 MB against 5.88, but it asks for a new
+        # table, a new rung and two round trips per search. It is noted as an optimization with its
+        # number.
         mapa_flexiones = {}
         if flexiones:
             from sources import inflections
             mapa_flexiones = inflections.por_lema(flexiones)
-        # ⚠️ **En un pack bidireccional las flexiones van al lector, no al bucle.** Ahi se
-        # cuelgan del `form` de la ENTRADA inglesa --`got` es flexion de `get`, y `get` ya es un
-        # lema-- en vez de expandirse dentro de `trans`, que en este pack esta vacia. Saltarse
-        # este paso costo **8,6 puntos** de cobertura inversa en el top 1.000 ingles, medidos.
+        # ⚠️ **In a bidirectional pack the inflections go to the reader, not to the loop.** There
+        # they hang off the English ENTRY's `form` --`got` is an inflection of `get`, and `get` is
+        # already a lemma-- instead of expanding inside `trans`, which in this pack is empty.
+        # Skipping this step cost **8.6 points** of reverse coverage in the English top 1,000,
+        # measured.
         if reader is bilingual and mapa_flexiones:
             argumentos = argumentos + (mapa_flexiones,)
             mapa_flexiones = {}
@@ -646,12 +652,13 @@ def main(argv):
                 record.translations = tuple(claves)
             builder.add(record)
         if sumar:
-            # Despues de la base y no mezclado: el orden **es** la regla de arbitraje. El primero
-            # que llega se queda con el lema, asi que la definicion de la fuente base gana sin
-            # que nadie tenga que compararlas.
+            # After the base and not mixed in: the order **is** the arbitration rule. Whoever
+            # arrives first keeps the lemma, so the base source's definition wins without anybody
+            # having to compare them.
             #
-            # La clave es el lema EXACTO y no `norm()`: "papa" y "papá" comparten norm y son dos
-            # palabras, y "Dr." o "km²" se perderian contra la entrada que normaliza igual.
+            # The key is the EXACT lemma and not `norm()`: "papa" and "papá" share a norm and are
+            # two words, and "Dr." or "km²" would be lost against the entry that normalizes the
+            # same.
             extra = READERS[sumar[0]]
             nuevos = []
             for record in extra.records(sumar[1], _primario(sumar[0]), politica):
