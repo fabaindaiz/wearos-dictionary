@@ -16,6 +16,67 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (13) — Meta-session: the format document had lost a channel, and the design learnings were never harvested
+**What.** A full `state-review`, sections 0 to 8. Section 0 routes to `prompt-harvest.md`; the
+harvest added **11 candidates**, eight of them about this repository's *design* rather than its
+process. One real decay found and fixed: `docs/formato-pack.md` was missing a payload channel.
+
+**Areas.** `.agents/tracking/candidates.md`, `docs/formato-pack.md`, this log.
+
+**Why.** Asked for: a complete session close and a meta-session, then *"include every new learning
+in `.agents`; this repo has important design decisions about optimisation and about defining
+schemas and structured ways of ordering information"*.
+
+**Architecture.** Complies. ⚠️ **Nothing under `.agents/method/` or `.agents/knowledge/` was
+touched**, which the method forbids a carrier in as many words: *"Never write outside `tracking/`
+— not a note, not an index row, not a method document"*, and *"never promote a candidate to a
+note here, however obviously true it is"*. The release decides, with every other carrier's
+candidates on the table, because that is the only place the generality test can be applied
+honestly.
+
+**Measured.**
+- **Section 0**: lineage `m-351cc8/main`, version **21**, digest matches, `adopted 2026-09-17`.
+  `incoming/` holds only its own README, so no triage is half-finished; `adapted`/`declined` are
+  maintained, which is the field that rots first. ⚠️ **The header declares 21 and the method's
+  changelog's newest row is 16**, so v17–v21 cannot be triaged from it — already recorded as a
+  defect in that release, and **blocked rather than pending**.
+- **Section 1 found the real decay**: `docs/formato-pack.md` listed **nine** payload tags and both
+  implementations have **ten**. The `F` channel has existed since D-242 and the document that
+  *owns the format* never learned about it. Kotlin and Python agree exactly — `A C E F P R S T W
+  Y` — so the drift was documentation only, which is the direction this repo is most exposed to.
+  Fixed, with a section explaining why `F` is not the `form` table.
+- **Section 2**: 22 of 254 decisions have no enforcer. Two are cheap to promote: **D-029**
+  (charging + Wi-Fi) is a grep over `constraints()`, and **D-115** (vector icon, no bitmaps) a
+  grep over the manifest. D-029 is the timely one — the owner has just asked to change it, and a
+  check would make that change deliberate instead of accidental.
+- **Section 3**: four commits since `decisions.md` last changed, all documentation. No design
+  decision is missing its row.
+- **Section 5**: `CLAUDE.md` is at **200 of 200**, and has been at exactly 200 across many
+  commits, dipping to 198 once and refilling immediately. ⚠️ **The budget stopped being a budget
+  and became a queue**: every addition is now a silent eviction, and nothing records what left.
+- **Section 8**: 111 entries, **98 carry a *what went wrong* field** (88 %), so the detours are
+  not being edited out. 12 roadmap items marked done.
+
+**Unverified.** **The generality of all 11 candidates.** Each says what it lacks, and for most of
+them that is *a second repository* — which this session cannot supply and must not pretend to:
+*"never invent a second occurrence; one repository seeing something twice is one repository"*.
+
+**What went wrong.**
+- **I read the method's changelog from the wrong end.** `tail -5` on a **newest-first** table
+  returned the oldest rows, and I was one keystroke from reporting that the changelog reaches 13
+  when it reaches 16. Caught by the rows themselves being dated earlier than rows above them.
+  ⚠️ **That is the fourth misread signal in a day**, and the first where the tool was right and
+  the question was backwards.
+
+**What was left undone.**
+- **Section 4 was answered shallowly.** *What on the roadmap is already closed by measurement*
+  deserves a sweep of its own; 5 items are still marked planned and this session built two of
+  them without re-checking the rest.
+- **The two cheap enforcers were proposed, not written** — process improvements are proposed, and
+  a new audit check is not the one-line reversible kind.
+
+---
+
 ## 2026-09-23 (12) — The build reaches a wrist, and three of the four things it taught were about reading signals
 **What.** The watch went from `versionCode` 4 with 472 MB of packs from 2026-09-21 to
 `versionCode` 10 with 542 MB rebuilt and repaired; P-9 answered on hardware; the APK's 111 MB

@@ -311,6 +311,7 @@ Delimited UTF-8 text, compressed with raw deflate and the pack's shared dictiona
 
 ```
 P<TAB>verb                     part of speech, opcional, antes de cualquier S
+F<TAB>gerund:corriendo         principal part of THE WORD, display form (D-242)
 W<TAB>to race                  traducción de LA PALABRA, sin acepción (D-179)
 S<TAB>moverse rapidamente      abre una acepción
 E<TAB>corrio hasta la esquina  ejemplo de la acepción abierta
@@ -320,6 +321,24 @@ Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
 A<TAB>detenerse                antónimo de la acepción abierta (D-126)
 R<TAB>camélido                 palabra relacionada de la acepción abierta (D-132)
 ```
+
+### ⚠️ `F` carries a DISPLAY form, and that is the whole reason it exists
+
+`F` holds a principal part of the headword — `gerund:corriendo`, `plural:ratones` — with the key
+and the form separated by `:` (`FORM_SEPARATOR`, mirrored in `payload.py`). Like `P` and `W` it
+belongs to **the word** and not to a sense, so it comes before any `S`.
+
+⚠️ **It is NOT the `form` table, and confusing the two puts a misspelling on screen.** That
+table stores `norm(form)` — `corrais`, never `corráis` — because its job is to be a **search
+key**: it is what lets somebody who typed an inflected form reach the lemma. A card that rendered
+a row of it would show `corrais`, which is wrong in Spanish, and that is precisely why this
+channel had to exist at all rather than reusing the table.
+
+⚠️ **This section was missing until 2026-09-23**, found by a meta-session comparing the tag
+list here against both implementations: the document listed nine tags and the code had ten. The
+channel had existed since D-242 and the document that **owns the format** never learned about it
+— which is the decay this repo is most exposed to, because an agent adds a channel faster than it
+re-reads the prose that describes one.
 
 ### ⚠️ `C` es el único tag que nombra a la línea de arriba y no a la acepción
 
