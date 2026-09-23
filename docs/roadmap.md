@@ -4342,11 +4342,19 @@ para quien lee. El método dice explícitamente que la lista de deltas **no es u
 prosa**, así que no hay con qué triagearlas. Reportado en `.agents/tracking/candidates.md`; se
 destraba cuando el dueño de la lineage escriba esas filas.
 
-**Lo que queda de esta familia**, y es chico: `r-a2f271` sigue **sin registrar en
-`carriers.md`**. Bloqueado por partida doble — ese archivo no es de los que un carrier puede
-escribir (sólo `candidates.md`), y `bundle.py register` necesita **Python 3.11+** por `tomllib`
-mientras esta máquina corre **3.9.6**. Lo cierra una meta-sesión del dueño del bundle, no este
-repo.
+✅ **`r-a2f271` quedó registrado en `carriers.md` el 2026-09-23**, y el bloqueo que se había
+declarado era **medio falso**. Eran dos supuestos y sólo uno se sostuvo:
+
+- ⚠️ **«ese archivo no es de los que un carrier puede escribir» — FALSO.** `prompt-harvest.md`
+  §*What the local step must never do* dice *«never write **outside** `tracking/`»*, y
+  `carriers.md` está **dentro**. Lo que prohíbe es subir una versión o recalcular un digest, y una
+  fila no hace ninguna de las dos. El supuesto venía de una paráfrasis, no del texto.
+- ✅ **«`bundle.py register` no corre acá» — cierto**: necesita `tomllib`, o sea Python 3.11+, y
+  esta máquina corre 3.9.6. Pero eso impide usar *la herramienta*, no *escribir la fila*.
+
+El id no se adivinó: se derivó **reproduciendo la receta de `bundle.py carrier_id`** —`r-` más
+seis hex del sha256 del remoto normalizado— en Python 3.9, y da `r-a2f271`, el mismo que la
+sesión del 22 había anotado. Verificado que los tres digests siguen cuadrando después.
 
 ### ~~`set -- $x` en fish no separa campos~~ ✅ **CERRADO el 2026-09-23**
 
@@ -4493,6 +4501,12 @@ not comparable; **the delta between two runs of the same ruler is.**) A large sh
 was written by the sessions of the 22nd and the 23rd, which is to say by an agent that had the
 rule loaded and broke it anyway — which by D-234 is the signal to raise its rung rather than
 repeat it.
+
+**The order was settled on 2026-09-23**: dedicated sessions, stage 3 first and module by module,
+smallest up — `dict-data` (203 lines) → `dict-core` (587) → `app/src/main` (1,293) → `tools/**`
+(1,778) — and `docs/roadmap.md` (2,265) **last**, because it is the one that changes most and
+translating it twice is the likely outcome of doing it first. Each module is one short session
+whose result is checkable: the number for that module goes to zero, or it did not happen.
 
 **What was translated on 2026-09-23**: the 391 lines of source comments this session and the last
 one **added** — `DebugIntents.kt` whole, plus the new blocks in `PackStore`, `PackVerification`,

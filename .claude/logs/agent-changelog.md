@@ -16,6 +16,78 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (7) — Tres items de proceso cerrados, y el que faltaba era el que no rompe nada
+**Qué.** El hook `PreToolUse` sobre los cuatro archivos generados (D-246) y las dos fricciones que
+fallan sin decirlo, mudadas a la skill `verify` (D-247). Los tres estaban en §Proceso con su
+aritmética y se preguntaron explícitamente antes de construirlos.
+
+**Áreas.** `.claude/settings.json`, `.claude/skills/verify/SKILL.md`, `CLAUDE.md`,
+`docs/{decisions,roadmap}.md`.
+
+**Por qué.** Pedido: *«pregúntame explícitamente para revisarlas»* sobre las tres propuestas de
+proceso que llevaban sesiones anotadas sin agendar.
+
+**Arquitectura.** ✅ Cumple. Las mejoras de proceso se proponen, no se ejecutan — se preguntaron.
+
+**Medido.**
+- **El hook bloquea los cuatro y deja pasar el resto**: `UnicodeRepertoire.kt`, `repertoire.txt`,
+  `payload-fixture.tsv` y `local.properties` salen **2**; un `.kt` cualquiera sale **0**.
+- **`CLAUDE.md` quedó en 200 exactas.** El puntero a las dos fricciones entró **dentro de una
+  línea que ya existía**, sin sumar ninguna: el presupuesto obligó a comprimir prosa propia tres
+  veces antes de entrar, que es el trabajo que el límite compra.
+
+**Qué salió mal.**
+- **Tres intentos para que el puntero entrara en el presupuesto.** Escribí primero y busqué de
+  dónde sacar después, que es el mismo orden equivocado que ya me costó tiempo en la sesión del
+  triage. Medir el hueco antes de escribir sigue sin ser reflejo.
+
+**Qué quedó sin hacer.**
+- **La traducción**: quedan **6.798 líneas** y el orden quedó fijado —`dict-data` → `dict-core` →
+  `app` → `tools`, y el roadmap último—, una sesión corta por módulo. No se empezó acá a
+  propósito: la calidad de una traducción cae con el cansancio del contexto, y este ya es largo.
+- **Las doce preguntas del brief permanente** siguen abiertas; ninguna se contesta sin un reloj.
+- **El APK sigue sin subir**, por decisión del usuario.
+
+## 2026-09-23 (6) — Un bloqueo que era medio falso, y un checksum verificado contra el artefacto
+**Qué.** Repuesto el `distributionSha256Sum` del wrapper (D-244) y registrado este repo como
+carrier (D-245). Las dos cosas estaban listadas como pendientes o bloqueadas y las dos se
+resolvieron leyendo la fuente en vez de la paráfrasis.
+
+**Áreas.** `gradle/wrapper/gradle-wrapper.properties`, `.agents/tracking/carriers.md`,
+`docs/{decisions,roadmap}.md`.
+
+**Por qué.** Respuesta directa a la lista de pendientes: *«vuelve a añadir el checksum»* y
+*«regístralo si es necesario»*.
+
+**Arquitectura.** ✅ Cumple. `prompt-harvest.md` permite escribir dentro de `tracking/`.
+
+**Medido.**
+- **El checksum, verificado dos veces y no una.** El publicado en `downloads.gradle.org` es
+  `acd53f1e…`; el wrapper lo descargó entero en un `GRADLE_USER_HOME` limpio y validó (exit 0), y
+  una sonda con un carácter cambiado falló con `Verification of Gradle distribution failed`
+  imprimiendo el checksum **real** del artefacto — que coincide. Leer un número de una página no
+  es verificarlo.
+- **El id del carrier reproduce exacto.** Reproduciendo `bundle.py carrier_id` en Python 3.9 sobre
+  `github.com/fabaindaiz/wearos-dictionary` sale `r-a2f271`, el mismo que la sesión del 22 anotó.
+- **Los tres digests siguen cuadrando** después de escribir en `tracking/`, que es la comprobación
+  de que ese directorio queda fuera de ellos a propósito.
+
+**Qué salió mal.**
+- ⚠️ **Declaré un bloqueo que era medio falso, y lo escribí en dos documentos.** Dije que
+  `carriers.md` *«no es de los archivos que un carrier puede escribir»*. El texto dice *«never
+  write **outside** `tracking/`»* y `carriers.md` está dentro. Venía de una paráfrasis —la del
+  pedido que me llegó— y la repetí sin ir al original. La mitad cierta (`bundle.py` necesita
+  3.11+) tapó la mitad falsa: bastaba una razón buena para no mirar la otra.
+- **El zip no se podía hashear**: Gradle lo borra tras extraer y deja un `.ok`. Verificarlo
+  obligó a una descarga limpia de ~150 MB, que es el costo de no haber verificado antes.
+
+**Qué quedó sin hacer.**
+- **Las tres propuestas de proceso siguen sin agendar** —el hook `PreToolUse`, `set -- $x` en
+  fish, el `--` en comentarios XML— y esta vez se preguntan explícitamente en vez de anotarse.
+- **El APK sigue sin subir al reloj**, por decisión del usuario.
+- **Las doce preguntas del brief permanente siguen abiertas**: ninguna se puede contestar sin un
+  reloj en la muñeca.
+
 ## 2026-09-23 (5) — Las formas no costaban cero bytes, y el tap se resolvió contra mi recomendación
 **Qué.** Dos construcciones —las partes principales en la ficha (D-242) y la heurística de
 cercanía del tap (D-243)—, dos mediciones que contestan preguntas abiertas (typos e IPA), la
