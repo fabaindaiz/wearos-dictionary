@@ -2151,10 +2151,12 @@ question, and D-136 lets both coexist whenever it is answered.
 1. ⚠️ **Prune the inflection notes.** A large share of that 88.3 % are entries like *"plural of
    pie"* or *"second-person singular voseo…"*, which the monolingual pack already covers through
    the `form` table. A bilingual pack that keeps them is mostly grammar notes by weight.
-2. **Ask whether it is still needed.** Since D-168 the cross-language fallback already finds `dog`
-   with Spanish active and shows its English entry. That is lookup across languages, not
-   translation — it tells you what `dog` means, not that it is `perro`. Worth confirming that the
-   second thing is the one wanted before spending the MB.
+2. **Ask whether it is still needed.** ⚠️ **This argument was written against D-168 and D-189
+   reversed it**: the cross-language fallback is **off**, so `dog` with Spanish active finds
+   nothing on its own. What exists is a manual escape hatch offering the other language (D-255).
+   The question survives in a weaker form — one tap already gets you `dog`'s English entry, which
+   is lookup across languages and not translation: it tells you what `dog` means, not that it is
+   `perro`. Worth confirming the second thing is the one wanted before spending the MB.
 
 
 ### Un botón para filtrar sólo las palabras con traducción — MEDIDO Y APLAZADO 2026-09-21
@@ -3586,10 +3588,20 @@ abajo por la etimología invierte el orden en que se lee un diccionario.
 
 #### Lo que las dos comparten, y conviene decirlo una vez
 
-**Ninguna de las dos necesita un rebuild propio**: entran en el próximo, junto con los dos
-defectos de contenido ya anotados —`Eddie`/`Richard` pasando el filtro de nombres propios, y la
-frase en español dentro de la `description` del pack inglés—. Un rebuild completo es ~1 h con los
-dumps presentes, así que el costo de juntarlas es cero y el de separarlas es una hora por cabeza.
+**Ninguna de las dos necesita un rebuild propio**: entran en el próximo. Un rebuild completo es
+~1 h con los dumps presentes, así que el costo de juntarlas es cero y el de separarlas es una hora
+por cabeza.
+
+⚠️ **What rides along is no longer four defects but two, and the distinction is the point.** Of
+the four `dist/` carried on 2026-09-23, **two lived entirely in `meta`** — the name
+`English (full) (main)` and a Spanish sentence inside an English `description` — and were
+repaired **without re-exporting content** by `repair_meta.py` (D-258), in seconds rather than an
+hour. The other two **are content and wait for the rebuild**: `Eddie`/`Richard` past the
+proper-noun filter, and the absent `F` channel, which is what blocks P-12.
+
+That boundary is the thing not to lose: **what the builder computed wrongly *about* a pack can be
+repaired; what it extracted *into* it cannot.** The cause of the second defect was fixed in the
+builder itself (D-257), so the next rebuild does not reintroduce it.
 
 ### Funcionalidades de diccionario que faltan — REVISADO contra la literatura 2026-09-23
 
@@ -3669,12 +3681,30 @@ que no se actualice con la app deja de ser una molestia y pasa a ser un dicciona
 
 #### El selector de idioma principal no se explica
 
-Los dos chips `ES` / `EN` dicen **qué** está activo y no **qué hacen**. Sin haber leído el roadmap,
-nada en pantalla dice que se busca en *todos* los packs de ese idioma (D-136), ni que desde hoy los
-otros idiomas contestan cuando el activo no tiene nada (D-168). Falta o una interfaz mejor, o una
-explicación — y la segunda cuesta filas, que en 234 dp es la moneda cara.
+Los dos chips `ES` / `EN` dicen **qué** está activo y no **qué hacen**. Nada en pantalla dice que
+se busca en *todos* los packs de ese idioma (D-136). Falta o una interfaz mejor, o una explicación
+— y la segunda cuesta filas, que en 234 dp es la moneda cara.
 
-#### Las palabras del día son demasiado raras
+⚠️ **Half of this item was written against D-168 and is no longer true.** It used to add *"nor
+that the other languages answer when the active one has nothing"*; **D-189 turned that fallback
+off** the day after this was reported, so there is nothing to explain there. What replaced it is
+a manual escape hatch, which is its own roadmap item with four priced options — and two defects
+in it went unnoticed for three days precisely because this section described behaviour the app no
+longer had.
+
+#### Las palabras del día son demasiado raras — ⚠️ **measured again 2026-09-23, still open**
+
+⚠️ **P-10 answered on the emulator and the answer is narrower than it looks.** With the CORE
+packs the words of the day read `polvo` (Español core) and `anywhere` (English core), against the
+simulation, which had offered `acción`, `anillo`, `Christmas` and `afternoon`. Zero function
+words among them, and nothing like `posterobuccally`.
+
+**But that does not close this item**, and saying so is the point: a core pack
+is a frequency-bounded slice by construction, so it cannot produce a rare word. The full packs,
+which is where `posterobuccally` came from, are **unchanged** — nothing was measured there and
+the two options below still stand for them.
+
+The original report, which still applies to the full packs:
 
 Reportado mirando el reloj: salieron **`posterobuccally`** y **`evangélicamente`**. La palabra del
 día se elige de 32 candidatos repartidos por `rank` (D-097), y `rank` es **riqueza de página, no
@@ -3996,10 +4026,13 @@ Lo que hay que mirar ahí, y que no se pudo verificar de otra forma:
 - **Las previews de los tiles al agregarlos** (D-149) y **que los tiles se dibujen con R8**
   (D-163). El package manager resuelve los dos `TileService` por su nombre original, así que R8 no
   los borró; que RENDERICEN es lo que falta, y agregar un tile es un gesto del usuario.
-- ⚠️ **El respaldo entre idiomas (D-168) y los sinónimos tocables (D-169)**, que necesitan escribir
-  en el campo de búsqueda. **No se pueden manejar por `adb`**: el campo no toma foco con un tap
-  sintético, que es la misma forma del problema que obligó a fijar espresso 3.7.0 (D-093). Los taps
-  de navegación sí funcionan.
+- ~~⚠️ **El respaldo entre idiomas (D-168) y los sinónimos tocables (D-169)**~~ — **both entries
+  are stale, for different reasons, and that is worth keeping visible.** D-168 **was reverted** by
+  D-189: the fallback is off, so there is nothing on a watch to verify. D-169 **was verified** on
+  the emulator on 2026-09-23 (P-2): the links exist and they hit. And the premise both shared —
+  *"they cannot be driven by `adb`"* — stopped being true the same day: D-232 seeds the query with
+  a broadcast, so the text field never needs focus from a synthetic tap. Three claims in one
+  bullet, all three overtaken within two days of being written.
 - El inicio con **tres recientes y el botón** (D-148) sobre un historial real.
 - **El orden de los nombres propios sobre el pack real** (D-154): escribir *ital* y *medel*. Se
   simuló contra el pack antes de escribirlo, pero simular no es la lista dibujada.
@@ -4447,8 +4480,10 @@ entero llegó como un solo argumento.
 
 **Estado.** **Hecho**, y usado el mismo día para cerrar lo que bloqueaba. La entrada se deja
 entera porque el patrón es lo que importa: una fricción que aparece **dos veces** deja de ser
-anécdota y pasa a ser trabajo. Lo que sigue abierto de esta familia es verificar **D-168 y D-169
-en el reloj físico**, que ahora por fin se puede.
+anécdota y pasa a ser trabajo. ⚠️ **Lo que esta entrada daba por abierto ya no lo está**: D-168
+fue revertida por D-189 — no hay respaldo entre idiomas que verificar — y D-169 quedó contestada
+en emulador el 2026-09-23 (P-2). Lo que la herramienta sí desbloqueó sigue en pie: P-11 y P-12 se
+manejan enteras por `adb`.
 
 **Las dos veces, con el costo.** La primera el 2026-09-21 **en el reloj**: dejó D-168 (el respaldo
 entre idiomas) y D-169 (los sinónimos tocables) sin verificar *teniendo el dispositivo en la mano*,
