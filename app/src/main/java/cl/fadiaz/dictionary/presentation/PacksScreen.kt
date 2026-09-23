@@ -87,6 +87,13 @@ fun PacksScreen(
     /** Lo que WorkManager dice de cada descarga, por `packId`. */
     downloads: Map<String, PackDownload> = emptyMap(),
     onDownload: (CatalogPack) -> Unit = {},
+    /**
+     * Parar una descarga en curso y **liberar lo que ya bajo**.
+     *
+     * Recibe el [CatalogPack] entero y no solo el `packId` porque cancelar tiene que poder
+     * encontrar el `.gz.part`, y ese nombre sale de la url que publico el catalogo.
+     */
+    onCancel: (CatalogPack) -> Unit = {},
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -223,7 +230,16 @@ fun PacksScreen(
                                 PackRow(
                                     name = oferta.pack.name,
                                     detail = detalleDeOferta(oferta, bajando),
-                                    onDelete = null,
+                                    // ⚠️ **El mismo boton que borra, cancelando.** No es pereza:
+                                    // son la misma accion para el usuario --*«sacame esto»*-- y
+                                    // en 234 dp la fila no tiene lugar para un tercer control.
+                                    // Lo que cambia es la confirmacion: borrar un pack pide
+                                    // dialogo porque cuesta ~90 s reponerlo (D-104); cancelar una
+                                    // descarga que todavia no termino no destruye nada que el
+                                    // reloj no pueda volver a pedir, asi que va directo.
+                                    onDelete = bajando
+                                        ?.takeIf { it.phase != DownloadPhase.DONE }
+                                        ?.let { { onCancel(oferta.pack) } },
                                     // Mientras baja no se puede tocar, para no reencolar sobre
                                     // si misma. Lo incompatible ya no llega hasta aqui: se filtra
                                     // en `Catalog.classify` y no se lista.
@@ -459,6 +475,11 @@ private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): Strin
         )
         DownloadPhase.DONE -> return stringResource(R.string.packs_dl_done)
         DownloadPhase.FAILED -> return stringResource(R.string.packs_dl_failed)
+        // ⚠️ **Cancelada se trata como si no hubiera descarga**, a proposito: la fila vuelve a
+        // ser una oferta con su tamano y su fecha. Decir "cancelada" dejaria un estado muerto en
+        // pantalla que no se puede quitar, y lo que el usuario quiere despues de cancelar es
+        // poder volver a pedirlo.
+        DownloadPhase.CANCELLED -> Unit
         null -> Unit
     }
     val fecha = Catalog.dataVersionDate(oferta.pack.dataVersion)

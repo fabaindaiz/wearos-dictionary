@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **122 tests**) y el
-pipeline de packs (`tools/`, **480 tests**) están completos y en el gate, junto con los **383 JVM
-de `:app`** y **30 checks** de auditoría estructural — **1015 tests en total**. Los **46
+pipeline de packs (`tools/`, **480 tests**) están completos y en el gate, junto con los **386 JVM
+de `:app`** y **30 checks** de auditoría estructural — **1018 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.

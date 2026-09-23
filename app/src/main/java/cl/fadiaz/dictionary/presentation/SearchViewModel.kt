@@ -223,6 +223,8 @@ class SearchViewModel(
     private val fetchCatalog: suspend (etag: String?) -> CatalogFetch = { CatalogFetch.NotModified },
     /** Encola la descarga de un pack. La hace WorkManager con las restricciones de D-029. */
     private val startDownload: (CatalogPack) -> Unit = {},
+    /** Parar una descarga en curso y liberar su parcial. Ver `DownloadPackWorker.cancel`. */
+    private val cancelDownload: (CatalogPack) -> Unit = {},
     /** Lo que WorkManager va diciendo de las descargas en curso. */
     private val downloadStates: Flow<List<PackDownload>> = flowOf(emptyList()),
 ) : ViewModel() {
@@ -472,6 +474,20 @@ class SearchViewModel(
     }
 
     /**
+     * Para una descarga en curso y **saca su fila de la pantalla en el acto**.
+     *
+     * ⚠️ **Se actualiza el estado local ADEMAS de cancelar, y no es redundante.** WorkManager
+     * avisa de la cancelacion por su `Flow`, pero no en el mismo frame: entre el toque y el aviso
+     * la fila seguiria diciendo *"descargando 3 MB de 24"* sobre algo ya cancelado. En un reloj
+     * ese hueco se lee como que el boton no hizo nada, y el segundo toque es el reflejo.
+     */
+    fun onCancelDownload(pack: CatalogPack) {
+        DictLog.i { "descarga cancelada: ${pack.packId}" }
+        cancelDownload(pack)
+        _state.update { it.copy(downloads = it.downloads - pack.packId) }
+    }
+
+    /**
      * Sigue lo que WorkManager dice, y **recarga los packs cuando uno termina**.
      *
      * ⚠️ Sin esa recarga el pack estaria en disco y la app no lo veria hasta el proximo arranque:
@@ -528,7 +544,15 @@ class SearchViewModel(
     }
 
     /** Las fases en que un trabajo ya no avanza. WorkManager las conserva entre sesiones. */
-    private val FINALES = setOf(DownloadPhase.DONE, DownloadPhase.FAILED)
+    /**
+     * Las fases en que un trabajo ya no avanza. WorkManager las conserva entre sesiones.
+     *
+     * ⚠️ **[DownloadPhase.CANCELLED] tiene que estar aca.** Si faltara, una descarga cancelada
+     * contaria como "moviendose" para siempre: se sacaria del registro de lo ya visto en cada
+     * emision y su fila volveria sola a la pantalla despues de que el usuario la cancelo.
+     */
+    private val FINALES =
+        setOf(DownloadPhase.DONE, DownloadPhase.FAILED, DownloadPhase.CANCELLED)
 
     /** Clasifica lo ultimo que se trajo contra lo que hay instalado AHORA. */
     private fun publicar(instalados: List<PackMetadata>) {
