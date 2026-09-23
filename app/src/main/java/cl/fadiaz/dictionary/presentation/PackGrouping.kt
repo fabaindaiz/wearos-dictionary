@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.UiLanguage
 
 /**
  * From packs to languages: the model that governs the whole coexistence of dictionaries.
@@ -124,6 +125,38 @@ internal fun representativePacks(packs: List<PackHandle>, activo: String?): List
  * languages again without touching this.
  */
 internal fun resultTag(lang: String?): String? = lang?.uppercase()
+
+/**
+ * The language's own name --`Español`, `English`-- for the places where a CODE is too terse.
+ *
+ * ## Three names, three jobs, and mixing them is how a label starts lying
+ *
+ * This repo names a language in three different ways and they are not interchangeable:
+ *
+ * | | Example | Who it is for |
+ * |---|---|---|
+ * | **the code** — [resultTag] | `EN` | a badge on a row that already has a word on it. It repeats on every result, so it is paid for by the character |
+ * | **the language** — this | `English` | a sentence the user reads once: *"Buscar en English"*. A code inside a sentence reads like an abbreviation nobody expanded |
+ * | **the pack** — `metadata.name` | `English (core)` | the catalogue and the dictionary manager, where the question is *which file*, not *which language* |
+ *
+ * ⚠️ **The escape hatch used the PACK's name and that was a defect** (D-255): it named a file
+ * while the tap switched a language, and the two were computed independently. Fixing that put a
+ * code into a sentence, which is this function's reason to exist -- the correct level was never
+ * the code, it was the language.
+ *
+ * ⚠️ **The endonym, not a translation.** `Español` stays `Español` with the UI in English, the
+ * same rule the language picker follows: a language named in a language you cannot read fails
+ * exactly the person the label is for. It reuses [UiLanguage]'s table rather than starting a
+ * second one.
+ *
+ * ⚠️ **And it falls back to the code for a language the UI does not speak.** A pack is content
+ * and [UiLanguage] is interface: a French pack is perfectly installable while the app has no
+ * French, and the honest answer there is `FR` rather than an empty string or a crash. That is why
+ * this is not simply `UiLanguage.of(lang).endonym`.
+ */
+internal fun languageName(lang: String?): String? = lang?.let { code ->
+    UiLanguage.entries.firstOrNull { it.tag == code.lowercase() }?.endonym ?: code.uppercase()
+}
 
 /**
  * The tag of a HISTORY or saved row, by `packId`.

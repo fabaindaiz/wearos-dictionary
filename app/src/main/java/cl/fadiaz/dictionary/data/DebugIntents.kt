@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.core.content.edit
 import cl.fadiaz.dictionary.BuildConfig
 
 /**
@@ -71,8 +72,73 @@ object DebugIntents {
      */
     const val ACTION_CLEAR = "cl.fadiaz.dictionary.DEBUG_CLEAR"
 
+    /**
+     * Change one of the app's internal knobs **without rebuilding it**, from `adb`.
+     *
+     * The knobs, what each accepts and which ones must never reach the Settings screen are in
+     * [DebugKnobs]; this is only the door. Extras are read by NAME, so several travel in one
+     * broadcast and a typo names itself instead of doing nothing.
+     *
+     * ```sh
+     * adb shell am broadcast -p cl.fadiaz.dictionary \
+     *     -a cl.fadiaz.dictionary.DEBUG_SET -e catalog http://localhost:8765
+     * adb shell am broadcast -p cl.fadiaz.dictionary \
+     *     -a cl.fadiaz.dictionary.DEBUG_SET -e scale LARGE -e catalog https://example.invalid
+     * adb shell am broadcast -p cl.fadiaz.dictionary \
+     *     -a cl.fadiaz.dictionary.DEBUG_SET        # clears every override
+     * adb logcat -s Dict:V
+     * ```
+     *
+     * ⚠️ **Clearing is the ABSENCE of extras**, which is forced rather than chosen: an empty
+     * extra does not survive `adb shell`, the same trap that gave [ACTION_CLEAR] its own action.
+     * Here it lands well -- no knobs named, nothing overridden.
+     */
+    const val ACTION_SET = "cl.fadiaz.dictionary.DEBUG_SET"
+
     /** The extra carrying the text to search for. */
     const val EXTRA_QUERY = "q"
+
+    private const val PREFS = "debug"
+    private const val KEY_BY = "escrito_por"
+
+    /**
+     * The overrides in force, **after discarding those a previous build wrote**.
+     *
+     * ⚠️ **The expiry happens on READ and not on install**, and that is deliberate: there is no
+     * hook that runs when a new APK replaces an old one, only the next launch. Doing it here means
+     * there is no window in which a stale override is live, and no second place that has to
+     * remember to call a reset.
+     */
+    private fun overrides(context: Context): Map<String, String> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val escritoPor = prefs.getInt(KEY_BY, 0)
+        if (!DebugKnobs.survives(escritoPor, BuildConfig.VERSION_CODE)) {
+            if (prefs.all.keys.any { it != KEY_BY }) {
+                DictLog.i {
+                    "debug: los overrides eran de la version $escritoPor y esta es la " +
+                        "${BuildConfig.VERSION_CODE}: se descartan"
+                }
+            }
+            prefs.edit { clear() }
+            return emptyMap()
+        }
+        return DebugKnobs.KNOBS.mapNotNull { k ->
+            prefs.getString(k.key, null)?.takeIf { it.isNotBlank() }?.let { k.key to it }
+        }.toMap()
+    }
+
+    /** Every override in force, for the dump. Empty when the build is running as built. */
+    fun activeOverrides(context: Context): Map<String, String> = overrides(context)
+
+    /**
+     * The catalogue url in force: the `adb` override if one applies, otherwise the built-in one.
+     *
+     * ⚠️ **Call it behind `if (BuildConfig.DEBUG_INTENTS)`, never bare.** That is what lets R8
+     * fold the branch in release and drop this whole class from the dex, which is the guarantee
+     * the class header describes.
+     */
+    fun catalogUrl(context: Context): String =
+        overrides(context)[DebugKnobs.CATALOG] ?: BuildConfig.CATALOG_URL
 
     /**
      * Registers the receiver if this build allows it, and returns how to take it down.
@@ -102,6 +168,7 @@ object DebugIntents {
                         DictLog.i { "debug: clear the field" }
                         onSearch("")
                     }
+                    ACTION_SET -> onSet(context, intent)
                     ACTION_DUMP -> onDump()
                 }
             }
@@ -110,13 +177,54 @@ object DebugIntents {
             addAction(ACTION_SEARCH)
             addAction(ACTION_CLEAR)
             addAction(ACTION_DUMP)
+            addAction(ACTION_SET)
         }
         // No compatibility branch: `minSdk` is 33 and the flag exists from 33, so asking about
         // `SDK_INT` would be dead code -- lint caught it, and lint breaks the build here
         // (ObsoleteSdkInt).
         context.registerReceiver(receiver, filtro, Context.RECEIVER_EXPORTED)
-        DictLog.i { "debug: debug intents ACTIVE ($ACTION_SEARCH, $ACTION_DUMP)" }
+        DictLog.i {
+            "debug: debug intents ACTIVE ($ACTION_SEARCH, $ACTION_DUMP, $ACTION_SET)"
+        }
+        // The url in force goes out at startup, not only on a dump: a download that 404s is read
+        // as "the server is wrong" far more often than as "the app is pointing somewhere else".
+        DictLog.i { "debug: catalogo en uso: ${catalogUrl(context)}" }
+        overrides(context).forEach { (k, v) -> DictLog.i { "debug: override $k=$v" } }
         return { context.unregisterReceiver(receiver) }
+    }
+
+    /**
+     * Applies every knob named in the broadcast, reporting each one by name.
+     *
+     * ⚠️ **The versionCode is stamped on every write**, which is what makes the expiry in
+     * [overrides] possible. Writing a knob without it would leave an override nothing can date.
+     */
+    private fun onSet(context: Context, intent: Intent) {
+        val extras = intent.extras
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val claves = extras?.keySet().orEmpty().filter { it != KEY_BY }
+        if (claves.isEmpty()) {
+            prefs.edit { clear() }
+            DictLog.i { "debug: sin overrides, la app corre como fue construida" }
+            DebugKnobs.help().forEach { linea -> DictLog.i { linea } }
+            return
+        }
+        prefs.edit {
+            claves.forEach { clave ->
+                val valor = extras?.getString(clave)?.trim().orEmpty()
+                val resultado = DebugKnobs.write(clave, valor)
+                DictLog.i { DebugKnobs.describe(resultado) }
+                when (resultado) {
+                    is DebugKnobs.Written.Ok -> putString(clave, valor)
+                    is DebugKnobs.Written.Cleared -> remove(clave)
+                    // A bad value and an unknown key both change NOTHING: a half-applied
+                    // broadcast is worse than a rejected one, because the next probe runs
+                    // against a state nobody described.
+                    else -> Unit
+                }
+            }
+            putInt(KEY_BY, BuildConfig.VERSION_CODE)
+        }
     }
 
     /**
@@ -140,9 +248,31 @@ object DebugIntents {
          * looking at is worse than no readout.
          */
         buildId: String = "",
+        /**
+         * The catalogue url in force.
+         *
+         * ⚠️ **It belongs in the dump because it can now be changed at runtime.** While it was
+         * a compile-time constant, the APK identity above answered it implicitly; with an `adb`
+         * override, two builds with the same commit can be pointing at different servers, and a
+         * download that 404s reads as a broken server rather than a misaimed app.
+         */
+        catalog: String = "",
+        /**
+         * The knobs an `adb` broadcast has overridden, if any.
+         *
+         * ⚠️ **Empty is worth printing as "none"**, because the question it answers is *"is
+         * this build behaving as built?"* and silence cannot distinguish a clean build from a
+         * dump that forgot to ask.
+         */
+        overrides: Map<String, String> = emptyMap(),
     ): List<String> = buildList {
         add("--- volcado ---")
         add("app versionCode=$appVersion${buildId.takeIf { it.isNotBlank() }?.let { " build=$it" }.orEmpty()}")
+        if (catalog.isNotBlank()) add("catalogo=$catalog")
+        add(
+            if (overrides.isEmpty()) "overrides: ninguno (corre como fue construida)"
+            else "overrides: " + overrides.entries.joinToString { "${it.key}=${it.value}" },
+        )
         add("activo=${active ?: "(ninguno)"}")
         add("abiertos=${opened.size}${if (opened.isEmpty()) "" else ": " + opened.joinToString()}")
         add(

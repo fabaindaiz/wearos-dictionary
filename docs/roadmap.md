@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **411 JVM
-de `:app`** y **32 checks** de auditoría estructural — **1081 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **420 JVM
+de `:app`** y **32 checks** de auditoría estructural — **1090 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3495,6 +3495,35 @@ the line `ofrecibles=` would make it honest and simultaneously remove the only a
 to the question it exists for. The KDoc on `available` should be corrected either way, since it is
 wrong today.
 
+### With no packs the home is a dead end — SEEN 2026-09-23, not built
+
+**Status.** **Defect, reported and not built**, because a UI idea goes here until it is asked for.
+
+**What is on screen.** An APK built with no cores, on a device with an empty `packs/`, shows
+exactly one line: *"No dictionary installed."* `SearchScreen`'s `Status.NoDictionary` branch is a
+single `Text` and nothing else — **no Options section, no Settings row, no route to the download
+screen**. The dictionary manager, which is where a pack is downloaded, hangs off Settings, and
+Settings is not drawn in this state.
+
+⚠️ **So the one state that most needs the downloader is the one that cannot reach it.** Today
+it is invisible because the APK carries the two cores, so nobody arrives here; it becomes the
+**first-run experience** the moment the packs stop shipping inside the APK, which is the
+direction §Instalador de packs is going.
+
+⚠️ **And it blocks testing that path at all.** Verified on the emulator on 2026-09-23 while
+testing the catalogue override (D-259): with the packs removed there was no way to drive a
+download from the UI, and the probe had to put a pack back first. A state you cannot get out of
+is also a state you cannot test from.
+
+| | Option | Cost | What it closes |
+|---|---|---|---|
+| **A** | One button under the message, straight to the dictionary manager | 1 row, drawn only in this state | The obvious one. It costs nothing anywhere else, because the state is mutually exclusive with having results |
+| **B** | Draw the whole Options section in this state too | 3–4 rows | Consistent, and wrong: `Saved` and `Recent` are empty by construction with no packs, so it offers three dead rows to make one live |
+| **C** | Leave it, and rely on the APK always carrying a core | 0 | ⚠️ That is today's accidental answer rather than a decision, and it expires the moment a pack-less build ships |
+
+**What unblocks it.** Nothing external — A is small. It is here rather than done because the
+standing instruction is that UI goes to the roadmap until asked for.
+
 ### The two escape hatches on an empty result — EVALUATED 2026-09-23, not built
 
 **Status.** **Planned**, options priced, nothing built. The owner described the two buttons on
@@ -3520,6 +3549,23 @@ They are stated as what the code says, not as what a user reported:
   pack* — so `other` is null and the pill never draws, even though that one file speaks both
   languages and `otroIdioma` is perfectly non-null. The user is left with no way out of a language
   the pack could answer. This is the case D-195 created and this screen never caught up with.
+
+✅ **Two of the three were fixed on 2026-09-23 (D-255, D-261)**: the hatch is gated on the
+language and labelled with the language's own name, `Buscar en English`. What is left below is
+the interaction, not the defects.
+
+⚠️ **And the first pill is NOT redundant, which was asked and is worth writing down.** *"Search
+the definitions"* looks like a repeat of the search that just failed; it is a **different index**.
+The normal cascade is headword prefix → inflected form → translation → fuzzy, and `MatchKind`
+says so in its own comment: `DEFINITION` is *"only on an explicit action by the user"*. Measured
+on `es-full`, 2026-09-23: **`color del cielo` is not a lemma and appears inside 2 definitions**;
+`instrumento musical` matches 1 lemma and **112 definitions**. The normal search reaches none of
+those.
+
+⚠️ **But the confusion is itself the finding.** The label answers *what will be searched* and
+not *what will be searched FOR*, and after a line that already says *"No results for zzzqx"* it
+reads as "try again". A label naming the query --*Buscar «zzzqx» en las definiciones*-- costs no
+rows and would have prevented the question. Not changed: a user-facing string is the owner's.
 
 | | Option | Cost in this repo's units | What it closes / what it costs |
 |---|---|---|---|

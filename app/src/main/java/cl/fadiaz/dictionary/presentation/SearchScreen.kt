@@ -404,9 +404,13 @@ fun SearchScreen(
                         if (otroIdioma != null) {
                             item(key = "escotilla-idioma") {
                                 Pill(
+                                    // The LANGUAGE's name and not the code: this is a
+                                    // sentence the user reads once, and `EN` inside one reads
+                                    // like an abbreviation nobody expanded. The code is for the
+                                    // badge on a result row, which repeats. See `languageName`.
                                     text = stringResource(
                                         R.string.home_search_in,
-                                        resultTag(otroIdioma).orEmpty(),
+                                        languageName(otroIdioma).orEmpty(),
                                     ),
                                     onClick = { onLanguageChange(otroIdioma) },
                                 )

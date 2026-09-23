@@ -78,7 +78,7 @@ packs went with it** — ~450 MB to push again. The watch's IME also reorders th
 ZERO tests.** An empty green. Read the **count**, never the colour.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 411 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 420 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device -- UNINSTALLS the app
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
@@ -256,6 +256,34 @@ most. `setprop` works identically in all three.
 nobody listens. `DictLog.d("x=" + x)` would build the string on every keystroke in production.
 `DictLogTest` asserts the lambda is not evaluated, and it is verified by mutation — removing the
 guard fails it.
+
+### Changing the app's internal knobs from `adb`, without rebuilding
+
+```sh
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_SET \
+    -e catalog http://localhost:8799 -e scale LARGE
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_SET   # clears all
+```
+
+The registry is `DebugKnobs`; the door is `DebugIntents`. **Extras are read by name**, so several
+travel in one broadcast and a typo names itself (`NO existe el ajuste 'catalogue'. Hay: catalog,
+scale`) instead of doing nothing. A bad value and an unknown key both change **nothing**: a
+half-applied broadcast leaves the next probe running against a state nobody described.
+
+⚠️ **An override does not survive a `versionCode` change, in either direction.** It is
+scaffolding tied to one build: a catalogue url left pointing at a laptop that stopped serving
+turns the next session's *"downloads are broken"* into an hour spent on the wrong thing. The
+store carries the `versionCode` that wrote it and the expiry happens **on read**, so there is no
+window where a stale override is live. Equality and not `>=`, because sideloading moves the
+number both ways. Same rule as the pack memo (D-225) and the asset re-extraction (D-176).
+
+⚠️ **The USER's settings are NOT overrides and must not expire.** `Settings.textScale` is a
+choice somebody made about their own watch.
+
+⚠️ **`sensitive` is about the Settings SCREEN, not about `adb`.** The catalogue url is marked
+sensitive because the index comes from that server and every pack's sha256 comes from that index:
+whoever answers the url decides what the app installs, and verifying the hash proves the download
+matches what the server said, never that the server is the right one. A test asserts the flag.
 
 ### What is worth reading, and why it is that and not something else
 
