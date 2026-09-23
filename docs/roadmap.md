@@ -3458,9 +3458,47 @@ están a ~4 dp. No es un defecto de implementación: es geometría.
 | **D** | Lupa propia (zoom al mantener apretado) | Alto: gesto, render y medición en reloj | ⚠️ **Wear OS ya trae una lupa del sistema** en accesibilidad. Construir una propia duplica plataforma y la haría peor. **Descartada** |
 | **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. ✅ **CONSTRUIDA el 2026-09-23 (D-243), contra esta recomendación**, con tres cotas que acotan la objeción: un acierto exacto no se pisa, un tap dentro de una línea no salta de línea, y más allá del radio no pasa nada. Lo que sigue sin resolver es el hueco entre dos enlaces pegados |
 
-**Lo que lo desbloquea.** P-2 de `docs/preguntas-del-reloj.md`: nadie probó esto en una muñeca
-todavía, y la elección entre A y B depende de cuánto molesta el toque extra, que en escritorio no
-se siente.
+**What unblocks it.** **P-11** of `docs/preguntas-del-reloj.md`. It used to point at P-2, which
+was answered on the emulator on 2026-09-23 — the links exist and they hit — so P-2 no longer
+blocks anything. What is missing is the wrist: choosing between A and B depends on how much the
+extra tap annoys, and that is not something a desktop can feel.
+
+### The two escape hatches on an empty result — EVALUATED 2026-09-23, not built
+
+**Status.** **Planned**, options priced, nothing built. The owner described the two buttons on
+screen — one that searches the definitions, one that searches the other language — and asked for
+**options rather than a change**: *«quiero mejorar esto pero dame opciones»*.
+
+**What is there today.** When a submitted query returns nothing, `SearchScreen` draws up to two
+`Pill`s: *Search the definitions* (free-text over `fts_def`, hidden when that is already the mode,
+because it would loop) and *Search in ‹name›* (switches the active language). They exist because
+the search became **strict by language** in D-189: nothing falls back on its own any more, so
+these are the manual way out.
+
+⚠️ **Two defects found by reading the code on 2026-09-23, neither observed on screen yet.**
+They are stated as what the code says, not as what a user reported:
+
+- **The label names a pack and the action switches a language.** `other` is *the first open pack
+  whose `packId` is not the active one*; `otroIdioma` is *the first language that is not the
+  active one*. They are computed independently, so with three packs installed the pill can read
+  *Search in English (full)* and activate a language whose representative pack is a different
+  file. It is the family of D-080 and D-141: **a label asserting a provenance nobody checked**.
+- **A single bidirectional pack suppresses the hatch entirely.** The block is gated on
+  `other != null && otroIdioma != null`, and with exactly one pack installed there is no *other
+  pack* — so `other` is null and the pill never draws, even though that one file speaks both
+  languages and `otroIdioma` is perfectly non-null. The user is left with no way out of a language
+  the pack could answer. This is the case D-195 created and this screen never caught up with.
+
+| | Option | Cost in this repo's units | What it closes / what it costs |
+|---|---|---|---|
+| **A** | Fix the two defects and leave two pills | ~10 lines; 0 extra rows | Gate the block on `otroIdioma` alone and label it with the **language**, not the pack name. Does not improve the interaction at all — but everything below is wrong while the label lies. **Prerequisite for B, C and D, not an alternative to them** |
+| **B** | **One pill that says where the answer is**, after probing both | 2 `COUNT` queries before drawing; 1 row instead of 2 | *«3 in definitions»* / *«1 in EN»* / nothing at all. Turns two blind taps into one informed one, and **removes the dead end**: today both pills can be tapped to find another empty screen. ⚠️ Price unmeasured — `tools/measure_query_cost.py` prices the cascade on the desktop, and a bounded `COUNT` over `fts_def` is the number to get first. **Recommended, conditional on that measurement** |
+| **C** | Run both automatically and show grouped results | 1 header row per group; the full cost of both queries, always | No taps at all. ⚠️ Pays the cascade on **every** empty query including typos, which is the common case, and it re-litigates D-189 through the back door — strict-by-language was chosen on purpose |
+| **D** | Revert to the automatic fallback | 0 UI | ⚠️ **Discarded.** D-189 decided this: a result silently in another language is the D-080 family again, and the owner asked for the chip to be the thing that decides |
+
+**What unblocks it.** Nothing on a watch: A is pure code and B needs one desktop measurement. What
+it does need is the **rebuild**, because B's counts are only worth showing over a pack whose
+`fts_def` is the final one.
 
 ### Pronunciación (IPA) y etimología en el pack — MEDIDO 2026-09-23, para el próximo rebuild
 
@@ -4453,7 +4491,46 @@ comparación es honesta. Un log de fricción aparte es un archivo que nadie abre
 El umbral es el **segundo golpe**: la primera vez va al changelog de la sesión, la segunda sube
 acá con la aritmética. Una molestia sola es ruido; la segunda es un dato.
 
-### The repo is supposed to be in English and about 3,000 lines are not
+### A check whose subject is prose goes vacuous on a legitimate edit — four hits, 2026-09-21 to 23
+
+**Status.** **Friction, past the threshold.** It is here rather than only in a changelog because
+the rule is *first hit in the session log, second hit up to this section with the arithmetic*, and
+this one has **four**, in three days, from two different checks.
+
+**The four, with what each cost.**
+
+| # | Date | The check | What defeated it |
+|---|---|---|---|
+| 1 | 2026-09-21 | `check_spanish_prose_budget` | Its own author's decision rows, within the hour of the check landing (D-250) |
+| 2 | 2026-09-23 | `check_mirror_declarations` | Translating the eight `ESTE ARCHIVO TIENE UN ESPEJO` markers to `THIS FILE HAS A MIRROR` — **0 matches** (D-252) |
+| 3 | 2026-09-23 | `check_spanish_prose_budget` | A **file path**, `preguntas-del-reloj.md`, and a verbatim Spanish quote of the request, in a changelog entry: 4,182 against 4,180 |
+| 4 | 2026-09-23 | `check_spanish_prose_budget` | New roadmap prose written in Spanish **because its neighbours were Spanish**: 2,317 against 2,313 |
+
+⚠️ **Hits 2 and 3–4 are different failures and the distinction is the whole point.** Hit 2 is a
+check going **silently vacuous**: nothing was wrong, the count just went to zero, and the only
+reason the gate went red is that somebody had written `if found == 0: failure(...)`. Hits 3 and 4
+are a check **firing correctly** on something it cannot be expected to classify — a per-line
+detector cannot tell a Spanish path or a quoted request from Spanish prose.
+
+**What it costs today.** About ten minutes a session, and it is charged to whoever is doing the
+translating, which is the person least able to argue with it. Four occurrences, zero escapes:
+**the checks are working.** What is missing is not strictness.
+
+**What would close it, and neither is a relaxation.**
+
+- **For the vacuity class**: an audit-wide rule that any check counting occurrences of a fixed
+  phrase asserts a **non-zero subject count**. Three checks qualify today
+  (`check_mirror_declarations` already has it; the other two need auditing). ~15 lines.
+- **For the misclassification class**: exempt lines that are **a bare path or fully inside a
+  quotation** from the Spanish detector. ⚠️ This is the dangerous one — an exemption is how a
+  ratchet loosens, and D-250 exists because the tempting fix was to raise the ceiling. It should
+  only be built with a mutation probe showing that real Spanish prose in a quoted line **still**
+  fails.
+
+**It is proposed, not executed**, and it does not ride inside a feature: a revert of the feature
+would take the check with it.
+
+### The repo is supposed to be in English and 3,850 lines are not
 
 **Status.** ⚠️ **Measured 2026-09-21, after the rule was pointed out.** `CLAUDE.md` says it
 plainly — *«Spanish in the conversation, English in the repo. Identifiers, comments, documents and
@@ -4502,31 +4579,51 @@ was written by the sessions of the 22nd and the 23rd, which is to say by an agen
 rule loaded and broke it anyway — which by D-234 is the signal to raise its rung rather than
 repeat it.
 
-✅ **Stage 3 started on 2026-09-23.** `dict-data/src/main` is **at zero** (D-249) and `dict-core`
-dropped **587 → 530** (D-251), both with their ceilings lowered in the same commit. The rule is
-now a check: `check_spanish_prose_budget` fails when an area grows (D-248), and it refused its own
-author's decision rows within the hour (D-250).
+✅ **Stage 3 is FINISHED, 2026-09-23.** Every code area the gate watches is at **zero**:
+`dict-data/src/main` (D-249), `dict-core/src/main` 587 → 530 → **0** (D-251, D-254),
+`app/src/main` 1,293 → **0** and `tools/**` 1,778 → **0** (D-254). Each ceiling dropped in the
+same commit as its translation, so the ratchet cannot loosen. The four rows are **left at 0 rather
+than deleted**: a removed row is a ceiling nobody watches.
 
-⚠️ **`dict-core` cannot reach zero the way `dict-data` did**: 34 of its remaining lines live in
-**generated** files, `UnicodeRepertoire.kt` and `CaseFolding.kt`, whose prose comes from
-`tools/unicode/gen_*.py`. Regenerating them is a deliberate act — both tables are pinned to
-Unicode 13.0.0 — so it needs its own session with the table compared byte for byte afterwards.
+**The measured total: 11,928 → 8,030 lines**, of which 4,180 are the changelog and deliberately
+out of scope — a session log is a record of what was said at the time, and rewriting it makes it a
+worse record. Excluding it, **3,850 lines remain**, none of them in a `src/main` tree:
 
-**The order was settled on 2026-09-23**: dedicated sessions, stage 3 first and module by module,
-smallest up — `dict-data` (203 lines) → `dict-core` (587) → `app/src/main` (1,293) → `tools/**`
-(1,778) — and `docs/roadmap.md` (2,265) **last**, because it is the one that changes most and
-translating it twice is the likely outcome of doing it first. Each module is one short session
-whose result is checkable: the number for that module goes to zero, or it did not happen.
+| | Spanish lines | Stage |
+|---|---|---|
+| `docs/roadmap.md` | 2,314 | 4, last |
+| `docs/decisions.md` | 262 | 2 |
+| `docs/fuentes.md`, `formato-pack.md`, `contratos-cruzados.md`, `bateria.md`, `README.md` | 318 | 2 |
+| test sources (`app` 335, `dict-core` 232, `dict-data` 111) | 678 | 3, tail |
+| the three `build.gradle.kts` | 256 | 3, tail |
+| | **3,850** | |
 
-**What was translated on 2026-09-23**: the 391 lines of source comments this session and the last
-one **added** — `DebugIntents.kt` whole, plus the new blocks in `PackStore`, `PackVerification`,
-`WordOfTheDay` and `PackSelection` — and `docs/preguntas-del-reloj.md`, written new.
+⚠️ **The generated tables were reached through their generators, never by hand.** 34 of
+`dict-core`'s lines lived in `UnicodeRepertoire.kt` and `CaseFolding.kt`, which are pinned to
+Unicode 13.0.0 and listed in `CLAUDE.md` §*Files that are never edited by hand*. The validity
+criterion was written **before** reading any result: run both generators against the unedited tree
+and require an **empty diff**. It was empty — this machine's Python 3.9.6 ships exactly Unicode
+13.0.0 — so every line the second run changed is provably prose. Had that first diff been
+non-empty, the translation would have silently re-pinned the tables and invalidated every
+`sense_code` already written. D-254.
 
-⚠️ **What was deliberately NOT translated, and why**: the 15 decision rows (D-225 to D-241) and
-the roadmap sections added in those two days. `docs/decisions.md` and `docs/roadmap.md` are
-**entirely in Spanish**, so putting fifteen English rows into them leaves a mixed document, which
-is worse than either state. They belong to stages 2 and 4 of the order above, which translate each
-document whole. Remaining from those two days: **317 lines, all of them in those two documents.**
+⚠️ **Translating a marker broke the check that reads it.** `check_mirror_declarations` looked
+for the Spanish `ESTE ARCHIVO TIENE UN ESPEJO`; rewriting those eight declarations as `THIS FILE
+HAS A MIRROR` took its match count to zero. It failed **loudly**, through its own `found == 0`
+guard — which exists precisely so a check cannot pass by seeing nothing. **That guard is the whole
+lesson**: a check whose subject is a string of prose is one translation away from being vacuous,
+and the only thing separating "it is vacuous" from "it is green" is a guard somebody wrote on
+purpose. D-252.
+
+⚠️ **The budget check bit its own author for the third time**, and the first time over
+something that is not prose: a **file path**, `preguntas-del-reloj.md`, is Spanish and deliberately
+so, and a per-line detector cannot tell a path from a sentence. The fix is D-250's and does not
+change: rewrite so the English sits on the same line, **never raise the ceiling**.
+
+**What is left is prose, not code, and it splits by document rather than by module.** The order
+stands — `docs/decisions.md` first (the most-consulted), the smaller documents next, the tests and
+build files with whatever module session touches them, and `docs/roadmap.md` **last**, because it
+is the one that changes most and translating it twice is the likely outcome of doing it first.
 
 ### Los conteos de tests en los documentos se rompen en cada commit
 
