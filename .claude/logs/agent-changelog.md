@@ -16,6 +16,78 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (10) — Three app defects nobody had seen, and a pack repaired without rebuilding it
+**What.** The escape hatch out of a language now follows the language in both its condition and
+its label (D-255); the debug dump reports what is loaded instead of what is drawn (D-256); a
+description's sentences are chosen by the pack's language (D-257); `repair_meta.py` fixes a built
+pack's metadata without re-exporting its content (D-258); D-168 is marked superseded and its four
+live citations corrected; `versionCode` 8 → 9.
+
+**Areas.** `app/src/main/.../SearchScreen.kt`, `SearchViewModel.kt`, `MainActivity.kt`, their two
+test files, `tools/packbuilder/build_pack.py`, the new `repair_meta.py` and its tests,
+`gradle.properties`, `tools/CLAUDE.md`, `docs/decisions.md` and `docs/roadmap.md`. Outside the
+repo: the three English packs in `dist/`, their `.gz` and `index.json`.
+
+**Why.** Asked for: repair the pack defect without re-exporting the whole pack, fix every app
+error, and review the roadmap before uploading the build.
+
+**Architecture.** Complies.
+
+**Measured.**
+- **Three app defects, none ever seen on screen**, all found by reading and all three tests
+  **proven by mutation**. Two were in eight lines of `SearchScreen`: a lone bidirectional pack
+  hid the escape hatch completely, and the pill named a pack while the tap switched a language.
+- **The dump's undercount, closed on the device**: `abiertos=4` now matches startup's
+  `listo: 4 abiertos`, where it read 2 against 3 before.
+- **All three English packs carried a Spanish sentence**, `en-core` included — and that one
+  travels inside the APK, so it was on a watch's screen. Four of the five append sites in
+  `build_pack` did not look at the language; the fifth did, which is what made it look
+  deliberate at any one call site.
+- **The repair took seconds against an hour**: four `meta` rows across three packs, entry counts
+  identical afterwards (75,734 / 214,252), `verify_pack --como-la-app` green on both.
+- **D-168 was reverted three days ago and its row never said so.** Six places in the roadmap and
+  one in `docs/bateria.md` described the dead fallback as current behaviour. Four were live
+  claims and are corrected; three are dated records and stay.
+- Gate exit 0 throughout; **511 builder tests**, 413 JVM tests.
+
+**Unverified.** **Nothing here was seen on a wrist.** Every probe ran on `emulator-5554`, which
+is what D-043 says closes correctness and nothing else. The 2,675 ms startup after the update is
+the one-off cost of extracting 94 MB and is an emulator number, not a watch one.
+
+**What went wrong.**
+- WARNING: **the repaired core did not reach the app, and NOTHING was logged.** `assetsToExtract`
+  skips the whole comparison when the installed `versionCode` equals the running one, on the
+  stated assumption that *"the same APK as last time: its content did not change"*. That held for
+  every build until `repair_meta.py` made it possible to change a pack's bytes without touching a
+  line of Kotlin. The app opened the stale pack in silence. Fixed by the rule the design already
+  implies — a repaired bundled pack needs a `versionCode` bump — written into the tool's header
+  and `tools/CLAUDE.md`. **The comment stating the assumption is what made this five minutes
+  instead of an afternoon.**
+- WARNING: **the repair tool's first dry run wanted to invent a defect.** It proposed renaming
+  `Español ↔ English` to `Español ↔ English (full)`, because the bilingual pack declares
+  `tier=full` while `build_pack` deliberately skips the stamping for it. Report-by-default is the
+  only reason that never touched a file.
+- WARNING: **the prose ratchet bit twice more, for six in three days**, and both times the cause
+  was the same one it was built for: writing new prose in Spanish because its neighbours are
+  Spanish. One of the two offending lines was a **list of quoted Spanish words as data**, which a
+  per-line detector cannot tell from a sentence — the second time that has happened.
+- **A gate result was read from a pipeline's exit code instead of Gradle's**, which is the exact
+  trap `CLAUDE.md` names. It printed `EXIT=0` over a failed build. Caught by reading the output
+  that contradicted it.
+
+**What was left undone.**
+- **The packs are still not rebuilt**, and two of the four `dist/` defects need it: `Eddie` and
+  `Richard` past the proper-noun filter, and the absent `F` channel, which is what blocks P-12.
+- **The word-of-the-day rarity is still open for the FULL packs.** P-10 answered it for the cores,
+  and a core is a frequency-bounded slice that cannot produce a rare word — so the answer does not
+  transfer. `posterobuccally` came from a full pack and nothing was measured there.
+- **The language selector still does not explain itself** (D-136), now that half that item's
+  premise is gone.
+- **The fast watch test suite for P-4** was asked for two turns ago and still is not prepared.
+- **~3,850 lines of translation**, roadmap first.
+
+---
+
 ## 2026-09-23 (9) — Every watched code area reaches zero, and translating a marker broke the check that watches it
 **What.** `dict-core/src/main`, `app/src/main` and `tools/**` translated whole with their ceilings
 dropped to 0 in the same change (D-254); the mirror marker now accepts both spellings while the
