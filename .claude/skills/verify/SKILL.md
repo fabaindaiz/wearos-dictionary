@@ -110,6 +110,36 @@ The questions that need a wrist live in `docs/preguntas-del-reloj.md`, each with
 answers it. **A claim this session could not verify goes there**, in the same change as its
 changelog entry.
 
+## Two things that fail without saying so
+
+Neither is about the gate; both are about the commands you run beside it, and each has bitten
+more than once. They live here because `CLAUDE.md` is at its line budget and this skill already
+owns *how you check something is true*.
+
+**`set -- $x` does not split fields in fish, and it fails silently.** The shell these sessions run
+is fish, not bash: `set` assigns to a variable and `--` ends the options, so `$1` and `$2` are
+left empty and the command runs on with arguments missing. Nothing errors — the loop runs and
+produces rubbish. **Twice on 2026-09-22**: three budget derivations went out as `--rango-mb 30
+--tier` and died on a raw `ValueError`, and a method-version comparison passed a whole pair as one
+argument. In fish:
+
+```fish
+for x in $pairs; set -l a (string split ' ' $x); ...; end
+```
+
+Or write the loop in Python. **What never works is the bash reflex.**
+
+**A `--` inside an XML comment breaks the build, and it has three times.** It closes the comment
+delimiter, so AGP refuses the whole resource merge:
+
+```
+ERROR: .../strings.xml:24:28: Resource and asset merger: The string "--" is not permitted within comments.
+```
+
+Use an em dash or a single hyphen in `res/**/*.xml` comments. This one fails loudly, which is why
+it costs a minute rather than a session — but it is the same reflex, since `--` is how this repo
+writes an aside everywhere else.
+
 ## Reporting
 
 Say what happened and what did not, with the output. **Never call something verified that you did

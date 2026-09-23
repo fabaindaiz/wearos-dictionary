@@ -103,11 +103,11 @@ The Hatch environment for the Python pipeline is optional and **the gate does no
 ## Verification
 
 `./gradlew check` is the gate, read **by its exit code**. What it cannot enforce — a number carries
-its date and its environment; a retraction is written everywhere the claim was; the test comes
-first, and one green first time proves it bites by mutation; **a change that must change nothing is
-proved by its invariant, compared mechanically**, never by reading the diff; the uncommitted diff
-is not yours to discard; emulator and watch measure **different things**, not different amounts
-(D-043); `:dict-data`'s tests are instrumented and stay outside — lives in the `verify` skill.
+its date and environment; a retraction goes everywhere the claim was; the test comes first, and one
+green first time proves it bites by mutation; **a change that must change nothing is proved by its
+invariant, compared mechanically**; the uncommitted diff is not yours to discard; emulator and
+watch measure **different things** (D-043); `:dict-data`'s tests stay outside; and two commands
+fail in silence (`set -- $x` in fish, `--` in an XML comment) — all in the `verify` skill.
 
 ## How a session runs
 
