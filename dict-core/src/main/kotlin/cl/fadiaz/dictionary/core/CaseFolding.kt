@@ -1,31 +1,32 @@
 package cl.fadiaz.dictionary.core
 
-// ARCHIVO GENERADO por tools/unicode/gen_casefold.py -- NO EDITAR A MANO.
-// Fuente de verdad: tools/unicode/casefold.txt
+// GENERATED FILE, by tools/unicode/gen_casefold.py -- DO NOT EDIT BY HAND.
+// Source of truth: tools/unicode/casefold.txt
 //
-// Case folding: la operacion que el estandar define para *caseless matching* --regla R4,
-// seccion 3.13 del Estandar Unicode-- y que NO es `lowercase()`. El estandar lo separa
-// explicitamente: case mapping sirve para MOSTRAR texto, case folding para COMPARARLO.
+// Case folding: the operation the standard defines for *caseless matching* --rule R4, section
+// 3.13 of the Unicode Standard-- and which is NOT `lowercase()`. The standard separates the two
+// explicitly: case mapping serves to DISPLAY text, case folding to COMPARE it.
 //
-// ⚠️ Es una TABLA y no una llamada a la plataforma porque Java y Kotlin **no tienen**
-// `toCaseFold()`: lo unico que lo ofrece es ICU, y D-003 prohibe los datos Unicode de la
-// plataforma porque cada Android trae su version --14.773 code points se clasificaban distinto
-// entre relojes. Fijar la tabla es el mismo patron que UnicodeRepertoire, por el mismo motivo.
+// ⚠️ It is a TABLE and not a platform call because Java and Kotlin **do not have**
+// `toCaseFold()`: the only thing that offers it is ICU, and D-003 forbids the platform's Unicode
+// data because every Android ships its own version --14,773 code points classified differently
+// between watches. Pinning the table is the same pattern as UnicodeRepertoire, for the same
+// reason.
 //
-// Solo lleva los 297 code points donde casefold() difiere de lower(); el resto lo dan las dos
-// plataformas identico y esta medido (D-004).
+// It only carries the 297 code points where casefold() differs from lower(); the rest is given
+// identically by both platforms and is measured (D-004).
 //
-// Fijado en Unicode 13.0.0. Regenerar invalida todos los sense_code ya escritos.
+// Pinned to Unicode 13.0.0. Regenerating invalidates every sense_code already written.
 internal object CaseFolding {
 
     const val UNICODE_VERSION: String = "13.0.0"
 
-    /** sha256 del blob codificado. Ata esta copia a tools/unicode/casefold.txt. */
+    /** sha256 of the encoded blob. Ties this copy to tools/unicode/casefold.txt. */
     const val DIGEST: String = "a2c635c5e3f847057ef92a238533e4f60c8badc3240ad0d974ac06526c621e6e"
 
     const val PAIR_COUNT: Int = 297
 
-    /** `cp:plegado` en hexadecimal, separados por comas. */
+    /** `cp:folded` in hexadecimal, comma separated. */
     internal const val ENCODED: String =
         "b5:03bc,df:00730073,149:02bc006e,17f:0073,1f0:006a030c,345:03b9,390:03b903080301,3b0:03c503080301,3c" +
         "2:03c3,3d0:03b2,3d1:03b8,3d5:03c6,3d6:03c0,3f0:03ba,3f1:03c1,3f5:03b5,587:05650582,13a0:13a0,13a1:13" +
@@ -63,10 +64,10 @@ internal object CaseFolding {
         "6600660069,fb04:00660066006c,fb05:00730074,fb06:00730074,fb13:05740576,fb14:05740565,fb15:0574056b,f" +
         "b16:057e0576,fb17:0574056d"
 
-    // ⚠️ **Se indexa por `Char` y no por code point, y eso esta verificado en el generador**:
-    // ninguno de los pares --ni origen ni destino-- cae fuera del BMP. Iterar por char evita
-    // `Character.charCount` y `appendCodePoint`, que son APIs de la JVM y D-017 no las admite
-    // fuera de PlatformJvm.kt.
+    // ⚠️ **It indexes by `Char` and not by code point, and the generator verifies that**: none of
+    // the pairs --neither source nor target-- falls outside the BMP. Iterating by char avoids
+    // `Character.charCount` and `appendCodePoint`, which are JVM APIs and D-017 does not admit
+    // them outside PlatformJvm.kt.
     private val mapa: Map<Char, String> = buildMap {
         for (entrada in ENCODED.split(',')) {
             val corte = entrada.indexOf(':')
@@ -83,11 +84,11 @@ internal object CaseFolding {
     }
 
     /**
-     * `toCaseFold()` sobre el repertorio fijado: minusculas y despues la tabla.
+     * `toCaseFold()` over the pinned repertoire: lowercase first, then the table.
      *
-     * `lowercase()` va primero porque resuelve la inmensa mayoria de los casos identico en los
-     * dos lenguajes (D-004, cero diferencias sobre 133.730 code points); la tabla corrige los
-     * 297 donde el estandar pide otra cosa.
+     * `lowercase()` goes first because it resolves the vast majority of cases identically in both
+     * languages (D-004, zero differences over 133,730 code points); the table corrects the 297
+     * where the standard asks for something else.
      */
     fun fold(text: String): String {
         val bajo = text.lowercase()

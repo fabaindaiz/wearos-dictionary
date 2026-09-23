@@ -8,57 +8,57 @@ import java.util.zip.Deflater
 import java.util.zip.Inflater
 
 /**
- * EL UNICO ARCHIVO DE :dict-core QUE USA APIS DE LA JVM.
+ * THE ONLY FILE IN :dict-core THAT USES JVM APIs.
  *
- * Todo lo demas del modulo es Kotlin puro. Esa separacion no es estetica: es lo que hace que
- * pasar a Kotlin Multiplatform sea mecanico en vez de una reescritura. La conversion seria:
+ * Everything else in the module is pure Kotlin. That separation is not cosmetic: it is what makes
+ * moving to Kotlin Multiplatform mechanical rather than a rewrite. The conversion would be:
  *
- *   1. aplicar el plugin kotlin("multiplatform") en dict-core/build.gradle.kts
- *   2. mover este archivo a src/jvmMain/, el resto a src/commonMain/
- *   3. declarar estas mismas cuatro funciones como `expect` en commonMain
- *      y marcar las de aca como `actual`
+ *   1. apply the kotlin("multiplatform") plugin in dict-core/build.gradle.kts
+ *   2. move this file to src/jvmMain/, the rest to src/commonMain/
+ *   3. declare these same four functions as `expect` in commonMain
+ *      and mark the ones here as `actual`
  *
- * Las firmas estan escritas pensando en eso: tipos que existen en todos los targets
- * (String, ByteArray), nada de streams ni de tipos de la plataforma cruzando el limite.
+ * The signatures are written with that in mind: types that exist on every target (String,
+ * ByteArray), no streams and no platform types crossing the boundary.
  *
- * ArchitectureTest comprueba automaticamente que ningun otro archivo del modulo importe
- * `java.*` o `javax.*`, para que la separacion no se degrade sola con el tiempo.
+ * ArchitectureTest checks automatically that no other file in the module imports `java.*` or
+ * `javax.*`, so the separation does not decay on its own over time.
  *
- * Equivalentes multiplataforma ya verificados para cuando haga falta:
- *   - NFD     -> ktecma262 (Kotlin puro, tablas Unicode propias)
- *   - deflate -> KFlate (Kotlin puro, soporta diccionario precargado, que es lo que usamos)
+ * Multiplatform equivalents already verified for when they are needed:
+ *   - NFD     -> ktecma262 (pure Kotlin, its own Unicode tables)
+ *   - deflate -> KFlate (pure Kotlin, supports a preloaded dictionary, which is what we use)
  *   - sha256  -> kotlincrypto
  */
 
 /**
- * Descomposicion canonica (NFD).
+ * Canonical decomposition (NFD).
  *
- * Se sigue delegando en la plataforma a proposito, y es seguro: se comparo la NFD de Java 26
- * (Unicode 16) contra la de Python 3.9 (Unicode 13) sobre los 133.730 code points del
- * repertorio fijado y hay CERO diferencias. La politica de estabilidad de Unicode garantiza
- * que la descomposicion de un caracter no cambia una vez asignado.
+ * It is still delegated to the platform on purpose, and that is safe: Java 26's NFD (Unicode 16)
+ * was compared against Python 3.9's (Unicode 13) over the 133,730 code points of the pinned
+ * repertoire and there are ZERO differences. Unicode's stability policy guarantees that a
+ * character's decomposition does not change once it is assigned.
  *
- * La clasificacion de code points es otra historia y por eso NO se delega: ver
+ * Code point classification is another story and is therefore NOT delegated: see
  * [UnicodeRepertoire].
  */
 internal fun decomposeToNfd(text: String): String =
     Normalizer.normalize(text, Normalizer.Form.NFD)
 
 /**
- * NFC: la forma **compuesta**, que es la que fija la identidad de una cadena entre fuentes.
+ * NFC: the **composed** form, the one that fixes a string's identity across sources.
  *
- * Va aca y no suelta por D-017: toda API de la JVM vive en este archivo. Se delega a la
- * plataforma igual que NFD, por D-004 -- medido, 0 diferencias sobre los 133.730 code points
- * del repertorio fijado.
+ * It lives here and not loose because of D-017: every JVM API lives in this file. It is delegated
+ * to the platform just like NFD, per D-004 -- measured, 0 differences over the 133,730 code points
+ * of the pinned repertoire.
  */
 internal fun toNfc(text: String): String =
     Normalizer.normalize(text, Normalizer.Form.NFC)
 
 /**
- * Deflate crudo (sin encabezado zlib) con diccionario precargado.
+ * Raw deflate (no zlib header) with a preloaded dictionary.
  *
- * Crudo a proposito: el encabezado zlib trae un DICTID que obliga al lector a esperar
- * `needsDictionary()`, y sin encabezado los dos lados fijan el diccionario de entrada.
+ * Raw on purpose: the zlib header carries a DICTID that forces the reader to wait for
+ * `needsDictionary()`, and with no header both sides pin the input dictionary.
  */
 internal fun deflateRaw(data: ByteArray, dictionary: ByteArray): ByteArray {
     val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
@@ -78,7 +78,7 @@ internal fun deflateRaw(data: ByteArray, dictionary: ByteArray): ByteArray {
     }
 }
 
-/** Inverso de [deflateRaw]. Lanza si el stream esta truncado o pide otro diccionario. */
+/** The inverse of [deflateRaw]. Throws if the stream is truncated or asks for another dictionary. */
 internal fun inflateRaw(compressed: ByteArray, dictionary: ByteArray): ByteArray {
     val inflater = Inflater(true)
     try {
@@ -91,10 +91,10 @@ internal fun inflateRaw(compressed: ByteArray, dictionary: ByteArray): ByteArray
             val produced = inflater.inflate(buffer)
             if (produced == 0) {
                 if (inflater.needsDictionary()) {
-                    throw DataFormatException("el payload pide un diccionario distinto")
+                    throw DataFormatException("the payload asks for a different dictionary")
                 }
                 if (inflater.needsInput()) {
-                    throw DataFormatException("payload truncado")
+                    throw DataFormatException("truncated payload")
                 }
             }
             out.write(buffer, 0, produced)
@@ -105,7 +105,7 @@ internal fun inflateRaw(compressed: ByteArray, dictionary: ByteArray): ByteArray
     }
 }
 
-/** SHA-256 en hexadecimal minuscula. */
+/** SHA-256 in lowercase hexadecimal. */
 internal fun sha256Hex(bytes: ByteArray): String =
     MessageDigest.getInstance("SHA-256")
         .digest(bytes)

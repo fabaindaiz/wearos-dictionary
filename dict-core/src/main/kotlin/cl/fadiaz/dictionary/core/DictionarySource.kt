@@ -1,49 +1,48 @@
 package cl.fadiaz.dictionary.core
 
 /**
- * Un pack de idioma consultable. Es la unica superficie por la que la app llega a los datos:
- * ni la UI ni los ViewModels ven SQL.
+ * A queryable language pack. It is the only surface through which the app reaches the data:
+ * neither the UI nor the ViewModels see SQL.
  *
- * Que la interfaz viva en un modulo Kotlin puro y no mencione SQLite es lo que permite
- * cambiar la implementacion de almacenamiento (hoy SQLite empacado) sin tocar nada arriba,
- * y testear la capa de busqueda con implementaciones en memoria.
+ * The interface living in a pure Kotlin module and never mentioning SQLite is what makes it
+ * possible to change the storage implementation (today, packed SQLite) without touching anything
+ * above it, and to test the search layer with in-memory implementations.
  *
- * Todas las funciones de consulta son cancelables: la busqueda se dispara en cada pulsacion y
- * la consulta anterior se descarta, asi que una implementacion debe chequear cancelacion
- * mientras itera filas y liberar sus recursos al salir.
+ * Every query function is cancellable: the search fires on each keystroke and the previous query
+ * is discarded, so an implementation must check for cancellation while iterating rows and release
+ * its resources on the way out.
  */
 interface DictionarySource {
 
     val metadata: PackMetadata
 
     /**
-     * Resultados para lo que el usuario lleva escrito, en el orden en que se muestran.
+     * Results for what the user has typed so far, in the order they are shown.
      *
-     * Combina, en este orden de prioridad: prefijo del lema, forma flexionada y lado de la
-     * traduccion. Recurre a la clave tolerante a errores solo si lo anterior devuelve muy
-     * poco, porque es el camino caro y sus resultados son los menos confiables.
+     * It combines, in this priority order: lemma prefix, inflected form and translation side. It
+     * falls back to the typo-tolerant key only when the above returns very little, because that is
+     * the expensive path and its results are the least trustworthy.
      */
     suspend fun suggest(query: String, limit: Int = 30, lang: String? = null): List<Suggestion>
 
-    // ⚠️ **`lang` existe porque un pack puede tener entradas de DOS idiomas.** En uno
-    // bidireccional `casa` y `house` conviven, y una lista que el usuario filtro a español no
-    // puede traer lemas ingleses. `null` = todos los idiomas del pack, que es lo que hace un
-    // pack monolingue y lo que hara el "modo auto" cuando exista.
+    // ⚠️ **`lang` exists because a pack can hold entries in TWO languages.** In a bidirectional
+    // one `casa` and `house` live together, and a list the user filtered to Spanish cannot bring
+    // English lemmas. `null` = every language in the pack, which is what a monolingual pack does
+    // and what "auto mode" will do once it exists.
     //
-    // ⚠️ **No se filtra en Kotlin sino en SQL**, y eso no es microoptimizacion: `idx_entry_norm`
-    // incluye `lang` al final, asi que el filtro se resuelve DENTRO del indice de cobertura sin
-    // tocar la tabla. Filtrando despues habria que traer el doble de filas para llenar el mismo
-    // limite, y el peldaño de prefijo es el 95 % del trabajo.
+    // ⚠️ **The filtering happens in SQL and not in Kotlin**, and that is not micro-optimization:
+    // `idx_entry_norm` includes `lang` at the end, so the filter resolves INSIDE the covering
+    // index without touching the table. Filtering afterwards would mean fetching twice the rows
+    // to fill the same limit, and the prefix rung is 95 % of the work.
 
-    /** El cuerpo de una entrada. Aca si se lee y descomprime el payload. */
+    /** An entry's body. Here the payload is read and decompressed. */
     suspend fun entry(entryId: Long): Entry?
 
     /**
-     * Busqueda de texto libre dentro de las definiciones (FTS5).
+     * Free-text search inside the definitions (FTS5).
      *
-     * Es una accion explicita del usuario, nunca se dispara mientras escribe: recorre un
-     * indice mucho mas grande que el de lemas y no cumple el presupuesto de latencia de la
-     * busqueda incremental.
+     * It is an explicit action by the user, never fired while typing: it walks an index far larger
+     * than the lemma one and does not meet the incremental search's latency budget.
      */
     suspend fun searchDefinitions(
         query: String,
@@ -52,39 +51,38 @@ interface DictionarySource {
     ): List<Suggestion>
 
     /**
-     * Cuales de estas claves normalizadas son un lema del pack, y con que entrada.
+     * Which of these normalized keys are a lemma of the pack, and with which entry.
      *
-     * Es lo que deja hacer tocables las palabras de una glosa: se pregunta por TODAS de una vez
-     * --una consulta por pantalla, no una por palabra-- y se pinta solo lo que existe, para que
-     * el color diga de antemano que lleva a algun lado.
+     * It is what lets a gloss's words be made tappable: ALL of them are asked for at once --one
+     * query per screen, not one per word-- and only what exists gets painted, so the colour says
+     * up front that it leads somewhere.
      *
-     * Cuando varias entradas comparten `norm` --"arbol" y "arbol" sin tilde son dos entradas
-     * distintas-- devuelve la de **mejor rank**, que es la misma regla con la que la lista de
-     * resultados elige que mostrar primero (D-068).
+     * When several entries share a `norm` --"árbol" and accentless "arbol" are two different
+     * entries-- it returns the one with the **best rank**, which is the same rule the results list
+     * uses to choose what to show first (D-068).
      *
-     * ⚠️ **`lang` no es opcional en la practica, y olvidarlo produjo un bug real.** Elegir por
-     * mejor rank era correcto mientras un pack tuviera un solo idioma; en uno bidireccional
-     * `pie` es **las dos cosas** --español, parte del cuerpo; ingles, pastel-- asi que tocar la
-     * traduccion `pie` de `foot` abria el `pie` INGLES: una traduccion que devuelve al idioma
-     * del que uno venia. Medido sobre el pack real: **8,30 %** de las traducciones de entradas
-     * inglesas resolvian al idioma equivocado.
+     * ⚠️ **`lang` is not optional in practice, and forgetting it produced a real bug.** Choosing
+     * by best rank was right while a pack had a single language; in a bidirectional one `pie` is
+     * **both things** --Spanish, the body part; English, the pastry-- so tapping `foot`'s
+     * translation `pie` opened the ENGLISH `pie`: a translation that sends you back to the
+     * language you came from. Measured over the real pack: **8.30 %** of the translations of
+     * English entries resolved to the wrong language.
      *
-     * `null` = cualquier idioma, que es lo que hace un pack monolingue y lo que hacia todo el
-     * mundo antes.
+     * `null` = any language, which is what a monolingual pack does and what everybody did before.
      *
-     * Sin default a proposito: una implementacion que lo olvide dejaria la glosa sin links y eso
-     * no se distingue de una glosa sin palabras conocidas.
+     * No default, on purpose: an implementation that forgets it would leave the gloss with no
+     * links, and that is indistinguishable from a gloss with no known words.
      */
     suspend fun resolveHeadwords(norms: Set<String>, lang: String? = null): Map<String, Long>
 
     /**
-     * La cabecera de una entrada por su id, sin descomprimir el payload.
+     * An entry's header by its id, without decompressing the payload.
      *
-     * Una fila, servida por clave primaria. Se usa para descartar candidatos baratos --la palabra
-     * del dia prueba varios antes de quedarse con uno-- sin pagar un inflate por cada uno.
+     * One row, served by primary key. It is used to discard candidates cheaply --word of the day
+     * tries several before settling on one-- without paying an inflate for each.
      */
     suspend fun summary(entryId: Long): EntrySummary?
 
-    /** Cierra la conexion subyacente. El pack queda inutilizable. */
+    /** Closes the underlying connection. The pack becomes unusable. */
     fun close()
 }

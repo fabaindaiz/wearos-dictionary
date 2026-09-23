@@ -1,39 +1,39 @@
 #!/usr/bin/env python3
-"""Genera la tabla de CASE FOLDING fijada que comparten el builder y la app.
+"""Generates the pinned CASE FOLDING table shared by the builder and the app.
 
     python3 tools/unicode/gen_casefold.py
 
-## Por que existe, y por que no alcanza con `lowercase()`
+## Why it exists, and why `lowercase()` is not enough
 
-El codigo que nombra una acepcion (`payload.sense_code`) pliega la glosa antes de hashearla, para
-que dos diccionarios que escriben la misma definicion con otra caja la reconozcan como la misma.
-La operacion que el estandar define para eso es **`toCaseFold()`** --regla R4, seccion 3.13 del
-Estandar Unicode, referenciada por UAX #31 como la operacion para *caseless matching*-- y el
-estandar es explicito: `toLowerCase()` es **case mapping**, que sirve para MOSTRAR texto;
-`toCaseFold()` es **case folding**, que sirve para COMPARARLO.
+The code that names a sense (`payload.sense_code`) folds the gloss before hashing it, so that two
+dictionaries writing the same definition in different case recognize it as the same one. The
+operation the standard defines for that is **`toCaseFold()`** --rule R4, section 3.13 of the
+Unicode Standard, referenced by UAX #31 as the operation for *caseless matching*-- and the
+standard is explicit: `toLowerCase()` is **case mapping**, which serves to DISPLAY text;
+`toCaseFold()` is **case folding**, which serves to COMPARE it.
 
-Se usaba `lowercase()`. Medido sobre el repertorio fijado, **242 de 133.730 code points (0,181 %)**
-dan resultados distintos: `ß`→`ss`, `ſ`→`s`, `ς`→`σ`, `ͅ`→`ι`. Sobre las glosas reales son 8 de
-97.337 en español y 19 de 162.820 en ingles -- `ß-endorfina`, `µm`, texto griego.
+`lowercase()` was being used. Measured over the pinned repertoire, **242 of 133,730 code points
+(0.181 %)** give different results: `ß`→`ss`, `ſ`→`s`, `ς`→`σ`, `ͅ`→`ι`. Over the real glosses that
+is 8 of 97,337 in Spanish and 19 of 162,820 in English -- `ß-endorfina`, `µm`, Greek text.
 
-## Por que una TABLA y no la funcion de la plataforma
+## Why a TABLE and not the platform's function
 
-⚠️ **Python tiene `str.casefold()`; Java y Kotlin no tienen equivalente.** Lo unico que lo ofrece
-es ICU, y **D-003 prohibe los datos Unicode de la plataforma**: cada Android trae su propia
-version y eso clasificaba 14.773 code points distinto entre relojes. Usar `android.icu` para
-plegar reintroduciria exactamente el bug que D-003 existe para impedir.
+⚠️ **Python has `str.casefold()`; Java and Kotlin have no equivalent.** The only thing that offers
+it is ICU, and **D-003 forbids the platform's Unicode data**: every Android ships its own version
+and that classified 14,773 code points differently between watches. Using `android.icu` to fold
+would reintroduce exactly the bug D-003 exists to prevent.
 
-Asi que se fija la tabla, que es el mismo patron que `UnicodeRepertoire` ya usa y por el mismo
-motivo: **los dos lenguajes aplican los MISMOS datos**, y el sha256 ata las dos copias.
+So the table is pinned, which is the same pattern `UnicodeRepertoire` already uses and for the
+same reason: **both languages apply the SAME data**, and the sha256 ties the two copies together.
 
-## Subir de version es un acto deliberado
+## Raising the version is a deliberate act
 
-Aborta si el Python que lo corre no trae **exactamente** la version de Unicode a la que esta
-fijado el repertorio: una tabla de plegado de Unicode 16 contra un repertorio de Unicode 13 seria
-una inconsistencia silenciosa entre dos archivos que se leen juntos.
+It aborts if the Python running it does not ship **exactly** the Unicode version the repertoire is
+pinned to: a folding table from Unicode 16 against a repertoire from Unicode 13 would be a silent
+inconsistency between two files that are read together.
 
-⚠️ **Y regenerarla invalida todos los `sense_code` ya escritos.** Es el mismo peso que subir
-`NORM_VERSION`: se hace a sabiendas o no se hace.
+⚠️ **And regenerating it invalidates every `sense_code` already written.** It carries the same
+weight as bumping `NORM_VERSION`: it is done knowingly or it is not done.
 """
 
 import hashlib
@@ -52,10 +52,10 @@ KOTLIN_PATH = os.path.join(
 
 
 def compute_pairs():
-    """`[(code_point, plegado)]` para lo que `casefold()` hace y `lower()` no.
+    """`[(code_point, folded)]` for what `casefold()` does and `lower()` does not.
 
-    Solo entra la diferencia: lo que `lower()` ya resuelve bien no necesita tabla, y meterlo
-    seria duplicar datos que la plataforma da identicos en los dos lenguajes (D-004).
+    Only the difference goes in: what `lower()` already resolves correctly needs no table, and
+    including it would duplicate data the platform gives identically in both languages (D-004).
     """
     pares = []
     for cp in range(0x110000):
@@ -67,7 +67,7 @@ def compute_pairs():
 
 
 def encode(pares):
-    """`cp:plegado` separados por comas, el cp en base 16 y el plegado en escapes \\uXXXX."""
+    """`cp:folded` comma separated, the cp in base 16 and the folding in \\uXXXX escapes."""
     return ",".join(
         "%x:%s" % (cp, "".join("%04x" % ord(c) for c in plegado)) for cp, plegado in pares
     )
@@ -77,22 +77,22 @@ def main():
     actual = unicodedata.unidata_version
     if actual != PINNED_UNICODE_VERSION:
         print(
-            "ERROR: este Python trae Unicode %s pero la tabla esta fijada en %s.\n"
-            "Subir de version es deliberado: leer el encabezado de este archivo."
+            "ERROR: this Python ships Unicode %s but the table is pinned to %s.\n"
+            "Raising the version is deliberate: read this file's header."
             % (actual, PINNED_UNICODE_VERSION),
             file=sys.stderr,
         )
         return 1
 
     pares = compute_pairs()
-    # ⚠️ El lado Kotlin indexa por `Char` para no usar APIs de la JVM que D-017 prohibe en
-    # :dict-core. Eso vale solo si nada cae fuera del BMP, asi que se comprueba aca en vez de
-    # confiarlo: si algun dia Unicode agrega un plegado fuera del BMP, esto aborta y avisa.
+    # ⚠️ The Kotlin side indexes by `Char` so as not to use the JVM APIs D-017 forbids in
+    # :dict-core. That only holds if nothing falls outside the BMP, so it is checked here rather
+    # than trusted: if Unicode ever adds a folding outside the BMP, this aborts and says so.
     fuera = [cp for cp, dest in pares
              if cp > 0xFFFF or any(ord(c) > 0xFFFF for c in dest)]
     if fuera:
-        print("ERROR: %d pares caen fuera del BMP (%s...). El lado Kotlin indexa por Char:\n"
-              "hay que volver a code points y mover esas APIs a PlatformJvm.kt."
+        print("ERROR: %d pairs fall outside the BMP (%s...). The Kotlin side indexes by Char:\n"
+              "they have to go back to code points and those APIs move to PlatformJvm.kt."
               % (len(fuera), ", ".join(hex(c) for c in fuera[:5])), file=sys.stderr)
         return 1
     blob = encode(pares)
@@ -100,12 +100,12 @@ def main():
 
     with open(DATA_PATH, "w", encoding="ascii") as handle:
         handle.write(
-            "# Tabla de case folding fijada, generada por tools/unicode/gen_casefold.py.\n"
-            "# NO EDITAR A MANO. Leer el encabezado del generador para saber por que existe.\n"
+            "# Pinned case folding table, generated by tools/unicode/gen_casefold.py.\n"
+            "# DO NOT EDIT BY HAND. Read the generator's header to learn why it exists.\n"
             "#\n"
-            "# Solo lleva lo que casefold() hace y lower() no: lo demas lo dan las dos\n"
-            "# plataformas identico y esta medido (D-004). El sha256 ata esta copia con\n"
-            "# dict-core CaseFolding.kt.\n"
+            "# It only carries what casefold() does and lower() does not: the rest is given\n"
+            "# identically by both platforms and is measured (D-004). The sha256 ties this\n"
+            "# copy to dict-core CaseFolding.kt.\n"
             "#\n"
             "unicode_version %s\n"
             "pairs %d\n"
@@ -114,8 +114,8 @@ def main():
         )
 
     _write_kotlin(blob, digest, len(pares))
-    print("Tabla de case folding fijada en Unicode %s" % PINNED_UNICODE_VERSION)
-    print("  %d pares · sha256 %s" % (len(pares), digest[:16]))
+    print("Case folding table pinned to Unicode %s" % PINNED_UNICODE_VERSION)
+    print("  %d pairs · sha256 %s" % (len(pares), digest[:16]))
     print("  %s" % DATA_PATH)
     print("  %s" % KOTLIN_PATH)
     return 0
@@ -127,39 +127,40 @@ def _write_kotlin(blob, digest, pair_count):
     with open(KOTLIN_PATH, "w", encoding="utf-8") as handle:
         handle.write('''package cl.fadiaz.dictionary.core
 
-// ARCHIVO GENERADO por tools/unicode/gen_casefold.py -- NO EDITAR A MANO.
-// Fuente de verdad: tools/unicode/casefold.txt
+// GENERATED FILE, by tools/unicode/gen_casefold.py -- DO NOT EDIT BY HAND.
+// Source of truth: tools/unicode/casefold.txt
 //
-// Case folding: la operacion que el estandar define para *caseless matching* --regla R4,
-// seccion 3.13 del Estandar Unicode-- y que NO es `lowercase()`. El estandar lo separa
-// explicitamente: case mapping sirve para MOSTRAR texto, case folding para COMPARARLO.
+// Case folding: the operation the standard defines for *caseless matching* --rule R4, section
+// 3.13 of the Unicode Standard-- and which is NOT `lowercase()`. The standard separates the two
+// explicitly: case mapping serves to DISPLAY text, case folding to COMPARE it.
 //
-// ⚠️ Es una TABLA y no una llamada a la plataforma porque Java y Kotlin **no tienen**
-// `toCaseFold()`: lo unico que lo ofrece es ICU, y D-003 prohibe los datos Unicode de la
-// plataforma porque cada Android trae su version --14.773 code points se clasificaban distinto
-// entre relojes. Fijar la tabla es el mismo patron que UnicodeRepertoire, por el mismo motivo.
+// ⚠️ It is a TABLE and not a platform call because Java and Kotlin **do not have**
+// `toCaseFold()`: the only thing that offers it is ICU, and D-003 forbids the platform's Unicode
+// data because every Android ships its own version --14,773 code points classified differently
+// between watches. Pinning the table is the same pattern as UnicodeRepertoire, for the same
+// reason.
 //
-// Solo lleva los %d code points donde casefold() difiere de lower(); el resto lo dan las dos
-// plataformas identico y esta medido (D-004).
+// It only carries the %d code points where casefold() differs from lower(); the rest is given
+// identically by both platforms and is measured (D-004).
 //
-// Fijado en Unicode %s. Regenerar invalida todos los sense_code ya escritos.
+// Pinned to Unicode %s. Regenerating invalidates every sense_code already written.
 internal object CaseFolding {
 
     const val UNICODE_VERSION: String = "%s"
 
-    /** sha256 del blob codificado. Ata esta copia a tools/unicode/casefold.txt. */
+    /** sha256 of the encoded blob. Ties this copy to tools/unicode/casefold.txt. */
     const val DIGEST: String = "%s"
 
     const val PAIR_COUNT: Int = %d
 
-    /** `cp:plegado` en hexadecimal, separados por comas. */
+    /** `cp:folded` in hexadecimal, comma separated. */
     internal const val ENCODED: String =
 %s
 
-    // ⚠️ **Se indexa por `Char` y no por code point, y eso esta verificado en el generador**:
-    // ninguno de los pares --ni origen ni destino-- cae fuera del BMP. Iterar por char evita
-    // `Character.charCount` y `appendCodePoint`, que son APIs de la JVM y D-017 no las admite
-    // fuera de PlatformJvm.kt.
+    // ⚠️ **It indexes by `Char` and not by code point, and the generator verifies that**: none of
+    // the pairs --neither source nor target-- falls outside the BMP. Iterating by char avoids
+    // `Character.charCount` and `appendCodePoint`, which are JVM APIs and D-017 does not admit
+    // them outside PlatformJvm.kt.
     private val mapa: Map<Char, String> = buildMap {
         for (entrada in ENCODED.split(',')) {
             val corte = entrada.indexOf(':')
@@ -176,11 +177,11 @@ internal object CaseFolding {
     }
 
     /**
-     * `toCaseFold()` sobre el repertorio fijado: minusculas y despues la tabla.
+     * `toCaseFold()` over the pinned repertoire: lowercase first, then the table.
      *
-     * `lowercase()` va primero porque resuelve la inmensa mayoria de los casos identico en los
-     * dos lenguajes (D-004, cero diferencias sobre 133.730 code points); la tabla corrige los
-     * %d donde el estandar pide otra cosa.
+     * `lowercase()` goes first because it resolves the vast majority of cases identically in both
+     * languages (D-004, zero differences over 133,730 code points); the table corrects the %d
+     * where the standard asks for something else.
      */
     fun fold(text: String): String {
         val bajo = text.lowercase()
