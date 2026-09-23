@@ -798,8 +798,14 @@ class ScreensTest {
 
     @Test
     fun withTwoDictionariesBothWordsAndTheirLanguageShow() {
-        // With a single pack the subtitle says "palabra del día"; with two, the dictionary's
-        // name, which is the only thing telling them apart.
+        // ⚠️ **The subtitle is the word's own detail, not the dictionary's name.** It used to
+        // say `English · definiciones`, which made this the one row in the app saying something
+        // different from the other three --a result, a recent and a saved word all say
+        // `verbo · EN`--. Asked for: *"under the word of the day, put only what kind of word it
+        // is and the language code"*.
+        //
+        // The language still tells the two apart, which is what this test was pinning: it is the
+        // `EN`, and it comes from the pack that produced the word.
         showSearch(
             twoPackState().copy(query = "", submitted = "",
                 wordsOfTheDay = mapOf(
@@ -811,13 +817,12 @@ class ScreensTest {
         compose.onNodeWithText("permanecer").assertIsDisplayed()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("remain"))
         compose.onNodeWithText("remain").assertIsDisplayed()
-        // Short name AND kind (D-125): the name stopped saying what kind of dictionary it is,
-        // so the row has to say it separately or the fact is lost.
-        compose.onNodeWithText("English · definiciones").assertExists()
+        compose.onNodeWithText("verbo · EN").assertExists()
+        compose.onNodeWithText("verbo · ES").assertExists()
         assertEquals(
-            "con dos diccionarios el subtitulo es el idioma, no la etiqueta generica",
+            "el nombre del diccionario ya no va: lo dice el encabezado de la seccion",
             0,
-            compose.onAllNodesWithText("palabra del día").fetchSemanticsNodes().size,
+            compose.onAllNodesWithText("English · definiciones").fetchSemanticsNodes().size,
         )
     }
 

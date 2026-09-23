@@ -272,14 +272,25 @@ fun SearchScreen(
                             key = { index -> "pdd:${ofTheDay[index].first.packId}" },
                         ) { index ->
                             val (handle, word) = ofTheDay[index]
-                            // Always the dictionary's name: the header already says this is
-                            // the word of the day, so repeating it here wasted a line.
+                            // ⚠️ **The same detail as every other row: `sust. · ES`.** It used to
+                            // name the dictionary --`Español · definiciones`-- and that was the one
+                            // row in the app that said something different from the other three.
+                            // Asked for: *"under the word of the day, put only what kind of word
+                            // it is and the language code"*. The header already says these are
+                            // the words of the day, so naming the pack spent the line on what
+                            // the section had said.
+                            //
+                            // ⚠️ **`singleOrNull` and not `first`**, which is `historyTags`'s same
+                            // rule: a pack that declares two languages has no single true tag,
+                            // and no tag beats the wrong one. It cannot happen today --a
+                            // bilingual pack gives no word of the day (D-200)-- and that is
+                            // precisely why the guard is cheap.
                             WordOfTheDayRow(
                                 word = word,
-                                // Short name AND kind: since D-125 the name is just "Español",
-                                // so without the label you cannot tell what kind it is.
-                                subtitle = "${handle.metadata.name} · " +
-                                    packTypeLabel(handle.metadata.kind),
+                                subtitle = wordDetail(
+                                    partOfSpeech = word.partOfSpeech?.let { posLabel(it) },
+                                    tag = resultTag(handle.metadata.langs.singleOrNull()),
+                                ),
                             ) { onOpenWordOfTheDay(handle.packId, word) }
                         }
                     }
@@ -292,13 +303,12 @@ fun SearchScreen(
                     // two thirds of a row and there is nothing here to confuse them with" -- but
                     // with the word of the day above and the options below, the only list without
                     // a heading became the odd one out.
-                    // Sin recortar: el inicio SCROLLEA, asi que limitar aca esconderia
-                    // entradas sin ganar nada. El tope vive donde no se puede scrollear -- el
-                    // tile (D-131).
-                    // ⚠️ **Tres, y el resto detrás de un botón** (D-148). El inicio es la
-                    // pantalla más disputada del reloj: con ocho recientes, los ajustes y la
-                    // atribución quedaban a varios scrolls. Tres es lo que entra después del
-                    // campo y la voz sin empujar nada fuera de alcance.
+                    // Untrimmed: the home SCROLLS, so limiting here would hide entries and gain
+                    // nothing. The cap lives where scrolling is impossible -- the tile (D-131).
+                    // ⚠️ **Three, and the rest behind a button** (D-148). The home is the most
+                    // contested screen on the watch: with eight recents, settings and attribution
+                    // were several scrolls away. Three is what fits after the field and the voice
+                    // button without pushing anything out of reach.
                     val recent = state.history.take(HOME_RECENT)
                     val hayMas = state.history.size > recent.size
                     if (state.submitted.isEmpty() && recent.isNotEmpty()) {
@@ -599,7 +609,7 @@ private fun SearchBar(
 @Composable
 private fun WordOfTheDayRow(
     word: EntrySummary,
-    subtitle: String,
+    subtitle: String?,
     onClick: () -> Unit,
 ) {
     Column(
@@ -618,13 +628,18 @@ private fun WordOfTheDayRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // Nullable since the subtitle became the word's own detail: an entry with no `pos` in
+        // a pack that declares two languages has nothing to say, and an empty line under the
+        // headword reads as a label that failed to load.
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
