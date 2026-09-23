@@ -3535,6 +3535,106 @@ rm -f app/build/outputs/apk/debug/app-debug.apk        # or --rerun-tasks
 ./gradlew :app:assembleDebug -Pdictionary.packsDir=<an empty directory>
 ```
 
+### Downloading should not require the charger — ASKED 2026-09-23
+
+**Status.** **Requested, not changed.** The owner's words were that requiring *«el cargador
+conectado»* for a download is a requirement they can see no sense in.
+
+**What is there today.** `DownloadPackWorker.constraints()` sets **both**
+`setRequiresCharging(true)` and `NetworkType.UNMETERED`, one line each, and D-029 justifies the
+pair together as *"the official Wear OS guidance"* for transfers of tens of MB.
+
+⚠️ **The two constraints defend different things and only one of them was actually argued.**
+`UNMETERED` protects a **data plan** — a 314 MB pack over a metered connection is a real bill,
+and a watch that is paired to a phone can be on one without saying so. `requiresCharging`
+protects the **battery**, and that is the one with no number behind it in this repo: nothing here
+has measured what a 72 MB download costs a watch battery. `docs/bateria.md` has the screen at
+33.2 mAh and all of our CPU at 6.05, so the budget exists — the download was simply never put
+against it.
+
+⚠️ **And it has a cost that is now measured.** The owner's own flow — install the app, point it
+at a development server, download a pack — requires plugging the watch in to test a download at
+all, which is friction on every iteration of the thing being built.
+
+| | Option | What it costs | What it closes |
+|---|---|---|---|
+| **A** | Drop `requiresCharging`, keep `UNMETERED` | an unknown battery cost | The data plan stays protected, which is the constraint with a real consequence. **Recommended if a measurement backs it** |
+| **B** | Drop it only for downloads the user **started by hand**, keep it for anything queued | ~10 lines: two constraint sets | ⚠️ The honest one: a download somebody is *watching* is their choice to pay for; one that fires on its own is not. It is the same reasoning D-212 used for logging |
+| **C** | Make it a setting | a row, and a decision the user has no numbers for either | ⚠️ Hands over a choice nobody can make informed |
+| **D** | Keep it | 0 | Today's answer, and it is guidance-shaped rather than measured |
+
+**What unblocks it**: one measurement — `dumpsys batterystats` around a 72 MB download on the
+watch, which is the `benchmark` skill's existing procedure. Until then **B** is defensible without
+any number, because it changes who decides rather than what it costs.
+
+### The language code is missing on history and saved rows — SEEN 2026-09-23
+
+**Status.** **Known, deliberate, and now hitting the owner.** `historyTags`'s own KDoc anticipated
+this and said the fix *"deserves a decision of its own"*. This is that moment.
+
+⚠️ **First, a correction to the report.** It was raised as the **word of the day** missing its
+code. On the build installed that day it has it — verified on the watch, `ligar / verb · ES` and
+`postal / adj. · EN` (D-253). What is missing it is the **Recent** section right below:
+`atizar / verb` and `stoke / verb`, two different languages with nothing distinguishing them.
+⚠️ **The watch had been running versionCode 4 until minutes before**, which predates D-253, so
+the observation was almost certainly true of what was on screen at the time.
+
+**The cause, and it is not an oversight.** `historyTags` tags a row by looking up its `packId`
+among the installed packs and taking `langs.singleOrNull()`. Both of those rows come from
+`es-tr-enwikt-freq`, which declares **es+en**, so there is no single true language and the code
+deliberately prefers **no tag over a wrong one** — the same rule that governs a gloss's links.
+
+⚠️ **And the bilingual pack is exactly the one that survives a rebuild.** Its `pack_id` is
+derived from its sources rather than stamped `<lang>-<tier>` (D-215 leaves it out on purpose), so
+every other pack's history was orphaned by the 2026-09-22 rebuild while its rows kept resolving.
+The untagged case is not the rare one; on this watch it is most of the list.
+
+| | Option | Cost | What it closes |
+|---|---|---|---|
+| **A** | Store the language **in `Visit`** | changes what is written to preferences, so it needs a migration and a decision about old rows | The only one that is actually correct: the language is a property of the visit, not of the pack. Old rows stay untagged, which is honest |
+| **B** | Derive it from the entry when the row is drawn | a read per row, on a list that scrolls | ⚠️ Puts a pack read on the home's scroll path, which D-106's reasoning rules out for the tile and is uncomfortable here |
+| **C** | Tag it with the **active** language | 0 | ⚠️ **Wrong, and the KDoc already refuses it**: a history row can be from another language than the active one, and asserting otherwise is D-080's family |
+
+**Recommended: A**, and the migration question — what to do with rows written before the field
+existed — is the whole decision.
+
+### `full` and `main` of the same origin installed together — REVIEWED 2026-09-23, partly handled
+
+**Status.** **Better than expected, and the gap is not where it looks.** Asked for: handle
+explicitly what happens when a `full` pack is installed and then the `main` of the same origin
+arrives, *«y viceversa»*.
+
+**What already works.** A pack declares `meta.subset_of`, and `packsToQuery` drops any pack whose
+absorber is installed. Read off `dist/` on 2026-09-23:
+
+| pack | `subset_of` |
+|---|---|
+| `en-core`, `en-main` | `en-full` |
+| `es-core` | `es-full` |
+| `es-full`, `en-full`, `es-en` | — |
+
+So installing `en-main` next to `en-full` — **in either order** — already means `en-main` is not
+queried, and no result is duplicated. The mechanism is order-independent, which is what makes
+*"and vice versa"* a non-question.
+
+⚠️ **What is NOT handled, and these are the explicit decisions being asked for:**
+
+1. **The shadowed pack keeps its disk.** `en-main` is **103 MB** that is never read once `en-full`
+   is there. Nothing says so, nothing offers to delete it, and the dictionary manager lists it
+   looking exactly like a working pack.
+2. **The catalogue will happily sell it to you.** Downloading `en-main` with `en-full` already
+   installed is **72 MB over the wire** for a pack that is shadowed the moment it lands. The
+   download screen has the information to warn — `subset_of` is in the index — and does not.
+3. **Two surfaces use different rules, which is this repo's recurring failure.** `packsToQuery`
+   honours `subset_of`; `representativePacks` — which decides the attribution shown and whose
+   word of the day appears — picks by `entryCount` and does not. Today it lands correctly by
+   luck, because an absorber always has more entries than its subset. **It is a coincidence, not
+   an invariant**, and nothing fails if it stops being true.
+
+**Cheapest first**: (3) is a correctness question and costs a few lines plus a test; (1) is a row
+in the dictionary manager saying *"covered by English (full)"*; (2) is the same string in the
+catalogue. None needs a rebuild.
+
 ### The APK is 111 MB and the estimate said 60 — MEASURED 2026-09-23
 
 **Status.** **Open**, and the gap is fully explained by two numbers nobody re-derived together.
