@@ -1,9 +1,9 @@
 package cl.fadiaz.dictionary.data
 
 import android.content.Context
-// `edit { }` y no `.edit()....apply()`: la segunda forma compila sin el `apply()`
-// final y entonces NO guarda nada, sin error y sin log. La lambda no se puede
-// olvidar. Viene de core-ktx, que ya estaba en el classpath.
+// `edit { }` and not `.edit()....apply()`: the second form compiles without the trailing
+// `apply()` and then saves NOTHING, with no error and no log. The lambda cannot be
+// forgotten. It comes from core-ktx, which was already on the classpath.
 import androidx.core.content.edit
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.presentation.packRejectionLabelRes
@@ -61,17 +61,17 @@ object PackStore {
      *    here today.
      */
     /**
-     * Qué packs del APK hay que copiar a disco.
+     * Which of the APK's packs have to be copied to disk.
      *
-     * ⚠️ **Antes miraba sólo si el NOMBRE faltaba, y por eso un pack incluido se extraía una vez
-     * y no se actualizaba jamás.** Visto en el reloj: la app avisaba que `demo-es-en.db` no era
-     * compatible —se extrajo con `deflate-v1` y la app pasó a `deflate-v2` (D-119)— mientras el
-     * APK traía uno bueno que nunca se copiaba. Es el costo que D-119 aceptó *«porque hoy es
-     * cero»*, y dejó de serlo.
+     * ⚠️ **It used to look only at whether the NAME was missing, which is why a bundled pack was
+     * extracted once and never updated.** Seen on the watch: the app warned that `demo-es-en.db`
+     * was incompatible --it had been extracted with `deflate-v1` and the app moved to `deflate-v2`
+     * (D-119)-- while the APK carried a good one that was never copied. It is the cost D-119
+     * accepted *"because today it is zero"*, and it stopped being zero.
      *
-     * La regla ahora: **una versión nueva de la app re-extrae sus packs**, porque son suyos y
-     * vienen con ella. Los que el usuario instaló **no se tocan nunca** — son 372 MB que nadie
-     * quiere volver a copiar por adb.
+     * The rule now: **a new version of the app re-extracts its packs**, because they are its own
+     * and come with it. The ones the user installed **are never touched** -- they are 372 MB
+     * nobody wants to copy over adb again.
      */
     internal fun assetsToExtract(
         assets: List<String>,
@@ -79,32 +79,33 @@ object PackStore {
         last: Int,
         current: Int,
         /**
-         * Los packs del APK que el usuario **reemplazo desde el catalogo**.
+         * The APK's packs the user **replaced from the catalog**.
          *
-         * ⚠️ **Es un tercer caso que la descarga creo, y sin el hay un downgrade silencioso.**
-         * `es-core.db` viene en el APK; actualizarlo desde el catalogo reescribe ese mismo
-         * archivo, y hasta aqui la regla era *"una version nueva de la app re-extrae sus packs"*
-         * --lo que pisaria el pack nuevo con el viejo sin un error, porque el viejo abre igual de
-         * bien--.
+         * ⚠️ **It is a third case the download created, and without it there is a silent
+         * downgrade.** `es-core.db` ships in the APK; updating it from the catalog rewrites that
+         * same file, and until here the rule was *"a new version of the app re-extracts its
+         * packs"* --which would overwrite the new pack with the old one and raise no error,
+         * because the old one opens just as well--.
          *
-         * Desde [ExtractionPlan] la regla dejo de ser *"el catalogo gana"* a secas: gana el
-         * `data_version` mayor, venga de donde venga. Ver ahi.
+         * Since [ExtractionPlan] the rule stopped being *"the catalog wins"* flat out: the higher
+         * `data_version` wins, wherever it comes from. See there.
          */
         downloaded: Set<String> = emptySet(),
     ): ExtractionPlan {
         val alreadyOnDisk = installed.toSet()
         if (last == current) {
-            // El mismo APK que la ultima vez: su contenido no cambio, asi que no hay nada que
-            // comparar. Solo se copia lo que falta del disco.
+            // The same APK as last time: its content did not change, so there is nothing to
+            // compare. Only what is missing from disk gets copied.
             return ExtractionPlan(
                 copy = assets.filterNot { it in alreadyOnDisk || it in downloaded }.sorted(),
                 compare = emptyList(),
             )
         }
         val (delCatalogo, propios) = assets.partition { it in downloaded }
-        // ⚠️ Marcado como "del catalogo" pero **ausente del disco** no es un conflicto: no hay
-        // contra que comparar, asi que se copia. Hoy `deletePack` limpia la marca al borrar, asi
-        // que esto no deberia pasar -- y por eso mismo, si pasa, lo seguro es tener el pack.
+        // ⚠️ Marked "from the catalog" but **absent from disk** is not a conflict: there is
+        // nothing to compare against, so it gets copied. Today `deletePack` clears the mark on
+        // deletion, so this should not happen -- and for that very reason, if it does, the safe
+        // outcome is having the pack.
         val (presentes, desaparecidos) = delCatalogo.partition { it in alreadyOnDisk }
         return ExtractionPlan(
             copy = (propios + desaparecidos).sorted(),
@@ -113,51 +114,51 @@ object PackStore {
     }
 
     /**
-     * Que hacer con cada pack del APK cuando la app subio de version.
+     * What to do with each of the APK's packs when the app has gone up a version.
      *
-     * ⚠️ **Dos listas y no una, porque son dos preguntas y mezclarlas ya costo un bug.** D-172
-     * dejo escrita la leccion: *una regla que filtra una lista no sirve si otro camino construye
-     * esa lista de nuevo*. Devolver un plan --y no dos funciones que alguien puede llamar por
-     * separado-- hace que olvidarse de una mitad no compile.
+     * ⚠️ **Two lists and not one, because they are two questions and merging them already cost a
+     * bug.** D-172 put the lesson in writing: *a rule that filters a list is no use if another
+     * path builds that list again*. Returning a plan --and not two functions somebody can call
+     * separately-- makes forgetting one half not compile.
      */
     internal data class ExtractionPlan(
         /**
-         * Se copian y pisan lo que haya: ese archivo es del APK y nadie mas lo toco.
+         * They get copied and overwrite whatever is there: that file is the APK's and nobody else
+         * touched it.
          */
         val copy: List<String>,
         /**
-         * Vinieron del catalogo y **siguen en el disco**: se copia solo si el APK trae un
-         * `data_version` mayor.
+         * They came from the catalog and **are still on disk**: copied only if the APK carries a
+         * higher `data_version`.
          *
-         * ⚠️ **Esto reemplaza a *"el catalogo gana sobre el APK"*, que era la regla de D-214 y
-         * tenia el defecto simetrico al que venia a arreglar.** Ahi el problema era que una app
-         * nueva pisaba con su nucleo viejo el que el usuario acababa de bajar; la regla *"el
-         * catalogo gana"* lo cerro, y abrio el otro: un nucleo bajado hace meses le gana **para
-         * siempre** al que trae el APK de hoy, aunque el de hoy sea mas nuevo. Ninguno de los
-         * dos falla con un error -- los dos packs abren bien -- asi que lo unico que se ve es un
-         * diccionario que no se actualiza nunca.
+         * ⚠️ **This replaces *"the catalog beats the APK"*, which was D-214's rule and had the
+         * symmetric defect to the one it came to fix.** There the problem was a new app
+         * overwriting with its old core the one the user had just downloaded; the rule *"the
+         * catalog wins"* closed that, and opened the other: a core downloaded months ago beats
+         * **forever** the one today's APK carries, even when today's is newer. Neither fails with
+         * an error -- both packs open fine -- so all that is visible is a dictionary that never
+         * updates.
          *
-         * **La regla que cierra las dos: gana el `data_version` mayor, venga de donde venga.** Es
-         * el mismo entero monotono con el que `Catalog.classify` decide si hay novedad (D-170),
-         * asi que la app usa una sola nocion de *"cual es mas nuevo"* y no dos.
+         * **The rule that closes both: the higher `data_version` wins, wherever it comes from.**
+         * It is the same monotonic integer `Catalog.classify` decides novelty with (D-170), so the
+         * app uses one notion of *"which is newer"* and not two.
          *
-         * ⚠️ **La version del APK se lee de un INDICE, no del asset**, y esa es la parte que
-         * hace que esto sea barato. SQLite no abre un `.db` dentro del APK --verificado con
-         * `javap` sobre `sqlite-bundled 2.7.1`: la superficie entera es `open(String)`, sin VFS
-         * propio y sin `sqlite3_deserialize` (D-173)-- asi que preguntarle su version al asset
-         * obligaria a **copiar los 50,8 MB del nucleo espanol** para leer un entero de 12
-         * digitos. La primera version de esto hacia exactamente eso.
+         * ⚠️ **The APK's version is read from an INDEX, not from the asset**, and that is the part
+         * that makes this cheap. SQLite does not open a `.db` inside the APK --verified with
+         * `javap` over `sqlite-bundled 2.7.1`: the whole surface is `open(String)`, with no VFS of
+         * its own and no `sqlite3_deserialize` (D-173)-- so asking the asset for its version would
+         * force **copying the Spanish core's 50.8 MB** to read a 12-digit integer. The first
+         * version of this did exactly that.
          *
-         * En su lugar, `bundlePacks` deja la version escrita en `assets/core-index.tsv` durante
-         * el build, leyendola del **mismo `index.json` que sirve `packserver.py`** -- el pack
-         * incluido es un caso excepcional y puede permitirse declarar su version, igual que el
-         * servidor declara la de los suyos. Ver [coreIndex]. Coste en el reloj: dos lineas de
-         * texto.
+         * Instead, `bundlePacks` leaves the version written in `assets/core-index.tsv` during the
+         * build, reading it from the **same `index.json` `packserver.py` serves** -- the bundled
+         * pack is an exceptional case and can afford to declare its version, just as the server
+         * declares its own. See [coreIndex]. Cost on the watch: two lines of text.
          *
-         * ⚠️ **Y el indice trae su propio riesgo, cerrado en el build**: uno desactualizado al
-         * lado de un `.db` nuevo declararia una version que no es. `bundlePacks` compara el
-         * tamano declarado contra el archivo real y, si no coinciden, **no declara nada** -- y la
-         * app entonces deja el pack del usuario como esta, que es el estado seguro.
+         * ⚠️ **And the index brings a risk of its own, closed in the build**: a stale one beside a
+         * new `.db` would declare a version that is not true. `bundlePacks` compares the declared
+         * size against the real file and, if they disagree, **declares nothing** -- and the app
+         * then leaves the user's pack as it is, which is the safe state.
          */
         val compare: List<String>,
     )
@@ -172,11 +173,11 @@ object PackStore {
     fun verificationMemo(context: Context): String? =
         prefs(context).getString(KEY_VERIFIED, null)
 
-    /** Qué packs del APK fueron reemplazados desde el catálogo. Ver [assetsToExtract]. */
+    /** Which of the APK's packs were replaced from the catalog. See [assetsToExtract]. */
     fun downloadedPacks(context: Context): Set<String> =
         prefs(context).getStringSet(KEY_DOWNLOADED, emptySet()).orEmpty()
 
-    /** Anota que [fileName] vino del catálogo y ya no debe re-extraerse del APK. */
+    /** Records that [fileName] came from the catalog and must no longer be re-extracted from the APK. */
     fun rememberDownloaded(context: Context, fileName: String) {
         prefs(context).edit {
             putStringSet(KEY_DOWNLOADED, downloadedPacks(context) + fileName)
@@ -184,10 +185,10 @@ object PackStore {
     }
 
     /**
-     * Olvida la marca al borrar un pack.
+     * Forgets the mark when a pack is deleted.
      *
-     * Sin esto, borrar un núcleo actualizado lo dejaría **sin volver nunca**: la marca seguiría
-     * diciendo "no lo re-extraigas" sobre un archivo que ya no existe.
+     * Without this, deleting an updated core would leave it **never coming back**: the mark would
+     * go on saying "do not re-extract it" about a file that no longer exists.
      */
     private fun forgetDownloaded(context: Context, fileName: String) {
         prefs(context).edit {
@@ -225,9 +226,9 @@ object PackStore {
                         ?.let { " · comparando version: ${it.joinToString()}" }.orEmpty()
             }
             for (asset in plan.copy) {
-                // ⚠️ El `runCatching` se traga el fallo a proposito --la app arranca igual con los
-                // packs que ya esten-- pero sin este log un nucleo que nunca se extrae es
-                // invisible: la pantalla solo muestra que ese idioma no esta.
+                // ⚠️ The `runCatching` swallows the failure on purpose --the app still starts with
+                // whatever packs are there-- but without this log a core that never extracts is
+                // invisible: the screen only shows that the language is missing.
                 runCatching { installAtomically(context.assets.open(asset), dir, asset) }
                     .onFailure { e -> DictLog.e(e) { "no se pudo extraer $asset del APK" } }
             }
@@ -237,8 +238,8 @@ object PackStore {
                     .onFailure { e -> DictLog.e(e) { "no se pudo comparar $asset con el APK" } }
             }
         }
-        // Se anota DESPUÉS de copiar: si la extracción falla a medias, el próximo arranque la
-        // vuelve a intentar en vez de darla por hecha.
+        // It is recorded AFTER copying: if the extraction fails half way, the next launch tries
+        // again instead of taking it as done.
         prefs(context).edit { putInt(KEY_EXTRACTED_BY, versionCode(context)) }
 
         val installed = installedPacks(dir)
@@ -268,13 +269,13 @@ object PackStore {
                         bytes = file.length(),
                         rejection = loaded.rejection,
                     )
-                    // WARN y no DEBUG: un pack rechazado es la explicacion entera de "falta un
-                    // idioma", y en la sesion de reloj hubo que inferirlo de que no hubo crash.
-                    // El `detail` va acá y NO a la pantalla: es prosa con valores concretos,
-                    // util para depurar e ilegible en un reloj.
+                    // WARN and not DEBUG: a rejected pack is the whole explanation of "a language
+                    // is missing", and in the watch session it had to be inferred from the absence
+                    // of a crash. The `detail` goes here and NOT to the screen: it is prose with
+                    // concrete values, useful for debugging and unreadable on a watch.
                     DictLog.w {
-                        // El detalle viene vacio cuando el veredicto salio del memo: no se
-                        // abrio el archivo, asi que no hay valores concretos que contar.
+                        // The detail comes empty when the verdict came from the memo: the file was
+                        // not opened, so there are no concrete values to report.
                         "pack RECHAZADO ${file.name}: ${loaded.rejection.id}" +
                             loaded.detail.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
                     }
@@ -283,8 +284,8 @@ object PackStore {
             }
         }
 
-        // El memo de verificados se poda con lo que quedó en disco: un pack borrado deja una
-        // línea que ya no sirve, y sin esto crecería para siempre en SharedPreferences.
+        // The verified memo is pruned against what is left on disk: a deleted pack leaves a line
+        // that is no longer any use, and without this it would grow forever in SharedPreferences.
         prefs(context).edit {
             putString(
                 KEY_VERIFIED,
@@ -295,8 +296,8 @@ object PackStore {
             )
         }
 
-        // El activo sale de las MISMAS reglas que deciden a quién se consulta: elegirlo aparte
-        // dejaba entrar un build viejo, que después se consultaba igual por ser el activo.
+        // The active one comes from the SAME rules that decide who gets queried: choosing it
+        // separately let an old build in, which was then queried anyway for being the active one.
         val chosen = activePack(opened, preferred)
             ?: return@withContext PackSet.Unusable(
                 rejected.firstOrNull()
@@ -308,17 +309,17 @@ object PackStore {
             "listo: ${opened.size} abiertos, ${rejected.size} rechazados, " +
                 "activo=${chosen.source.metadata.packId}"
         }
-        // Los rechazados van AL FINAL de la lista: la pantalla de diccionarios los muestra
-        // debajo de los que sirven, que es donde estorban menos.
+        // The rejected ones go AT THE END of the list: the dictionaries screen shows them below
+        // the usable ones, which is where they get in the way least.
         PackSet.Ready(chosen, opened + rejected)
     }
 
     /**
-     * La identidad de un pack recien abierto, que es la primera pregunta cuando falta una palabra.
+     * A freshly opened pack's identity, which is the first question when a word is missing.
      *
-     * `schema_version` y `norm_version` estan porque son las dos que hacen que un pack se rechace
-     * entero (D-001, D-006), y `data_version` porque es con la que el catalogo decide si hay
-     * actualizacion. Va a INFO: son tres lineas por arranque, no una por consulta.
+     * `schema_version` and `norm_version` are here because they are the two that get a pack
+     * rejected whole (D-001, D-006), and `data_version` because it is what the catalog decides
+     * updates with. It goes to INFO: three lines per launch, not one per query.
      */
     private fun logAbierto(meta: PackMetadata, file: File, desdeNanos: Long) {
         val ms = (System.nanoTime() - desdeNanos) / 1_000_000
@@ -332,12 +333,12 @@ object PackStore {
 
     /** The chosen language, so the watch opens the same dictionary as last time. */
     /**
-     * Lo que el usuario eligió la última vez: desde D-197 un **idioma**, antes un `packId`.
+     * What the user chose last time: since D-197 a **language**, before that a `packId`.
      *
-     * ⚠️ **La clave se conserva y el valor cambió de significado**, a propósito: un `packId`
-     * guardado por una versión anterior sigue sirviendo, porque `chooseActive` lo prueba primero
-     * como identidad y sólo después como idioma. Migrar la preferencia habría costado código
-     * para un valor que se reescribe la primera vez que alguien toca un chip.
+     * ⚠️ **The key is kept and the value changed meaning**, on purpose: a `packId` stored by an
+     * earlier version still works, because `chooseActive` tries it first as an identity and only
+     * then as a language. Migrating the preference would have cost code for a value that gets
+     * rewritten the first time somebody taps a chip.
      */
     fun preferredPack(context: Context): String? =
         prefs(context).getString(KEY_PACK, null)
@@ -361,15 +362,15 @@ object PackStore {
     }
 
     /**
-     * El historial que el **tile** puede mostrar: ya filtrado a los packs instalados.
+     * The history the **tile** can show: already filtered to the installed packs.
      *
-     * ⚠️ **Clave aparte y no un filtro en el tile**, porque un tile **no puede** saber qué packs
-     * hay sin abrirlos, y abrir un pack en un tile está prohibido (D-106): `onTileRequest` es
-     * `@MainThread` y tiene 10 segundos. Lo que necesita se lo deja escrito la app, que sí tiene
-     * el contexto — el mismo patrón que la semana de palabras del día.
+     * ⚠️ **A key of its own and not a filter in the tile**, because a tile **cannot** know which
+     * packs are there without opening them, and opening a pack in a tile is forbidden (D-106):
+     * `onTileRequest` is `@MainThread` and has 10 seconds. What it needs is left written by the
+     * app, which does have the context -- the same pattern as the week of words of the day.
      *
-     * Si nunca se escribió, cae al historial completo: una app recién actualizada no puede
-     * quedarse con el tile vacío hasta que alguien abra una palabra.
+     * If it was never written, it falls back to the full history: a freshly updated app cannot be
+     * left with an empty tile until somebody opens a word.
      */
     fun tileHistory(context: Context): List<Visit> =
         prefs(context).getString(KEY_TILE_HISTORY, null)
@@ -437,7 +438,7 @@ object PackStore {
         prefs(context).edit { putString(KEY_SETTINGS, serializeSettings(settings)) }
     }
 
-    /** El `versionCode` del APK que está corriendo. */
+    /** The `versionCode` of the APK that is running. */
     private fun versionCode(context: Context): Int =
         context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
 
@@ -448,12 +449,12 @@ object PackStore {
     private const val KEY_HISTORY = "historial"
     private const val KEY_TILE_HISTORY = "historial_tile"
     private const val KEY_SETTINGS = "ajustes"
-    /** Packs del APK que el usuario reemplazó desde el catálogo. Ver [assetsToExtract]. */
+    /** The APK's packs the user replaced from the catalog. See [assetsToExtract]. */
     private const val KEY_DOWNLOADED = "packs_del_catalogo"
 
-    /** Qué packs ya pasaron la muestra de claves de D-142. Ver [PackVerification]. */
+    /** Which packs have already passed D-142's key sample. See [PackVerification]. */
     private const val KEY_VERIFIED = "packs_verificados"
-    /** Con qué versión de la app se extrajeron por última vez los packs del APK. */
+    /** Which version of the app last extracted the APK's packs. */
     private const val KEY_EXTRACTED_BY = "packs_extraidos_por"
     private const val KEY_FAVORITES = "favoritos"
     private const val KEY_WEEK_WORDS = "palabras_semana"
@@ -489,18 +490,18 @@ object PackStore {
         dir: File,
         name: String,
         /**
-         * El sha256 que el catálogo dice que este pack tiene, si se conoce.
+         * The sha256 the catalog says this pack has, if it is known.
          *
-         * ⚠️ **Éste es el único momento en que un hash sirve, y acá sale casi gratis**: los bytes
-         * ya están pasando para copiarse, así que digerirlos no agrega una lectura. Comprobarlo
-         * en cada arranque, en cambio, obligaría a releer 301 MB — por eso el chequeo por
-         * arranque es la huella barata de [PackVerification] y no esto. Son dos preguntas
-         * distintas: acá *«¿llegaron los bytes que se publicaron?»*, allá *«¿es el mismo archivo
-         * que ya probé?»*.
+         * ⚠️ **This is the only moment a hash is any use, and here it comes almost free**: the
+         * bytes are already going past to be copied, so digesting them adds no read. Checking it
+         * on every launch, by contrast, would force re-reading 301 MB -- which is why the
+         * per-launch check is [PackVerification]'s cheap fingerprint and not this. They are two
+         * different questions: here *"did the published bytes arrive?"*, there *"is it the same
+         * file I already tested?"*.
          *
-         * `null` cuando no hay contra qué comparar --el pack de demostración sale de los assets--
-         * y entonces **no se digiere nada**: calcular un hash que nadie mira, sobre cientos de
-         * MB y en un reloj, no es gratis.
+         * `null` when there is nothing to compare against --the demo pack comes out of the
+         * assets-- and then **nothing is digested**: computing a hash nobody looks at, over
+         * hundreds of MB and on a watch, is not free.
          */
         expectedSha256: String? = null,
     ): File {
@@ -520,9 +521,9 @@ object PackStore {
         }
         if (digest != null) {
             val calculado = digest.digest().joinToString("") { "%02x".format(it) }
-            // ⚠️ **Se compara ANTES de renombrar, y el orden es todo**: renombrar primero dejaría
-            // un diccionario corrupto llamándose como el bueno, y el siguiente arranque lo abre
-            // sin quejarse -- un `.db` truncado o distinto es SQLite válido.
+            // ⚠️ **It is compared BEFORE renaming, and the order is everything**: renaming first
+            // would leave a corrupt dictionary named like the good one, and the next launch opens
+            // it without complaint -- a truncated or different `.db` is valid SQLite.
             if (!calculado.equals(expectedSha256.trim(), ignoreCase = true)) {
                 partial.delete()
                 throw IOException(
@@ -539,24 +540,24 @@ object PackStore {
     }
 
     /**
-     * Copia el nucleo del APK **solo si trae un `data_version` mayor** que el que hay en disco.
+     * Copies the APK's core **only if it carries a higher `data_version`** than the one on disk.
      *
-     * Es la mitad ejecutable de [ExtractionPlan.compare]. El orden es el mismo contrato que en
-     * [installAtomically]: primero se decide, despues se pisa. Comparar despues de copiar no
-     * seria comparar.
+     * It is the executable half of [ExtractionPlan.compare]. The order is the same contract as in
+     * [installAtomically]: decide first, overwrite after. Comparing after copying would not be
+     * comparing.
      *
-     * ⚠️ **La version del asset se LEE DEL INDICE, no del asset.** La primera version de esto
-     * extraia el pack a un `.candidate` para poder abrirlo y preguntarle --SQLite no abre un
-     * `.db` dentro del APK (D-173)-- lo que costaba copiar 50,8 MB para leer un entero de 12
-     * digitos. El indice lo resuelve a coste cero: `bundlePacks` lo escribe en el build, desde el
-     * **mismo `index.json` que sirve `packserver.py`**. Ver [coreIndex].
+     * ⚠️ **The asset's version is READ FROM THE INDEX, not from the asset.** The first version of
+     * this extracted the pack to a `.candidate` so it could be opened and asked --SQLite does not
+     * open a `.db` inside the APK (D-173)-- which cost copying 50.8 MB to read a 12-digit integer.
+     * The index solves it at zero cost: `bundlePacks` writes it in the build, from the **same
+     * `index.json` `packserver.py` serves**. See [coreIndex].
      *
-     * ⚠️ **Si no hay version declarada, NO se toca nada**, y ese es el estado seguro: sin saber
-     * cual es mas nuevo, pisar el pack del usuario es exactamente el downgrade silencioso que
-     * esto viene a evitar. El build avisa cuando eso pasa.
+     * ⚠️ **With no declared version, NOTHING is touched**, and that is the safe state: without
+     * knowing which is newer, overwriting the user's pack is exactly the silent downgrade this
+     * comes to prevent. The build warns when that happens.
      *
-     * ⚠️ **Cuando gana el APK se olvida la marca del catalogo**, porque el archivo volvio a ser
-     * el del APK y la marca diria lo contrario.
+     * ⚠️ **When the APK wins the catalog mark is forgotten**, because the file went back to being
+     * the APK's and the mark would say otherwise.
      */
     private fun extractIfNewer(context: Context, dir: File, asset: String, delApk: Long?) {
         val enDisco = File(dir, asset)
@@ -566,8 +567,9 @@ object PackStore {
         }
         val delUsuario = dataVersionOf(enDisco)
         if (delUsuario == null) {
-            // No se pudo abrir lo que hay. NO es lo mismo que "es viejo": puede ser el disco o un
-            // archivo a medio copiar, y pisarlo borraria un pack que manana abriria bien.
+            // What is there could not be opened. That is NOT the same as "it is old": it may be
+            // the disk or a half-copied file, and overwriting it would erase a pack that tomorrow
+            // would open fine.
             DictLog.w { "$asset: no se pudo leer la version del de disco, se lo deja" }
             return
         }
@@ -576,38 +578,38 @@ object PackStore {
             return
         }
         installAtomically(context.assets.open(asset), dir, asset)
-        // El archivo volvio a ser el del APK: la marca del catalogo ya no es cierta.
+        // The file went back to being the APK's: the catalog mark is no longer true.
         forgetDownloaded(context, asset)
         DictLog.i { "$asset: el APK trae uno mas nuevo ($delApk > $delUsuario), reemplazado" }
     }
 
     /**
-     * El `data_version` que declara un pack **en disco**, o `null` si no se puede saber.
+     * The `data_version` a pack **on disk** declares, or `null` if it cannot be known.
      *
-     * `verifyKeys = false` a proposito: aca la pregunta es **cual de los dos es mas nuevo**, no si
-     * el pack sirve. Eso se contesta despues, al abrirlo de verdad, con la muestra de 64 claves de
-     * D-142 -- la que D-164 midio en 36 ms y que no hace falta pagar dos veces. Lo barato
-     * (`schema_version`, `norm_version`, el codec y el sha256 del diccionario) se comprueba igual,
-     * porque `PackFile.open` lo comprueba siempre.
+     * `verifyKeys = false` on purpose: here the question is **which of the two is newer**, not
+     * whether the pack works. That is answered afterwards, on really opening it, with D-142's
+     * 64-key sample -- the one D-164 measured at 36 ms and that need not be paid twice. The cheap
+     * part (`schema_version`, `norm_version`, the codec and the dictionary's sha256) is checked
+     * anyway, because `PackFile.open` always checks it.
      */
     private fun dataVersionOf(file: File): Long? =
         runCatching { PackFile.open(file.path, verifyKeys = false).use { it.metadata.dataVersion } }
             .getOrNull()
 
     /**
-     * Las versiones que el APK declara para los packs que lleva adentro.
+     * The versions the APK declares for the packs it carries inside.
      *
-     * ⚠️ **Es el indice, y hace en el APK lo que `index.json` hace en el servidor.** Lo escribe
-     * `bundlePacks` en el build, leyendo el mismo `index.json` que `packserver.py --index-only`
-     * produce, y validando que el tamano declarado coincida con el archivo -- un indice viejo al
-     * lado de un pack nuevo declararia una version que no es, y eso seria peor que no declarar
-     * ninguna.
+     * ⚠️ **It is the index, and it does in the APK what `index.json` does on the server.**
+     * `bundlePacks` writes it in the build, reading the same `index.json` that
+     * `packserver.py --index-only` produces, and validating that the declared size matches the
+     * file -- an old index beside a new pack would declare a version that is not true, and that
+     * would be worse than declaring none.
      *
-     * Formato: `nombre<TAB>data_version`, una linea por pack. TSV y no JSON porque son dos lineas
-     * y el parser corre en un reloj: `split('\t')` no puede lanzar una excepcion que nadie espera.
+     * Format: `name<TAB>data_version`, one line per pack. TSV and not JSON because it is two lines
+     * and the parser runs on a watch: `split('\t')` cannot throw an exception nobody expects.
      *
-     * Una linea que no se entiende se **ignora**, y el costo de ignorarla es que ese pack se trate
-     * como sin version declarada, que es el estado seguro.
+     * A line that is not understood is **ignored**, and the cost of ignoring it is that the pack
+     * gets treated as having no declared version, which is the safe state.
      */
     private fun coreIndex(context: Context): Map<String, Long> =
         runCatching {
@@ -639,27 +641,28 @@ object PackStore {
             .toMap()
 
     /**
-     * Abre un pack, salteando la muestra de claves **si este mismo archivo ya la pasó**.
+     * Opens a pack, skipping the key sample **if this same file already passed it**.
      *
-     * Medido: la muestra son 36 de los 42 ms que costaba cada arranque con los dos packs reales,
-     * y el pack es inmutable (D-001), así que volver a probar el mismo archivo no prueba nada
-     * nuevo. Lo que hace que esto sea seguro y no un atajo está en [PackVerification]: la huella
-     * lleva `NORM_VERSION`, así que un cambio en `norm()` o `fuzzy()` vuelve a probar todo.
+     * Measured: the sample is 36 of the 42 ms each launch cost with the two real packs, and the
+     * pack is immutable (D-001), so testing the same file again proves nothing new. What makes
+     * this safe and not a shortcut is in [PackVerification]: the fingerprint carries
+     * `NORM_VERSION`, so a change in `norm()` or `fuzzy()` tests everything again.
      *
-     * ⚠️ **Se anota DESPUÉS de abrir bien, nunca antes.** Anotar primero convertiría un pack que
-     * falla a medias en un pack que la próxima vez ni se revisa.
+     * ⚠️ **It is recorded AFTER opening successfully, never before.** Recording first would turn a
+     * pack that fails half way into a pack that next time is not even checked.
      */
     /**
-     * Abre un pack, o dice por qué no — **sin volver a probar lo que ya se probó**.
+     * Opens a pack, or says why not -- **without testing again what was already tested**.
      *
-     * ⚠️ **Un rechazo anotado corta antes de abrir el archivo.** Ésa es la diferencia con la
-     * versión anterior, que recordaba sólo los éxitos: un `.db` incompatible se volvía a abrir,
-     * a leer su `meta` y a descartar en **cada arranque**. Ahora, si el memo dice que este mismo
-     * archivo ya se rechazó bajo estas mismas reglas, no se toca el disco.
+     * ⚠️ **A recorded rejection cuts in before the file is opened.** That is the difference from
+     * the earlier version, which remembered only the successes: an incompatible `.db` was reopened,
+     * its `meta` read and discarded on **every launch**. Now, if the memo says this same file was
+     * already rejected under these same rules, the disk is not touched.
      *
-     * Lo que hace que eso no sea peligroso es que la huella lleva las reglas enteras: ver
-     * [PackVerification.rules]. Sin eso, un rechazo sobreviviría a la versión de la app que ya
-     * sabría leer ese pack, y el usuario vería un diccionario desaparecido para siempre.
+     * What makes that not dangerous is that the fingerprint carries the whole rules: see
+     * [PackVerification.rules]. Without that, a rejection would outlive the version of the app
+     * that would already know how to read that pack, and the user would see a dictionary gone
+     * forever.
      */
     private fun openFile(context: Context, file: File): PackLoad {
         val memo = prefs(context).getString(KEY_VERIFIED, null)
@@ -693,10 +696,10 @@ object PackStore {
             recordar(context, memo, file.name, fingerprint, e.rejection)
             PackLoad.Unusable(e.rejection, e.message.orEmpty())
         } catch (e: Exception) {
-            // ⚠️ **Esto NO se anota**, y la asimetría es deliberada. Una `IncompatibleException`
-            // es un veredicto sobre el contenido del pack y no va a cambiar solo; cualquier otra
-            // excepción puede ser el disco, la memoria o un archivo a medio copiar, y cachear
-            // eso escondería para siempre un pack que la próxima vez habría abierto bien.
+            // ⚠️ **This is NOT recorded**, and the asymmetry is deliberate. An
+            // `IncompatibleException` is a verdict about the pack's content and will not change on
+            // its own; any other exception may be the disk, memory or a half-copied file, and
+            // caching that would hide forever a pack that next time would have opened fine.
             DictLog.e(e) { "pack ${file.name}: fallo no atribuible al contenido" }
             PackLoad.Unusable(PackRejection.DAMAGED, e.message.orEmpty())
         }
@@ -715,13 +718,13 @@ object PackStore {
     }
 
     /**
-     * El indice de versiones que `bundlePacks` deja en `assets/`.
+     * The version index `bundlePacks` leaves in `assets/`.
      *
-     * ⚠️ **El mismo literal vive en `app/build.gradle.kts` (`CORE_INDEX`)**: son los dos extremos
-     * de un archivo y no hay forma de compartir una constante entre el script de build y el
-     * codigo. Si dejan de coincidir, el indice **no se lee y nada falla** -- los nucleos quedan
-     * sin version declarada y no se actualizan nunca. Por eso lo vigila
-     * `audit_dictionary.check_core_index_name`.
+     * ⚠️ **The same literal lives in `app/build.gradle.kts` (`CORE_INDEX`)**: they are the two
+     * ends of one file and there is no way to share a constant between the build script and the
+     * code. If they stop matching, the index **is not read and nothing fails** -- the cores are
+     * left with no declared version and never update. That is why
+     * `audit_dictionary.check_core_index_name` watches it.
      */
     internal const val CORE_INDEX = "core-index.tsv"
 

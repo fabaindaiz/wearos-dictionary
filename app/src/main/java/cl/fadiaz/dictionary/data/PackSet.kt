@@ -7,11 +7,11 @@ import cl.fadiaz.dictionary.core.PackRejection
 /**
  * A `.db` in `filesDir/packs`: either open and queryable, or rejected and named as such.
  *
- * ⚠️ **La segunda variante existe porque un pack rechazado tiene que poder VERSE.** Antes era
- * una cadena suelta en `PackSet.problems` que sólo llegaba a la pantalla de atribución --el peor
- * lugar posible: es la de los créditos, y un pack que no se carga no acredita nada--. Ahora es
- * una fila más de la pantalla de diccionarios, con su motivo en una línea y su botón de borrar,
- * que es la única acción que alguien puede tomar al respecto.
+ * ⚠️ **The second variant exists because a rejected pack has to be VISIBLE.** It used to be a
+ * loose string in `PackSet.problems` that only reached the attribution screen --the worst possible
+ * place: that is the credits screen, and a pack that does not load credits nothing--. Now it is
+ * one more row on the dictionaries screen, with its reason on one line and its delete button,
+ * which is the only action anybody can take about it.
  */
 sealed interface PackHandle {
     val packId: String
@@ -19,17 +19,17 @@ sealed interface PackHandle {
     data class Open(
         val source: DictionarySource,
         /**
-         * Vino **dentro del APK**; nadie lo instaló.
+         * It came **inside the APK**; nobody installed it.
          *
-         * ⚠️ **Se llamaba `isBundled` y el nombre mentía sobre lo que decide.** Lo que se pregunta
-         * en todos los usos es *«¿este archivo lo trajo la app o lo puso el usuario?»* —de ahí
-         * sale que no se pueda borrar (volvería sola al reiniciar) y que no le gane a un
-         * diccionario de verdad—. Que hoy el pack incluido sea uno de juguete es una propiedad
-         * de **este** build, no de la regla: cuando el núcleo ocupe ese lugar, las reglas son
-         * exactamente las mismas y el nombre seguiría siendo falso.
+         * ⚠️ **It used to be called `isBundled` and the name lied about what it decides.** What
+         * every use asks is *"did the app bring this file or did the user put it here?"* --from
+         * which follow both that it cannot be deleted (it would come back on restart) and that it
+         * does not beat a real dictionary--. That today the bundled pack happens to be a toy one
+         * is a property of **this** build, not of the rule: when the core takes that place, the
+         * rules are exactly the same and the name would still be false.
          *
-         * Sin este flag decidía el orden alfabético, y "demo-" le gana a "es-": con los dos
-         * instalados, la app abría las 28 entradas de juguete en vez de las 146.194 reales.
+         * Without this flag alphabetical order decided, and "demo-" beats "es-": with both
+         * installed, the app opened the 28 toy entries instead of the 146,194 real ones.
          */
         val isBundled: Boolean = false,
         /**
@@ -49,17 +49,17 @@ sealed interface PackHandle {
     }
 
     /**
-     * Un `.db` que está en el disco y **no se carga**, con el motivo como dato.
+     * A `.db` that is on disk and **does not load**, with the reason as data.
      *
-     * ⚠️ **No tiene `metadata`, y eso es la garantía y no una carencia.** El pedido era que un
-     * pack incompatible *«no se cargue de ninguna forma, por ejemplo que no se muestre en los
-     * créditos»*. La manera de cumplirlo no es acordarse de filtrarlo en cada pantalla —eso se
-     * olvida en la siguiente— sino que **no exista nada que mostrar**: sin `PackMetadata` no hay
-     * nombre, ni licencia, ni fuentes, ni idioma, así que ninguna pantalla puede incluirlo
-     * aunque quiera. El compilador lo impone, no la disciplina.
+     * ⚠️ **It has no `metadata`, and that is the guarantee and not a shortcoming.** The request was
+     * that an incompatible pack *"not be loaded in any way, for instance that it not show up in
+     * the credits"*. The way to comply is not remembering to filter it on every screen --that gets
+     * forgotten on the next one-- but that **there be nothing to show**: with no `PackMetadata`
+     * there is no name, no licence, no sources and no language, so no screen can include it even
+     * if it wanted to. The compiler enforces it, not discipline.
      *
-     * [packId] es el **nombre del archivo** por la misma razón: el `pack_id` vive dentro del
-     * pack y leerlo ya sería cargarlo.
+     * [packId] is the **file name** for the same reason: the `pack_id` lives inside the pack and
+     * reading it would already be loading it.
      */
     data class Incompatible(
         val fileName: String,
@@ -84,10 +84,11 @@ sealed interface PackSet {
     /**
      * There is at least one usable pack. [active] is the one being searched.
      *
-     * ⚠️ **Los rechazados viajan en [all] como [PackHandle.Incompatible]**, y ya no en una lista
-     * aparte de cadenas. Así un pack que no se carga sigue siendo visible --no desaparece en
-     * silencio, que es lo que esa lista protegía-- pero ahora aparece **donde se puede hacer
-     * algo con él**: la pantalla de diccionarios, con su motivo y su botón de borrar.
+     * ⚠️ **The rejected ones travel in [all] as [PackHandle.Incompatible]**, and no longer in a
+     * separate list of strings. That way a pack that does not load is still visible --it does not
+     * disappear in silence, which is what that list protected-- but it now appears **where
+     * something can be done about it**: the dictionaries screen, with its reason and its delete
+     * button.
      */
     data class Ready(
         val active: PackHandle.Open,

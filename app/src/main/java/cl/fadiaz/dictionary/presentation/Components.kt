@@ -206,18 +206,18 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
 }
 
 /**
- * El detalle que acompana a una palabra en CUALQUIER fila: `sust. · ES`.
+ * The detail that accompanies a word in ANY row: `sust. · ES`.
  *
- * ⚠️ **Existe para que las tres listas digan lo mismo** (D-152). Antes un resultado de busqueda
- * decia `sust. · ES` y el mismo lema en el historial decia solo `sust.`: dos filas que
- * representan la misma cosa con distinta informacion le ensenan al usuario que la etiqueta
- * significa algo distinto segun donde este.
+ * ⚠️ **It exists so the three lists say the same thing** (D-152). A search result used to say
+ * `sust. · ES` and the same lemma in the history said only `sust.`: two rows representing the same
+ * thing with different information teach the user that the tag means something different
+ * depending on where it is.
  *
- * `override` es para los resultados, donde el nivel de coincidencia --`forma`, `similar`--
- * reemplaza al tipo de palabra en vez de sumarse: en una fila de 234 dp no entran los tres.
+ * `override` is for the results, where the match rung --`form`, `similar`-- replaces the part of
+ * speech rather than adding to it: all three do not fit in a 234 dp row.
  *
- * El separador sale del **mismo recurso** que usa la entrada. Estaba escrito a mano aca y como
- * recurso alla, que son dos definiciones de la misma cosa esperando divergir.
+ * The separator comes from the **same resource** the entry uses. It was written by hand here and
+ * as a resource there, which is two definitions of the same thing waiting to diverge.
  */
 @Composable
 internal fun wordDetail(
@@ -227,16 +227,16 @@ internal fun wordDetail(
 ): String? = wordDetail(LocalContext.current, partOfSpeech, tag, override)
 
 /**
- * [wordDetail] para quien tiene `Context` y no composición: **los tiles**.
+ * [wordDetail] for whoever has a `Context` and no composition: **the tiles**.
  *
- * ⚠️ **Existe para que una fila diga lo mismo en las dos superficies.** El tile de recientes
- * mostraba sólo `perro` mientras la app mostraba `perro · sust.`, y no por una decisión de
- * densidad: simplemente no compartía la función. Es la misma familia de fallo que ya apareció dos
- * veces hoy —una regla que vale en una superficie y no en su paralela— y el mismo remedio que
- * `posLabel` ya usaba.
+ * ⚠️ **It exists so a row says the same thing on both surfaces.** The recents tile showed only
+ * `perro` while the app showed `perro · sust.`, and not out of a density decision: it simply did
+ * not share the function. It is the same failure family that has already appeared twice today --a
+ * rule that holds on one surface and not on its parallel-- and the same remedy `posLabel` was
+ * already using.
  *
- * ⚠️ **El separador sale del recurso, no de una constante**: es el mismo `·` que la app, y si
- * alguna vez cambia, cambia en los dos lados a la vez.
+ * ⚠️ **The separator comes from the resource, not from a constant**: it is the same `·` the app
+ * uses, and if it ever changes, it changes on both sides at once.
  */
 internal fun wordDetail(
     context: Context,
@@ -267,19 +267,19 @@ internal fun LoadingMessage(message: String) {
 }
 
 /**
- * Que clase de diccionario es, como **id de recurso**.
+ * Which class of dictionary it is, as a **resource id**.
  *
- * Partido en dos a proposito. El mapeo es puro, asi que un test de la JVM puede exigir que
- * **haya uno por cada `PackKind` y que sean distintos** sin levantar Android; resolver el texto
- * necesita un `Context` y vive en [packTypeLabel].
+ * Split in two on purpose. The mapping is pure, so a JVM test can demand that **there be one per
+ * `PackKind` and that they be distinct** without starting Android; resolving the text needs a
+ * `Context` and lives in [packTypeLabel].
  *
- * Existe porque el nombre del pack dejo de decirlo: era "Español - definiciones" --22 caracteres,
- * cortados en los cuatro lugares donde se muestra-- y paso a ser "Español" (D-125). Lo que el
- * nombre largo comunicaba sale ahora de `kind`, que es **un dato del pack** y no una cadena que
- * alguien tiene que acordarse de escribir bien en cada pack nuevo.
+ * It exists because the pack's name stopped saying it: it was "Español - definiciones" --22
+ * characters, clipped in all four places it is shown-- and became "Español" (D-125). What the long
+ * name communicated now comes from `kind`, which is **a datum of the pack** and not a string
+ * somebody has to remember to write correctly in every new pack.
  *
- * ⚠️ Estaba en `data/PackSet.kt`, que el audit vigila para que no importe `android.*` (D-072).
- * Traducirlo lo habria roto: por eso se mudo a la capa que si puede (D-127).
+ * ⚠️ It used to be in `data/PackSet.kt`, which the audit watches so it does not import `android.*`
+ * (D-072). Translating it would have broken that: hence the move to the layer that may (D-127).
  */
 @StringRes
 internal fun packTypeLabelRes(kind: PackKind): Int = when (kind) {
@@ -287,38 +287,39 @@ internal fun packTypeLabelRes(kind: PackKind): Int = when (kind) {
     PackKind.BILINGUAL -> R.string.pack_kind_bilingual
 }
 
-/** El texto de [packTypeLabelRes], en el idioma del reloj. */
+/** [packTypeLabelRes]'s text, in the watch's language. */
 @Composable
 internal fun packTypeLabel(kind: PackKind): String = stringResource(packTypeLabelRes(kind))
 
 /**
- * Lo que el chrome se come antes de la primera fila: el reloj arriba, el margen final, y lo que
- * la pantalla redonda curva hacia adentro.
+ * What the chrome eats before the first row: the clock at the top, the trailing margin, and what a
+ * round screen curves inward.
  *
- * Sale de resolver la recta con los DOS puntos medidos --192 dp compone 2 filas y 234 compone
- * 3-- contra un paso de [TOUCH_TARGET] por fila. No es una constante de diseño: es el residuo de
- * una medicion, y por eso vive al lado de la funcion que la usa y no en una tabla de tokens.
+ * It comes from solving the line through the TWO measured points --192 dp composes 2 rows and 234
+ * composes 3-- against a step of [TOUCH_TARGET] per row. It is not a design constant: it is the
+ * residue of a measurement, which is why it lives next to the function that uses it and not in a
+ * token table.
  */
 private const val CHROME_DP = 60
 
-/** Tope de filas. Wear OS no pasa de ~250 dp hoy; esto es una red, no un caso real. */
+/** Row cap. Wear OS does not go past ~250 dp today; this is a net, not a real case. */
 private const val MAX_ROWS_EVER = 8
 
 /**
- * Cuantas filas de [TOUCH_TARGET] entran en una pantalla de `screenWidthDp` de ancho.
+ * How many [TOUCH_TARGET] rows fit on a screen `screenWidthDp` wide.
  *
- * **Existe para que el codigo sea generico y no para elegir un reloj.** El repo cotizo cinco
- * decisiones contra 192 dp (D-073, D-075, D-078, D-084, D-085) y el reloj del proyecto entrega
- * 234: poner 234 en su lugar seria cambiar un numero equivocado por otro. Lo que se adapta es
- * **cuantas filas se muestran**, no el tamaño de ninguna -- bajar de 48 dp rompe el area tocable
- * que la guia de Wear OS exige, y ningun test lo veria.
+ * **It exists so the code is generic and not to pick one watch.** The repo priced five decisions
+ * against 192 dp (D-073, D-075, D-078, D-084, D-085) and the project's watch delivers 234: putting
+ * 234 in its place would be swapping one wrong number for another. What adapts is **how many rows
+ * are shown**, not the size of any of them -- going below 48 dp breaks the touch area the Wear OS
+ * guidance requires, and no test would see it.
  *
- * Nunca devuelve menos de dos: con una sola fila la lista deja de ser una lista.
+ * It never returns fewer than two: with a single row the list stops being a list.
  */
 internal fun rowsThatFit(screenWidthDp: Int): Int =
     ((screenWidthDp - CHROME_DP) / TOUCH_TARGET.value.toInt())
         .coerceIn(2, MAX_ROWS_EVER)
 
-/** [rowsThatFit] contra la pantalla real, sin que quien llama tenga que saber medirla. */
+/** [rowsThatFit] against the real screen, without the caller having to know how to measure it. */
 @Composable
 internal fun rowsThatFit(): Int = rowsThatFit(LocalConfiguration.current.screenWidthDp)

@@ -11,44 +11,44 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
-/** Como termino una descarga. */
+/** How a download ended. */
 sealed interface DownloadResult {
     data class Installed(val file: File, val bytes: Long) : DownloadResult
     data class Failed(val reason: String) : DownloadResult
 }
 
 /**
- * Baja un pack del catalogo y lo deja instalado. **Dos etapas y dos hashes.**
+ * Downloads a pack from the catalog and leaves it installed. **Two stages and two hashes.**
  *
  * ```
- * red ──► <nombre>.gz.part ──(sha256 del .gz)──► inflar ──(sha256 del .db)──► <nombre>  atomico
+ * network ──► <name>.gz.part ──(.gz sha256)──► inflate ──(.db sha256)──► <name>  atomically
  * ```
  *
- * ⚠️ **Los dos hashes comprueban cosas distintas y hacen falta los dos.** El del `.gz` dice que
- * *llegaron los bytes publicados* --y es el unico que puede decirlo, porque una reanudacion mal
- * calculada produce un archivo de la longitud correcta con un agujero dentro--. El del `.db` dice
- * que *inflar produjo el pack publicado*, y es el que compara `installAtomically` **antes de
- * renombrar** (D-165): un `.db` truncado sigue siendo SQLite valido y se abre sin una queja.
+ * ⚠️ **The two hashes check different things and both are needed.** The `.gz` one says that *the
+ * published bytes arrived* --and it is the only one that can say so, because a miscalculated
+ * resume produces a file of the right length with a hole inside--. The `.db` one says that
+ * *inflating produced the published pack*, and it is the one `installAtomically` compares **before
+ * renaming** (D-165): a truncated `.db` is still valid SQLite and opens without a complaint.
  *
- * ⚠️ **La reanudacion existe porque el ingles son 192 MB comprimidos.** Una caida de Wi-Fi al 90 %
- * sin `Range` significa empezar de cero, y D-040 eligio `HttpURLConnection` justamente por eso.
- * El `.gz.part` se conserva entre intentos a proposito; es lo unico que hace la reanudacion real.
+ * ⚠️ **Resuming exists because English is 192 MB compressed.** A Wi-Fi drop at 90 % with no
+ * `Range` means starting from zero, and D-040 chose `HttpURLConnection` precisely for that. The
+ * `.gz.part` is kept between attempts on purpose; it is the only thing that makes resuming real.
  *
- * ⚠️ **El sha256 del `.gz` se calcula al final, sobre el archivo completo, y no mientras baja.**
- * Un digest incremental no sobrevive a reanudar --habria que rehidratarlo leyendo lo ya bajado, que
- * es lo mismo que esto-- y ademas dejaria pasar sin ruido el caso en que el `.part` que estaba en
- * disco era de otra version del pack.
+ * ⚠️ **The `.gz` sha256 is computed at the end, over the whole file, and not while downloading.**
+ * An incremental digest does not survive a resume --it would have to be rehydrated by reading what
+ * was already downloaded, which is the same as this-- and it would also let through in silence the
+ * case where the `.part` on disk belonged to another version of the pack.
  */
 object PackDownloader {
 
     private const val CONNECT_TIMEOUT_MS = 15_000
 
-    /** Por lectura, no por descarga: 192 MB no caben en ningun timeout total razonable. */
+    /** Per read, not per download: 192 MB does not fit in any reasonable total timeout. */
     private const val READ_TIMEOUT_MS = 30_000
 
     private const val BUFFER = 256 * 1024
 
-    /** Cada cuantos bytes se avisa del progreso. Mas fino seria despertar la UI para nada. */
+    /** How many bytes between progress reports. Finer would mean waking the UI for nothing. */
     private const val PROGRESS_EVERY = 1L shl 20
 
     suspend fun download(
@@ -68,8 +68,8 @@ object PackDownloader {
 
             val llego = sha256(comprimido)
             if (!llego.equals(pack.sha256.trim(), ignoreCase = true)) {
-                // ⚠️ Se borra: si queda, el proximo intento REANUDA sobre bytes malos y vuelve a
-                // fallar para siempre, que es peor que volver a bajarlo.
+                // ⚠️ It is deleted: if it stays, the next attempt RESUMES over bad bytes and fails
+                // again forever, which is worse than downloading it afresh.
                 comprimido.delete()
                 DictLog.w { "descarga ${pack.packId}: el .gz no coincide, se descarta y se reintenta entero" }
                 return@withContext DownloadResult.Failed("los bytes descargados no son los publicados")
@@ -87,7 +87,7 @@ object PackDownloader {
         }
     }
 
-    /** Trae el `.gz`, reanudando si ya hay parte de el en disco. */
+    /** Fetches the `.gz`, resuming if part of it is already on disk. */
     private suspend fun bajar(
         baseUrl: String,
         pack: CatalogPack,
@@ -110,8 +110,9 @@ object PackDownloader {
         }
         try {
             val code = conn.responseCode
-            // 206 = el servidor acepto el Range. 200 = lo ignoro y manda todo, asi que lo ya
-            // bajado no sirve y se empieza de cero; anadir sobre el daria un archivo doble.
+            // 206 = the server accepted the Range. 200 = it ignored it and is sending everything,
+            // so what was already downloaded is useless and we start over; appending to it would
+            // give a doubled file.
             val reanuda = code == HttpURLConnection.HTTP_PARTIAL
             if (code != HttpURLConnection.HTTP_OK && !reanuda) {
                 throw IOException("el servidor contesto $code")
@@ -125,8 +126,8 @@ object PackDownloader {
                     val buf = ByteArray(BUFFER)
                     var ultimoAviso = 0L
                     while (true) {
-                        // Cancelar la corrutina tiene que cortar la descarga de verdad, y no
-                        // seguir bajando 192 MB que nadie va a mirar.
+                        // Cancelling the coroutine has to cut the download for real, rather than
+                        // going on downloading 192 MB nobody will look at.
                         coroutineContext.ensureActive()
                         val n = entrada.read(buf)
                         if (n <= 0) break

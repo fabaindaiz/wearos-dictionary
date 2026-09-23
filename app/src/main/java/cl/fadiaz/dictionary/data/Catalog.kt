@@ -6,20 +6,20 @@ import cl.fadiaz.dictionary.core.TextNormalizer
 import org.json.JSONObject
 
 /**
- * Un pack tal como lo publica el catalogo, **antes** de descargarlo.
+ * A pack as the catalog publishes it, **before** downloading it.
  *
- * Es deliberadamente distinto de [PackMetadata]: eso es lo que dice un pack que ya esta abierto,
- * y esto es una promesa sobre un archivo que todavia no existe en el reloj. Mezclarlos haria que
- * un pack ofrecido y uno instalado se vean iguales en el codigo, que es como se acaba mostrando
- * "instalado" algo que nunca se bajo.
+ * It is deliberately different from [PackMetadata]: that is what a pack that is already open says,
+ * and this is a promise about a file that does not yet exist on the watch. Merging them would make
+ * an offered pack and an installed one look the same in the code, which is how you end up showing
+ * "installed" for something that was never downloaded.
  *
- * ⚠️ **`schemaVersion` y `normVersion` estan aca por una razon de eficiencia y no de completitud**:
- * son las dos que hacen que `PackFile.open` rechace un pack entero, asi que tenerlas ANTES de la
- * url permite descartar un pack incompatible **sin gastar 192 MB para tirarlos**.
+ * ⚠️ **`schemaVersion` and `normVersion` are here for efficiency and not for completeness**: they
+ * are the two that make `PackFile.open` reject a whole pack, so having them BEFORE the url allows
+ * discarding an incompatible pack **without spending 192 MB to throw them away**.
  *
- * ⚠️ **Dos hashes, y hacen falta los dos.** [sha256] es del `.gz` que viaja e [dbSha256] del `.db`
- * que queda en disco tras descomprimir. Se verifica en los dos momentos, y lo que compara
- * `PackStore.installAtomically` es el segundo (D-165).
+ * ⚠️ **Two hashes, and both are needed.** [sha256] is of the `.gz` that travels and [dbSha256] of
+ * the `.db` that stays on disk after decompressing. It is verified at both moments, and what
+ * `PackStore.installAtomically` compares is the second (D-165).
  */
 data class CatalogPack(
     val packId: String,
@@ -27,7 +27,7 @@ data class CatalogPack(
     val description: String?,
     val langs: List<String>,
     val entryCount: Int,
-    /** El entero monotono que escribe el builder. Es con esto que se decide si hay novedad. */
+    /** The monotonic integer the builder writes. It is with this that novelty is decided. */
     val dataVersion: Long,
     val schemaVersion: Int,
     val normVersion: Int,
@@ -39,62 +39,62 @@ data class CatalogPack(
     val dbSha256: String,
 )
 
-/** En que cajon cae un pack del catalogo cuando se lo compara con lo que hay instalado. */
+/** Which bucket a catalog pack falls into when compared with what is installed. */
 enum class CatalogStatus {
-    /** No esta instalado y se puede usar. */
+    /** It is not installed and it can be used. */
     DOWNLOAD,
 
-    /** Esta instalado y el catalogo tiene una `data_version` mayor. */
+    /** It is installed and the catalog has a higher `data_version`. */
     UPDATE,
 
-    /** Esta instalado y al dia. Se muestra, pero no se ofrece. */
+    /** It is installed and up to date. It is shown, but not offered. */
     INSTALLED,
 }
 
 /**
- * El catalogo ya comparado con lo que hay instalado.
+ * The catalog, already compared with what is installed.
  *
- * ⚠️ **Los packs que esta app no abre NO estan en [offers]**, y eso revierte una decision anterior.
- * Antes se mostraban en una seccion propia, con el razonamiento de que *«un pack que existe y no
- * se puede usar es una pregunta que el usuario se va a hacer»*. Pedido explicito: *«no quiero
- * listar packs no disponibles; en su lugar solo deberia aclarar que se debe actualizar la
- * aplicacion»*. Y es mejor: la lista solo deberia tener cosas que se pueden tener, y la respuesta
- * util no es *"este pack no sirve"* sino **"actualiza la app"**, que es accionable.
+ * ⚠️ **Packs this app does not open are NOT in [offers]**, and that reverses an earlier decision.
+ * They used to be shown in a section of their own, on the reasoning that *"a pack that exists and
+ * cannot be used is a question the user is going to ask"*. Explicit request: *"I do not want
+ * unavailable packs listed; instead it should just make clear that the app has to be updated"*.
+ * And it is better: the list should only hold things that can be had, and the useful answer is not
+ * *"this pack is no good"* but **"update the app"**, which is actionable.
  */
 data class CatalogListing(
     val offers: List<CatalogOffer>,
-    /** Hubo packs descartados por version. La pantalla lo dice una vez, no pack por pack. */
+    /** Some packs were discarded by version. The screen says so once, not pack by pack. */
     val needsAppUpdate: Boolean,
 )
 
-/** En que punto esta la descarga de UN pack. */
+/** Where ONE pack's download stands. */
 enum class DownloadPhase {
     /**
-     * Encolada, esperando a que se cumpla D-029: cargando y con Wi-Fi sin medir.
+     * Queued, waiting for D-029 to be satisfied: charging and on unmetered Wi-Fi.
      *
-     * ⚠️ **Este estado tiene que verse en la pantalla.** Si el reloj no esta cargando, tocar
-     * descargar no descarga nada todavia, y un progreso que no se mueve sin explicacion se lee
-     * como una app rota.
+     * ⚠️ **This state has to be visible on screen.** If the watch is not charging, tapping
+     * download downloads nothing yet, and progress that does not move with no explanation reads as
+     * a broken app.
      */
     WAITING,
 
     RUNNING,
     DONE,
 
-    /** Fallo; WorkManager reintentara. El `.part` se conserva, asi que reanudara. */
+    /** It failed; WorkManager will retry. The `.part` is kept, so it will resume. */
     FAILED,
 
     /**
-     * La paro el usuario. **No es [FAILED]**, y la diferencia es lo que se le dice.
+     * The user stopped it. **It is not [FAILED]**, and the difference is what gets said to them.
      *
-     * `FAILED` promete un reintento; esto no lo tiene. La pantalla la trata como *"no hay
-     * descarga"*: la fila vuelve a ser una oferta, que es lo que cancelar significa. Y el `.part`
-     * ya no esta --ver `DownloadPackWorker.cancel`-- asi que volver a pedirla baja desde cero.
+     * `FAILED` promises a retry; this one has none. The screen treats it as *"there is no
+     * download"*: the row goes back to being an offer, which is what cancelling means. And the
+     * `.part` is gone --see `DownloadPackWorker.cancel`-- so asking again downloads from zero.
      */
     CANCELLED,
 }
 
-/** El progreso de la descarga de un pack, tal como lo reporta WorkManager. */
+/** A pack download's progress, as WorkManager reports it. */
 data class PackDownload(
     val packId: String,
     val phase: DownloadPhase,
@@ -103,31 +103,31 @@ data class PackDownload(
 )
 
 /**
- * En que punto esta la consulta al catalogo, para la pantalla de gestion.
+ * Where the catalog query stands, for the management screen.
  *
- * ⚠️ **Arranca en [Idle] y se queda ahi hasta que el usuario aprieta el boton.** Entrar a la
- * pantalla no consulta nada: fue el pedido explicito y coincide con D-029, porque la guia oficial
- * de Wear OS pone el acceso a red por encima de encender la pantalla.
+ * ⚠️ **It starts at [Idle] and stays there until the user presses the button.** Entering the
+ * screen queries nothing: that was the explicit request and it matches D-029, because the official
+ * Wear OS guidance puts network access above turning the screen on.
  */
 sealed interface CatalogState {
-    /** Nadie pregunto todavia. */
+    /** Nobody has asked yet. */
     data object Idle : CatalogState
 
-    /** Se esta preguntando. La pantalla muestra que algo pasa. */
+    /** The question is in flight. The screen shows that something is happening. */
     data object Checking : CatalogState
 
-    /** Llego una respuesta. [offers] puede estar vacia: un catalogo sin nada que ofrecer. */
+    /** An answer arrived. [offers] can be empty: a catalog with nothing to offer. */
     data class Ready(
         val offers: List<CatalogOffer>,
-        /** Hubo packs que esta version no abre. Se dice una vez, no pack por pack. */
+        /** Some packs this version does not open were found. Said once, not pack by pack. */
         val needsAppUpdate: Boolean = false,
     ) : CatalogState
 
-    /** No se pudo. [reason] se muestra tal cual: en desarrollo es lo unico que orienta. */
+    /** It could not be done. [reason] is shown verbatim: in development it is the only guide. */
     data class Failed(val reason: String) : CatalogState
 }
 
-/** Un pack del catalogo con su veredicto y, si estaba, la version que ya hay en disco. */
+/** A catalog pack with its verdict and, if there was one, the version already on disk. */
 data class CatalogOffer(
     val pack: CatalogPack,
     val status: CatalogStatus,
@@ -135,21 +135,23 @@ data class CatalogOffer(
 )
 
 /**
- * El catalogo: leerlo y compararlo con lo instalado.
+ * The catalog: reading it and comparing it with what is installed.
  *
- * No descarga nada ni toca la red: esto es la parte pura. Ver [CatalogClient] para el HTTP.
+ * It downloads nothing and does not touch the network: this is the pure part. See [CatalogClient]
+ * for the HTTP.
  */
 object Catalog {
 
     /**
-     * Reparte los packs del catalogo en los cajones de [CatalogStatus].
+     * Sorts the catalog's packs into [CatalogStatus]'s buckets.
      *
-     * ⚠️ **La compatibilidad se compara por IGUALDAD y no por `>=`**, porque es exactamente lo que
-     * hace `PackFile.open`: un `schema_version` distinto se rechaza, mayor o menor. Poner `>=` aca
-     * ofreceria packs que la app despues no abre, y el usuario habria pagado la descarga.
+     * ⚠️ **Compatibility is compared by EQUALITY and not by `>=`**, because that is exactly what
+     * `PackFile.open` does: a different `schema_version` is rejected, higher or lower. Putting
+     * `>=` here would offer packs the app then does not open, and the user would have paid for the
+     * download.
      *
-     * Las versiones se reciben como parametro --con el valor real por defecto-- para que un test
-     * pueda mover el umbral sin tocar las constantes, que tienen su propio espejo en el audit.
+     * The versions arrive as parameters --with the real value as the default-- so a test can move
+     * the threshold without touching the constants, which have a mirror of their own in the audit.
      */
     fun classify(
         catalog: List<CatalogPack>,
@@ -157,14 +159,14 @@ object Catalog {
         schemaVersion: Int = PackFile.SUPPORTED_SCHEMA_VERSION,
         normVersion: Int = TextNormalizer.NORM_VERSION,
     ): CatalogListing {
-        // Por `packId` y nunca por nombre de archivo: el pack del nucleo espanol vive en
-        // `es-core.db` y se llama `es-def-wikc-tat-freq-wn-wd-core`. La identidad es la que el
-        // artefacto DECLARA (D-138); confundirla con la ubicacion haria que renombrar un archivo
-        // se vea como un pack nuevo.
+        // By `packId` and never by file name: the Spanish core pack lives in `es-core.db` and is
+        // called `es-def-wikc-tat-freq-wn-wd-core`. Identity is what the artifact DECLARES
+        // (D-138); confusing it with location would make renaming a file look like a new pack.
         val localPorId = installed.associate { it.packId to it.dataVersion }
-        // ⚠️ **Se comparan por IGUALDAD y no por `>=`**, porque es lo que hace `PackFile.open`: un
-        // `schema_version` distinto se rechaza, mayor o menor. Con `>=` se ofreceria un pack que
-        // la app despues no abre, y el usuario ya habria pagado la descarga.
+        // ⚠️ **They are compared by EQUALITY and not by `>=`**, because that is what
+        // `PackFile.open` does: a different `schema_version` is rejected, higher or lower. With
+        // `>=` a pack the app then does not open would be offered, and the user would already have
+        // paid for the download.
         val (abribles, rechazados) = catalog.partition {
             it.schemaVersion == schemaVersion && it.normVersion == normVersion
         }
@@ -172,8 +174,9 @@ object Catalog {
             val local = localPorId[pack.packId]
             val status = when {
                 local == null -> CatalogStatus.DOWNLOAD
-                // Estrictamente mayor. En desarrollo pasa a diario tener un pack local mas nuevo
-                // que el que sirve el servidor, y ofrecer "actualizar" ahi seria un downgrade.
+                // Strictly greater. In development it happens daily to hold a local pack newer
+                // than the one the server serves, and offering "update" there would be a
+                // downgrade.
                 pack.dataVersion > local -> CatalogStatus.UPDATE
                 else -> CatalogStatus.INSTALLED
             }
@@ -183,40 +186,41 @@ object Catalog {
     }
 
     /**
-     * La fecha que lleva dentro un `data_version`, o `null` si ese numero no es una fecha.
+     * The date a `data_version` carries inside it, or `null` if that number is not a date.
      *
-     * ⚠️ **Esto salio de verlo en el emulador**, que es donde se ven las decisiones de UI en este
-     * repo. La fila de una actualizacion decia literalmente
-     * `3,0 MB · v202609211912, you have v202609211911`: dos numeros de doce digitos que difieren
-     * en el ultimo, 390 px de los ~459 utiles a esa altura de una pantalla redonda, y con eso no
-     * se decide nada. La fecha si informa.
+     * ⚠️ **This came out of seeing it on the emulator**, which is where UI decisions get seen in
+     * this repo. An update's row read literally `3,0 MB · v202609211912, you have v202609211911`:
+     * two twelve-digit numbers differing in the last one, 390 px of the ~459 usable at that height
+     * on a round screen, and nothing gets decided with that. The date does inform.
      *
-     * El builder escribe `data_version` como `YYYYMMDDHHMM`, pero **un pack ajeno puede poner lo
-     * que quiera ahi** --es un entero monotono y nada mas-- asi que esto es defensivo: si no
-     * parece una fecha valida devuelve `null` y la fila se queda con el tamano.
+     * The builder writes `data_version` as `YYYYMMDDHHMM`, but **somebody else's pack can put
+     * whatever it likes there** --it is a monotonic integer and nothing more-- so this is
+     * defensive: if it does not look like a valid date it returns `null` and the row keeps just
+     * the size.
      */
     fun dataVersionDate(dataVersion: Long): LocalDate? {
-        // ⚠️ **Hay DOS anchos en circulacion**, visto en el indice real: los packs nuevos traen
-        // `YYYYMMDDHHMM` (202609211912) y `es-def-wd` trae `YYYYMMDD` (20260920). Aceptar solo
-        // uno dejaba la mitad de las filas sin fecha, y sin ningun error que lo delatara.
+        // ⚠️ **There are TWO widths in circulation**, seen in the real index: the new packs carry
+        // `YYYYMMDDHHMM` (202609211912) and `es-def-wd` carries `YYYYMMDD` (20260920). Accepting
+        // only one left half the rows with no date, and with no error to give it away.
         val ymd = when (dataVersion) {
             in 10_000_101L..99_991_231L -> dataVersion
             in 100_001_010_000L..999_912_312_359L -> dataVersion / 10_000L
             else -> return null
         }.toInt()
-        // `runCatching` y no mas comprobaciones a mano: `LocalDate.of` ya rechaza el mes 13 y el
-        // 30 de febrero, y duplicar ese calendario aca seria una segunda fuente de verdad.
+        // `runCatching` and not more hand checks: `LocalDate.of` already rejects month 13 and the
+        // 30th of February, and duplicating that calendar here would be a second source of truth.
         return runCatching {
             LocalDate.of(ymd / 10_000, (ymd / 100) % 100, ymd % 100)
         }.getOrNull()
     }
 
     /**
-     * Parsea el `index.json` del servidor.
+     * Parses the server's `index.json`.
      *
-     * ⚠️ **Un pack al que le falte un campo obligatorio se SALTA en vez de tumbar el catalogo.**
-     * Un catalogo con seis packs y uno mal escrito tiene que ofrecer los cinco buenos; si una
-     * entrada rota deja al usuario sin ninguna opcion, el fallo es del cliente y no del servidor.
+     * ⚠️ **A pack missing a required field is SKIPPED rather than bringing the catalog down.** A
+     * catalog with six packs and one badly written has to offer the five good ones; if one broken
+     * entry leaves the user with no options at all, the failure is the client's and not the
+     * server's.
      */
     fun parse(json: String): List<CatalogPack> {
         val root = JSONObject(json)

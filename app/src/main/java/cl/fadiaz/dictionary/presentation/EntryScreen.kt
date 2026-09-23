@@ -80,34 +80,33 @@ import cl.fadiaz.dictionary.core.TextNormalizer
 private const val VISIBLE_SENSES = 3
 
 /**
- * A dónde lleva un enlace: **qué pack y qué entrada**.
+ * Where a link leads: **which pack and which entry**.
  *
- * ⚠️ **El `packId` no es decorativo y lo obligó la traducción.** Antes un enlace era un `Long`
- * suelto y `onOpenWord` lo abría en el MISMO pack, deliberadamente: mandar un `entryId` a otro
- * pack abre **otra palabra, sin error** (D-080). Mientras todos los enlaces eran palabras de la
- * misma glosa eso alcanzaba. Una traducción va necesariamente a otro diccionario, así que el
- * destino tiene que decir a cuál — y el caso de siempre pasa a ser el mismo tipo con el pack
- * propio, no una excepción.
+ * ⚠️ **The `packId` is not decorative and translation forced it.** A link used to be a bare `Long`
+ * and `onOpenWord` opened it in the SAME pack, deliberately: sending an `entryId` to another pack
+ * opens **another word, with no error** (D-080). While every link was a word from the same gloss
+ * that sufficed. A translation necessarily goes to another dictionary, so the destination has to
+ * say which one -- and the usual case becomes the same type with its own pack, not an exception.
  */
 data class WordLink(val packId: String, val entryId: Long)
 
 /**
- * De dónde salió un término que se va a resolver, que es lo que decide **en qué idioma** buscarlo.
+ * Where a term to be resolved came from, which is what decides **which language** to look it up in.
  *
- * ⚠️ **La distinción no existía y produjo un bug que el usuario reportó.** Hasta que un pack tuvo
- * los dos idiomas en un archivo, «resolver en el mismo pack» implicaba «en el mismo idioma»; al
- * volverlo bidireccional esa equivalencia se rompió en silencio. `pie` es español —parte del
- * cuerpo— **e** inglés —pastel—, así que tocar la traducción `pie` de `foot` abría el `pie`
- * inglés: una traducción que devuelve al idioma del que uno venía.
+ * ⚠️ **The distinction did not exist and produced a bug the user reported.** Until a pack held
+ * both languages in one file, "resolve in the same pack" implied "in the same language"; making it
+ * bidirectional broke that equivalence in silence. `pie` is Spanish --the body part-- **and**
+ * English --the pastry-- so tapping `foot`'s translation `pie` opened the English `pie`: a
+ * translation that sends you back to the language you came from.
  *
- * Medido sobre el pack real: **8,30 %** de las traducciones de entradas inglesas (7.757 de
- * 93.473) resolvían al idioma equivocado.
+ * Measured over the real pack: **8.30 %** of the translations of English entries (7,757 of 93,473)
+ * resolved to the wrong language.
  */
 enum class TermSource {
-    /** Una palabra de la glosa: está en el idioma **de la entrada**. */
+    /** A word from the gloss: it is in **the entry's** language. */
     GLOSS,
 
-    /** Un término de la lista de traducciones: está en **el otro** idioma. */
+    /** A term from the translations list: it is in **the other** language. */
     TRANSLATION,
 }
 
@@ -127,22 +126,22 @@ fun EntryScreen(
      */
     actions: (Entry) -> List<EntryAction> = { emptyList() },
     /**
-     * El tamaño de texto actual, o `null` para no ofrecer el selector.
+     * The current text size, or `null` to not offer the selector.
      *
-     * ⚠️ **Vive en el menú de la ficha y no sólo en Ajustes, y el motivo es cuándo se nota.**
-     * Que la letra sea chica se descubre **leyendo una definición**, no navegando ajustes: pedir
-     * que el lector salga de la palabra, cruce dos pantallas y vuelva es exactamente la clase de
-     * viaje que la guía de Wear OS pide evitar. Acá cuesta un toque y se ve el efecto en el
-     * texto que está debajo del diálogo.
+     * ⚠️ **It lives in the card's menu and not only in Settings, and the reason is when it gets
+     * noticed.** That the type is small is discovered **while reading a definition**, not while
+     * navigating settings: asking the reader to leave the word, cross two screens and come back is
+     * exactly the kind of trip the Wear OS guidance asks to avoid. Here it costs one tap and the
+     * effect is visible on the text underneath the dialog.
      */
     textScale: TextScale? = null,
     onTextScaleChange: (TextScale) -> Unit = {},
     /**
-     * Qué términos de esta pantalla son lemas, y a qué entrada llevan.
+     * Which terms on this screen are lemmas, and which entry they lead to.
      *
-     * El segundo argumento es el idioma **de la entrada abierta** y el tercero dice si el término
-     * está en ese idioma o en el otro. Ver [TermSource]: sin eso, una traducción puede resolver a
-     * una palabra del idioma del que uno venía.
+     * The second argument is **the open entry's** language and the third says whether the term is
+     * in that language or in the other one. See [TermSource]: without it, a translation can
+     * resolve to a word in the language you came from.
      */
     resolveIn: suspend (Set<String>, String?, TermSource) -> Map<String, WordLink> =
         { _, _, _ -> emptyMap() },
@@ -165,25 +164,25 @@ fun EntryScreen(
         failure = entry == null
     }
 
-    // Qué palabras de la pantalla son lemas del pack, **en dos consultas para toda la ficha** y
-    // no una por palabra. Sólo se pintan las que existen, así que el color promete de antemano
-    // que lleva a algún lado. Vive en su propio efecto porque depende de la entrada cargada.
+    // Which words on the screen are lemmas of the pack, **in two queries for the whole card** and
+    // not one per word. Only the ones that exist get painted, so the colour promises up front that
+    // it leads somewhere. It lives in an effect of its own because it depends on the loaded entry.
     //
-    // ⚠️ **Dos consultas y no una, y el motivo es un tope duro**: `MAX_PALABRAS_POR_CONSULTA` es
-    // 64 porque cada clave es un parámetro enlazado de SQLite. Las glosas ya promedian 39,9
-    // claves en español y 58,8 en inglés, así que meter además los sinónimos, antónimos y
-    // relacionadas de cada acepción desbordaría el tope y **recortaría en silencio** -- y lo
-    // recortado serían justo los términos, que son los que más valen como enlace. Separadas,
-    // cada una tiene su propio tope. Medido: 0,18 ms cada una en español.
+    // ⚠️ **Two queries and not one, and the reason is a hard cap**: `MAX_PALABRAS_POR_CONSULTA` is
+    // 64 because each key is a bound SQLite parameter. Glosses already average 39.9 keys in
+    // Spanish and 58.8 in English, so adding each sense's synonyms, antonyms and related words
+    // would overflow the cap and **trim in silence** -- and what got trimmed would be precisely
+    // the terms, which are the most valuable as links. Kept apart, each has its own cap. Measured:
+    // 0.18 ms each in Spanish.
     LaunchedEffect(entry) {
         val loaded = entry ?: return@LaunchedEffect
         val deLaGlosa = loaded.senses.flatMap { GlossTokenizer.tokenize(it.gloss) }
             .map { it.norm }
             .toSet()
-        // ⚠️ **Sinónimos, antónimos y relacionadas van con la GLOSA, no con las traducciones.**
-        // Están en el idioma de la entrada --un sinónimo de `casa` es español-- y meterlos en la
-        // bolsa de traducciones los habría resuelto en el idioma equivocado, que es el mismo bug
-        // al revés.
+        // ⚠️ **Synonyms, antonyms and related words go with the GLOSS, not with the
+        // translations.** They are in the entry's language --a synonym of `casa` is Spanish-- and
+        // putting them in the translations bag would have resolved them in the wrong language,
+        // which is the same bug in reverse.
         val propios = loaded.senses
             .flatMap { it.synonyms + it.antonyms + it.related }
             .map { TextNormalizer.norm(it) }
@@ -194,20 +193,20 @@ fun EntryScreen(
             .map { TextNormalizer.norm(it) }
             .filterNot { it.isEmpty() }
             .toSet()
-        // ⚠️ **Dos llamadas con idiomas DISTINTOS, y eso es la mitad del arreglo.** Las palabras
-        // de la glosa están en el idioma de la entrada; los términos de las listas de traducción,
-        // en el otro. Resolverlos todos igual es lo que mandaba `pie` al `pie` inglés.
-        // ⚠️ **Tres consultas y no dos**, y el motivo es el mismo tope duro de antes:
-        // `MAX_PALABRAS_POR_CONSULTA` es 64 y las glosas ya promedian 39,9 claves en español y
-        // 58,8 en inglés, así que juntarlas desbordaría y **recortaría en silencio**. Cada una
-        // costó 0,18 ms medidos.
+        // ⚠️ **Two calls with DIFFERENT languages, and that is half the fix.** The gloss's words
+        // are in the entry's language; the translation lists' terms are in the other one.
+        // Resolving them all alike is what sent `pie` to the English `pie`.
+        // ⚠️ **Three queries and not two**, and the reason is the same hard cap as before:
+        // `MAX_PALABRAS_POR_CONSULTA` is 64 and glosses already average 39.9 keys in Spanish and
+        // 58.8 in English, so merging them would overflow and **trim in silence**. Each cost a
+        // measured 0.18 ms.
         links = runCatching {
             resolveIn(deLaGlosa, loaded.lang, TermSource.GLOSS) +
                 resolveIn(propios, loaded.lang, TermSource.GLOSS) +
                 resolveIn(deLasTraducciones, loaded.lang, TermSource.TRANSLATION)
         }
             .getOrDefault(emptyMap())
-            // Un enlace a la entrada que ya estás leyendo no lleva a ningún lado.
+            // A link to the entry you are already reading leads nowhere.
             .filterValues { it.entryId != entryId }
     }
 
@@ -257,20 +256,22 @@ fun EntryScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     val pos = current?.partOfSpeech
-                    // ⚠️ **El idioma sale de la ENTRADA CARGADA, no de un parametro.** Se llega
-                    // a esta pantalla tocando una traduccion, y entonces la entrada abierta es
-                    // del OTRO idioma: tomarlo del pack --que en un bidireccional habla dos--
-                    // afirmaria el idioma equivocado, que es peor que no poner nada.
+                    // ⚠️ **The language comes from the LOADED ENTRY, not from a parameter.** This
+                    // screen is reached by tapping a translation, and then the open entry is in
+                    // the OTHER language: taking it from the pack --which in a bidirectional one
+                    // speaks two-- would assert the wrong language, which is worse than putting
+                    // nothing.
                     //
-                    // Es el IDIOMA y nunca la fuente (D-190): *«solo debe ser EN, ES. No me
-                    // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
-                    // proveniencia»*.
+                    // It is the LANGUAGE and never the source (D-190): *"it should just be EN, ES.
+                    // I do not like having an ENWIK... because all I care about is knowing the
+                    // language it comes from"*.
                     val languageTag = current?.lang?.uppercase()
                     if (pos != null || languageTag != null) {
                         Text(
-                            // Entero, no abreviado: esta pantalla no compite por el ancho con
-                            // nada, y es donde el tipo de palabra se lee de verdad. El idioma
-                            // va detras, con el mismo separador que usa la fila de resultados.
+                            // In full, not abbreviated: this screen competes for width with
+                            // nothing, and it is where the part of speech actually gets read. The
+                            // language goes after it, with the same separator the results row
+                            // uses.
                             text = listOfNotNull(pos?.let { posLabelFull(it) }, languageTag)
                                 .joinToString(stringResource(R.string.entry_list_separator)),
                             style = MaterialTheme.typography.labelSmall,
@@ -293,25 +294,24 @@ fun EntryScreen(
                 }
             }
 
-            // ⚠️ **Las traducciones de la PALABRA van acá, fuera de `SenseBlock`, y ese lugar
-            // es la mitad del diseño.** Una lista dibujada bajo una acepción **afirma** que le
-            // pertenece, y lo que cae acá es justo lo que la fuente no pudo atribuir: juntarlas
-            // desharía en la pantalla lo que el formato separó (D-117), y el error se leería
-            // perfectamente plausible.
+            // ⚠️ **The WORD's translations go here, outside `SenseBlock`, and that placement is
+            // half the design.** A list drawn under a sense **asserts** that it belongs to it, and
+            // what lands here is precisely what the source could not attribute: merging them would
+            // undo on screen what the format separated (D-117), and the error would read
+            // perfectly plausible.
             //
-            // ⚠️ **Van ANTES de las acepciones, y eso invierte lo que decía este comentario.**
-            // Estaban después, razonando que "las definiciones son a lo que el lector entró".
-            // Lo desmiente la medición que ya estaba acá al lado: el **48,6 %** de las entradas
-            // con traducción tienen **sólo** éstas, así que para la mitad de los casos la
-            // sección que iba al final era la respuesta entera, y quedaba debajo de un
-            // `Ver más (12)` que hay que tocar para llegar. Pedido: *«que la traducción por
-            // palabra en caso de estar disponible sin acepciones aparezca al inicio»*.
+            // ⚠️ **They go BEFORE the senses, and that reverses what this comment used to say.**
+            // They were after, on the reasoning that "the definitions are what the reader came
+            // for". The measurement that was already right here disproves it: **48.6 %** of the
+            // entries with a translation have **only** these, so for half the cases the section
+            // that went last was the whole answer, and it sat below a `See more (12)` you have to
+            // tap to reach. Asked for: *"that the per-word translation, when available with no
+            // senses, appear at the start"*.
             //
-            // Sólo el 3,0 % muestra las dos secciones a la vez, así que el costo de empujar las
-            // acepciones hacia abajo lo paga una entrada de cada treinta.
+            // Only 3.0 % shows both sections at once, so the cost of pushing the senses down is
+            // paid by one entry in thirty.
             //
-            // Con `prominent`: no cuelga de ninguna acepción, así que no se dibuja subordinada
-            // a una.
+            // With `prominent`: it hangs off no sense, so it is not drawn subordinate to one.
             // ⚠️ **Forms come BEFORE the translations and carry a sense's weight**, which was
             // the request. The order is not cosmetic: *how this word is spelled* is a question
             // about the word itself, and it is answered before *how it is said in another
@@ -403,11 +403,11 @@ fun EntryScreen(
     ) {
         if (textScale != null) {
             item {
-                // ⚠️ **Los botones MUESTRAN el tamaño que aplican en vez de nombrarlo**, que es
-                // lo que pidió el usuario: *«un selector de 3 botones con distintos tamaños de
-                // letra para representar este selector»*. Una `A` chica, una mediana y una
-                // grande se entienden sin leer, que en un reloj vale más que una etiqueta — y
-                // además no hay que traducirlas.
+                // ⚠️ **The buttons SHOW the size they apply instead of naming it**, which is what
+                // the user asked for: *"a selector of 3 buttons with different type sizes to
+                // represent this setting"*. A small `A`, a medium one and a large one are
+                // understood without reading, which on a watch is worth more than a label -- and
+                // they also need no translation.
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -417,8 +417,8 @@ fun EntryScreen(
                         val elegida = opcion == textScale
                         Text(
                             text = stringResource(R.string.settings_scale_sample),
-                            // El tamaño del botón ES la escala que representa, aplicada sobre el
-                            // cuerpo de la ficha: lo que se ve es lo que se va a obtener.
+                            // The button's size IS the scale it represents, applied over the
+                            // card's body: what you see is what you will get.
                             fontSize = MaterialTheme.typography.bodyMedium.fontSize * opcion.factor,
                             fontWeight = if (elegida) FontWeight.Bold else FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -573,60 +573,61 @@ private fun SenseBlock(
                 )
             }
         }
-        // Las tres listas, con su categoría arriba y las palabras abajo. La categoría iba antes
-        // como prefijo --`sin.`, `ant.`, `rel.`-- y ahora va escrita entera, que es la misma
-        // regla de D-159: en una fila se abrevia porque el lema necesita el ancho; acá no
-        // compite con nada.
-        // La traducción va PRIMERA de las cuatro, y es la única de las listas que no es un
-        // complemento de la glosa sino **otra respuesta a la misma pregunta**: quien abre una
-        // entrada buscando cómo se dice en el otro idioma quiere eso, no la cuarta línea.
+        // The three lists, with their category above and the words below. The category used to go
+        // as a prefix --`sin.`, `ant.`, `rel.`-- and now it is written out in full, which is
+        // D-159's same rule: in a row it is abbreviated because the lemma needs the width; here it
+        // competes with nothing.
+        // The translation goes FIRST of the four, and it is the only one of the lists that is not
+        // a complement to the gloss but **another answer to the same question**: somebody opening
+        // an entry to find out how it is said in the other language wants that, not the fourth
+        // line.
         //
-        // ⚠️ **Va dentro de `SenseBlock`, y eso AFIRMA que pertenece a esta acepción.** Sólo
-        // entra acá lo que la fuente atribuyó con `sense_index`; lo que no se puede atribuir se
-        // descarta en el builder en vez de colgarse de la primera, que es la regla de D-117.
-        // Su lugar honesto es un canal de nivel de entrada que todavía no existe (roadmap
-        // §Naming a sense from another pack).
+        // ⚠️ **It goes inside `SenseBlock`, and that ASSERTS it belongs to this sense.** Only what
+        // the source attributed with `sense_index` gets in here; what cannot be attributed is
+        // discarded in the builder instead of hanging off the first sense, which is D-117's rule.
+        // Its honest place is an entry-level channel that does not yet exist (roadmap §Naming a
+        // sense from another pack).
         //
-        // ⚠️ **Sí se resuelven, y por eso un enlace lleva `packId`.** Antes iban con el mapa
-        // vacío porque `links` sólo sabía de ESTE pack y un término del otro idioma nunca
-        // resolvía. Ahora el destino dice a qué diccionario va, así que `house` puede llevar a
-        // la entrada del pack inglés — y si ese pack no está instalado, no resuelve y se muestra
-        // sin pintar, que es la misma promesa de siempre (D-084).
+        // ⚠️ **They ARE resolved, and that is why a link carries a `packId`.** They used to go
+        // with an empty map because `links` only knew about THIS pack and a term in the other
+        // language never resolved. Now the destination says which dictionary it goes to, so
+        // `house` can lead to the English pack's entry -- and if that pack is not installed, it
+        // does not resolve and is shown unpainted, which is the same promise as always (D-084).
         TermList(R.string.entry_translations_title, sense.translations, links, onOpenWord)
         TermList(R.string.entry_synonyms_title, sense.synonyms, links, onOpenWord)
-        // Los antónimos, debajo y con el mismo peso visual (D-126). ⚠️ **La categoría no es
-        // opcional**: las tres listas se ven idénticas, y lo único que separa "otra forma de
-        // decirlo" de "lo contrario" es esa palabra.
+        // The antonyms, below and with the same visual weight (D-126). ⚠️ **The category is not
+        // optional**: the three lists look identical, and the only thing separating "another way
+        // of saying it" from "the opposite" is that word.
         TermList(R.string.entry_antonyms_title, sense.antonyms, links, onOpenWord)
-        // Las relacionadas, últimas, porque son la afirmación más débil de las tres: ni otra
-        // forma de decirlo ni lo contrario, sólo una vecina. Existen sobre todo para las
-        // entradas FLACAS --una acepción, sin ejemplo-- que son el 70,4 % del pack español, así
-        // que en la práctica esta lista es lo único que hay bajo la glosa (D-132).
+        // The related ones, last, because they are the weakest claim of the three: neither another
+        // way of saying it nor the opposite, just a neighbour. They exist above all for the THIN
+        // entries --one sense, no example-- which are 70.4 % of the Spanish pack, so in practice
+        // this list is the only thing under the gloss (D-132).
         TermList(R.string.entry_related_title, sense.related, links, onOpenWord)
     }
 }
 
 /**
- * Una de las listas de la acepción: la categoría arriba, las palabras abajo y **tocables**.
+ * One of a sense's lists: the category above, the words below and **tappable**.
  *
- * Pedido: *«mejorar la vista de sinónimos y antónimos, primero mostrando la categoría y abajo las
- * palabras pudiendo hacerles click para ir a ellas»*.
+ * Asked for: *"improve the synonyms and antonyms view, showing the category first and the words
+ * below, with the ability to click them to go to them"*.
  *
- * ⚠️ **Cuesta una línea más por lista, y en 234 dp eso se paga.** Se acepta porque la línea que
- * agrega es la que dice de qué lista estás leyendo, que es la información que D-126 y D-132
- * dicen que no puede faltar; y se abarata sin padding vertical entre el título y sus palabras,
- * así que las dos líneas juntas ocupan menos que una fila de lista.
+ * ⚠️ **It costs one more line per list, and at 234 dp that is paid for.** It is accepted because
+ * the line it adds is the one saying which list you are reading, which is the information D-126
+ * and D-132 say cannot be missing; and it is made cheaper with no vertical padding between the
+ * title and its words, so the two lines together take less than one list row.
  *
- * ⚠️ **El título NO va del color de los enlaces, y eso corrige un error de diseño.** Iba en
- * `primary`, que en esta pantalla es exactamente el color con que se pinta una palabra que
- * navega: el encabezado prometía un toque que nunca existió. Pedido: *«los prefijos que indican
- * cosas como traducción, sinónimos y así deben estar más destacados y visibles y no ser
- * clickeables como hipervínculos»*. Ahora se destaca por **peso** --negrita sobre `onSurface`--
- * que es lo que distingue un encabezado de un enlace sin competir con él.
+ * ⚠️ **The title does NOT use the links' colour, and that corrects a design mistake.** It used to
+ * be `primary`, which on this screen is exactly the colour a navigating word is painted in: the
+ * heading promised a tap that never existed. Asked for: *"the prefixes that indicate things like
+ * translation, synonyms and so on should be more prominent and visible and not clickable like
+ * hyperlinks"*. It now stands out by **weight** --bold over `onSurface`-- which is what
+ * distinguishes a heading from a link without competing with it.
  *
- * ⚠️ **Sólo se pinta como enlace lo que existe en el pack**, igual que en la glosa: el color es
- * la promesa de que lleva a algún lado, y una palabra pintada que no navega es peor que una sin
- * pintar.
+ * ⚠️ **Only what exists in the pack is painted as a link**, same as in the gloss: the colour is
+ * the promise that it leads somewhere, and a painted word that does not navigate is worse than an
+ * unpainted one.
  */
 @Composable
 private fun TermList(
@@ -635,11 +636,11 @@ private fun TermList(
     links: Map<String, WordLink>,
     onOpenWord: (WordLink) -> Unit,
     /**
-     * Si la sección pesa lo mismo que una acepción en vez de colgar de una.
+     * Whether the section carries the same weight as a sense rather than hanging off one.
      *
-     * Pedido: *«que estas secciones individuales tengan la misma relevancia que una acepción»*.
-     * Lo que cambia es el cuerpo del texto y la sangría: una lista de nivel de entrada no está
-     * subordinada a nada, así que arranca en el margen y no indentada bajo una glosa.
+     * Asked for: *"that these individual sections have the same prominence as a sense"*. What
+     * changes is the text body and the indent: an entry-level list is subordinate to nothing, so
+     * it starts at the margin and not indented under a gloss.
      */
     prominent: Boolean = false,
 ) {
@@ -671,7 +672,7 @@ private fun TermList(
     )
 }
 
-/** Los términos separados por el separador de siempre, con los conocidos como enlace. */
+/** The terms separated by the usual separator, with the known ones as links. */
 @Composable
 private fun linkedTerms(
     terms: List<String>,

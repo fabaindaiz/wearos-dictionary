@@ -18,8 +18,8 @@ package cl.fadiaz.dictionary.data
  */
 enum class TextScale(val factor: Float) {
     /**
-     * Added on request: *«en text size me interesa incluir el tamaño pequeño junto con el normal
-     * y grande»*.
+     * Added on request: *"in text size I want the small step included alongside normal and
+     * large"*.
      *
      * 0.85 and not less: below that the 234 dp screen stops gaining rows --the row height is
      * [TOUCH_TARGET][cl.fadiaz.dictionary.presentation.TOUCH_TARGET], a touch area the Wear OS

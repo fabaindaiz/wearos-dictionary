@@ -6,50 +6,51 @@ import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** El resultado de preguntarle al catalogo. */
+/** The result of asking the catalog. */
 sealed interface CatalogFetch {
-    /** Llego un catalogo nuevo. [etag] se guarda para la proxima pregunta. */
+    /** A new catalog arrived. [etag] is stored for the next question. */
     data class Fresh(val packs: List<CatalogPack>, val etag: String?) : CatalogFetch
 
-    /** El servidor dijo 304: lo que ya se tenia sigue valiendo y no viajo ni un byte de cuerpo. */
+    /** The server said 304: what was already held still stands and not one body byte travelled. */
     data object NotModified : CatalogFetch
 
-    /** No se pudo. [reason] es para el log y para la pantalla, en ese orden. */
+    /** It could not be done. [reason] is for the log and for the screen, in that order. */
     data class Failed(val reason: String) : CatalogFetch
 }
 
 /**
- * Trae el `index.json` del catalogo. **Nada mas**: no descarga packs.
+ * Fetches the catalog's `index.json`. **Nothing else**: it downloads no packs.
  *
- * ⚠️ **Solo se llama cuando el usuario aprieta el boton**, nunca al entrar a la pantalla ni de
- * fondo. Fue el pedido explicito, y coincide con la guia oficial de Wear OS, que clasifica el
- * acceso a red como *very high impact* --por encima de encender la pantalla-- (D-029,
- * `docs/bateria.md`). Un sondeo automatico del catalogo seria el gasto mas caro de la app.
+ * ⚠️ **It is only called when the user presses the button**, never on entering the screen and
+ * never in the background. That was the explicit request, and it matches the official Wear OS
+ * guidance, which classifies network access as *very high impact* --above turning the screen on--
+ * (D-029, `docs/bateria.md`). Polling the catalog automatically would be the app's most expensive
+ * cost.
  *
- * ⚠️ **Esto NO es la descarga de un pack.** Eso son 192 MB y va por WorkManager con las
- * restricciones de D-029 (cargando + Wi-Fi). El indice son unos KB y es una accion directa del
- * usuario: diferirla a que el reloj este cargando haria que el boton no hiciera nada visible.
+ * ⚠️ **This is NOT a pack download.** That is 192 MB and goes through WorkManager with D-029's
+ * constraints (charging + Wi-Fi). The index is a few KB and is a direct user action: deferring it
+ * until the watch is charging would make the button do nothing visible.
  */
 object CatalogClient {
 
-    /** Cortados a proposito: un reloj con Wi-Fi malo no puede dejar el boton girando para siempre. */
+    /** Short on purpose: a watch on bad Wi-Fi cannot leave the button spinning forever. */
     private const val CONNECT_TIMEOUT_MS = 8_000
     private const val READ_TIMEOUT_MS = 8_000
 
     /**
-     * Tope del cuerpo del indice.
+     * Cap on the index body.
      *
-     * Con ~10 packs el indice son unos KB. El tope existe porque **leer un cuerpo sin limite en un
-     * reloj es como se llena la memoria por un servidor mal configurado**, y de un servidor de
-     * desarrollo se puede esperar cualquier cosa.
+     * With ~10 packs the index is a few KB. The cap exists because **reading an unbounded body on
+     * a watch is how memory gets filled by a misconfigured server**, and anything can be expected
+     * of a development server.
      */
     private const val MAX_INDEX_BYTES = 512 * 1024
 
     /**
-     * Pregunta por el indice, mandando [etag] si se tiene uno de antes.
+     * Asks for the index, sending [etag] if one is held from before.
      *
-     * El `If-None-Match` es lo que hace que apretar el boton dos veces cueste un 304 sin cuerpo en
-     * vez del indice entero. `tools/packserver.py` lo implementa.
+     * The `If-None-Match` is what makes pressing the button twice cost a bodyless 304 instead of
+     * the whole index. `tools/packserver.py` implements it.
      */
     suspend fun fetchIndex(
         baseUrl: String,
@@ -63,8 +64,8 @@ object CatalogClient {
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
-                // Sin gzip a mano: el indice es chico y HttpURLConnection ya negocia la
-                // compresion de cuerpos de texto por su cuenta.
+                // No hand-rolled gzip: the index is small and HttpURLConnection already negotiates
+                // compression of text bodies on its own.
                 if (etag != null) setRequestProperty("If-None-Match", etag)
             }
             when (val code = connection.responseCode) {
@@ -85,9 +86,9 @@ object CatalogClient {
                 }
             }
         } catch (e: IOException) {
-            // Se atrapa `IOException` y no `Exception`: un problema de red es esperable y tiene
-            // que llegar a la pantalla como un mensaje, pero un bug de parseo no se disfraza de
-            // "no hay internet".
+            // `IOException` is caught and not `Exception`: a network problem is expected and has
+            // to reach the screen as a message, but a parsing bug does not get disguised as "there
+            // is no internet".
             DictLog.e(e) { "catalogo: no se pudo consultar $url" }
             CatalogFetch.Failed(e.message ?: "sin conexion")
         } finally {

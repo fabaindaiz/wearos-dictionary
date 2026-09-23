@@ -88,11 +88,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * ¿El tile pidió abrir el input del sistema?
+     * Did the tile ask to open the system input?
      *
-     * Se lee **una vez, del intent de arranque**. Un tile no acepta texto (D-026) pero sí lanza
-     * un intent, y el `bottomSlot` es donde la guía de Wear OS pone la acción: buscar desde el
-     * carrusel pasa de tres toques a uno.
+     * It is read **once, from the launching intent**. A tile accepts no text (D-026) but it does
+     * fire an intent, and the `bottomSlot` is where the Wear OS guidance puts the action:
+     * searching from the carousel goes from three taps to one.
      */
     private fun pideInput(intent: Intent?): Boolean =
         intent?.getStringExtra(EXTRA_OPEN_INPUT) != null
@@ -162,16 +162,16 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             // The tiles have no scheduled refresh: if the app does not push
                             // them, they keep whatever they had.
                             notifyTiles = { notifyTiles(context) },
-                            // La url sale de BuildConfig y se cambia con -PcatalogUrl=... Solo
-                            // `debug` puede hablar por http:// (src/debug/AndroidManifest.xml).
+                            // The url comes from BuildConfig and is changed with -PcatalogUrl=...
+                            // Only `debug` may speak over http:// (src/debug/AndroidManifest.xml).
                             fetchCatalog = { etag ->
                                 CatalogClient.fetchIndex(BuildConfig.CATALOG_URL, etag)
                             },
                             startDownload = { pack ->
                                 DownloadPackWorker.enqueue(context, BuildConfig.CATALOG_URL, pack)
                             },
-                            // El `.gz.part` vive junto a los packs: cancelar tiene que poder
-                            // borrarlo, o queda ocupando disco algo que el usuario ya paro.
+                            // The `.gz.part` lives next to the packs: cancelling has to be able to
+                            // delete it, or something the user already stopped keeps taking disk.
                             cancelDownload = { pack ->
                                 DownloadPackWorker.cancel(
                                     context,
@@ -180,9 +180,9 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                     pack.url,
                                 )
                             },
-                            // Lo que WorkManager reporta, traducido. Es un Flow y no una lectura
-                            // puntual porque el estado cambia SOLO --al conectar el cargador, por
-                            // ejemplo-- y la pantalla tiene que enterarse sin que nadie pregunte.
+                            // What WorkManager reports, translated. A Flow and not a one-off read
+                            // because the state changes BY ITSELF --on plugging the charger in,
+                            // for instance-- and the screen has to find out without anybody asking.
                             downloadStates = WorkManager.getInstance(context)
                                 .getWorkInfosByTagFlow(DownloadPackWorker.TAG)
                                 .map { infos ->
@@ -196,14 +196,13 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
 
-            // Los intents de depuracion. `install` devuelve null en release --la constante es
-            // `false` y R8 se lleva la clase-- asi que aqui no hay nada que preguntar. Ver
-            // [DebugIntents].
+            // The debug intents. `install` returns null in release --the constant is `false` and
+            // R8 takes the class away-- so there is nothing to ask here. See [DebugIntents].
             DisposableEffect(Unit) {
                 val baja = DebugIntents.install(
                     context,
-                    // Entra por la MISMA puerta que el teclado: si entrara por otra, lo que se
-                    // verifica desde adb no seria lo que hace el usuario.
+                    // It comes in through the SAME door as the keyboard: through another one, what
+                    // gets verified from adb would not be what the user does.
                     onSearch = { texto ->
                         navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         viewModel.onQueryChange(texto)
@@ -229,15 +228,15 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 onDispose { baja?.invoke() }
             }
 
-            // ⚠️ **Al salir de la app se vuelve al inicio limpio** (ver `onLeftApp`). Un reloj no
-            // se cierra, se baja la muñeca: volver tres horas después a la ficha de otro momento
-            // no es retomar nada.
+            // ⚠️ **Leaving the app returns to a clean home** (see `onLeftApp`). A watch is not
+            // closed, the wrist is lowered: coming back three hours later to some earlier card is
+            // not resuming anything.
             //
-            // ⚠️ **Se engancha a `ON_STOP` y NO a `ON_PAUSE`**, y la diferencia importa: el
-            // input del sistema --`ACTION_REMOTE_INPUT`, que es una Activity a pantalla completa
-            // de SysUI-- pausa la nuestra, y resetear ahí borraría la palabra justo mientras se
-            // la dicta. `ON_STOP` llega igual en ese caso, así que además se guarda cuál fue la
-            // última vez que lanzamos el input y se ignora el primer stop posterior.
+            // ⚠️ **It hooks `ON_STOP` and NOT `ON_PAUSE`**, and the difference matters: the system
+            // input --`ACTION_REMOTE_INPUT`, a full-screen SysUI Activity-- pauses ours, and
+            // resetting there would erase the word right while it is being dictated. `ON_STOP`
+            // arrives in that case too, so the last time we launched the input is also recorded
+            // and the first stop after it is ignored.
             val owner = LocalLifecycleOwner.current
             DisposableEffect(owner, navController) {
                 val observer = LifecycleEventObserver { _, event ->
@@ -282,16 +281,16 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 startDestination = ROUTE_SEARCH,
             ) {
                 composable(ROUTE_SEARCH) {
-                    // ⚠️ **Con texto escrito, atras vuelve al inicio en vez de SALIR de la app**
-                    // (D-143). El inicio es la primera pantalla, asi que el gesto caia en la
-                    // Activity y la cerraba: en un reloj eso es una salida brusca para lo que el
-                    // usuario quiso decir con "deshace lo que escribi". Sin texto no se habilita,
-                    // y entonces salir sigue siendo salir -- atrapar el gesto siempre dejaria la
-                    // app sin forma de cerrarse con el gesto que todo el sistema usa.
+                    // ⚠️ **With text typed, back returns to the home instead of LEAVING the app**
+                    // (D-143). The home is the first screen, so the gesture fell through to the
+                    // Activity and closed it: on a watch that is an abrupt exit for what the user
+                    // meant as "undo what I typed". With no text it is not enabled, and then
+                    // leaving is still leaving -- always trapping the gesture would leave the app
+                    // with no way to be closed by the gesture the whole system uses.
                     //
-                    // Es cableado y no logica: lo que hace `clearQuery` esta cubierto en el gate
-                    // por `SearchViewModelTest`; esta condicion no, porque `createComposeRule()`
-                    // no trae Activity y sin Activity no hay despachador de atras.
+                    // It is wiring and not logic: what `clearQuery` does is covered in the gate by
+                    // `SearchViewModelTest`; this condition is not, because `createComposeRule()`
+                    // brings no Activity and with no Activity there is no back dispatcher.
                     BackHandler(enabled = state.query.isNotEmpty()) { viewModel.clearQuery() }
                     SearchScreen(
                         state = state,
@@ -299,8 +298,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         onTypingChanged = viewModel::onTypingChanged,
                         onLanguageChange = viewModel::onLanguageChange,
                         onSystemInputOpening = viewModel::onSystemInputOpening,
-                        // Sólo la PRIMERA composición: el tile lo pide al abrir, y reabrirlo al
-                        // volver de la entrada sería un bucle.
+                        // Only the FIRST composition: the tile asks for it on opening, and
+                        // reopening it on the way back from the entry would be a loop.
                         abrirInputAlEntrar = abrirInput,
                         onSearchDefinitions = viewModel::onSearchDefinitions,
                         // The packId travels with the entry: without it, with two packs open it
@@ -318,8 +317,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
-                                    // Anota tambien desde el historial: abrirla otra vez la sube
-                                    // al tope, que es lo que un historial tiene que hacer.
+                                    // It records from the history too: opening it again takes it
+                                    // to the top, which is what a history has to do.
                                     viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
@@ -370,12 +369,12 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         // contains it. Sending it to the active pack would be the D-080 bug all
                         // over again: it would open another word, with no error.
                         onOpenWord = { destino ->
-                            // Saltar de una palabra a otra tambien es abrirla. Solo se tiene el
-                            // id, asi que el ViewModel lee la cabecera para anotarla.
+                            // Jumping from one word to another is also opening it. Only the id is
+                            // held, so the ViewModel reads the header to record it.
                             //
-                            // ⚠️ **Se navega al pack que dice el enlace, no al de esta pantalla.**
-                            // Para una palabra de la glosa son el mismo; para una traducción no,
-                            // y usar el de la pantalla abriría otra palabra sin error (D-080).
+                            // ⚠️ **It navigates to the pack the link says, not this screen's.**
+                            // For a gloss word they are the same; for a translation they are not,
+                            // and using the screen's would open another word with no error (D-080).
                             viewModel.recordVisit(destino.packId, destino.entryId)
                             navController.navigate(
                                 "$ROUTE_ENTRY/${Uri.encode(destino.packId)}/${destino.entryId}",
@@ -385,28 +384,28 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         // time is the usual swipe; this is the shortcut to the start, and it is
                         // the repo's first popBackStack.
                         onBackToSearch = {
-                            // Con la palabra BORRADA (D-143): antes volvia con lo que habia
-                            // escrito y habia que borrarlo a mano para buscar otra cosa.
+                            // With the word ERASED (D-143): it used to come back with whatever was
+                            // typed and you had to clear it by hand to search for something else.
                             viewModel.clearQuery()
                             navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                         },
                         resolveIn = { norms, idiomaEntrada, origen ->
                             val meta = state.available.filterIsInstance<PackHandle.Open>()
                                 .firstOrNull { it.packId == packId }?.metadata
-                            // ⚠️ **En qué idioma buscar el término, que es lo que arregla el
-                            // bug de `pie`.** Una palabra de la glosa está en el idioma de la
-                            // entrada; un término de traducción, en el OTRO — que en un pack
-                            // bidireccional vive en este mismo archivo, y si no, en el idioma
-                            // que el pack declara como destino.
+                            // ⚠️ **Which language to look the term up in, which is what fixes the
+                            // `pie` bug.** A gloss word is in the entry's language; a translation
+                            // term is in the OTHER one -- which in a bidirectional pack lives in
+                            // this same file, and failing that, in the language the pack declares
+                            // as its target.
                             val destino = when (origen) {
                                 TermSource.GLOSS -> idiomaEntrada
                                 TermSource.TRANSLATION ->
                                     meta?.langs?.firstOrNull { it != idiomaEntrada }
                                         ?: meta?.translationsTo
                             }
-                            // Primero este pack; lo que no resuelva acá se busca en otro del
-                            // mismo idioma destino. El orden importa: una palabra del propio
-                            // diccionario gana siempre.
+                            // This pack first; whatever it does not resolve here is looked up in
+                            // another of the same target language. The order matters: a word from
+                            // the dictionary's own file always wins.
                             val propias = viewModel.resolveIn(packId, norms, destino)
                                 .mapValues { (_, id) -> WordLink(packId, id) }
                             val ajenas = if (destino == null) emptyMap() else {
@@ -415,14 +414,14 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             }
                             ajenas + propias
                         },
-                        // El mismo ajuste que Ajustes, desde donde se lee (ver EntryScreen).
+                        // The same setting as Settings, where it is read from (see EntryScreen).
                         textScale = state.settings.textScale,
                         onTextScaleChange = viewModel::onTextScaleChange,
                         actions = { entry ->
                             wordActions(
-                                // Del STATE recolectado y no de `viewModel.isFavorite`: ese
-                                // lee un `var` comun, que Compose no puede observar, asi que la
-                                // etiqueta no cambiaba al guardar (D-129).
+                                // From the collected STATE and not from `viewModel.isFavorite`:
+                                // that one reads a plain `var`, which Compose cannot observe, so
+                                // the label did not change on saving (D-129).
                                 isFavorite = state.favorites.any {
                                     it.packId == packId && it.entryId == entry.entryId
                                 },
@@ -454,11 +453,11 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         words = state.favorites,
                         title = R.string.saved_title,
                         empty = R.string.saved_empty,
-                        // Quitar desde la lista (D-155): `toggleFavorite` sobre una que YA es
-                        // favorita la saca, asi que no hace falta un camino nuevo en el modelo.
+                        // Removing from the list (D-155): `toggleFavorite` on one that is ALREADY
+                        // a favourite takes it out, so no new path in the model is needed.
                         onDelete = viewModel::toggleFavorite,
-                        // Las mismas etiquetas que los resultados (D-152): una
-                        // guardada y un resultado son la misma palabra.
+                        // The same tags as the results (D-152): a saved word and a result are the
+                        // same word.
                         tags = historyTags(state.available),
                         // Same reason as the history: the stored id may belong to an earlier
                         // pack. See `SearchViewModel.targetOf`.
@@ -466,7 +465,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             scope.launch {
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
-                                    // Abrir una guardada tambien es abrirla: va al historial.
+                                    // Opening a saved word is still opening it: it goes to the
+                                    // history.
                                     viewModel.recordVisit(visit.copy(entryId = target))
                                     navController.navigate(
                                         "$ROUTE_ENTRY/${Uri.encode(visit.packId)}/$target",
@@ -476,18 +476,18 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         },
                     )
                 }
-                // El historial completo (D-148). El inicio muestra tres; el resto vive acá.
-                // Es la MISMA pantalla que las guardadas, con otro título y otra lista: dos
-                // composables idénticos con distinto nombre divergen en cuanto alguien arregle
-                // uno solo.
+                // The full history (D-148). The home shows three; the rest lives here. It is the
+                // SAME screen as the saved words, with another title and another list: two
+                // identical composables with different names diverge the moment somebody fixes
+                // only one.
                 composable(ROUTE_HISTORY) {
                     WordListScreen(
                         words = state.history,
                         title = R.string.home_recent,
                         empty = R.string.history_empty,
                         tags = historyTags(state.available),
-                        // Mismo motivo que en el inicio: el id guardado puede ser de un pack
-                        // anterior. Ver `SearchViewModel.targetOf`.
+                        // Same reason as on the home: the stored id may belong to an earlier pack.
+                        // See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
                             scope.launch {
                                 val target = viewModel.targetOf(visit)

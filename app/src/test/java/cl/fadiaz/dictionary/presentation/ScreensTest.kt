@@ -92,7 +92,7 @@ class ScreensTest {
         lang: String = "es",
         name: String = "Español — definiciones",
         entries: Int = 1,
-        /** Con dos, el pack es bidireccional y aporta un chip por cada uno. */
+        /** With two, the pack is bidirectional and contributes a chip for each. */
         langs: List<String>? = null,
     ) = PackMetadata(
         packId = packId,
@@ -113,15 +113,15 @@ class ScreensTest {
     private fun handle(m: PackMetadata) = PackHandle.Open(FakeSource(m))
 
     private fun readyState(vararg headwords: String) = SearchState(
-        // Los dos: este estado representa una busqueda YA HECHA. `submitted` es lo que la lista
-        // refleja y `query` lo que el campo muestra; con el teclado abierto se separan (D-128).
+        // Both: this state represents a search ALREADY MADE. `submitted` is what the list reflects
+        // and `query` what the field shows; with the keyboard open they separate (D-128).
         query = "per",
         submitted = "per",
         results = headwords.map { suggestion(it) },
         status = SearchState.Status.Ready,
         active = meta(),
-        // ⚠️ El idioma es ahora un dato PROPIO del estado y no se deriva del pack activo: un
-        // pack bidireccional habla dos, así que `active` dejó de contestarlo.
+        // ⚠️ The language is now a datum OF THE STATE and is not derived from the active pack: a
+        // bidirectional pack speaks two, so `active` stopped answering it.
         activeLang = "es",
         available = listOf(handle(meta())),
     )
@@ -174,18 +174,17 @@ class ScreensTest {
     @Test
     @Config(qualifiers = "+w192dp-h192dp")
     fun onAGenericWatchTwoResultsFit() {
-        // EL RELOJ GENERICO. 192 dp es la aritmetica con la que se justificaron D-073, D-075,
-        // D-078, D-084 y D-085, y tiene que seguir funcionando: la app no se optimiza para un
-        // reloj rompiendo el otro.
+        // THE GENERIC WATCH. 192 dp is the arithmetic D-073, D-075, D-078, D-084 and D-085 were
+        // justified with, and it has to keep working: the app is not optimized for one watch by
+        // breaking the other.
         //
-        // ⚠️ Son DOS, no tres. El test que esto reemplaza --`entranTresResultadosSinScrollear`--
-        // afirmaba tres y pasaba, pero corria con el dispositivo POR DEFECTO de Robolectric, que
-        // no es un reloj: con las cuatro sugerencias componia las cuatro. Pasaba por el motivo
-        // equivocado.
+        // ⚠️ It is TWO, not three. The test this replaces --`entranTresResultadosSinScrollear`--
+        // asserted three and passed, but it ran with Robolectric's DEFAULT device, which is not a
+        // watch: with the four suggestions it composed all four. It passed for the wrong reason.
         //
-        // El numero simulado no es el mismo que el medido en el emulador de 384x384 (que da
-        // tres): el qualifier `h192dp` es alto DISPONIBLE y descuenta decoracion. Lo que este
-        // test fija no es el absoluto sino que el generico sigue mostrando resultados utiles.
+        // The simulated number is not the one measured on the 384x384 emulator (which gives
+        // three): the `h192dp` qualifier is AVAILABLE height and discounts decoration. What this
+        // test pins is not the absolute but that the generic one still shows useful results.
         showSearch(readyState("perder", "perro", "permitir", "persona"))
         assertEquals(2, visibles(listOf("perder", "perro", "permitir", "persona")).size)
     }
@@ -193,13 +192,13 @@ class ScreensTest {
     @Test
     @Config(qualifiers = "+w234dp-h234dp")
     fun theProjectsWatchFitsOneMoreResultThanTheGenericOne() {
-        // EL RELOJ DEL PROYECTO. El SM-L715F entrega `sw234dp w234dp h234dp 340dpi`, confirmado
-        // preguntandole al sistema qué configuracion recibe la app.
+        // THE PROJECT'S WATCH. The SM-L715F delivers `sw234dp w234dp h234dp 340dpi`, confirmed by
+        // asking the system what configuration the app receives.
         //
-        // **Esta es la propiedad que importa y la unica que se puede sostener**: 22 % mas
-        // pantalla entra UNA FILA MAS. El absoluto depende de cuanto descuente la decoracion; la
-        // relacion, no. Y es lo que deja revisar las cinco decisiones cotizadas contra 192 dp sin
-        // tener el reloj delante.
+        // **This is the property that matters and the only one that can be sustained**: 22 % more
+        // screen fits ONE MORE ROW. The absolute depends on how much decoration is discounted; the
+        // ratio does not. And it is what allows reviewing the five decisions priced against 192 dp
+        // without the watch in front of you.
         showSearch(readyState("perder", "perro", "permitir", "persona"))
         assertEquals(3, visibles(listOf("perder", "perro", "permitir", "persona")).size)
     }
@@ -268,8 +267,8 @@ class ScreensTest {
     fun theEntryShowsHeadwordPartOfSpeechAndNumberedSenses() {
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()
-        // Entero y no "sust.": la ficha no pelea por el ancho con nada, y una abreviatura que
-        // hay que descifrar sólo se justifica donde el lema necesita el espacio.
+        // In full and not "sust.": the card fights nothing for width, and an abbreviation that has
+        // to be deciphered is only justified where the lemma needs the space.
         compose.onNodeWithText("sustantivo").assertExists()
         compose.onNodeWithText("1.", substring = true).assertExists()
     }
@@ -325,7 +324,7 @@ class ScreensTest {
             }
         }
         compose.onNodeWithText("the dog barks", substring = true).assertExists()
-        // Un guion suelto bajo el ejemplo se leeria como una cita que no cargo.
+        // A loose dash under the example would read as a citation that did not load.
         assertEquals(
             0,
             compose.onAllNodesWithText("—", substring = true).fetchSemanticsNodes().size,
@@ -350,9 +349,9 @@ class ScreensTest {
                 )
             }
         }
-        // La categoría va escrita entera y arriba, no como prefijo: es la misma regla de D-159
-        // --en una fila se abrevia porque el lema necesita el ancho, en la ficha no compite con
-        // nada-- y lo que se fija sigue siendo que las dos listas se distingan.
+        // The category is written out in full and above, not as a prefix: it is D-159's same rule
+        // --in a row it is abbreviated because the lemma needs the width, on the card it competes
+        // with nothing-- and what gets pinned is still that the two lists be distinguishable.
         compose.onNodeWithText("Sinónimos").assertExists()
         compose.onNodeWithText("ardiente", substring = true).assertExists()
         compose.onNodeWithText("Antónimos").assertExists()
@@ -412,15 +411,15 @@ class ScreensTest {
 
     @Test
     fun lasTraduccionesDeLaPALABRA_van_ARRIBA_de_las_acepciones() {
-        // ⚠️ **El orden es la decisión, no un detalle de maquetado (D-192).** Iban al final
-        // razonando que "las definiciones son a lo que el lector entró"; lo desmiente la
-        // medición que ya estaba escrita al lado: el **48,6 %** de las entradas con traducción
-        // tienen SÓLO éstas, así que para la mitad de los casos la sección del final era la
-        // respuesta entera y quedaba debajo de un `Ver más` que hay que tocar.
+        // ⚠️ **The order is the decision, not a layout detail (D-192).** They went last on the
+        // reasoning that "the definitions are what the reader came for"; the measurement already
+        // written beside it disproves that: **48.6 %** of the entries with a translation have
+        // ONLY these, so for half the cases the section at the end was the whole answer and it sat
+        // below a `See more` you have to tap.
         //
-        // Se fija con coordenadas y no leyendo el árbol porque es exactamente lo que se revierte
-        // sin que nada avise: mover un `item` de lugar no rompe ningún test que sólo compruebe
-        // que ambas secciones existen.
+        // It is pinned with coordinates and not by reading the tree because it is exactly what
+        // gets reverted with nothing to warn: moving an `item` breaks no test that merely checks
+        // both sections exist.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -442,10 +441,10 @@ class ScreensTest {
 
     @Test
     fun aTranslationResolvedInTheOtherPackIsTappable() {
-        // ⚠️ **Es lo que obligó a que un enlace lleve `packId` y no sólo `entryId`.** Hasta acá
-        // el mapa era `norm -> entryId` y `onOpenWord` navegaba dentro del MISMO pack, a
-        // propósito (D-080): mandar el id a otro pack abre otra palabra sin dar error. Una
-        // traducción va necesariamente a otro pack, así que el destino tiene que decir a cuál.
+        // ⚠️ **It is what forced a link to carry a `packId` and not only an `entryId`.** Until
+        // here the map was `norm -> entryId` and `onOpenWord` navigated within the SAME pack, on
+        // purpose (D-080): sending the id to another pack opens another word with no error. A
+        // translation necessarily goes to another pack, so the destination has to say which.
         var abierta: WordLink? = null
         compose.setContent {
             EntryScreen(
@@ -479,13 +478,13 @@ class ScreensTest {
 
     @Test
     fun `el separador de listas lleva espacios a los dos lados`() {
-        // ⚠️ Encontrado MIRANDO la pantalla: salia "marine·freshwater·limnic", pegado, porque
-        // **Android recorta los espacios de un `<string>`** salvo que el valor este entre
-        // comillas dobles. Con tres o cuatro terminos la linea se vuelve un bloque ilegible y
-        // ademas parte mal al ajustar el texto.
+        // ⚠️ Found by LOOKING at the screen: it came out "marine·freshwater·limnic", run together,
+        // because **Android trims a `<string>`'s spaces** unless the value is inside double
+        // quotes. With three or four terms the line becomes an unreadable block and it also wraps
+        // badly.
         //
-        // Este test existe porque el bug es invisible en el recurso --el XML se ve bien-- y
-        // ningun test anterior lo veia: todos afirmaban un solo termino.
+        // This test exists because the bug is invisible in the resource --the XML looks fine-- and
+        // no earlier test saw it: they all asserted a single term.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -499,9 +498,10 @@ class ScreensTest {
 
     @Test
     fun `las relacionadas se distinguen de los sinonimos por el prefijo`() {
-        // Tercera lista con la misma forma (D-132), y el mismo riesgo elevado: "galo" mostrado
-        // como sinonimo de "frances" afirma una equivalencia que la fuente no da. Las tres se ven
-        // iguales, asi que lo unico que las separa son los prefijos -- y eso es lo que se fija.
+        // A third list with the same shape (D-132), and the same heightened risk: "galo" shown as
+        // a synonym of "frances" asserts an equivalence the source does not give. All three look
+        // alike, so the only thing separating them are the prefixes -- and that is what gets
+        // pinned.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -518,10 +518,10 @@ class ScreensTest {
         compose.onNodeWithText("Sinónimos").assertExists()
         compose.onNodeWithText("huanaco").assertExists()
         compose.onNodeWithText("Relacionadas").assertExists()
-        // La línea entera y no `substring`: "camélido" también está EN LA GLOSA, así que buscarla
-        // como subcadena encuentra dos nodos. Que la palabra aparezca en los dos lugares es
-        // correcto --uno es la definición y el otro la lista-- y el test tiene que mirar el que
-        // le importa.
+        // The whole line and not a `substring`: "camélido" is also IN THE GLOSS, so looking for it
+        // as a substring finds two nodes. That the word appears in both places is correct --one is
+        // the definition and the other the list-- and the test has to look at the one it cares
+        // about.
         compose.onNodeWithText("camélido · vicuña").assertExists()
         compose.onNodeWithText("vicuña", substring = true).assertExists()
     }
@@ -892,10 +892,10 @@ class ScreensTest {
 
     @Test
     fun unPackIncompatibleSeMuestraConSuMotivoEnUnaLinea() {
-        // ⚠️ **Es el pedido entero en una pantalla.** Un `.db` que no carga desaparecía de la
-        // lista: ocupaba disco y no había nada que dijera por qué ni cómo sacarlo. Ahora es una
-        // fila, con su tamaño, su motivo en una línea y su botón de borrar --que es la única
-        // acción posible sobre un pack que no se puede abrir--.
+        // ⚠️ **It is the whole request on one screen.** A `.db` that does not load used to
+        // disappear from the list: it took disk and there was nothing saying why or how to remove
+        // it. Now it is a row, with its size, its reason on one line and its delete button --which
+        // is the only possible action on a pack that cannot be opened--.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
@@ -907,15 +907,16 @@ class ScreensTest {
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("viejo-en.db", substring = true))
         compose.onNodeWithText("viejo-en.db", substring = true).assertIsDisplayed()
-        // El nombre del ARCHIVO y no uno bonito: el bonito vive dentro del pack y leerlo sería
-        // cargarlo. Y el motivo, que es lo que convierte "desapareció" en "no sirve, y por esto".
+        // The FILE's name and not a pretty one: the pretty one lives inside the pack and reading
+        // it would be loading it. And the reason, which is what turns "it disappeared" into "it is
+        // no use, and here is why".
         compose.onNodeWithText("Otras reglas de búsqueda", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun sinPacksIncompatiblesNoHayFilasDeMas() {
-        // El caso normal es cero: la lista no puede ganar una cabecera ni un hueco por una
-        // sección que casi siempre está vacía, en una pantalla que se mide en dp.
+        // The normal case is zero: the list cannot gain a header or a gap for a section that is
+        // almost always empty, on a screen measured in dp.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
@@ -927,9 +928,10 @@ class ScreensTest {
 
     @Test
     fun entrarALaPantallaNoConsultaElCatalogo() {
-        // ⚠️ El aserto que fija la decision: la red se toca cuando el usuario aprieta, y nunca
-        // al montar la pantalla. La guia oficial pone el acceso a red por encima de encender la
-        // pantalla (D-029), asi que un sondeo al entrar seria el gasto mas caro de la app.
+        // ⚠️ The assertion that pins the decision: the network is touched when the user presses,
+        // and never on mounting the screen. The official guidance puts network access above
+        // turning the screen on (D-029), so polling on entry would be the app's most expensive
+        // cost.
         var consultas = 0
         compose.setContent {
             PacksScreen(
@@ -972,12 +974,12 @@ class ScreensTest {
     }
 
     @Test
-    // ⚠️ Pantalla alta a proposito: `TransformingLazyColumn` solo compone lo VISIBLE, y en 234 dp
-    // la ultima cabecera queda fuera. Es el mismo recurso que ya usa el test de la lista larga.
+    // ⚠️ A tall screen on purpose: `TransformingLazyColumn` only composes what is VISIBLE, and at
+    // 234 dp the last header falls outside. It is the same device the long-list test already uses.
     @Config(qualifiers = "+w234dp-h1600dp")
     fun lasCategoriasSalenEnOrdenFIJO_actualizar_antes_que_descargar() {
-        // A proposito en el orden INVERSO al esperado: el orden de la pantalla no puede depender
-        // del orden del JSON que manda el servidor.
+        // Deliberately in the REVERSE order to the expected one: the screen's order cannot depend
+        // on the order of the JSON the server sends.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
@@ -993,7 +995,7 @@ class ScreensTest {
         val enPantalla = compose.onAllNodes(hasText("Hay actualización")).fetchSemanticsNodes().size +
             compose.onAllNodes(hasText("Se puede descargar")).fetchSemanticsNodes().size
         assertEquals("las dos cabeceras tienen que estar", 2, enPantalla)
-        // El orden vertical: actualizar primero. Es lo que el usuario vino a buscar.
+        // The vertical order: update first. It is what the user came for.
         val y = { texto: String ->
             compose.onNodeWithText(texto).fetchSemanticsNode().positionInRoot.y
         }
@@ -1006,9 +1008,9 @@ class ScreensTest {
 
     @Test
     fun laFilaDiceLaFECHA_yNoElNumeroCrudoDeVersion() {
-        // ⚠️ Esto reemplaza un aserto anterior que exigia los DOS numeros de version. Visto en el
-        // emulador, la fila decia `3,0 MB · v202609211912, you have v202609211911`: doce digitos
-        // que difieren en el ultimo, y 390 px de los ~459 utiles a esa altura.
+        // ⚠️ This replaces an earlier assertion that required BOTH version numbers. Seen on the
+        // emulator, the row read `3,0 MB · v202609211912, you have v202609211911`: twelve digits
+        // differing in the last one, and 390 px of the ~459 usable at that height.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
@@ -1025,7 +1027,7 @@ class ScreensTest {
             0,
             compose.onAllNodes(hasText("202609211912", substring = true)).fetchSemanticsNodes().size,
         )
-        // Y si dice de cuando es, en el formato del locale.
+        // And it does say when it is from, in the locale's format.
         compose.onNodeWithText("2026", substring = true).assertIsDisplayed()
     }
 
@@ -1055,7 +1057,7 @@ class ScreensTest {
                 packs = emptyList(),
                 onDelete = {},
                 catalog = CatalogState.Ready(
-                    // Un pack instalado y al dia NO es una oferta: no se muestra aca.
+                    // An installed and up-to-date pack is NOT an offer: it is not shown here.
                     listOf(oferta("es-def", CatalogStatus.INSTALLED, instalada = 300L)),
                 ),
             )
@@ -1093,21 +1095,21 @@ class ScreensTest {
         // Size and language together: the pack's name comes from inside the .db and does not
         // always say which language it is.
         compose.onNodeWithText("72,2 MB", substring = true).assertIsDisplayed()
-        // ⚠️ **Sin la clave de idioma**: el NOMBRE del pack ya lo dice --«Español»,
-        // «Español ↔ English»-- así que la sigla repetía en abreviado la línea de arriba, y era
-        // la tercera cosa que competía por un ancho que ya se cortaba.
+        // ⚠️ **Without the language code**: the pack's NAME already says it --"Español",
+        // "Español ↔ English"-- so the code repeated the line above in abbreviation, and it was
+        // the third thing competing for a width that was already being clipped.
         assertEquals(
             "la sigla de idioma ya no aparece en la fila",
             0,
             compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size,
         )
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("309,5 MB", substring = true))
-        // ⚠️ **Y NINGUNA fila marca cuál está en uso.** Esto invierte lo que este mismo test
-        // exigía hasta hoy --«sólo el activo lleva check»--. Pedido: *«quitando completamente el
-        // ticket de idioma seleccionado y dejando que esto se haga solo desde la pantalla de
-        // inicio»*. Elegir idioma vive en el selector del inicio (D-111); tenerlo también acá
-        // era una segunda puerta a lo mismo, y su hueco reservado de 20 dp era justo el ancho
-        // que le faltaba al tamaño para no cortarse.
+        // ⚠️ **And NO row marks which is in use.** This inverts what this very test required until
+        // today --"only the active one carries a check"--. Asked for: *"removing the
+        // selected-language check entirely and letting that be done only from the home screen"*.
+        // Choosing a language lives in the home's selector (D-111); having it here too was a
+        // second door to the same thing, and its reserved 20 dp gap was exactly the width the size
+        // needed in order not to be clipped.
         assertEquals(
             "ninguna fila marca el activo: eso se elige en el inicio",
             0,
@@ -1170,10 +1172,11 @@ class ScreensTest {
 
     @Test
     fun laSeccionDeDescargaYaNoHablaDeUnCABLE() {
-        // ⚠️ Este test decia lo contrario hasta el 2026-09-22: afirmaba que la seccion explica que
-        // hoy se instala por cable. **Descargar ya funciona**, asi que esa frase paso a ser falsa,
-        // y una pantalla que le dice al usuario que algo no existe cuando existe es peor que una
-        // sin texto. Lo que corresponde decir ahora es COMO empieza: tocando el boton.
+        // ⚠️ This test said the opposite until 2026-09-22: it asserted that the section explains
+        // that installing happens over a cable today. **Downloading works now**, so that sentence
+        // became false, and a screen telling the user something does not exist when it does is
+        // worse than one with no text. What it is right to say now is HOW it starts: by tapping
+        // the button.
         compose.setContent {
             PacksScreen(
                 packs = listOf(openPack("es-def", "Español", 72_212_480)),
@@ -1191,9 +1194,9 @@ class ScreensTest {
 
     @Test
     fun mientrasESPERA_carga_la_fila_lo_DICE() {
-        // ⚠️ D-029 difiere la descarga a cargando + Wi-Fi, asi que tocar descargar con el reloj
-        // desconectado no descarga nada TODAVIA. Un progreso que no se mueve sin explicacion se
-        // lee como una app rota; por eso la espera tiene texto propio.
+        // ⚠️ D-029 defers the download to charging + Wi-Fi, so tapping download with the watch
+        // unplugged downloads nothing YET. Progress that does not move with no explanation reads
+        // as a broken app; that is why the wait has text of its own.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
@@ -1226,10 +1229,10 @@ class ScreensTest {
 
     @Test
     fun un_pack_de_otra_version_NO_SE_LISTA_y_se_pide_actualizar_la_app() {
-        // ⚠️ Esto revierte una decision anterior, que le daba seccion propia. Pedido: *«no quiero
-        // listar packs no disponibles; en su lugar solo deberia aclarar que se debe actualizar la
-        // aplicacion»*. La lista solo lleva cosas que se pueden tener, y la respuesta util no es
-        // "este pack no sirve" sino "actualiza la app", que si es accionable.
+        // ⚠️ This reverses an earlier decision, which gave them a section of their own. Asked for:
+        // *"I do not want unavailable packs listed; instead it should just make clear that the app
+        // has to be updated"*. The list only carries things that can be had, and the useful answer
+        // is not "this pack is no use" but "update the app", which is actionable.
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
@@ -1303,11 +1306,12 @@ class ScreensTest {
 
     @Test
     fun elSelectorYaNoViveBajoOpciones() {
-        // ⚠️ **Este test afirmaba lo contrario y el cambio es deliberado** (D-156). El selector
-        // vivía al fondo, bajo "Opciones", porque ahí no competía con la barra por el lugar de
-        // arriba. El costo apareció al usarlo: desaparecía al buscar, que es justo cuando hace
-        // falta —mirando resultados que no son los esperados porque el idioma activo no era el
-        // que uno creía—. Ahora va debajo de la barra, y cuesta una fila de las ~3 que entran.
+        // ⚠️ **This test asserted the opposite and the change is deliberate** (D-156). The selector
+        // lived at the bottom, under "Options", because there it did not compete with the bar for
+        // the top spot. The cost appeared on using it: it disappeared when searching, which is
+        // exactly when it is needed --looking at results that are not the expected ones because
+        // the active language was not the one you thought--. Now it goes below the bar, and it
+        // costs one of the ~3 rows that fit.
         showSearch(twoPackState().copy(query = "", submitted = ""))
         val selector = compose.onNodeWithText("ES").getBoundsInRoot()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Opciones"))
@@ -1340,9 +1344,9 @@ class ScreensTest {
 
     @Test
     fun conVariasFuentesSeMuestranTODAS_conSuPropiaLicencia() {
-        // ⚠️ El caso que obligo a D-138: el pack español mezcla definiciones CC BY-SA 4.0 con
-        // frases de corpus CC BY 2.0 FR. Mostrar una sola licencia **incumple la otra**, y
-        // ningun otro test lo veria porque el pack abre y funciona igual.
+        // ⚠️ The case that forced D-138: the Spanish pack mixes CC BY-SA 4.0 definitions with CC BY
+        // 2.0 FR corpus sentences. Showing a single licence **breaches the other**, and no other
+        // test would see it because the pack opens and works just the same.
         val fuentes = listOf(
             PackSource(PackSource.Role.DEFINITIONS, "Wikcionario",
                        "https://es.wiktionary.org/", "CC BY-SA 4.0", ""),
@@ -1352,16 +1356,16 @@ class ScreensTest {
         compose.setContent {
             AttributionScreen(packs = listOf(handle(meta().copy(sources = fuentes))))
         }
-        // La linea itemizada, no solo el nombre: "Wikcionario" tambien aparece en la prosa de
-        // `attribution`, y encontrarlo ahi no probaria que la fuente se declaro con SU licencia.
+        // The itemised line, not just the name: "Wikcionario" also appears in `attribution`'s
+        // prose, and finding it there would not prove the source was declared with ITS licence.
         compose.onNodeWithText("definiciones · Wikcionario · CC BY-SA 4.0").assertExists()
         compose.onNodeWithText("frases · Tatoeba · CC BY 2.0 FR").assertExists()
     }
 
     @Test
     fun unPackSinFuentesDeclaradasSigueMostrandoSuCredito() {
-        // Un pack anterior a D-138 no trae `meta.sources`. No puede quedarse SIN atribucion:
-        // eso convertiria una mejora de formato en un incumplimiento de licencia.
+        // A pack older than D-138 carries no `meta.sources`. It cannot be left WITHOUT
+        // attribution: that would turn a format improvement into a licence breach.
         compose.setContent {
             AttributionScreen(packs = listOf(handle(meta().copy(sources = emptyList()))))
         }
@@ -1369,16 +1373,16 @@ class ScreensTest {
         compose.onNodeWithText("CC-BY-SA-4.0", substring = true).assertExists()
     }
 
-    // --- El inicio y los resultados comparten la cabecera (D-157) ---------------------------
+    // --- The home and the results share the header (D-157) ----------------------------------
 
     @Test
     fun elINICIO_TIENE_LA_MISMA_CABECERA_QUE_LOS_RESULTADOS() {
-        // Pedido: barra grande a la izquierda, voz chica a la derecha, selector abajo — igual en
-        // los dos estados. Una cabecera que cambia de forma al escribir obliga a reaprenderla.
+        // Asked for: a big bar on the left, a small voice button on the right, the selector below
+        // -- the same in both states. A header that changes shape as you type has to be relearned.
         showSearch(twoPackState().copy(query = "", submitted = ""))
         compose.onNodeWithContentDescription("Decir una palabra").assertExists()
-        // Y ya no el botón grande, que era exclusivo del inicio: ahora el micrófono es lo
-        // único que ofrece voz, en los dos estados.
+        // And no longer the big button, which was exclusive to the home: the microphone is now the
+        // only thing that offers voice, in both states.
         assertEquals(1, compose.onAllNodesWithContentDescription("Decir una palabra")
             .fetchSemanticsNodes().size)
     }
@@ -1392,13 +1396,13 @@ class ScreensTest {
         assertTrue("y en la misma fila", voz.top.value < barra.bottom.value)
     }
 
-    // --- El selector de idioma, visible también con resultados (D-156) ---------------------
+    // --- The language selector, visible with results too (D-156) ---------------------------
 
     @Test
     fun elSELECTOR_SIGUE_VISIBLE_CON_RESULTADOS_EN_PANTALLA() {
-        // ⚠️ Antes vivía dentro del bloque "sin búsqueda", así que desaparecía justo cuando más
-        // hace falta: viendo resultados que no son los que esperabas porque el idioma activo no
-        // era el que creías.
+        // ⚠️ It used to live inside the "no search" block, so it disappeared exactly when it is
+        // most needed: looking at results that are not the ones you expected because the active
+        // language was not the one you thought.
         showSearch(twoPackState("perder"))
         compose.onNodeWithText("ES").assertExists()
         compose.onNodeWithText("EN").assertExists()
@@ -1406,8 +1410,8 @@ class ScreensTest {
 
     @Test
     fun elSelectorVaJustoDebajoDeLaBarra() {
-        // La posición importa: arriba es donde se mira, y al lado de la barra queda claro que
-        // modifica lo que se está buscando. Al fondo de la lista sería un ajuste escondido.
+        // The position matters: the top is where you look, and beside the bar it is clear it
+        // modifies what is being searched. At the bottom of the list it would be a hidden setting.
         showSearch(twoPackState("perder"))
         val barra = compose.onNode(hasSetTextAction()).getBoundsInRoot()
         val chip = compose.onNodeWithText("ES").getBoundsInRoot()
@@ -1415,7 +1419,7 @@ class ScreensTest {
         assertTrue(chip.top.value < barra.bottom.value + 120f)
     }
 
-    // --- Quitar una guardada: mantener apretado y confirmar (D-155) -------------------------
+    // --- Removing a saved word: long-press and confirm (D-155) -----------------------------
 
     private fun guardadas(onDelete: ((Visit) -> Unit)? = {}) = compose.setContent {
         WordListScreen(
@@ -1429,8 +1433,8 @@ class ScreensTest {
 
     @Test
     fun UN_TOQUE_NORMAL_NO_ARMA_EL_BORRADO() {
-        // La fila sigue haciendo lo que hacía: abrir la palabra. El borrado no puede estar a un
-        // toque de distancia del gesto que más se usa.
+        // The row goes on doing what it did: opening the word. Deletion cannot be one tap away
+        // from the most used gesture.
         var abierta = false
         compose.setContent {
             WordListScreen(
@@ -1465,9 +1469,9 @@ class ScreensTest {
 
     @Test
     fun TOCAR_OTRA_FILA_CANCELA_EN_VEZ_DE_ABRIRLA() {
-        // ⚠️ Con algo armado, un toque en otra fila DESARMA y no navega. Si abriera la palabra,
-        // el usuario se iría de la pantalla con una fila roja esperándolo al volver, y la única
-        // forma de cancelar sería adivinarla.
+        // ⚠️ With something armed, a tap on another row DISARMS and does not navigate. If it
+        // opened the word, the user would leave the screen with a red row waiting for them on
+        // their return, and the only way to cancel would be to guess it.
         var abierta: Visit? = null
         compose.setContent {
             WordListScreen(
@@ -1486,14 +1490,15 @@ class ScreensTest {
 
     @Test
     fun elHISTORIAL_no_se_puede_armar() {
-        // Sin `onDelete` el gesto no hace nada: el historial se llena solo y ya tiene tope.
+        // With no `onDelete` the gesture does nothing: the history fills itself and already has a
+        // cap.
         compose.setContent {
             WordListScreen(
                 words = listOf(visita("perro")),
                 title = cl.fadiaz.dictionary.R.string.home_recent,
                 empty = cl.fadiaz.dictionary.R.string.history_empty,
-                // El mapa y no una etiqueta suelta: esta lista puede traer palabras de un pack
-                // que ya no esta instalado. Ver `historyTags`.
+                // The map and not a loose tag: this list can bring words from a pack that is no
+                // longer installed. See `historyTags`.
                 tags = mapOf("es-def" to "ES"),
                 onOpen = {},
             )
@@ -1506,9 +1511,9 @@ class ScreensTest {
 
     @Test
     fun elHISTORIAL_DEL_INICIO_tambien_dice_el_idioma() {
-        // ⚠️ Antes la fila de resultado decía `sust. · ES` y la de reciente sólo `sust.`. Dos
-        // filas que representan lo mismo tienen que decir lo mismo: si no, el usuario aprende
-        // que la etiqueta significa algo distinto según dónde esté.
+        // ⚠️ The result row used to say `sust. · ES` and the recent one only `sust.`. Two rows
+        // representing the same thing have to say the same thing: otherwise the user learns the
+        // tag means something different depending on where it is.
         showSearch(
             readyState().copy(query = "", submitted = "", history = listOf(visita("perro"))),
         )
@@ -1522,8 +1527,8 @@ class ScreensTest {
                 words = listOf(visita("perro")),
                 title = cl.fadiaz.dictionary.R.string.home_recent,
                 empty = cl.fadiaz.dictionary.R.string.history_empty,
-                // El mapa y no una etiqueta suelta: esta lista puede traer palabras de un
-                // pack que ya no esta instalado. Ver `historyTags`.
+                // The map and not a loose tag: this list can bring words from a pack that is
+                // no longer installed. See `historyTags`.
                 tags = mapOf("es-def" to "ES"),
                 onOpen = {},
             )
@@ -1533,8 +1538,8 @@ class ScreensTest {
 
     @Test
     fun unaPalabraDeUnPackDESCONOCIDO_muestra_solo_el_tipo() {
-        // Igual que en los resultados: heredar la etiqueta del pack activo afirmaría un idioma
-        // que nadie comprobó. Mejor decir menos que decir algo falso.
+        // Same as in the results: inheriting the active pack's tag would assert a language nobody
+        // checked. Better to say less than to say something false.
         showSearch(
             readyState().copy(
                 query = "", submitted = "",
@@ -1545,13 +1550,13 @@ class ScreensTest {
         assertEquals(0, compose.onAllNodesWithText("· ES", substring = true).fetchSemanticsNodes().size)
     }
 
-    // --- Recientes: tres en el inicio, el resto detrás de un botón (D-148) ------------------
+    // --- Recents: three on the home, the rest behind a button (D-148) ----------------------
 
     @Test
     fun elInicioMuestraTRES_RECIENTES_Y_UN_BOTON() {
-        // En un reloj el inicio es la pantalla más disputada: ocho recientes empujaban los
-        // ajustes y la atribución fuera de alcance. Tres es lo que se ve sin scrollear después
-        // del campo y la voz.
+        // On a watch the home is the most contested screen: eight recents pushed settings and
+        // attribution out of reach. Three is what is visible without scrolling after the field and
+        // the voice button.
         showSearch(
             readyState().copy(
                 query = "", submitted = "",
@@ -1567,8 +1572,8 @@ class ScreensTest {
 
     @Test
     fun conTRES_O_MENOS_no_hay_boton() {
-        // Un botón que lleva a la misma lista que ya estás viendo es cromo, y el cromo en un
-        // reloj se paga en filas.
+        // A button leading to the same list you are already looking at is chrome, and on a watch
+        // chrome is paid in rows.
         showSearch(
             readyState().copy(query = "", submitted = "", history = (1..3).map { visita("p$it") }),
         )
@@ -1585,7 +1590,8 @@ class ScreensTest {
             onOpenHistory = { abierto = true },
         )
         compose.onNodeWithText("Ver más").performClick()
-        // Si no navega, el botón es una salida muerta: se ve, se toca y no pasa nada.
+        // If it does not navigate, the button is a dead exit: it is seen, it is tapped and nothing
+        // happens.
         assertTrue(abierto)
     }
 
@@ -1599,24 +1605,24 @@ class ScreensTest {
                 onOpen = {},
             )
         }
-        // La cuarta es la prueba: el inicio muestra tres, asi que verla aca demuestra que esta
-        // pantalla no esta recortando. La octava puede quedar fuera del viewport, y afirmarla
-        // haria que el test dependiera del alto de la pantalla de Robolectric y no de la logica.
+        // The fourth is the proof: the home shows three, so seeing it here demonstrates this
+        // screen is not trimming. The eighth may fall outside the viewport, and asserting it would
+        // make the test depend on Robolectric's screen height and not on the logic.
         compose.onNodeWithText("palabra1").assertExists()
         compose.onNodeWithText("palabra4").assertExists()
     }
 
-    // --- El idioma de cada resultado (D-143) -----------------------------------------------
+    // --- Each result's language (D-143) ----------------------------------------------------
 
     @Test
     fun cadaResultadoDiceDeQueIDIOMAViene() {
-        // Pedido: junto a la palabra y su tipo, el idioma abreviado. Con dos diccionarios del
-        // mismo idioma o de idiomas distintos conviviendo (D-136), una fila sin origen obliga a
-        // abrir la entrada para saber de donde salio.
-        // ⚠️ **Con dos packs instalados las filas ya NO mezclan idiomas**, y eso cambia lo que
-        // este test puede afirmar. La busqueda es estricta por idioma entre packs (D-189) y
-        // ahora tambien DENTRO de un pack bidireccional (`WHERE lang = ?`), asi que una lista
-        // no contiene filas de dos idiomas: la etiqueta es una sola y vale para todas.
+        // Asked for: beside the word and its part of speech, the abbreviated language. With two
+        // dictionaries of the same language or of different languages coexisting (D-136), a row
+        // with no origin forces opening the entry to know where it came from.
+        // ⚠️ **With two packs installed the rows NO LONGER mix languages**, and that changes what
+        // this test can assert. The search is strict by language across packs (D-189) and now also
+        // INSIDE a bidirectional pack (`WHERE lang = ?`), so a list does not contain rows of two
+        // languages: the tag is a single one and holds for all of them.
         val es = meta("es-def", "es", "Español")
         val en = meta("en-def", "en", "English")
         showSearch(
@@ -1638,16 +1644,16 @@ class ScreensTest {
 
     @Test
     fun conDOS_DICCIONARIOS_DEL_MISMO_IDIOMA_la_fila_sigue_diciendo_el_IDIOMA() {
-        // ⚠️ **Esto invierte D-151, que es lo que este test fijaba.** La regla anterior mostraba
-        // la sigla de la fuente --`WIKC`, `WD`-- cuando dos diccionarios compartían idioma,
-        // porque "ES · ES" no desambigua. El pedido la revierte: *«solo debe ser EN, ES. No me
-        // gusta que haya un ENWIK... porque solo me interesa conocer el idioma de
-        // proveniencia»*.
+        // ⚠️ **This inverts D-151, which is what this test pinned.** The earlier rule showed the
+        // source's abbreviation --`WIKC`, `WD`-- when two dictionaries shared a language, because
+        // "ES · ES" does not disambiguate. The request reverses it: *"it should just be EN, ES. I
+        // do not like having an ENWIK... because all I care about is knowing the language it comes
+        // from"*.
         //
-        // Lo que se pierde, dicho para que nadie lo redescubra: con dos packs del mismo idioma
-        // la fila **no dice de cuál salió**. Esa pregunta la contesta la pantalla de gestión de
-        // diccionarios; la fila contesta en qué idioma está la palabra que voy a abrir, y la
-        // sigla no se entiende sin conocer el `pack_id`.
+        // What is lost, said so nobody rediscovers it: with two packs of the same language the row
+        // **does not say which it came from**. That question is answered by the dictionary
+        // management screen; the row answers what language the word I am about to open is in, and
+        // the abbreviation is unintelligible without knowing the `pack_id`.
         val wikc = meta("es-def-wikc", "es", "Español")
         val wd = meta("es-def-wd", "es", "Español (Wikidata)")
         showSearch(
@@ -1658,8 +1664,8 @@ class ScreensTest {
                 available = listOf(handle(wikc), handle(wd)),
             ),
         )
-        // LAS DOS filas dicen `ES`, que es exactamente el punto: la etiqueta ya no distingue
-        // packs, sólo idiomas.
+        // BOTH rows say `ES`, which is exactly the point: the tag no longer distinguishes packs,
+        // only languages.
         assertEquals(
             "las dos filas llevan la etiqueta del idioma",
             2,
@@ -1674,8 +1680,8 @@ class ScreensTest {
 
     @Test
     fun conDOS_PACKS_DEL_MISMO_IDIOMA_hay_UNA_palabra_del_dia() {
-        // ⚠️ El bug que D-145 tapó fundiendo packs: el mapa se calcula por pack, así que dos
-        // diccionarios de español daban dos palabras del día del mismo idioma.
+        // ⚠️ The bug D-145 covered up by merging packs: the map is computed per pack, so two
+        // Spanish dictionaries gave two words of the day in the same language.
         val wikc = meta("es-def-wikc", "es", "Español")
         val wd = meta("es-def-wd", "es", "Español (Wikidata)")
         showSearch(
@@ -1695,18 +1701,18 @@ class ScreensTest {
 
     @Test
     fun unResultadoLLEVA_EL_IDIOMA_BUSCADO_porque_la_consulta_lo_garantiza() {
-        // ⚠️ **Esto reemplaza a `unResultadoDeUnPackDESCONOCIDONoInventaIdioma`**, y el cambio
-        // no es relajar la regla sino que la regla dejo de necesitar un mecanismo.
+        // ⚠️ **This replaces `unResultadoDeUnPackDESCONOCIDONoInventaIdioma`**, and the change is
+        // not relaxing the rule but that the rule stopped needing a mechanism.
         //
-        // Aquel test protegia contra heredar la etiqueta del pack activo, porque un `packId`
-        // fuera del mapa no se podia resolver a un idioma (familia D-080). Hoy **un resultado de
-        // otro idioma no puede existir**: `SearchRepository` solo consulta packs que hablan el
-        // idioma activo (D-189) y dentro de un pack bidireccional cada peldaño filtra por
-        // `entry.lang`. La etiqueta es cierta **por construccion de la consulta**, no por un
-        // mapa -- que es mas fuerte, porque un mapa se puede desincronizar.
+        // That test protected against inheriting the active pack's tag, because a `packId` outside
+        // the map could not be resolved to a language (D-080's family). Today **a result in
+        // another language cannot exist**: `SearchRepository` only queries packs that speak the
+        // active language (D-189) and inside a bidirectional pack every rung filters by
+        // `entry.lang`. The tag is true **by construction of the query**, not by a map -- which is
+        // stronger, because a map can drift.
         //
-        // Lo que SI conserva el mecanismo viejo es el historial: ahi una fila puede ser de un
-        // pack desinstalado. Ver `unaPalabraDeUnPackDESCONOCIDO_muestra_solo_el_tipo`.
+        // What DOES keep the old mechanism is the history: there a row can come from an
+        // uninstalled pack. See `unaPalabraDeUnPackDESCONOCIDO_muestra_solo_el_tipo`.
         showSearch(readyState().copy(results = listOf(suggestion("perro"))))
         compose.onNodeWithText("sust. · ES", substring = true).assertExists()
     }
@@ -1715,25 +1721,26 @@ class ScreensTest {
 
     @Test
     fun laPALABRA_DEL_DIA_sale_de_un_pack_de_DEFINICIONES_aunque_el_bilingue_sea_MAYOR() {
-        // ⚠️ **Dos reglas que por separado están bien y juntas borraron la palabra del día.**
-        // Un pack de traducción no genera una --pedido: *«esto queda solo para los diccionarios
-        // de definiciones»*, y la razón se ve al abrirla: una entrada inversa no tiene
-        // acepciones, así que diría «se dice `perro`» y nada más--. Pero el representante de
-        // cada idioma es el pack **más grande**, y el bilingüe pasó a serlo de los dos: 209.484
-        // contra 152.281 del español y 16.652 del núcleo inglés.
+        // ⚠️ **Two rules that are fine separately and together erased the word of the day.** A
+        // translation pack generates none --asked for: *"this stays only for the definitions
+        // dictionaries"*, and the reason is visible on opening it: a reverse entry has no senses,
+        // so it would say "you say `perro`" and nothing else--. But each language's representative
+        // is the **largest** pack, and the bilingual one became that for both: 209,484 against
+        // Spanish's 152,281 and the English core's 16,652.
         //
-        // Resultado en el emulador: la sección desapareció entera. La pantalla pedía la palabra
-        // de un pack que, correctamente, no genera ninguna.
+        // Result on the emulator: the section disappeared entirely. The screen was asking for the
+        // word of a pack that, correctly, generates none.
         val bi = meta("es-tr-enwikt", "es", "Español ↔ English", entries = 209_484,
                       langs = listOf("es", "en"))
         val defs = meta("es-def-wikc", "es", "Español", entries = 152_281)
         showSearch(
             readyState().copy(
                 query = "", submitted = "",
-                // ⚠️ **El ACTIVO es el bilingüe**, que es el caso real: `chooseActive` toma
-                // el pack más grande, y el bilingüe lo es. Con el de definiciones activo el
-                // fallo no aparece --`representativePacks` respeta al activo-- y por eso la
-                // primera versión de este test era vacua: mutando el arreglo seguía pasando.
+                // ⚠️ **The ACTIVE one is the bilingual**, which is the real case: `chooseActive`
+                // takes the largest pack, and the bilingual one is it. With the definitions one
+                // active the failure does not appear --`representativePacks` respects the active
+                // one-- which is why this test's first version was vacuous: mutating the fix, it
+                // went on passing.
                 active = bi, activeLang = "es",
                 available = listOf(handle(bi), handle(defs)),
                 wordsOfTheDay = mapOf("es-def-wikc" to resumen("futuro")),
@@ -1744,12 +1751,12 @@ class ScreensTest {
 
     @Test
     fun conUN_SOLO_PACK_BIDIRECCIONAL_el_selector_IGUAL_aparece() {
-        // ⚠️ **Encontrado en el emulador, y es el caso que el pack bidireccional existe para
-        // servir.** El selector se dibujaba con `state.available.size > 1` --contaba ARCHIVOS--
-        // así que con sólo `es-tr-enwikt` instalado no aparecía ninguno, y **no había forma de
-        // llegar a su mitad inglesa**: el pack hablaba dos idiomas y la app ofrecía cero.
+        // ⚠️ **Found on the emulator, and it is the case the bidirectional pack exists to serve.**
+        // The selector was drawn with `state.available.size > 1` --it counted FILES-- so with only
+        // `es-tr-enwikt` installed none appeared, and **there was no way to reach its English
+        // half**: the pack spoke two languages and the app offered zero.
         //
-        // Lo que se cuenta ahora son IDIOMAS, que es lo que el chip elige desde D-197.
+        // What gets counted now are LANGUAGES, which is what the chip chooses since D-197.
         val bi = meta("es-tr-enwikt", "es", "Español ↔ English", langs = listOf("es", "en"))
         showSearch(
             readyState().copy(
@@ -1777,8 +1784,9 @@ class ScreensTest {
 
     @Test
     fun tappingTheOtherLanguageReportsIt() {
-        // ⚠️ **Reporta el IDIOMA y ya no un `packId`.** Un pack bidireccional habla dos, así que
-        // elegirlo no decía en cuál buscar: el chip pasó a ser lo que D-147 ya decía que era.
+        // ⚠️ **It reports the LANGUAGE and no longer a `packId`.** A bidirectional pack speaks
+        // two, so choosing it did not say which to search in: the chip became what D-147 already
+        // said it was.
         var chosen: String? = null
         showSearch(twoPackState().copy(query = "", submitted = ""), onLanguageChange = { chosen = it })
         compose.onNodeWithText("EN").performClick()
@@ -1813,10 +1821,10 @@ class ScreensTest {
 
     @Test
     fun aRejectedPackIsNotCredited() {
-        // ⚠️ **El pedido, literal: que un pack incompatible no se cargue de ninguna forma, «por
-        // ejemplo que no se muestre en los créditos».** Esta pantalla acredita a las fuentes del
-        // contenido que la app está usando; un pack que no se carga no aporta contenido, así que
-        // nombrarlo acá acredita algo que nadie está leyendo.
+        // ⚠️ **The request, literally: that an incompatible pack not be loaded in any way, "for
+        // instance that it not show up in the credits".** This screen credits the sources of the
+        // content the app is using; a pack that does not load contributes no content, so naming it
+        // here credits something nobody is reading.
         compose.setContent {
             AttributionScreen(
                 packs = listOf(
@@ -1855,10 +1863,10 @@ class ScreensTest {
 
     @Test
     fun whileTypingTheHistoryStays() {
-        // El reverso del anterior, y es el arreglo de D-128. Antes la primera letra hacia
-        // desaparecer encabezado, voz, palabra del dia e historial de un golpe; esa
-        // reestructuracion destruia el campo de texto y se llevaba el foco y el teclado. Con el
-        // teclado abierto `submitted` no se mueve, asi que la lista se queda como estaba.
+        // The reverse of the previous one, and it is D-128's fix. The first letter used to make
+        // the header, the voice button, the word of the day and the history disappear at once;
+        // that restructuring destroyed the text field and took the focus and the keyboard with it.
+        // With the keyboard open `submitted` does not move, so the list stays as it was.
         showSearch(readyState().copy(query = "per", submitted = "", history = recent))
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("perro"))
         compose.onNodeWithText("perro").assertExists()
@@ -1935,18 +1943,19 @@ class ScreensTest {
 
     @Test
     fun theRowKeepsTheAbbreviation() {
-        // La otra mitad del pedido --«resumidos donde no hay espacio, expandidos dentro de la
-        // ficha»-- y la que se rompe sola si alguien "unifica" las dos: en una fila de resultados
-        // "sustantivo" le come el ancho al lema, que es lo único que ahí importa.
+        // The other half of the request --"abbreviated where there is no space, expanded inside
+        // the card"-- and the one that breaks on its own if somebody "unifies" the two: in a
+        // results row "sustantivo" eats the lemma's width, which is the only thing that matters
+        // there.
         showSearch(readyState("perro"))
         compose.onNodeWithText("sust.", substring = true).assertIsDisplayed()
     }
 
     @Test
     fun theThreeTermListsEachCarryTheirOwnHeading() {
-        // Pedido: «primero mostrando la categoría y abajo las palabras». Las tres listas se ven
-        // idénticas --mismo estilo, misma posición, mismo separador-- así que la categoría es lo
-        // único que dice cuál estás leyendo. Antes era un prefijo de cuatro letras.
+        // Asked for: "showing the category first and the words below". The three lists look
+        // identical --same style, same position, same separator-- so the category is the only
+        // thing that says which you are reading. It used to be a four-letter prefix.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(
@@ -1968,8 +1977,8 @@ class ScreensTest {
 
     @Test
     fun aHeadingWithNothingUnderItIsNotDrawn() {
-        // Una acepción sin antónimos no puede mostrar «Antónimos» y nada debajo: en un reloj eso
-        // se lee como que la lista está vacía por un error.
+        // A sense with no antonyms cannot show "Antónimos" and nothing below: on a watch that
+        // reads as the list being empty because of an error.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry().copy(senses = listOf(Sense("de poco entendimiento",
@@ -1983,9 +1992,9 @@ class ScreensTest {
 
     @Test
     fun aTermThatIsNotInThePackIsStillShownJustNotAsALink() {
-        // ⚠️ La misma regla que la glosa: el color es la promesa de que lleva a algún lado. Un
-        // sinónimo que el pack no tiene **se sigue mostrando** --la fuente lo dice y esconderlo
-        // sería perder información-- pero sin pintar.
+        // ⚠️ The gloss's same rule: the colour is the promise that it leads somewhere. A synonym
+        // the pack does not have **is still shown** --the source says it and hiding it would lose
+        // information-- but unpainted.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}, resolveIn = { _, _, _ -> mapOf("bobo" to WordLink("es-def", 42L)) }) {
                 entry().copy(
@@ -1999,8 +2008,8 @@ class ScreensTest {
 
     @Test
     fun theBundledPackSaysWhyItHasNoDeleteButton() {
-        // Ya no se podía borrar --volvería sola al reiniciar-- pero la fila no lo decía: un
-        // botón que falta sin explicación se lee como un bug, no como una decisión.
+        // It could already not be deleted --it would come back on restart-- but the row did not
+        // say so: a button missing with no explanation reads as a bug, not as a decision.
         showPacks(listOf(handle(meta(packId = "es-core-wikc", name = "Español")).copy(
             isBundled = true, bytes = 7_500_000,
         )))
@@ -2009,7 +2018,7 @@ class ScreensTest {
 
     @Test
     fun anInstalledPackDoesNotSayItIsBundled() {
-        // El control: la etiqueta tiene que distinguir, no adornar.
+        // The control: the label has to distinguish, not decorate.
         showPacks(listOf(handle(meta()).copy(fileName = "es-def-wikc.db", bytes = 71_000_000)))
         assertEquals(
             0,
@@ -2020,7 +2029,7 @@ class ScreensTest {
 
     @Test
     fun onlyTheInstalledPackOffersDeleting() {
-        // Lo que ya valía y no estaba fijado por ningún test: el pack del APK no ofrece borrar.
+        // What already held and no test pinned: the APK's pack offers no delete.
         showPacks(
             listOf(
                 handle(meta(packId = "es-core-wikc", name = "Núcleo")).copy(isBundled = true),
@@ -2037,7 +2046,7 @@ class ScreensTest {
         )
     }
 
-    /** La pantalla de diccionarios, que es función de la lista de packs y de cuál está activo. */
+    /** The dictionaries screen, which is a function of the pack list and of which one is active. */
     private fun showPacks(packs: List<PackHandle.Open>, active: String? = null) {
         compose.setContent {
             PacksScreen(
@@ -2073,15 +2082,16 @@ class ScreensTest {
     }
 
     @Test
-    // El mismo calificador que el de abajo, y por la misma razon: el bloque About es lo ultimo de
-    // la lista mas larga de la app, y a 900 dp no llega a componerse -- el aserto medieria nada.
+    // The same qualifier as the one below, and for the same reason: the About block is the last
+    // thing in the app's longest list, and at 900 dp it does not get composed -- the assertion
+    // would measure nothing.
     @Config(qualifiers = "+w234dp-h1600dp")
     fun `el diagnostico dice de QUE build se trata, no solo su version`() {
-        // ⚠️ **`versionName` es el mismo en diez builds del mismo dia.** Sin el commit, *«el
-        // arreglo no funciono»* y *«el reloj corre el APK de ayer»* son el mismo reporte, y en un
-        // reloj el segundo es probable: cada cache entre la maquina y la muneca lo favorece.
-        // El `+dirty` es la mitad honesta -- casi todo lo que se instala sale de un arbol sin
-        // commitear, y ahi el hash NO identifica lo que corre.
+        // ⚠️ **`versionName` is the same across ten builds on the same day.** Without the commit,
+        // *"the fix did not work"* and *"the watch is running yesterday's APK"* are the same
+        // report, and on a watch the second is likely: every cache between the machine and the
+        // wrist favours it. The `+dirty` is the honest half -- almost everything installed comes
+        // out of an uncommitted tree, and there the hash does NOT identify what is running.
         showSettings()
         compose.onNodeWithText("abc1234567+dirty", substring = true).assertExists()
     }
@@ -2136,10 +2146,10 @@ class ScreensTest {
             ),
         )
         compose.onNodeWithText("App 9.9.9").assertIsDisplayed()
-        // ⚠️ **La cuenta de entradas por diccionario se quitó a pedido.** Era diagnóstico que no
-        // sirve para decidir nada --cuántos lemas trae un pack no dice si funciona-- y costaba
-        // una fila por diccionario en la pantalla más larga de la app. El dato que sí decide,
-        // el tamaño en disco, vive en gestión de diccionarios, que es donde se borra.
+        // ⚠️ **The per-dictionary entry count was removed on request.** It was diagnostics that
+        // decide nothing --how many lemmas a pack carries does not say whether it works-- and it
+        // cost one row per dictionary on the app's longest screen. The datum that does decide, the
+        // size on disk, lives in dictionary management, which is where you delete them.
         assertEquals(
             "ya no se nombra ningún diccionario en el diagnóstico",
             0,

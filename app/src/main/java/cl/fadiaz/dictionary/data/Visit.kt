@@ -19,15 +19,16 @@ data class Visit(
     val headword: String,
     val partOfSpeech: String?,
     /**
-     * La primera acepción, **sólo** cuando quien guarda la visita la necesita para mostrarla.
+     * The first sense, **only** when whoever stores the visit needs it in order to show it.
      *
-     * ⚠️ **La llena la caché semanal del tile y nadie más.** La palabra del día se veía como
-     * `futuro · sust.` y eso no enseña nada: la glosa es lo que la vuelve útil de un vistazo. El
-     * historial y las guardadas la dejan nula, porque su fila es de una línea y no la dibuja.
+     * ⚠️ **The tile's weekly cache fills it and nobody else.** The word of the day read as
+     * `futuro · sust.` and that teaches nothing: the gloss is what makes it useful at a glance.
+     * History and saved words leave it null, because their row is a single line and does not draw
+     * it.
      *
-     * ⚠️ **Es un contrato con el disco y por eso es opcional.** Una preferencia escrita antes de
-     * este campo tiene cuatro columnas y se sigue leyendo; el parser tolera ambas formas. Lo que
-     * no se hace es migrar: lo guardado en un reloj se lee como está.
+     * ⚠️ **It is a contract with the disk and that is why it is optional.** A preference written
+     * before this field has four columns and is still read; the parser tolerates both shapes. What
+     * is not done is migrating: what a watch stored is read as it stands.
      */
     val gloss: String? = null,
 )
@@ -51,9 +52,9 @@ internal fun serializeVisits(visits: List<Visit>): String =
             visit.entryId.toString(),
             visit.headword,
             visit.partOfSpeech ?: NO_POS,
-            // ⚠️ **Sin saltos de línea**: `\n` separa REGISTROS, así que una glosa que lo trajera
-            // partiría la lista y la segunda mitad se descartaría en silencio. Es el mismo
-            // cuidado que `payload.sanitize()` tiene con el tab.
+            // ⚠️ **No line breaks**: `\n` separates RECORDS, so a gloss carrying one would split
+            // the list and the second half would be discarded in silence. It is the same care
+            // `payload.sanitize()` takes with the tab.
             visit.gloss?.replace('\n', ' ')?.replace(SEPARATOR, " ").orEmpty(),
         ).joinToString(SEPARATOR)
     }
@@ -68,9 +69,9 @@ internal fun parseVisits(text: String): List<Visit> =
     text.lineSequence()
         .mapNotNull { line ->
             val fields = line.split(SEPARATOR)
-            // ⚠️ **`< 4` y no `!= 4`.** Exigir exactamente cuatro hacía que agregar una columna
-            // rompiera la lectura de los registros que la propia app acababa de escribir. Con
-            // esto, una preferencia vieja se lee igual y una nueva aporta lo que trae.
+            // ⚠️ **`< 4` and not `!= 4`.** Demanding exactly four made adding a column break the
+            // reading of the records the app itself had just written. With this, an old preference
+            // still reads and a new one contributes whatever it carries.
             if (fields.size < 4) return@mapNotNull null
             val entryId = fields[1].toLongOrNull() ?: return@mapNotNull null
             if (fields[0].isEmpty() || fields[2].isEmpty()) return@mapNotNull null

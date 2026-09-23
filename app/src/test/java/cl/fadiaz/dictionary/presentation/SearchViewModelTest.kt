@@ -82,11 +82,11 @@ class SearchViewModelTest {
 
     @Test
     fun una_descarga_VIEJA_de_WorkManager_no_publica_un_catalogo_vacio() = runTest {
-        // ⚠️ Visto en el emulador el 2026-09-22. WorkManager **conserva** el `WorkInfo` de un
-        // trabajo terminado, asi que al arrancar la app llega un DONE de la sesion anterior. El
-        // colector lo leia como "acaba de terminar una descarga" y republicaba el catalogo -- que
-        // en ese momento esta VACIO, porque nadie lo consulto todavia. Resultado: la pantalla
-        // decia "Nada nuevo. Lo instalado esta al dia" sin que nadie hubiera preguntado nunca.
+        // ⚠️ Seen on the emulator on 2026-09-22. WorkManager **keeps** a finished job's `WorkInfo`,
+        // so on starting the app a DONE from the previous session arrives. The collector read it
+        // as "a download has just finished" and republished the catalog -- which at that moment is
+        // EMPTY, because nobody has queried it yet. Result: the screen said "Nothing new. What is
+        // installed is up to date" without anybody ever having asked.
         val vm = SearchViewModel(
             { listos(FakeDictionary("es-def")) },
             downloadStates = flowOf(
@@ -103,12 +103,12 @@ class SearchViewModelTest {
 
     @Test
     fun una_descarga_TERMINADA_de_otra_sesion_no_se_muestra_como_en_curso() = runTest {
-        // ⚠️ Visto en el emulador el 2026-09-22, y es peor que el republicado. WorkManager
-        // conserva el trabajo SUCCEEDED, asi que al arrancar la fila de ese pack mostraba
-        // "Instalado" **y dejaba de ser pulsable** -- aunque el pack se hubiera borrado y el
-        // catalogo lo estuviera ofreciendo para descargar. No habia forma de volver a bajarlo.
+        // ⚠️ Seen on the emulator on 2026-09-22, and it is worse than the republishing.
+        // WorkManager keeps the SUCCEEDED job, so on starting, that pack's row showed "Installed"
+        // **and stopped being tappable** -- even if the pack had been deleted and the catalog was
+        // offering it for download. There was no way to get it again.
         //
-        // Un trabajo ya terminado es historia, no una descarga en curso.
+        // An already finished job is history, not a download in flight.
         val vm = SearchViewModel(
             { listos(FakeDictionary("es-def")) },
             downloadStates = flowOf(listOf(PackDownload("lo-de-ayer", DownloadPhase.DONE))),
@@ -122,15 +122,16 @@ class SearchViewModelTest {
 
     @Test
     fun volver_a_bajar_un_pack_que_YA_se_habia_bajado_antes_si_cuenta() = runTest {
-        // ⚠️ El defecto del propio arreglo, visto en el emulador el 2026-09-22. Al esconder la
-        // historia de WorkManager, un pack que ya se habia bajado en otra sesion quedaba marcado
-        // para siempre: su descarga NUEVA se escondia tambien al terminar, asi que no se
-        // recargaban los packs ni se reclasificaba. El pack quedaba en disco y la app sin verlo.
+        // ⚠️ The fix's own defect, seen on the emulator on 2026-09-22. On hiding WorkManager's
+        // history, a pack already downloaded in another session stayed marked forever: its NEW
+        // download was hidden too on finishing, so the packs were not reloaded and nothing was
+        // reclassified. The pack sat on disk with the app not seeing it.
         //
-        // Salir de la historia tiene que pasar en cuanto el pack vuelve a moverse.
+        // Leaving the history has to happen the moment the pack moves again.
         val descargas = MutableStateFlow(listOf(PackDownload("repetido", DownloadPhase.DONE)))
-        // ⚠️ Lo que de verdad importa es que se RECARGUEN los packs: sin eso el pack queda en
-        // disco y la app no lo ve hasta el proximo arranque. La fase en pantalla es el sintoma.
+        // ⚠️ What really matters is that the packs get RELOADED: without that the pack sits on
+        // disk and the app does not see it until the next launch. The phase on screen is the
+        // symptom.
         var escaneos = 0
         val vm = SearchViewModel(
             { escaneos++; listos(FakeDictionary("es-def", dataVersion = 200L)) },
@@ -166,10 +167,10 @@ class SearchViewModelTest {
 
     @Test
     fun una_descarga_que_termina_SIN_haber_consultado_tampoco_publica_nada() = runTest {
-        // ⚠️ La segunda guarda, y hace falta aparte: la primera solo cubre lo que WorkManager
-        // arrastra del arranque. Este es el caso vivo -- una descarga encolada en una sesion
-        // anterior que termina AHORA, con el usuario mirando la pantalla sin haber consultado.
-        // Sin la guarda, terminar publica una lista vacia y la pantalla dice "nada nuevo".
+        // ⚠️ The second guard, and it is needed separately: the first only covers what WorkManager
+        // drags in from startup. This is the live case -- a download queued in an earlier session
+        // that finishes NOW, with the user looking at the screen without having queried. Without
+        // the guard, finishing publishes an empty list and the screen says "nothing new".
         val descargas = MutableStateFlow(emptyList<PackDownload>())
         val vm = SearchViewModel({ listos(FakeDictionary("es-def")) }, downloadStates = descargas)
         advanceUntilIdle()
@@ -186,7 +187,7 @@ class SearchViewModelTest {
 
     @Test
     fun una_descarga_que_termina_AHORA_si_reclasifica() = runTest {
-        // La otra mitad: lo que SI tiene que pasar cuando una descarga termina de verdad.
+        // The other half: what DOES have to happen when a download really finishes.
         val descargas = MutableStateFlow(emptyList<PackDownload>())
         val vm = SearchViewModel(
             { listos(FakeDictionary("es-def", dataVersion = 200L)) },
@@ -245,16 +246,16 @@ class SearchViewModelTest {
 
     @Test
     fun un304VUELVEaClasificar_porque_lo_instalado_pudo_cambiar() = runTest {
-        // ⚠️ El aserto que paga esta seccion. El catalogo no cambio --304-- pero el usuario borro
-        // el diccionario entre las dos consultas, asi que lo que era ACTUALIZAR ahora es
-        // DESCARGAR. Reusar el resultado anterior tal cual mostraria "actualizar" un pack que ya
-        // no esta en el reloj.
+        // ⚠️ The assertion that pays for this section. The catalog did not change --304-- but the
+        // user deleted the dictionary between the two queries, so what was UPDATE is now DOWNLOAD.
+        // Reusing the previous result as it stands would show "update" for a pack that is no
+        // longer on the watch.
         val pack = FakeDictionary("es-def", dataVersion = 200L)
         val otro = FakeDictionary("se-queda", dataVersion = 5L)
         var borrado = false
         val vm = SearchViewModel(
-            // El doble tiene que ENCOGER al borrar: devolver siempre el mismo pack haria que
-            // reapareciera, y el test no probaria nada.
+            // The double has to SHRINK on deletion: always returning the same pack would make it
+            // reappear, and the test would prove nothing.
             { if (borrado) listos(otro) else listos(otro, pack) },
             fetchCatalog = { etag ->
                 if (etag == null) {
@@ -294,13 +295,13 @@ class SearchViewModelTest {
         assertEquals(CatalogState.Failed("Connection refused"), vm.state.value.catalog)
     }
 
-    // --- Varios packs del mismo idioma, conviviendo (D-136) --------------------------------
+    // --- Several packs of the same language, coexisting (D-136) ----------------------------
 
     @Test
     fun dosPacksDelMISMOIdiomaSeConsultanLosDos() = runTest {
-        // Lo que pide la convivencia: dos fuentes del mismo idioma instaladas a la vez, y la
-        // ganancia es la UNION de sus lemas. Si solo se consultara el activo, el segundo pack
-        // seria peso muerto hasta que alguien lo eligiera a mano.
+        // What coexistence asks for: two sources of the same language installed at once, and the
+        // gain is the UNION of their lemmas. If only the active one were queried, the second pack
+        // would be dead weight until somebody chose it by hand.
         val wikc = FakeDictionary(packId = "es-def-wikc", lang = "es")
         val otra = FakeDictionary(packId = "es-def-otra", lang = "es")
         val vm = SearchViewModel({ listos(wikc, otra) })
@@ -315,9 +316,9 @@ class SearchViewModelTest {
 
     @Test
     fun unPackDeOTROIdiomaNoSeConsulta() = runTest {
-        // ⚠️ La convivencia es DENTRO de un idioma. Con español e ingles instalados, escribir
-        // "casa" no puede devolver entradas inglesas: el selector sigue eligiendo en que idioma
-        // se busca (D-078), y lo que cambia es que ahora elige un IDIOMA y no un archivo.
+        // ⚠️ The coexistence is WITHIN a language. With Spanish and English installed, typing
+        // "casa" cannot return English entries: the selector still chooses which language is
+        // searched (D-078), and what changed is that it now chooses a LANGUAGE and not a file.
         val es = FakeDictionary(packId = "es-def", lang = "es")
         val en = FakeDictionary(packId = "en-def", lang = "en")
         val vm = SearchViewModel({ listos(es, en) })
@@ -350,8 +351,8 @@ class SearchViewModelTest {
 
     @Test
     fun clearQueryDejaLaBarraVaciaYElInicioComoEstaba() = runTest {
-        // Lo que pide el boton de lupa: volver a buscar **con la palabra borrada**, no con lo
-        // que habia escrito. Y es lo mismo que tiene que hacer el gesto de atras con texto.
+        // What the magnifier button asks for: searching again **with the word erased**, not with
+        // whatever was typed. And it is the same thing the back gesture with text has to do.
         val vm = conPack(FakeDictionary())
         advanceUntilIdle()
         vm.onQueryChange("casa")
@@ -369,8 +370,8 @@ class SearchViewModelTest {
 
     @Test
     fun clearQuerySaleDelModoDefiniciones() = runTest {
-        // Si no, volver a la lupa desde una busqueda por definicion dejaria la pantalla en un
-        // modo que ya no corresponde a lo que la barra muestra.
+        // Otherwise, returning to the magnifier from a definition search would leave the screen in
+        // a mode that no longer corresponds to what the bar shows.
         val vm = conPack(FakeDictionary())
         advanceUntilIdle()
         vm.onQueryChange("mover")
@@ -454,14 +455,14 @@ class SearchViewModelTest {
 
     @Test
     fun `se pueden borrar TODOS los descargados y quedarse solo con los nucleos`() = runTest {
-        // ⚠️ **Pedido explicito, y el test existe porque la premisa hay que sostenerla, no
-        // suponerla**: *«que se puedan eliminar todos los packs descargados y quedarse con
-        // ninguno, porque en teoria los packs core siempre estan disponibles»*.
+        // ⚠️ **An explicit request, and the test exists because the premise has to be sustained,
+        // not supposed**: *"that all downloaded packs can be deleted and none be left, because in
+        // theory the core packs are always available"*.
         //
-        // Lo que se comprueba es que **no hay un piso**: ni un "no podes borrar el ultimo", ni un
-        // pack que se niegue por ser el activo. Se borran los dos completos, uno tras otro, y lo
-        // que queda es exactamente el nucleo del APK -- que sigue contestando, asi que la app no
-        // cae en `NoPack`.
+        // What gets checked is that **there is no floor**: no "you cannot delete the last one",
+        // and no pack refusing because it is the active one. Both full packs are deleted, one
+        // after the other, and what is left is exactly the APK's core -- which goes on answering,
+        // so the app does not fall into `NoPack`.
         val esCore = FakeDictionary(packId = "es-core")
         val esFull = FakeDictionary(packId = "es-def")
         val enFull = FakeDictionary(packId = "en-def")
@@ -474,7 +475,7 @@ class SearchViewModelTest {
             },
         )
         advanceUntilIdle()
-        // `es-core` no se ofrece: el completo de espanol ya habla ese idioma. Los dos completos si.
+        // `es-core` is not offered: full Spanish already speaks that language. Both full ones are.
         assertEquals(listOf("es-def", "en-def"), vm.state.value.available.map { it.packId })
 
         vm.deletePack("es-def")
@@ -486,22 +487,22 @@ class SearchViewModelTest {
             listOf("es-core"), vm.state.value.available.map { it.packId },
             "borrar todos los descargados tiene que dejar el nucleo, no un error",
         )
-        // Y sigue habiendo con que buscar: el nucleo queda ACTIVO. Sin esto el test pasaria
-        // igual con una app que borro todo y se quedo sin diccionario activo.
+        // And there is still something to search with: the core stays ACTIVE. Without this the
+        // test would pass just the same with an app that deleted everything and was left with no
+        // active dictionary.
         assertEquals("es-core", vm.state.value.active?.packId)
     }
 
     @Test
     fun `el nucleo de otro idioma SOBREVIVE a tener un diccionario completo instalado`() = runTest {
-        // ⚠️ **El defecto que este test encontro, y es la forma exacta del bug que el repo no
-        // puede ver.** La regla de D-088 era *"si hay algun pack instalado, esconder todos los
-        // del APK"*, escrita cuando lo incluido era un juguete de 28 entradas cuya etiqueta
-        // chocaba con la del pack real. D-175 puso ahi los **nucleos de verdad** y nadie volvio a
-        // mirar la regla.
+        // ⚠️ **The defect this test found, and it is the exact shape of the bug the repo cannot
+        // see.** D-088's rule was *"if any pack is installed, hide all of the APK's"*, written
+        // when what shipped was a 28-entry toy whose tag collided with the real pack's. D-175 put
+        // the **real cores** there and nobody looked at the rule again.
         //
-        // Con el espanol completo descargado, el filtro se llevaba **los dos** nucleos: `en-core`
-        // quedaba instalado, abierto y consultable, y **sin chip de idioma**. El ingles
-        // desaparecia entero de la interfaz sin un error, sin un log y sin nada que fallara.
+        // With full Spanish downloaded, the filter took **both** cores away: `en-core` stayed
+        // installed, open and queryable, and **with no language chip**. English disappeared
+        // entirely from the interface with no error, no log and nothing failing.
         val esCore = FakeDictionary(packId = "es-core", lang = "es")
         val enCore = FakeDictionary(packId = "en-core", lang = "en")
         val esFull = FakeDictionary(packId = "es-def", lang = "es")
@@ -515,10 +516,10 @@ class SearchViewModelTest {
             "en-core" in ofrecidos,
             "el nucleo de ingles desaparecio y no hay otro pack que hable ingles: $ofrecidos",
         )
-        // Y la mitad que D-088 queria sigue valiendo: el nucleo de espanol SI se hace a un lado,
-        // porque el completo ya habla ese idioma. Sin esto el arreglo seria "mostrarlo todo".
+        // And the half D-088 wanted still holds: the Spanish core DOES step aside, because the
+        // full one already speaks that language. Without this the fix would be "show everything".
         assertTrue("es-core" !in ofrecidos, "el nucleo de espanol sobraba: $ofrecidos")
-        // Lo que el usuario ve: dos idiomas elegibles, no uno.
+        // What the user sees: two choosable languages, not one.
         assertEquals(listOf("en", "es"), idiomasDisponibles(vm.state.value.available))
     }
 
@@ -1133,14 +1134,14 @@ class SearchViewModelTest {
 
     @Test
     fun elIDIOMA_ELEGIDO_SOBREVIVE_al_reinicio_en_un_pack_BIDIRECCIONAL() = runTest {
-        // ⚠️ **El bug que esto cierra lo introdujo el pack bidireccional.** Lo que se persiste
-        // es la elección del usuario, y hasta acá era un `packId`. Con un pack que habla DOS
-        // idiomas eso dejó de alcanzar: al reiniciar, `activeLang` caía al **primero** de
-        // `meta.langs`, así que alguien que eligió inglés volvía a abrir la app en español —
-        // sin error, y pareciendo que el chip no hace nada.
+        // ⚠️ **The bidirectional pack introduced the bug this closes.** What gets persisted is the
+        // user's choice, and until here it was a `packId`. With a pack that speaks TWO languages
+        // that stopped being enough: on restart, `activeLang` fell back to the **first** of
+        // `meta.langs`, so somebody who chose English reopened the app in Spanish -- with no
+        // error, and looking as though the chip does nothing.
         //
-        // Lo que se guarda ahora es el **idioma**, que además es lo que ya devolvía el respaldo
-        // cuando no había nada guardado: la config regional del reloj.
+        // What is stored now is the **language**, which is also what the fallback already returned
+        // when nothing was stored: the watch's regional configuration.
         val bilingue = FakeDictionary("es-tr-enwikt", "es", langs = listOf("es", "en"))
         val vm = SearchViewModel(
             { PackSet.Ready(handle(bilingue), listOf(handle(bilingue))) },
@@ -1231,13 +1232,13 @@ class SearchViewModelTest {
 
     @Test
     fun loQueSE_PERSISTE_PARA_EL_TILE_no_incluye_packs_desinstalados() = runTest {
-        // ⚠️ **Segunda instancia de la misma clase que el bug del tile**, encontrada barriendo
-        // a propósito en vez de esperar a tropezarla. La app filtra el historial a los packs
-        // instalados (`visibleOnes`) y el tile leía `PackStore.history()` **en crudo**: mostraba
-        // una palabra de un diccionario borrado, que al tocarla no abre nada.
+        // ⚠️ **A second instance of the same class as the tile bug**, found by sweeping on purpose
+        // rather than waiting to trip over it. The app filters the history to the installed packs
+        // (`visibleOnes`) and the tile read `PackStore.history()` **raw**: it showed a word from a
+        // deleted dictionary, which opens nothing when tapped.
         //
-        // La clase es *«una regla que vale en una superficie y no en su paralela»*, y las dos
-        // veces el síntoma fue el mismo: el error vive donde nadie lo reporta.
+        // The class is *"a rule that holds on one surface and not on its parallel"*, and both
+        // times the symptom was the same: the error lives where nobody reports it.
         var paraElTile: List<Visit> = emptyList()
         val es = FakeDictionary("es-def", "es")
         val vm = SearchViewModel(
@@ -1260,21 +1261,20 @@ class SearchViewModelTest {
 
     @Test
     fun unPackNUCLEO_SI_genera_palabra_del_dia() = runTest {
-        // ⚠️ **Esto invierte la regla anterior, y el motivo es que el defecto no era del núcleo.**
-        // Se los excluía porque un núcleo son las 8.000 palabras más frecuentes y elegir la de
-        // mejor rank daba *la más común de las más comunes*: en el emulador salieron `my` y `un`.
-        // Pero los packs COMPLETOS tienen el mismo sesgo, sólo diluido — medido sobre 112 días,
-        // el 41 % (es) y el 16 % (en) de los días caían igual en la zona funcional. La regla de
-        // selección era el problema; excluir los núcleos lo tapaba en una mitad.
+        // ⚠️ **This inverts the earlier rule, and the reason is that the defect was not the
+        // core's.** They were excluded because a core is the 8,000 most frequent words and picking
+        // the best ranked gave *the most common of the most common*: on the emulator out came `my`
+        // and `un`. But the FULL packs have the same bias, only diluted -- measured over 112 days,
+        // 41 % (es) and 16 % (en) of the days landed in the function-word zone just the same. The
+        // selection rule was the problem; excluding the cores covered it up in one half.
         //
-        // Lo arregla `WordOfTheDay.RANK_FLOOR`: con él los cuatro packs reales caen a **0 %** y
-        // un núcleo devuelve `acción`, `anillo`, `Christmas`, `afternoon`.
+        // `WordOfTheDay.RANK_FLOOR` fixes it: with it all four real packs drop to **0 %** and a
+        // core returns `acción`, `anillo`, `Christmas`, `afternoon`.
         //
-        // ⚠️ **Lo que esto cierra**: una instalación recién hecha lleva sólo los núcleos del APK,
-        // así que hasta acá el inicio no mostraba palabra del día **en el primer arranque de
-        // cada usuario**. Ahora sí.
+        // ⚠️ **What this closes**: a fresh install carries only the APK's cores, so until here the
+        // home showed no word of the day **on every user's first launch**. Now it does.
         val nucleo = FakeDictionary("es-core", "es", entryCount = 300, tier = PackTier.CORE)
-        // Por encima del piso: es un núcleo real, no una muestra de palabras funcionales.
+        // Above the floor: it is a real core, not a sample of function words.
         nucleo.summaries = (1L..300L).associateWith { EntrySummary(it, "nucleo$it", "noun", 400) }
         val vm = SearchViewModel(
             { PackSet.Ready(handle(nucleo), listOf(handle(nucleo))) },
@@ -1290,20 +1290,20 @@ class SearchViewModelTest {
 
     @Test
     fun elTILE_tampoco_cachea_palabras_de_un_pack_de_TRADUCCION() = runTest {
-        // ⚠️ **La regla de D-200 valía en la pantalla y NO en el tile**, y el tile es el peor
-        // sitio para que falle: nadie lo abre a propósito, así que una palabra equivocada ahí no
-        // la reporta nadie — lo dice el propio comentario de `onLanguageChange`.
+        // ⚠️ **D-200's rule held on the screen and NOT on the tile**, and the tile is the worst
+        // place for it to fail: nobody opens it on purpose, so a wrong word there gets reported by
+        // nobody -- `onLanguageChange`'s own comment says so.
         //
-        // `cacheWeekForTile` recibía el pack ACTIVO, y el activo puede ser el bilingüe: es el
-        // más grande (209.484 contra 152.281), así que `chooseActive` lo prefiere.
+        // `cacheWeekForTile` received the ACTIVE pack, and the active one can be the bilingual:
+        // it is the largest (209,484 against 152,281), so `chooseActive` prefers it.
         var cacheado: List<Visit> = emptyList()
         val bi = FakeDictionary("es-tr-enwikt", "es", langs = listOf("es", "en"),
                                 kind = PackKind.BILINGUAL, entryCount = 300)
         val defs = FakeDictionary("es-def-wikc", "es", entryCount = 200)
-        // ⚠️ **Los `entryCount` son chicos y los `summaries` los cubren enteros.** Con los
-        // valores reales --209.484 y 152.281-- `pick` sortea ids que el fake no tiene, devuelve
-        // null y el tile no cachea NADA: el test pasaba sin probar nada. Lo encontró una sonda
-        // `isNotEmpty` puesta a propósito antes de creerle al verde.
+        // ⚠️ **The `entryCount` values are small and the `summaries` cover them entirely.** With
+        // the real values --209,484 and 152,281-- `pick` draws ids the fake does not have, returns
+        // null and the tile caches NOTHING: the test passed without testing anything. An
+        // `isNotEmpty` probe put there on purpose before believing the green found it.
         bi.summaries = (1L..300L).associateWith {
             EntrySummary(it, "bilingue$it", "noun", 100)
         }
@@ -1334,8 +1334,8 @@ class SearchViewModelTest {
         advanceUntilIdle()
         vm.onLanguageChange("en")
         advanceUntilIdle()
-        // Lo que se recuerda es el IDIOMA y ya no el `packId`: un pack bidireccional habla dos,
-        // asi que su id no dice en cual se estaba buscando.
+        // What is remembered is the LANGUAGE and no longer the `packId`: a bidirectional pack
+        // speaks two, so its id does not say which one was being searched.
         assertEquals("en", recordado)
     }
 
@@ -1372,9 +1372,9 @@ class SearchViewModelTest {
 
     @Test
     fun aRejectedPackIsNotOfferedInTheSelector() = runTest {
-        // ⚠️ **Los dos canales tienen que separarse en las DOS direcciones.** Un rechazado que
-        // se cuela en `available` es un chip de idioma que no busca nada; uno que falta en
-        // `rejected` es un archivo que ocupa lugar y no aparece en ninguna parte.
+        // ⚠️ **The two channels have to separate in BOTH directions.** A rejected one that slips
+        // into `available` is a language chip that searches nothing; one missing from `rejected`
+        // is a file that takes space and appears nowhere.
         val es = FakeDictionary("es-def", "es")
         val roto = PackHandle.Incompatible("en-def.db", 1_000L, PackRejection.KEYS)
         val vm = SearchViewModel({ PackSet.Ready(handle(es), listOf(handle(es), roto)) })

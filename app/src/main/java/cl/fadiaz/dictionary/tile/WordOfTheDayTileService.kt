@@ -61,10 +61,9 @@ class WordOfTheDayTileService : TileService() {
             }
         }
 
-        // Ver el log gemelo en HistoryTileService: es el unico rastro de que el tile corrio.
-        // `days` es lo que de verdad importa aca -- cero ventanas significa estado vacio, y esa
-        // es la forma en que la palabra del dia ha fallado dos veces (packs de traduccion, y
-        // despues los nucleos).
+        // See the twin log in HistoryTileService: it is the only trace that the tile ran. `days`
+        // is what really matters here -- zero windows means the empty state, and that is the way
+        // the word of the day has failed twice (translation packs, and then the cores).
         DictLog.i {
             "tile palabra del dia: since=$since palabras=${words.size} ventanas=${days.size} " +
                 "en ${(System.nanoTime() - desde) / 1_000_000} ms"

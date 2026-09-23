@@ -54,9 +54,9 @@ fun SettingsScreen(
      */
     uiLanguage: String?,
     appVersion: String,
-    /** El commit del que salió este APK, con `+dirty` si el árbol no estaba limpio. */
+    /** The commit this APK came out of, with `+dirty` if the tree was not clean. */
     buildCommit: String,
-    /** Cuándo se armó, al minuto y en UTC. */
+    /** When it was built, to the minute and in UTC. */
     buildTime: String,
     onManagePacks: () -> Unit,
     onScaleChange: (TextScale) -> Unit,
@@ -193,19 +193,20 @@ fun SettingsScreen(
             // push the settings somebody actually changes off the screen.
             item(key = "cabecera-acerca") { ListHeader { Text(stringResource(R.string.settings_about)) } }
             item(key = "version") { Diagnostic(stringResource(R.string.settings_version, appVersion)) }
-            // ⚠️ **La identidad del build, y es la fila que decide si vale la pena leer el resto.**
-            // `versionName` es el mismo en diez builds del mismo día; esto dice de cuál se trata.
-            // Sin ella, *«el arreglo no funcionó»* y *«el reloj corre el APK de ayer»* son el
-            // mismo reporte. El `+dirty` es la mitad honesta: casi todo lo que se instala en el
-            // reloj sale de un árbol sin commitear, y ahí el hash NO identifica lo que corre.
+            // ⚠️ **The build's identity, and it is the row that decides whether the rest is worth
+            // reading.** `versionName` is the same across ten builds on the same day; this says
+            // which one it is. Without it, *"the fix did not work"* and *"the watch is running
+            // yesterday's APK"* are the same report. The `+dirty` is the honest half: almost
+            // everything installed on the watch comes out of an uncommitted tree, and there the
+            // hash does NOT identify what is running.
             item(key = "build") {
                 Diagnostic(stringResource(R.string.settings_build, buildCommit, buildTime))
             }
-            // ⚠️ **La cuenta de entradas por diccionario se quitó a pedido.** Era un dato de
-            // diagnóstico que nadie usa para decidir nada: cuántos lemas trae un pack no dice si
-            // funciona, y ocupaba una fila por diccionario en la pantalla más larga de la app.
-            // Lo que sí sirve para decidir --el tamaño en disco-- vive en gestión de
-            // diccionarios, que es donde se borra.
+            // ⚠️ **The per-dictionary entry count was removed on request.** It was a diagnostic
+            // figure nobody uses to decide anything: how many lemmas a pack carries does not say
+            // whether it works, and it took one row per dictionary on the longest screen in the
+            // app. What IS useful for deciding --the size on disk-- lives in dictionary
+            // management, which is where you delete them.
         }
     }
 }
@@ -223,11 +224,11 @@ private fun Diagnostic(text: String) {
 }
 
 /**
- * El nombre de cada paso de [TextScale].
+ * The name of each [TextScale] step.
  *
- * ⚠️ **Un `when` exhaustivo y no un `if/else`**, que es lo que habia: con dos valores el `else`
- * funcionaba, y al agregar el tercero habria etiquetado `SMALL` como "Grande" **sin un solo
- * error de compilacion**. Asi, agregar un paso no compila hasta nombrarlo.
+ * ⚠️ **An exhaustive `when` and not an `if/else`**, which is what was there: with two values the
+ * `else` worked, and adding the third would have labelled `SMALL` as "Large" **without a single
+ * compilation error**. This way, adding a step does not compile until it is named.
  */
 @StringRes
 private fun scaleLabel(scale: TextScale): Int = when (scale) {

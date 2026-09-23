@@ -50,13 +50,13 @@ import kotlinx.coroutines.launch
 data class SearchState(
     val query: String = "",
     /**
-     * Lo que la LISTA refleja, que no siempre es lo que el campo muestra.
+     * What the LIST reflects, which is not always what the field shows.
      *
-     * Con el teclado abierto se escribe sin buscar (D-128): `query` avanza con cada tecla y
-     * `submitted` se queda quieto. Sin esa separacion, la primera letra hace desaparecer
-     * encabezado, voz, palabra del dia e historial de un golpe, la lista se reestructura entera,
-     * y el campo de texto se destruye y se recompone **llevandose el foco y el teclado**. Borrar
-     * la ultima letra hace lo mismo al reves.
+     * With the keyboard open you type without searching (D-128): `query` advances with every key
+     * and `submitted` stays put. Without that separation, the first letter makes the header, the
+     * voice button, the word of the day and the history disappear at once, the list restructures
+     * whole, and the text field is destroyed and recomposed **taking the focus and the keyboard
+     * with it**. Deleting the last letter does the same in reverse.
      */
     val submitted: String = "",
     val results: List<Suggestion> = emptyList(),
@@ -64,39 +64,39 @@ data class SearchState(
     /** The pack being searched. Its `attribution` and `license` are the ones shown. */
     val active: PackMetadata? = null,
     /**
-     * El idioma en el que se busca.
+     * The language being searched in.
      *
-     * ⚠️ **Existe porque [active] dejo de contestarlo.** Un pack bidireccional habla dos idiomas,
-     * asi que saber cual esta abierto ya no dice en cual se busca: `es-tr-enwikt` tiene `casa` y
-     * `house`. El chip elige esto; el pack se deriva.
+     * ⚠️ **It exists because [active] stopped answering that.** A bidirectional pack speaks two
+     * languages, so knowing which one is open no longer says which one is being searched:
+     * `es-tr-enwikt` has `casa` and `house`. The chip chooses this; the pack is derived.
      */
     val activeLang: String? = null,
     /**
-     * El catalogo de descarga. **[CatalogState.Idle] hasta que el usuario aprieta el boton.**
+     * The download catalog. **[CatalogState.Idle] until the user presses the button.**
      *
-     * Vive en el estado y no en la pantalla para que sobreviva a navegar y volver: consultar
-     * cuesta red, y perder el resultado por entrar a una ficha haria que el usuario pague dos
-     * veces por la misma respuesta.
+     * It lives in the state and not in the screen so it survives navigating away and back:
+     * querying costs network, and losing the result by opening a card would make the user pay
+     * twice for the same answer.
      */
     val catalog: CatalogState = CatalogState.Idle,
-    /** Descargas en curso por `packId`. Vacio cuando no hay ninguna. */
+    /** Downloads in flight by `packId`. Empty when there are none. */
     val downloads: Map<String, PackDownload> = emptyMap(),
     /**
      * Every pack the app knows about. It is what the selector draws.
      *
-     * ⚠️ **Lleva tambien los rechazados**, como `PackHandle.Incompatible`, y `offerable` los
-     * saca del selector. Ya no hay una lista aparte de cadenas: un rechazado es una fila mas de
-     * la pantalla de diccionarios, con su motivo, y no una nota al pie en los creditos.
+     * ⚠️ **It carries the rejected ones too**, as `PackHandle.Incompatible`, and `offerable` takes
+     * them out of the selector. There is no longer a separate list of strings: a rejected pack is
+     * one more row on the dictionaries screen, with its reason, and not a footnote in the credits.
      */
     val available: List<PackHandle> = emptyList(),
     /**
-     * Los `.db` que estan en el disco y **no se cargan**, con su motivo.
+     * The `.db` files that are on disk and **do not load**, with their reason.
      *
-     * ⚠️ **Viajan aparte de [available] a proposito.** Las dos pantallas que leen packs quieren
-     * listas distintas y confundirlas es un bug en cada direccion: el selector del inicio no
-     * puede ofrecer un diccionario que no busca, y la pantalla de diccionarios **tiene** que
-     * mostrar lo que ocupa lugar en el disco. Un solo campo filtrado en cada uso termina
-     * ofreciendo lo que no sirve o escondiendo lo que hay.
+     * ⚠️ **They travel apart from [available] on purpose.** The two screens that read packs want
+     * different lists and confusing them is a bug in either direction: the home's selector cannot
+     * offer a dictionary that searches nothing, and the dictionaries screen **has** to show what
+     * takes space on disk. A single field filtered at each use ends up either offering what is
+     * useless or hiding what is there.
      */
     val rejected: List<PackHandle.Incompatible> = emptyList(),
     val mode: Mode = Mode.NORMAL,
@@ -149,13 +149,13 @@ data class SearchState(
 class SearchViewModel(
     private val openPacks: suspend (onExtracting: () -> Unit) -> PackSet,
     /**
-     * El **idioma** de la última vez, o el del reloj. Nunca el orden alfabético.
+     * Last time's **language**, or the watch's. Never alphabetical order.
      *
-     * ⚠️ **Era un `packId` y con un pack bidireccional dejó de alcanzar**: uno solo habla dos
-     * idiomas, así que recordar cuál estaba abierto no dice en cuál se estaba buscando. Al
-     * reiniciar, quien había elegido inglés volvía al español — sin error, y pareciendo que el
-     * chip no hace nada. Un `packId` viejo guardado sigue funcionando: `chooseActive` lo prueba
-     * primero y sólo después como idioma.
+     * ⚠️ **It was a `packId` and with a bidirectional pack it stopped being enough**: a single one
+     * speaks two languages, so remembering which was open does not say which was being searched.
+     * On restart, somebody who had chosen English came back to Spanish -- with no error, and
+     * looking as though the chip does nothing. An old stored `packId` still works: `chooseActive`
+     * tries it first and only then as a language.
      */
     private val preferred: () -> String? = { null },
     private val saveActiveLanguage: (lang: String) -> Unit = {},
@@ -163,16 +163,16 @@ class SearchViewModel(
     private val savedHistory: () -> List<Visit> = { emptyList() },
     private val saveHistory: (List<Visit>) -> Unit = {},
     /**
-     * Lo que el **tile** de recientes puede mostrar: el historial ya filtrado a packs instalados.
+     * What the recents **tile** can show: the history already filtered to installed packs.
      *
-     * ⚠️ **Va por una clave aparte y no reemplaza al historial completo.** La app esconde las
-     * visitas de un pack desinstalado (`visibleOnes`) pero las **conserva**: reinstalar el
-     * diccionario las devuelve. El tile, en cambio, no puede filtrar por su cuenta --no sabe qué
-     * packs hay sin abrirlos, y abrir un pack en un tile está prohibido (D-106)-- así que lee una
-     * lista ya resuelta.
+     * ⚠️ **It goes under a key of its own and does not replace the full history.** The app hides
+     * the visits of an uninstalled pack (`visibleOnes`) but **keeps** them: reinstalling the
+     * dictionary brings them back. The tile, by contrast, cannot filter on its own --it does not
+     * know which packs are there without opening them, and opening a pack in a tile is forbidden
+     * (D-106)-- so it reads an already resolved list.
      *
-     * Es el mismo patrón que la semana de palabras del día, y por el mismo motivo: lo que un tile
-     * necesita lo deja escrito la app, que sí tiene el contexto.
+     * It is the same pattern as the week of words of the day, and for the same reason: what a tile
+     * needs is left written by the app, which does have the context.
      */
     private val saveTileHistory: (List<Visit>) -> Unit = {},
     /**
@@ -214,18 +214,18 @@ class SearchViewModel(
      */
     private val notifyTiles: () -> Unit = {},
     /**
-     * Le pregunta al catalogo por el indice, pasandole el `ETag` que se tenga.
+     * Asks the catalog for the index, passing whatever `ETag` is held.
      *
-     * Llega como parametro y no se llama a [CatalogClient] directo para que los tests puedan
-     * ejercitar la pantalla **sin red**: el doble devuelve un [CatalogFetch] y ya. Mismo patron
-     * que `openPacks`.
+     * It arrives as a parameter and [CatalogClient] is not called directly so the tests can
+     * exercise the screen **with no network**: the double returns a [CatalogFetch] and that is
+     * all. Same pattern as `openPacks`.
      */
     private val fetchCatalog: suspend (etag: String?) -> CatalogFetch = { CatalogFetch.NotModified },
-    /** Encola la descarga de un pack. La hace WorkManager con las restricciones de D-029. */
+    /** Queues a pack's download. WorkManager does it with D-029's constraints. */
     private val startDownload: (CatalogPack) -> Unit = {},
-    /** Parar una descarga en curso y liberar su parcial. Ver `DownloadPackWorker.cancel`. */
+    /** Stopping a download in flight and freeing its partial. See `DownloadPackWorker.cancel`. */
     private val cancelDownload: (CatalogPack) -> Unit = {},
-    /** Lo que WorkManager va diciendo de las descargas en curso. */
+    /** What WorkManager keeps saying about the downloads in flight. */
     private val downloadStates: Flow<List<PackDownload>> = flowOf(emptyList()),
 ) : ViewModel() {
 
@@ -276,7 +276,7 @@ class SearchViewModel(
     private var visits: List<Visit> = emptyList()
     private var favoriteVisits: List<Visit> = emptyList()
 
-    /** El teclado esta abierto. Ver [onTypingChanged]. */
+    /** The keyboard is open. See [onTypingChanged]. */
     private var typing = false
 
     private val queries = MutableStateFlow("")
@@ -287,9 +287,9 @@ class SearchViewModel(
         favoriteVisits = savedFavorites()
         _state.update { it.copy(settings = savedSettings(), favorites = favoriteVisits) }
         viewModelScope.launch {
-            // La fase de arranque que no se ve desde `am start -W`: ese numero termina en el
-            // primer frame, y los packs abren DESPUES, en IO. Sin esto no habia forma de saber si
-            // la espera hasta poder buscar la ponen los packs o Compose.
+            // The startup phase `am start -W` cannot see: that number ends at the first frame, and
+            // the packs open AFTERWARDS, on IO. Without this there was no way to know whether the
+            // wait until you can search is put there by the packs or by Compose.
             val desde = System.nanoTime()
             visits = savedHistory()
             loadPacks()
@@ -319,8 +319,8 @@ class SearchViewModel(
                     // one ran, its result is no longer the one on screen. And nothing is
                     // published in definition mode: there the other query is in charge.
                     if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
-                        // `submitted` y no `query`: publicar `query` pisaria lo que el usuario
-                        // esta escribiendo en ese instante.
+                        // `submitted` and not `query`: publishing `query` would overwrite what the
+                        // user is typing at that instant.
                         _state.update { it.copy(submitted = text, results = results) }
                     }
                 }
@@ -364,9 +364,9 @@ class SearchViewModel(
                         // D-031: the attribution comes from the pack, not from a constant. A
                         // pack from another source brings its own license and must show it.
                         active = chosen.metadata,
-                        // ⚠️ **Lo guardado manda sobre el primer idioma del pack**, y ésa es la
-                        // mitad del arreglo: `langs.first()` daría siempre `es` en un pack
-                        // bidireccional, borrando la elección del usuario en cada arranque.
+                        // ⚠️ **What was stored wins over the pack's first language**, and that is
+                        // half the fix: `langs.first()` would always give `es` in a bidirectional
+                        // pack, erasing the user's choice on every launch.
                         activeLang = it.activeLang
                             ?: preferido.takeIf { l -> chosen.metadata.speaks(l) }
                             ?: chosen.metadata.langs.firstOrNull(),
@@ -378,10 +378,10 @@ class SearchViewModel(
                         history = visibleOnes(visits),
                     )
                 }
-                // ⚠️ **Acá y no sólo al visitar**, porque es el único momento en que se sabe qué
-                // packs hay: si se desinstaló un diccionario entre dos arranques, el tile sigue
-                // mostrando sus palabras hasta que alguien abra una nueva. Reescribirlo al abrir
-                // los packs lo corrige sin esperar a nada.
+                // ⚠️ **Here and not only on visiting**, because it is the only moment when which
+                // packs are there is known: if a dictionary was uninstalled between two launches,
+                // the tile goes on showing its words until somebody opens a new one. Rewriting it
+                // when the packs open fixes that without waiting for anything.
                 saveTileHistory(visibleOnes(visits))
                 // For ALL the offered ones, not just the active: the demo is left out
                 // because `offerable` already removed it when a real dictionary exists.
@@ -392,8 +392,8 @@ class SearchViewModel(
                 cacheWeekForTile(chosen.source)
             }
 
-            // Sin texto: la logica de :app no puede traducir (D-072), asi que emite un ESTADO
-            // y la pantalla lo resuelve (D-127).
+            // No text: `:app`'s logic cannot translate (D-072), so it emits a STATE and the screen
+            // resolves it (D-127).
             PackSet.NoPack -> _state.update { it.copy(status = SearchState.Status.NoDictionary) }
 
             is PackSet.Unusable -> _state.update {
@@ -409,24 +409,25 @@ class SearchViewModel(
      * `SearchRepository`'s business, and it does not promise that `score` is comparable across
      * packs built from different dumps.
      *
-     * ⚠️ **Un pack de otro idioma ya no se deja afuera del todo: pasa a ser el respaldo.** Antes
-     * se descartaba con el argumento de que *«no es una respuesta peor, es la respuesta a otra
-     * pregunta»*, y eso es cierto **mientras el idioma activo conteste algo**. Cuando no contesta
-     * nada parecido a lo escrito, la pregunta que el usuario hizo de verdad era la otra: escribió
-     * una palabra inglesa con español activo. `SearchRepository` decide cuándo, y su umbral está
-     * medido -- 0 de 400 lemas españoles comunes lo disparan.
+     * ⚠️ **A pack in another language is no longer left out entirely: it becomes the fallback.**
+     * It used to be discarded on the argument that *"it is not a worse answer, it is the answer to
+     * another question"*, and that is true **while the active language answers something**. When
+     * it answers nothing resembling what was typed, the question the user really asked was the
+     * other one: they typed an English word with Spanish active. `SearchRepository` decides when,
+     * and its threshold is measured -- 0 of 400 common Spanish lemmas trigger it.
      */
     private fun repositoryFor(active: DictionarySource, idioma: String?): SearchRepository {
-        // ⚠️ **No se consulta todo lo instalado, y ésa es la diferencia.** `packsToQuery` saca
-        // los builds viejos de un mismo diccionario y los packs que otro contiene; Ajustes sigue
-        // viendo la lista entera, porque lo que no se consulta igual ocupa disco y hay que poder
+        // ⚠️ **Not everything installed gets queried, and that is the difference.**
+        // `packsToQuery` drops the old builds of a same dictionary and the packs another one
+        // contains; Settings still sees the whole list, because what is not queried still takes
+        // disk and has to be
         val consultables = packsToQuery(opened)
-        // El activo ya viene de `activePack`, o sea de estas mismas reglas, así que está en la
-        // lista. Se pone primero porque en un empate exacto gana el que el usuario eligió.
-        // ⚠️ **`answersFor` y no `langSource ==`, porque un pack BILINGÜE contesta por sus dos
-        // idiomas.** `es-tr-enwikt` declara `langSource = es`, así que con inglés activo caía en
-        // `otrosIdiomas` — que desde D-189 no contestan nunca. El único pack con traducciones
-        // quedaba invisible justo en la dirección `en → es`, que es la mitad de su razón de ser.
+        // The active one already comes from `activePack`, that is, from these same rules, so it is
+        // in the list. It goes first because on an exact tie the one the user chose wins.
+        // ⚠️ **`answersFor` and not `langSource ==`, because a BILINGUAL pack answers for both its
+        // languages.** `es-tr-enwikt` declares `langSource = es`, so with English active it fell
+        // into `otrosIdiomas` -- which since D-189 never answer. The only pack with translations
+        // was invisible precisely in the `en → es` direction, which is half its reason for being.
         val mismoIdioma = consultables.filter { it !== active && answersFor(it, idioma) }
         val otrosIdiomas = consultables.filter { !answersFor(it, idioma) }
         return SearchRepository(
@@ -438,16 +439,16 @@ class SearchViewModel(
     }
 
     /**
-     * Consulta el catalogo. **Solo desde el boton de la pantalla de gestion.**
+     * Queries the catalog. **Only from the management screen's button.**
      *
-     * ⚠️ **No se llama al entrar a la pantalla**, y eso es la decision, no una omision: la guia
-     * oficial de Wear OS clasifica el acceso a red como *very high impact*, por encima de encender
-     * la pantalla (D-029, `docs/bateria.md`). Un sondeo automatico seria el gasto mas caro que
-     * tiene la app, y el usuario no lo pidio.
+     * ⚠️ **It is not called on entering the screen**, and that is the decision, not an omission:
+     * the official Wear OS guidance classifies network access as *very high impact*, above turning
+     * the screen on (D-029, `docs/bateria.md`). Automatic polling would be the most expensive
+     * thing the app does, and the user did not ask for it.
      *
-     * Un `304` reusa los packs que ya se trajeron pero **vuelve a clasificar**: entre las dos
-     * consultas el usuario pudo borrar un diccionario, y entonces lo que era "instalado" pasa a
-     * ser "descargar" sin que el catalogo haya cambiado una coma.
+     * A `304` reuses the packs already fetched but **classifies again**: between the two queries
+     * the user may have deleted a dictionary, and then what was "installed" becomes "download"
+     * without the catalog having changed a comma.
      */
     fun onCheckCatalog() {
         if (_state.value.catalog is CatalogState.Checking) return
@@ -467,19 +468,20 @@ class SearchViewModel(
         }
     }
 
-    /** Encola la descarga de un pack del catalogo. */
+    /** Queues the download of a catalog pack. */
     fun onDownload(pack: CatalogPack) {
         DictLog.i { "descarga pedida: ${pack.packId} (${pack.bytes / 1_048_576} MB)" }
         startDownload(pack)
     }
 
     /**
-     * Para una descarga en curso y **saca su fila de la pantalla en el acto**.
+     * Stops a download in flight and **takes its row off the screen at once**.
      *
-     * ⚠️ **Se actualiza el estado local ADEMAS de cancelar, y no es redundante.** WorkManager
-     * avisa de la cancelacion por su `Flow`, pero no en el mismo frame: entre el toque y el aviso
-     * la fila seguiria diciendo *"descargando 3 MB de 24"* sobre algo ya cancelado. En un reloj
-     * ese hueco se lee como que el boton no hizo nada, y el segundo toque es el reflejo.
+     * ⚠️ **The local state is updated AS WELL AS cancelling, and that is not redundant.**
+     * WorkManager reports the cancellation through its `Flow`, but not in the same frame: between
+     * the tap and the report the row would go on saying *"downloading 3 MB of 24"* about something
+     * already cancelled. On a watch that gap reads as the button having done nothing, and the
+     * second tap is the reflex.
      */
     fun onCancelDownload(pack: CatalogPack) {
         DictLog.i { "descarga cancelada: ${pack.packId}" }
@@ -488,25 +490,25 @@ class SearchViewModel(
     }
 
     /**
-     * Sigue lo que WorkManager dice, y **recarga los packs cuando uno termina**.
+     * Follows what WorkManager says, and **reloads the packs when one finishes**.
      *
-     * ⚠️ Sin esa recarga el pack estaria en disco y la app no lo veria hasta el proximo arranque:
-     * el escaneo es una sola vez, en este mismo `init`. Y despues se vuelve a clasificar, para que
-     * la fila pase de "descargar" a estar arriba, entre lo instalado.
+     * ⚠️ Without that reload the pack would be on disk and the app would not see it until the next
+     * launch: the scan happens once, in this same `init`. And afterwards it classifies again, so
+     * the row moves from "download" to sitting above, among the installed ones.
      */
     private fun seguirDescargas() {
         viewModelScope.launch {
-            // ⚠️ **WorkManager CONSERVA los trabajos terminados**, asi que la primera emision de
-            // cada arranque trae los DONE y FAILED de sesiones anteriores. Eso causo dos defectos
-            // distintos, vistos en el emulador el 2026-09-22:
+            // ⚠️ **WorkManager KEEPS finished jobs**, so every launch's first emission carries the
+            // DONE and FAILED ones from earlier sessions. That caused two distinct defects, seen
+            // on the emulator on 2026-09-22:
             //
-            //  1. Se leian como "acaba de terminar una descarga" y republicaban el catalogo
-            //     estando vacio: la pantalla decia "Nada nuevo" sin que nadie hubiera preguntado.
-            //  2. Se mostraban como estado actual, asi que la fila de ese pack decia "Instalado"
-            //     y **dejaba de ser pulsable** -- aunque el pack se hubiera borrado y el catalogo
-            //     lo estuviera ofreciendo. No habia forma de volver a bajarlo.
+            //  1. They read as "a download has just finished" and republished the catalog while it
+            //     was empty: the screen said "Nothing new" without anybody having asked.
+            //  2. They were shown as the current state, so that pack's row said "Installed" and
+            //     **stopped being tappable** -- even if the pack had been deleted and the catalog
+            //     was offering it. There was no way to download it again.
             //
-            // Por eso la primera emision se separa: lo que ya venia terminado es **historia**.
+            // Hence the first emission is kept apart: what already arrived finished is **history**.
             var historia: Set<String>? = null
             var terminadas = emptySet<String>()
             downloadStates.collect { lista ->
@@ -514,15 +516,15 @@ class SearchViewModel(
                     historia = lista.filter { it.phase in FINALES }.map { it.packId }.toSet()
                     terminadas = lista.filter { it.phase == DownloadPhase.DONE }.map { it.packId }.toSet()
                 }
-                // ⚠️ **Un pack sale de AMBOS registros en cuanto vuelve a moverse.** Sin esto,
-                // uno que ya se habia bajado en otra sesion quedaba marcado para siempre y su
-                // descarga NUEVA no contaba al terminar: el pack quedaba en disco y la app sin
-                // verlo hasta el proximo arranque.
+                // ⚠️ **A pack leaves BOTH registers the moment it moves again.** Without this, one
+                // already downloaded in another session stayed marked forever and its NEW download
+                // did not count on finishing: the pack sat on disk with the app not seeing it
+                // until the next launch.
                 //
-                // ⚠️ Y son DOS registros, no uno: el primer intento de arreglo solo limpio
-                // `historia` --lo que se ESCONDE-- y dejo `terminadas` --lo que ya se CONTO--,
-                // asi que la fase se veia bien en pantalla y aun asi no se recargaba nada. Lo
-                // delato el emulador, no un test: el sintoma era la ausencia de una linea de log.
+                // ⚠️ And there are TWO registers, not one: the first attempt at a fix cleared only
+                // `historia` --what gets HIDDEN-- and left `terminadas` --what was already
+                // COUNTED-- so the phase looked right on screen and still nothing reloaded. The
+                // emulator gave it away, not a test: the symptom was the absence of a log line.
                 val moviendose = lista.filterNot { it.phase in FINALES }.map { it.packId }.toSet()
                 historia = historia.orEmpty() - moviendose
                 terminadas = terminadas - moviendose
@@ -536,33 +538,32 @@ class SearchViewModel(
                 DictLog.i { "descarga terminada: ${recien.joinToString()}" }
                 terminadas = nuevas
                 loadPacks()
-                // ⚠️ Solo si el usuario YA consulto. Reclasificar sobre un catalogo que nunca se
-                // trajo publica una lista vacia, que se lee como "no hay nada nuevo".
+                // ⚠️ Only if the user has ALREADY queried. Reclassifying over a catalog that was
+                // never fetched publishes an empty list, which reads as "there is nothing new".
                 if (_state.value.catalog is CatalogState.Ready) publicar(opened.map { it.metadata })
             }
         }
     }
 
-    /** Las fases en que un trabajo ya no avanza. WorkManager las conserva entre sesiones. */
     /**
-     * Las fases en que un trabajo ya no avanza. WorkManager las conserva entre sesiones.
+     * The phases in which a job no longer advances. WorkManager keeps them between sessions.
      *
-     * ⚠️ **[DownloadPhase.CANCELLED] tiene que estar aca.** Si faltara, una descarga cancelada
-     * contaria como "moviendose" para siempre: se sacaria del registro de lo ya visto en cada
-     * emision y su fila volveria sola a la pantalla despues de que el usuario la cancelo.
+     * ⚠️ **[DownloadPhase.CANCELLED] has to be here.** Were it missing, a cancelled download would
+     * count as "moving" forever: it would be taken out of the already-seen register on every
+     * emission and its row would come back to the screen on its own after the user cancelled it.
      */
     private val FINALES =
         setOf(DownloadPhase.DONE, DownloadPhase.FAILED, DownloadPhase.CANCELLED)
 
-    /** Clasifica lo ultimo que se trajo contra lo que hay instalado AHORA. */
+    /** Classifies the last thing fetched against what is installed NOW. */
     private fun publicar(instalados: List<PackMetadata>) {
         val listado = Catalog.classify(catalogPacks, instalados)
         DictLog.i {
             val porEstado = listado.offers.groupingBy { it.status }.eachCount()
             "catalogo: " + porEstado.entries.joinToString(" ") { "${it.key}=${it.value}" }
                 .ifEmpty { "nada que ofrecer" } +
-                // Los descartados no se listan, pero SI se cuentan en el log: sin esto, un
-                // catalogo entero rechazado por version se ve igual que uno vacio.
+                // The discarded ones are not listed, but they ARE counted in the log: without
+                // this, a whole catalog rejected by version looks the same as an empty one.
                 if (listado.needsAppUpdate) " (hay packs para una version mas nueva de la app)" else ""
         }
         _state.update {
@@ -570,22 +571,22 @@ class SearchViewModel(
         }
     }
 
-    /** Lo ultimo que dijo el catalogo, para poder reclasificarlo tras un 304. */
+    /** The last thing the catalog said, so it can be reclassified after a 304. */
     private var catalogPacks: List<cl.fadiaz.dictionary.data.CatalogPack> = emptyList()
 
-    /** El `ETag` de la ultima respuesta. Es lo que hace barato apretar el boton dos veces. */
+    /** The last response's `ETag`. It is what makes pressing the button twice cheap. */
     private var catalogEtag: String? = null
 
     /**
-     * Cambia el IDIOMA en el que se busca, y deriva el pack que lo representa.
+     * Changes the LANGUAGE being searched in, and derives the pack that represents it.
      *
-     * ⚠️ **Antes recibia un `packId` y eso dejo de alcanzar**: un pack bidireccional habla dos
-     * idiomas, asi que elegirlo no dice en cual buscar. El chip manda un idioma; el pack sale de
-     * las mismas reglas que eligen representante en el selector.
+     * ⚠️ **It used to take a `packId` and that stopped being enough**: a bidirectional pack speaks
+     * two languages, so choosing it does not say which to search in. The chip sends a language;
+     * the pack comes out of the same rules that choose a representative in the selector.
      */
     fun onLanguageChange(lang: String) {
-        // Entre los que se consultan, no entre los abiertos: tocar el chip de un idioma no puede
-        // activar un build viejo que la selección ya descartó.
+        // Among the ones that get queried, not among the open ones: tapping a language's chip
+        // cannot activate an old build the selection already discarded.
         val candidatos = packsToQuery(opened).filter { lang in it.metadata.langs }
         val pack = candidatos.maxByOrNull { it.metadata.entryCount } ?: return
         // The combine is going to repeat the prefix query on the new pack and would overwrite the
@@ -610,20 +611,20 @@ class SearchViewModel(
         // The query shows IMMEDIATELY and the results arrive later: if the field waited for the
         // debounce, typing would feel stuck.
         _state.update { it.copy(query = text) }
-        // Con el teclado abierto NO se busca (D-128): la lista esta tapada por el teclado, asi
-        // que buscar ahi es trabajo que nadie ve y que cuesta lo unico que importa -- la
-        // reestructuracion de la lista se lleva el foco del campo, y el teclado detras.
+        // With the keyboard open there is NO searching (D-128): the list is covered by the
+        // keyboard, so searching there is work nobody sees that costs the only thing that matters
+        // -- restructuring the list takes the field's focus, and the keyboard with it.
         if (!typing) queries.value = text
     }
 
     /**
-     * El teclado se abrio o se cerro.
+     * The keyboard opened or closed.
      *
-     * Mientras esta abierto se escribe sin buscar; al cerrarse --o al tocar Buscar, que cierra el
-     * teclado-- se busca **una vez** lo que quedo escrito.
+     * While it is open you type without searching; on closing --or on tapping Search, which closes
+     * the keyboard-- whatever was typed is searched **once**.
      *
-     * Es un metodo y no un booleano del estado porque el cierre tiene un efecto: dispara la
-     * busqueda. Un flag que alguien pone y saca no lo tendria.
+     * It is a method and not a boolean in the state because closing has an effect: it fires the
+     * search. A flag somebody sets and clears would not have that.
      */
     fun onTypingChanged(isTyping: Boolean) {
         typing = isTyping
@@ -653,34 +654,35 @@ class SearchViewModel(
     fun clearQuery() = onQueryChange("")
 
     /**
-     * El usuario dejó la app: guardar lo pendiente y volver al inicio limpio.
+     * The user left the app: save what is pending and go back to a clean home.
      *
-     * ⚠️ **Existe porque un reloj no se "cierra", se baja la muñeca**, y volver tres horas
-     * después a la ficha de `esdrújula` con `esdrú` escrito no es retomar nada: es encontrarse
-     * con la pantalla de otro momento. Pedido: *«que no quede en segundo plano sino que se
-     * cierre y guarde todo para que la siguiente vez te lleve a la pantalla de inicio limpia»*.
+     * ⚠️ **It exists because a watch is not "closed", the wrist is lowered**, and coming back
+     * three hours later to `esdrújula`'s card with `esdrú` typed is not resuming anything: it is
+     * running into some earlier moment's screen. Asked for: *"that it not stay in the background
+     * but close and save everything, so next time it takes you to a clean home screen"*.
      *
-     * ⚠️ **No se mata el proceso, y eso es deliberado.** Terminar la Activity obligaría a
-     * reabrir los packs --medido: 500 ms en frío contra 278 tibio con 372,6 MB abiertos-- para
-     * ahorrar una memoria que el sistema ya sabe reclamar solo. Lo que se tira es el **estado de
-     * pantalla**, que es lo que molesta; lo que se conserva son los descriptores, que es lo que
-     * cuesta.
+     * ⚠️ **The process is not killed, and that is deliberate.** Finishing the Activity would force
+     * reopening the packs --measured: 500 ms cold against 278 warm with 372.6 MB open-- to save
+     * memory the system already knows how to reclaim on its own. What gets thrown away is the
+     * **screen state**, which is what annoys; what is kept are the descriptors, which is what
+     * costs.
      *
-     * El historial y las guardadas ya se persisten en cada cambio, así que acá no hay nada más
-     * que escribir: se nombra igual para que el día que aparezca algo diferido tenga dónde ir.
+     * The history and the saved words are already persisted on every change, so there is nothing
+     * more to write here: it is named all the same so that the day something deferred appears it
+     * has somewhere to go.
      */
     /**
-     * Marca que el input del sistema está por tapar la app, para no confundirlo con salir.
+     * Marks that the system input is about to cover the app, so it is not confused with leaving.
      *
-     * `ACTION_REMOTE_INPUT` abre una Activity de SysUI a pantalla completa, así que la nuestra
-     * recibe `ON_STOP` exactamente igual que cuando el usuario se va. Sin esta marca, dictar una
-     * palabra borraría la pantalla a la que se vuelve con el resultado.
+     * `ACTION_REMOTE_INPUT` opens a full-screen SysUI Activity, so ours receives `ON_STOP` exactly
+     * as when the user leaves. Without this mark, dictating a word would erase the screen you come
+     * back to with the result.
      */
     fun onSystemInputOpening() {
         systemInputPending = true
     }
 
-    /** ¿Este `ON_STOP` lo causó el input del sistema? Se consume: sólo vale para el primero. */
+    /** Was this `ON_STOP` caused by the system input? It is consumed: only the first one counts. */
     fun consumeSystemInputPause(): Boolean {
         val era = systemInputPending
         systemInputPending = false
@@ -732,16 +734,16 @@ class SearchViewModel(
     )
 
     /**
-     * Anota una visita cuando solo se tiene el id: la palabra del dia, una entrada del historial,
-     * o una palabra tocada dentro de una glosa.
+     * Records a visit when only the id is held: the word of the day, a history entry, or a word
+     * tapped inside a gloss.
      *
-     * **Los tres caminos no anotaban nada** (D-129), que es de donde salia el "a veces" del
-     * reporte: el historial se actualizaba al abrir un RESULTADO DE BUSQUEDA y no al abrir de
-     * ninguna otra forma.
+     * **None of the three paths recorded anything** (D-129), which is where the report's
+     * "sometimes" came from: the history was updated when a SEARCH RESULT was opened and not when
+     * it was opened any other way.
      *
-     * Cuesta una lectura de la fila por rowid --la misma que la pantalla de entrada hace un
-     * instante despues-- y no cae al pack activo si el pedido no es de un pack abierto: caer
-     * seria anotar otra palabra con el lema correcto, que es el bug de D-080.
+     * It costs one row read by rowid --the same one the entry screen makes an instant later-- and
+     * it does not fall back to the active pack when the request is not for an open pack: falling
+     * back would record another word under the right headword, which is D-080's bug.
      */
     fun recordVisit(packId: String, entryId: Long) {
         val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
@@ -763,30 +765,31 @@ class SearchViewModel(
     }
 
     /**
-     * De los packs abiertos, cuales se **ofrecen**: al selector, a la palabra del dia, a la
-     * pantalla de diccionarios y a los creditos.
+     * Of the open packs, which ones get **offered**: to the selector, to the word of the day, to
+     * the dictionaries screen and to the credits.
      *
-     * ⚠️ **La regla era *"si hay algun pack instalado, esconder TODOS los del APK"*, y con los
-     * nucleos reales adentro eso escondia un diccionario entero.** Escrita para D-088, cuando lo
-     * incluido era un juguete de 28 entradas cuya etiqueta chocaba con la del pack real: el
-     * selector leia *ES* y *ES* sin forma de distinguirlos. D-175 reemplazo ese juguete por los
-     * **nucleos de espanol e ingles**, y la regla no se volvio a mirar.
+     * ⚠️ **The rule was *"if any pack is installed, hide ALL of the APK's"*, and with the real
+     * cores inside that hid a whole dictionary.** It was written for D-088, when what shipped was
+     * a 28-entry toy whose tag collided with the real pack's: the selector read *ES* and *ES* with
+     * no way to tell them apart. D-175 replaced that toy with the **Spanish and English cores**,
+     * and the rule was never looked at again.
      *
-     * **El defecto, medido con `elNucleoDeOtroIdiomaSOBREVIVE...`**: con el espanol completo
-     * descargado, `opened.any { !isBundled }` es verdadero y el filtro se lleva **los dos**
-     * nucleos. `en-core.db` queda instalado, abierto y consultable, y **sin chip**: el usuario
-     * pierde el ingles entero de la interfaz sin que nada falle ni se loguee. Es la forma exacta
-     * del bug que este repo no puede ver.
+     * **The defect, measured with `elNucleoDeOtroIdiomaSOBREVIVE...`**: with full Spanish
+     * downloaded, `opened.any { !isBundled }` is true and the filter takes **both** cores away.
+     * `en-core.db` stays installed, open and queryable, and **with no chip**: the user loses all
+     * of English from the interface without anything failing or being logged. It is the exact
+     * shape of the bug this repo cannot see.
      *
-     * **La regla que lo cierra: un pack del APK se hace a un lado solo si otro pack ya habla
-     * TODOS sus idiomas.** Es la misma forma que la contencion de `packsToQuery` --hacerse a un
-     * lado por quien te contiene-- y conserva lo que D-088 queria: con el espanol completo
-     * instalado, `es-core` se esconde; `en-core` no, porque nadie mas habla ingles.
+     * **The rule that closes it: a pack from the APK steps aside only if another pack already
+     * speaks ALL of its languages.** It is the same shape as `packsToQuery`'s containment
+     * --stepping aside for whoever contains you-- and it keeps what D-088 wanted: with full
+     * Spanish installed, `es-core` hides; `en-core` does not, because nobody else speaks English.
      *
-     * ⚠️ **El respaldo es `opened` y no `all`, y eso dejo de ser lo mismo.** Mientras `all`
-     * solo traia packs abiertos los dos eran identicos; ahora trae tambien los rechazados, y
-     * devolverlos aca los pondria en el selector del inicio -- un chip de idioma que no
-     * busca nada. Los rechazados van por su propio canal, a la pantalla de diccionarios.
+     * ⚠️ **The fallback is `opened` and not `all`, and those stopped being the same thing.** While
+     * `all` only carried open packs the two were identical; now it carries the rejected ones too,
+     * and returning them here would put them in the home's selector -- a language chip that
+     * searches nothing. The rejected ones go through their own channel, to the dictionaries
+     * screen.
      */
     private fun offerable(all: List<PackHandle>): List<PackHandle> {
         val opened = all.filterIsInstance<PackHandle.Open>()
@@ -795,9 +798,9 @@ class SearchViewModel(
             .toSet()
         return opened
             .filterNot { pack -> pack.isBundled && pack.metadata.langs.all { it in cubiertos } }
-            // Un pack que no declara ningun idioma cumpliria `all {}` de forma vacia y se
-            // escaparia por el filtro. No puede pasar --`meta.langs` es obligatoria desde el
-            // esquema 4-- y por eso mismo no se paga con quedarse sin nada que ofrecer.
+            // A pack declaring no language would satisfy `all {}` vacuously and slip through the
+            // filter. It cannot happen --`meta.langs` is required since schema 4-- and for that
+            // very reason it is not paid for by being left with nothing to offer.
             .ifEmpty { opened }
     }
 
@@ -847,15 +850,16 @@ class SearchViewModel(
      */
     private fun cacheWeekForTile(activo: DictionarySource) {
         val today = todayDate() ?: return
-        // ⚠️ **La regla de D-200 también vale acá, y el tile es el peor sitio para que falle.**
-        // Un pack de traducción no genera palabra del día, pero el pack ACTIVO puede serlo --es
-        // el más grande, así que `chooseActive` lo prefiere-- y este método recibía el activo a
-        // secas. El resultado habría sido una palabra del día de un diccionario que no define
-        // nada, **en la superficie que nadie abre a propósito**: un error que no se reporta.
+        // ⚠️ **D-200's rule holds here too, and the tile is the worst place for it to fail.** A
+        // translation pack generates no word of the day, but the ACTIVE pack may be one --it is
+        // the largest, so `chooseActive` prefers it-- and this method received the active one flat
+        // out. The result would have been a word of the day from a dictionary that defines
+        // nothing, **on the surface nobody opens on purpose**: an error that does not get
+        // reported.
         //
-        // Si no hay ningún diccionario de definiciones del idioma activo, no se cachea nada y el
-        // tile muestra lo que ya tenía. Es la degradación correcta: mejor sin palabra que con
-        // una que al tocarla no explica nada.
+        // If there is no definitions dictionary for the active language, nothing is cached and the
+        // tile shows what it already had. That is the right degradation: better with no word than
+        // with one that explains nothing when tapped.
         val active = elegirParaPalabraDelDia(activo) ?: return
         val packId = active.metadata.packId
         val (since, cacheadas) = savedWeekWords()
@@ -873,10 +877,10 @@ class SearchViewModel(
                         rankBasis = active.metadata.rankBasis,
                     )
                 }.getOrNull() ?: return@launch
-                // ⚠️ **La glosa se lee ACÁ y no en el tile**, y ésa es la mitad del diseño:
-                // abrir una entrada descomprime su payload, y `onTileRequest` es `@MainThread`
-                // con diez segundos (D-106). La app, que ya tiene el pack abierto, lo deja
-                // escrito. Son siete lecturas una vez al día.
+                // ⚠️ **The gloss is read HERE and not in the tile**, and that is half the design:
+                // opening an entry decompresses its payload, and `onTileRequest` is `@MainThread`
+                // with ten seconds (D-106). The app, which already has the pack open, leaves it
+                // written. It is seven reads once a day.
                 val primera = runCatching { active.entry(picked.entryId) }
                     .getOrNull()?.senses?.firstOrNull()?.gloss
                 week += Visit(
@@ -893,10 +897,10 @@ class SearchViewModel(
     }
 
     /**
-     * El diccionario de DEFINICIONES que representa al idioma del pack dado, o null.
+     * The DEFINITIONS dictionary representing the given pack's language, or null.
      *
-     * Prefiere el propio pack si ya define, y si no, el más grande de su idioma que sí lo haga —
-     * la misma regla de representante que usa el selector.
+     * It prefers the pack itself if it already defines, and otherwise the largest of its language
+     * that does -- the same representative rule the selector uses.
      */
     private fun elegirParaPalabraDelDia(activo: DictionarySource): DictionarySource? {
         if (givesWordOfTheDay(activo.metadata)) return activo
@@ -941,12 +945,12 @@ class SearchViewModel(
      * it on reopening, so the action would do nothing and the pack would come back on its own.
      */
     /**
-     * Borra un diccionario del disco, esté cargado o no.
+     * Deletes a dictionary from disk, loaded or not.
      *
-     * ⚠️ **Resuelve contra las DOS listas.** Un pack rechazado no está en `available` --no se
-     * ofrece para buscar-- pero ocupa lugar en el disco y borrarlo es la única acción que queda
-     * sobre él. Buscarlo sólo entre los abiertos hacía que el botón de su fila no hiciera nada,
-     * que es peor que no tener botón.
+     * ⚠️ **It resolves against BOTH lists.** A rejected pack is not in `available` --it is not
+     * offered for searching-- but it takes space on disk and deleting it is the only action left
+     * on it. Looking for it only among the open ones made its row's button do nothing, which is
+     * worse than having no button.
      */
     fun deletePack(packId: String) {
         val abierto = state.value.available
@@ -1088,16 +1092,16 @@ class SearchViewModel(
             .orEmpty()
 
     /**
-     * Resuelve los mismos `norms` en el primer pack instalado de `lang`, que **no** es el de la
-     * entrada.
+     * Resolves the same `norms` in the first installed pack of `lang`, which is **not** the
+     * entry's.
      *
-     * ⚠️ **Se busca por IDIOMA y no por `pack_id`, y esa es la decisión que evita que el enlace
-     * muera.** Declarar el pack destino por nombre haría que un usuario con el **núcleo** inglés
-     * instalado y no el completo perdiera todos los enlaces, aunque tenga un diccionario inglés
-     * perfectamente capaz de resolverlos.
+     * ⚠️ **It looks up by LANGUAGE and not by `pack_id`, and that is the decision that keeps the
+     * link from dying.** Declaring the target pack by name would make a user with the English
+     * **core** installed rather than the full one lose every link, even though they hold an
+     * English dictionary perfectly able to resolve them.
      *
-     * Devuelve vacío si no hay ninguno, y entonces el término se muestra **sin pintar** — que es
-     * lo correcto: una palabra pintada que no navega es peor que una sin pintar (D-084).
+     * It returns empty if there is none, and then the term is shown **unpainted** -- which is
+     * right: a painted word that does not navigate is worse than an unpainted one (D-084).
      */
     suspend fun resolveInLanguage(lang: String, norms: Set<String>): Map<String, Pair<String, Long>> {
         val destino = opened.firstOrNull { it.metadata.speaks(lang) } ?: return emptyMap()
@@ -1119,15 +1123,15 @@ class SearchViewModel(
         const val DEBOUNCE_MS: Long = 120
 
         /**
-         * Cuantas entradas recientes se RECUERDAN. Cuantas se MUESTRAN lo decide la pantalla.
+         * How many recent entries are REMEMBERED. How many are SHOWN is the screen's decision.
          *
-         * Eran tres, atadas a la aritmetica de D-073 --"la pantalla da tres filas de 48 dp"--, y
-         * eso hacia que el almacenamiento dependiera de un reloj concreto: en uno mas grande
-         * sobraba lugar y el historial seguia teniendo tres.
+         * It was three, tied to D-073's arithmetic --"the screen gives three 48 dp rows"-- and
+         * that made storage depend on one concrete watch: on a bigger one there was room to spare
+         * and the history still held three.
          *
-         * Ahora es el **techo de lo que cualquier pantalla podria mostrar** (`rowsThatFit` tope
-         * en 8) y el inicio recorta a lo que entra de verdad. Guardar ocho sigue siendo gratis en
-         * bytes; lo que se cuidaba era no mostrar lo que nadie ve, y de eso se ocupa la pantalla.
+         * It is now the **ceiling of what any screen could show** (`rowsThatFit` caps at 8) and
+         * the home trims to what actually fits. Storing eight is still free in bytes; what was
+         * being guarded was not showing what nobody sees, and the screen takes care of that.
          */
         const val MAX_HISTORY: Int = 25
 

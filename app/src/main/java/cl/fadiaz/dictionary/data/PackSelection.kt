@@ -7,57 +7,60 @@ import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.speaks
 
 /**
- * De todos los packs instalados, a cuáles se les pregunta.
+ * Of all the installed packs, which ones get asked.
  *
- * ## Por qué esto existe como una lista aparte
+ * ## Why this exists as a separate list
  *
- * ⚠️ **Instalado y consultado no son la misma cosa, y hasta acá sí lo eran.** Ajustes tiene que
- * seguir mostrando **todo** lo que ocupa disco —si no, un pack que no se consulta se vuelve
- * invisible y no hay forma de borrarlo— mientras que la búsqueda tiene que preguntarle sólo a lo
- * que puede aportar algo. `PackStore` sigue devolviendo todo; esto elige.
+ * ⚠️ **Installed and queried are not the same thing, and until here they were.** Settings has to
+ * keep showing **everything** that takes disk --otherwise a pack that is not queried becomes
+ * invisible and there is no way to delete it-- while the search has to ask only what can
+ * contribute something. `PackStore` still returns everything; this one chooses.
  *
- * ## Las dos reglas, y por qué son una sola función
+ * ## The two rules, and why they are a single function
  *
- * Contestan preguntas distintas y se aplican en orden:
+ * They answer different questions and are applied in order:
  *
- * 1. **De cada `pack_id`, el `data_version` mayor.** Dos archivos con el mismo `pack_id` son el
- *    mismo diccionario (D-138); el build más viejo es estrictamente peor (D-170). Cierra un
- *    defecto de hoy: `PackStore` abre todos los `.db` del directorio, así que reinstalar un pack
- *    sin borrar el anterior deja **dos builds contestando**. No sale mal —la deduplicación por
- *    `(lema, tipo)` lo tapa— pero se paga el doble de consultas y el doble de disco, en silencio.
- * 2. **Un pack no se consulta si el que lo contiene también está.** Es la regla que el pack
- *    núcleo necesita: cada respuesta suya o ya vino del completo y se descarta al deduplicar, o
- *    es un lema que el completo no tiene, **lo cual no puede pasar si de verdad es un
- *    subconjunto**. Hoy **no la usa nadie**: ningún pack declara `subset_of`. Está escrita porque
- *    es la misma forma que la primera y separarlas serían dos recorridos con el mismo bug.
+ * 1. **Of each `pack_id`, the highest `data_version`.** Two files with the same `pack_id` are the
+ *    same dictionary (D-138); the older build is strictly worse (D-170). It closes a defect that
+ *    exists today: `PackStore` opens every `.db` in the directory, so reinstalling a pack without
+ *    deleting the previous one leaves **two builds answering**. Nothing comes out wrong --the
+ *    `(lemma, pos)` deduplication covers it-- but twice the queries and twice the disk are paid,
+ *    in silence.
+ * 2. **A pack is not queried if the one containing it is there too.** It is the rule the core pack
+ *    needs: each of its answers either already came from the full one and is dropped on
+ *    deduplication, or is a lemma the full one does not have, **which cannot happen if it really
+ *    is a subset**. Today **nobody uses it**: no pack declares `subset_of`. It is written because
+ *    it is the same shape as the first one and separating them would be two passes with the same
+ *    bug.
  *
- * El orden importa: primero se elige el build de cada diccionario y **después** se mira la
- * contención, para que un núcleo no sobreviva sólo porque el completo instalado es un build viejo.
+ * The order matters: the build of each dictionary is chosen first and containment is looked at
+ * **afterwards**, so a core does not survive merely because the installed full one is an old
+ * build.
  *
- * ## Sólo absorbe el que no es absorbido, y eso no es una sutileza
+ * ## Only the unabsorbed absorbs, and that is not a subtlety
  *
- * ⚠️ **Un pack de la comunidad puede declarar cualquier cosa.** Si dos se declaran subconjunto
- * mutuamente, la versión obvia de esta regla —*«sacá a todo el que nombre a alguien presente»*—
- * **los saca a los dos y deja la búsqueda sin diccionario**. Es el peor resultado posible para
- * una declaración mal hecha, y lo encontró el test que se escribió para eso: mi primera versión
- * lo hacía.
+ * ⚠️ **A community pack can declare anything.** If two declare each other a subset, the obvious
+ * version of this rule --*"drop everyone who names somebody present"*-- **drops both and leaves
+ * the search with no dictionary**. It is the worst possible outcome for a badly made declaration,
+ * and the test written for it found it: my first version did exactly that.
  *
- * La regla que funciona: **un pack sólo se hace a un lado por otro que no se haya hecho a un
- * lado él mismo**. En un ciclo nadie califica de absorbente y sobreviven los dos.
+ * The rule that works: **a pack only steps aside for another that has not stepped aside itself**.
+ * In a cycle nobody qualifies as absorbing and both survive.
  *
- * El costo es que la contención **no es transitiva**: con A ⊂ B ⊂ C se consultan A y C, y A
- * sobra. Se acepta a propósito — `subset_of` afirma una contención directa y nada más, y el peor
- * caso de no encadenar es trabajo de más; el peor caso de encadenar es quedarse sin nada.
+ * The cost is that containment **is not transitive**: with A ⊂ B ⊂ C, A and C are queried, and A
+ * is redundant. That is accepted on purpose -- `subset_of` asserts a direct containment and
+ * nothing more, and the worst case of not chaining is extra work; the worst case of chaining is
+ * being left with nothing.
  *
- * Es puro y sin Android para que el gate lo cubra en la JVM (D-072).
+ * It is pure and free of Android so the gate covers it on the JVM (D-072).
  */
 internal fun packsToQuery(opened: List<DictionarySource>): List<DictionarySource> {
     val masNuevos = opened
         .groupBy { it.metadata.packId }
         .map { (_, versiones) -> versiones.maxBy { it.metadata.dataVersion } }
     val presentes = masNuevos.map { it.metadata.packId }.toSet()
-    // Los que pueden absorber a otro: los que no están absorbidos ellos mismos. En un ciclo no
-    // califica ninguno, y sobreviven todos.
+    // The ones that can absorb another: the ones not absorbed themselves. In a cycle none
+    // qualifies, and they all survive.
     val absorbentes = masNuevos
         .filter { it.metadata.subsetOf == null || it.metadata.subsetOf !in presentes }
         .map { it.metadata.packId }
@@ -66,22 +69,23 @@ internal fun packsToQuery(opened: List<DictionarySource>): List<DictionarySource
 }
 
 /**
- * Cuál pack queda **activo**, que es la otra mitad de las mismas reglas.
+ * Which pack ends up **active**, which is the other half of the same rules.
  *
- * ⚠️ **Elegir el activo aparte de [packsToQuery] era un agujero, y uno que se anulaba solo.** La
- * regla sacaba el build viejo de la lista a consultar, pero el activo se elegía del listado del
- * directorio —que no promete orden— y después se agregaba a la consulta **siempre**. Si caía el
- * viejo, se consultaba el viejo por ser activo y el nuevo por estar en la lista: **los dos builds
- * contestando**, que es exactamente el defecto que la regla venía a cerrar.
+ * ⚠️ **Choosing the active one apart from [packsToQuery] was a hole, and one that cancelled
+ * itself out.** The rule took the old build out of the list to query, but the active one was
+ * chosen from the directory listing --which promises no order-- and was then added to the query
+ * **always**. If the old one came up, the old one was queried for being active and the new one for
+ * being in the list: **both builds answering**, which is exactly the defect the rule came to
+ * close.
  *
- * El orden de preferencias, y cada uno tiene su motivo:
+ * The order of preference, and each one has its reason:
  *
- * 1. **Sólo entre los que se consultan.** Elegir a mano un pack que otro contiene no puede
- *    devolverlo: no se le va a preguntar nada.
- * 2. **Un diccionario real le gana a uno de demostración** (D-081). El demo existe para que una
- *    app recién instalada muestre algo; ganarle a lo que el usuario instaló sería al revés.
- * 3. **Lo que el usuario eligió la última vez**, si sigue estando.
- * 4. Cualquiera, con tal de que sea estable — la lista ya viene ordenada por las reglas.
+ * 1. **Only among the ones that get queried.** Hand-picking a pack another one contains cannot
+ *    return it: nothing will be asked of it.
+ * 2. **A real dictionary beats a demo one** (D-081). The demo exists so a freshly installed app
+ *    shows something; beating what the user installed would be backwards.
+ * 3. **What the user chose last time**, if it is still there.
+ * 4. Anything, as long as it is stable -- the list already comes ordered by the rules.
  */
 internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): PackHandle.Open? {
     val consultables = packsToQuery(opened.map { it.source }).toSet()
@@ -91,29 +95,30 @@ internal fun activePack(opened: List<PackHandle.Open>, preferred: String?): Pack
 }
 
 /**
- * Si este pack tiene algo que decir cuando el idioma activo es [idioma].
+ * Whether this pack has anything to say when the active language is [idioma].
  *
- * ⚠️ **Un pack declara sus idiomas como PARES, y uno bidireccional contesta por los dos.** Antes
- * se elegía con `langSource == idioma` y el bilingüe declaraba `es`: con **inglés activo** caía
- * en "otros idiomas", que desde D-189 no contestan nunca, así que el único pack con traducciones
- * quedaba invisible justo en la dirección `en → es` y `dog` dejaba de devolver `perro`.
+ * ⚠️ **A pack declares its languages as PEERS, and a bidirectional one answers for both.** It used
+ * to be chosen with `langSource == idioma` and the bilingual one declared `es`: with **English
+ * active** it fell into "other languages", which since D-189 never answer, so the only pack with
+ * translations was invisible precisely in the `en → es` direction and `dog` stopped returning
+ * `perro`.
  *
- * ⚠️ **Ahora la respuesta sale del artefacto y no de una inferencia.** Desde `schema_version` 4
- * cada entrada lleva su `entry.lang` y el pack declara `meta.langs`: que el bilingüe conteste por
- * inglés no es una regla de la app sino un hecho del archivo —tiene 164.249 lemas ingleses—, y
- * `verify_pack.py` comprueba que lo declarado y lo que hay coinciden.
+ * ⚠️ **Now the answer comes from the artifact and not from an inference.** Since `schema_version`
+ * 4 every entry carries its `entry.lang` and the pack declares `meta.langs`: that the bilingual
+ * one answers for English is not an app rule but a fact of the file --it has 164,249 English
+ * lemmas-- and `verify_pack.py` checks that what is declared and what is there agree.
  *
- * Puro y sin Android, para que el gate lo cubra en la JVM (D-072).
+ * Pure and free of Android, so the gate covers it on the JVM (D-072).
  */
 internal fun answersFor(pack: DictionarySource, idioma: String?): Boolean =
     pack.metadata.speaks(idioma)
 
 /**
- * Si de este pack puede salir una **palabra del día**.
+ * Whether a **word of the day** can come out of this pack.
  *
- * ⚠️ **Vive acá y no en el ViewModel porque la regla ya divergió una vez**: valía en la pantalla
- * y no en el tile (D-203), y tenerla escrita dos veces es exactamente cómo vuelve a pasar. Los
- * tres caminos —la pantalla, la caché del tile y el cálculo— consultan esta.
+ * ⚠️ **It lives here and not in the ViewModel because the rule already diverged once**: it held on
+ * the screen and not on the tile (D-203), and having it written twice is exactly how that happens
+ * again. All three paths --the screen, the tile's cache and the computation-- consult this one.
  *
  * **One** class stays out: translation packs (D-200). A reverse entry has no senses (D-196), so
  * the card would say *"you say `perro`"* and nothing else.
