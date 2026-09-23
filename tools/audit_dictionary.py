@@ -46,6 +46,10 @@ for base, dirs, files in os.walk(ROOT):
             FUENTES.append(os.path.relpath(os.path.join(base, name), ROOT))
 
 
+#: The markdown files by relative path. `MARKDOWN` keeps them absolute and the two uses differ.
+MARKDOWN_REL = [os.path.relpath(p, ROOT) for p in MARKDOWN]
+
+
 class Report:
     def __init__(self):
         self.failures = []
@@ -1193,6 +1197,110 @@ def check_required_meta_keys(report):
         )
 
 
+#: Marks of Spanish prose. Not meant to be a language detector: meant not to fire on the lines
+#: this repository actually writes.
+_MARCAS_ES = re.compile(
+    # Only the accented letters and the inverted marks: plain vowels would match every line,
+    # which is how the first version of this check reported 2,068 where the ruler said 1,778.
+    r"[áéíóúñ¿¡]"
+    r"|\b(que|porque|cuando|pero|donde|desde|hasta|cada|una|por|con|sin|esto|esta|"
+    r"este|ese|los|las|del)\b",
+    re.I,
+)
+
+#: The half that avoids the false positives, and without it this check would be useless. Half a
+#: dozen documents are ENGLISH prose that QUOTES a Spanish UI string or log line -- *"the app says
+#: «No hay ningun diccionario instalado»"* -- and a naive detector counts them. Measured
+#: 2026-09-23: the rule without this counted 6,966 lines and with it 6,798, so about **170 false
+#: positives**, nearly all in the CLAUDE.md files, which are already translated. A line carrying
+#: function words from both languages is English quoting Spanish.
+_MARCAS_EN = re.compile(
+    r"\b(the|and|is|are|of|to|that|it|not|with|for|this|which|was|from|but|its|has|be)\b",
+    re.I,
+)
+
+
+def _es_prosa(linea, ext):
+    """Whether this line is prose rather than code. In a `.md` every line is."""
+    t = linea.strip()
+    if ext in (".kt", ".kts", ".java"):
+        return t.startswith(("//", "*", "/*"))
+    if ext == ".py":
+        return t.startswith("#") or t.startswith(('"""', "'''"))
+    return True
+
+
+def lineas_en_espanol(ruta):
+    """How many lines of Spanish prose a file holds, by the rule above."""
+    ext = os.path.splitext(ruta)[1]
+    total = 0
+    for linea in read(ruta).splitlines():
+        if (_es_prosa(linea, ext) and len(linea.strip()) > 25
+                and _MARCAS_ES.search(linea) and not _MARCAS_EN.search(linea)):
+            total += 1
+    return total
+
+
+#: The ceiling of Spanish prose **per area**, which drops when an area gets translated.
+#:
+#: A ceiling and not a zero, because a zero would fail today over 11,894 lines and a check that
+#: cannot pass gets switched off. What this watches is not the debt: it is that the debt does not
+#: GROW. The rule *"everything written from 2026-09-21 onward is English"* was written down and
+#: was not holding -- measured with one ruler against two trees, **5,281 to 6,966 in two days,
+#: +32 %**, written largely by sessions that had the rule loaded. By D-234 that is the signal to
+#: raise its rung rather than restate it.
+#:
+#: **Per area and not one total**, because a total lets translating 200 lines in one module hide
+#: 200 new ones in another. Each row drops on its own when its area is translated: that is the
+#: ratchet.
+#:
+#: **The changelog is its own row and was never in the roadmap's table.** It is the largest area
+#: of all, and translating it backwards is worth little -- it is the record of past sessions. What
+#: the ceiling buys there is that **new entries get written in English**, which is the only part
+#: that changes anything.
+TECHO_ESPANOL = (
+    ("tools/", 1778),
+    ("app/src/main/", 1293),
+    ("dict-core/src/main/", 587),
+    # Translated whole on 2026-09-23: the first module of stage 3, smallest first. The row
+    # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
+    ("dict-data/src/main/", 0),
+    ("docs/roadmap.md", 2314),
+    ("docs/decisions.md", 262),
+    (".claude/logs/", 4180),
+)
+
+
+def check_spanish_prose_budget(report):
+    """Rule: Spanish prose does not grow. It drops, or it stays. (D-248)
+
+    `CLAUDE.md` Working style says the repository is written in English, with one documented
+    exception: the UI strings. The rule existed with no enforcer and was not holding.
+
+    What makes this a check rather than a language detector: the ceiling is per area and is
+    compared against a number this file declares. An area that gets translated lowers its row in
+    the same commit; an area that grows fails. It has no opinion about the debt that already
+    exists.
+    """
+    for prefijo, techo in TECHO_ESPANOL:
+        total = 0
+        for ruta in FUENTES + MARKDOWN_REL:
+            if ruta.startswith(prefijo) or ruta == prefijo:
+                total += lineas_en_espanol(ruta)
+        if total > techo:
+            report.failure(
+                "la prosa en espanol crecio en %s: %d lineas contra un techo de %d"
+                % (prefijo, total, techo),
+                "lo que se escriba de ahora en adelante va en ingles (CLAUDE.md, Working style). "
+                "Si tradujiste algo, baja el techo en TECHO_ESPANOL en el mismo commit",
+            )
+        elif total < techo:
+            report.advisory(
+                "el techo de %s quedo alto: %d lineas contra %d" % (prefijo, total, techo),
+                "baja la fila de TECHO_ESPANOL a %d para que el ratchet no se afloje" % total,
+            )
+
+
 def check_root_budget(report):
     """Regla: CLAUDE.md se paga en cada request y vive bajo 200 lineas. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
@@ -1538,6 +1646,7 @@ def check_no_probes_left_behind(report):
 
 CHECKS = [
     check_no_probes_left_behind,
+    check_spanish_prose_budget,
     check_core_index_name,
     check_mirror_declarations,
     check_version_constants,

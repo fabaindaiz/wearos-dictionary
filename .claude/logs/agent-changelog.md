@@ -16,6 +16,56 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (8) — The English rule becomes a check, and the check bit its own author within the hour
+**What.** A per-area ceiling on Spanish prose that the gate enforces (D-248), `dict-data/src/main`
+translated whole with its ceiling dropped to 0 (D-249), and the rule that new decision rows and
+changelog entries are written in English from now on (D-250).
+
+**Areas.** `tools/audit_dictionary.py`, `dict-data/src/main/**`, `docs/{decisions,roadmap}.md`,
+this file.
+
+**Why.** Asked for: *"sigue con las traducciones y enforza en inglés"*.
+
+**Architecture.** Complies.
+
+**Measured.**
+- **The rule was not holding, and now there is a number for it**: 5,281 to 6,966 lines in two
+  days, **+32 %**, one ruler against both trees.
+- **The real total is 11,894, not 6,851.** The changelog carries **4,180 lines** and was **never
+  in the roadmap's table**: it is the largest area of all.
+- **Excluding English prose that quotes Spanish is worth about 170 lines** (6,966 against 6,798),
+  nearly all in the `CLAUDE.md` files, which are already translated.
+- **`dict-data` went from 203 to 0**, across two files and four rounds.
+
+**What went wrong.**
+- WARNING: **I wrote the detector's character class wrong and it reported 2,068 where the ruler
+  said 1,778** -- the unaccented vowels went in when the accents were escaped to `\uXXXX`. **The
+  check did not say so**: a check does not know it is wrong. What said so was comparing its number
+  against one I already had from a separate script. Had the ceilings been fixed from that first
+  run, `tools/` would carry 290 lines of free slack that nothing would ever notice.
+- **I read a log a short-circuited `&&` had never written** and chased a `CLAUDE.md: 201 lines`
+  failure that did not exist -- the file was at 200 and the log was from the previous run. Same
+  family as reading the gate through a pipe.
+- WARNING: **and the check refused this very entry, along with D-248 and D-249.** All three were
+  written in Spanish first. That was the moment that decided whether the ratchet is a rule or
+  decoration, and raising the ceiling the first time it bites would have made every later ceiling
+  advisory. They were rewritten instead. It also overturns an argument this same day made for
+  *not* translating decision rows -- that reasoning holds for a one-off and not for a transition
+  (D-250).
+- **A heredoc with triple quotes broke the script for the fourth time this week.** The content
+  goes to a file and the script reads it; the habit is still not a reflex.
+
+**What was left undone.**
+- **6,595 lines remain**, with the order already fixed: `dict-core` (587), `app/src/main`
+  (1,293), `tools/**` (1,778), and `docs/roadmap.md` (2,314) last.
+- **The emulator checks that were asked for** --P-2, P-7, P-8-- have not been run: P-7 needs a
+  catalog pack whose `data_version` differs from the APK's, and P-8 needs the five full packs on
+  the emulator, which is 450 MB over `adb`.
+- **P-4 cannot be answered on an emulator and that has to be said**: D-043 is explicit, a
+  performance number only counts on a physical watch.
+
+---
+
 ## 2026-09-23 (7) — Tres items de proceso cerrados, y el que faltaba era el que no rompe nada
 **Qué.** El hook `PreToolUse` sobre los cuatro archivos generados (D-246) y las dos fricciones que
 fallan sin decirlo, mudadas a la skill `verify` (D-247). Los tres estaban en §Proceso con su
