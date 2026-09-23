@@ -36,6 +36,19 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); case \"$f\" in */UnicodeRepertoire.kt|*/repertoire.txt|*/payload-fixture.tsv|*/local.properties) echo \"Este archivo es GENERADO y no se escribe a mano: $f\" >&2; echo \"Editarlo crea dos fuentes de verdad que divergen en silencio. Regeneralo con la herramienta que lo produce: ver CLAUDE.md, Files that are never edited by hand.\" >&2; exit 2;; *) exit 0;; esac",
+            "timeout": 10,
+            "statusMessage": "Comprobando que no sea un archivo generado..."
+          }
+        ]
+      }
     ]
   }
 }

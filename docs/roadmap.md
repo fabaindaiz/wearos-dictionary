@@ -4348,9 +4348,11 @@ escribir (sólo `candidates.md`), y `bundle.py register` necesita **Python 3.11+
 mientras esta máquina corre **3.9.6**. Lo cierra una meta-sesión del dueño del bundle, no este
 repo.
 
-### `set -- $x` en fish no separa campos, y van dos
+### ~~`set -- $x` en fish no separa campos~~ ✅ **CERRADO el 2026-09-23**
 
-**Estado.** **Planificado.** Segundo golpe, así que sube acá con la aritmética (§Proceso).
+**Estado.** **Hecho** (D-247): la regla vive en la skill `verify`, con el reemplazo en fish
+escrito. No entró a `CLAUDE.md` porque está en 200 de 200; el puntero se metió dentro de una
+línea que ya existía, sin sumar ninguna.
 
 El shell de las sesiones es fish, no bash. `set -- $pair` no hace *positional splitting*: en fish
 `set` asigna a una variable y `--` es el fin de opciones, así que `$1` y `$2` quedan vacíos y el
@@ -4392,9 +4394,11 @@ R8 pliega el `if` y se lleva la clase entera. La restricción que ordenaba el di
 exportado en producción es superficie de ataque y batería— se cumple **por construcción y no por
 disciplina**: en release el código no existe. Ver D-232.
 
-### Un `Write` fresco sobre los archivos generados no lo bloquea nada
+### ~~Un `Write` fresco sobre los archivos generados no lo bloquea nada~~ ✅ **CERRADO el 2026-09-23**
 
-**Estado.** **Planificado**, derivado de D-223.
+**Estado.** **Hecho** (D-246): un hook `PreToolUse` con matcher `Write` sale 2 sobre los cuatro,
+con un mensaje que dice qué herramienta regenera cada uno. Verificado por sonda, los cuatro y el
+control. Se preguntó antes de construirlo, porque es una mejora de proceso.
 
 Las reglas `Write(ruta)` de `permissions.deny` se aceptan pero **nunca se consultan**, así que se
 sacaron. Los cuatro archivos generados siguen protegidos contra `Edit`, que es el caso real —un
@@ -4404,9 +4408,11 @@ agente los modifica, no los recrea—, pero crear uno de cero desde vacío no lo
 contra las cuatro rutas y salga **2**. Son ~10 líneas y el repo ya tiene el patrón: el hook
 `PostToolUse` de los vectores. ⚠️ **No se construyó**: las mejoras de proceso se proponen.
 
-### El `--` dentro de un comentario XML rompe el build, y van tres
+### ~~El `--` dentro de un comentario XML rompe el build~~ ✅ **CERRADO el 2026-09-23**
 
-**Estado.** **Planificado.** Tercer golpe, así que sube acá con la aritmética (§Proceso).
+**Estado.** **Hecho** (D-247), junto con la de fish y en el mismo lugar. Entró aunque falla
+**ruidosamente** —el mensaje de AGP nombra el problema— porque es el mismo reflejo: `--` es como
+este repo escribe un inciso en todos lados, incluido este párrafo.
 
 Un comentario XML no puede contener `--`: es el cierre del delimitador. AGP lo reporta como
 
