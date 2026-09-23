@@ -16,6 +16,154 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (2) — El índice reemplaza a la copia de 50 MB, y la app se puede preguntar por adb
+**Qué.** Seis cosas: la versión del pack incluido se declara en un índice dentro del APK en vez de
+extraerlo para preguntársela; el nivel deja de acumularse en el nombre (`Español (full) (core)` →
+`Español (core)`); se puede cancelar una descarga; la app acepta intents de depuración; y dos
+strings. Los dos núcleos regenerados.
+
+**Áreas.** `app/build.gradle.kts`, `app/src/main/.../data/{PackStore,DownloadPackWorker,Catalog,
+DebugIntents}.kt`, `.../presentation/{PacksScreen,SearchViewModel,MainActivity}.kt`,
+`res/values{,-es}/strings.xml`, `tools/packbuilder/{build,build_core,build_pack}.py`,
+`tools/audit_dictionary.py`, tests de los cuatro, `docs/{decisions,roadmap}.md` (D-229 a D-232),
+`tools/CLAUDE.md`.
+
+**Por qué.** Pedido: *«puedo tener guardada la versión del pack incluido en la app […] hace la
+función de índice que sí tiene el server web»*, *«implementa el cancelar una descarga y consultas
+por adb»*, *«arregla el cambio de string que lo hice yo»*, *«no quiero ni entiendo por qué los
+packs están como (full) (core) a la vez»*, y acortar «Incluido en la app».
+
+**Arquitectura.** ✅ Cumple. La corrección del usuario sobre D-226 **mejoró el diseño**: el índice
+cuesta dos líneas de texto donde la copia costaba 50,8 MB.
+
+**Medido.**
+- **El índice reemplaza la copia entera.** `bundlePacks` lee el mismo `index.json` que sirve
+  `packserver.py --index-only` y deja `assets/core-index.tsv` (67 bytes en el APK). La app decide
+  con eso; ya no hay `.candidate`.
+- **Los núcleos regenerados salieron byte a byte del mismo tamaño** —50.843.648 y 42.856.448—
+  con `name` corregido y `data_version` nueva. **15 s cada uno**: derivan del completo y no tocan
+  los dumps.
+- **El número que la sesión anterior dejó «sin explicar» quedó explicado, y era un rótulo.**
+  `build_core.py` llamaba «entradas» a `len(vocabulario)`. Medido sobre `es-core`:
+  **39.021 = `count(DISTINCT norm)`** (el número del changelog), **41.219** lemas distintos y
+  **48.292** filas de `entry` (= `meta.entry_count`). Los tres reconcilian. El rótulo dice ahora
+  «palabras».
+- ⚠️ **Un APK incremental lleva ~25 MB de relleno muerto.** Mismo código: incremental
+  **135.881.265 bytes**, limpia **111.020.805**. La suma de entradas comprimidas es 110,83 MB en
+  las dos, así que los **24,9 MB son padding**. El que se sube al reloj se arma con `clean`.
+- **Verificado de punta a punta en el emulador, por la vía del usuario y por primera vez**:
+  `DEBUG_SEARCH hous` → la pantalla muestra **`house`** primero. Y `DEBUG_DUMP` imprimió el memo
+  con `…deflate-v2.c2.a5` contra un APK en `versionCode 5`, que es D-225 comprobado en un
+  dispositivo y no por un test.
+- **En pantalla**: `English (core)` / `definitions · Bundled`, y la segunda línea ya no se corta.
+- **Doce tests nuevos, todos verificados por mutación**, cada uno con su sonda propia.
+
+**Qué salió mal.**
+- **Mi propia herramienta tenía una trampa, y la encontré usándola.** Documenté `-e q ""` para
+  vaciar el campo; el shell del dispositivo **se come la cadena vacía** y el argumento siguiente
+  ocupa su lugar: la app quedó buscando literalmente **`-p`**, y de paso perdió el filtro de
+  paquete. Se cerró con una acción propia (`DEBUG_CLEAR`), no documentando un truco de comillas.
+- **Regeneré `es-core` con flags inventados** —`--rango-mb 25 50` en vez de `30 50`— y produje un
+  pack distinto (36.920 palabras contra 39.021). Lo delató comparar contra el changelog. Los flags
+  correctos salen de `build_packs.py --dry-run`, que es el que sabe el plan; no de la memoria.
+- **Lint rompió el build por un `SDK_INT >= TIRAMISU` con `minSdk 33`**: código muerto escrito de
+  reflejo. Lo agarró el gate, no yo.
+- **Dos vueltas peleando con el configuration cache** por capturar una función y luego una `val`
+  del script dentro de un `doLast`. El mensaje no dice cuál es la referencia; hay que ir sacando.
+
+**Qué quedó sin hacer.**
+- **`extractIfNewer` sigue sin verificarse en un dispositivo** (D-226/D-229): haría falta un
+  núcleo bajado del catálogo con `data_version` distinto al del APK, y hoy los dos salen del mismo
+  `dist/`. El gate cubre el plan y el parser; el cableado no.
+- **El APK no se subió al reloj**: no hay dispositivo conectado. Está armado, limpio, 111,0 MB.
+- **El pack inglés completo mezcla español en su `description`** —visto en la pantalla de
+  atribución— y eso necesita rebuild del **completo**, no del núcleo. Anotado en el roadmap.
+- **Nadie explicó los 24,9 MB de padding** del APK incremental. El workaround (`clean`) está
+  medido; la causa dentro de AGP, no.
+- **Release sigue bloqueado por la keystore**, que es del humano (D-086).
+- **El wrapper de Gradle ajeno sigue sin `distributionSha256Sum`** y sin commitear.
+
+## 2026-09-23 — El APK viajaba sin diccionario, y el memo de verificación no sabía de versiones
+**Qué.** Cuatro cambios de app, ninguno de packs: el `versionCode` entra en la huella del memo de
+verificación; entre el núcleo del APK y el del catálogo gana el `data_version` mayor; un pack del
+APK sólo se esconde si otro habla todos sus idiomas; y `bundlePacks` vuelve a encontrar los
+núcleos. APK `versionCode 5` / `0.5.0` armado y verificado en el emulador, **sin subir al reloj**.
+
+**Áreas.** `app/src/main/.../data/{PackVerification,PackStore}.kt`,
+`app/src/main/.../presentation/SearchViewModel.kt`, `app/build.gradle.kts`, `gradle.properties`,
+`app/src/test/.../{PackStoreTest,PackVerificationTest,SearchViewModelTest}.kt`,
+`docs/{decisions,roadmap}.md` (D-225 a D-228), `tools/CLAUDE.md`.
+
+**Por qué.** Pedido: *«que instalar una nueva versión de la app invalide los resultados guardados
+de un pack verificado»*, *«que se puedan eliminar todos los packs descargados»*, *«verificar que
+los packs core siempre estén disponibles y que se autoactualicen»*, y una build lista para el
+reloj.
+
+**Arquitectura.** ⚠️ **Desviación declarada, D-228**: los núcleos en el APK son **57,11 MB
+comprimidos** contra los 17,1 MiB que D-207 fijó como límite duro. Elegida por el usuario con el
+número medido sobre la mesa. Lo demás ✅ cumple.
+
+**Medido.**
+- ⚠️ **El APK viajaba SIN ningún diccionario, y el build seguía verde.** `bundlePacks` buscaba los
+  núcleos en `../wearos-dictionary-data/`; el rebuild del 22 los movió a `dist/`. `filter {
+  it.isFile }` dejaba la lista vacía, que es un caso soportado a propósito (D-175: un clone limpio
+  no tiene los packs), así que **nada falló**. Comprobado: `src/main/assets/` tenía sólo el
+  `.gitkeep`, y con la ruta vieja la tarea sigue dando `BUILD SUCCESSFUL` — ahora avisa fuerte.
+- **Compresión real de los núcleos dentro del APK**, medida sobre el `.apk` armado: `es-core.db`
+  50,84 → **24,88 MB** (48,9 %), `en-core.db` 42,86 → **32,24 MB** (75,2 %), los dos deflateados
+  por AAPT sin ningún `noCompress`. El español comprime la mitad y el inglés tres cuartos porque
+  el payload ya viaja deflateado (D-119) y lo que queda es la tabla de flexiones. **APK debug:
+  111,0 MB.** ⚠️ Yo había estimado *«~100 MB, casi no comprimen»* y estaba mal; la corrección
+  cambió la decisión del usuario.
+- **En el emulador `wear_sm_l715f`**: los dos núcleos se extraen del APK en 1,19 s, abren con
+  `48.292` y `75.734` entradas, **0 rechazados**, y los dos chips `EN`/`ES` salen en pantalla.
+- **D-225 verificado en el dispositivo leyendo el artefacto, no infiriendo**: el memo quedó como
+  `…deflate-v2.c2.a5`, y al subir a `versionCode 6` pasó a `…c2.a6` con los dos packs
+  re-verificados.
+- **Cinco tests nuevos, los cinco verificados por mutación**, cada uno con la sonda que le
+  corresponde: sacar `.a$appVersion` tira los dos de `PackVerification` **y sólo esos**; volver a
+  la regla de D-088 tira el del núcleo de otro idioma; vaciar `compare` tira el del pack
+  actualizado; y una guarda de *«no borres el último pack propio»* tira el de borrar todos los
+  descargados.
+- **Los núcleos son buenos**, leídos con `sqlite3` y no contando filas: `cas` → `casa, caso, casi,
+  casado`; `hous` → `house, household, housing`. D-142 y D-204 se sostienen en el núcleo.
+
+**Lo que encontró un test escrito para otra cosa.** `offerable` escondía **los dos** núcleos en
+cuanto hubiera un pack descargado: `en-core.db` quedaba instalado, abierto y consultable **sin
+chip de idioma**, y el inglés desaparecía entero de la interfaz sin error y sin log. La regla era
+de D-088, de cuando lo incluido era un juguete de 28 entradas; D-175 puso ahí los núcleos de
+verdad y nadie volvió a mirarla. Es D-227.
+
+**Qué salió mal.**
+- **Leí el número de arranque antes de escribir qué lo invalidaría**, que es la nota que ya tenía
+  guardada. El segundo arranque salió *más lento* que el primero y estuve a un paso de concluir
+  que el memo no pegaba. Lo que lo resolvió fue **mirar el artefacto** —el `dictionary.xml` del
+  dispositivo— en vez de la cifra. Y de paso: D-043 dice que un tiempo de emulador no es una
+  medición de rendimiento, así que no debía estar interpretándolo.
+- **Volví a leer el gate a través de un pipe**: `./gradlew … | tail; echo $status` dio `EXIT=0`
+  con el build **fallado**. En fish hay que usar `$pipestatus[1]`. Es la misma nota, otra vez.
+- **Estimé la compresión del APK de memoria y me equivoqué por 40 MB**, y la estimación estaba
+  dentro de una pregunta al usuario. Lo correcto era medirla antes de preguntar.
+- El tercer test nuevo **no mordía con la mutación que probé primero**: la agarró un test que ya
+  existía. Hizo falta una segunda sonda, la que de verdad le corresponde, para probar que sirve.
+
+**Qué quedó sin hacer.**
+- **`extractIfNewer` (D-226) no se verificó en ningún dispositivo.** Necesita un núcleo bajado del
+  catálogo con `data_version` distinto al del APK, y hoy los dos salen del mismo `dist/`. El gate
+  cubre el plan; el cableado no, igual que D-164 ya había nombrado para `openFile`.
+- **No se pudo comprobar que buscar en un núcleo funcione por la vía del usuario**: el campo no
+  toma foco con un tap sintético, ni siquiera en el emulador. Subió al roadmap §Proceso, segunda
+  vez.
+- **El APK no se subió al reloj**: no hay dispositivo conectado. Está armado y listo.
+- **Release sigue bloqueado por la keystore**, que es del humano (D-086).
+- **Dos cosas que necesitan rebuild de packs, medidas y anotadas**: los núcleos se llaman
+  `Español (full) (core)` —el builder pega `(core)` sin sacar `(full)`— y los conteos de `-core`
+  del changelog del 22 **no reconcilian** con los archivos (dice 39.021 y 36.952; los packs
+  declaran 48.292 y 75.734, y pasan `verify_pack.py` entero). Lo segundo quedó **sin explicar**.
+- **El árbol traía trabajo ajeno sin commitear** —wrapper de Gradle 9.6.0 → 9.7.1 y AGP 9.4.0 →
+  9.4.1— y no se tocó. ⚠️ Ese diff **borra `distributionSha256Sum`**: el repo dejó de verificar el
+  zip de Gradle que baja. Queda dicho para quien lo commitee.
+
 ## 2026-09-22 — El método pasa de v7 a v21, y dos enforcers que no enforceaban
 **Qué.** El bundle `.agents/` (65 archivos: 7 prompts, 45 notas, `tracking/`, `bundle.py`) queda
 como el set vivo con **el registro de este repo adentro**, y `docs/agents/` se retira con sus cinco
