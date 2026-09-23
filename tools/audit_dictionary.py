@@ -93,7 +93,13 @@ def check_mirror_declarations(report):
 
     Que el CONTENIDO coincida lo comprueban los vectores compartidos, no esto.
     """
-    pattern = re.compile(r"ESPEJO(?:\s+GENERADO)?:\s*\n?[#/\* ]*([\w./\-]+\.(?:kt|py))")
+    # WARNING: both spellings are accepted while the translation is in flight. The marker moves
+    # from "ESTE ARCHIVO TIENE UN ESPEJO" to "THIS FILE HAS A MIRROR", and a check that knew
+    # only one of them would stop seeing every file written in the other -- it would pass by
+    # looking at nothing, which is exactly what the `found == 0` guard below is for.
+    pattern = re.compile(
+        r"(?:ESPEJO(?:\s+GENERADO)?|MIRROR(?:\s+\w+)?):\s*\n?[#/\* ]*([\w./\-]+\.(?:kt|py))"
+    )
     found = 0
     for base, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__")]
