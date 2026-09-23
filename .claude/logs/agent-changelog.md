@@ -16,6 +16,84 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-23 (3) — El triage del método se termina, y nueve de diez líneas salieron de prosa duplicada
+**Qué.** Los seis bloques que el triage v8→v16 había dejado nombrados y sin aplicar, aplicados
+(D-233 a D-239). `CLAUDE.md` vuelve a 200 líneas exactas. Antes de eso, los cinco commits del
+trabajo del día anterior, cada uno verde por separado.
+
+**Áreas.** `CLAUDE.md`, `.claude/skills/{verify,commit}/SKILL.md`, `docs/preguntas-del-reloj.md`
+(nuevo), `app/build.gradle.kts`, `SettingsScreen.kt`, `MainActivity.kt`, `DebugIntents.kt`,
+`ScreensTest.kt`, `DebugIntentsTest.kt`, `res/values{,-es}/strings.xml`,
+`tools/audit_dictionary.py`, `.agents/tracking/candidates.md`, `docs/{decisions,roadmap}.md`.
+
+**Por qué.** Pedido: retomar el trabajo que la mudanza v7→v21 dejó deliberadamente sin hacer,
+empezando por el brief y por `state-review` §0.
+
+**Arquitectura.** ⚠️ **Desviación, declarada.** Recomendé dejar el principio 7 segunda mitad fuera
+—es un sistema, no una regla, y mezclarlo con un cambio de reglas es lo que la disciplina 2 del
+principio 17 prohíbe— y se eligió aplicar los seis. Se hizo entero. **El costo se materializó**:
+este cambio lleva a la vez reglas de prosa y una feature (`BuildConfig.BUILD_COMMIT` + la fila de
+Ajustes + tres tests), así que un revert de una se lleva la otra. Va en su propio commit para
+acotarlo, que es lo máximo que se puede hacer desde acá.
+
+**`state-review` §0, antes de nada.** `incoming/` sólo con su `README.md`; los tres digests
+cuadran; `adapted`/`declined` llenos; audit exit 0. **Ninguna fila de la tabla dispara un prompt
+nuevo** — la que casi aplica, `prompt-harvest.md`, ya se corrió y sus cinco hallazgos están en
+`candidates.md`. Lo que manda es la nota al pie: *«decí qué queda pendiente del anterior»*. Un
+update termina cuando cada delta aceptado es una edición real, y eso era justo lo que faltaba.
+
+**Medido.**
+- ⚠️ **Una premisa del pedido era falsa y hubo que decirlo**: el árbol sucio **no era de otra
+  sesión**. De los 36 archivos, 31 los había escrito yo; ajenos de verdad eran **cinco**, los del
+  wrapper de Gradle, y siguen sin tocar. Ese diff **borra `distributionSha256Sum`**.
+- **El presupuesto: 10 líneas hicieron falta y 9 salieron de duplicación.** §Verification estaba
+  palabra por palabra en la skill `verify`, y el *por qué* de §Logging obligation en la cabecera
+  del propio changelog. Desalojarlas no retiró ninguna regla: borró una segunda fuente de verdad.
+- **Los cinco commits, cada uno verde en worktree por su exit code.** El mecanismo que lo hizo
+  posible sin tocar el árbol: `git --work-tree=<dir> add -- <path>` para stagear una versión
+  intermedia, y `--fix` corrido **dentro del worktree** para que los conteos sean los de *ese*
+  commit y no los del árbol, que va adelante.
+- **Tres archivos necesitaron versión intermedia** —`app/build.gradle.kts`, `SearchViewModel.kt`,
+  `MainActivity.kt`— porque los compartían dos commits. Es la aritmética que justifica D-235.
+- **El invariante de la regeneración de packs**: 50.843.648 y 42.856.448 bytes, idénticos antes y
+  después. Eso es lo que permitió llamarlo un renombrado (D-237).
+- **`check_no_probes_left_behind` verificado por sonda**: una línea `// MUTACION` plantada a
+  propósito, vista, y retirada.
+- **La identidad del build sale con `+dirty`** en el primer build, que es exactamente el caso que
+  justifica el campo.
+
+**Qué salió mal.**
+- **El gate atajó el presupuesto tres veces seguidas** —201, 204, 201— porque fui agregando sin
+  desalojar primero. El orden correcto era medir el hueco y recién después escribir; escribí y
+  después busqué de dónde sacar, que es cómo se acaba comprimiendo prosa buena por falta de plan.
+- **Dos vueltas con `java.text.SimpleDateFormat` en Gradle Kotlin DSL.** Dentro de
+  `defaultConfig` **y** a nivel de script, `java` resuelve al accessor de Gradle y no al paquete.
+  El error dice `Unresolved reference 'text'`, que no lo insinúa en absoluto. Se arregla
+  importando los tres tipos, y quedó escrito en el propio `build.gradle.kts`.
+- **Un test nuevo falló por el viewport, no por el código**: el bloque de diagnóstico es lo último
+  de la pantalla más larga de la app y a 900 dp no se compone. Ya existía un test al lado con
+  `@Config(qualifiers = "+w234dp-h1600dp")` resolviendo exactamente eso, y no lo miré antes de
+  escribir el mío.
+- **Un heredoc de Python con acentos reventó por encoding** (`Non-UTF-8 code starting with '\xc3'`).
+  Es la tercera forma distinta del mismo problema esta semana: el contenido con acentos va a un
+  archivo y el script lo lee, nunca inline.
+- **Escribí el nombre de un test que describía el cambio y no el código** —
+  `elDIAGNOSTICO_es_SOLO_LA_VERSION`— y lo tuve que renombrar al aplicar D-239 en el mismo commit.
+  La regla se cobró su primer ejemplo antes de terminar de escribirse.
+
+**Qué quedó sin hacer.**
+- **`r-a2f271` sigue sin registrar en `carriers.md`.** Bloqueado por dos lados: ese archivo no es
+  de los que un carrier puede escribir, y `bundle.py register` necesita **Python 3.11+** por
+  `tomllib` mientras esta máquina corre **3.9.6**. Lo cierra una meta-sesión del dueño del bundle.
+- **v17 a v21 sigue bloqueado**, no pendiente: el *Method changelog* llega a la 16.
+- **El hook `PreToolUse`** sobre los archivos generados: propuesto desde D-223, no construido. Las
+  mejoras de proceso se proponen.
+- **El principio 17 tiene un delta sin sujeto**: su ejemplo especifica un formatter y este repo no
+  tiene ninguno. No es *declinado* — no hay veredicto para eso, y se reportó como candidato.
+- **Nada de esto se verificó en un reloj.** La identidad de build, la fila de Ajustes y el volcado
+  corrieron en emulador; `docs/preguntas-del-reloj.md` nace con **nueve preguntas abiertas**, y
+  las dos primeras (D-168, D-169) llevan dos sesiones esperando un dispositivo.
+
 ## 2026-09-23 (2) — El índice reemplaza a la copia de 50 MB, y la app se puede preguntar por adb
 **Qué.** Seis cosas: la versión del pack incluido se declara en un índice dentro del APK en vez de
 extraerlo para preguntársela; el nivel deja de acumularse en el nombre (`Español (full) (core)` →
