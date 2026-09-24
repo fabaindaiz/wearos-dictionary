@@ -16,6 +16,70 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-4612e2 — Pronunciation lands end to end, and no pack carries it yet
+**What.** Asked for: options to keep developing. Chose **IPA in the pack and in the card**,
+mechanism only, no rebuild. Four commits, each green on its own.
+- **d-a2f271-13da99** — `TAG_PRONUNCIATION = "I"` in `payload.py` and its Kotlin mirror,
+  registered in `TAGS_CONOCIDOS`, two cases in the shared `payload-fixture.tsv`.
+- `kaikki._pronunciation` reads `sounds[].ipa`; `build.py` carries it; the toy pack gets `casa`.
+- `Entry.pronunciation` through `SqlitePackSource`, and a row in the card under the headword.
+- The rebuild debt written into §*Reconstruir los packs*.
+
+**Areas.** `tools/packbuilder/` (payload, kaikki, build, toy, verify_pack, the fixture generator
+and its output, two test files), `dict-core/` (`PayloadCodec.kt`, `Model.kt`), `dict-data/`
+(`SqlitePackSource.kt`), `app/` (`EntryScreen.kt`, `ScreensTest.kt`), `docs/`, `README.md`.
+
+**Why.** The previous session answered *"nothing is implementable now"*, which was wrong in two
+directions: the dumps are all on disk and three AVDs exist, so a rebuild and a visual check are
+expensive, not blocked. IPA was the item with both measurements already done and its exact
+touch-points listed.
+
+**Architecture.** ✅ Complies. Additive tag, so the codec id does not move and an old pack keeps
+opening — the property D-242 measured.
+
+**Measured.**
+- `./gradlew check` green after each commit: **38 checks, 0 failures, 3 advisories**;
+  `tools/` **521 tests**, `:app` **439**, **1125 in total**.
+- **The Spanish dump re-measured whole** — 854,460 lines against the 40,000 the roadmap had
+  sampled — and every number moved: **100.0 %** carry IPA (not 99.8), median **12** (not 11), p90
+  **16** (not 18).
+- **10 lines carry mismatched delimiters** (`[…)`) and 3 use `/…/`. Neither figure implied it, and
+  it is what decided that the pair is stripped only when it matches.
+- Coverage of the new tag: **0 of 200** sampled entries on `es-full`, **1 of 82** on the toy.
+- **Nine probes, all biting**, including the two that assert an absence.
+- **Knowledge checks run** (D-268). `a-check-must-be-seen-to-fail` ✅ — every new check and test
+  seen red. `absence-is-a-third-value` ✅ — it is what produced the readout: *this pack has none*
+  and *this word has none* are different questions and the card collapses them, so `verify_pack.py`
+  answers the first from the artefact. `no-simultaneous-deploy` ✅ by construction: the tag is
+  additive, so a new app over an old pack is exactly the tested path.
+
+**What went wrong.**
+- ⚠️ **The previous session's answer was a dead end and it was mine.** *"Nothing is implementable
+  without a watch, a rebuild or a decision"* put the emulator's work in the watch's column and
+  treated hours of compute as a blocker. The user pushed back; the sweep that followed found all
+  the dumps present and three AVDs configured.
+- ⚠️ **I wrote the roadmap's numbers into a decision row before re-measuring them.** The 99.8 %,
+  the median 11 and the p90 18 were all wrong, from a sample 21× smaller. A number carries its
+  date and its environment, and this one carried somebody else's.
+- ⚠️ **§Reconstruir los packs was not updated in the commits that touched the builder**, which its
+  own §*Qué la vuelve a abrir* requires in the same commit. Four files it names were touched across
+  three commits. Written in a fourth, with the miss named.
+- ⚠️ **The first four Python tests landed inside `PartesPrincipalesTest`** — a pronunciation is not
+  a principal part — which is the same misplacement found two days ago in `VisitTest.kt`. Moved to
+  their own class before committing.
+
+**What was left undone.**
+- **No pack carries the tag.** `es-full` has to be rebuilt from `es.jsonl` for it to reach a user;
+  the debt is in §*Reconstruir los packs*.
+- **Etymology**, the other half of that roadmap item, is untouched: it is bigger, it competes with
+  the definition for height at 234 dp, and it was not chosen.
+- **The card row has never been seen on a screen**, like the three before it. Three AVDs exist and
+  no session has started one.
+- ⚠️ **`PayloadCodec.render` in Kotlin still does not emit `W` or `F`**, so those channels'
+  round-trip through it is untested. Found here, deliberately not widened and not fixed: it is its
+  own change.
+---
+
 ## 2026-09-24 · s-a2f271-0da358 — What was left to implement was smaller than the roadmap said
 **What.** Asked for: what changes are still pending in the roadmap to implement now. Sweeping it
 turned up **one real item and three entries that described built work as missing**. Two commits.
