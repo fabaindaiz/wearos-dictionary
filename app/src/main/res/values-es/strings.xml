@@ -87,6 +87,9 @@
     <!-- Ajustes -->
     <string name="settings_dictionaries">Diccionarios</string>
     <string name="settings_manage">Gestionar</string>
+    <string name="settings_search">Búsqueda</string>
+    <string name="settings_cross_language">Buscar también en el otro idioma</string>
+    <string name="settings_cross_language_note">Solo cuando el idioma activo no encuentra nada parecido. Apagado, la búsqueda se queda en un idioma.</string>
     <string name="settings_text_size">Tamaño del texto</string>
     <string name="settings_text_size_note">Se suma al tamaño que tengas configurado en el reloj.</string>
     <!-- Las tres letras del selector de tamaño: se ven, no se leen. -->

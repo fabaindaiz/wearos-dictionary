@@ -2150,6 +2150,8 @@ class ScreensTest {
         onUiLanguageChange: (String?) -> Unit = {},
         onClearHistory: () -> Unit = {},
         hasHistory: Boolean = true,
+        crossLanguageFallback: Boolean = false,
+        onCrossLanguageFallbackChange: (Boolean) -> Unit = {},
     ) {
         compose.setContent {
             SettingsScreen(
@@ -2162,10 +2164,24 @@ class ScreensTest {
                 onUiLanguageChange = onUiLanguageChange,
                 onManagePacks = {},
                 onScaleChange = {},
+                crossLanguageFallback = crossLanguageFallback,
+                onCrossLanguageFallbackChange = onCrossLanguageFallbackChange,
                 onClearHistory = onClearHistory,
                 hasHistory = hasHistory,
             )
         }
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h1600dp")
+    fun theSearchSettingIsAboveTheLooks() {
+        // D-266. The switch is the only row in Settings that changes what a SEARCH returns;
+        // everything under it changes how the app looks. Somebody arriving because "it does not
+        // find my English words" has to meet it before three rows about type size.
+        var encendido: Boolean? = null
+        showSettings(onCrossLanguageFallbackChange = { encendido = it })
+        compose.onNodeWithText("Buscar también en el otro idioma").performClick()
+        assertEquals(true, encendido)
     }
 
     @Test

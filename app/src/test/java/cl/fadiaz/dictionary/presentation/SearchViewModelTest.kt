@@ -4,6 +4,7 @@ import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.data.PackSet
+import cl.fadiaz.dictionary.data.Settings
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -1426,6 +1427,38 @@ class SearchViewModelTest {
         val vm = conPack(fake)
         vm.recordVisit(suggestion("es-def", 7, "perro"))
         assertEquals(listOf("perro"), vm.state.value.history.map { it.headword })
+    }
+
+    @Test
+    fun theCrossLanguageFallbackIsOffUntilTheSettingTurnsItOn() = runTest {
+        // D-266, and what it closes is **dead-but-working code**: `LanguageScope.FALLBACK` was
+        // built and tested in :dict-core since D-189, and no caller in the app could construct
+        // it. What is asserted here is the WIRING -- that the preference reaches the repository's
+        // scope -- not the fallback's own behaviour, which `SearchRepositoryTest` already covers.
+        //
+        // The Spanish pack does not know `dog`; the English one does. With the setting off the
+        // list is empty, which is D-189's measured answer: 321 of 400 common English lemmas stop
+        // appearing with Spanish active.
+        val es = FakeDictionary("es-def", "es", vocabulary = setOf("casa"))
+        val en = FakeDictionary("en-def", "en", vocabulary = setOf("dog"))
+        var guardado = Settings()
+        val vm = SearchViewModel(
+            { listos(es, en) },
+            savedSettings = { guardado },
+            saveSettings = { guardado = it },
+        )
+        advanceUntilIdle()
+
+        vm.onQueryChange("dog")
+        advanceUntilIdle()
+        assertEquals(emptyList(), vm.state.value.results.map { it.headword }, "estricto por defecto")
+
+        vm.onCrossLanguageFallbackChange(true)
+        vm.onQueryChange("dog ")
+        vm.onQueryChange("dog")
+        advanceUntilIdle()
+        assertEquals(listOf("dog"), vm.state.value.results.map { it.headword }, "el ajuste llega")
+        assertEquals(true, guardado.crossLanguageFallback, "y se guarda en disco")
     }
 
     @Test
