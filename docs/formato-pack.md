@@ -311,6 +311,7 @@ Delimited UTF-8 text, compressed with raw deflate and the pack's shared dictiona
 
 ```
 P<TAB>verb                     part of speech, opcional, antes de cualquier S
+I<TAB>korˈrer                  pronunciación de LA PALABRA, en IPA (d-a2f271-13da99)
 F<TAB>gerund:corriendo         principal part of THE WORD, display form (D-242)
 W<TAB>to race                  traducción de LA PALABRA, sin acepción (D-179)
 S<TAB>moverse rapidamente      abre una acepción
@@ -321,6 +322,36 @@ Y<TAB>desplazarse              sinónimo de la acepción abierta (D-117, D-124)
 A<TAB>detenerse                antónimo de la acepción abierta (D-126)
 R<TAB>camélido                 palabra relacionada de la acepción abierta (D-132)
 ```
+
+### ⚠️ `I` arrives stripped, and what it loses cannot be recovered
+
+`I` holds the word's IPA **without the delimiters the source wrapped it in**. Wiktionary writes
+`[korˈrer]` for a phonetic transcription and `/korˈrer/` for a phonemic one, and the pack keeps
+neither: those two characters are a typographic choice, and storing one would freeze it where the
+card cannot undo it.
+
+⚠️ **The cost, and it is real**: the pack no longer records **which of the two notations it was**.
+The card therefore shows it bare — putting either delimiter back would assert a notation nothing
+recorded, which is the family D-080 named. Reopen this if a reader ever needs the distinction; it
+means a second character in the value, not a second tag.
+
+⚠️ **The pair is stripped only when it MATCHES.** Measured over the whole Spanish dump on
+2026-09-24 — 854,460 lines — **10 of them are malformed** (`[korˈrer)`). Stripping one side would
+leave a stray `)` indistinguishable from real notation; left whole, they are visibly the source's
+problem.
+
+⚠️ **One per entry, and it is the first item that HAS an `ipa`** — not `sounds[0]`. That list mixes
+transcriptions with `acentuación`, `longitud silábica` and audio files, and only some items carry
+the key. In Spanish `sounds[0]` happened to carry it every time, which would have made indexing it
+a rule that holds by luck of one language's editors.
+
+Like `P`, `W` and `F` it belongs to **the word**, so it comes before any `S`.
+
+⚠️ **An empty pronunciation row means two different things and the card cannot separate them**: a
+pack built before this channel, and a word whose source carried none. `verify_pack.py` therefore
+**reports the tag's coverage per pack** as a note — never a check, because how much IPA a language
+has is a property of the source, not an invariant. `es-full` reads **0.0 %** today; the dump has
+**100.0 %**.
 
 ### ⚠️ `F` carries a DISPLAY form, and that is the whole reason it exists
 
@@ -457,7 +488,7 @@ That is the figure that makes the table below worth following.
 
 | Surface | Adding is safe? | How, and what makes it safe |
 |---|---|---|
-| **Payload tag** | ✅ **both directions** | The parser ignores unknown tags on purpose. An old app skips a new tag; a new app simply does not find it in an old pack. ⚠️ **Do not bump `payload_codec`** for an additive tag — it is compared with `!=`, so bumping it throws the whole property away. Already the rule for `A` and `R` |
+| **Payload tag** | ✅ **both directions** | The parser ignores unknown tags on purpose. An old app skips a new tag; a new app simply does not find it in an old pack. ⚠️ **Do not bump `payload_codec`** for an additive tag — it is compared with `!=`, so bumping it throws the whole property away. Already the rule for **six tags**: `A`, `R`, `C`, `W`, `F` and `I`, with zero broken packs |
 | **`meta` key** | ✅ **both directions** | Read it with `meta[...]`, **never** `getValue`. Done three times with zero broken packs: `description` (D-125), `sources` (D-138), `subset_of`. Enforced by `check_required_meta_keys` |
 | **Column or table** | ⚠️ **one direction only** | Nothing breaks an **old app**: there is not a single `SELECT *` in the codebase, every query names its columns. But a **new app** querying a column an old pack lacks fails **at query time**, which is the worst place — the whole point of D-001 is failing loudly at open |
 | **Meaning of something that already exists** | ❌ never | `schema_version`. Bump it and every installed pack is rejected |
