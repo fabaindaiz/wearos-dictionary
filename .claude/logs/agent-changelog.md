@@ -16,6 +16,58 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-0da358 — What was left to implement was smaller than the roadmap said
+**What.** Asked for: what changes are still pending in the roadmap to implement now. Sweeping it
+turned up **one real item and three entries that described built work as missing**. Two commits.
+- **d-a2f271-c8d129** — `check_root_budget` names which section grew, diffed against the last
+  commit, falling back to the longest sections when there is no `.git`.
+- Three roadmap entries retracted in place: the content probe, download cancellation in the top
+  three, and the emulator-verification entry that never mentioned D-232.
+
+**Areas.** `tools/audit_dictionary.py`, `docs/decisions.md`, `docs/roadmap.md` and this file.
+
+**Why.** The question was what to build; the honest answer needed the roadmap checked against the
+code first, and three of its claims did not survive that.
+
+**Architecture.** ✅ Complies. Nothing new was built that already existed — which was the risk.
+
+**Measured.**
+- `./gradlew check` green after each commit: **38 checks, 0 failures, 3 advisories**.
+- **The coverage probe, run against the real packs for the first time**: `cobertura-es.txt` has
+  **123** words and `cobertura-en.txt` **120**. `es-full`, `es-core` and `en-full` carry all of
+  them; `en-core` is asked for **110**, the other ten carrying `#! solo el pack completo`; `es-en`
+  passes as a dictionary of Spanish and reports `tuesday` and `workaround` on its target side as a
+  note rather than a failure.
+- **The coverage check bites, and that had never been shown**: an impossible word added to the
+  Spanish list makes `es-full` report `FALLA … (faltan 1: …)` and exit **1**.
+- The roadmap's Spanish ratchet drops **2307 → 2306**.
+- **Knowledge check run** (D-268). `a-check-must-be-seen-to-fail`, whose own warning is *"or its
+  subjects vanish, and the check is a constant green"* — it is what made this session probe the
+  coverage check instead of trusting five green packs, and probe the budget check on three
+  branches including *no git at all*. ✅ Passes.
+
+**What went wrong.**
+- ⚠️ **The session was one file-read away from building the content probe a second time.** The
+  roadmap described `vectors/cobertura-*.txt` and a mode in `verify_pack.py` as *the fix*, in the
+  future tense; both had existed since **2026-09-22** with all their nuance — the tier directive,
+  the bilingual source-language rule, the fixture guard, lemma-or-form. The plan was written, the
+  cost was priced, and only opening the file stopped it. **A roadmap entry that describes solved
+  work costs exactly what a real one costs.**
+- ⚠️ **New prose came out in Spanish again**, in `docs/roadmap.md`, one day after the same
+  friction was promoted to that very document and written to memory with its trigger named. The
+  trigger fired as described — editing inside a section that was already Spanish — and the memory
+  did not prevent it. That is the sixth occurrence, and it is evidence the ratchet is the only
+  thing holding this, not the prose about it.
+
+**What was left undone.**
+- **Nothing in the roadmap is now implementable without a watch, a pack rebuild or a decision from
+  the owner.** The remaining items are: measuring on a release build, the gloss tap, the
+  normalization vectors on hardware and four more watch questions; IPA, etymology, the Spanish
+  example citation and §Alinear acepciones, all of which need a rebuild; and the catalogue host,
+  the keystore, the 111 MB APK and the asymmetric `es-core`, which are the owner's calls.
+- **The glanceable surface** is planned and unbuilt, and it is UI, so it waits to be asked for.
+---
+
 ## 2026-09-24 · s-a2f271-713ed7 — The bundle conventions land: minted record ids, one recipe instead of two, and a check retired the day after it was written
 **What.** Asked for: review the new `.agents/` and apply every new convention and constraint.
 ⚠️ **There is no new `.agents/`** — bundle v20, method v24, knowledge v11, digest `c27c3d884fe3`,
