@@ -3385,7 +3385,7 @@ cliente?*, y el paso siguiente es la medición del punto 1, que no necesita ni r
 | | |
 |---|---|
 | Transporte | `HttpURLConnection`, que hace `Range` y progreso sin sumar un byte al APK (D-040) |
-| Cuándo | Diferido a **cargando + Wi-Fi**, con WorkManager (D-029) |
+| Cuándo | **Wi-Fi sin medir** siempre; el cargador **sólo** si la descarga es `QUEUED` (D-029, D-263) |
 | Dónde aterriza | `filesDir/packs/`, el mismo directorio donde hoy entran por `adb` (D-071) |
 | Rechazo | `schema_version` o `norm_version` distintas ⟹ no se instala (D-001, D-006) |
 | Qué NO se usa | Play Asset Delivery, sin soporte documentado en Wear OS (D-038) |
