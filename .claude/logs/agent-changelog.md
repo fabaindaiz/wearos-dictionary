@@ -16,6 +16,78 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-a9fe9a — Seven items off the roadmap: two rules made to hold on every surface, a request applied as who-decides, and three UI items unlocked
+**What.** Asked for: read the roadmap and pick what to keep implementing. Seven commits, each
+offered when its own piece passed.
+- **`representativePacks` honours `subset_of`** (D-nothing; it enforces an existing rule). It and
+  `packsToQuery` agreed only because an absorber happens to hold more entries than its subset.
+- **`check_debug_surface_stays_out_of_release`**: the `release` block must set `DEBUG_INTENTS` to
+  `false`. 35 → 36 checks. Enforcer added to D-232.
+- **The `abiertos=` roadmap row retracted.** It said *"FOUND, not fixed"* over a fix that had
+  shipped with D-256 and a regression test.
+- **D-263**: a download somebody asked for by hand no longer waits for a charger; `UNMETERED`
+  stands for both kinds.
+- **D-264**: with no packs the home draws one row to the dictionary manager.
+- **D-265**: a `Visit` stores its own language; rows written before the field stay untagged.
+- **D-266**: the cross-language fallback becomes a setting, off by default — the first caller in
+  the app's history that constructs `LanguageScope.FALLBACK`.
+
+**Areas.** `app/src/main/**` (`PackGrouping`, `SearchScreen`, `SettingsScreen`, `WordListScreen`,
+`SearchViewModel`, `MainActivity`, `Visit`, `Settings`, `DownloadPackWorker`, both `strings.xml`),
+`app/src/test/**` (5 files), `tools/audit_dictionary.py`, `docs/decisions.md`, `docs/roadmap.md`,
+`docs/preguntas-del-reloj.md`, `README.md` and `app/CLAUDE.md`.
+
+**Why.** The last five sessions were the method, not the product; the last product work was
+2026-09-23 and left a tanda of findings measured and not built. The owner lifted the
+UI-goes-to-the-roadmap rule for three of them and picked option B for the charger.
+
+**Architecture.** ✅ Complies. Two of the seven exist to make an existing rule hold on a second
+surface, which is this repo's named recurring failure.
+
+**Measured.**
+- `./gradlew check` green after each of the seven. Final state: **36 checks, 0 failures, 3
+  advisories**; `:app` **437 JVM tests**, **1111 in total**.
+- **Every new test proven by mutation**, 14 probes in all. Two of them found the test rather than
+  the code — see below.
+- The Spanish ratchet for `docs/decisions.md` drops **261 → 260**: D-263 was first written in
+  Spanish and rewritten in English.
+
+**Not verified.**
+- ⚠️ **None of the three UI changes was seen on a screen.** No emulator was started this session:
+  the switch row, the *Conseguir un diccionario* row and the language tag on Recent are verified
+  only by Robolectric, one of them at `+w234dp`. Settings grew by **three rows**, and nothing here
+  measured what that does to a list that was already the app's longest.
+- The question that needs a wrist joins the standing brief as **P-13**.
+
+**What went wrong.**
+- ⚠️ **A filtered test run passed green without running the new tests.** The serialization tests
+  in `VisitTest.kt` live in `VisitTargetTest`, not `VisitTest`, so `--tests '*VisitTest*'` matched
+  6 cases and none of mine. The mutation was in place and the build said SUCCESSFUL. Caught by
+  reading the **count** in the XML report, which is the rule `app/CLAUDE.md` already writes down
+  for `connectedAndroidTest` — it applies to a `--tests` filter just as much.
+- ⚠️ **Two tests passed while guarding nothing, and both were mine.** The `subset_of` fallback
+  test used a declaration cycle, where nobody absorbs, so the branch never ran; the tag-precedence
+  test put a **different** `packId` in the map, so the `?:` order was unobservable and it passed
+  with the precedence reversed. Both were rewritten onto cases that reach the branch.
+- ⚠️ **The fallback switch was a silent no-op in its first version.** The repository is built when
+  packs load and when the language changes, **not per query**, and `scope` is a constructor
+  argument — so the setting persisted, read back correctly, and changed nothing in between. My own
+  KDoc asserted the opposite. The wiring test caught it; nothing else would have.
+- The Spanish-prose ratchet failed twice on reflowed text, not on new Spanish: a line carrying the
+  owner's quoted request wrapped so that its tail had Spanish markers and no English ones.
+
+**What was left undone.**
+- **A word tapped inside a gloss still records no language from a bidirectional pack.** That path
+  reads an `EntrySummary`, which carries no `lang`. Closing it means `entry.lang` reaching that
+  type — a `:dict-core` and `:dict-data` change whose tests need a device. Written up in the
+  roadmap rather than smuggled in.
+- **The download's battery cost is still unmeasured.** D-263 changes who decides, not what it
+  costs; `QUEUED` keeps the charger on a guidance-shaped rule.
+- **Nothing tells a user the fallback switch exists.** Whether an empty result should point at it
+  belongs with §The two escape hatches on an empty result.
+- **The packs in `dist/` are still not on the watch**; `devpack.py` was not run.
+---
+
 ## 2026-09-24 · s-a2f271-066ff0 — Bundle v20 lands: privacy enforced by the audit, and this repository keeps its id
 **What.** The bundle moves to **v20** (method v24, knowledge v11), written by `bundle.py splice`.
 - The bundle now has one rule above the others (principle 20): nothing in it may identify a
