@@ -18,6 +18,17 @@ borrada vuelve el trimestre que viene sin memoria de por qué se fue.
 El último es el que más falta en un roadmap y el que más tiempo ahorra: sin él, un agente que
 nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
+⚠️ **A NEW item carries a minted id after a ` · ` in its heading** (d-a2f271-5ab6e3):
+
+```sh
+python3 .agents/tools/bundle.py id i "<the heading>"   # -> i-a2f271-<hash>
+```
+
+The **97 headings written without one stay as they are** — renumbering rewrites every citation.
+What the id closes is that two sessions on different branches cannot see each other's next number.
+`check_record_ids_are_minted` holds the edge: the count of heading-without-an-id may drop, never
+rise.
+
 ## Dónde estamos
 
 *Actualizado: 2026-09-22.*
@@ -60,7 +71,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
 pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **437 JVM
-de `:app`** y **37 checks** de auditoría estructural — **1112 tests en total**. Los **46
+de `:app`** y **38 checks** de auditoría estructural — **1113 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.

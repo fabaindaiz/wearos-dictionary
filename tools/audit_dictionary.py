@@ -1596,6 +1596,73 @@ def check_rules_without_enforcer(report):
     )
 
 
+#: The last decision written with the retired counter, and the roadmap items still without an id.
+#:
+#: **Both are ratchets and only move down.** The counter was retired by the method in v23 for a
+#: reason this repository names in its own changelog header: two sessions on different branches
+#: cannot see each other's next number, so a counted id makes one of them lie. Legacy ids stay as
+#: written --renumbering would rewrite everyone else's citations-- so what a check can hold is the
+#: boundary: no row past this number, and no new item without an id.
+#:
+#: Lowering either one is the work of converting a record, and the audit says so when it can.
+ULTIMA_DECISION_CONTADA = 268
+ITEMS_DE_ROADMAP_SIN_ID = 97
+
+
+def check_record_ids_are_minted(report):
+    """Rule: a new decision or roadmap item carries a minted id, not the next number. (D-269)
+
+    `bundle.py id d|i TEXT` gives `<kind>-<repo6>-<content6>`; the carrier id is this repository's
+    and the content six hex are frozen at creation. The method retired the counter in v23.
+
+    ⚠️ **Why a boundary and not "every row must match"**: 268 decisions and 97 roadmap items were
+    written under the counter and they stay as written, because other documents and other copies
+    cite them and a renumber is a silent rewrite of every one of those references. So the check
+    holds the edge — nothing past the last counted number, nothing added without an id — which is
+    the same ratchet shape the Spanish-prose budget uses, and for the same reason: a rule that
+    cannot pass today gets switched off.
+
+    ⚠️ **It does NOT check that an id's hash matches its text.** `bundle.py ids` does the format,
+    the carrier prefix and uniqueness; an id is frozen at creation, so a later edit to the record
+    must not move it, and a check against the content hash would demand exactly that.
+    """
+    decisiones = os.path.join(ROOT, "docs", "decisions.md")
+    if os.path.isfile(decisiones):
+        pasadas = sorted({int(m) for m in re.findall(r"^\| D-(\d{3}) ", read(decisiones), re.M)
+                          if int(m) > ULTIMA_DECISION_CONTADA})
+        if pasadas:
+            report.failure(
+                "una decision nueva uso el contador retirado",
+                "docs/decisions.md trae %s, por encima de D-%d. El contador lo retiro el metodo "
+                "en v23: dos sesiones en ramas distintas no ven el proximo numero de la otra, asi "
+                "que una de las dos miente. Se acuna con `python3 .agents/tools/bundle.py id d "
+                "\"<el texto de la fila>\"`"
+                % (", ".join("D-%d" % n for n in pasadas), ULTIMA_DECISION_CONTADA),
+            )
+
+    roadmap = os.path.join(ROOT, "docs", "roadmap.md")
+    if os.path.isfile(roadmap):
+        titulos = re.findall(r"^### .*$", read(roadmap), re.M)
+        sin_id = [t for t in titulos
+                  if not re.search(r"\bi-[0-9a-f]{6}-[0-9a-f]{6}\b", t)]
+        if len(sin_id) > ITEMS_DE_ROADMAP_SIN_ID:
+            nuevos = len(sin_id) - ITEMS_DE_ROADMAP_SIN_ID
+            report.failure(
+                "un item de roadmap nuevo no lleva id",
+                "docs/roadmap.md tiene %d titulos sin id contra un techo de %d: %d sin acunar. "
+                "Se acuna con `python3 .agents/tools/bundle.py id i \"<el titulo>\"` y va en el "
+                "titulo despues de un ` · `. Los %d viejos se quedan como estan: renumerar "
+                "reescribe las citas de todos"
+                % (len(sin_id), ITEMS_DE_ROADMAP_SIN_ID, nuevos, ITEMS_DE_ROADMAP_SIN_ID),
+            )
+        elif len(sin_id) < ITEMS_DE_ROADMAP_SIN_ID:
+            report.advisory(
+                "el techo de items de roadmap sin id quedo alto",
+                "hay %d contra un techo de %d: baja ITEMS_DE_ROADMAP_SIN_ID a %d para que el "
+                "ratchet no se afloje" % (len(sin_id), ITEMS_DE_ROADMAP_SIN_ID, len(sin_id)),
+            )
+
+
 def check_bundle_privacy_and_ids(report):
     """Rule: nothing private travels in the bundle, and record ids are well formed. (method principle 20)
 
@@ -1995,6 +2062,7 @@ CHECKS = [
     check_root_budget,
     check_knowledge_notes_are_reachable,
     check_bundle_digests,
+    check_record_ids_are_minted,
     check_bundle_privacy_and_ids,
     check_rules_without_enforcer,
     check_skills_reachable,
