@@ -3465,35 +3465,26 @@ was answered on the emulator on 2026-09-23 — the links exist and they hit — 
 blocks anything. What is missing is the wrist: choosing between A and B depends on how much the
 extra tap annoys, and that is not something a desktop can feel.
 
-### `abiertos=` in the debug dump undercounts — FOUND 2026-09-23, not fixed
+### ✅ `abiertos=` in the debug dump undercounts — FIXED, and this row was stale for a day
 
-**Status.** **Defect, reported and not fixed.** Found while verifying the APK before an upload,
-by reading two readouts of the same launch against each other.
+**Status.** ✅ **Closed by D-256**, and left here because a deleted entry comes back next quarter
+with no memory of what closed it.
 
-**The evidence, from one run on the emulator.** Startup says `listo: 3 abiertos, 0 rechazados,
-activo=es-full`; the dump, seconds later, says `abiertos=2: en-core@…, es-full@…`. Three packs
-were open. `es-core` is missing from the second.
+**What it was.** Startup said `listo: 3 abiertos, 0 rechazados, activo=es-full`; the dump, seconds
+later, said `abiertos=2`. `MainActivity` fed it `state.available`, which is `offerable()`'s output
+and **drops a bundled core whose languages a non-bundled pack already covers** -- right on screen,
+wrong under that label.
 
-**The cause.** `MainActivity` feeds the dump `state.available`, whose KDoc says *"every pack the
-app knows about"*. What is assigned to it is `offerable(result.all)`, which **drops a bundled core
-whose languages are all covered by a non-bundled pack** — correct on screen, because offering
-`Español (core)` next to `Español (full)` is noise. So `available` is the offerable subset and
-its own documentation says otherwise; the dump believed the documentation.
+**What closed it.** `SearchState` carries two lists: `available` for drawing and `loaded` for
+reporting, with the dump reading the second. Fixed by `SearchViewModelTest`
+`aShadowedBundledPackIsStillReportedAsLoaded`, proven by mutation.
 
-⚠️ **Why it is worth a row rather than a shrug.** The dump exists to answer *what is actually
-loaded* on a device nobody can attach a debugger to, and `DebugIntents.dump` says in its own
-comment that a readout describing something other than what you think you are looking at is worse
-than no readout. A core that is open but shadowed reads as **not open**, which sends the next
-session hunting an extraction bug that is not there.
-
-**Until it is fixed, read it this way**: the startup line `listo: N abiertos` is the true count;
-the dump's `abiertos=` is the **offerable** set.
-
-**What would close it.** The dump needs the unfiltered open list, which the state does not carry
-today — so it is either a new field or `result.all` threaded through. ⚠️ **Not a rename**: calling
-the line `ofrecibles=` would make it honest and simultaneously remove the only answer the dump has
-to the question it exists for. The KDoc on `available` should be corrected either way, since it is
-wrong today.
+⚠️ **What this row is worth keeping for is the day it spent lying.** It kept saying *"FOUND, not
+fixed"* after the fix shipped, with the decision row and the regression test already in the tree.
+A roadmap entry that describes a solved defect costs the next session the same as one that
+describes a real one: it gets read, believed, and worked on. **The state goes in the same change
+as the fix**, which is what the ledger's five states exist for -- an entry that is only updated
+when somebody notices is not a ledger.
 
 ### `LanguageScope.FALLBACK` is built, tested and unreachable — FOUND 2026-09-23
 
