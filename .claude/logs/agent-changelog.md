@@ -75,7 +75,14 @@ opening — the property D-242 measured.
   work created a fourth — the tag **letters**, whose failure differs from the one already listed:
   a diverging `sense_code` sends a link to the wrong sense, a diverging letter throws a whole
   channel away with no error and a pack that opens fine. The gate was green throughout; only
-  reading the documents finds this.
+  reading the documents finds this. **Third session in a row**, so it was promoted to
+  `docs/roadmap.md` §Proceso y herramientas as `i-a2f271-6aab76` with its arithmetic — nine stale
+  claims in one day — and a mechanical helper proposed rather than built.
+
+- ⚠️ **New prose came out in Spanish for the seventh time**, and this time while writing the
+  roadmap item about process discipline, inside the section that promoted that very friction
+  yesterday. The trigger is the one already written down — editing inside a Spanish section — and
+  neither the memory nor the roadmap entry prevented it. Only the ratchet did, again.
 
 **What was left undone.**
 - **No pack carries the tag.** `es-full` has to be rebuilt from `es.jsonl` for it to reach a user;

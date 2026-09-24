@@ -5156,6 +5156,37 @@ stands — `docs/decisions.md` first (the most-consulted), the smaller documents
 build files with whatever module session touches them, and `docs/roadmap.md` **last**, because it
 is the one that changes most and translating it twice is the likely outcome of doing it first.
 
+### Documentation drifts behind the code and only the closing sweep catches it · i-a2f271-6aab76
+
+**Status.** **Planned**, with the arithmetic done and the improvement proposed, not executed.
+
+**Nine stale claims in one day, across three sessions, and the gate was green for every one of
+them.** None was found by a test; all three times it was a sweep at the end of the session —
+reading the documents that own what had just been touched.
+
+| Session | What it over-claimed | Found by |
+|---|---|---|
+| `s-a2f271-713ed7` | **4**: `CLAUDE.md` and `app/CLAUDE.md` both said downloads wait for a charger after D-263 withdrew that half; the roadmap's installer table said the same; and `app/CLAUDE.md` still called *"the right degradation"* a screen D-264 had stopped being a dead end | reading the documents |
+| `s-a2f271-0da358` | **3**: three roadmap entries described built work as missing, one of them the coverage probe, which came one `cat` away from being built a second time | reading the documents |
+| `s-a2f271-4612e2` | **2**: `docs/formato-pack.md`, **which owns the format**, had no section for the new tag; `tools/CLAUDE.md` counted three mirrors where there were four | reading the documents |
+
+⚠️ **Why no check catches it, and that is already measured.** §*A check whose subject is prose goes
+vacuous* records four cases of prose checks going vacuous. What goes stale here is not a path or a
+count — `check_doc_paths` and `check_test_counts` already cover those — but an **assertion about
+behaviour**, and no regex separates a stale one from a correct one.
+
+**The improvement, proposed and not executed.** Not a semantic check but a mechanical helper for
+the sweep that is already done by hand: given the session's diff, **list which durable documents
+name the files it touched**. It is a grep of the diff's paths against `docs/`, `CLAUDE.md` and the
+`*/CLAUDE.md` files, and it turns *"did I miss a document?"* — answered from memory today — into a
+list. It does not decide whether the text went stale; that is still reading it. It removes the step
+that actually fails, which is **not opening the document**.
+
+⚠️ **And what it does NOT solve**: a document describing something without naming the file.
+`CLAUDE.md` said *"downloads are deferred to charging"* without citing `DownloadPackWorker.kt`, so
+that grep would have missed it. It works against forgetting, not against prose that speaks without
+citing.
+
 ### Los conteos de tests en los documentos se rompen en cada commit
 
 **Estado.** ✅ **RESUELTO el 2026-09-21 con `--fix`.** `python3 tools/audit_dictionary.py --fix`
