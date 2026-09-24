@@ -1646,6 +1646,84 @@ def _bundle_md(subfolder):
     return sorted(found)
 
 
+def check_knowledge_notes_are_reachable(report):
+    """Rule: every knowledge note is reachable from its index, and every link there resolves.
+
+    `.agents/knowledge/INDEX.md` says so in its own words -- *"every note in `notes/active/` and
+    `notes/review/` is reachable from here and every listed note exists -- checked by the
+    repository's audit, because a dead pointer in an index is worse than an index nobody wrote"*.
+    It was not checked by anything. A claim naming an enforcer that does not exist reads as rung 3
+    and behaves as rung 0, which is the failure the method's own principle 1 names.
+
+    ⚠️ **Both directions, because they fail differently.** A dead link is loud once somebody
+    follows it; a note nobody links is silent forever -- it is work that was written, travelled in
+    the bundle and is never read, and nothing about the repository looks wrong.
+
+    ⚠️ **Reachable means transitively**, through the two area indexes: `INDEX.md` routes a session
+    to `areas/behaviour.md` and `areas/evidence.md` for the *before a design decision* step, and a
+    note listed only there is reached exactly as the index intends.
+
+    ⚠️ **`notes/retired/` is excluded, and that is the point of the folder.** The folder is the
+    note's state; a retired note that stayed linked would be read as live.
+
+    ⚠️ **This is the one place a carrier looks INSIDE the bundle**, and it is narrow on purpose:
+    it checks an invariant the bundle asks the carrier to enforce, never the bundle's content. The
+    document checks skip `.agents/` entirely and stay that way.
+    """
+    raiz = os.path.join(ROOT, BUNDLE, "knowledge")
+    indice = os.path.join(raiz, "INDEX.md")
+    if not os.path.isfile(indice):
+        return
+
+    enlace = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+
+    def enlaces(ruta):
+        with open(ruta, encoding="utf-8") as handle:
+            texto = handle.read()
+        base = os.path.dirname(ruta)
+        for match in enlace.finditer(texto):
+            destino = match.group(1).split("#")[0].strip()
+            if not destino or destino.startswith(("http://", "https://", "mailto:")):
+                continue
+            yield destino, os.path.normpath(os.path.join(base, destino))
+
+    # INDEX.md plus the area indexes it points at: that is what "reachable from here" means.
+    fuentes = [indice]
+    for destino, absoluto in enlaces(indice):
+        if destino.startswith("areas/") and os.path.isfile(absoluto):
+            fuentes.append(absoluto)
+
+    enlazadas = set()
+    for fuente in fuentes:
+        nombre = os.path.relpath(fuente, ROOT)
+        for destino, absoluto in enlaces(fuente):
+            if not os.path.exists(absoluto):
+                report.failure(
+                    "el indice del conocimiento apunta a una nota inexistente",
+                    "%s -> %s" % (nombre, destino),
+                )
+            elif "/notes/" in absoluto.replace(os.sep, "/"):
+                enlazadas.add(os.path.realpath(absoluto))
+
+    vivas = set()
+    for estado in ("active", "review"):
+        carpeta = os.path.join(raiz, "notes", estado)
+        if not os.path.isdir(carpeta):
+            continue
+        for nombre in os.listdir(carpeta):
+            if nombre.endswith(".md"):
+                vivas.add(os.path.realpath(os.path.join(carpeta, nombre)))
+
+    huerfanas = sorted(os.path.relpath(x, ROOT) for x in vivas - enlazadas)
+    if huerfanas:
+        report.failure(
+            "hay notas de conocimiento que el indice no alcanza",
+            "%d de %d no se alcanzan desde %s ni desde sus indices de area: %s. Una nota que "
+            "nadie enlaza viaja en el bundle y no la lee nadie, y nada se ve mal."
+            % (len(huerfanas), len(vivas), os.path.relpath(indice, ROOT), ", ".join(huerfanas)),
+        )
+
+
 def check_bundle_digests(report):
     """Regla: el bundle de agentes no se edita en el lugar; cambiarlo es forkear. (D-059, D-221)
 
@@ -1907,6 +1985,7 @@ CHECKS = [
     check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
+    check_knowledge_notes_are_reachable,
     check_bundle_digests,
     check_bundle_privacy_and_ids,
     check_rules_without_enforcer,
