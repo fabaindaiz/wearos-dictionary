@@ -50,7 +50,8 @@ one has its row in `docs/decisions.md`.
 - **Never** `androidx.glance:glance-wear-tiles` — deprecated, and the naming confuses: it is not
   the Wear Widgets library (D-025), which is postponed and not discarded — alpha, Wear OS 7 only
   (D-024).
-- Downloads are deferred to **charging and on Wi-Fi**, per the official Wear OS guidance. (D-029)
+- Downloads wait for **unmetered Wi-Fi**; the charger is required only for a **queued** one,
+  never for one somebody asked for by hand. (D-029, D-263)
 
 ## Guardrails that do not get relaxed
 

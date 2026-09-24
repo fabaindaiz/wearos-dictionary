@@ -330,8 +330,15 @@ performance. See the `benchmark` skill.
 
 ## Downloads
 
-They are deferred to **charging and on Wi-Fi**, with WorkManager. It is the official Wear OS
-guidance, and with packs of tens of MB it is not optional.
+They wait for **unmetered Wi-Fi**, with WorkManager, and that half is not optional: a 314 MB
+pack over a metered connection is a real bill, and a watch paired to a phone can be on one
+without saying so.
+
+⚠️ **The charger is required only for a `QUEUED` download** (D-263). D-029 justified both
+constraints together as the official Wear OS guidance, and only one of them was ever argued:
+nothing here has measured what a 72 MB download costs a battery. So what decides is **who
+asked** — somebody watching a download chose to pay for it; nobody consents to a cost they are
+absent for. Nothing produces `QUEUED` yet, so today the charger is never required.
 
 Exclude the packs from backup with `android:dataExtractionRules`. With `minSdk 33`,
 `fullBackupContent` **does not apply**: it is the mechanism for Android 11 and below. Done:
@@ -362,8 +369,10 @@ It also does a `force-stop` first and relaunches afterwards, because **the app h
 the scan is one-shot in the ViewModel's `init` and a copied pack does not appear until the process
 restarts.
 
-With no packs the app starts and says *"No hay ningún diccionario instalado."*, which is the right
-degradation.
+With no packs the app starts, says *"No hay ningún diccionario instalado."* **and draws one row to
+the dictionary manager** (D-264). The message alone was a dead end: the manager hangs off Settings,
+Settings is drawn only under `Ready`, so the one state that needs the downloader could not reach
+it — and it is the state a pack-less build makes the first-run experience.
 
 **This closed D-071**, which was a conscious deviation: the pack travelled as an asset and was
 extracted on first launch, duplicating it on disk. The decision said it would be reverted once the
