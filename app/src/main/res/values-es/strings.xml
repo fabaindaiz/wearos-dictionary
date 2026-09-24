@@ -34,6 +34,7 @@
     <string name="pack_reason_dictionary">El texto saldría corrupto.</string>
     <string name="pack_reason_damaged">Dañado, o no es un diccionario.</string>
     <string name="pack_none_installed">No hay ningún diccionario instalado.</string>
+    <string name="pack_none_installed_action">Conseguir un diccionario</string>
     <string name="pack_installing">Instalando el diccionario.\nSolo pasa la primera vez.</string>
     <string name="pack_opening">Abriendo el diccionario…</string>
 

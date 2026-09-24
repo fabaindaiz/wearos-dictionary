@@ -365,6 +365,10 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         onOpenSettings = { navController.navigate(ROUTE_SETTINGS) },
                         onOpenFavoritos = { navController.navigate(ROUTE_FAVORITES) },
                         onOpenHistory = { navController.navigate(ROUTE_HISTORY) },
+                        // Straight to the manager and NOT through Settings: with no packs the
+                        // Options section is not drawn, so Settings is not on screen to route
+                        // through.
+                        onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         // Each word of the day opens in ITS dictionary, which with two languages
                         // loaded is not necessarily the active one.
                         // Through `targetOf` like the history, and here it matters MORE: the word

@@ -38,6 +38,7 @@
     <string name="pack_reason_dictionary">Text would come out garbled.</string>
     <string name="pack_reason_damaged">Damaged, or not a dictionary.</string>
     <string name="pack_none_installed">No dictionary installed.</string>
+    <string name="pack_none_installed_action">Get a dictionary</string>
     <string name="pack_installing">Installing the dictionary.\nIt only happens the first time.</string>
     <string name="pack_opening">Opening the dictionary…</string>
 

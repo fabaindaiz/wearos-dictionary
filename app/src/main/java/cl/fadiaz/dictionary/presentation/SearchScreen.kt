@@ -113,6 +113,14 @@ fun SearchScreen(
     onOpenWordOfTheDay: (String, EntrySummary) -> Unit,
     /** To the full history. Empty by default: a test screen that does not wire it still works. */
     onOpenHistory: () -> Unit = {},
+    /**
+     * To the dictionary manager, which is where a pack is downloaded.
+     *
+     * ⚠️ **No default, same reason as [onSearchDefinitions]**: this is the only route out of
+     * `NoDictionary`, and a row that draws and does nothing is worse than no row -- it looks like
+     * the app is broken rather than like there is nothing to press.
+     */
+    onManagePacks: () -> Unit,
 ) {
     // ⚠️ **One single tag for the whole list, and that follows from two decisions.** The search is
     // strict by language (D-189) and now also filters by `entry.lang` inside a bidirectional pack,
@@ -201,13 +209,38 @@ fun SearchScreen(
 
                 // With no dictionary: the ViewModel emits the state and the text is put here
                 // (D-127).
-                SearchState.Status.NoDictionary -> item {
-                    Text(
-                        text = stringResource(R.string.pack_none_installed),
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    )
+                //
+                // ⚠️ **The message alone was a dead end, and it was the ONE state that needs the
+                // downloader.** The dictionary manager hangs off Settings, and the Options section
+                // --which is where Settings is-- is drawn under `Ready` only. So with an empty
+                // `packs/` the app showed a line of text and no route anywhere: the state that
+                // most needs to download was the only one that could not.
+                //
+                // ⚠️ **Today nobody arrives here**, because the APK carries the two cores. It
+                // becomes the FIRST-RUN experience the moment packs stop shipping inside the APK,
+                // which is where the installer is going -- and it already cost a probe: testing
+                // the catalogue override on the emulator (D-259) needed a pack put back by hand,
+                // because a download could not be driven from the UI at all.
+                //
+                // ⚠️ **One row and not the whole Options section**: `Saved` and `Recent` are empty
+                // by construction with no packs, so drawing them offers three dead rows to make
+                // one live.
+                SearchState.Status.NoDictionary -> {
+                    item(key = "sin-diccionario") {
+                        Text(
+                            text = stringResource(R.string.pack_none_installed),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        )
+                    }
+                    item(key = "conseguir-diccionario") {
+                        ListRow(
+                            headword = stringResource(R.string.pack_none_installed_action),
+                            detail = null,
+                            onClick = onManagePacks,
+                        )
+                    }
                 }
 
                 is SearchState.Status.Failed -> item {

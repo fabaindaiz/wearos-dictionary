@@ -154,12 +154,14 @@ class ScreensTest {
         onOpenFavoritos: () -> Unit = {},
         onOpenWordOfTheDay: (String, EntrySummary) -> Unit = { _, _ -> },
         onOpenHistory: () -> Unit = {},
+        onManagePacks: () -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onLanguageChange = onLanguageChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
             onOpenSettings = onOpenSettings, onOpenFavoritos = onOpenFavoritos,
-            onOpenWordOfTheDay = onOpenWordOfTheDay, onOpenHistory = onOpenHistory)
+            onOpenWordOfTheDay = onOpenWordOfTheDay, onOpenHistory = onOpenHistory,
+            onManagePacks = onManagePacks)
     }
 
     // --- The results list ---------------------------------------------------------------------
@@ -239,6 +241,36 @@ class ScreensTest {
         showSearch(SearchState(status = SearchState.Status.Failed("No hay ningún diccionario instalado.")))
         compose.onNodeWithText("No hay ningún diccionario instalado.").assertIsDisplayed()
         assertEquals(0, compose.onAllNodesWithText("Decir una palabra").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun withNoDictionaryThereIsAWayToGetOne() {
+        // ⚠️ The state that most needs the downloader was the only one that could not reach it.
+        // The dictionary manager hangs off Settings, and the Options section that holds Settings
+        // is drawn under `Ready` only -- so an empty `packs/` showed one line of text and no route
+        // anywhere. Invisible today because the APK carries the two cores; it is the FIRST-RUN
+        // screen the moment they stop shipping inside it.
+        //
+        // ⚠️ Note the neighbour test above asserts over `Status.Failed`, not this branch: until
+        // now nothing exercised `NoDictionary` at all.
+        var fueALaGestion = false
+        showSearch(
+            SearchState(status = SearchState.Status.NoDictionary),
+            onManagePacks = { fueALaGestion = true },
+        )
+        compose.onNodeWithText("No hay ningún diccionario instalado.").assertIsDisplayed()
+        compose.onNodeWithText("Conseguir un diccionario").performClick()
+        assertEquals(true, fueALaGestion)
+    }
+
+    @Test
+    fun withNoDictionaryTheDeadRowsStayAway() {
+        // One row and not the whole Options section: `Saved` and `Recent` are empty by
+        // construction with no packs, so drawing them would offer three dead rows to make one
+        // live.
+        showSearch(SearchState(status = SearchState.Status.NoDictionary))
+        assertEquals(0, compose.onAllNodesWithText("Guardadas").fetchSemanticsNodes().size)
+        assertEquals(0, compose.onAllNodesWithText("Recientes").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -586,6 +618,7 @@ class ScreensTest {
             onOpenEntry = {},
             onOpenAttribution = {},
             onOpenWordOfTheDay = { _, _ -> },
+            onManagePacks = {},
         )
     }
 

@@ -63,6 +63,7 @@ class EnglishLocaleTest {
                 ),
                 onQueryChange = {}, onSearchDefinitions = {}, onOpenEntry = {},
                 onOpenAttribution = {}, onOpenWordOfTheDay = { _, _ -> },
+                onManagePacks = {},
             )
         }
         // Por contentDescription y no por texto: desde D-157 el botón de voz es un micrófono,
