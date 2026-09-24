@@ -353,6 +353,7 @@ class SqlitePackSource(
                 senses = body.senses,
                 wordTranslations = body.wordTranslations,
                 forms = body.forms,
+                pronunciation = body.pronunciation,
             )
         }
     }
