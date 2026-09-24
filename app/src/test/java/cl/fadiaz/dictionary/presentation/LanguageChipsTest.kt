@@ -4,6 +4,7 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.Visit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -110,6 +111,40 @@ class LanguageChipsTest {
             "es-chico",
         )
         assertEquals("es-chico", reps.single().packId)
+    }
+
+    // --- La etiqueta de una fila del historial o de las guardadas ---------------------------
+
+    @Test
+    fun laVISITA_MANDA_sobre_el_pack() {
+        // D-265, and it is the whole point: `atizar` and `stoke` both come out of
+        // `es-tr-enwikt-freq`, which declares es+en, so the pack-derived map has nothing to say
+        // about either. The visit does.
+        //
+        // ⚠️ **The map is given the visit's OWN pack, with the wrong answer**, and the first
+        // version of this test did not: it used another `packId`, so the lookup was null either
+        // way and the order of the `?:` was unobservable -- the test passed with the precedence
+        // reversed. No path produces this conflict today, because `historyTags` skips a
+        // multi-language pack; what is pinned is the RULE, so a future map that stops skipping
+        // cannot quietly outrank what was true when the row was written.
+        val mapa = mapOf("es-tr-enwikt-freq" to "ES")
+        val delPackBilingue = Visit("es-tr-enwikt-freq", 1, "stoke", "verb", lang = "en")
+        assertEquals("EN", visitTag(delPackBilingue, mapa))
+    }
+
+    @Test
+    fun sinIDIOMA_PROPIO_cae_al_pack() {
+        // A row written before the field existed. The fallback is what keeps every old history
+        // row tagged instead of all of them going blank the day the field arrived.
+        val vieja = Visit("es-def-wikc", 1, "casa", "noun")
+        assertEquals("ES", visitTag(vieja, mapOf("es-def-wikc" to "ES")))
+    }
+
+    @Test
+    fun sinIDIOMA_Y_SIN_PACK_no_hay_etiqueta() {
+        // The pack was uninstalled. No tag beats the wrong one -- inheriting the active language
+        // here is the failure family D-080 named.
+        assertEquals(null, visitTag(Visit("se-fue", 1, "casa", "noun"), emptyMap()))
     }
 
     // --- De qué idioma vino un resultado --------------------------------------------------

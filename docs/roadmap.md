@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **426 JVM
-de `:app`** y **36 checks** de auditoría estructural — **1100 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **432 JVM
+de `:app`** y **36 checks** de auditoría estructural — **1106 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3571,36 +3571,43 @@ produces `QUEUED`.
 | **C** | Make it a setting | a row, and a decision the user has no numbers for either | ⚠️ Hands over a choice nobody can make informed |
 | **D** | Keep it | 0 | The previous answer, and it was guidance-shaped rather than measured |
 
-### The language code is missing on history and saved rows — SEEN 2026-09-23
+### ✅ The language code is missing on history and saved rows — **BUILT 2026-09-24 as option A** (D-265)
 
-**Status.** **Known, deliberate, and now hitting the owner.** `historyTags`'s own KDoc anticipated
-this and said the fix *"deserves a decision of its own"*. This is that moment.
+**Status.** ✅ **Done.** `Visit` carries a `lang`, written when the visit is recorded; `visitTag`
+prefers it and falls back to the pack-derived map. Old rows stay untagged.
 
 ⚠️ **First, a correction to the report.** It was raised as the **word of the day** missing its
 code. On the build installed that day it has it — verified on the watch, `ligar / verb · ES` and
-`postal / adj. · EN` (D-253). What is missing it is the **Recent** section right below:
+`postal / adj. · EN` (D-253). What was missing it is the **Recent** section right below:
 `atizar / verb` and `stoke / verb`, two different languages with nothing distinguishing them.
-⚠️ **The watch had been running versionCode 4 until minutes before**, which predates D-253, so
-the observation was almost certainly true of what was on screen at the time.
 
-**The cause, and it is not an oversight.** `historyTags` tags a row by looking up its `packId`
+**The cause, and it was not an oversight.** `historyTags` tagged a row by looking up its `packId`
 among the installed packs and taking `langs.singleOrNull()`. Both of those rows come from
 `es-tr-enwikt-freq`, which declares **es+en**, so there is no single true language and the code
-deliberately prefers **no tag over a wrong one** — the same rule that governs a gloss's links.
+deliberately preferred **no tag over a wrong one** — the same rule that governs a gloss's links.
 
-⚠️ **And the bilingual pack is exactly the one that survives a rebuild.** Its `pack_id` is
-derived from its sources rather than stamped `<lang>-<tier>` (D-215 leaves it out on purpose), so
-every other pack's history was orphaned by the 2026-09-22 rebuild while its rows kept resolving.
-The untagged case is not the rare one; on this watch it is most of the list.
+⚠️ **And the bilingual pack is exactly the one that survives a rebuild.** Its `pack_id` is derived
+from its sources rather than stamped `<lang>-<tier>` (D-215 leaves it out on purpose), so every
+other pack's history was orphaned by the 2026-09-22 rebuild while its rows kept resolving. The
+untagged case was not the rare one; on that watch it was most of the list.
+
+**The migration, which was the whole decision: old rows stay untagged.** A row written before the
+field has no honest language to give it. Deriving one from the pack is the defect being fixed, and
+from the active language is D-080's family. The screens already draw an untagged row — a pack that
+is no longer installed has always produced one — so nothing new had to handle it.
+
+⚠️ **What is NOT filled, and it is the case where a tag would help most.** A word tapped inside a
+gloss or a translation is recorded through `recordVisit(packId, entryId)`, which reads an
+`EntrySummary` — and that type carries no `lang`. So `langOf` answers for a monolingual pack and
+**null for a bidirectional one**, which is precisely where a translation lands you in the other
+language. Closing it means `entry.lang` reaching `EntrySummary`, which is a `:dict-core` and
+`:dict-data` change whose tests need a device: deliberately not smuggled in here.
 
 | | Option | Cost | What it closes |
 |---|---|---|---|
-| **A** | Store the language **in `Visit`** | changes what is written to preferences, so it needs a migration and a decision about old rows | The only one that is actually correct: the language is a property of the visit, not of the pack. Old rows stay untagged, which is honest |
+| **A** | ✅ **BUILT.** Store the language **in `Visit`** | one more field in the preference; the parser already tolerated extra columns, so there was no format break | The only one that is actually correct: the language is a property of the visit, not of the pack. Old rows stay untagged, which is honest |
 | **B** | Derive it from the entry when the row is drawn | a read per row, on a list that scrolls | ⚠️ Puts a pack read on the home's scroll path, which D-106's reasoning rules out for the tile and is uncomfortable here |
-| **C** | Tag it with the **active** language | 0 | ⚠️ **Wrong, and the KDoc already refuses it**: a history row can be from another language than the active one, and asserting otherwise is D-080's family |
-
-**Recommended: A**, and the migration question — what to do with rows written before the field
-existed — is the whole decision.
+| **C** | Tag it with the **active** language | 0 | ⚠️ **Wrong, and the KDoc already refused it**: a history row can be from another language than the active one, and asserting otherwise is D-080's family |
 
 ### `full` and `main` of the same origin installed together — REVIEWED 2026-09-23, partly handled
 

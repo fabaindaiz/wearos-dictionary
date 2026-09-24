@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.data.UiLanguage
 
@@ -181,11 +182,9 @@ internal fun languageName(lang: String?): String? = lang?.let { code ->
  * was installed, or with another language chosen. Tagging it with the active language would assert
  * a provenance nobody checked -- the same failure family as D-080.
  *
- * ⚠️ **And a bidirectional pack gets no tag**, because there is no single true one: `casa` and
- * `house` live in the same file and `Visit` does not store the language. **No tag** is preferred
- * over the wrong one, which is the same rule a gloss's links are painted by. Storing the language
- * in `Visit` would fix it; that was not done because it changes what is written in the preferences
- * and that deserves a decision of its own.
+ * ⚠️ **And a bidirectional pack gets no tag from HERE**, because there is no single true one:
+ * `casa` and `house` live in the same file. That is why the visit carries its own language since
+ * D-265 and this map is the **fallback**: see [visitTag].
  */
 internal fun historyTags(packs: List<PackHandle>): Map<String, String> =
     packs.filterIsInstance<PackHandle.Open>()
@@ -193,3 +192,18 @@ internal fun historyTags(packs: List<PackHandle>): Map<String, String> =
             handle.metadata.langs.singleOrNull()?.let { handle.packId to it.uppercase() }
         }
         .toMap()
+/**
+ * The tag of a history or saved row: **the visit's own language, and the pack's only as a
+ * fallback.**
+ *
+ * ⚠️ **The order is the decision.** `Visit.lang` is what was true when the row was written; the
+ * map is derived from what is installed **now**. They agree for a monolingual pack and they cannot
+ * for a bidirectional one -- `atizar` and `stoke` both come out of `es-tr-enwikt-freq`, so the map
+ * has nothing to say and the visit does.
+ *
+ * ⚠️ **Null is a real answer**: a row written before `Visit.lang` existed, whose pack is no longer
+ * installed, or whose language nothing can establish. It draws with no tag, which is the rule a
+ * gloss's links are painted by -- no tag beats the wrong one.
+ */
+internal fun visitTag(visit: Visit, tags: Map<String, String>): String? =
+    visit.lang?.uppercase() ?: tags[visit.packId]

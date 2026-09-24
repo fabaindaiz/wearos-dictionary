@@ -365,7 +365,7 @@ fun SearchScreen(
                                 headword = visit.headword,
                                 detail = wordDetail(
                                     visit.partOfSpeech?.let { posLabel(it) },
-                                    etiquetasHistorial[visit.packId],
+                                    visitTag(visit, etiquetasHistorial),
                                 ),
                             ) { onOpenVisita(visit) }
                         }

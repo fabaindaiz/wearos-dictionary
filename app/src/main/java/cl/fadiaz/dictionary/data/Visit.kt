@@ -31,6 +31,24 @@ data class Visit(
      * is not done is migrating: what a watch stored is read as it stands.
      */
     val gloss: String? = null,
+    /**
+     * The language of THIS visit, which in a bidirectional pack is not the pack's.
+     *
+     * ⚠️ **It is stored because the pack cannot answer it.** The tag used to be derived from the
+     * `packId` --`langs.singleOrNull()`-- and `es-tr-enwikt-freq` declares **es+en**, so `atizar`
+     * and `stoke` both came out untagged: two different languages with nothing distinguishing
+     * them. That is the pack's honest answer; the language is a property of the **visit**.
+     *
+     * ⚠️ **And the bilingual pack is exactly the one that survives a rebuild.** Its `pack_id` is
+     * derived from its sources rather than stamped `<lang>-<tier>` (D-215), so every other pack's
+     * history was orphaned by the 2026-09-22 rebuild while its rows kept resolving: the untagged
+     * case is not the rare one.
+     *
+     * ⚠️ **Null is a real answer and not a gap**: a row written before this field existed, and a
+     * visit whose language nothing could establish without lying. Old rows stay untagged, which is
+     * the same rule that governs a gloss's links -- no tag beats the wrong one.
+     */
+    val lang: String? = null,
 )
 
 /**
@@ -56,6 +74,7 @@ internal fun serializeVisits(visits: List<Visit>): String =
             // the list and the second half would be discarded in silence. It is the same care
             // `payload.sanitize()` takes with the tab.
             visit.gloss?.replace('\n', ' ')?.replace(SEPARATOR, " ").orEmpty(),
+            visit.lang.orEmpty(),
         ).joinToString(SEPARATOR)
     }
 
@@ -81,6 +100,9 @@ internal fun parseVisits(text: String): List<Visit> =
                 headword = fields[2],
                 partOfSpeech = fields[3].ifEmpty { null },
                 gloss = fields.getOrNull(4)?.ifEmpty { null },
+                // Absent in everything written before this field: those rows stay untagged,
+                // which is the migration. Inventing a language for them would be D-080's family.
+                lang = fields.getOrNull(5)?.ifEmpty { null },
             )
         }
         .toList()

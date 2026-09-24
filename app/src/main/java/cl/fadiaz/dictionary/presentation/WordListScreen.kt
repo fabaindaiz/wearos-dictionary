@@ -66,9 +66,11 @@ fun WordListScreen(
      * there simply gets no tag, just as in the results.
      */
     /**
-     * `packId` -> language tag. **A map and not a single one**: this list can bring words from a
-     * pack that is no longer installed, and inheriting the active language for them would assert
-     * something nobody checked. See `historyTags`.
+     * `packId` -> language tag, the **fallback** when the visit does not carry its own (D-265).
+     *
+     * ⚠️ **A map and not a single one**: this list can bring words from a pack that is no longer
+     * installed, and inheriting the active language for them would assert something nobody
+     * checked. See `visitTag`.
      */
     tags: Map<String, String> = emptyMap(),
     /**
@@ -126,7 +128,7 @@ fun WordListScreen(
                     headword = visit.headword,
                     detail = wordDetail(
                         visit.partOfSpeech?.let { posLabel(it) },
-                        tags[visit.packId],
+                        visitTag(visit, tags),
                     ),
                     armada = armada == visit,
                     onArm = onDelete?.let { { armada = visit } },
