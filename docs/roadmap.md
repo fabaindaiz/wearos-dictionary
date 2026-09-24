@@ -22,13 +22,14 @@ nunca vio los tres rechazos anteriores vuelve a proponer lo mismo, de buena fe.
 
 *Actualizado: 2026-09-22.*
 
-✅ **El sistema de instrucciones pasó de v7 a v21 el 2026-09-22.** El método vive en `.agents/`
-como bundle —7 prompts, 45 notas de conocimiento, `tracking/`, `bundle.py`— y `docs/agents/` se
-retiró (D-221). Lo que hay que saber para trabajar: **antes de configurar, actualizar o correr
-cualquier prompt de `.agents/method/`, se corre la skill `state-review` §0**, que verifica el
-estado y dice qué prompt corresponde —o si lo que falta es terminar el anterior. Y **este repo no
-puede editar el método**: lo que le falta va como una línea en `.agents/tracking/candidates.md`.
-El triage quedó **a medias** y lo que falta está en §Proceso y herramientas.
+✅ **El sistema de instrucciones está en bundle v20 —método v24— y el triage llega hasta ahí**
+(2026-09-24). El método vive en `.agents/` como bundle —7 prompts, las notas de conocimiento,
+`tracking/`, `bundle.py`— y `docs/agents/` se retiró (D-221). **Antes de configurar, actualizar o
+correr cualquier prompt de `.agents/method/`, se corre la skill `state-review` §0**, que dice cuál
+corresponde —o si falta terminar el anterior—. **Este repo no puede editar el método**: lo que le
+falta va como una línea en `.agents/tracking/candidates.md`. Y sus heurísticas son parte del
+trabajo: `CLAUDE.md` manda a `.agents/knowledge/INDEX.md` antes de decidir y antes de cerrar
+(D-268).
 
 ✅ **Los packs se reconstruyeron el 2026-09-22 y ya lo reflejan todo.** Lo que el rebuild trajo,
 medido sobre los packs reales:
