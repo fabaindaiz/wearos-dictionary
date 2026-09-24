@@ -74,6 +74,14 @@ command rather than a copy of its recipe.
   the line count. The same edit retracts that item's claim that the rule has *no enforcer*: it has
   had one since 2026-09-23.
 
+- ⚠️ **Four documents still described the app this session had changed, and the closing sweep is
+  what found them — no test could.** The worst was in **`CLAUDE.md` itself**, the file read on
+  every request, still saying downloads are deferred to charging and Wi-Fi after D-263 withdrew
+  that half; the same claim sat in `app/CLAUDE.md` and in the roadmap's installer table, and
+  `app/CLAUDE.md` still called the no-packs screen *the right degradation* after D-264 gave it a
+  way out. **The rule that covers exactly this was written in this session and broken in it**: a
+  reversed decision is corrected where it is loaded, not only in its own row.
+
 **What was left undone.**
 - **The two changelog order breaks are not repaired.** Reordering blocks inside an append-only
   record is the owner's call; the ratchet only stops a third.
