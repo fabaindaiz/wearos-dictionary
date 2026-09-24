@@ -68,6 +68,15 @@ opening — the property D-242 measured.
   a principal part — which is the same misplacement found two days ago in `VisitTest.kt`. Moved to
   their own class before committing.
 
+- ⚠️ **Two durable documents described a format that had changed, and the closing sweep is what
+  found them.** `docs/formato-pack.md` **owns** the pack format and listed every payload tag but
+  the new one; its extension table still said additive tags were *"already the rule for `A` and
+  `R`"* when six qualify. And `tools/CLAUDE.md` counted **three** Python↔Kotlin mirrors while this
+  work created a fourth — the tag **letters**, whose failure differs from the one already listed:
+  a diverging `sense_code` sends a link to the wrong sense, a diverging letter throws a whole
+  channel away with no error and a pack that opens fine. The gate was green throughout; only
+  reading the documents finds this.
+
 **What was left undone.**
 - **No pack carries the tag.** `es-full` has to be rebuilt from `es.jsonl` for it to reach a user;
   the debt is in §*Reconstruir los packs*.
