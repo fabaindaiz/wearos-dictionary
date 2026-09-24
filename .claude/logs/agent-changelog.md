@@ -16,6 +16,66 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-985274 — The method triage reaches v24: the knowledge base becomes reachable, and an index that claimed an enforcer gets one
+**What.** Asked for: bring this repository up to the latest conventions from `.agents/`. The
+`state-review` §0 routing said there was nothing to *update* —`incoming/` empty, the three digests
+matching, `upstream: ""` so this copy is a root— so the work was the other direction: what the
+bundle says that this repository does not do. Four commits.
+- **D-267** `check_knowledge_notes_are_reachable`: every note reachable from `knowledge/INDEX.md`
+  and every link there resolving, in both directions. 36 → 37 checks.
+- **D-268** `CLAUDE.md` sends a session to `.agents/knowledge/INDEX.md` **before a design decision
+  and before claiming done**, with a row in the document map. `.agents/` joins `REPO_DIRS`.
+- The `verify` skill gains the **second half of the retraction rule**: a reversed decision says so
+  in its own row, and a rule is corrected where it is loaded.
+- Two stale roadmap claims retracted: §*El triage* and §*Dónde estamos*.
+
+**Areas.** `tools/audit_dictionary.py`, `CLAUDE.md`, `.claude/skills/verify/SKILL.md`,
+`docs/decisions.md`, `docs/roadmap.md` and this file. **`.agents/` was not edited**, and it is
+byte-identical to its commit — verified after the mutation probes touched it.
+
+**Why.** The last three sessions spliced bundle v18, v19 and v20 and adapted the audit, but nobody
+triaged the method deltas against this repository's own instruction system.
+
+**Architecture.** ✅ Complies. D-267 is the one place a carrier looks inside `.agents/`, and it
+checks an invariant the bundle asks the carrier to enforce, never the bundle's content.
+
+**Measured.**
+- `./gradlew check` green after each of the four. **37 checks, 0 failures, 3 advisories.**
+- **43 active knowledge notes**, all reachable, no dead links — which is how the new check came out
+  green on real data before it was probed.
+- The Spanish ratchet for `docs/roadmap.md` drops **2310 → 2307**.
+- **Knowledge checks run, as D-268 now requires.** `a-check-must-be-seen-to-fail`: each of the
+  three new checks was seen red on a planted violation — a dead index link, an orphan note, a
+  count of 99 against 43, and a `.agents/` path renamed to `INDICE.md`. ✅ Passes.
+  `copied-instruction-claims-its-origin`: every `.agents/` path this repository's documents name
+  resolves, now mechanically (4 of 4), and `state-review` §0's four commands were run. ⚠️ **Partly
+  run**: the commands inside the bundle's own documents were not, and a carrier must not police
+  them.
+
+**What went wrong.**
+- ⚠️ **The roadmap's reason for the triage being blocked was false at the moment of reading it.**
+  It said the method changelog stopped at 16 so there was nothing to triage from. Rows 17–21 were
+  written in **v22**, and that row says so in its own words. The blockage lifted two versions
+  before anybody looked again. It is the exact case the retraction rule added in the same session
+  names — and it was found by reading the bundle rather than the roadmap.
+- **Two numbers I wrote by hand and should not have.** *"43 notes"* went into `CLAUDE.md` as a
+  literal; it is the one number here a bundle release moves without this repository touching it,
+  so it became a counted row. And the two new decision rows came out at 1225 and 1216 characters,
+  just over the index limit, and were trimmed after the advisory fired.
+- **The retraction was drafted in Spanish** in an English-by-rule document, twice in two sessions
+  now, and the ratchet caught it both times.
+
+**What was left undone.**
+- **The retraction rule has no enforcer and stays at rung 2.** Its signal is a phrase in prose, and
+  `docs/roadmap.md` §*A check whose subject is prose goes vacuous* already records four hits of
+  building exactly that. The paragraph says so rather than leaving it implied.
+- **The 43 notes are reachable and none was read for product work.** This session ran two checks
+  after the fact; no session has yet opened a note *before* a design decision, which is the half of
+  D-268 that nothing enforces.
+- **`.agents/tracking/candidates.md` holds 30 candidates from other carriers** and one of ours from
+  2026-09-23. A carrier cannot admit them; that is the release's business.
+---
+
 ## 2026-09-24 · s-a2f271-a9fe9a — Seven items off the roadmap: two rules made to hold on every surface, a request applied as who-decides, and three UI items unlocked
 **What.** Asked for: read the roadmap and pick what to keep implementing. Seven commits, each
 offered when its own piece passed.
