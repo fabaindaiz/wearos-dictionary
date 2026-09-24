@@ -69,9 +69,12 @@ _DATA = [
     ("cosa", "noun", 30, [
         ("todo lo que tiene existencia", [], ["thing"]),
     ], ["cosas"]),
+    # WARNING: the only entry with a PRONUNCIATION (tag `I`), for the same reason `correr` is the
+    # only one with `F`: a channel with no fixture breaks with nothing to warn. It carries an IPA
+    # stress mark, which is the property that makes this datum non-ASCII by construction.
     ("casa", "noun", 15, [
         ("edificio para habitar", ["la casa de la esquina"], ["house", "home"]),
-    ], ["casas"]),
+    ], ["casas"], None, (), (), "\u02c8kasa"),
     ("cazar", "verb", 200, [
         ("perseguir animales para capturarlos", [], ["to hunt"]),
     ], ["caza", "cazando"]),
@@ -216,6 +219,8 @@ def _propias():
         # because the toy has no grammatical tags -- what this fixture has to exercise is the
         # channel, not the selection, which lives in `kaikki._display_forms` with its own tests.
         display_forms = tuple(item[7]) if len(item) > 7 else ()
+        # Ninth, optional: the word's IPA (tag `I`), without the source's delimiters.
+        pronunciation = item[8] if len(item) > 8 else None
         translations = []
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
@@ -234,6 +239,7 @@ def _propias():
             rank=rank,
             forms=forms,
             display_forms=display_forms,
+            pronunciation=pronunciation,
             # The search channel carries both, just as in a real pack, **and an infinitive's bare
             # form**: the dump writes "to run" and whoever searches types "run". Until here
             # `trans`'s tokenization resolved that (D-014); with that table emptied in a

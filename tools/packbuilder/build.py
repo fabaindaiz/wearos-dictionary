@@ -149,6 +149,7 @@ class Record:
         "senses",
         "forms",
         "display_forms",
+        "pronunciation",
         "translations",
         "word_translations",
         "sense_key",
@@ -164,6 +165,7 @@ class Record:
         rank=0,
         forms=(),
         display_forms=(),
+        pronunciation=None,
         translations=(),
         word_translations=(),
         sense_key=None,
@@ -180,6 +182,8 @@ class Record:
         #: The principal parts the card SHOWS. See `kaikki._display_forms`: not the same as
         #: `forms`, which feeds the normalized search.
         self.display_forms = display_forms
+        #: The word's IPA, or None when the source carried none. See `kaikki._pronunciation`.
+        self.pronunciation = pronunciation
         self.translations = translations
         # Translations of the WORD, with no sense. They go to the payload (tag `W`) and NOT to
         # `trans` on their own: `translations` is the search channel and carries the union of both.
@@ -353,7 +357,7 @@ class PackBuilder:
 
         body = payload_codec.render(
             record.part_of_speech, record.senses, record.word_translations,
-            record.display_forms)
+            record.display_forms, record.pronunciation)
         if not body:
             # With no usable sense the entry has nothing to show.
             return
