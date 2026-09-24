@@ -59,7 +59,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
 pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **423 JVM
-de `:app`** y **35 checks** de auditoría estructural — **1096 tests en total**. Los **46
+de `:app`** y **36 checks** de auditoría estructural — **1097 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3755,11 +3755,23 @@ logs, but not in a way that separates *"nothing answered at that address"* from 
 is wrong"*. Naming the url in the failure line is one line and removes the ambiguity entirely —
 the dump already does it, and the dump is what nobody thinks to run when something looks broken.
 
-### The `adb` debug surface should exist only in a debug build — ASKED 2026-09-23, **conflicts with benchmark**
+### The `adb` debug surface should exist only in a debug build — ✅ **ENFORCED 2026-09-24**, as *never in `release`*
 
-**Status.** **Requested and NOT applied**, because applying it as stated would break a measuring
-workflow that was decided on purpose. Asked for verbatim: *«deja en el roadmap que este debug adb
-solo quede disponible en build de debug»*.
+**Status.** **Half done and the other half declined with its reason.**
+Asked for verbatim: *«deja en el roadmap que este debug adb solo quede disponible en build de
+debug»*.
+
+✅ **What landed.** `check_debug_surface_stays_out_of_release` now fails the gate if the `release`
+block sets `DEBUG_INTENTS` to anything but `false`, or stops declaring it. That is option **A with
+the wording fixed**: the rule is *never in `release`*, which is the property that protects a user,
+and it is now enforced by a check instead of by two comments. Verified by mutation in both
+directions — flipping the constant and deleting the line each fail the audit with their own
+message. ⚠️ **The silent edit is the flip, not the deletion**: removing the line does not compile,
+because AGP needs the field in every variant, while `"false"` → `"true"` compiles, installs,
+passes every test and ships an exported receiver.
+
+⚠️ **`benchmark` keeps it on, and that is what was NOT applied.** The options below stand as the
+record of why.
 
 **What is true today**, read off `app/build.gradle.kts`:
 
@@ -3782,14 +3794,16 @@ reaches a user's watch* — holds today and is enforced by a constant rather tha
 | **B** | Turn it off in `benchmark` too | measuring a search goes back to needing a finger on a watch whose IME reorders keystrokes | Makes the sentence literally true. ⚠️ It pays a real, measured cost to close a gap nobody has shown is a gap: a `benchmark` APK is sideloaded by hand, never distributed |
 | **C** | Keep it in `benchmark` but require an extra flag at install time | a build property, and one more thing to forget | Honest middle. ⚠️ Something you must remember to pass is something you will fail to pass exactly when you are measuring under pressure |
 
-**Recommendation: A, with the wording fixed** — say *"never in `release`"* rather than *"only in
-`debug`"*, because that is the property that protects anybody and it is the one a constant
-enforces. **Not decided alone**: the ask was explicit, and the owner may want B anyway.
+**Chosen: A, with the wording fixed** — *"never in `release`"* rather than *"only in `debug`"*,
+because that is the property that protects anybody and it is the one a constant enforces. ⚠️ **B
+is still the owner's to take**: the ask was explicit, and what closed here is the enforcement, not
+the question of whether `benchmark` should keep the surface.
 
-⚠️ **And there is no check.** Nothing fails if a future build type is added with
-`DEBUG_INTENTS` left true, or if the `release` line is edited. A grep in `audit_dictionary.py`
-asserting that the `release` block sets it to `false` is ~10 lines and would make this a rung-3
-rule instead of a comment. That is the cheapest half of whatever option wins.
+⚠️ **What the check does NOT cover.** It watches the `release` block, so a **new build type**
+added with `DEBUG_INTENTS` left true still passes. That is deliberate rather than an oversight:
+`benchmark` is exactly such a build type and is correct, so a rule over every non-`debug` block
+would have to name its exceptions, and a list of exceptions is the thing that goes stale. What
+ships is what `release` produces, and that is the block the check watches.
 
 ### With no packs the home is a dead end — SEEN 2026-09-23, not built
 

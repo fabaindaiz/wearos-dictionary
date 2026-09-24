@@ -681,6 +681,62 @@ def check_release_signing(report):
             )
 
 
+def check_debug_surface_stays_out_of_release(report):
+    """Rule: the `adb` debug surface never reaches the APK that goes out to people.
+
+    `DebugIntents` registers an **exported** receiver that seeds a query, clears it and dumps the
+    loaded packs. That is what makes the watch answerable without a debugger, and it is also attack
+    surface and battery the moment it ships. What keeps it out is one line: `release` sets
+    `DEBUG_INTENTS` to `false`, R8 folds the `if`, and the class leaves the dex -- in release the
+    code **does not exist**, rather than going unused.
+
+    ⚠️ **The rule is "never in `release`", not "only in `debug`".** `benchmark` sets it to `true`
+    on purpose: it inherits from `release`, it is the build startup and battery are measured on
+    (D-166), and it is the only release-like one that installs. If it were the only build unable to
+    seed a query, measuring a search would need a finger on a watch whose IME reorders keystrokes.
+    A check forbidding it outside `debug` would break a workflow that was chosen with reasons.
+
+    ⚠️ **Why it is a check and not a comment.** The property is protected today by a constant, and
+    the constant is protected by nothing: flipping that one `false` to `true` compiles, installs,
+    passes every test and ships an exported receiver. Deleting the line does not, because AGP needs
+    the field in every variant -- so the silent edit is exactly the one this watches.
+    """
+    gradle = os.path.join(ROOT, "app", "build.gradle.kts")
+    if not os.path.isfile(gradle):
+        return
+    with open(gradle, encoding="utf-8") as handle:
+        texto = handle.read()
+
+    bloque = _bloque(texto, "release {")
+    if not bloque:
+        report.failure(
+            "no se encuentra el bloque release del build",
+            "app/build.gradle.kts no tiene un bloque `release {`, asi que no se puede comprobar "
+            "que la superficie de depuracion quede afuera del APK que sale a la gente.",
+        )
+        return
+
+    declaradas = re.findall(
+        r'buildConfigField\(\s*"boolean"\s*,\s*"DEBUG_INTENTS"\s*,\s*"(\w+)"\s*\)', bloque
+    )
+    if not declaradas:
+        report.failure(
+            "el release no declara DEBUG_INTENTS",
+            "app/build.gradle.kts: el bloque `release` no fija DEBUG_INTENTS. Sin esa linea la "
+            "constante depende de lo que herede, y lo que protege a un usuario deja de estar "
+            "escrito donde se lee.",
+        )
+        return
+    if any(valor != "false" for valor in declaradas):
+        report.failure(
+            "el release lleva la superficie de depuracion adentro",
+            "app/build.gradle.kts: el bloque `release` fija DEBUG_INTENTS en %s. Eso mete un "
+            "receiver EXPORTADO en el APK que sale a la gente: cualquier app instalada puede "
+            "sembrarle consultas y leerle que packs tiene cargados. Tiene que ser false; "
+            "`benchmark` es el build donde puede estar en true." % ", ".join(declaradas),
+        )
+
+
 def check_app_version(report):
     """Rule: the APK that goes to the watch is distinguishable from the previous one. (D-095)
 
@@ -1840,6 +1896,7 @@ CHECKS = [
     check_tiles_dont_open_packs,
     check_attribution_screen,
     check_release_signing,
+    check_debug_surface_stays_out_of_release,
     check_app_version,
     check_locale_parity,
     check_ui_language_picker,
