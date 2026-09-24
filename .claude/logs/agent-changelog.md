@@ -67,8 +67,12 @@ command rather than a copy of its recipe.
 - ⚠️ **`$?` is not a variable in fish**, so the first reading of the tool's exit code returned a
   meaningless `0` and nearly became *"the tool cannot be used as a gate"*. Measured again with
   `$status`: it is **1**.
-- **New prose was drafted in Spanish three times** in two sessions, in English-by-rule documents,
-  and the ratchet caught it every time. That is now a pattern, not a slip.
+- **New prose was drafted in Spanish five times** across two sessions, in English-by-rule
+  documents, and the ratchet caught it every time. That is a pattern, not a slip, so on closing it
+  was **promoted to `docs/roadmap.md` §*The repo is supposed to be in English*** with its
+  arithmetic — five gate interruptions, each paying a rewrite, two of which then failed again on
+  the line count. The same edit retracts that item's claim that the rule has *no enforcer*: it has
+  had one since 2026-09-23.
 
 **What was left undone.**
 - **The two changelog order breaks are not repaired.** Reordering blocks inside an append-only
