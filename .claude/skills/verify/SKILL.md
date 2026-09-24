@@ -62,6 +62,21 @@ the docstring, the document and the report, saying what it was and why it was wr
 changelog entry rather than editing the old one. A finding corrected in one of three places is
 still being believed in the other two.
 
+**And the same holds for a rule and for a decision, where the stale copy does worse than being
+believed: it is followed, and copied forward.** Correct a rule **where it is loaded** —`CLAUDE.md`,
+the skill, the document an agent actually opens— and not only where the mistake was found. When a
+decision is reversed, **the reversed row says so in place**, with a pointer to what replaced it,
+and keeps its measurement: a new row citing the old one is not enough, because readers arrive at
+the old row **from the index** and it still reads as live. D-224's by-section guarantee does not
+cover this case — §*Decisiones descartadas* holds ideas that were rejected, not decisions that were
+taken and later undone.
+
+⚠️ **There is no enforcer for this and that is a decision, not an omission.** The signal is a
+phrase in prose —*"withdrew"*, *"retiró la mitad de"*, *"supersedes"*— and a check whose subject is
+prose goes vacuous on the first legitimate rewording: `docs/roadmap.md` §*A check whose subject is
+prose goes vacuous* records four hits of exactly that. So this one is rung 2, held by this
+paragraph, and it is named here rather than left implied.
+
 **If the red step could not be watched, prove the test bites.** A test written after the code, or
 one that was green the first time it ran, has not been shown to detect anything. Mutate its target
 —narrow the range, flip the comparison, delete the branch— and watch that same test fail. Restore
