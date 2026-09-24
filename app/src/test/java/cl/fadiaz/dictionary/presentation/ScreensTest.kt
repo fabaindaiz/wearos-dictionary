@@ -296,6 +296,30 @@ class ScreensTest {
         hasClickAction() and hasAnyAncestor(hasText(textoDeLaGlosa, substring = true))
 
     @Test
+    fun theCardShowsThePronunciationBareAndUnderTheHeadword() {
+        // d-a2f271-13da99. **Bare on purpose**: the pack stores the transcription stripped of the
+        // source's delimiters, so the card no longer knows whether it was phonemic `/…/` or
+        // phonetic `[…]`, and adding either back would assert a notation nothing recorded.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero cánido doméstico.").copy(pronunciation = "\u02c8pero")
+            }
+        }
+        compose.onNodeWithText("\u02c8pero").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("/\u02c8pero/").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun aPackWithNoPronunciationDrawsNoRowForIt() {
+        // The degradation, which is every pack built today: null draws nothing rather than an
+        // empty line. It also covers a word whose source carried none -- the card cannot tell
+        // those apart, which is why `verify_pack.py` reports the coverage per pack.
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero.") } }
+        compose.onNodeWithText("perro").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("\u02c8", substring = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun theEntryShowsHeadwordPartOfSpeechAndNumberedSenses() {
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()

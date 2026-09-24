@@ -255,6 +255,23 @@ fun EntryScreen(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    // ⚠️ **Bare, with no slashes or brackets, and that is a decision.** The pack
+                    // stores the transcription stripped of the source's delimiters
+                    // (d-a2f271-13da99), so the card no longer knows whether it was phonemic
+                    // `/…/` or phonetic `[…]`. Adding either back would assert a notation nothing
+                    // recorded -- the D-080 family -- and on 234 dp it would cost two characters
+                    // to say something possibly false. A printed dictionary puts it here, right
+                    // under the headword and before the part of speech.
+                    val ipa = current?.pronunciation
+                    if (!ipa.isNullOrBlank()) {
+                        Text(
+                            text = ipa,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        )
+                    }
                     val pos = current?.partOfSpeech
                     // ⚠️ **The language comes from the LOADED ENTRY, not from a parameter.** This
                     // screen is reached by tapping a translation, and then the open entry is in

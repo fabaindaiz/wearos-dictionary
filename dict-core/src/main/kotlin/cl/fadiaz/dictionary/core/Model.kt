@@ -514,4 +514,13 @@ data class Entry(
      * section at all.
      */
     val forms: List<PayloadCodec.InflectedForm> = emptyList(),
+    /**
+     * The word's pronunciation in IPA, without delimiters, or null. See
+     * [PayloadCodec.Body.pronunciation].
+     *
+     * ⚠️ **Null covers two cases the card cannot separate**: a pack built before the channel, and
+     * a word whose source carried none. Both draw nothing, which is right on screen; the question
+     * *why* is answered by `verify_pack.py`, which reports the tag's coverage per pack.
+     */
+    val pronunciation: String? = null,
 )
