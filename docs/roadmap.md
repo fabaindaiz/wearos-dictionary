@@ -5043,8 +5043,31 @@ the rule satisfied is worse than the current state.
    moving document twice is the likely outcome of doing it first.
 
 ⚠️ **And the rule that prevents this from growing again**: everything written from 2026-09-21
-onward is English. No enforcer — a language detector over prose would have false positives on the
-technical terms this repo deliberately leaves untranslated (gate, covering index, payload, rung).
+onward is English. ~~No enforcer~~ — **there is one since 2026-09-23**: `check_spanish_prose_budget`,
+a per-area ratchet that only moves down. The objection that killed the first version —false
+positives on the terms this repo leaves untranslated (gate, covering index, payload, rung)— is
+handled by requiring a Spanish marker **and** no English one on the same line, which measured ~170
+false positives away.
+
+⚠️ **The ratchet works and the habit does not, and that is the friction worth writing down.** New
+prose came out in Spanish **five times across two sessions** on 2026-09-24 —in `docs/roadmap.md`
+twice, `docs/decisions.md` twice and a Kotlin test file— in documents the rule covers, written by
+sessions that had the rule loaded. **The arithmetic**: five interruptions of the gate, each paying
+a full rewrite of the paragraph or row, and two of those rewrites moved the line count and failed
+again for a second reason.
+
+**The trigger is not forgetting the rule; it is where the edit happens.** All five were written
+**inside a section that was already Spanish**, or reflowing a quote from the owner — the
+surrounding language reads as the file's language, the conversation is Spanish too, and the
+default wins with nothing questioning it. The ratchet only fires afterwards, when the paragraph is
+already written.
+
+⚠️ **This is the case D-234 names**: an instruction the agent had loaded and broke anyway is the
+signal to raise its rung, not to repeat it louder. The rung above a post-hoc ratchet would be
+something that answers *before* the first word — which is what this row is for, and it is not
+built. Cheapest candidate: the ratchet's failure message naming the two legitimate exceptions (UI
+strings, and a verbatim quote from the owner, which must be wrapped so the line also carries an
+English word) instead of only the ceiling.
 
 ⚠️ **That rule is NOT holding, and it is now measured.** Running one ruler against the tree of
 2026-09-21 and against today's: **5,281 → 6,966 lines, +32 % in two days.** (That ruler is looser
