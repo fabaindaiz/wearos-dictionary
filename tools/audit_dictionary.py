@@ -1532,6 +1532,29 @@ def check_rules_without_enforcer(report):
     )
 
 
+def check_bundle_privacy_and_ids(report):
+    """Rule: nothing private travels in the bundle, and record ids are well formed. (method principle 20)
+
+    The bundle this repository carries is copied into other repositories, so the audit runs the
+    bundle's own recipe rather than a copy of it: `bundle.py privacy` over `.agents/` (generic rules,
+    plus this machine's private-terms list when it has one), and `bundle.py ids` over the two
+    records sessions write ids into. A second recipe here would drift from the tool the way the
+    digest recipe did when `method/changelog.md` appeared.
+    """
+    tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
+    runs = [
+        ("privacidad del bundle", [tool, "privacy", os.path.join(ROOT, BUNDLE)]),
+        ("ids de registros", [tool, "ids", "--carrier", ROOT,
+                              os.path.join(ROOT, ".claude/logs/agent-changelog.md"),
+                              os.path.join(ROOT, "docs/decisions.md")]),
+    ]
+    for rule, argv in runs:
+        result = subprocess.run([sys.executable] + argv, capture_output=True, text=True)
+        if result.returncode != 0:
+            lines = [l.strip() for l in (result.stdout + result.stderr).splitlines() if l.strip().startswith("x ")]
+            report.failure(rule, "; ".join(lines[:5]) or result.stdout.strip()[-400:])
+
+
 def _bundle_body(relative):
     """A bundle document's body: everything but its frontmatter."""
     lines = read(relative).splitlines(True)
@@ -1828,6 +1851,7 @@ CHECKS = [
     check_no_hardcoded_translations,
     check_root_budget,
     check_bundle_digests,
+    check_bundle_privacy_and_ids,
     check_rules_without_enforcer,
     check_skills_reachable,
 ]
