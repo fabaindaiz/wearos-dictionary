@@ -1609,6 +1609,57 @@ ULTIMA_DECISION_CONTADA = 268
 ITEMS_DE_ROADMAP_SIN_ID = 97
 
 
+#: Entries of the changelog that sit out of order today. **A ratchet: it only moves down.**
+#:
+#: Two, both historical: 2026-09-21 followed by 2026-09-22, and 2026-09-18 followed by 2026-09-19.
+#: They are left rather than reordered because moving blocks inside an append-only record is the
+#: owner's call, not a repair an audit should make on its way past.
+RUPTURAS_DE_ORDEN_DEL_CHANGELOG = 2
+
+
+def check_changelog_is_newest_first(report):
+    """Rule: anything chronological reads newest first. (bundle conventions)
+
+    ⚠️ **It is not a tidiness preference: the order IS the insertion point.** The changelog's own
+    header says an entry goes immediately under the `---`, which only means *newest* while the file
+    is in order. A record whose order drifts stops telling the next session where to write, and the
+    method has already lost entries that way -- swallowed into a fence that never closed, invisible
+    in a diff.
+
+    ⚠️ **A ratchet and not a demand for zero.** Reordering blocks inside an append-only record is a
+    rewrite of somebody else's writing, and an audit should not do it while passing through. What a
+    check can hold is that **no new break is added**, which is the half that costs nothing.
+    """
+    ruta = os.path.join(ROOT, ".claude", "logs", "agent-changelog.md")
+    if not os.path.isfile(ruta):
+        return
+    texto = read(ruta)
+    fechas = re.findall(r"^## (\d{4}-\d{2}-\d{2})", texto, re.M)
+    if not fechas:
+        report.failure(
+            "el changelog no tiene entradas fechadas",
+            ".claude/logs/agent-changelog.md no trae ningun `## AAAA-MM-DD`, asi que este chequeo "
+            "no comprueba nada. Es el modo de falla que un check tiene que no tener",
+        )
+        return
+    rupturas = [(fechas[i - 1], fechas[i]) for i in range(1, len(fechas))
+                if fechas[i] > fechas[i - 1]]
+    if len(rupturas) > RUPTURAS_DE_ORDEN_DEL_CHANGELOG:
+        report.failure(
+            "una entrada del changelog quedo fuera de orden",
+            "hay %d rupturas contra un techo de %d: %s. Una entrada va inmediatamente debajo del "
+            "`---`, y eso solo significa *la mas nueva* mientras el archivo este en orden"
+            % (len(rupturas), RUPTURAS_DE_ORDEN_DEL_CHANGELOG,
+               "; ".join("%s antes de %s" % r for r in rupturas[:4])),
+        )
+    elif len(rupturas) < RUPTURAS_DE_ORDEN_DEL_CHANGELOG:
+        report.advisory(
+            "el techo de rupturas del changelog quedo alto",
+            "hay %d contra un techo de %d: baja RUPTURAS_DE_ORDEN_DEL_CHANGELOG a %d"
+            % (len(rupturas), RUPTURAS_DE_ORDEN_DEL_CHANGELOG, len(rupturas)),
+        )
+
+
 def check_record_ids_are_minted(report):
     """Rule: a new decision or roadmap item carries a minted id, not the next number. (D-269)
 
@@ -1937,6 +1988,7 @@ CHECKS = [
     check_no_hardcoded_translations,
     check_root_budget,
     check_bundle_digests,
+    check_changelog_is_newest_first,
     check_record_ids_are_minted,
     check_bundle_privacy_and_ids,
     check_rules_without_enforcer,
