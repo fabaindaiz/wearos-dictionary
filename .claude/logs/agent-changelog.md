@@ -16,6 +16,58 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-ae8e11 — Bundle v19 lands: record ids by hash, notes by state, and the audit counts both id shapes
+**What.** The bundle moves to **v19** (method v23, knowledge v10), written by `bundle.py splice`
+from a meta-session held in the bundle's home. The changes in brief:
+- **Record ids.** From here, a new decision row, roadmap item or changelog entry takes an id
+  `<kind>-a2f271-<content6>` minted by `bundle.py id d|i|s`, instead of the next number. This
+  entry is the first one: its heading carries `s-a2f271-ae8e11` where a `(16)` would have gone.
+- **Knowledge notes by state.** The notes now live in `.agents/knowledge/notes/active/` and
+  `notes/review/`, and the folder is the note's state.
+- **Load sets.** Every method invocation declares what it reads, and `bundle.py report` prices it.
+- **Audit adapted in two places.**
+  - The method digest covers `prompt-*.md` only, as the tool's recipe does. v23 added
+    `method/changelog.md`, which this audit had been counting.
+  - The enforcer advisory counts both `D-###` and `d-…` decision ids.
+
+**Areas.** `.agents/` (68 files spliced, 45 removed, all of them notes moved into their state
+folders), `tools/audit_dictionary.py`, `.claude/logs/agent-changelog.md`.
+
+**Why.** The maintainer asked for three things. Parallel code sessions must not mint colliding
+ids. The notes must show their real state. There must be a report of what `.agents/` costs a
+session. Every change was approved area by area.
+
+**Architecture.** ✅ Complies. The audit change is this repository adapting its own code to the
+release, under the rule that a carrier never edits the bundle.
+
+**Measured.**
+- **Before the adaptation, the audit failed** on a correct v19 copy: the method set was declared
+  `2690669d85f5` and the audit computed `7282e1d2c2f7`, because it counted `method/changelog.md`.
+  After the adaptation: **34 checks, 0 failures, 3 advisories** (the same three as before).
+- **The new id pattern** matches `D-001` and `d-a2f271-3c9e0b` and rejects `d-a2f271-zz`. This
+  was checked on a three-row sample.
+- `bundle.py align` over both carriers: **2 carriers aligned**. `digest --check`, which now also
+  checks links, note reachability and the session read lists, is clean here.
+- `bundle.py report`: a coding session loads about **10.9k tokens** of the bundle (5.4 % of a
+  200k window); the heaviest session types sit at 11–12 %. These are estimates at
+  ceil(characters/4).
+- `./gradlew check`: see the commit message. It ran on this tree after this entry was written.
+
+**Deviation from the plan.** None. The audit adaptation was named in the plan the maintainer
+approved.
+
+**What went wrong.** The splice was written before the audit was run, so the audit's red came
+after the bundle had landed rather than in the dry run. The dry run cannot catch this, because
+it does not run a carrier's own checks.
+
+**What was left undone.**
+- **Only the counting pattern accepts the new ids.** Nothing here yet checks a decision id's
+  format, prefix or uniqueness, which the method now asks audits to do.
+- **`docs/decisions.md`** still describes its ids as sequential in its own header.
+- **The format reference below** now shows the `s-` heading; entries up to (15) keep their numbers.
+
+---
+
 ## 2026-09-23 (15) — Meta-session held from the bundle's home: v18 lands, and this repo's harvest was answered
 **What.** The bundle moves from `g-8b5800` v17 to **v18** (method v22, knowledge v9), built in a
 meta-session run from the bundle's own repository, with this one as the second carrier. Each of
@@ -6700,7 +6752,7 @@ was not written once in seven entries**. A field is omitted by decision, not by 
 nothing to put in it — and a field with no name is not omitted, it is forgotten.
 
 ```
-## YYYY-MM-DD (n) — <one-line title>
+## YYYY-MM-DD · s-<repo6>-<content6> — <one-line title>   (id: `python3 .agents/tools/bundle.py id s "<title>"`)
 **What.** What changed, concretely.
 **Areas.** Files or folders.
 **Why.** The reason, including the request that prompted it.
