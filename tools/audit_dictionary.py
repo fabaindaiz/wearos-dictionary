@@ -1516,9 +1516,14 @@ def check_rules_without_enforcer(report):
     el POR QUE, que nunca empieza con raya: las 7 filas se contaban como reglas CON enforcer y
     engordaban el denominador (19 de 221 donde son 19 de 214). Una alternativa descartada no es
     una regla y no tiene nada que hacer cumplir.
+
+    Since method v23 a new row's id is `d-<repo6>-<content6>`, minted by `bundle.py id d`, so two
+    parallel sessions cannot take the same next number. The `D-###` rows keep their ids, so both
+    shapes are counted: a pattern that knew only `D-\\d+` would stop counting every new row, and
+    this number would drift down while the log grows.
     """
     texto = read("docs/decisions.md").split("## Decisiones descartadas")[0]
-    rows = re.findall(r"^\| (D-\d+) \|.*\|([^|]*)\|\s*$", texto, re.M)
+    rows = re.findall(r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \|.*\|([^|]*)\|\s*$", texto, re.M)
     without = [d for d, enforcer in rows if enforcer.strip().startswith("—")]
     report.advisory(
         "decisiones sin enforcer",
@@ -1587,7 +1592,10 @@ def check_bundle_digests(report):
         )
         return
 
-    method = _bundle_md("method")
+    # The method set is its prompts, `method/prompt-*.md`, the recipe `bundle.py digest` uses. Since
+    # method v23 `method/` also holds `changelog.md`, which the bundle digest covers and the method
+    # digest does not: counting every .md here made this check fail on a correct v19 copy.
+    method = [m for m in _bundle_md("method") if os.path.basename(m).startswith("prompt-")]
     sets = [
         ("metodo", method, method),
         ("conocimiento", [os.path.join(BUNDLE, "knowledge/README.md")], _bundle_md("knowledge/notes")),
