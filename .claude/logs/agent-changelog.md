@@ -16,6 +16,69 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-713ed7 — The bundle conventions land: minted record ids, one recipe instead of two, and a check retired the day after it was written
+**What.** Asked for: review the new `.agents/` and apply every new convention and constraint.
+⚠️ **There is no new `.agents/`** — bundle v20, method v24, knowledge v11, digest `c27c3d884fe3`,
+`incoming/` empty, byte-identical to the one triaged hours earlier. So the work was the bundle's
+**conventions table**, which the previous triage did not read. Three commits.
+- **d-a2f271-5ab6e3** — a new decision row and a new roadmap item carry a minted id.
+  `check_record_ids_are_minted` holds the edge at D-268 and 97 untitled headings.
+- **d-a2f271-969225** — `check_bundle_digests` runs `bundle.py digest --check` instead of
+  reimplementing the recipe. **D-267 is retired**, one day after it was taken.
+- **d-a2f271-4ff1b8** — the changelog is checked to read newest first, as a ratchet over 2 breaks.
+- **d-a2f271-57445d** — a portability check is declined, with the measurement that declines it.
+
+**Areas.** `tools/audit_dictionary.py`, `docs/decisions.md`, `docs/roadmap.md` and this file.
+**`.agents/` was not edited** and is byte-identical to its commit, verified after every probe
+touched it.
+
+**Why.** The conventions table names enforcers that live in **this** repository's audit, and the
+v17→v24 triage had read the method changelog without reading that table.
+
+**Architecture.** ✅ Complies. The one carrier-side look inside `.agents/` is now the tool's own
+command rather than a copy of its recipe.
+
+**Measured.**
+- `./gradlew check` green after each commit. **38 checks, 0 failures, 3 advisories** — up from 37,
+  having *removed* one and added three.
+- `bundle.py digest --check` exits **1** on a planted violation, **0** clean. It catches the dead
+  index link the retired check caught, and adds provenance, links, session reads and privacy.
+- Record ids: **0 of 268** decisions and **0 of 97** roadmap items carried one. The changelog had
+  already adopted the scheme, 5 entries.
+- Changelog order: **118 entries, 2 breaks**, both from 2026-09-18 and 2026-09-21.
+- The English-only convention over `.agents/`: **2 lines of 68 documents**, both false positives of
+  the heuristic — which is why the portability check was declined rather than built.
+- **Knowledge checks run** (d-a2f271-5ab6e3's sibling rule, D-268).
+  `a-check-must-be-seen-to-fail`: all three new checks seen red on planted violations. ✅
+  `derived-copy-goes-stale-silently`: its check is *edit the source with an older timestamp; every
+  derived copy is rebuilt or refused* — a bundle file edited and stamped `2020-01-01` is still
+  refused, because the check reads content and not mtime. ✅
+
+**What went wrong.**
+- ⚠️ **D-267, written the day before, was a second recipe for something the tool already did.**
+  `bundle.py digest --check` covers reachability. The lesson was written one screen above it, in
+  `check_bundle_privacy_and_ids`'s own docstring, and was broken anyway. The row is retired in
+  place with a pointer, which is the rule that same session added.
+- ⚠️ **The hand-rolled digest recipe had already drifted once**, and the previous session patched
+  the copy instead of deleting it. Four helper functions were dead by the end and are gone.
+- ⚠️ **A probe proved nothing and looked like it had.** The changelog-order probe inserted the
+  fake entry at the **top**, where the dates still descend, so no break was created; the grep
+  matched the probe's own title. Redone at the end of the file, where it does break the order.
+- ⚠️ **`$?` is not a variable in fish**, so the first reading of the tool's exit code returned a
+  meaningless `0` and nearly became *"the tool cannot be used as a gate"*. Measured again with
+  `$status`: it is **1**.
+- **New prose was drafted in Spanish three times** in two sessions, in English-by-rule documents,
+  and the ratchet caught it every time. That is now a pattern, not a slip.
+
+**What was left undone.**
+- **The two changelog order breaks are not repaired.** Reordering blocks inside an append-only
+  record is the owner's call; the ratchet only stops a third.
+- **The 97 roadmap headings have no ids** and are not backfilled. The convention's own reasoning
+  says a renumber rewrites everyone's citations, so only new items are minted.
+- **The six rows D-263…D-268 stay under the retired counter**, as written. They are the measure of
+  how long the scheme took to arrive.
+---
+
 ## 2026-09-24 · s-a2f271-985274 — The method triage reaches v24: the knowledge base becomes reachable, and an index that claimed an enforcer gets one
 **What.** Asked for: bring this repository up to the latest conventions from `.agents/`. The
 `state-review` §0 routing said there was nothing to *update* —`incoming/` empty, the three digests
