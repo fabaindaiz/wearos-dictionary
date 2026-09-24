@@ -16,6 +16,50 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-066ff0 — Bundle v20 lands: privacy enforced by the audit, and this repository keeps its id
+**What.** The bundle moves to **v20** (method v24, knowledge v11), written by `bundle.py splice`.
+- The bundle now has one rule above the others (principle 20): nothing in it may identify a
+  private repository or a person, directly or by reconstruction. Every travelling file was
+  scrubbed.
+- Carrier ids are random and stored in each carrier's own header. This repository keeps
+  `r-a2f271` in its new `carrier:` field, because it is public and its old id identifies nothing
+  that is not already public.
+- The audit gains `check_bundle_privacy_and_ids`, which runs the bundle's own `bundle.py privacy`
+  over `.agents/` and `bundle.py ids` over this changelog and `docs/decisions.md`, rather than
+  keeping a second recipe.
+
+**Areas.** `.agents/` (68 files spliced, 5 removed: notes that changed state folders), the
+`carrier:` line in `.agents/README.md`, `tools/audit_dictionary.py`, `docs/roadmap.md` (two counts,
+via `--fix`), `.claude/logs/agent-changelog.md`.
+
+**Why.** Asked for: the information carried and transmitted through the bundle must be censored
+and anonymised, and the rule enforced rather than remembered.
+
+**Architecture.** ✅ Complies. The new check is this repository adapting its own audit to the
+release; the bundle itself was not edited here.
+
+**Measured.**
+- **Privacy.** `bundle.py privacy` over `.agents/` gives 0 failures and 16 advisories.
+- **The new check bites.** A planted email in a bundle file made the audit fail with
+  `privacidad del bundle`; removing it made it pass. The audit is now **35 checks, 0 failures,
+  3 advisories**.
+- **Record ids.** `bundle.py ids` over the changelog and the decisions log gives 0 errors.
+- **Alignment.** `bundle.py align` over both carriers: **2 carriers aligned**.
+- `./gradlew check`: see the commit message. It ran on this tree while this entry was written.
+
+**What went wrong.**
+- **The previous entry's example of a malformed id was itself flagged** by the new `ids` check.
+  It was rewritten without the id.
+- **After the planted-leak test, `git checkout` restored `.agents/layout.md` to the last commit**
+  (v19) instead of the spliced v20. a byte comparison against the release caught it, the file was
+  restored from the release, and `align` then confirmed both carriers equal.
+
+**What was left undone.**
+- **Earlier versions of the bundle remain in this repository's published history.** Rewriting
+  that history is a separate, confirmed step.
+
+---
+
 ## 2026-09-24 · s-a2f271-ae8e11 — Bundle v19 lands: record ids by hash, notes by state, and the audit counts both id shapes
 **What.** The bundle moves to **v19** (method v23, knowledge v10), written by `bundle.py splice`
 from a meta-session held in the bundle's home. The changes in brief:
@@ -44,7 +88,7 @@ release, under the rule that a carrier never edits the bundle.
 - **Before the adaptation, the audit failed** on a correct v19 copy: the method set was declared
   `2690669d85f5` and the audit computed `7282e1d2c2f7`, because it counted `method/changelog.md`.
   After the adaptation: **34 checks, 0 failures, 3 advisories** (the same three as before).
-- **The new id pattern** matches `D-001` and `d-a2f271-3c9e0b` and rejects `d-a2f271-zz`. This
+- **The new id pattern** matches a legacy `D-###` row and a new hash-shaped id, and rejects a malformed one. This
   was checked on a three-row sample.
 - `bundle.py align` over both carriers: **2 carriers aligned**. `digest --check`, which now also
   checks links, note reachability and the session read lists, is clean here.
