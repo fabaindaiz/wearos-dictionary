@@ -105,6 +105,23 @@ TAG_WORD_TRANSLATION = "W"
 #: parts the rest derive from, which is what a printed dictionary puts beside the headword.
 TAG_FORM = "F"
 
+#: The word's pronunciation, in IPA. One per entry, describing the WORD and not a sense.
+#:
+#: Additive like [TAG_ANTONYM] and [TAG_FORM], so **it does not bump the codec id**: a reader that
+#: does not know it skips the line, which is what makes a pack built before this channel keep
+#: opening. That property was measured when `F` was added (D-242).
+#:
+#: WARNING: it is stored **without the slashes or brackets** the source wraps it in. Wiktionary
+#: writes `/ˈkasa/` and `[ˈka.sa]`, which are different notations --phonemic and phonetic-- and
+#: keeping either delimiter would put a typographic choice inside the pack where the card cannot
+#: undo it. The app adds the slashes it wants to show.
+#:
+#: WARNING: **the first one, not all of them.** A Spanish entry averages more than one `sounds`
+#: item --regional variants, rhymes, audio-- and a watch shows one line. Measured over the Spanish
+#: dump: 99.8 % of entries carry at least one, median length 11 characters, so one per entry is
+#: ~1.7 MB over 152,281 entries against the 150.6 MB `entry` already weighs.
+TAG_PRONUNCIATION = "I"
+
 #: Separates the key from the form inside a [TAG_FORM]. A colon and not a tab: `sanitize` strips
 #: tabs because they would split the line, and this value has to survive it.
 FORM_SEPARATOR = ":"
@@ -372,7 +389,7 @@ def _sin_repetir(valores):
     return salida
 
 
-def render(part_of_speech, senses, word_translations=(), forms=()):
+def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation=None):
     """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
     The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
@@ -393,6 +410,10 @@ def render(part_of_speech, senses, word_translations=(), forms=()):
         value = _sanitize_item(translation)
         if value:
             lines.append(TAG_WORD_TRANSLATION + "\t" + value)
+    # Before the senses, like `W` and `F`: it describes the WORD, not one of its senses.
+    ipa = sanitize(pronunciation or "")
+    if ipa:
+        lines.append(TAG_PRONUNCIATION + "\t" + ipa)
     # Before the senses, like `W`: they describe the WORD, not one of its senses.
     for key, form in forms:
         clave = sanitize(key).replace(FORM_SEPARATOR, "")
@@ -455,6 +476,22 @@ def parse_forms(text):
         if clave and forma:
             salida.append((clave, forma))
     return salida
+
+
+def parse_pronunciation(text):
+    """The entry's IPA, or None.
+
+    Separate from [parse] for the same reason [parse_forms] is: changing the tuple `parse` returns
+    would mean touching `verify_pack.py` and every test of it over a datum they do not read.
+
+    The FIRST one wins if a payload somehow carries two. Being lenient here rather than raising is
+    the same choice [parse_forms] makes: the cost is showing one of two pronunciations, and the
+    cost of throwing is losing the whole entry.
+    """
+    for line in text.split("\n"):
+        if len(line) >= 3 and line[0] == TAG_PRONUNCIATION and line[1] == "\t":
+            return line[2:]
+    return None
 
 
 def parse(text):

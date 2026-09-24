@@ -735,3 +735,37 @@ class PartesPrincipalesTest(unittest.TestCase):
         texto = payload.render("noun", [{"gloss": "g"}], forms=[("pl", "ca\tsas")])
         self.assertEqual([("pl", "ca sas")], payload.parse_forms(texto))
         self.assertEqual(1, texto.count("F\t"))
+
+
+class PronunciacionTest(unittest.TestCase):
+    """The `I` channel: the word's IPA, one per entry.
+
+    Its own class and not inside `PartesPrincipalesTest`: a pronunciation is not a principal part,
+    and a test filtered by class name is how a suite quietly runs none of what you meant --
+    measured in this repo on 2026-09-24, in another file.
+    """
+
+    def test_la_pronunciacion_viaja_y_vuelve(self):
+        texto = payload.render("noun", [{"gloss": "g"}], pronunciation="\u02c8ka.sa")
+        self.assertIn("I\t\u02c8ka.sa\n", texto)
+        self.assertEqual("\u02c8ka.sa", payload.parse_pronunciation(texto))
+
+    def test_la_pronunciacion_va_antes_de_las_acepciones(self):
+        # It describes the WORD, like `W` and `F`. If it landed after an `S`, a reader that hangs
+        # items off the last sense would be one edit away from attributing it to that sense --
+        # which is the invented attribution `W` exists to prevent.
+        texto = payload.render("noun", [{"gloss": "g"}], pronunciation="\u02c8ka.sa")
+        self.assertLess(texto.index("I\t"), texto.index("S\t"))
+
+    def test_un_pack_sin_pronunciacion_no_emite_nada(self):
+        # The degradation, and it is the reason this tag does not bump the codec id: a pack built
+        # before the channel carries no `I`, and both sides simply have nothing to show.
+        texto = payload.render("noun", [{"gloss": "g"}])
+        self.assertNotIn("I\t", texto)
+        self.assertIsNone(payload.parse_pronunciation(texto))
+
+    def test_un_tab_en_la_pronunciacion_no_parte_la_linea(self):
+        # Same sanitizing as every other value: a stray tab would split the record.
+        texto = payload.render("noun", [{"gloss": "g"}], pronunciation="\u02c8ka\tsa")
+        self.assertEqual("\u02c8ka sa", payload.parse_pronunciation(texto))
+        self.assertEqual(1, texto.count("I\t"))

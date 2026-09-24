@@ -117,6 +117,20 @@ object PayloadCodec {
     /** Separates the key from the form inside a [TAG_FORM]. Mirrors `payload.FORM_SEPARATOR`. */
     private const val FORM_SEPARATOR = ':'
 
+    /**
+     * The word's pronunciation in IPA, one per entry. Mirrors `payload.TAG_PRONUNCIATION`.
+     *
+     * Additive like [TAG_ANTONYM] and [TAG_FORM], so **it does not bump [CODEC_ID]**: a reader
+     * that does not know it skips the line, which is what lets a pack built before this channel
+     * keep opening. D-242 measured that property when `F` was added.
+     *
+     * ⚠️ **It arrives without slashes or brackets.** The source wraps it as `/ˈkasa/` or
+     * `[ˈka.sa]` -- phonemic and phonetic, two different notations -- and keeping either delimiter
+     * would put a typographic choice inside the pack that the card cannot undo. The card adds
+     * whatever it wants to show around it.
+     */
+    private const val TAG_PRONUNCIATION = 'I'
+
     /** The decoded body, without the data that already comes in `entry`'s columns. */
     data class Body(
         val partOfSpeech: String?,
@@ -130,6 +144,16 @@ object PayloadCodec {
          * card simply has no forms section. Nothing fails and nothing is left blank.
          */
         val forms: List<InflectedForm> = emptyList(),
+        /**
+         * The word's pronunciation in IPA, or null. See [TAG_PRONUNCIATION].
+         *
+         * ⚠️ **Null covers two different things and the card cannot tell them apart**: a pack
+         * built before this channel existed, and a word whose source carried no pronunciation.
+         * Both draw the same --no row-- which is right on screen and wrong for anybody asking
+         * *why*. `verify_pack.py` reports the tag's coverage per pack so the question is answered
+         * from the artefact instead of guessed.
+         */
+        val pronunciation: String? = null,
     )
 
     /**
@@ -250,6 +274,7 @@ object PayloadCodec {
         val senses = mutableListOf<MutableSense>()
         val wordTranslations = mutableListOf<String>()
         val forms = mutableListOf<InflectedForm>()
+        var pronunciation: String? = null
 
         // The sense whose LAST example can still receive a citation, or null. An `E` sets it and
         // any other line clears it: a `C` that does not come right after its `E` is discarded
@@ -288,6 +313,10 @@ object PayloadCodec {
                 // nothing. If it did, a misplaced `W` would become a sense translation -- the
                 // invented attribution this channel exists to prevent.
                 TAG_WORD_TRANSLATION -> wordTranslations.add(value)
+                // No `senses` guard either, and the FIRST one wins: a payload carrying two is
+                // malformed, and picking one is cheaper than losing the entry over it. Same
+                // leniency as `P`.
+                TAG_PRONUNCIATION -> if (pronunciation == null) pronunciation = value
                 // No `senses` guard, for the same reason as `W`: it describes the ENTRY.
                 TAG_FORM -> {
                     val cut = value.indexOf(FORM_SEPARATOR)
@@ -307,6 +336,7 @@ object PayloadCodec {
             partOfSpeech = partOfSpeech,
             wordTranslations = wordTranslations.toList(),
             forms = forms.toList(),
+            pronunciation = pronunciation,
             senses = senses.map {
                 Sense(
                     it.gloss,
@@ -333,6 +363,13 @@ object PayloadCodec {
     fun render(body: Body): String {
         val out = StringBuilder()
         body.partOfSpeech?.let { out.append(TAG_PART_OF_SPEECH).append('\t').append(it).append('\n') }
+        // Before the senses, mirroring the builder: it describes the WORD.
+        //
+        // ⚠️ **This renderer does NOT emit [TAG_WORD_TRANSLATION] or [TAG_FORM]**, which predates
+        // this line and is why their round-trip through here is untested. It is only used by
+        // tests -- packs are written by the builder -- so the gap costs nothing today, and it is
+        // written down rather than widened in silence.
+        body.pronunciation?.let { out.append(TAG_PRONUNCIATION).append('\t').append(it).append('\n') }
         for (sense in body.senses) {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')
             for (example in sense.examples) {

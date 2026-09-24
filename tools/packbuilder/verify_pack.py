@@ -131,6 +131,7 @@ TAGS_CONOCIDOS = frozenset((
     payload_codec.TAG_ANTONYM,
     payload_codec.TAG_RELATED,
     payload_codec.TAG_WORD_TRANSLATION,
+    payload_codec.TAG_PRONUNCIATION,
 ))
 
 
@@ -482,6 +483,7 @@ def verify(path):
     )
     decoded = 0
     senses_total = 0
+    con_ipa = 0
     failures_before = len(report.failures)
     # ⚠️ **Spread along the table, not the first 200.** It was `ORDER BY id LIMIT 200`, which is
     # exactly what D-142 argues is no use: a pack correct only in its first rows --which happens if
@@ -556,6 +558,9 @@ def verify(path):
                                  % (row["headword"], linea[0]))
                     break
 
+            if payload_codec.parse_pronunciation(text):
+                con_ipa += 1
+
             codigos = {payload_codec.sense_code(row["uid"], s["gloss"]) for s in senses}
             if len(codigos) != len(senses):
                 report.check(False,
@@ -570,6 +575,14 @@ def verify(path):
         "se decodificaron %d payloads (%.1f acepciones por entrada)"
         % (decoded, senses_total / max(decoded, 1)),
     )
+    # ⚠️ **A readout and never a check.** How many entries carry IPA is a property of the SOURCE,
+    # not an invariant: demanding a number would fail a pack whose language Wiktionary covers
+    # worse, and demanding zero would forbid the channel. What it answers is the question the card
+    # cannot -- an empty pronunciation row means *this pack has none* or *this word has none*, and
+    # those are different (`absence-is-a-third-value`). Over the sample, so it costs nothing.
+    if decoded:
+        report.note("%d de %d entradas de la muestra traen pronunciacion (%.1f %%)"
+                    % (con_ipa, decoded, 100.0 * con_ipa / decoded))
 
     print("\n[planes de consulta]")
     _verify_query_plans(db, report)
