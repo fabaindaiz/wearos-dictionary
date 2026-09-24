@@ -28,8 +28,11 @@ class LanguageChipsTest {
         lang: String,
         entries: Int = 1,
         demo: Boolean = false,
+        subsetOf: String? = null,
     ): PackHandle = PackHandle.Open(
-        source = FakeDictionary(packId = packId, lang = lang, entryCount = entries),
+        source = FakeDictionary(
+            packId = packId, lang = lang, entryCount = entries, subsetOf = subsetOf,
+        ),
         isBundled = demo,
     )
 
@@ -64,6 +67,39 @@ class LanguageChipsTest {
             null,
         )
         assertEquals("es-grande", reps.single().packId)
+    }
+
+    @Test
+    fun unPackEnSOMBRA_no_representa_a_su_idioma() {
+        // ⚠️ The bug this closes is not visible in a passing app: `packsToQuery` already drops a
+        // shadowed pack, and `representativePacks` did not. They agreed only because an absorber
+        // has more entries than its subset --arithmetic, not a rule-- so nothing failed the day a
+        // subset declared more. Here `en-main` declares MORE entries than the `en-full` that
+        // absorbs it, which is the case the coincidence never covered.
+        val reps = representativePacks(
+            listOf(
+                pack("en-full", "en", entries = 100),
+                pack("en-main", "en", entries = 999, subsetOf = "en-full"),
+            ),
+            null,
+        )
+        assertEquals("en-full", reps.single().packId)
+    }
+
+    @Test
+    fun siTODOS_estan_en_sombra_el_idioma_igual_tiene_representante() {
+        // A language that loses its representative disappears from the selector, which is worse
+        // than representing it with an absorbed pack.
+        //
+        // ⚠️ **A cycle does NOT reach this branch and the first version of this test used one**:
+        // in a cycle nobody absorbs, so `packsToQuery` keeps both and the fallback never runs. It
+        // passed while guarding nothing. What reaches it is a pack absorbed by one that does not
+        // speak its language -- a declaration nothing forbids, since `subset_of` is written by
+        // whoever built the pack.
+        val absorbente = pack("es-full", "es")
+        val sombra = pack("en-main", "en", subsetOf = "es-full")
+        val reps = representativePacks(listOf(absorbente, sombra), null)
+        assertEquals(listOf("en-main", "es-full"), reps.map { it.packId }.sorted())
     }
 
     @Test
