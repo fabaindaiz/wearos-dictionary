@@ -4786,7 +4786,7 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### ✅ El triage v8→v16 del método — **CERRADO el 2026-09-23**; v17–v21 sigue bloqueado
+### ✅ El triage del método — v8→v16 **CERRADO el 2026-09-23**, v17→v24 **CERRADO el 2026-09-24**
 
 **Estado.** ✅ **Los seis bloques aplicados** (D-233 a D-239), contra la recomendación de partirlos
 en dos sesiones — ver ⚠️ Desviación abajo. Lo que entró, por nombre:
@@ -4815,11 +4815,31 @@ declinar. Lo que sí entró de ese principio es su disciplina 2 —una mejora de
 dentro de una feature— que faltaba. La falta de un veredicto para *«aplicado: no hay sujeto»* se
 reportó como candidato.
 
-⚠️ **Y v17 a v21 sigue bloqueado, no pendiente.** El header declara `version: 21` y el *Method
-changelog* del bundle llega hasta la **16**: cinco versiones sin una línea que diga qué cambia
-para quien lee. El método dice explícitamente que la lista de deltas **no es un diff de la
-prosa**, así que no hay con qué triagearlas. Reportado en `.agents/tracking/candidates.md`; se
-destraba cuando el dueño de la lineage escriba esas filas.
+✅ **v17→v24 triaged on 2026-09-24, and the blockage this entry declared had already lifted.**
+
+⚠️ **What this entry asserted, and it was false at the moment of reading it.** It said v17–v21 was
+still blocked because *«el Method changelog del bundle llega hasta la 16: cinco versiones sin una
+línea que diga qué cambia para quien lee»*. **Rows 17–21 were written in v22**, and that row says
+so in its own words: *"Rows 17–21 below were missing from this changelog while the header declared
+21 … They are written now, from the bundle roadmap's Done entries"*. The blockage lifted two
+versions before anybody looked again and nobody wrote it down — which is exactly why a reversed
+entry has to say so **in its own place** and not only where it was found (the `verify` skill,
+§retraction). The method changelog now reaches **24**.
+
+**What the triage found, and what landed the same day:**
+
+| Delta | What was missing here | Where it landed |
+|---|---|---|
+| v23 — *bootstrap wires the knowledge base in* | `CLAUDE.md` did not name `.agents/knowledge/` **once**, with 43 active notes on the other side | D-268: the two moments —before a design decision, before claiming done— and the row in the document map |
+| — | `knowledge/INDEX.md` claimed *"checked by the repository's audit"* and nothing checked it | D-267: `check_knowledge_notes_are_reachable`, in both directions |
+| v22 — *a retraction reaches the row of the decision it reverses* | The `verify` skill carried the findings half only | The second half, with the reason it stays at rung 2 |
+| v22 — `layout.md`: one skills folder, `AGENTS.md` only without a `CLAUDE.md` | Already true: there is one `.claude/skills/` and a `CLAUDE.md` exists | nothing to do |
+| v18, v19, v20, v21 — workspace scope, the sync cycle, the tool refusing to infer | Release mechanics, not the carrier's | nothing to do |
+| v23 — record ids by hash · v24 — privacy, carrier id | Already applied by the sessions of the 22nd, 23rd and 24th | — |
+
+⚠️ **The 30 candidates in `.agents/tracking/candidates.md` are not ours.** They come from other
+carriers —an interactive client, a data-analysis repository, a transactional service— and a
+release admits them, never a carrier (`prompt-harvest.md` §*What the local step must never do*).
 
 ✅ **`r-a2f271` quedó registrado en `carriers.md` el 2026-09-23**, y el bloqueo que se había
 declarado era **medio falso**. Eran dos supuestos y sólo uno se sostuvo:
