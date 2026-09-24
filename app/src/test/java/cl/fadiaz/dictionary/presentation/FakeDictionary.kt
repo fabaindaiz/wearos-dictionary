@@ -44,6 +44,8 @@ class FakeDictionary(
     private val kind: PackKind = PackKind.MONOLINGUAL,
     /** `CORE` para probar la rama de los núcleos. */
     private val tier: PackTier = PackTier.FULL,
+    /** The pack that contains this one, so a shadowed pack can be built in a test. */
+    private val subsetOf: String? = null,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
@@ -71,6 +73,7 @@ class FakeDictionary(
         dataVersion = dataVersion,
         license = "CC0-1.0",
         attribution = "sin atribucion: es un fake",
+        subsetOf = subsetOf,
     )
 
     override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {

@@ -1,6 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.packsToQuery
 import cl.fadiaz.dictionary.data.UiLanguage
 
 /**
@@ -91,17 +92,30 @@ internal fun idiomasDisponibles(packs: List<PackHandle>): List<String> =
  *
  * ⚠️ **The order is by language code and not `packs`'**, which comes from listing a directory and
  * promises no order. Same criterion as D-136's tie-break.
+ *
+ * ⚠️ **A shadowed pack cannot represent a language**, and until it did not say so the agreement
+ * with [packsToQuery] was arithmetic rather than a rule: an absorber happens to have more entries
+ * than its subset, so `maxByOrNull(entryCount)` landed on the same pack by coincidence. Nothing
+ * failed if it stopped being true -- the attribution screen would cite the licence of a pack that
+ * is never asked anything, and the word of the day would come out of it. The two surfaces now
+ * apply the same rule from the same function.
+ *
+ * ⚠️ **Shadowed is a last resort, not an exclusion.** If every pack of a language is absorbed --
+ * which the cycle rule in [packsToQuery] already refuses to produce, but a future rule could --
+ * the language keeps a representative instead of vanishing from the selector.
  */
 internal fun representativePacks(packs: List<PackHandle>, activo: String?): List<PackHandle.Open> {
     val abiertos = packs.filterIsInstance<PackHandle.Open>()
+    val consultables = packsToQuery(abiertos.map { it.source }).toSet()
     // ⚠️ **It groups by EVERY language the pack declares, not by one.** A bilingual one enters
     // both groups, so it can represent English even though it also speaks Spanish -- which is what
     // is needed when it is the only installed pack.
     return idiomasDisponibles(packs).mapNotNull { lang ->
         val delIdioma = abiertos.filter { lang in it.metadata.langs }
-        delIdioma.firstOrNull { it.packId == activo }
-            ?: delIdioma.maxByOrNull { it.metadata.entryCount }
-            ?: delIdioma.firstOrNull()
+        val vivos = delIdioma.filter { it.source in consultables }.ifEmpty { delIdioma }
+        vivos.firstOrNull { it.packId == activo }
+            ?: vivos.maxByOrNull { it.metadata.entryCount }
+            ?: vivos.firstOrNull()
     }.distinctBy { it.packId }
 }
 
