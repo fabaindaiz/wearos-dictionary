@@ -1503,20 +1503,66 @@ def check_decision_rows_stay_an_index(report):
 PRESUPUESTO_RAIZ = 220
 
 
+def _secciones(texto):
+    """`CLAUDE.md`'s `##` sections and how many lines each one holds, in file order."""
+    secciones, actual = [], ("(cabecera)", 0)
+    for linea in texto.splitlines():
+        if linea.startswith("## "):
+            secciones.append(actual)
+            actual = (linea[3:].strip(), 1)
+        else:
+            actual = (actual[0], actual[1] + 1)
+    secciones.append(actual)
+    return [s for s in secciones if s[1] > 1]
+
+
+def _claude_md_previo():
+    """`CLAUDE.md` as the last commit has it, or None when git cannot answer.
+
+    None and not an exception: a tarball without `.git` has to keep passing the audit, which is
+    the same reason `BUILD_COMMIT` degrades to `"unknown"` (D-238).
+    """
+    result = subprocess.run(["git", "show", "HEAD:CLAUDE.md"], cwd=ROOT,
+                            capture_output=True, text=True, check=False)
+    return result.stdout if result.returncode == 0 and result.stdout else None
+
+
+def _por_que_crecio():
+    """One line naming the sections to look at: what grew, or failing that what is biggest.
+
+    ⚠️ **It answers the question the message already asked.** This check used to fail with
+    *"which section grew?"* and leave it to a human counting lines by hand -- which happened twice
+    in one session (204 -> 201 -> 199 lines) and is the friction `docs/roadmap.md` recorded.
+    Growth beats size: a section that is merely long may be long on purpose, while one that grew
+    is the one that just became a document.
+    """
+    ahora = _secciones(read("CLAUDE.md"))
+    previo = _claude_md_previo()
+    if previo is not None:
+        antes = dict(_secciones(previo))
+        crecidas = sorted(((n - antes.get(t, 0), t, n) for t, n in ahora if n > antes.get(t, 0)),
+                          reverse=True)
+        if crecidas:
+            return "crecieron: " + ", ".join("%s +%d (%d lineas)" % (t, d, n)
+                                             for d, t, n in crecidas[:3])
+    mayores = sorted(ahora, key=lambda x: -x[1])[:3]
+    return "las mas largas: " + ", ".join("%s (%d lineas)" % (t, n) for t, n in mayores)
+
+
 def check_root_budget(report):
     """Rule: CLAUDE.md is paid for on every request and stays inside its budget. (CLAUDE.md)"""
     lines = len(read("CLAUDE.md").splitlines())
     if lines >= PRESUPUESTO_RAIZ:
         report.failure(
             "CLAUDE.md paso su presupuesto",
-            "%d lineas contra %d. Que seccion crecio? Una seccion que crece se volvio un "
-            "documento" % (lines, PRESUPUESTO_RAIZ),
+            "%d lineas contra %d. Una seccion que crece se volvio un documento; %s"
+            % (lines, PRESUPUESTO_RAIZ, _por_que_crecio()),
         )
     elif lines > PRESUPUESTO_RAIZ - 25:
         report.advisory(
             "CLAUDE.md cerca del limite",
-            "%d de %d lineas. La proxima regla que entre conviene que NOMBRE que desaloja"
-            % (lines, PRESUPUESTO_RAIZ),
+            "%d de %d lineas. La proxima regla que entre conviene que NOMBRE que desaloja; %s"
+            % (lines, PRESUPUESTO_RAIZ, _por_que_crecio()),
         )
 
 

@@ -5227,9 +5227,14 @@ desconocidos.
 **Visto en.** 2026-09-19, dos veces en la misma sesión (el 39,6 % de entradas vacías; los meses
 en inglés). **Primer golpe de changelog.**
 
-### La auditoría dice que `CLAUDE.md` se pasó, pero no qué sección creció
+### ✅ La auditoría dice que `CLAUDE.md` se pasó, y ahora también qué sección creció — CERRADO 2026-09-24
 
-**Qué pasa ahora.** `check_root_budget` falla con *"¿Qué sección creció?"* y no lo responde. Hay
+✅ **Closed by d-a2f271-c8d129.** The message now names the sections — `crecieron: Commits +15
+(24 lineas)` — diffed against the last commit, falling back to the longest ones when there is no
+`.git`. The advisory carries it as well as the failure, because by the time the budget is blown
+the choice is already forced. Verified by mutation on all three branches.
+
+**Qué pasaba antes.** `check_root_budget` fallaba con *"¿Qué sección creció?"* y no lo respondía. Hay
 que contar líneas por sección a mano, elegir qué relocalizar y volver a correr. Pasó **dos veces
 en la sesión del 2026-09-17** (204 → 201 → 199 líneas), y el archivo quedó en 199 de 200: la
 próxima regla que se agregue vuelve a chocar.
