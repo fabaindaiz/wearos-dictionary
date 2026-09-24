@@ -26,7 +26,8 @@ BUNDLE = ".agents"
 EXENTOS_DE_RUTAS = ("docs/roadmap.md", ".claude/logs/agent-changelog.md")
 
 # Directorios de primer nivel cuyos paths se consideran referencias reales al repo.
-REPO_DIRS = ("dict-core/", "tools/", "app/", "docs/", ".claude/", "gradle/", "dict-data/")
+REPO_DIRS = ("dict-core/", "tools/", "app/", "docs/", ".claude/", "gradle/", "dict-data/",
+             ".agents/")
 
 MARKDOWN = []
 for base, dirs, files in os.walk(ROOT):
@@ -1004,6 +1005,12 @@ def check_test_counts(report):
     python = _contar(os.path.join("tools", "packbuilder", "tests"), "def test_")
     datos = _contar(os.path.join("dict-data", "src", "androidTest"), "@Test")
     app_disp = _contar(os.path.join("app", "src", "androidTest"), "@Test")
+    # The knowledge notes CLAUDE.md sends a session to. Counted rather than written down, because
+    # it is the one number here that a bundle release moves without this repository touching it --
+    # so it is the one most likely to be quietly wrong. Only `active/`: `review/` is disputed and
+    # `retired/` must not be read as live.
+    notas = len([n for n in os.listdir(os.path.join(ROOT, BUNDLE, "knowledge", "notes", "active"))
+                 if n.endswith(".md")])
     if None in (nucleo, app_jvm, python, datos, app_disp):
         report.failure(
             "no se pudo contar los tests",
@@ -1024,6 +1031,7 @@ def check_test_counts(report):
         ("docs/roadmap.md", r"`:dict-core`, \*\*(\d+) tests\*\*"): nucleo,
         ("docs/roadmap.md", r"`tools/`, \*\*(\d+) tests\*\*"): python,
         ("docs/roadmap.md", r"\*\*(\d+) JVM\n?de `:app`\*\*"): app_jvm,
+        ("CLAUDE.md", r"phase guide over (\d+) notes"): notas,
         ("docs/roadmap.md", r"\*\*(\d+) checks\*\* de auditor"): checks,
         ("docs/roadmap.md", r"\*\*(\d+) tests en total\*\*"): gate + checks,
         ("docs/roadmap.md", r"Los \*\*(\d+)\n?instrumentados\*\*"): datos + app_disp,

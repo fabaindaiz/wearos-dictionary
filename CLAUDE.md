@@ -135,6 +135,13 @@ the code a year later. Anything reversible in ten minutes is decided alone, in o
 that what it was told was right. Here that means opening the pack and **reading real entries**,
 not counting rows. See the `pack-workflow` skill.
 
+**The heuristics are not in this repo and they are not optional.** Before a design decision and
+before claiming something is done, `.agents/knowledge/INDEX.md` — a phase guide over 43 notes, each
+with the case where the default answer is wrong and a *Verify by* check. On closing, **run the
+check of every note the work relied on and say which ran**: a heuristic read and not checked is an
+opinion that happened to be nearby. Evidence against a note goes to `.agents/tracking/`, never
+around it.
+
 **Close by giving back what the session learned.** Capturing is unconditional; proposing has a
 threshold: a friction goes into the changelog the first time and **up to the roadmap §Proceso y
 herramientas the second**, with the arithmetic. Process improvements **are proposed, not executed**
@@ -197,4 +204,5 @@ its own format, and why, at its end.
 | What is this project? (for an outsider) | `README.md` |
 | How is this repo worked with an agent? Where do these rules come from? | `.agents/method/prompt-context.md` |
 | Which prompt do I run —evaluate, update, harvest, merge, sync? | `.agents/method/prompt-context.md` §*Which document to run* |
+| Is there a written heuristic for this? What do I check before saying it is done? | `.agents/knowledge/INDEX.md` |
 | Is the instruction system healthy? Is the bundle stale? | `.agents/method/prompt-evaluate.md`, the `state-review` skill |
