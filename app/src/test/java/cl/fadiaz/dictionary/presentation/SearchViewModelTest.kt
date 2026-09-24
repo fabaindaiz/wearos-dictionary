@@ -1429,6 +1429,24 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aVisitFromABidirectionalPackRecordsTheLanguageItWasSearchedIn() = runTest {
+        // D-265, and the bidirectional pack is the case that has no other answer: `atizar` and
+        // `stoke` both come out of `es-tr-enwikt-freq`, which declares es+en, so deriving the tag
+        // from the pack gave NOTHING for either and the two rows were indistinguishable.
+        //
+        // The active language is a fact and not an inference here: the search is strict by
+        // language (D-189) and filters by `entry.lang` inside the pack, so every result on screen
+        // is in it. That is also why the results list carries a single tag.
+        val bilingue = FakeDictionary("es-tr", "es", langs = listOf("es", "en"))
+        val vm = conPack(bilingue)
+        advanceUntilIdle()
+        vm.onLanguageChange("en")
+        advanceUntilIdle()
+        vm.recordVisit(suggestion("es-tr", 7, "stoke"))
+        assertEquals(listOf("en"), vm.state.value.history.map { it.lang })
+    }
+
+    @Test
     fun openingTheSameEntryTwiceDoesNotDuplicateItAndMovesItToTheTop() {
         val vm = conPack(FakeDictionary("es-def", "es"))
         vm.recordVisit(suggestion("es-def", 1, "perro"))

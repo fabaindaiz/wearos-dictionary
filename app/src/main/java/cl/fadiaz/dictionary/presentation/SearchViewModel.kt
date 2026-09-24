@@ -746,8 +746,25 @@ class SearchViewModel(
             entryId = suggestion.entryId,
             headword = suggestion.headword,
             partOfSpeech = suggestion.partOfSpeech,
+            // ⚠️ **The ACTIVE language, and that is a fact rather than an inference.** The search
+            // is strict by language (D-189) and filters by `entry.lang` inside a bidirectional
+            // pack, so every result on screen is in it -- which is also why the results list
+            // carries a single tag. Reading it off the pack instead would give **nothing** for the
+            // bilingual one, which is the untagged row being fixed.
+            lang = _state.value.activeLang,
         ),
     )
+
+    /**
+     * The language a visit in [packId] is in, when the pack can answer it on its own.
+     *
+     * ⚠️ **Null for a bidirectional pack, and deliberately.** `es-tr-enwikt-freq` declares es+en,
+     * so there is no single true answer and **no tag beats the wrong one** -- the rule a gloss's
+     * links are painted by. Whoever knows better --the search, which filtered by language; the
+     * card, which holds `entry.lang`-- passes it instead of asking here.
+     */
+    internal fun langOf(packId: String): String? =
+        opened.firstOrNull { it.metadata.packId == packId }?.metadata?.langs?.singleOrNull()
 
     /**
      * Records a visit when only the id is held: the word of the day, a history entry, or a word
@@ -765,7 +782,18 @@ class SearchViewModel(
         val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
         viewModelScope.launch {
             val header = pack.summary(entryId) ?: return@launch
-            recordVisit(Visit(packId, header.entryId, header.headword, header.partOfSpeech))
+            // ⚠️ **`langOf` and not the active language.** This path is reached by tapping a
+            // word inside a gloss or a translation, and a translation lands in the OTHER
+            // language: asserting the active one here is exactly D-080's family. A bidirectional
+            // pack therefore leaves it null, and the row stays untagged -- what would fix that is
+            // `entry.lang` reaching `EntrySummary`, which is a `:dict-core` change and is written
+            // up in the roadmap rather than smuggled in here.
+            recordVisit(
+                Visit(
+                    packId, header.entryId, header.headword, header.partOfSpeech,
+                    lang = langOf(packId),
+                ),
+            )
         }
     }
 

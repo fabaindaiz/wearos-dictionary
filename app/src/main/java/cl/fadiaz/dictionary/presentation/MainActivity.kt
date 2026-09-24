@@ -382,6 +382,10 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                     entryId = word.entryId,
                                     headword = word.headword,
                                     partOfSpeech = word.partOfSpeech,
+                                    // The pack answers here: a bidirectional one gives no word of
+                                    // the day at all (D-200), so `langOf` is never null in
+                                    // practice and says nothing rather than guessing if it is.
+                                    lang = viewModel.langOf(packOfTheWord),
                                 )
                                 val target = viewModel.targetOf(visit)
                                 if (target != null) {
@@ -466,7 +470,14 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                 },
                                 onToggleFavorite = {
                                     viewModel.toggleFavorite(
-                                        Visit(packId, entry.entryId, entry.headword, entry.partOfSpeech),
+                                        Visit(
+                                            packId, entry.entryId, entry.headword,
+                                            entry.partOfSpeech,
+                                            // `entry.lang` and not the pack's: in a bidirectional
+                                            // pack they differ, and this card may well have been
+                                            // reached by tapping a translation (D-190).
+                                            lang = entry.lang,
+                                        ),
                                     )
                                 },
                                 onCopy = {

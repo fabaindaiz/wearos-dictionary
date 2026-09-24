@@ -161,6 +161,26 @@ class VisitTargetTest {
     }
 
     @Test
+    fun aVisitCarriesItsOwnLanguageThereAndBack() {
+        // D-265. The language is a property of the VISIT: `atizar` and `stoke` both come out of
+        // the bidirectional pack, so the pack cannot tell them apart and the row could not either.
+        val con = Visit("es-tr-enwikt-freq", 7, "stoke", "verb", lang = "en")
+        assertEquals(listOf(con), parseVisits(serializeVisits(listOf(con))))
+    }
+
+    @Test
+    fun aVisitWrittenBeforeTheLanguageFieldStaysUntagged() {
+        // ⚠️ **That IS the migration, and it was the whole decision.** A row written before the
+        // field existed has no honest language to give it: deriving one from the pack is what
+        // produced the defect, and from the active language is D-080's family. It draws with no
+        // tag, which the screens already handle -- an unknown pack has always drawn that way.
+        val cinco = listOf("es-def", "7", "casa", "noun", "Edificación.").joinToString(SEPARATOR)
+        val cuatro = listOf("es-def", "7", "casa", "noun").joinToString(SEPARATOR)
+        assertEquals(null, parseVisits(cinco).single().lang)
+        assertEquals(null, parseVisits(cuatro).single().lang)
+    }
+
+    @Test
     fun unaGLOSA_CON_SALTO_DE_LINEA_no_parte_el_registro() {
         // El separador de REGISTROS es `\n`. Una glosa que lo trajera partiría la lista en dos
         // y la segunda mitad se descartaría en silencio — que es peor que perder la glosa.
