@@ -63,11 +63,21 @@ class DownloadPackWorkerTest {
     }
 
     @Test
-    fun `las restricciones son las de D-029 y no otras`() {
-        // ⚠️ Escrito como aserto porque relajarlas es exactamente el tipo de cambio que se cuela
-        // "para probar mas rapido" y no se revierte. La guia oficial de Wear OS pone el acceso a
-        // red por encima de encender la pantalla.
-        val c = DownloadPackWorker.constraints()
+    fun `a download somebody is watching does not wait for the charger`() {
+        // D-263. The assertion that matters is the Wi-Fi one: relaxing THAT is the change that
+        // slips in "to test faster" and never gets reverted, and it costs a real data bill. The
+        // charger was let go on purpose, which is why it keeps a test instead of disappearing.
+        val c = DownloadPackWorker.constraints(DownloadOrigin.MANUAL)
+        assertEquals(false, c.requiresCharging())
+        assertEquals(androidx.work.NetworkType.UNMETERED, c.requiredNetworkType)
+    }
+
+    @Test
+    fun `a download nobody asked for DOES wait for the charger`() {
+        // The half of D-029 that stands: nobody consents to a battery cost they are not present
+        // for. Nothing produces QUEUED today, and the test exists so the rule is still written
+        // down when somebody writes the first automatic download.
+        val c = DownloadPackWorker.constraints(DownloadOrigin.QUEUED)
         assertEquals(true, c.requiresCharging())
         assertEquals(androidx.work.NetworkType.UNMETERED, c.requiredNetworkType)
     }

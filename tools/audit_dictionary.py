@@ -1350,7 +1350,7 @@ TECHO_ESPANOL = (
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),
     ("docs/roadmap.md", 2310),
-    ("docs/decisions.md", 261),
+    ("docs/decisions.md", 260),
     (".claude/logs/", 4180),
 )
 
