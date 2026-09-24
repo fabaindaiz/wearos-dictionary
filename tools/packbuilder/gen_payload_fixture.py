@@ -83,6 +83,10 @@ CASES = [
     #
     # The third sense carries a `Y` between the example and what follows: it pins that the
     # citation is written RIGHT AFTER its example and not at the end of the block.
+    # The IPA is non-ASCII by construction and carries combining marks, so it also exercises what
+    # the accent case does -- but through a channel the sense text never touches.
+    ("pronunciacion en IPA", "noun", [{"gloss": "edificacion para vivir"}], "\u02c8ka.sa"),
+    ("pronunciacion sin acepciones utiles", None, [{"gloss": "x"}], "\u02c8\u03b8i\u027eko"),
     ("ejemplo con cita", "noun", [
         {"gloss": "moverse rapidamente de un lugar a otro",
          "examples": [{"text": "corrio hasta la esquina", "ref": "1897, Richard Marsh"}]},
@@ -112,8 +116,14 @@ def main():
         "DICTIONARY_SHA256\t%s\t" % payload_codec.dictionary_digest(dictionary),
     ]
 
-    for description, part_of_speech, senses in CASES:
-        text = payload_codec.render(part_of_speech, senses)
+    for case in CASES:
+        # A fourth element is the pronunciation, optional so the ten cases written before this
+        # channel existed stay exactly as they are -- and so the fixture keeps covering the shape
+        # of a payload that carries none, which is every pack built so far.
+        description, part_of_speech, senses = case[:3]
+        text = payload_codec.render(
+            part_of_speech, senses, pronunciation=case[3] if len(case) > 3 else None,
+        )
         blob = payload_codec.compress(text, dictionary)
         # A check of its own before writing: if Python cannot read what it wrote, the fixture is
         # wrong and there is no sense asking Kotlin to read it.

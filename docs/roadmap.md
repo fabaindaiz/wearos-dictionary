@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **437 JVM
-de `:app`** y **38 checks** de auditoría estructural — **1113 tests en total**. Los **46
+pipeline de packs (`tools/`, **515 tests**) están completos y en el gate, junto con los **437 JVM
+de `:app`** y **38 checks** de auditoría estructural — **1117 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3922,12 +3922,28 @@ rows and would have prevented the question. Not changed: a user-facing string is
 it does need is the **rebuild**, because B's counts are only worth showing over a pack whose
 `fts_def` is the final one.
 
-### Pronunciación (IPA) y etimología en el pack — MEDIDO 2026-09-23, para el próximo rebuild
+### Pronunciación (IPA) y etimología en el pack — **IPA: CANAL CONSTRUIDO 2026-09-24**, etimología planificada
 
 **Estado.** **Planificado**, con las dos mediciones hechas y el canal de la ficha ya construido:
 las partes principales (D-242) abrieron el tag `F` y demostraron que **agregar un tag al payload
 no rompe un pack viejo** — el lector ignora lo que no conoce, y `verify_pack.py` exige registrar
 el tag nuevo, que es lo que convierte ese silencio en un fallo visible.
+
+✅ **The IPA channel is built end to end (d-a2f271-13da99), and no pack carries it yet.**
+`TAG_PRONUNCIATION = "I"` in `payload.py` and its mirror in `PayloadCodec.kt`, registered in
+`TAGS_CONOCIDOS`, two cases in the shared `payload-fixture.tsv`, and four Python tests. Proven by
+mutation on **both** sides: dropping the emission fails the Python tests, and dropping the Kotlin
+decode fails *«descomprime lo que comprimió Python, byte por byte»* — the shared fixture catches
+the mirror, which is the same mechanism that holds the central invariant.
+
+⚠️ **What is NOT done, and it is the half that reaches a user.** `kaikki.py` does not read
+`sounds[].ipa` yet, so nothing writes the tag, and no pack carries it: `verify_pack.py` reports
+**0 of 200 sampled entries (0.0 %)** on `es-full`. The rebuild debt is in §*Reconstruir los packs*.
+And the card has no row for it.
+
+⚠️ **A gap this work found and did not widen**: `PayloadCodec.render` in Kotlin does not emit
+`TAG_WORD_TRANSLATION` or `TAG_FORM` either, so those two channels' round-trip through it is
+untested. It is only used by tests, so it costs nothing today; fixing it is its own change.
 
 #### La pronunciación entra. Es el dato más barato que queda sin usar
 
