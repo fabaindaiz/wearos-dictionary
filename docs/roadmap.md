@@ -223,6 +223,7 @@ hicieron. Los tres tienen test ahora.
 
 | Qué | Por qué importa |
 |---|---|
+| ⚠️ **Ningún pack trae la PRONUNCIACIÓN** | The `I` channel landed on 2026-09-24 (d-a2f271-13da99) and `dist/` predates it: `verify_pack.py` reads **0.0 %** on `es-full` against **100.0 %** available in the dump. The card draws nothing, which is correct and invisible — the exact shape this section exists to catch. It needs `es-full` rebuilt from `es.jsonl`; the toy pack already carries one entry, so the gate covers the channel |
 | **Los packs no están en el reloj** | `dist/` está listo; `devpack.py` no se corrió. Hasta que se corra, el reloj sigue con los packs del 2026-09-21 |
 | ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
 | **`Tuesday` en el bilingüe** | Ver §La traducción glosada no produce entrada inversa. Necesita una medición antes que código |
