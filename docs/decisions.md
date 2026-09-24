@@ -6,6 +6,16 @@ nuevo, la respuesta es este documento.
 Los números **no se reutilizan ni se renumeran**. `CLAUDE.md`, el changelog y el roadmap los
 citan.
 
+⚠️ **A NEW row does not take the next number: it takes a minted id** (d-a2f271-5ab6e3).
+
+```sh
+python3 .agents/tools/bundle.py id d "<the row's text>"   # -> d-a2f271-<hash>
+```
+
+The **268 `D-###` rows stay as written**: renumbering rewrites everyone else's citations. What the
+minted id closes is that **two sessions on different branches cannot see each other's next
+number**, so one of the two lies — the same reason this repository keeps a changelog at all.
+
 La cuarta columna es la que importa. **Una fila con `—` es una decisión que se puede romper en
 silencio.** Está permitido, pero tiene que verse.
 
@@ -334,6 +344,7 @@ encuentra.
 
 | D-267 | The audit checks that **every knowledge note is reachable from its index, and every link there resolves** -- the one place a carrier looks inside `.agents/` | `knowledge/INDEX.md` claims the check in its own words (*"checked by the repository's audit, because a dead pointer in an index is worse than an index nobody wrote"*) and **nothing checked it**: a claim naming an enforcer that does not exist reads as rung 3 and behaves as rung 0, which is the method's own principle 1. ⚠️ **Both directions, because they fail differently**: a dead link is loud once somebody follows it; a note nobody links is silent forever -- work that was written, travelled in the bundle and is never read, with nothing looking wrong. Reachability is transitive through the two area indexes; `notes/retired/` is excluded, because the folder is the note's state. ⚠️ **It is narrow on purpose** -- an invariant the bundle asks the carrier to enforce, never the bundle's content; `check_doc_paths` and `check_markdown_links` keep skipping `.agents/` entirely | `check_knowledge_notes_are_reachable`, **verificado por mutación en las dos direcciones** |
 | D-268 | `CLAUDE.md` sends a session to `.agents/knowledge/INDEX.md` **before a design decision and before claiming done**, and documents may now name `.agents/` paths under the path check | The bundle carried 43 knowledge notes --a phase guide, each with the case where the default answer is wrong and a *Verify by* check-- and **the root file did not name them once**: work that travelled, was never read, and nothing looked wrong. It is method v23's carrier-facing delta and an item of the bootstrap checklist. ⚠️ **Two moments and not a pointer**, because the method already measured that a pointer with no moment assigned does not get read; the closing one asks which checks ran, since a heuristic read and not checked is an opinion that happened to be nearby. ⚠️ **The note count is COUNTED, not written**: a release moves it without this repository touching it. ⚠️ **And `.agents/` joins `REPO_DIRS`**: the three pointers `CLAUDE.md` already had into the bundle were unchecked, so the new one would have rotted the same way | `check_test_counts` (the note count) · `check_doc_paths` (the pointers), **los dos verificados por mutación** · `check_root_budget` (208 de 220) |
+| d-a2f271-5ab6e3 | A **new** decision row and a **new** roadmap item carry an id minted by `bundle.py id d|i`; the 268 decisions and 97 items written under the counter stay as written | The method retired the counter in v23 and this repository kept using it: **0 of 268** decision rows and **0 of 97** roadmap items carried a minted id, and six rows were written under the retired scheme after it was retired --two of them in the session that declared the v17 to v24 triage closed. ⚠️ **The reason is this repository's own named hazard**: two sessions on different branches cannot see each other's next number, so a counted id makes one of them lie -- which is why the changelog exists at all. ⚠️ **A boundary, not a demand that every row match**: legacy ids stay, because a renumber silently rewrites every citation elsewhere, so the check holds the edge. Same ratchet shape as the Spanish-prose budget and for the same reason -- a rule that cannot pass today gets switched off. ⚠️ **The hash is never checked**: an id is frozen at creation | `check_record_ids_are_minted`, **verificado por mutación en las dos ramas** · `bundle.py ids` para formato y unicidad |
 ## Tooling de Python
 
 | # | Decisión | Por qué | Enforced in |
