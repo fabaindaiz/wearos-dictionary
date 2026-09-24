@@ -156,7 +156,7 @@ son las de ahora.*
 |---|---|---|---|
 | 1 | **Medir sobre un build de RELEASE en el reloj** | ✅ La sesión del 2026-09-21 (tarde) ya midió sobre el reloj, pero con un APK `DEBUGGABLE` que **ART nunca compiló** (`status=run-from-apk`): 2203 ms de arranque, 1401 tras forzar `verify`, contra los **500 ms del build con R8**. Todo número de rendimiento y batería que tenemos sale de ese build de debug, así que son **techos, no costes**. El redibujo en reposo quedó **confirmado en 4,0 fps** con ventana limpia, pero ya **no es el mayor gasto**: la pantalla son 33,2 mAh y toda nuestra CPU 6,05 | el número real de O-1 · verificar R8 en dispositivo · cualquier decisión de optimización |
 | 2 | **§Alinear acepciones entre fuentes** | El problema abierto más caro, con **cuatro caras**: bloquea 20.644 aportes de contenido, el espacio de equivalencias entre packs, y la pregunta de qué se muestra cuando dos packs tienen la misma palabra — hoy **se elige uno y el otro se esconde** | sinónimos/ejemplos por acepción de fuentes externas · composición entre packs |
-| 3 | ~~**El instalador**~~ **Dónde se hostea el catálogo** | ✅ El mecanismo funciona y está verificado en el emulador (D-214): descarga, reanuda, comprueba dos hashes, instala y recarga. Lo que falta es **de producto**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo, y sólo `debug` habla por `http://`. Falta también **cancelar una descarga**, que con 192 MB se va a notar | distribuir la app a cualquiera |
+| 3 | ~~**El instalador**~~ **Dónde se hostea el catálogo** | ✅ El mecanismo funciona y está verificado en el emulador (D-214): descarga, reanuda, comprueba dos hashes, instala y recarga. Lo que falta es **de producto**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo, y sólo `debug` habla por `http://`. ~~Falta también cancelar una descarga~~ — **built**: `DownloadPackWorker.cancel` frees the `.part` and is wired from the manager, with a test. Verified 2026-09-24 by reading the code, not by remembering it | distribuir la app a cualquiera |
 
 ---
 
@@ -5153,9 +5153,16 @@ la primera sobre los cinco.
 ⚠️ **Lo que NO hay que hacer es relajar el chequeo**: la documentación que miente sobre cuántos
 tests hay es exactamente lo que este chequeo existe para impedir.
 
-### Verificar a ojo en el emulador cuesta más que el cambio que se verifica
+### Verificar a ojo en el emulador cuesta más que el cambio que se verifica — **mostly closed by D-232**
 
-**Qué pasa ahora.** No hay forma fiable de llevar la app a un estado concreto sin un humano
+⚠️ **This entry never mentioned D-232, and D-232 is what closes most of it.** Since 2026-09-23 a
+query is seeded over `adb` on any build that is not `release`, which is exactly the complaint
+below: `input text` leaves the text as the Wear IME's composing text and the app receives an empty
+query. `docs/preguntas-del-reloj.md` §*What can already be asked without a finger* is the current
+procedure. **What is still true** is everything that is not typing — navigating to a screen,
+scrolling, a long press — and that is what this entry is now about.
+
+**Qué pasaba, y en parte sigue pasando.** No hay forma fiable de llevar la app a un estado concreto sin un humano
 tocando la pantalla. `adb shell input swipe` se sale de la app, `input tap` con coordenadas
 calculadas de una captura cae en el botón de al lado, `input keyevent 4` cierra la app si el
 teclado no llegó a abrirse, y **`input text` deja el texto como composing del IME de Wear sin
@@ -5191,9 +5198,30 @@ app arranca con los dos packs nuevos instalados, que el espacio bajo el reloj qu
 —primera confirmación visual de D-127— que **un emulador en inglés muestra la UI en inglés**
 (*type…*, *Say a word*, *Word of the day*).
 
-### No hay forma repetible de preguntarle al pack si su CONTENIDO es bueno
+### ✅ No hay forma repetible de preguntarle al pack si su CONTENIDO es bueno — **BUILT 2026-09-22, and this entry did not say so**
 
-**Qué pasa ahora.** `verify_pack.py` comprueba **invariantes**: que los índices existan, que
+✅ **It is built, it runs, and it bites — measured 2026-09-24 against the real packs.**
+`vectors/cobertura-es.txt` (123 words) and `cobertura-en.txt` (120) exist, and
+`verify_pack.py._verify_vocabulary` consults them. Read off `dist/`:
+
+| pack | required | result |
+|---|---|---|
+| `es-full`, `es-core` | 123 | ✅ all present |
+| `en-full` | 120 | ✅ all present |
+| `en-core` | **110** | ✅ — the other 10 carry `#! solo el pack completo`, so a frequency cut is not asked for a word with no frequency |
+| `es-en` | 123 (es) | ✅ as a dictionary **of** Spanish; its English side reports `tuesday` and `workaround` as a note, not a failure (D-196, and §*La traducción glosada no produce entrada inversa*) |
+
+**Proved by mutation**: an impossible word added to the Spanish list makes `es-full` report
+`FALLA … (faltan 1: …)` and exit **1**. That had never been verified — the check had only ever
+been seen green.
+
+⚠️ **Why this entry is worth keeping rather than deleting.** It described the fix as *the*
+*arreglo* —a `cobertura-*.txt` plus a mode in `verify_pack.py`— in the future tense, while both
+had existed since **2026-09-22**. A session reading it starts building what is already there; this
+one nearly did, and stopped only because it opened the file before writing. **The state goes in
+the same change as the work.**
+
+**Qué pasaba antes.** `verify_pack.py` comprobaba **invariantes**: que los índices existan, que
 `fts_def.rowid == entry.id`, que `norm` coincida. El `pack-workflow` skill ya advierte que eso
 *"no dice que el contenido sea bueno"* y manda a leer entradas a mano. Pero leer a mano no es
 repetible: cada sesión escribe su propia consulta, mira lo que se le ocurre mirar, y lo que no
