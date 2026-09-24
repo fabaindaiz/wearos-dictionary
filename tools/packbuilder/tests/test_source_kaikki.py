@@ -1516,3 +1516,36 @@ class PartesPrincipalesTest(unittest.TestCase):
                              {"form": "corrido", "tags": ["participle"]})
         self.assertEqual(len({f for _, f in salida}), len(salida))
 
+
+class PronunciacionTest(unittest.TestCase):
+    """Reading `sounds[].ipa` out of the source. See `kaikki._pronunciation`."""
+
+    def test_saca_los_corchetes_de_la_transcripcion_fonetica(self):
+        # 854,071 of the Spanish dump's 854,460 lines come wrapped like this.
+        self.assertEqual("xapo\u02c8nes", kaikki._pronunciation({"sounds": [{"ipa": "[xapo\u02c8nes]"}]}))
+
+    def test_saca_las_barras_de_la_transcripcion_fonemica(self):
+        # Three lines of the Spanish dump and most of the English one.
+        self.assertEqual("\u02c8kasa", kaikki._pronunciation({"sounds": [{"ipa": "/\u02c8kasa/"}]}))
+
+    def test_salta_los_sonidos_que_no_traen_ipa(self):
+        # ⚠️ The case that makes `sounds[0]` wrong: the list mixes transcriptions with
+        # `acentuación`, `longitud silábica` and audio files, and only some carry the key.
+        raw = {"sounds": [{"raw_tags": ["acentuaci\u00f3n"], "other": "aguda"},
+                          {"ipa": "[\u02c8kasa]"}]}
+        self.assertEqual("\u02c8kasa", kaikki._pronunciation(raw))
+
+    def test_un_delimitador_desparejo_se_deja_entero(self):
+        # ⚠️ **Measured: 10 lines of the dump are wrong this way.** Stripping one side would leave
+        # a stray `)` that reads like part of the transcription; left whole it is visibly the
+        # source's problem, which is the only honest option when the source is malformed.
+        self.assertEqual("[\u02c8xa.po)", kaikki._pronunciation({"sounds": [{"ipa": "[\u02c8xa.po)"}]}))
+
+    def test_sin_sonidos_no_hay_pronunciacion(self):
+        self.assertIsNone(kaikki._pronunciation({}))
+        self.assertIsNone(kaikki._pronunciation({"sounds": []}))
+        self.assertIsNone(kaikki._pronunciation({"sounds": [{"ipa": "   "}]}))
+
+    def test_unos_delimitadores_solos_no_dejan_una_cadena_vacia(self):
+        # `[]` would strip to "" and an empty value must be None, not a blank row on the card.
+        self.assertIsNone(kaikki._pronunciation({"sounds": [{"ipa": "[]"}]}))

@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **515 tests**) están completos y en el gate, junto con los **437 JVM
-de `:app`** y **38 checks** de auditoría estructural — **1117 tests en total**. Los **46
+pipeline de packs (`tools/`, **521 tests**) están completos y en el gate, junto con los **437 JVM
+de `:app`** y **38 checks** de auditoría estructural — **1123 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3936,10 +3936,26 @@ mutation on **both** sides: dropping the emission fails the Python tests, and dr
 decode fails *«descomprime lo que comprimió Python, byte por byte»* — the shared fixture catches
 the mirror, which is the same mechanism that holds the central invariant.
 
-⚠️ **What is NOT done, and it is the half that reaches a user.** `kaikki.py` does not read
-`sounds[].ipa` yet, so nothing writes the tag, and no pack carries it: `verify_pack.py` reports
-**0 of 200 sampled entries (0.0 %)** on `es-full`. The rebuild debt is in §*Reconstruir los packs*.
-And the card has no row for it.
+✅ **And the source reads it.** `kaikki._pronunciation` takes the first `sounds[]` item that
+carries an `ipa`, strips a matched `[…]` or `/…/`, and the toy pack carries one entry with it
+(`casa`, `ˈkasa`) so the channel has a fixture in the gate.
+
+**Re-measured over the WHOLE Spanish dump on 2026-09-24**, 854,460 lines rather than the 40,000
+this entry first sampled — and it moves every number:
+
+| | this entry said | measured |
+|---|---|---|
+| entries with IPA | 99.8 % | **100.0 %** (854,084) |
+| median length | 11 | **12** |
+| p90 | 18 | **16** |
+
+⚠️ **And it found something neither figure implied**: **10 lines carry mismatched delimiters**
+(`[…)`) and 3 use `/…/`. That is why the pair is stripped only when it matches — half-stripping
+those ten would leave a stray `)` indistinguishable from real notation.
+
+⚠️ **What is NOT done, and it is the half that reaches a user.** No pack carries the tag yet:
+`verify_pack.py` reports **0 of 200 sampled entries (0.0 %)** on `es-full` and **1 of 82** on the
+toy. The rebuild debt is in §*Reconstruir los packs*. And the card has no row for it.
 
 ⚠️ **A gap this work found and did not widen**: `PayloadCodec.render` in Kotlin does not emit
 `TAG_WORD_TRANSLATION` or `TAG_FORM` either, so those two channels' round-trip through it is

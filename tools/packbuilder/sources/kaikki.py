@@ -940,6 +940,7 @@ def _emit(group, inbound, opciones):
                        zipf=opciones.zipf(headword)),
             forms=forms,
             display_forms=_display_forms(raw, headword),
+            pronunciation=_pronunciation(raw),
             # ⚠️ **The SEARCH channel carries both**, attributed and loose: to find `casa` by
             # typing `house` it makes no difference whether the source knew which sense it belongs
             # to. This is what makes a monolingual pack searchable in the other language too.
@@ -947,6 +948,38 @@ def _emit(group, inbound, opciones):
             word_translations=sueltas,
             sense_key=_sense_key(raw, index, by_pos[pos] > 1),
         )
+
+
+#: The delimiter pairs Wiktionary wraps a transcription in: `[…]` is phonetic and `/…/` phonemic.
+#:
+#: WARNING: they are stripped as a PAIR and never one side at a time. Measured over the whole
+#: Spanish dump (854,460 lines, 2026-09-24): 854,071 use `[…]`, 3 use `/…/` and **10 are
+#: mismatched** --`[…)`-- which is the source being wrong. Stripping one side would turn those ten
+#: into a value with a stray `)`, half-cleaned and impossible to tell from a real one; left whole,
+#: they are visibly the source's problem.
+_DELIMITADORES_IPA = (("[", "]"), ("/", "/"))
+
+
+def _pronunciation(raw):
+    """The entry's IPA, without the source's delimiters, or None.
+
+    ⚠️ **The first item that HAS an `ipa`, not `sounds[0]`.** That list mixes transcriptions with
+    other phonetic notes --`acentuación: aguda`, `longitud silábica: trisílaba`, an audio file--
+    and only some carry the key. Measured over the Spanish dump, `sounds[0]` happened to carry it
+    every time; indexing it anyway would be a rule that holds by luck of one language's editors.
+
+    ⚠️ **One per entry.** 100.0 % of the dump's lines carry at least one and a watch shows a single
+    line; the rest are regional variants a 234 dp card has no room to qualify.
+    """
+    for sound in raw.get("sounds") or ():
+        value = (sound.get("ipa") or "").strip()
+        if not value:
+            continue
+        for abre, cierra in _DELIMITADORES_IPA:
+            if len(value) > 1 and value.startswith(abre) and value.endswith(cierra):
+                return value[1:-1].strip() or None
+        return value
+    return None
 
 
 def _is_form_page(raw):
