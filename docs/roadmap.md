@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **423 JVM
-de `:app`** y **36 checks** de auditoría estructural — **1097 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **424 JVM
+de `:app`** y **36 checks** de auditoría estructural — **1098 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3526,37 +3526,50 @@ rm -f app/build/outputs/apk/debug/app-debug.apk        # or --rerun-tasks
 ./gradlew :app:assembleDebug -Pdictionary.packsDir=<an empty directory>
 ```
 
-### Downloading should not require the charger — ASKED 2026-09-23
+### ✅ Downloading should not require the charger — **BUILT 2026-09-24 as option B** (D-263)
 
-**Status.** **Requested, not changed.** The owner's words were that requiring *«el cargador
-conectado»* for a download is a requirement they can see no sense in.
+**Status.** ✅ **Done.** The owner's words were that requiring *«el cargador conectado»* for a
+download is a requirement they can see no sense in. Option **B** landed: `DownloadPackWorker`
+takes a `DownloadOrigin`, and only `QUEUED` waits for a charger. `UNMETERED` is untouched for both.
 
-**What is there today.** `DownloadPackWorker.constraints()` sets **both**
-`setRequiresCharging(true)` and `NetworkType.UNMETERED`, one line each, and D-029 justifies the
-pair together as *"the official Wear OS guidance"* for transfers of tens of MB.
+**Why B and not A**, which is the whole content of the decision. `DownloadPackWorker.constraints()`
+set **both** `setRequiresCharging(true)` and `NetworkType.UNMETERED`, one line each, and D-029
+justified the pair together as *"the official Wear OS guidance"*.
 
 ⚠️ **The two constraints defend different things and only one of them was actually argued.**
-`UNMETERED` protects a **data plan** — a 314 MB pack over a metered connection is a real bill,
-and a watch that is paired to a phone can be on one without saying so. `requiresCharging`
-protects the **battery**, and that is the one with no number behind it in this repo: nothing here
-has measured what a 72 MB download costs a watch battery. `docs/bateria.md` has the screen at
-33.2 mAh and all of our CPU at 6.05, so the budget exists — the download was simply never put
-against it.
+`UNMETERED` protects a **data plan** — a 314 MB pack over a metered connection is a real bill, and
+a watch that is paired to a phone can be on one without saying so. `requiresCharging` protects the
+**battery**, and that is the one with no number behind it in this repo: nothing here has measured
+what a 72 MB download costs a watch battery. `docs/bateria.md` has the screen at 33.2 mAh and all
+of our CPU at 6.05, so the budget exists — the download was simply never put against it.
 
-⚠️ **And it has a cost that is now measured.** The owner's own flow — install the app, point it
-at a development server, download a pack — requires plugging the watch in to test a download at
-all, which is friction on every iteration of the thing being built.
+⚠️ **And it had a cost that is measured.** The owner's own flow — install the app, point it at a
+development server, download a pack — required plugging the watch in to test a download at all,
+which is friction on every iteration of the thing being built.
+
+⚠️ **B changes who decides rather than what it costs**, which is why it needed no measurement to
+be defensible: a download somebody is *watching* is their choice to pay for; one that fires on its
+own is not, because nobody consents to a cost they are not present for. It is the same reasoning
+D-212 used for logging.
+
+⚠️ **Today every download is `MANUAL`, so the observable effect is A's.** `MainActivity`'s
+`startDownload` is reachable only from a press in the dictionary manager. The parameter is not
+speculative generality — it is where the rule waits for the queued download to arrive, instead of
+being deleted and rediscovered by whoever writes the first one — but it should not be described as
+if the app already distinguished two cases at runtime. It does not.
+
+**What is still open, and it is the smaller half.** The battery number. One measurement —
+`dumpsys batterystats` around a 72 MB download on the watch, the `benchmark` skill's existing
+procedure — would say whether `QUEUED` deserves the charger either, or whether D-029's remaining
+half is also guidance-shaped rather than measured. **It does not block anything now**: nothing
+produces `QUEUED`.
 
 | | Option | What it costs | What it closes |
 |---|---|---|---|
-| **A** | Drop `requiresCharging`, keep `UNMETERED` | an unknown battery cost | The data plan stays protected, which is the constraint with a real consequence. **Recommended if a measurement backs it** |
-| **B** | Drop it only for downloads the user **started by hand**, keep it for anything queued | ~10 lines: two constraint sets | ⚠️ The honest one: a download somebody is *watching* is their choice to pay for; one that fires on its own is not. It is the same reasoning D-212 used for logging |
+| **A** | Drop `requiresCharging`, keep `UNMETERED` | an unknown battery cost | The data plan stays protected. ⚠️ **Not chosen**: it is B's behaviour today with the rule thrown away, so the first automatic download inherits it silently |
+| **B** | ✅ **BUILT.** Drop it only for downloads the user **started by hand**, keep it for anything queued | ~10 lines: an enum and two constraint sets | The honest one, and it needed no number to justify |
 | **C** | Make it a setting | a row, and a decision the user has no numbers for either | ⚠️ Hands over a choice nobody can make informed |
-| **D** | Keep it | 0 | Today's answer, and it is guidance-shaped rather than measured |
-
-**What unblocks it**: one measurement — `dumpsys batterystats` around a 72 MB download on the
-watch, which is the `benchmark` skill's existing procedure. Until then **B** is defensible without
-any number, because it changes who decides rather than what it costs.
+| **D** | Keep it | 0 | The previous answer, and it was guidance-shaped rather than measured |
 
 ### The language code is missing on history and saved rows — SEEN 2026-09-23
 

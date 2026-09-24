@@ -30,6 +30,26 @@ import java.io.File
  * look at network state is an invitation to decide when to download from here, which is exactly
  * what D-029 took out of the app.
  */
+/**
+ * Who asked for a download, which is what decides whether it waits for a charger (D-263).
+ *
+ * ⚠️ **It is not a priority and not a network policy.** Both kinds wait for Wi-Fi: a data plan is
+ * billed the same whoever started the transfer. What it separates is **consent to a battery cost**
+ * nobody has measured -- present for it, or not.
+ */
+enum class DownloadOrigin {
+    /** Somebody pressed download and is looking at the progress bar. */
+    MANUAL,
+
+    /**
+     * The app decided: an update found by the catalogue, a retry, anything nobody is watching.
+     *
+     * ⚠️ **Nothing produces this yet**, and the entry exists so that whoever writes the first
+     * automatic download has to choose rather than inherit.
+     */
+    QUEUED,
+}
+
 class DownloadPackWorker(
     context: Context,
     params: WorkerParameters,
@@ -111,16 +131,39 @@ class DownloadPackWorker(
             KEY_DB_SHA to pack.dbSha256,
         )
 
-        /** D-029, written once. */
-        fun constraints(): Constraints = Constraints.Builder()
-            .setRequiresCharging(true)
+        /**
+         * D-029 and D-263, written once: **who asked for the download decides who waits.**
+         *
+         * ⚠️ **The two constraints defend different things and only one of them was ever argued.**
+         * `UNMETERED` protects a **data plan** -- a 314 MB pack over a metered connection is a
+         * real bill, and a watch paired to a phone can be on one without saying so -- and it holds
+         * for every download regardless of who started it. `setRequiresCharging` protects the
+         * **battery**, and there is no number behind it in this repo: `docs/bateria.md` has the
+         * screen at 33.2 mAh and all of our CPU at 6.05, so the budget exists and the download was
+         * simply never put against it.
+         *
+         * ⚠️ **So what changes here is WHO decides, not what it costs.** A download somebody is
+         * watching is their choice to pay for; one that fires on its own is not, and nobody can
+         * consent to a cost they are not present for. It is the reasoning D-212 used for logging.
+         *
+         * ⚠️ **Today every download is [DownloadOrigin.MANUAL]**, so the observable effect is that
+         * the charger stops being required, full stop. The parameter is not speculative
+         * generality: it is where the rule waits for the queued download to arrive, instead of
+         * being deleted and rediscovered by whoever writes it.
+         */
+        fun constraints(origin: DownloadOrigin): Constraints = Constraints.Builder()
+            .setRequiresCharging(origin == DownloadOrigin.QUEUED)
             .setRequiredNetworkType(NetworkType.UNMETERED)
             .build()
 
-        fun enqueue(context: Context, base: String, pack: CatalogPack) {
+        /**
+         * ⚠️ **[origin] has no default on purpose.** A default would let the next caller inherit
+         * the looser rule without naming it, which is the whole thing being decided here.
+         */
+        fun enqueue(context: Context, base: String, pack: CatalogPack, origin: DownloadOrigin) {
             val req = OneTimeWorkRequestBuilder<DownloadPackWorker>()
                 .setInputData(datos(base, pack))
-                .setConstraints(constraints())
+                .setConstraints(constraints(origin))
                 .addTag(TAG)
                 // ⚠️ The packId goes as a TAG and not only in the input data, because `WorkInfo`
                 // **does not expose `inputData`**: without this there is no way to know which pack
@@ -134,7 +177,10 @@ class DownloadPackWorker(
                 ExistingWorkPolicy.KEEP,
                 req,
             )
-            DictLog.i { "worker: encolado ${pack.packId} (cargando + Wi-Fi sin medir)" }
+            DictLog.i {
+                val espera = if (origin == DownloadOrigin.QUEUED) "cargando + " else ""
+                "worker: encolado ${pack.packId} ($espera Wi-Fi sin medir, origen=$origin)"
+            }
         }
 
         /**

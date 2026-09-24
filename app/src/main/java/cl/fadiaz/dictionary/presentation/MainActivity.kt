@@ -45,6 +45,7 @@ import cl.fadiaz.dictionary.data.PackHandle
 import androidx.work.WorkManager
 import cl.fadiaz.dictionary.data.DebugIntents
 import cl.fadiaz.dictionary.data.DictLog
+import cl.fadiaz.dictionary.data.DownloadOrigin
 import cl.fadiaz.dictionary.data.DownloadPackWorker
 import kotlinx.coroutines.flow.map
 import cl.fadiaz.dictionary.data.CatalogClient
@@ -188,7 +189,12 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                 CatalogClient.fetchIndex(catalogoEnUso(context), etag)
                             },
                             startDownload = { pack ->
-                                DownloadPackWorker.enqueue(context, catalogoEnUso(context), pack)
+                                // MANUAL: this lambda is only reachable from a press on the
+                                // dictionary manager, so somebody is watching the progress bar.
+                                // That is what lets it skip the charger (D-263).
+                                DownloadPackWorker.enqueue(
+                                    context, catalogoEnUso(context), pack, DownloadOrigin.MANUAL,
+                                )
                             },
                             // The `.gz.part` lives next to the packs: cancelling has to be able to
                             // delete it, or something the user already stopped keeps taking disk.
