@@ -34,12 +34,32 @@ enum class TextScale(val factor: Float) {
 /** What the user chose. No Android: the policy is tested on the JVM (D-072). */
 data class Settings(
     val textScale: TextScale = TextScale.NORMAL,
+    /**
+     * Whether the other languages answer when the active one found nothing close.
+     *
+     * ⚠️ **It is `LanguageScope` handed to whoever is wearing the watch**, and the price is
+     * already measured, which is unusual for a preference: D-189 recorded that **321 of 400 common
+     * English lemmas** stop appearing with Spanish active. That one number is the whole argument
+     * in both directions -- it is why the fallback existed, and why turning it off was worth it.
+     *
+     * ⚠️ **Off by default, which keeps D-189's answer as the answer.** A list that mixes languages
+     * unasked is worse to read than a short one; what changes is that the short one is no longer
+     * the only option.
+     *
+     * ⚠️ **It does not reach the free-text search over definitions**, and that is not an
+     * oversight: `needsFallback`'s threshold comes from prefix coverage, which means nothing when
+     * what was typed is a word from inside a definition. See `SearchRepository.searchDefinitions`.
+     */
+    val crossLanguageFallback: Boolean = false,
 )
 
 private const val KEY_SCALE = "escala"
+private const val KEY_FALLBACK = "respaldo"
 
-internal fun serializeSettings(settings: Settings): String =
-    "$KEY_SCALE=${settings.textScale.name}"
+internal fun serializeSettings(settings: Settings): String = listOf(
+    "$KEY_SCALE=${settings.textScale.name}",
+    "$KEY_FALLBACK=${settings.crossLanguageFallback}",
+).joinToString("\n")
 
 /**
  * Reads the stored settings, **falling back to the factory ones** instead of failing.
@@ -58,5 +78,9 @@ internal fun parseSettings(text: String): Settings {
     val scale = values[KEY_SCALE]
         ?.let { name -> TextScale.entries.firstOrNull { it.name == name } }
         ?: TextScale.NORMAL
-    return Settings(textScale = scale)
+    // ⚠️ **`toBooleanStrictOrNull` and not `toBoolean`**, which maps everything that is not
+    // "true" to false -- including a corrupt byte, and including a key this version does not yet
+    // understand. Unparseable falls back to the factory answer through the same `?:` as the scale.
+    val respaldo = values[KEY_FALLBACK]?.toBooleanStrictOrNull() ?: false
+    return Settings(textScale = scale, crossLanguageFallback = respaldo)
 }

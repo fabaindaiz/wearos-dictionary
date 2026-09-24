@@ -2,6 +2,7 @@ package cl.fadiaz.dictionary.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cl.fadiaz.dictionary.core.LanguageScope
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.Suggestion
@@ -449,6 +450,13 @@ class SearchViewModel(
         return SearchRepository(
             listOf(active) + mismoIdioma,
             otherLanguages = otrosIdiomas,
+            // ⚠️ **The first caller that ever picks `FALLBACK`.** The value existed since D-189
+            // and nothing could construct it: the capability was built, tested and unreachable.
+            scope = if (_state.value.settings.crossLanguageFallback) {
+                LanguageScope.FALLBACK
+            } else {
+                LanguageScope.STRICT
+            },
             lang = idioma,
             trace = LogSearchTrace,
         )
@@ -1050,6 +1058,27 @@ class SearchViewModel(
         val fresh = state.value.settings.copy(textScale = scale)
         saveSettings(fresh)
         _state.update { it.copy(settings = fresh) }
+    }
+
+    /**
+     * Turns the cross-language fallback on or off, stores it, **and rebuilds the searcher**.
+     *
+     * ⚠️ **The rebuild is the whole thing, and leaving it out is a silent no-op.** The repository
+     * is built when the packs load and when the language changes --NOT per query-- and `scope` is
+     * a constructor argument, so without this the switch would move, persist, read back correctly
+     * on the next launch, and change nothing at all in between. A test caught it; nothing else
+     * would have, because every visible symptom is "the setting does not seem to do anything",
+     * which is also what it looks like when the fallback simply does not trigger.
+     *
+     * What is deliberately NOT done is re-running the query on screen: results do not change
+     * under your finger, which is the rule [onLanguageChange] follows too.
+     */
+    fun onCrossLanguageFallbackChange(enabled: Boolean) {
+        val fresh = state.value.settings.copy(crossLanguageFallback = enabled)
+        saveSettings(fresh)
+        _state.update { it.copy(settings = fresh) }
+        val pack = source.value ?: return
+        searcher.value = repositoryFor(pack, state.value.activeLang)
     }
 
     /**

@@ -94,6 +94,9 @@
     <!-- Settings -->
     <string name="settings_dictionaries">Dictionaries</string>
     <string name="settings_manage">Manage</string>
+    <string name="settings_search">Search</string>
+    <string name="settings_cross_language">Also search the other language</string>
+    <string name="settings_cross_language_note">Only when the active language finds nothing close. Off, a search stays in one language.</string>
     <string name="settings_text_size">Text size</string>
     <string name="settings_text_size_note">Added on top of the size set on your watch.</string>
     <!-- Las tres letras del selector de tamaño: se ven, no se leen. -->

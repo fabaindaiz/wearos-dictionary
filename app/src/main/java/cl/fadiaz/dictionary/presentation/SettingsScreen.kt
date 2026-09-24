@@ -25,6 +25,7 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.RadioButton
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SwitchButton
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackHandle
@@ -58,8 +59,17 @@ fun SettingsScreen(
     buildCommit: String,
     /** When it was built, to the minute and in UTC. */
     buildTime: String,
+    /**
+     * Whether the other languages answer when the active one found nothing close (D-266).
+     *
+     * Default `false` so a test screen that does not wire it shows today's behaviour, which is
+     * also the shipped default.
+     */
+    crossLanguageFallback: Boolean = false,
     onManagePacks: () -> Unit,
     onScaleChange: (TextScale) -> Unit,
+    /** Deliberately no default: a switch that moves and changes nothing is worse than no switch. */
+    onCrossLanguageFallbackChange: (Boolean) -> Unit,
     onUiLanguageChange: (String?) -> Unit,
     onClearHistory: () -> Unit,
     hasHistory: Boolean,
@@ -124,6 +134,32 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+
+            // ⚠️ **Above the text size and below the dictionaries, and the order is the point.**
+            // This is the only row here that changes what a SEARCH returns; everything below it
+            // changes how the app looks. Somebody arriving because "it does not find my English
+            // words" has to meet it before three rows about type.
+            item(key = "cabecera-busqueda") { ListHeader { Text(stringResource(R.string.settings_search)) } }
+            item(key = "respaldo-idioma") {
+                SwitchButton(
+                    checked = crossLanguageFallback,
+                    onCheckedChange = onCrossLanguageFallbackChange,
+                    label = { Text(stringResource(R.string.settings_cross_language)) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item(key = "nota-respaldo") {
+                Text(
+                    // It says WHEN it acts, not just what it does. Read as "search both languages
+                    // always" it would look like a way to make every list twice as long, which is
+                    // the opposite of what D-189 measured and of what this does.
+                    text = stringResource(R.string.settings_cross_language_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
             }
 

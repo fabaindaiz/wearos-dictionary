@@ -579,8 +579,11 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         appVersion = BuildConfig.VERSION_NAME,
                         buildCommit = BuildConfig.BUILD_COMMIT,
                         buildTime = BuildConfig.BUILD_TIME,
+                        crossLanguageFallback = state.settings.crossLanguageFallback,
                         onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         onScaleChange = viewModel::onTextScaleChange,
+                        onCrossLanguageFallbackChange =
+                            viewModel::onCrossLanguageFallbackChange,
                         onUiLanguageChange = { tag ->
                             // The local state is updated too and not only the service: setting
                             // the locales recreates the Activity, but not before this frame, and

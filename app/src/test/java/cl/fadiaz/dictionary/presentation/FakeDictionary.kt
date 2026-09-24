@@ -46,6 +46,15 @@ class FakeDictionary(
     private val tier: PackTier = PackTier.FULL,
     /** The pack that contains this one, so a shadowed pack can be built in a test. */
     private val subsetOf: String? = null,
+    /**
+     * What this fake knows how to answer, or `null` for *everything* -- the default, and what
+     * almost every test wants.
+     *
+     * ⚠️ **Needed because answering EVERY query makes one behaviour untestable**: the
+     * cross-language fallback fires when the active language found nothing close, and a fake that
+     * returns the query verbatim never gets there.
+     */
+    private val vocabulary: Set<String>? = null,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
@@ -85,6 +94,7 @@ class FakeDictionary(
         } finally {
             if (!termino) canceladas += query
         }
+        if (vocabulary != null && query !in vocabulary) return emptyList()
         return listOf(
             Suggestion(
                 packId = packId,

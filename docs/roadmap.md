@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **432 JVM
-de `:app`** y **36 checks** de auditoría estructural — **1106 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **437 JVM
+de `:app`** y **36 checks** de auditoría estructural — **1111 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3486,27 +3486,37 @@ describes a real one: it gets read, believed, and worked on. **The state goes in
 as the fix**, which is what the ledger's five states exist for -- an entry that is only updated
 when somebody notices is not a ledger.
 
-### `LanguageScope.FALLBACK` is built, tested and unreachable — FOUND 2026-09-23
+### ✅ `LanguageScope.FALLBACK` is built, tested and unreachable — **REACHABLE 2026-09-24** (D-266)
 
-**Status.** **Dead-but-working code**, found while answering what belongs in Settings.
+**Status.** ✅ **Done.** The Settings screen carries a switch, *Buscar también en el otro idioma*,
+off by default. It is the first caller in the app's history that constructs
+`LanguageScope.FALLBACK`.
 
-`SearchRepository` takes a `scope: LanguageScope = LanguageScope.STRICT` and branches on it
-(`if (scope == LanguageScope.STRICT) return false`). **Nothing in the app ever constructs it with
-`FALLBACK`.** D-189 turned the cross-language fallback off and deliberately kept it *as a value*
-rather than deleting it — the row says so — but no caller was ever given a way to pick it.
+**What it was.** `SearchRepository` took a `scope: LanguageScope = LanguageScope.STRICT` and
+branched on it (`if (scope == LanguageScope.STRICT) return false`). **Nothing in the app ever
+constructed it with `FALLBACK`.** D-189 turned the cross-language fallback off and deliberately
+kept it *as a value* rather than deleting it — the row says so — but no caller was ever given a way
+to pick it. Dead-but-working code, which a well-meant deletion carries off with no test failing.
 
-⚠️ **It is the strongest candidate for a real behaviour setting the app does not have.** The
-Settings screen holds exactly one thing today (`textScale`), and the escape hatches exist
-precisely because the fallback is off: *"if the Spanish pack finds nothing in the core, look in
-the other pack"* is the owner's own description of what they wanted. A switch would turn two
-manual pills into a preference.
+⚠️ **And the price was already measured, which is unusual for a roadmap item**: D-189 records that
+**321 of 400 common English lemmas** stop appearing with Spanish active. That number is the whole
+argument in both directions — it is why the fallback existed, and why turning it off was worth it.
+The switch hands the choice to whoever is wearing the watch, and **off by default keeps D-189's
+answer as the answer**.
 
-⚠️ **And the price is already measured, which is unusual for a roadmap item**: D-189 records
-that **321 of 400 common English lemmas** stop appearing with Spanish active. That number is the
-whole argument in both directions — it is why the fallback existed, and why turning it off was
-worth it. A setting hands the choice to whoever is wearing the watch.
+⚠️ **What building it turned up, and it would have shipped silently.** The repository is
+constructed when the packs load and when the language changes — **not per query** — and `scope` is
+a constructor argument. So the first version of the switch persisted correctly, read back
+correctly on the next launch, and **changed nothing in between**. The test caught it; nothing else
+would have, because the symptom is indistinguishable from the fallback simply not triggering.
 
-**Not built**: it is a behaviour change and a UI row, and both are the owner's call.
+⚠️ **Where it does NOT reach: the free-text search over definitions.** `needsFallback`'s threshold
+is computed from prefix coverage, and coverage means nothing when what was typed is a word from
+inside a definition. `searchDefinitions` says so in its own comment and that has not changed.
+
+**Still open**: the switch is off by default and nothing tells a user it exists. Whether the empty
+result should point at it — *"nothing in Spanish; turn on the other language?"* — belongs with
+§The two escape hatches on an empty result, which is the row that owns that screen.
 
 ### The APK keeps dead bytes when assets are removed — MEASURED 2026-09-23
 

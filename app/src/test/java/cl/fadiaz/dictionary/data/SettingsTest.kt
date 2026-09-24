@@ -36,6 +36,33 @@ class SettingsTest {
     }
 
     @Test
+    fun theFallbackSwitchSurvivesTheRoundTrip() {
+        // D-266. `whatIsStoredComesBack` above only walks the scales, so a second field can be
+        // dropped on the way to disk without that loop noticing.
+        for (respaldo in listOf(true, false)) {
+            val original = Settings(crossLanguageFallback = respaldo)
+            assertEquals(original, parseSettings(serializeSettings(original)))
+        }
+    }
+
+    @Test
+    fun aSettingsFileWrittenBeforeTheSwitchKeepsTodaysBehaviour() {
+        // A preference stored by any earlier version has only the scale. Reading it must give the
+        // shipped default --strict-- and not "whatever a missing key parses to".
+        assertEquals(false, parseSettings("escala=LARGE").crossLanguageFallback)
+        assertEquals(TextScale.LARGE, parseSettings("escala=LARGE").textScale)
+    }
+
+    @Test
+    fun anUnreadableSwitchDoesNotTurnItselfOn() {
+        // ⚠️ `toBoolean` maps EVERYTHING that is not "true" to false, which happens to be safe
+        // here -- but it also maps "TRUE" and " true" to false, silently losing a setting the
+        // user made. `toBooleanStrictOrNull` makes the unparseable case explicit instead.
+        assertEquals(false, parseSettings("respaldo=quizas").crossLanguageFallback)
+        assertEquals(false, parseSettings("respaldo=").crossLanguageFallback)
+    }
+
+    @Test
     fun theNormalScaleChangesNothing() {
         // If NORMAL were not exactly 1, respecting the system scale (WO-V1) would stop being
         // true for anyone who changed nothing.
