@@ -1357,7 +1357,7 @@ TECHO_ESPANOL = (
     # Translated whole on 2026-09-23: the first module of stage 3, smallest first. The row
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),
-    ("docs/roadmap.md", 2310),
+    ("docs/roadmap.md", 2307),
     ("docs/decisions.md", 260),
     (".claude/logs/", 4180),
 )
