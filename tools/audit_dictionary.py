@@ -1686,182 +1686,58 @@ def check_bundle_privacy_and_ids(report):
             report.failure(rule, "; ".join(lines[:5]) or result.stdout.strip()[-400:])
 
 
-def _bundle_body(relative):
-    """A bundle document's body: everything but its frontmatter."""
-    lines = read(relative).splitlines(True)
-    if not lines or lines[0].rstrip("\n") != "---":
-        return None, lines
-    for i in range(1, len(lines)):
-        if lines[i].rstrip("\n") == "---":
-            return "".join(lines[1:i]), lines[i + 1:]
-    return None, lines
-
-
-def _declared(front, field="digest"):
-    match = re.search(r'^\s*%s:\s*"([0-9a-f]+)"' % field, front or "", re.M)
-    return match.group(1) if match else None
-
-
-def _digest(relatives):
-    body = []
-    for relative in relatives:
-        body.extend(_bundle_body(relative)[1])
-    return hashlib.sha256("".join(body).encode("utf-8")).hexdigest()[:12]
-
-
-def _bundle_md(subfolder):
-    """The .md files under .agents/<subfolder>, in byte order of the bundle-relative path."""
-    found = []
-    base = os.path.join(ROOT, BUNDLE, subfolder)
-    for folder, _, names in os.walk(base):
-        for name in names:
-            if name.endswith(".md"):
-                full = os.path.join(folder, name)
-                found.append(os.path.relpath(full, os.path.join(ROOT, BUNDLE)))
-    return sorted(found)
-
-
-def check_knowledge_notes_are_reachable(report):
-    """Rule: every knowledge note is reachable from its index, and every link there resolves.
-
-    `.agents/knowledge/INDEX.md` says so in its own words -- *"every note in `notes/active/` and
-    `notes/review/` is reachable from here and every listed note exists -- checked by the
-    repository's audit, because a dead pointer in an index is worse than an index nobody wrote"*.
-    It was not checked by anything. A claim naming an enforcer that does not exist reads as rung 3
-    and behaves as rung 0, which is the failure the method's own principle 1 names.
-
-    ⚠️ **Both directions, because they fail differently.** A dead link is loud once somebody
-    follows it; a note nobody links is silent forever -- it is work that was written, travelled in
-    the bundle and is never read, and nothing about the repository looks wrong.
-
-    ⚠️ **Reachable means transitively**, through the two area indexes: `INDEX.md` routes a session
-    to `areas/behaviour.md` and `areas/evidence.md` for the *before a design decision* step, and a
-    note listed only there is reached exactly as the index intends.
-
-    ⚠️ **`notes/retired/` is excluded, and that is the point of the folder.** The folder is the
-    note's state; a retired note that stayed linked would be read as live.
-
-    ⚠️ **This is the one place a carrier looks INSIDE the bundle**, and it is narrow on purpose:
-    it checks an invariant the bundle asks the carrier to enforce, never the bundle's content. The
-    document checks skip `.agents/` entirely and stay that way.
-    """
-    raiz = os.path.join(ROOT, BUNDLE, "knowledge")
-    indice = os.path.join(raiz, "INDEX.md")
-    if not os.path.isfile(indice):
-        return
-
-    enlace = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
-
-    def enlaces(ruta):
-        with open(ruta, encoding="utf-8") as handle:
-            texto = handle.read()
-        base = os.path.dirname(ruta)
-        for match in enlace.finditer(texto):
-            destino = match.group(1).split("#")[0].strip()
-            if not destino or destino.startswith(("http://", "https://", "mailto:")):
-                continue
-            yield destino, os.path.normpath(os.path.join(base, destino))
-
-    # INDEX.md plus the area indexes it points at: that is what "reachable from here" means.
-    fuentes = [indice]
-    for destino, absoluto in enlaces(indice):
-        if destino.startswith("areas/") and os.path.isfile(absoluto):
-            fuentes.append(absoluto)
-
-    enlazadas = set()
-    for fuente in fuentes:
-        nombre = os.path.relpath(fuente, ROOT)
-        for destino, absoluto in enlaces(fuente):
-            if not os.path.exists(absoluto):
-                report.failure(
-                    "el indice del conocimiento apunta a una nota inexistente",
-                    "%s -> %s" % (nombre, destino),
-                )
-            elif "/notes/" in absoluto.replace(os.sep, "/"):
-                enlazadas.add(os.path.realpath(absoluto))
-
-    vivas = set()
-    for estado in ("active", "review"):
-        carpeta = os.path.join(raiz, "notes", estado)
-        if not os.path.isdir(carpeta):
-            continue
-        for nombre in os.listdir(carpeta):
-            if nombre.endswith(".md"):
-                vivas.add(os.path.realpath(os.path.join(carpeta, nombre)))
-
-    huerfanas = sorted(os.path.relpath(x, ROOT) for x in vivas - enlazadas)
-    if huerfanas:
-        report.failure(
-            "hay notas de conocimiento que el indice no alcanza",
-            "%d de %d no se alcanzan desde %s ni desde sus indices de area: %s. Una nota que "
-            "nadie enlaza viaja en el bundle y no la lee nadie, y nada se ve mal."
-            % (len(huerfanas), len(vivas), os.path.relpath(indice, ROOT), ", ".join(huerfanas)),
-        )
-
-
 def check_bundle_digests(report):
     """Regla: el bundle de agentes no se edita en el lugar; cambiarlo es forkear. (D-059, D-221)
 
-    Tres headers declaran un digest sobre su propio contenido, y los tres se comprueban:
-    el del metodo (`.agents/method/prompt-*.md`), el de la base de conocimiento
-    (`.agents/knowledge/notes/*.md`) y el del bundle entero (`method/` + `knowledge/` +
-    `layout.md`). Cada uno es el sha256 de los cuerpos concatenados en orden de nombre, con
-    el frontmatter sacado --por eso escribir el digest en el header no cambia el digest--,
-    cortado a 12 hex.
+    Three headers declare a digest over their own content --the method, the knowledge base and the
+    bundle as a whole-- and if the content does not give that number, somebody edited the bundle
+    without forking or recomputing, and the next comparison between two copies concludes
+    *identical* while discarding one side in silence.
 
-    Si el contenido no da ese numero, alguien edito el bundle sin forkear ni recalcular, y la
-    proxima comparacion entre dos copias va a concluir "identicas" descartando un lado en
-    silencio.
+    ⚠️ **It runs the bundle's own `digest --check` rather than a copy of the recipe** (d-a2f271-969225).
+    This function used to reimplement it: sha256 over the bodies in name order, frontmatter
+    stripped, cut to 12 hex. **It had already drifted once** -- the method's recipe narrowed to
+    `prompt-*.md` and a session had to patch the copy -- which is the failure
+    `check_bundle_privacy_and_ids` names in its own docstring, one screen above.
 
-    ⚠️ **Antes vivia en `docs/agents/` y cubria cuatro archivos; ahora son 65.** La version
-    vieja tambien hacia `return` si la carpeta no estaba, y eso ES el modo de falla que este
-    repo no puede ver: por eso ahora la ausencia del bundle FALLA en vez de callarse.
+    ⚠️ **And one recipe buys five more checks.** `--check` adds provenance (every travelling file
+    carries its header), links, **note reachability**, session reads and privacy. The reachability
+    half had been written here by hand as a separate check the day before; it was a second recipe
+    for something the tool already did, and it is retired in the same change.
+
+    ⚠️ **What this costs, named.** The gate now depends on `.agents/tools/bundle.py` running, so
+    an absent or broken tool loses six checks at once instead of one. That is why the tool missing
+    is a **failure and not a skip**: the old version returned silently when the folder was gone,
+    and that is exactly the class of bug this repo cannot see.
     """
+    tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
     if not os.path.isdir(os.path.join(ROOT, BUNDLE)):
         report.failure(
             "el bundle de agentes no esta",
             "%s/ es donde vive el metodo (D-221). Sin el, este chequeo no comprueba nada" % BUNDLE,
         )
         return
+    if not os.path.isfile(tool):
+        report.failure(
+            "falta la herramienta que comprueba el bundle",
+            "%s no esta, y es la receta unica de los tres digests mas provenance, enlaces, "
+            "alcanzabilidad de notas, lecturas de sesion y privacidad. Sin ella se pierden seis "
+            "chequeos de golpe, asi que esto falla en vez de saltarse" % os.path.relpath(tool, ROOT),
+        )
+        return
 
-    # The method set is its prompts, `method/prompt-*.md`, the recipe `bundle.py digest` uses. Since
-    # method v23 `method/` also holds `changelog.md`, which the bundle digest covers and the method
-    # digest does not: counting every .md here made this check fail on a correct v19 copy.
-    method = [m for m in _bundle_md("method") if os.path.basename(m).startswith("prompt-")]
-    sets = [
-        ("metodo", method, method),
-        ("conocimiento", [os.path.join(BUNDLE, "knowledge/README.md")], _bundle_md("knowledge/notes")),
-        ("bundle", [os.path.join(BUNDLE, "README.md")],
-         _bundle_md("method") + _bundle_md("knowledge") + ["layout.md"]),
-    ]
-
-    for label, headers, content in sets:
-        declared = set()
-        for relative in headers:
-            where = relative if relative.startswith(BUNDLE) else os.path.join(BUNDLE, relative)
-            front = _bundle_body(where)[0]
-            value = _declared(front)
-            if value:
-                declared.add(value)
-        if not declared:
-            report.failure("el set %s no declara digest" % label, ", ".join(headers))
-            continue
-        if len(declared) > 1:
-            report.failure(
-                "los headers del set %s no coinciden" % label,
-                "digests distintos entre archivos: %s" % ", ".join(sorted(declared)),
-            )
-            continue
-
-        paths = [c if c.startswith(BUNDLE) else os.path.join(BUNDLE, c) for c in sorted(content)]
-        actual = _digest(paths)
-        expected = declared.pop()
-        if actual != expected:
-            report.failure(
-                "el set %s no corresponde a su digest" % label,
-                "declara %s y el contenido da %s. Editar el bundle es forkear (D-059): "
-                "nueva id opaca en ancestry, forked_at, y recalcular el digest" % (expected, actual),
-            )
+    result = subprocess.run(
+        [sys.executable, tool, "digest", os.path.join(ROOT, BUNDLE), "--check"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        lines = [l.strip() for l in (result.stdout + result.stderr).splitlines()
+                 if l.strip().startswith("x ")]
+        report.failure(
+            "el bundle no corresponde a lo que declara",
+            "%s. Editar el bundle es forkear (D-059): nueva id opaca en ancestry, forked_at, y "
+            "recalcular el digest" % ("; ".join(lines[:5]) or result.stdout.strip()[-400:]),
+        )
 
 
 def check_rejection_mirror(report):
@@ -2060,7 +1936,6 @@ CHECKS = [
     check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
-    check_knowledge_notes_are_reachable,
     check_bundle_digests,
     check_record_ids_are_minted,
     check_bundle_privacy_and_ids,

@@ -71,7 +71,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
 pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **437 JVM
-de `:app`** y **38 checks** de auditoría estructural — **1113 tests en total**. Los **46
+de `:app`** y **37 checks** de auditoría estructural — **1112 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -4843,7 +4843,7 @@ entry has to say so **in its own place** and not only where it was found (the `v
 | Delta | What was missing here | Where it landed |
 |---|---|---|
 | v23 — *bootstrap wires the knowledge base in* | `CLAUDE.md` did not name `.agents/knowledge/` **once**, with 43 active notes on the other side | D-268: the two moments —before a design decision, before claiming done— and the row in the document map |
-| — | `knowledge/INDEX.md` claimed *"checked by the repository's audit"* and nothing checked it | D-267: `check_knowledge_notes_are_reachable`, in both directions |
+| — | `knowledge/INDEX.md` claimed *"checked by the repository's audit"* and nothing checked it | D-267 wrote a check by hand and **d-a2f271-969225 retired it the next day**: `bundle.py digest --check` already did it, along with four more |
 | v22 — *a retraction reaches the row of the decision it reverses* | The `verify` skill carried the findings half only | The second half, with the reason it stays at rung 2 |
 | v22 — `layout.md`: one skills folder, `AGENTS.md` only without a `CLAUDE.md` | Already true: there is one `.claude/skills/` and a `CLAUDE.md` exists | nothing to do |
 | v18, v19, v20, v21 — workspace scope, the sync cycle, the tool refusing to infer | Release mechanics, not the carrier's | nothing to do |
