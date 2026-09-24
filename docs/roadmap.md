@@ -58,8 +58,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **424 JVM
-de `:app`** y **36 checks** de auditoría estructural — **1098 tests en total**. Los **46
+pipeline de packs (`tools/`, **511 tests**) están completos y en el gate, junto con los **426 JVM
+de `:app`** y **36 checks** de auditoría estructural — **1100 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3809,34 +3809,35 @@ added with `DEBUG_INTENTS` left true still passes. That is deliberate rather tha
 would have to name its exceptions, and a list of exceptions is the thing that goes stale. What
 ships is what `release` produces, and that is the block the check watches.
 
-### With no packs the home is a dead end — SEEN 2026-09-23, not built
+### ✅ With no packs the home is a dead end — **BUILT 2026-09-24 as option A** (D-264)
 
-**Status.** **Defect, reported and not built**, because a UI idea goes here until it is asked for.
+**Status.** ✅ **Done.** `SearchScreen`'s `Status.NoDictionary` branch draws the message and **one**
+row, *Conseguir un diccionario*, straight to the dictionary manager.
 
-**What is on screen.** An APK built with no cores, on a device with an empty `packs/`, shows
-exactly one line: *"No dictionary installed."* `SearchScreen`'s `Status.NoDictionary` branch is a
-single `Text` and nothing else — **no Options section, no Settings row, no route to the download
-screen**. The dictionary manager, which is where a pack is downloaded, hangs off Settings, and
-Settings is not drawn in this state.
+**What it was.** An APK built with no cores, on a device with an empty `packs/`, showed exactly one
+line: *"No dictionary installed."* -- a single `Text` and nothing else: **no Options section, no
+Settings row, no route to the download screen**. The dictionary manager, which is where a pack is
+downloaded, hangs off Settings, and Settings is not drawn in this state.
 
-⚠️ **So the one state that most needs the downloader is the one that cannot reach it.** Today
-it is invisible because the APK carries the two cores, so nobody arrives here; it becomes the
-**first-run experience** the moment the packs stop shipping inside the APK, which is the
-direction §Instalador de packs is going.
+⚠️ **So the one state that most needs the downloader was the one that could not reach it.** It is
+invisible today because the APK carries the two cores, so nobody arrives here; it becomes the
+**first-run experience** the moment the packs stop shipping inside the APK, which is the direction
+§Instalador de packs is going.
 
-⚠️ **And it blocks testing that path at all.** Verified on the emulator on 2026-09-23 while
-testing the catalogue override (D-259): with the packs removed there was no way to drive a
-download from the UI, and the probe had to put a pack back first. A state you cannot get out of
-is also a state you cannot test from.
+⚠️ **And it blocked testing that path at all.** Verified on the emulator on 2026-09-23 while
+testing the catalogue override (D-259): with the packs removed there was no way to drive a download
+from the UI, and the probe had to put a pack back first. A state you cannot get out of is also a
+state you cannot test from.
+
+⚠️ **What building it turned up.** `ScreensTest.withNoDictionaryItSaysSoAndOffersNoSearch` asserts
+over `Status.Failed`, **not** over this branch -- so despite its name nothing exercised
+`NoDictionary` before. The two new tests are the first that do.
 
 | | Option | Cost | What it closes |
 |---|---|---|---|
-| **A** | One button under the message, straight to the dictionary manager | 1 row, drawn only in this state | The obvious one. It costs nothing anywhere else, because the state is mutually exclusive with having results |
-| **B** | Draw the whole Options section in this state too | 3–4 rows | Consistent, and wrong: `Saved` and `Recent` are empty by construction with no packs, so it offers three dead rows to make one live |
-| **C** | Leave it, and rely on the APK always carrying a core | 0 | ⚠️ That is today's accidental answer rather than a decision, and it expires the moment a pack-less build ships |
-
-**What unblocks it.** Nothing external — A is small. It is here rather than done because the
-standing instruction is that UI goes to the roadmap until asked for.
+| **A** | ✅ **BUILT.** One row under the message, straight to the dictionary manager | 1 row, drawn only in this state | It costs nothing anywhere else, because the state is mutually exclusive with having results. `onManagePacks` carries no default: a row that draws and does nothing looks like a broken app rather than an empty one |
+| **B** | Draw the whole Options section in this state too | 3–4 rows | Consistent, and wrong: `Saved` and `Recent` are empty by construction with no packs, so it offers three dead rows to make one live. A test pins this |
+| **C** | Leave it, and rely on the APK always carrying a core | 0 | ⚠️ It was today's accidental answer rather than a decision, and it expires the moment a pack-less build ships |
 
 ### The two escape hatches on an empty result — EVALUATED 2026-09-23, not built
 
