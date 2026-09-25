@@ -4799,6 +4799,59 @@ antes: `form`, que no se toca sin romper la búsqueda por flexión.
 **Por qué importa para la batería y no solo para el disco.** El pack se descarga por red, que es
 lo que más gasta. Cada MB que se ahorra es tiempo de radio que no se paga.
 
+#### Pruning the `form` table — **measured 2026-09-25, nothing applied**
+
+**The biggest single lever on the Spanish pack, and it was hiding in plain sight.** `form` is
+**32.9 MB of `es-full`'s 74.0 — 44.4 %** — against 19.1 MB of `en-full`'s 314.3 (6.1 %). The two
+languages are shaped differently: Spanish is dominated by inflections, English by entries.
+
+⚠️ **`form` is a search index and cannot be displayed.** It stores `norm(form)` — `corrio`, not
+`corrió`; `arboles`, not `árboles` — because its job is to be a key. The channel that carries
+spelling is `display_forms` (tag `F`, D-242), and it deliberately picks **two** parts for a verb.
+
+##### What is actually in there
+
+| | rows | weight | of `form` | of the pack |
+|---|---|---|---|---|
+| `haber` periphrases — `ha nimbado`, `habéis nimbado` | 431,444 | 10.5 MB | 32.0 % | **14.2 %** |
+| other multi-word — `abedules pubescentes` | 437,133 | 10.9 MB | 33.2 % | 14.7 % |
+| single words — `corremos` | 631,318 | 11.5 MB | 34.8 % | 15.5 % |
+
+**57.9 % of the rows contain a space.** In English it is 38.7 % of rows and 45.2 % of that table
+(8.6 MB). And **13,185 verbs carry 61+ forms each, which is 90.1 % of the Spanish table** — 13,185
+of 152,281 entries paying for 40 % of the pack.
+
+##### Why a multi-word row earns almost nothing
+
+The `INFLECTED_FORM` rung matches the typed key against `form.norm`. A row with a space therefore
+**only fires when somebody types the whole phrase** — `ha nimbado`, on a watch. Typing `nimbado`
+does not reach it and does not need to: the participle is its own single-word row and stays.
+
+##### The ranking, most to least worth cutting
+
+1. **`haber` periphrases** — −10.5 MB, **−14.2 % of the pack**, degradation ~nil. They are
+   derivable from the participle, which stays.
+2. **Other multi-word forms** — −10.9 MB, −14.7 %. Plurals of multi-word lemmas; the singular
+   remains an entry of its own, so what is lost is the exact plural phrase.
+3. **Single-word forms** — ⚠️ **do not touch.** This is what the rung exists for.
+
+Taking 1 and 2 is **−21.4 MB, 29 % of the Spanish pack**, and −8.6 MB of English.
+
+##### What to measure before applying it
+
+**How many real searches arrive through the `INFLECTED_FORM` rung**, which nobody knows. The
+cascade already reports its rungs to `SearchTrace`, and `LogSearchTrace` writes them at DEBUG
+(D-212) — `buscar 'cas' -> 7 (prefix=2 translation=4 fuzzy=1)`. A watch session with the detail on
+answers it without building anything. Step 1 is defensible without that number; step 2 is not.
+
+##### And a related thing that is NOT this
+
+Showing a full conjugation on the card was asked for and **measured against the dump: 72–73 simple
+forms per Spanish verb, ~1,400 characters**. As a list before the senses that is ~72 rows on a
+screen where 127 characters already fill four lines. It is not the same feature as `display_forms`,
+which puts two principal parts on one row and which **no pack carries yet** — the rebuild turns it
+on with nothing left to build.
+
 ### O-4. Batería
 
 **Estado.** **Una sección que creció se volvió un documento: vive en `docs/bateria.md`**
