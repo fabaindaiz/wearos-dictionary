@@ -20,6 +20,53 @@ FIXTURE = os.path.join(
 
 
 class RenderParseTest(unittest.TestCase):
+    def test_el_diccionario_mezcla_ngramas_con_TEXTO_REAL_al_final(self):
+        """Real text at the end is what the n-gram-only version was missing.
+
+        ⚠️ **This test exists because the n-gram-only version looked principled and was not.**
+        Counting 2-to-4 word n-grams covers the short repeats and **loses the long ones** -- a whole
+        line of marker plus first sense does not fit in any 4-word window. Deflate prefers matches
+        nearest the end of the dictionary, and that is where the text goes.
+
+        It compares against the previous algorithm, which is still alive as `_frequent_ngrams`: if
+        somebody returns only that again, this test falls.
+        """
+        import zlib
+
+        cuerpos = []
+        for i in range(400):
+            cuerpos.append(
+                "P\tnoun\nS\tRecipiente de barro cocido que sirve para guardar liquidos %d\n"
+                "E\tLlena el recipiente de barro cocido antes de salir\n"
+                "Y\tvasija\tcantaro\n" % i
+            )
+        K = 4096
+        solo_ngramas = payload._frequent_ngrams(cuerpos, K)
+        mezcla = payload.build_dictionary(cuerpos, max_bytes=K)
+        # ⚠️ `<=` and not `==`: with little n-gram material the reserved half does not fill, and
+        # demanding the exact budget was a wrong expectation of mine that this test caught.
+        self.assertLessEqual(len(mezcla), K, "cannot exceed the budget")
+        self.assertGreater(len(mezcla), len(solo_ngramas), "the mix adds real text")
+
+        def pesa(d):
+            total = 0
+            for cuerpo in cuerpos:
+                co = zlib.compressobj(9, zlib.DEFLATED, -zlib.MAX_WBITS, zdict=d)
+                total += len(co.compress(cuerpo.encode("utf-8")) + co.flush())
+            return total
+
+        con_ngramas, con_mezcla = pesa(solo_ngramas), pesa(mezcla)
+        self.assertLess(
+            con_mezcla, con_ngramas,
+            "the mix has to compress better than n-grams alone: %d vs %d bytes"
+            % (con_mezcla, con_ngramas),
+        )
+
+    def test_el_diccionario_sigue_siendo_DETERMINISTA(self):
+        """Two builds of the same pack must give the same `payload_dict`, or its sha256 lies."""
+        cuerpos = ["S\tuna acepcion %d\nP\tnoun\n" % i for i in range(200)]
+        self.assertEqual(payload.build_dictionary(cuerpos), payload.build_dictionary(cuerpos))
+
     def test_round_trip(self):
         senses = [
             {"gloss": "primera", "examples": ["ej uno"], "translations": ["first"],
