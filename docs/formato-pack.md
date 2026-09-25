@@ -535,6 +535,38 @@ gigabytes and do not fit.
 The result is deterministic: two builds of the same input give the same content, except for
 `meta.built_at`.
 
+## Where the bytes actually go
+
+Measured 2026-09-24 with `dbstat` over `dist/`, which is the only way to answer it: the table
+sizes are not derivable from row counts.
+
+| Section | `es-full` 74.0 MB | `en-full` 314.3 MB | `es-en` 64.1 MB | `es-core` 48.5 MB |
+|---|---|---|---|---|
+| `form` | **32.9 (44.4 %)** | 19.1 (6.1 %) | 21.9 (34.1 %) | **30.9 (63.6 %)** |
+| `entry` | 20.0 (27.1 %) | **150.6 (47.9 %)** | 21.2 (33.1 %) | 8.7 (17.9 %) |
+| `fts_def_data` | 9.1 (12.3 %) | 69.2 (22.0 %) | 4.8 (7.5 %) | 5.2 (10.7 %) |
+| `idx_entry_norm` | 5.8 (7.8 %) | 38.0 (12.1 %) | 8.2 (12.7 %) | 1.7 (3.5 %) |
+| `idx_entry_fuzzy` | 4.1 (5.5 %) | 27.7 (8.8 %) | 5.9 (9.2 %) | 1.2 (2.4 %) |
+| `trans` | 0.6 (0.8 %) | — | — | 0.4 (0.9 %) |
+
+### ⚠️ `form` is the Spanish pack's largest table, and the core tier's whole problem
+
+**`es-core` is 48.5 MB and 30.9 of them are inflected search keys** — its `entry` table is 8.7 MB.
+The tier meant to be the small one spends **64 % of itself on keys nobody reads**, since `form`
+holds `norm(form)` and is never shown (D-242).
+
+⚠️ **And it barely shrinks when the vocabulary does.** From `es-full` to `es-core` the entries drop
+**152,281 → 48,292** and `entry` drops 20.0 → 8.7 MB, while `form` goes 1,499,895 → **1,412,994
+rows**: **68 % fewer words keep 94 % of the forms.**
+
+**It is not a leak — 0 orphan rows, verified — it is selection working against itself.** The core
+keeps the most frequent words, and the most frequent Spanish words are exactly the verbs that
+inflect most: 9.8 forms per entry across the full pack, **34.8 per entry that has any** in the
+core. Cutting rare words removes entries that had almost no forms to begin with.
+
+⚠️ **English does not have this shape at all**: `form` is 6.1 % there and `entry` is half the pack.
+Any storage change has to be priced per language, because the two packs are not the same object.
+
 ## Budgets
 
 **The first one is already measured and is not met.** The other three are still goals written a

@@ -226,10 +226,10 @@ hicieron. Los tres tienen test ahora.
 | ⚠️ **Ningún pack trae la PRONUNCIACIÓN** | The `I` channel landed on 2026-09-24 (d-a2f271-13da99) and `dist/` predates it: `verify_pack.py` reads **0.0 %** on `es-full` against **100.0 %** available in the dump. The card draws nothing, which is correct and invisible — the exact shape this section exists to catch. It needs `es-full` rebuilt from `es.jsonl`; the toy pack already carries one entry, so the gate covers the channel |
 | **Los packs no están en el reloj** | `dist/` está listo; `devpack.py` no se corrió. Hasta que se corra, el reloj sigue con los packs del 2026-09-21 |
 | ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
-| **`Tuesday` en el bilingüe** | Ver §La traducción glosada no produce entrada inversa. Necesita una medición antes que código |
+| **`Tuesday` en el bilingüe** — ✅ **MEDIDO 2026-09-24, y es más chico de lo que parecía** | Of 7 weekdays, 12 months and 10 control words, **only `tuesday` fails** (28/29 resolve). Over a 4,000-entry sample of the bilingual's 123,979 Spanish entries, the pattern *gloss starts with `Term (`* covers 12.7 %, and of those **1.07 % have no English way in**. Split by class, the genuinely lost single words are **0.05 % → ~62 in the pack**; the rest are multi-word phrases (~806), `alternative form of…` markers that are not translations at all (~217), and proper nouns (~155). ⚠️ **So it is 62 words, not a class of defect** — which is what the measurement was for. See §La traducción glosada |
 | ~~**Los núcleos se llaman `Español (full) (core)`**~~ ✅ **cerrado el 2026-09-23** | El builder le pegaba `(core)` al nombre del completo sin sacarle `(full)`. Arreglado en `build.name_with_tier` y los dos núcleos regenerados — **15 s cada uno**, derivan del completo y no necesitan los dumps. Salieron **byte a byte del mismo tamaño**: cambió el nombre y nada más. Verificado en pantalla: `English (core)`. (D-230) |
 | ~~**Los conteos de `-core` del changelog no reconcilian**~~ ✅ **explicado el 2026-09-23** | No era una contradicción: **la CLI de `build_core.py` llamaba «entradas» a `len(vocabulario)`**, que es el conjunto de palabras elegidas, no las filas de `entry`. Medido sobre `es-core`: **39.021 = `count(DISTINCT norm)`** (el número del changelog), 41.219 lemas distintos y **48.292 filas**, que es lo que declara `meta.entry_count`. Los tres reconcilian. El rótulo dice ahora **«palabras»**, que es lo que evita que vuelva a costar una sesión |
-| ⚠️ **El pack inglés completo mezcla español en su `description`** | Visto en la pantalla de atribución del emulador (2026-09-23): *«English definitions from Wiktionary. Includes synonyms, antonyms, related words and the source of each quoted example. **Resultados ordenados por frecuencia de uso real.** With WordNet synonyms…»*. Es **contenido del pack**, escrito por el builder, así que se arregla en el próximo rebuild del completo — no del núcleo, que lo hereda |
+| ~~**El pack inglés completo mezcla español en su `description`**~~ ⚠️ **se mudó de campo, 2026-09-24** | The `description` was already right in the code **and in `dist/`** — repaired on 2026-09-23. What nobody checked is that the same bug had moved one function over, into **`attribution`**: all three English packs credit OpenSubtitles in Spanish, inside the field D-031 makes non-optional. Fixed in the builder by d-a2f271-803d8a; **`dist/` still carries it** and `repair_meta.py` does not reach that field, so only the rebuild clears it |
 | ⚠️ **Un APK incremental carga ~25 MB de relleno muerto** | Medido el 2026-09-23 sobre el mismo código: build **incremental 135.881.265 bytes**, build **limpia 111.020.805**. La suma de las entradas comprimidas es 110,83 MB en las dos, así que los **24,9 MB de diferencia son padding**, no contenido. El APK va al reloj por adb y ya pasa los 75 MB en que la conexión inalámbrica se cortó una vez, así que **el que se sube se arma con `:app:clean` antes**. Sin explicar: qué lo introduce dentro de AGP |
 
 ### ✅ Lo que había que arreglar antes de reconstruir — HECHO el 2026-09-22
@@ -3998,6 +3998,37 @@ sobre 30.000 entradas del dump español:**
 sí o un no. El caso típico es `De Japón y el sufijo -és.` — treinta caracteres, una línea, y
 contesta algo que la definición no. El caso p90 son 127 caracteres, que en 234 dp son **cuatro
 filas** compitiendo con la definición. Y hay entradas de 1.541.
+
+✅ **Re-measured on 2026-09-24 against the REAL packs, recompressed with each pack's own payload
+dictionary** — which is the only number that means disk. The earlier figures came from raw text
+length over a 30,000-line sample and understated the problem badly.
+
+| Channel | Spanish pack (152,281 entries, 74.0 MB) | English pack (956,150, 314.3 MB) |
+|---|---|---|
+| **IPA** | +10.6 % of payload → **+2.5 MB** | +5.7 % → **+13.9 MB** |
+| **etymology, no cap** | +22.4 % → +5.4 MB | **+73.6 % → +179.1 MB** |
+| **etymology, cap 80** | +9.5 % → **+2.3 MB** | +1.7 % → **+4.2 MB** |
+
+⚠️ **The cap is not a reading preference: without it the English pack grows by 57 %.** 179 MB on
+top of 314 for a secondary datum, against 4.2 MB with the cap.
+
+⚠️ **And the cap behaves differently per language, which no earlier figure showed.** The medians
+are nearly identical --25 characters in Spanish, 26 in English-- but the **p90 is 64 against 216**:
+English writes long chains of borrowings, Spanish writes one line.
+
+| cap | fits (es) | fits (en) |
+|---|---|---|
+| 40 | 77.9 % | 62.2 % |
+| **80** | **93.0 %** | **76.1 %** |
+| 120 | 96.4 % | 82.7 % |
+
+⚠️ **The two dumps do not agree on the field name, and that alone would have cost a rebuild.**
+Spanish uses `etymology_texts` (a **list**); English uses `etymology_text` (a **string**). An
+implementation that assumes either one produces the other pack with no etymology, **no error and
+no log** — discovered only an hour later, after the build.
+
+**Status: NOT in the next rebuild** (owner's call, 2026-09-24, with these numbers on the table).
+The measurements are written here so the decision never has to be re-measured.
 
 **Recomendación: entra con un tope de ~80 caracteres, descartando la que no quepa en vez de
 cortarla.** Una etimología cortada a la mitad es peor que ninguna: `Del latín *cor, cordis*, y
