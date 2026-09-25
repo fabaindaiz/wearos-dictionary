@@ -16,6 +16,58 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-25 · s-a2f271-b31995 — A wake lock keeps the adb session, and two settings measured useless
+**What.** A new `:watch-keepalive` module: an APK with **no launcher activity**, so it never shows
+up among the watch's apps, whose only job is a foreground service holding a `PARTIAL_WAKE_LOCK`.
+`tools/watchsession.py` drives it (`status`, `install`, `start`, `stop`, `probe`, `uninstall`),
+reusing `buscar_adb`/`elegir_dispositivo` from `devpack.py` and reconnecting through mDNS so no IP
+or port is ever typed by hand. `SessionStart`/`SessionEnd` hooks start and stop it.
+
+**Areas.** `watch-keepalive/` (new), `settings.gradle.kts`, `tools/watchsession.py` (new), the
+session hooks in `.claude/settings.json`, and one new row in `docs/preguntas-del-reloj.md`.
+
+**Why.** A wireless adb session to a physical watch dies on its own about a minute after the screen
+goes off, which makes every on-device run a race. Asked for: a way to hold the session open that
+does **not** depend on settings and can be started and stopped per debugging session.
+
+**Architecture.** ✅ Complies. The module sits outside `:app → :dict-data → :dict-core` and nobody
+declares it as a dependency, so **the APK that gets measured does not change** — the alternative
+considered was `:app`'s debug source set, rejected for exactly that reason.
+
+**Measured.** All on **2026-09-25**, SM-L715F (Android 17 / SDK 37), **off the charger**, over
+wireless debugging.
+- The session dies **40 s** after the screen turns off: `PowerManagerService: Going to sleep due to
+  timeout (screenOffTimeout=30000)` at 13:42:31, adb unreachable at 13:43:11.
+- `wifi_always_requested=1` **does not help.** `mNumWifiRequests` went 1 → 2 and the mediator chose
+  `toggleRadioState: true` even on the `SCREEN_OFF`. The radio was never what failed.
+- `screen_off_timeout=1800000` **does not help either.** `wakefulness` reached `Dozing` after
+  **68 s**: on Wear OS ambient is the normal state and does not consult that timeout, which is a
+  phone knob.
+- Wireless debugging was **never disabled**: `adb_wifi_enabled` stayed 1 throughout. What happens is
+  that the daemon restarts and re-registers on a different TLS port (**33017 → 41093**), which is
+  what makes a reconnect look like a new device.
+- The keep-alive APK is **2.4 MB** (debug).
+
+**Not verified.** **The wake lock has never been observed holding anything.** The watch went offline
+before the APK could be installed, so `start`, its `dumpsys power` check and the probe run that
+would prove a session survives a screen-off are all unrun. It waits as **P-14** in the standing
+list of questions only the watch can answer, `docs/preguntas-del-reloj.md`.
+
+**What went wrong.** Three things, each caught by something different.
+- The first manifest would not parse because a comment contained `--`, which is illegal XML and
+  which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
+  anyway; the build caught it.
+- **The gate was read from its last line instead of its exit code.** `./gradlew check` piped into
+  `tail` reported success while Gradle had printed `BUILD FAILED`; re-run without the pipe it gave
+  `EXIT=1` on lint's `WearStandaloneAppFlag`. Green afterwards at `EXIT=0`.
+- Both settings were built **and wired into the hooks** before being measured, and both turned out
+  useless. One probe run each is what killed them.
+
+**What was left undone.** The watch may still carry `screen_off_timeout=1800000` from the abandoned
+approach: `~/.cache/wearos-dictionary/` holds the original and `stop` puts it back, but the device
+went offline first. The keep-alive is **not** wired into `:dict-data:connectedDebugAndroidTest` — a
+decision, so the on-device gate does not come to depend on an auxiliary APK.
+
 ## 2026-09-24 · s-a2f271-4612e2 — Pronunciation lands end to end, and no pack carries it yet
 **What.** Asked for: options to keep developing. Chose **IPA in the pack and in the card**,
 mechanism only, no rebuild. Four commits, each green on its own.
