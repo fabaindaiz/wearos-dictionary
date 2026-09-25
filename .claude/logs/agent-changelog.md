@@ -16,6 +16,71 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-24 · s-a2f271-3547d9 — Measured before the expensive rebuild, and one bug had moved field
+**What.** Asked for: implement pronunciation and the proposed pack changes, then rebuild. The
+owner then scoped it down — **no rebuild until they say so**, etymology only once its size was
+known — so this session is everything that has to be true *before* the one hour is paid.
+- **d-a2f271-803d8a** — every source declares its attribution as an `(en, es)` pair.
+- Four measurements written into the documents that own them.
+- The IPA channel proven end to end on a pilot pack built from the real dump.
+
+**Areas.** `tools/packbuilder/build_pack.py`, `tools/packbuilder/tests/test_core.py`,
+`docs/decisions.md`, `docs/roadmap.md`, `docs/formato-pack.md`, `tools/CLAUDE.md`, `README.md`
+and this file. **Nothing in `dist/` was touched.**
+
+**Why.** A rebuild is ~1 h, so anything that decides its content is worth measuring first — and
+the roadmap's own figures turned out to come from text length rather than from the packs.
+
+**Architecture.** ✅ Complies. The attribution fix reuses `_describir`'s shape rather than adding a
+second mechanism.
+
+**Measured.**
+- `./gradlew check` green after each commit: **38 checks, 0 failures, 3 advisories**.
+- **Where the bytes go**, by `dbstat`: `form` is **44.4 %** of `es-full` and **63.6 %** of
+  `es-core` — 30.9 MB of search keys against an 8.7 MB `entry`. From full to core the entries drop
+  **152,281 → 48,292** while `form` goes **1,499,895 → 1,412,994**: 68 % fewer words keep 94 % of
+  the forms, with **0 orphan rows**. English is the opposite shape: `form` 6.1 %, `entry` 47.9 %.
+- **IPA and etymology recompressed with each pack's own dictionary.** IPA: +2.5 MB (es), +13.9 MB
+  (en). Etymology uncapped: +5.4 MB (es), **+179.1 MB (en), a 57 % pack**. Capped at 80: +2.3 and
+  +4.2 MB, keeping 93 % of Spanish etymologies and 76 % of English ones.
+- **`Tuesday` is 62 words, not a class.** Only `tuesday` fails of 29 sampled days, months and
+  controls. Over 4,000 bilingual entries the `Term (` pattern is 12.7 %, of which 1.07 % have no
+  English way in — split by class, genuinely lost single words are **0.05 % ≈ 62**.
+- **The channel reaches a real pack**: a pilot built from `es.jsonl` at 1-in-100 reads **200 of
+  200 sampled entries with pronunciation (100.0 %)**.
+
+**What went wrong.**
+- ⚠️ **The debt row said the English `description` mixed Spanish; it had been fixed and repaired,
+  and the same bug had moved one function over into `attribution`.** `_describir` was given an
+  `(en, es)` pair; `FUENTES[*]["prosa"]` kept one Spanish string, so `_declarar` appended it to
+  every pack. It is the worse field of the two: `description` is a convenience, `attribution` is
+  what D-031 makes non-optional, and `en-core` travels inside the APK. **Found by checking whether
+  a debt still applied rather than by trusting it** — the sixth stale roadmap claim in four
+  sessions.
+- ⚠️ **Two field names assumed and both wrong.** `etymology_text` does not exist in the Spanish
+  dump (it is `etymology_texts`, a list) and `etymology_texts` does not exist in the English one.
+  The first measurement returned **0 entries** and looked like a real answer. Caught only because
+  zero was implausible.
+- ⚠️ **`--sample N` is one lemma in every N, not N lemmas.** Read as the latter, the first pilot
+  came out with **6 entries** and would have been useless as a smoke test.
+
+**Not verified.**
+- **The narrow-phonetic notation has not been seen by the owner.** Real entries read `ˈbið̞a`,
+  `esˈt̪að̞o`, `nĩŋˈguno` — the Spanish Wiktionary writes narrow phonetic IPA with diacritics, not
+  the broader `/ˈbida/`. Faithful to the source, and technical for a 234 dp line. It is a product
+  call and it is theirs.
+
+**What was left undone.**
+- **The rebuild**, deliberately: it waits for the owner's word.
+- **The APK**, which they approved with `:app:clean`: building it now would package the current
+  IPA-less cores, so it belongs after the rebuild, not before.
+- ⚠️ **`repair_meta.py` repairs `description` and not `attribution`**, so today's `dist/` cannot be
+  corrected without the rebuild. Noticed, not fixed.
+- ⚠️ **The coverage check fires on a pilot pack**, correctly but uninformatively: its fixture guard
+  compares entries against the list length, and 1,438 > 123. A `--sample` pack is not a dictionary
+  either. Noted, not acted on.
+---
+
 ## 2026-09-24 · s-a2f271-4612e2 — Pronunciation lands end to end, and no pack carries it yet
 **What.** Asked for: options to keep developing. Chose **IPA in the pack and in the card**,
 mechanism only, no rebuild. Four commits, each green on its own.
