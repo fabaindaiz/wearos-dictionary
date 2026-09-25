@@ -50,6 +50,15 @@ second mechanism.
   200 sampled entries with pronunciation (100.0 %)**.
 
 **What went wrong.**
+- ⚠️ **Every etymology and IPA figure this session first published was sampled wrong**, and the
+  error was invisible because the numbers looked reasonable. The sample drew 1,500 rows from the
+  first 6,000 entries **by id**, and id correlates with rank — mean rank **652** in that window
+  against **1,061** over the table. Frequent words carry more etymology and, in English, longer
+  ones, so the bias ran **both ways**: Spanish overstated at every cap, English understated at
+  short caps and badly overstated at p95, where **+39.4 MB** became **+18.0** on re-measure. It
+  was caught only because a later run with a different sampler disagreed with the published
+  number. **No validity criterion was written before reading it**, which is the standing rule this
+  session broke.
 - ⚠️ **The debt row said the English `description` mixed Spanish; it had been fixed and repaired,
   and the same bug had moved one function over into `attribution`.** `_describir` was given an
   `(en, es)` pair; `FUENTES[*]["prosa"]` kept one Spanish string, so `_declarar` appended it to
