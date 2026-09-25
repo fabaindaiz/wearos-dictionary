@@ -44,15 +44,26 @@ class KeepAliveService : Service() {
     private var observadorAdb: ContentObserver? = null
     private var receptorWifi: BroadcastReceiver? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var limiteMs = LIMITE_MS
+    private var terminando = false
 
     private val vencer = Runnable {
-        Log.i(TAG, "Limite alcanzado tras ${LIMITE_MS / 60_000} min; soltando el wake lock")
+        Log.i(TAG, "Limite alcanzado tras ${limiteMs / 1000} s; soltando el wake lock")
         stopSelf()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // A null intent is START_STICKY redelivering after a kill, and it carries no extras, so
+        // the default has to stand on its own. The override exists so the expiry can be tested
+        // without waiting an hour, and it is useful on its own for a session known to be short.
+        terminando = false
+        limiteMs = intent?.getIntExtra(EXTRA_LIMITE_S, 0)
+            ?.takeIf { it > 0 }
+            ?.let { it * 1000L }
+            ?: LIMITE_MS
+
         startForeground(
             ID_NOTIFICACION,
             notificacion(),
@@ -68,9 +79,9 @@ class KeepAliveService : Service() {
                 // The timeout is the point, not a formality. Whoever started this is a debugging
                 // session that may simply end -- the laptop closes, the terminal dies -- and a
                 // wake lock nobody releases flattens a watch overnight.
-                acquire(LIMITE_MS)
+                acquire(limiteMs)
             }
-            Log.i(TAG, "Wake lock tomado; limite ${LIMITE_MS / 60_000} min")
+            Log.i(TAG, "Wake lock tomado; limite ${limiteMs / 1000} s")
         }
 
         pedirRed()
@@ -78,7 +89,7 @@ class KeepAliveService : Service() {
         vigilarFinDeSesion()
 
         handler.removeCallbacks(vencer)
-        handler.postDelayed(vencer, LIMITE_MS)
+        handler.postDelayed(vencer, limiteMs)
 
         // START_STICKY so a kill under memory pressure brings it back. An explicit
         // `am stopservice` is not a kill and does not restart it.
@@ -177,9 +188,14 @@ class KeepAliveService : Service() {
                     val estado = intent.getIntExtra(
                         WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN,
                     )
-                    if (estado == WifiManager.WIFI_STATE_DISABLING ||
+                    // DISABLING and DISABLED both arrive, one after the other, and both mean the
+                    // same switch was thrown. `stopSelf` is idempotent so the second one is
+                    // harmless, but it logged the line twice --- and a readout that repeats
+                    // itself invites reading two events where there was one.
+                    val apagando = estado == WifiManager.WIFI_STATE_DISABLING ||
                         estado == WifiManager.WIFI_STATE_DISABLED
-                    ) {
+                    if (apagando && !terminando) {
+                        terminando = true
                         Log.i(TAG, "Wi-Fi apagado; termino la sesion")
                         stopSelf()
                     }
@@ -243,5 +259,8 @@ class KeepAliveService : Service() {
         const val CANAL = "keepalive"
         const val ID_NOTIFICACION = 1
         const val LIMITE_MS = 60L * 60L * 1000L
+
+        /** Seconds, as an int extra, overriding [LIMITE_MS] for this start. */
+        const val EXTRA_LIMITE_S = "limite_s"
     }
 }

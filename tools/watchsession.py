@@ -134,6 +134,34 @@ def reconectar_por_mdns():
     return None
 
 
+def _listos(salida):
+    """The serials adb reports as ready, in the order it reports them."""
+    listos = []
+    for linea in salida.splitlines()[1:]:
+        campos = linea.strip().split()
+        if len(campos) >= 2 and campos[1] == "device":
+            listos.append(campos[0])
+    return listos
+
+
+def _colapsar_duplicados(adb, seriales):
+    """One serial when every transport leads to the same watch, otherwise None.
+
+    mDNS and a direct `adb connect` are two doors to the same device, and adb lists them as two
+    devices -- which made `elegir_dispositivo` demand a `-s` three times in one session, each time
+    for a watch that was the only one in the room. The hardware serial is what tells that apart
+    from two watches genuinely being connected, and it is worth a round trip each because the
+    alternative is a tool that cannot run unattended.
+    """
+    hardware = set()
+    for serial in seriales:
+        salida = subprocess.run(
+            [adb, "-s", serial, "shell", "getprop", "ro.serialno"], capture_output=True
+        )
+        hardware.add(salida.stdout.decode("utf-8", "replace").strip())
+    return seriales[0] if len(hardware) == 1 and "" not in hardware else None
+
+
 def elegir_serial(pedido=None):
     adb = buscar_adb()
 
@@ -142,17 +170,29 @@ def elegir_serial(pedido=None):
             "utf-8", "replace"
         )
 
+    salida = listar()
     try:
-        return elegir_dispositivo(listar(), pedido)
+        return elegir_dispositivo(salida, pedido)
     except SinDispositivo:
+        if pedido:
+            raise
+        seriales = _listos(salida)
+        if len(seriales) > 1:
+            unico = _colapsar_duplicados(adb, seriales)
+            if unico:
+                return unico
+            raise
         if reconectar_por_mdns() is None:
             raise
         return elegir_dispositivo(listar(), pedido)
 
 
 def instalado(serial):
-    salida = _adb(serial, "shell", "pm", "list", "packages", PAQUETE, silencioso=True)
-    return PAQUETE in salida
+    # Not silent on purpose. `pm list packages` prints nothing and exits 0 for a package that is
+    # absent, so a **non-zero** exit only ever means the device is unreachable -- and swallowing
+    # that made `start` answer "el keep-alive no esta instalado" to a watch that had simply
+    # dropped off adb, sending whoever read it to reinstall over a connectivity problem.
+    return PAQUETE in _adb(serial, "shell", "pm", "list", "packages", PAQUETE)
 
 
 def exento_de_doze(serial):
@@ -168,7 +208,15 @@ def wakelock_tomado(serial):
     power manager, which is the only place the answer is real.
     """
     salida = _adb(serial, "shell", "dumpsys", "power", silencioso=True)
-    return TAG_WAKELOCK in salida
+    # The tag alone is not enough and matching it was a bug: `dumpsys power` also prints a wake
+    # lock **history**, where a released lock stays as `- REL watchkeepalive:adb (partial)`. A
+    # check on the bare tag therefore answers "held" forever once the lock has ever existed --- an
+    # instrument that can only say yes. The live list is the one that says `PARTIAL_WAKE_LOCK` on
+    # the same line.
+    return any(
+        "PARTIAL_WAKE_LOCK" in linea and TAG_WAKELOCK in linea
+        for linea in salida.splitlines()
+    )
 
 
 def muestrear(serial):
@@ -180,7 +228,7 @@ def muestrear(serial):
     consulta = (
         'dumpsys WearConnectivityService | grep -o "mNumWifiRequests=[0-9]*"; '
         'dumpsys power | grep -o "mWakefulness=[A-Za-z]*" | head -1; '
-        'dumpsys power | grep -c "%s"; '
+        'dumpsys power | grep -c "PARTIAL_WAKE_LOCK.*%s"; '
         'dumpsys battery | grep -E "AC powered|USB powered|Wireless powered"' % TAG_WAKELOCK
     )
     try:
@@ -311,7 +359,11 @@ def cmd_start(args):
     # a readout that reaches back before this start would show a previous run's success even when
     # the current one failed -- an instrument that lies in the dangerous direction.
     marca = _adb(serial, "shell", "date", "+%m-%d %H:%M:%S.000", silencioso=True)
-    _adb(serial, "shell", "am", "start-foreground-service", "-n", COMPONENTE)
+    arranque = ["shell", "am", "start-foreground-service", "-n", COMPONENTE]
+    if args.limite:
+        arranque += ["--ei", "limite_s", str(args.limite)]
+        print("  limite de esta sesion: %d s" % args.limite)
+    _adb(serial, *arranque)
     # `am` reports success for delivering the intent, which is not the same as the lock being
     # held. The service has to reach startForeground first, so give it a moment and then ask the
     # power manager.
@@ -432,7 +484,12 @@ def main(argv=None):
 
     sub.add_parser("status", help="que hay instalado y si el lock esta tomado")
     sub.add_parser("install", help="instala el APK del keep-alive")
-    sub.add_parser("start", help="toma el wake lock")
+    p_start = sub.add_parser("start", help="toma el wake lock")
+    p_start.add_argument(
+        "--limite",
+        type=int,
+        help="segundos hasta que se suelte solo (default: una hora, en el service)",
+    )
     sub.add_parser("stop", help="lo suelta, y revierte ajustes viejos si quedaron")
     sub.add_parser("uninstall", help="saca el APK del reloj")
 
