@@ -4027,6 +4027,28 @@ Spanish uses `etymology_texts` (a **list**); English uses `etymology_text` (a **
 implementation that assumes either one produces the other pack with no etymology, **no error and
 no log** — discovered only an hour later, after the build.
 
+✅ **And the cap priced at percentiles and at screen lines, 2026-09-25.** Asked: what about a p95
+cap? It is not one cap — **p95 is 101 characters in Spanish and 349 in English**, and at the
+repo's own measured density for 234 dp (127 characters ≈ 4 lines, so ~32 per line) 349 characters
+is **eleven lines**.
+
+| Cap | Spanish: fits / pack | English: fits / pack |
+|---|---|---|
+| 2 lines (64) | 90.0 % / +1.9 MB | 71.9 % / +2.7 MB |
+| **3 lines (96)** | **94.7 % / +2.6 MB** | **79.1 % / +6.1 MB** |
+| 4 lines (128) | 96.8 % / +3.1 MB | 83.5 % / +10.0 MB |
+| **p95** | 95.0 % / +2.7 MB *(101)* | 95.0 % / **+39.4 MB** *(349)* |
+
+⚠️ **In Spanish the percentile and the screen agree; in English they do not.** Spanish p95 is 101
+characters and three lines is 96 — the same cap under two names, 95.0 % against 94.7 %. English
+p95 is 349, and buying that last stretch of coverage costs **+29.4 MB over the 128-character cap
+for 11.5 points**.
+
+⚠️ **The lesson is which unit the cap belongs in.** A percentile lets **the source** decide how
+much of the watch it gets, and the English Wiktionary writes long chains of borrowings. A
+character cap lets **the watch** decide. They coincide in Spanish only because that source is
+already terse.
+
 **Status: NOT in the next rebuild** (owner's call, 2026-09-24, with these numbers on the table).
 The measurements are written here so the decision never has to be re-measured.
 
