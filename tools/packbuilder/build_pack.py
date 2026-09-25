@@ -91,8 +91,10 @@ FUENTES = {
         "url": "https://kaikki.org/eswiktionary/Espa%C3%B1ol/",
         "licencia": "CC BY-SA 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-        "prosa": ("Definiciones del Wikcionario (es.wiktionary.org), licencia CC BY-SA 4.0. "
-                  "Extracción: kaikki.org / wiktextract (Tatu Ylonen)."),
+        "prosa": ("Definitions from the Spanish Wiktionary (es.wiktionary.org), CC BY-SA 4.0. "
+                  "Extraction: kaikki.org / wiktextract (Tatu Ylonen).",
+                  "Definiciones del Wikcionario (es.wiktionary.org), licencia CC BY-SA 4.0. Extracción: "
+                  "kaikki.org / wiktextract (Tatu Ylonen)."),
     },
     "wikt": {
         "codigo": "wikt",
@@ -101,8 +103,10 @@ FUENTES = {
         "url": "https://kaikki.org/dictionary/English/",
         "licencia": "CC BY-SA 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-        "prosa": ("Definitions from Wiktionary (en.wiktionary.org), CC BY-SA 4.0. "
-                  "Extraction: kaikki.org / wiktextract (Tatu Ylonen)."),
+        "prosa": ("Definitions from Wiktionary (en.wiktionary.org), CC BY-SA 4.0. Extraction: "
+                  "kaikki.org / wiktextract (Tatu Ylonen).",
+                  "Definiciones del Wiktionary (en.wiktionary.org), licencia CC BY-SA 4.0. Extracción: "
+                  "kaikki.org / wiktextract (Tatu Ylonen)."),
     },
     "enwikt-ej": {
         "codigo": "ej",
@@ -111,8 +115,10 @@ FUENTES = {
         "url": "https://kaikki.org/dictionary/Spanish/",
         "licencia": "CC BY-SA 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-        "prosa": ("Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección "
-                  "Spanish, licencia CC BY-SA 4.0."),
+        "prosa": ("Usage examples from the English Wiktionary (en.wiktionary.org), Spanish section, CC "
+                  "BY-SA 4.0.",
+                  "Ejemplos de uso del Wiktionary en inglés (en.wiktionary.org), sección Spanish, "
+                  "licencia CC BY-SA 4.0."),
     },
     # The SAME dump as "enwikt-ej", in another role: there it contributes examples to a Spanish
     # pack, here it contributes the whole definitions -- and in English, which is what makes it
@@ -124,7 +130,9 @@ FUENTES = {
         "url": "https://kaikki.org/dictionary/Spanish/",
         "licencia": "CC BY-SA 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-        "prosa": ("Definiciones en inglés de palabras españolas, del Wiktionary en inglés "
+        "prosa": ("English definitions of Spanish words, from the English Wiktionary "
+                  "(en.wiktionary.org), Spanish section, CC BY-SA 4.0.",
+                  "Definiciones en inglés de palabras españolas, del Wiktionary en inglés "
                   "(en.wiktionary.org), sección Spanish, licencia CC BY-SA 4.0."),
     },
     "opensubs": {
@@ -134,7 +142,9 @@ FUENTES = {
         "url": "https://github.com/hermitdave/FrequencyWords",
         "licencia": "CC BY-SA 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by-sa/4.0/",
-        "prosa": ("Frecuencias de uso del corpus OpenSubtitles, via FrequencyWords "
+        "prosa": ("Usage frequencies from the OpenSubtitles corpus, via FrequencyWords "
+                  "(github.com/hermitdave/FrequencyWords), CC BY-SA 4.0.",
+                  "Frecuencias de uso del corpus OpenSubtitles, via FrequencyWords "
                   "(github.com/hermitdave/FrequencyWords), licencia CC BY-SA 4.0."),
     },
     "tatoeba": {
@@ -144,7 +154,8 @@ FUENTES = {
         "url": "https://tatoeba.org/",
         "licencia": "CC BY 2.0 FR",
         "licencia_url": "https://creativecommons.org/licenses/by/2.0/fr/",
-        "prosa": "Frases de ejemplo del corpus Tatoeba (tatoeba.org), licencia CC BY 2.0 FR.",
+        "prosa": ("Example sentences from the Tatoeba corpus (tatoeba.org), CC BY 2.0 FR.",
+                  "Frases de ejemplo del corpus Tatoeba (tatoeba.org), licencia CC BY 2.0 FR."),
     },
     "wd": {
         "codigo": "wd",
@@ -155,8 +166,10 @@ FUENTES = {
         "licencia_url": "https://creativecommons.org/publicdomain/zero/1.0/",
         # It is declared all the same even though CC0 does not require it: where a datum comes from
         # is useful to know even when saying so is not compulsory.
-        "prosa": ("Definiciones de Wikidata Lexemes (wikidata.org), dedicadas al dominio "
-                  "público bajo CC0 1.0."),
+        "prosa": ("Definitions from Wikidata Lexemes (wikidata.org), dedicated to the public domain "
+                  "under CC0 1.0.",
+                  "Definiciones de Wikidata Lexemes (wikidata.org), dedicadas al dominio público bajo "
+                  "CC0 1.0."),
     },
     "mcr": {
         "codigo": "wn",
@@ -165,7 +178,9 @@ FUENTES = {
         "url": "https://adimen.si.ehu.es/web/MCR/",
         "licencia": "CC BY 3.0",
         "licencia_url": "https://creativecommons.org/licenses/by/3.0/",
-        "prosa": ("Sinónimos del Multilingual Central Repository (adimen.si.ehu.es/web/MCR/), "
+        "prosa": ("Synonyms from the Multilingual Central Repository (adimen.si.ehu.es/web/MCR/), "
+                  "distributed by Open Multilingual Wordnet, CC BY 3.0.",
+                  "Sinónimos del Multilingual Central Repository (adimen.si.ehu.es/web/MCR/), "
                   "distribuido por Open Multilingual Wordnet, licencia CC BY 3.0."),
     },
     "oewn-tesauro": {
@@ -175,7 +190,8 @@ FUENTES = {
         "url": "https://en-word.net/",
         "licencia": "CC BY 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by/4.0/",
-        "prosa": ("Synonyms and antonyms from Open English WordNet (en-word.net), CC BY 4.0."),
+        "prosa": ("Synonyms and antonyms from Open English WordNet (en-word.net), CC BY 4.0.",
+                  "Sinónimos y antónimos de Open English WordNet (en-word.net), licencia CC BY 4.0."),
     },
     "oewn": {
         "codigo": "oewn",
@@ -184,7 +200,8 @@ FUENTES = {
         "url": "https://en-word.net/",
         "licencia": "CC BY 4.0",
         "licencia_url": "https://creativecommons.org/licenses/by/4.0/",
-        "prosa": "Open English WordNet 2025, CC BY 4.0.",
+        "prosa": ("Open English WordNet 2025, CC BY 4.0.",
+                  "Open English WordNet 2025, licencia CC BY 4.0."),
     },
 }
 
@@ -240,13 +257,26 @@ def _declarar(metadata, clave):
     It is a single function so that **there is no** way to add content and forget the credit. The
     failure mode it prevents is silent: the pack comes out whole, opens, works, and is badly
     licensed -- nothing in the content gives it away.
+
+    ⚠️ **The prose is a `(en, es)` pair chosen by the pack's language, exactly like [FRASES].**
+    It used to be one Spanish string appended to every pack, so the three English packs shipped an
+    `attribution` reading *"...wiktextract (Tatu Ylonen). **Frecuencias de uso del corpus
+    OpenSubtitles, via FrequencyWords (...), licencia CC BY-SA 4.0.** Synonyms and antonyms from
+    Open English WordNet..."*.
+
+    ⚠️ **It is the same bug `_describir` was written to fix, one function over, and it survived
+    there because the fix was applied to the sentence table and not to the source table.** This
+    field is the worse place for it: `description` is a convenience, `attribution` is what D-031
+    makes non-optional, so the string somebody reads to know whose data this is was half in a
+    language they may not have.
     """
     fuente = FUENTES[clave]
     fila = "\t".join((fuente["rol"], fuente["nombre"], fuente["url"],
                        fuente["licencia"], fuente["licencia_url"]))
     metadata["sources"] = (metadata.get("sources", "") + fila + "\n")
+    en, es = fuente["prosa"]
     prosa = metadata.get("attribution", "")
-    metadata["attribution"] = (prosa + " " + fuente["prosa"]).strip()
+    metadata["attribution"] = (prosa + " " + (en if es_ingles(metadata) else es)).strip()
     return fuente
 
 # D-031: the content is CC BY-SA and the attribution screen is not optional. These two keys are

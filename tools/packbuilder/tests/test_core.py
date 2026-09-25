@@ -385,3 +385,61 @@ class DescriptionFollowsTheLanguage(unittest.TestCase):
         m = self._meta("es,en")
         build_pack._describir(m, "frecuencia")
         self.assertEqual("Base. " + build_pack.FRASES["frecuencia"][1], m["description"])
+class AttributionFollowsTheLanguage(unittest.TestCase):
+    """The ATTRIBUTION follows the pack's language too, which it did not.
+
+    ⚠️ **It is the same bug `_describir` was written to fix, one function over.** The sentence
+    table got the `(en, es)` pair; the SOURCE table kept one Spanish string, so `_declarar`
+    appended it to every pack and the three English ones shipped an attribution reading
+    *"...(Tatu Ylonen). Frecuencias de uso del corpus OpenSubtitles... CC BY-SA 4.0. Synonyms
+    and antonyms from Open English WordNet..."* -- Spanish wedged into English prose.
+
+    ⚠️ **And this field is the worse place for it.** `description` is a convenience;
+    `attribution` is what D-031 makes non-optional, so the string somebody reads to know whose
+    data this is was half in a language they may not have.
+    """
+
+    # Letters and words that only occur in the Spanish prose. Deliberately not a language
+    # detector: it is a fixed list over strings this repo writes, so it cannot go vacuous on a
+    # rewording it does not know about -- `todas` below is what catches that.
+    MARCAS_ES = ("á", "é", "í", "ó", "ú", "ñ", "licencia", "Frecuencias", "Frases",
+                 "Definiciones", "Sinónimos", "Ejemplos")
+
+    def _meta(self, langs):
+        return {"langs": langs}
+
+    def test_an_english_pack_carries_no_spanish_in_its_attribution(self):
+        import build_pack
+        m = self._meta("en")
+        # Every source an English pack can use today, plus the one that actually leaked.
+        for clave in ("wikt", "opensubs", "oewn-tesauro"):
+            build_pack._declarar(m, clave)
+        encontradas = [x for x in self.MARCAS_ES if x in m["attribution"]]
+        self.assertEqual([], encontradas, m["attribution"])
+
+    def test_a_spanish_pack_keeps_its_spanish_attribution(self):
+        import build_pack
+        m = self._meta("es")
+        build_pack._declarar(m, "opensubs")
+        self.assertEqual(build_pack.FUENTES["opensubs"]["prosa"][1], m["attribution"])
+
+    def test_the_bidirectional_pack_follows_its_first_language(self):
+        # `es,en` is Spanish-first, the same rule the description follows.
+        import build_pack
+        m = self._meta("es,en")
+        build_pack._declarar(m, "opensubs")
+        self.assertEqual(build_pack.FUENTES["opensubs"]["prosa"][1], m["attribution"])
+
+    def test_todas_las_fuentes_declaran_las_dos_prosas(self):
+        # ⚠️ The guard that keeps the test above from going vacuous: a source added later with a
+        # single string would make `en, es = fuente["prosa"]` unpack its characters, and the pack
+        # would ship an attribution of two letters rather than failing.
+        import build_pack
+        for clave, fuente in build_pack.FUENTES.items():
+            with self.subTest(fuente=clave):
+                self.assertIsInstance(fuente["prosa"], tuple, clave)
+                self.assertEqual(2, len(fuente["prosa"]), clave)
+                for texto in fuente["prosa"]:
+                    self.assertGreater(len(texto), 20, clave)
+
+
