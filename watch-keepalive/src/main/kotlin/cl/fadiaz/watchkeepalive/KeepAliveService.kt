@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -30,6 +33,7 @@ import android.util.Log
 class KeepAliveService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var red: ConnectivityManager.NetworkCallback? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val vencer = Runnable {
@@ -60,6 +64,8 @@ class KeepAliveService : Service() {
             Log.i(TAG, "Wake lock tomado; limite ${LIMITE_MS / 60_000} min")
         }
 
+        pedirRed()
+
         handler.removeCallbacks(vencer)
         handler.postDelayed(vencer, LIMITE_MS)
 
@@ -68,11 +74,46 @@ class KeepAliveService : Service() {
         return START_STICKY
     }
 
+    /**
+     * Asks for a Wi-Fi network and keeps asking, which is a different thing from the wake lock.
+     *
+     * **Measured 2026-09-25**: with the lock held and nothing requesting a network, the session
+     * still died 44 s in. A `PARTIAL_WAKE_LOCK` keeps the CPU running; it does not keep the radio
+     * on. What the radio watches is `mNumWifiRequests`, and while the screen is on the screen is
+     * what holds the only one -- so it reaches zero the moment the screen goes off, the mediator
+     * logs `OFF_NO_REQUESTS`, and the CPU stays awake serving a socket on an interface that is
+     * gone.
+     *
+     * `registerNetworkCallback` would not do: it observes and does not count. Only
+     * `requestNetwork` counts, and that one needs `CHANGE_NETWORK_STATE`.
+     */
+    private fun pedirRed() {
+        if (red != null) return
+        val cm = getSystemService(ConnectivityManager::class.java)
+        val peticion = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {}
+        try {
+            cm.requestNetwork(peticion, callback)
+            red = callback
+            Log.i(TAG, "NetworkRequest de Wi-Fi tomado")
+        } catch (e: SecurityException) {
+            // Said out loud instead of swallowed: without this the lock is held, the service
+            // looks healthy, and the session dies anyway -- which is the exact failure this
+            // whole module exists to stop being invisible.
+            Log.e(TAG, "SIN NetworkRequest: falta CHANGE_NETWORK_STATE (${e.message})")
+        }
+    }
+
     override fun onDestroy() {
         handler.removeCallbacks(vencer)
+        red?.let { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) }
+        red = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
-        Log.i(TAG, "Wake lock soltado")
+        Log.i(TAG, "Wake lock y NetworkRequest soltados")
         super.onDestroy()
     }
 
