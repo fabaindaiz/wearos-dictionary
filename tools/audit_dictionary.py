@@ -351,6 +351,20 @@ FORBIDDEN_DEPENDENCIES = {
     "glance-wear-tiles": "D-025: deprecado y sera removido; NO es la libreria de Wear Widgets",
     "androidx.glance.wear": "D-024: Wear Widgets esta pospuesto; los packages estan en alpha",
     "androidx.compose.remote": "D-024: RemoteCompose esta en alpha y solo existe en Wear OS 7",
+    # ⚠️ **The needle is the COORDINATE and not the alias**, because the alias cannot exist without
+    # the catalogue entry: Gradle fails on an unknown `libs.` accessor. So catching the group
+    # catches the only way back in.
+    #
+    # ⚠️ **Room is already on :app's runtime classpath and that is fine**: work-runtime 2.11.2
+    # pulls room-runtime 2.7.0 because WorkManager keeps its queue in it. This check reads BUILD
+    # FILES, not the resolved graph, so that transitive copy does not trip it -- and it must not be
+    # excluded either, since WorkManager would stop working.
+    "androidx.room": (
+        "D-039: no abre un pack --escribe room_master_table y un identity_hash en la base que "
+        "abre, y el pack se abre SQLITE_OPEN_READONLY con PRAGMA query_only (D-001)-- y no "
+        "conoce FTS5, que es lo que indexa fts_def (D-011). Para los datos de la app son 13 KB "
+        "contra un procesador de anotaciones"
+    ),
 }
 
 
@@ -476,6 +490,148 @@ def check_module_direction(report):
                 "%s -- la direccion es :app -> :dict-data -> :dict-core y nunca al reves"
                 % ", ".join(sorted(prohibidos)),
             )
+
+
+#: What `:dict-core` may declare. **A ratchet at zero: nothing is grandfathered.**
+#:
+#: The module's portability (D-017, D-018) is checked in its SOURCES by `ArchitectureTest`, which
+#: walks `src/main/kotlin` and never opens the build file; `check_module_direction` reads only
+#: `project(":...")`. So a Gradle dependency was invisible to both. ⚠️ **Measured on 2026-09-25**:
+#: adding `implementation(libs.guava)` to `:dict-core` left the audit at 38 checks and 0 failures
+#: and `:dict-core:test` green. A jar resolves where an AAR would not, so what gets in unnoticed
+#: is exactly what a move to KMP would have to take out again -- and it gets in without an error,
+#: which is why prose was never going to hold it.
+DEPENDENCIAS_DE_CORE = {"kotlin.test", "coroutines.test"}
+
+
+def check_core_dependencies(report):
+    """Rule: `:dict-core` declares no production dependency, only its test runners. (D-017, D-018)
+
+    The module has to keep compiling for a target that is not the JVM. `ArchitectureTest` holds
+    that for the code; this holds it for the build file, which is the other way in.
+
+    Everything is asked for at once --the configuration AND the alias-- because each one alone
+    lets the other through: `implementation(libs.kotlin.test)` puts a test runner in the APK, and
+    `testImplementation(libs.guava)` ties the tests to a library that does not travel.
+    """
+    relativo = os.path.join("dict-core", "build.gradle.kts")
+    if not os.path.isfile(os.path.join(ROOT, relativo)):
+        report.failure("falta %s" % relativo, "si el modulo se renombro, mover este check")
+        return
+    dentro = False
+    for number, raw in enumerate(read(relativo).splitlines(), start=1):
+        code = raw.split("//")[0]
+        if re.match(r"^dependencies\s*\{", code):
+            dentro = True
+            continue
+        if dentro and code.startswith("}"):
+            dentro = False
+            continue
+        if not dentro or not code.strip():
+            continue
+        coordenada = re.search(r'\w+\(\s*"[^"]+:[^"]+"', code)
+        if coordenada:
+            report.failure(
+                ":dict-core declara una dependencia",
+                "%s:%d la escribe a mano en vez de por alias; el catalogo es el unico lugar "
+                "donde se pinnea una version (D-032)" % (relativo, number),
+            )
+            continue
+        declaracion = re.search(r"(\w+)\(\s*libs\.([\w.]+)\s*\)", code)
+        if not declaracion:
+            continue
+        configuracion, alias = declaracion.group(1), declaracion.group(2)
+        if configuracion != "testImplementation":
+            report.failure(
+                ":dict-core declara una dependencia de produccion",
+                "%s:%d usa %s(libs.%s). La superficie de produccion del modulo no tiene "
+                "dependencias: lo que entra por aca es justo lo que una conversion a KMP "
+                "tendria que volver a sacar (D-017, D-018)"
+                % (relativo, number, configuracion, alias),
+            )
+        elif alias not in DEPENDENCIAS_DE_CORE:
+            report.failure(
+                ":dict-core declara una dependencia de test no autorizada",
+                "%s:%d usa libs.%s, que no esta en DEPENDENCIAS_DE_CORE. Si de verdad hace "
+                "falta, agregarla ahi con el motivo: la lista es la que hace que la proxima "
+                "siga fallando" % (relativo, number, alias),
+            )
+
+
+#: Prerelease qualifiers that D-032 keeps out of the catalogue. `-android` is not one of them:
+#: guava's flavour is not a prerelease, and a naive "has a dash" would have caught it.
+PRELANZAMIENTOS = re.compile(r"-(alpha|beta|rc|dev|snapshot|eap|m\d)", re.I)
+
+
+def check_catalog_pins(report):
+    """Rule: the catalogue is stable, and a decision that pins a version says which one. (D-032, D-033)
+
+    ⚠️ **This check exists because a file was being declared as its own enforcer.** D-033 said
+    *"Kotlin stays at 2.2.10"* and named `gradle/libs.versions.toml` in its last column, so
+    `check_rules_without_enforcer` counted it among the decisions that DO have a mechanism -- and
+    the value was changed to the exact version the row rejects without one failure. A file does
+    not check its own contents.
+
+    It has two halves and the enforcer cell says which one a row leans on: `(stable)` for the
+    rule that no prerelease enters the catalogue, or a pin.
+
+    The pin travels in the enforcer cell, as `check_catalog_pins` followed by `-> key = value`,
+    so the decision and the number cannot drift: whoever edits the row sees the value, and
+    whoever edits the catalogue gets a failure naming the row.
+
+    Naming this check and pinning nothing FAILS instead of passing quietly, the same policy
+    `check_test_counts` follows (D-161): a check that switches itself off when somebody rewrites
+    what it watches is not watching anything.
+    """
+    catalogo = "gradle/libs.versions.toml"
+    texto = read(catalogo)
+    bloque = texto.split("[versions]")[1].split("[libraries]")[0]
+    versiones = dict(re.findall(r'^([\w.-]+)\s*=\s*"([^"]+)"', bloque, re.M))
+
+    for clave, valor in sorted(versiones.items()):
+        if PRELANZAMIENTOS.search(valor):
+            report.failure(
+                "el catalogo dejo de ser stable",
+                "%s pinnea %s = %s, que es un prelanzamiento. Nada alpha ni rc en el camino "
+                "critico del producto (D-032)" % (catalogo, clave, valor),
+            )
+
+    decisiones = read("docs/decisions.md").split("## Decisiones descartadas")[0]
+    filas = re.findall(
+        r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \|.*\|([^|]*)\|\s*$", decisiones, re.M)
+    for identificador, enforcer in filas:
+        if catalogo in enforcer and "check_catalog_pins" not in enforcer:
+            report.failure(
+                "una decision se declara su propio enforcer",
+                "%s nombra %s como mecanismo, y un archivo no verifica su propio contenido. "
+                "Mover el pin a `check_catalog_pins` -> clave = valor" % (identificador, catalogo),
+            )
+            continue
+        if "check_catalog_pins" not in enforcer:
+            continue
+        declarado = enforcer.split("check_catalog_pins")[1]
+        pines = re.findall(r"([\w.-]+)\s*=\s*([\w.+-]+)", declarado)
+        if not pines and "(stable)" not in declarado:
+            report.failure(
+                "una decision nombra check_catalog_pins y no declara que le delega",
+                "%s tiene que decir cual de las dos mitades usa: `-> clave = valor` para un "
+                "pin, o `(stable)` para la regla de que no entra un prelanzamiento. Si la "
+                "fila dejo de apoyarse en el check, sacar el nombre" % identificador,
+            )
+            continue
+        for clave, valor in pines:
+            if clave not in versiones:
+                report.failure(
+                    "una decision pinnea una clave que no existe",
+                    "%s pinnea %s, que no esta en [versions] de %s"
+                    % (identificador, clave, catalogo),
+                )
+            elif versiones[clave] != valor:
+                report.failure(
+                    "el catalogo contradice a la decision que lo pinnea",
+                    "%s dice %s = %s y %s tiene %s. Cambiar los dos en el mismo commit, o "
+                    "revisar la fila" % (identificador, clave, valor, catalogo, versiones[clave]),
+                )
 
 
 def check_app_logic_is_jvm_testable(report):
@@ -1358,7 +1514,7 @@ TECHO_ESPANOL = (
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),
     ("docs/roadmap.md", 2305),
-    ("docs/decisions.md", 260),
+    ("docs/decisions.md", 258),
     (".claude/logs/", 4180),
 )
 
@@ -2018,6 +2174,8 @@ CHECKS = [
     check_shadowed_extensions,
     check_forbidden_mirror,
     check_module_direction,
+    check_core_dependencies,
+    check_catalog_pins,
     check_app_logic_is_jvm_testable,
     check_tiles_dont_open_packs,
     check_attribution_screen,
