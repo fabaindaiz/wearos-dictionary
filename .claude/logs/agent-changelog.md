@@ -109,7 +109,7 @@ the work --- which is itself the finding.
 The two that *were* open --- whether the exemption survives a reboot, and the `start` readout
 under-reporting --- are both closed and sit under *Measured*.
 
-**What went wrong.** Nine things, each caught by something different.
+**What went wrong.** Ten things, each caught by something different.
 - The first manifest would not parse because a comment contained `--`, which is illegal XML and
   which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
   anyway; the build caught it.
@@ -141,6 +141,12 @@ under-reporting --- are both closed and sit under *Measured*.
   replaying the previous run: `am stopservice` stops the service and leaves the **process**
   cached, so the next start reuses the same pid. Anchoring on the last `Wake lock tomado` inside
   that pid is what finally matched, and the same log that printed five lines prints three.
+- **The audit walks `.claude/worktrees/`, and a worktree is a whole copy of the repository.** The
+  first run after the merge reported **46 failures, all 46 from that directory** and none from the
+  merge: the copy sat at a state before Room was removed, so `check_forbidden_dependency` found it
+  there. First hit, so it is recorded here rather than raised in the roadmap, but it will fire for
+  **every** session that works in a worktree and the failures read as real ones. What resolved it
+  was `git worktree remove`, which keeps the branch; afterwards, 40 checks, 0 failures.
 
 **What was left undone.** The `TECHO_ESPANOL` row for `docs/roadmap.md` is one line high (2305
 against 2306) and was **deliberately not lowered**: doing so means editing
