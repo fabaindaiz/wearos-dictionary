@@ -66,20 +66,20 @@ wireless debugging.
   before this one measured as an improvement that still was not enough.
 - **With the package on the doze whitelist: 600 s, 27 samples, zero unreachable, every one of them
   with the screen in `Dozing` and the lock held.** Against 44 s with nothing.
+- **The doze exemption survives a reboot**, checked against `uptime` reading `up 4 min` so that
+  "still exempt" could not just mean the watch never restarted. The entry comes back as
+  `user,cl.fadiaz.watchkeepalive,10230`, and the `user` prefix is why: those are persisted, unlike
+  the `system` ones that are rebuilt each boot. A `start` right after took all three resources.
 - **All four ways of ending it work** (P-15): `stop` takes the live wake-lock list from one entry
   to zero; the expiry, overridden to 30 s, fired at **30.046 s**; Wi-Fi switched off was caught in
   **1.1 s** and wireless debugging switched off in **0.975 s**, both releasing all three resources
   and not just the lock.
 - The keep-alive APK is **2.4 MB** (debug).
 
-**Not verified.** Two things, neither of them a claim this entry makes.
-- **Whether the doze exemption survives a reboot** was not checked, and `install` is the only
-  thing that sets it.
-- `start` prints the service's own log filtered by the device's clock, and on one run it showed
-  one of the three lines instead of three. The filter cuts too close to the start, which makes a
-  readout that can under-report.
+**Not verified.** Nothing is left open. The two that were --- whether the exemption survives a
+reboot, and the `start` readout under-reporting --- were both closed and are under *Measured*.
 
-**What went wrong.** Eight things, each caught by something different.
+**What went wrong.** Nine things, each caught by something different.
 - The first manifest would not parse because a comment contained `--`, which is illegal XML and
   which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
   anyway; the build caught it.
@@ -105,6 +105,12 @@ wireless debugging.
 - `instalado()` swallowed adb's exit code, so a watch that had dropped off the network was
   reported as *"el keep-alive no esta instalado"*, sending whoever read it to reinstall over a
   connectivity problem.
+- **`start`'s readout was wrong twice before it was right.** Filtering the log by the device's
+  clock under-reported, showing one acquisition of three, because the boundary is guessed while
+  the log is still being written across it. Filtering by the service's pid then over-reported,
+  replaying the previous run: `am stopservice` stops the service and leaves the **process**
+  cached, so the next start reuses the same pid. Anchoring on the last `Wake lock tomado` inside
+  that pid is what finally matched, and the same log that printed five lines prints three.
 
 **What was left undone.** The keep-alive is **not** wired into
 `:dict-data:connectedDebugAndroidTest` — a decision, so the on-device gate does not come to depend
