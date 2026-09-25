@@ -4074,6 +4074,37 @@ boundary is a frequency cut and means nothing to somebody reading one card. It i
 a core or main pack, where every word qualifies. Whether that is acceptable is a product call, not
 a measurement.
 
+✅ **The rule, chosen 2026-09-25: each pack carries etymology for the words its reader can look
+up.** `core` and `main` carry it for **all** of their vocabulary; `full` carries it **up to
+`main`'s**. `es-full` counts as the Spanish `main` — D-220 already records that it falls below
+that tier's size range and no `es-main` is built — so it carries all of its own.
+
+Containment verified on `dist/`: **`core ⊆ main ⊆ full`**, 0 core words outside `main`.
+
+| Pack | Carries | Cap 128 | Ends at |
+|---|---|---|---|
+| `es-core` 48.5 | all of its own | **+0.9** | 49.4 |
+| `es-full` *(= main)* 74.0 | all of its own | **+2.0** | 76.0 |
+| `en-core` 40.9 | all of its own | **+1.0** | 41.9 |
+| `en-main` 103.0 | all of its own | **+2.5** | 105.5 |
+| `en-full` 314.3 | up to `main` | **+2.4** | 316.7 |
+| | | **+8.8 MB** | |
+
+**The APK pays +1.9 MB** on its 111: it ships the two cores.
+
+✅ **It answers the objection a plain tier filter raised.** Filtering by `main` everywhere makes a
+full pack show an etymology on `casa` and none on `cherenga` with nothing saying why. Under this
+rule that boundary exists **in `en-full` alone** — 314 MB for somebody who asked for the whole
+dictionary, where a gap in the rare tail of 842,026 lemmas is the least surprising thing they will
+meet. It is not a frequency cut leaking into a card: it is the tier stating its own reach.
+
+⚠️ **The bilingual is not covered by the rule, and its numbers argue for leaving it out.** Of
+`es-en`'s entries **11.7 %** carry an etymology against 58.6 % in `es-full`, their median is **74**
+characters against 25 and their p90 **334**, so only **63.8 %** fit in 128 — +1.5 MB for a datum
+most of its entries lack and a third of the rest cannot show. A translation pack exists to
+translate; D-200 already excludes it from the word of the day on neighbouring reasoning. **Open
+for the owner.**
+
 **Status: NOT in the next rebuild** (owner's call, 2026-09-24, with these numbers on the table).
 The measurements are written here so the decision never has to be re-measured.
 
