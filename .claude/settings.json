@@ -24,6 +24,30 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 tools/watchsession.py --opcional start || true",
+            "timeout": 30,
+            "statusMessage": "Manteniendo despierto el reloj..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 tools/watchsession.py --opcional stop || true",
+            "timeout": 30,
+            "statusMessage": "Soltando el wake lock del reloj..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",

@@ -16,6 +16,144 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-25 · s-a2f271-b31995 — What kills the adb session is Samsung's freezer, not Android
+**What.** A new `:watch-keepalive` module: a **second app in this repo** (d-a2f271-8ac8d5) with
+**no launcher activity**, so it never shows up among the watch's apps. Its foreground service
+holds three things --- a `PARTIAL_WAKE_LOCK` for the CPU, a `NetworkRequest` so the radio stays
+asked for, and a `WifiLock` in `FULL_HIGH_PERF` to keep the chip out of deep power save --- and
+`install` exempts the package from doze, which is what the vendor's freezer consults. The service
+stops itself when wireless debugging or Wi-Fi is switched off, because that is somebody ending the
+session by hand and a `stop` that never arrives leaves a wake lock held all night.
+`tools/watchsession.py` drives it (`status`, `install`, `start`, `stop`, `probe`, `uninstall`),
+reusing `buscar_adb`/`elegir_dispositivo` from `devpack.py` and reconnecting through mDNS so no IP
+or port is ever typed by hand. `SessionStart`/`SessionEnd` hooks start and stop it.
+
+**Areas.** `watch-keepalive/` (new), `settings.gradle.kts`, `tools/watchsession.py` (new), the
+session hooks in `.claude/settings.json`, one row in `docs/decisions.md`, two answered rows in the
+standing watch questions, and three entries under `docs/roadmap.md` §Proceso y herramientas.
+
+**Heuristics.** Four notes were relied on and their checks run at the close.
+- **`a-check-must-be-seen-to-fail`** — ran, and it is what the session is mostly about.
+  `wakelock_tomado` was seen red (`no` after a `stop`, having said `si`) and `start`'s readout was
+  seen change from five lines to three over the same log. ⚠️ **`exento_de_doze` has never been
+  seen red** and is the one check here that could be reading anything; planting the violation
+  needs the watch and it went offline first.
+- **`detect-by-observation-not-build-flag`** — ran. The wake lock is confirmed against
+  `dumpsys power` on the device rather than against `am`'s exit code, and compared with an
+  independent `grep` so the tool does not validate itself.
+- **`derive-state-from-one-clock`** — ran, by removing the clock. Filtering the log by the
+  device's clock under-reported; the readout now anchors on a log event instead of a time, so
+  there is no clock to be wrong about.
+- **`cleanup-belongs-to-the-supervisor`** — partially. The settings state file and the doze
+  whitelist are owned by the supervisor and recovered on the next run, and the probe was killed
+  mid-flight once with the state coming back. ⚠️ **The note's own check** --- a probe that dirties
+  state and hangs, killed at a timeout, with the state back byte for byte --- **was not run as a
+  designed test.**
+
+**Why.** A wireless adb session to a physical watch dies on its own about a minute after the screen
+goes off, which makes every on-device run a race. Asked for: a way to hold the session open that
+does **not** depend on settings and can be started and stopped per debugging session.
+
+**Architecture.** ✅ Complies. The module sits outside `:app → :dict-data → :dict-core` and nobody
+declares it as a dependency, so **the APK that gets measured does not change** — the alternative
+considered was `:app`'s debug source set, rejected for exactly that reason. Where it lives, and
+what would move it out, is d-a2f271-8ac8d5.
+
+**Measured.** All on **2026-09-25**, SM-L715F (Android 17 / SDK 37), **off the charger**, over
+wireless debugging.
+- The session dies **40 s** after the screen turns off: `PowerManagerService: Going to sleep due to
+  timeout (screenOffTimeout=30000)` at 13:42:31, adb unreachable at 13:43:11.
+- `wifi_always_requested=1` **does not help.** `mNumWifiRequests` went 1 → 2 and the mediator chose
+  `toggleRadioState: true` even on the `SCREEN_OFF`. The radio was never what failed.
+- `screen_off_timeout=1800000` **does not help either.** `wakefulness` reached `Dozing` after
+  **68 s**: on Wear OS ambient is the normal state and does not consult that timeout, which is a
+  phone knob.
+- Wireless debugging was **never disabled**: `adb_wifi_enabled` stayed 1 throughout. What happens is
+  that the daemon restarts and re-registers on a different TLS port (**33017 → 41093**), which is
+  what makes a reconnect look like a new device.
+- **The wake lock alone does not help either**: held and verified through `dumpsys power`, the
+  session still died at **44 s**. A `PARTIAL_WAKE_LOCK` buys the CPU and not the radio.
+- Adding the `NetworkRequest` took it to **157 s**, and adding the `WifiLock` did not get past
+  **92 s**, at which point the probe read `lock=no` while the device was still answering — the
+  lock was gone before the session was.
+- **The cause is the vendor, not Android.** At 14:38:21, with the foreground service running and
+  all three locks held: `MARsmini_FreecessController$LcdOffFreezer: FZ : cl.fadiaz.watchkeepalive
+  reason: LEV`, then `power_partial_wake_state: [DIS,68266,watchkeepalive:adb(disabled: freecess)]`
+  and `PowerManagerService: [PWL] 'watchkeepalive:adb' DISABLED`. Thawed later with
+  `UFZ ... reason: screenOn`. Samsung freezes the process on LCD-off and disables its wake lock by
+  force, which AOSP does not allow for a foreground service — and which explains why every layer
+  before this one measured as an improvement that still was not enough.
+- **With the package on the doze whitelist: 600 s, 27 samples, zero unreachable, every one of them
+  with the screen in `Dozing` and the lock held.** Against 44 s with nothing.
+- **The doze exemption survives a reboot**, checked against `uptime` reading `up 4 min` so that
+  "still exempt" could not just mean the watch never restarted. The entry comes back as
+  `user,cl.fadiaz.watchkeepalive,10230`, and the `user` prefix is why: those are persisted, unlike
+  the `system` ones that are rebuilt each boot. A `start` right after took all three resources.
+- **All four ways of ending it work** (P-15): `stop` takes the live wake-lock list from one entry
+  to zero; the expiry, overridden to 30 s, fired at **30.046 s**; Wi-Fi switched off was caught in
+  **1.1 s** and wireless debugging switched off in **0.975 s**, both releasing all three resources
+  and not just the lock.
+- The keep-alive APK is **2.4 MB** (debug).
+
+**Not verified.** Two, both found by running the heuristic checks at the close rather than during
+the work --- which is itself the finding.
+- **`exento_de_doze` has never been seen red.** It answered `si` on every run because `install`
+  always sets it, so nothing distinguishes it from a check that reads the wrong thing. The planted
+  violation is one command (`dumpsys deviceidle whitelist -<pkg>`, then read it back, then put it
+  back) and the watch went offline before it could run.
+- **`cleanup-belongs-to-the-supervisor`'s own check was not run as a designed test**: a probe that
+  dirties state and hangs, killed at a timeout, with the state back byte for byte. What happened
+  instead was the unplanned version --- a probe killed mid-flight, state recovered on the next
+  `stop` --- which is weaker evidence.
+
+The two that *were* open --- whether the exemption survives a reboot, and the `start` readout
+under-reporting --- are both closed and sit under *Measured*.
+
+**What went wrong.** Nine things, each caught by something different.
+- The first manifest would not parse because a comment contained `--`, which is illegal XML and
+  which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
+  anyway; the build caught it.
+- **The gate was read from its last line instead of its exit code.** `./gradlew check` piped into
+  `tail` reported success while Gradle had printed `BUILD FAILED`; re-run without the pipe it gave
+  `EXIT=1` on lint's `WearStandaloneAppFlag`. Green afterwards at `EXIT=0`.
+- Both settings were built **and wired into the hooks** before being measured, and both turned out
+  useless. One probe run each is what killed them.
+- **The cause was diagnosed wrong three times before the log was read**: the Wi-Fi radio, then the
+  screen timeout, then the CPU. Each was built, measured and killed by its own probe run, and the
+  answer was in `logcat` the whole time under a vendor tag nobody thinks to grep for.
+- `start` reported `NetworkRequest de Wi-Fi tomado` **twice**, one of them left over from an
+  earlier run, because it read the whole logcat buffer. A readout that can show a stale success
+  while the current attempt failed is worse than none; it now filters by the device's own clock.
+- The post-mortem capture came back empty: `adb wait-for-device shell` was run without `-s` while a
+  stale `offline` transport sat beside the live one, and adb answered `more than one device`.
+- **`wakelock_tomado` could only ever answer yes.** It matched the tag anywhere in `dumpsys power`,
+  which also prints a wake-lock **history** where a released lock stays as `- REL …(partial)`, so
+  once the lock had existed the check said "held" forever. It reported a working `stop` as a
+  failure, and it is what the `lock` column of every earlier probe was reading — the runs stand
+  because reachability, not that column, is what measured them. Caught by being asked to test the
+  shutdown paths, and by nothing else.
+- `instalado()` swallowed adb's exit code, so a watch that had dropped off the network was
+  reported as *"el keep-alive no esta instalado"*, sending whoever read it to reinstall over a
+  connectivity problem.
+- **`start`'s readout was wrong twice before it was right.** Filtering the log by the device's
+  clock under-reported, showing one acquisition of three, because the boundary is guessed while
+  the log is still being written across it. Filtering by the service's pid then over-reported,
+  replaying the previous run: `am stopservice` stops the service and leaves the **process**
+  cached, so the next start reuses the same pid. Anchoring on the last `Wake lock tomado` inside
+  that pid is what finally matched, and the same log that printed five lines prints three.
+
+**What was left undone.** The `TECHO_ESPANOL` row for `docs/roadmap.md` is one line high (2305
+against 2306) and was **deliberately not lowered**: doing so means editing
+`tools/audit_dictionary.py`, which is one of five files another session had uncommitted at the
+time, with 160 lines of its own added to that exact file. A one-line advisory does not justify
+dragging somebody else's work into a conflict. The keep-alive is **not** wired into
+`:dict-data:connectedDebugAndroidTest` — a decision, so the on-device gate does not come to depend
+on an auxiliary APK. The app's own debug surface was read and **not** touched: `DebugIntents`'
+receiver is not ordered and never calls `setResultData`, so every answer goes to `logcat` and an
+agent has to send, wait an undefined time, and correlate by timestamp. `dump()` already returns
+`List<String>` and is pure with 16 tests in the gate, so answering through the broadcast itself is
+the cheap half; `DEBUG_SEARCH` is asynchronous and would need `goAsync()`. Neither was built.
+
 ## 2026-09-25 · s-a2f271-23daae — Two enforcers for the catalogue, and the file that checked itself
 
 **What.** Asked for: review the rest of the dependencies after the owner regrouped `[versions]` by
