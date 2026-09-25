@@ -1,50 +1,55 @@
 [versions]
+
+# ── Build ─────────────────────────────────────────────────────────────────────
 agp = "9.4.1"
-kotlin = "2.2.10"
+kotlin = "2.4.20"
+
+# ── Wear UI, for :app ─────────────────────────────────────────────────────────
+# One ref per RELEASE TRAIN and not per groupId: `androidx.wear` holds
+# wear-tooling-preview and wear-input at different versions, so a single
+# `androidx.wear` ref would be a lie. The trains below do ship in lockstep.
 composeBom = "2026.09.00"
-composeMaterial3 = "1.6.2"
-composeFoundation = "1.6.2"
-composeUiTooling = "1.6.2"
-wearToolingPreview = "1.0.0"
-activityCompose = "1.13.0"
-coreKtx = "1.18.0"
-coreSplashscreen = "1.2.0"
-tiles = "1.6.2"
-tilesRenderer = "1.6.2"
-protolayout = "1.4.2"
-protolayoutMaterial3 = "1.4.2"
-guava = "33.7.1-android"
-tilesTooling = "1.6.2"
-tilesToolingPreview = "1.6.2"
-watchfaceComplicationsDataSourceKtx = "1.3.0"
-
-# Reservadas para :dict-data, que todavia no existe como modulo Gradle.
-# Se fijan aca y no en prosa para que haya un unico lugar donde esten pinneadas.
-# Deliberadamente stable: sqlite 2.8.0-alpha01 y work 2.12.0-rc01 existen y NO se usan,
-# porque el lector de packs y el instalador estan en el camino critico del producto.
-sqliteBundled = "2.7.1"
-room = "2.8.5"
-work = "2.11.2"
-coroutines = "1.11.0"
-androidxTestRunner = "1.7.0"
-androidxTestExtJunit = "1.3.0"
-# Fijada a mano y a proposito: ui-test-junit4 la arrastra en 3.5.0 (2022), cuya reflexion
-# sobre InputManager.getInstance ya no existe en Android 17. Sin esto, TODO test que haga
-# performClick o performTextInput explota en API 37 -- el nivel del reloj (D-023).
-espresso = "3.7.0"
-# Corre los tests de Compose en la JVM, sin emulador. Medido antes de adoptarlo: los tests en
-# si tardan segundos --los 31 de :dict-data suman 3,3 s en dispositivo-- y los minutos se van en
-# compilar e instalar dos APK de 50 MB. Sacar el emulador es lo que compra tiempo.
-robolectric = "4.16.1"
-
-# Reservadas para :app cuando deje de ser el template. Misma politica: stable.
-# wear compose-navigation va pinneada al mismo tren que compose-material3 (1.6.2), no al
-# 1.7.0-rc01 que existe: un rc en el camino critico de la unica pantalla del producto no paga.
-wearComposeNavigation = "1.6.2"
+wearCompose = "1.6.2"
+wearTooling = "1.0.0"
 wearInput = "1.2.0"
+activityCompose = "1.13.0"
 lifecycle = "2.11.0"
 
+# ── Tiles and Protolayout, for :app ───────────────────────────────────────────
+wearTiles = "1.6.2"
+protolayout = "1.4.2"
+guava = "33.7.1-android"
+watchfaceComplicationsDataSourceKtx = "1.3.0"
+
+# ── Android platform, for :app ────────────────────────────────────────────────
+coreKtx = "1.18.0"
+coreSplashscreen = "1.2.0"
+
+# ── Packs and background work, for :dict-data and :app ────────────────────────
+# Deliberately stable: sqlite 2.8.0-alpha01 and work 2.12.0-rc01 exist and are
+# NOT used, because the pack reader and the installer are on the product's
+# critical path (D-032).
+sqliteBundled = "2.7.1"
+work = "2.11.2"
+coroutines = "1.11.0"
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+# :dict-core takes only the two test runners and nothing in production, which is
+# what `check_core_dependencies` in the audit holds.
+androidxTestRunner = "1.7.0"
+androidxTestExtJunit = "1.3.0"
+# Pinned by hand and on purpose: ui-test-junit4 drags it in at 3.5.0 (2022),
+# whose reflection over InputManager.getInstance no longer exists in Android 17.
+# Without this, EVERY test doing performClick or performTextInput blows up on
+# API 37 -- the watch's level (D-023, D-093).
+espresso = "3.7.0"
+robolectric = "4.16.1"
+
 [libraries]
+
+# ── Compose, versioned by the BOM ─────────────────────────────────────────────
+# These carry no version.ref on purpose: `compose-bom` fixes them. Adding one
+# would take them off the train the rest of Compose rides.
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 ui = { group = "androidx.compose.ui", name = "ui" }
 ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
@@ -52,46 +57,49 @@ ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-# Sin version: la fija el BOM de Compose, igual que el resto. Wear Material3 ya la arrastra
-# en runtime --su Icon la necesita--; declararla es lo que la pone en el classpath de
-# compilacion, y no agrega bytes al APK que no estuvieran.
 material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
-compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "composeMaterial3" }
-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "composeFoundation" }
-compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "composeUiTooling" }
-wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearToolingPreview" }
+
+# ── Wear UI, for :app ─────────────────────────────────────────────────────────
+compose-material3 = { group = "androidx.wear.compose", name = "compose-material3", version.ref = "wearCompose" }
+compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wearCompose" }
+compose-ui-tooling = { group = "androidx.wear.compose", name = "compose-ui-tooling", version.ref = "wearCompose" }
+wear-compose-navigation = { group = "androidx.wear.compose", name = "compose-navigation", version.ref = "wearCompose" }
+wear-tooling-preview = { group = "androidx.wear", name = "wear-tooling-preview", version.ref = "wearTooling" }
+wear-input = { group = "androidx.wear", name = "wear-input", version.ref = "wearInput" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
-# Ya venia transitivamente; se declara para no depender de que otro la siga trayendo.
-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "tiles" }
-tiles-renderer = { group = "androidx.wear.tiles", name = "tiles-renderer", version.ref = "tilesRenderer" }
+lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+
+# ── Tiles and Protolayout, for :app ───────────────────────────────────────────
+tiles = { group = "androidx.wear.tiles", name = "tiles", version.ref = "wearTiles" }
+tiles-renderer = { group = "androidx.wear.tiles", name = "tiles-renderer", version.ref = "wearTiles" }
+tiles-tooling = { group = "androidx.wear.tiles", name = "tiles-tooling", version.ref = "wearTiles" }
+tiles-tooling-preview = { group = "androidx.wear.tiles", name = "tiles-tooling-preview", version.ref = "wearTiles" }
 protolayout = { group = "androidx.wear.protolayout", name = "protolayout", version.ref = "protolayout" }
-protolayout-material3 = { group = "androidx.wear.protolayout", name = "protolayout-material3", version.ref = "protolayoutMaterial3" }
+protolayout-material3 = { group = "androidx.wear.protolayout", name = "protolayout-material3", version.ref = "protolayout" }
 guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
-tiles-tooling = { group = "androidx.wear.tiles", name = "tiles-tooling", version.ref = "tilesTooling" }
-tiles-tooling-preview = { group = "androidx.wear.tiles", name = "tiles-tooling-preview", version.ref = "tilesToolingPreview" }
 watchface-complications-data-source-ktx = { group = "androidx.wear.watchface", name = "watchface-complications-data-source-ktx", version.ref = "watchfaceComplicationsDataSourceKtx" }
-kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
-kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
+
+# ── Android platform, for :app ────────────────────────────────────────────────
+core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+
+# ── Packs and background work, for :dict-data and :app ────────────────────────
 sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqliteBundled" }
-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+kotlin-test = { group = "org.jetbrains.kotlin", name = "kotlin-test", version.ref = "kotlin" }
+kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
-wear-compose-navigation = { group = "androidx.wear.compose", name = "compose-navigation", version.ref = "wearComposeNavigation" }
-wear-input = { group = "androidx.wear", name = "wear-input", version.ref = "wearInput" }
-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-

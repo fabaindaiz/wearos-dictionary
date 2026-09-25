@@ -16,6 +16,131 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-25 · s-a2f271-23daae — Two enforcers for the catalogue, and the file that checked itself
+
+**What.** Asked for: review the rest of the dependencies after the owner regrouped `[versions]` by
+release train, and check the practices that keep `:dict-core` separate from `:app`. Two audit
+checks were added and one decision was reversed.
+- **`check_core_dependencies`** — `:dict-core` may declare nothing in production and only the test
+  runners in `DEPENDENCIAS_DE_CORE`. Neither `ArchitectureTest` (which walks `src/main/kotlin`) nor
+  `check_module_direction` (which reads only `project(":...")`) ever opened the build file.
+- **`check_catalog_pins`** — two halves: no prerelease enters `[versions]` (D-032), and a decision
+  that pins a version declares it **in its enforcer cell**, so the row and the number cannot drift.
+- **D-033 reversed**: Kotlin goes up to 2.4.20, with the measurement that decided it.
+- **Room removed and made unable to come back**: the three dead aliases are gone, the
+  catalogue is regrouped into labelled sections by release train and consumer module, and
+  `androidx.room` joins `FORBIDDEN_DEPENDENCIES` carrying the two reasons that have no way
+  around them. D-039 and the roadmap's discarded row were rewritten to state them.
+
+**Areas.** `tools/audit_dictionary.py`, `docs/decisions.md` (D-032, D-033, D-039),
+`docs/roadmap.md` (two counts by `--fix`, plus the discarded row) and `gradle/libs.versions.toml`.
+⚠️ **The catalogue arrived with the owner's own uncommitted change** —`[versions]` regrouped by
+release train— and it was left byte for byte alone through the first half of this session, sha256
+`8259413a…` before and after the probes. It was only edited once the owner asked for Room to go.
+
+**Why.** D-033 said *"Kotlin stays at 2.2.10, does not go up to 2.4.20"* and named
+`gradle/libs.versions.toml` as its enforcer. A file does not check its own contents, so
+`check_rules_without_enforcer` counted the row among those that HAVE a mechanism, and the value was
+changed to the exact version the row rejected by name **without a single failure**. That is the
+class of defect this repository cannot see, in the place meant to see it.
+
+**Architecture.** ✅ Complies. Both checks extend `audit_dictionary.py` rather than adding a second
+mechanism, and both land as ratchets at **zero** with nothing grandfathered — which is what
+`ratchet-in-a-pinned-environment` prescribes when the backlog is small enough to clear in the same
+change. The two pre-existing violations (D-032, D-033) were cleared, not listed.
+
+**Measured.** All on 2026-09-25, macOS 27, JDK 25, Gradle 9.7.1.
+- **`./gradlew check` green with Kotlin 2.4.20**: **1 min 57 s** cold, **159 of 161 tasks
+  executed** — it recompiled everything rather than reusing a cache — with `allWarningsAsErrors`
+  still on in `:dict-core`. Confirmed the version was really used: the Gradle cache went from
+  holding `kotlin-compiler-embeddable/2.2.10` alone to holding **2.2.10 and 2.4.20**. The risk
+  D-033 named did not materialise.
+- **Gate after the two checks: exit 0, 31 s warm.** Audit **40 checks, 0 failures, 3 advisories**,
+  the same advisory shape the previous session declared at 38.
+- **The regrouping is factually right**, against `dl.google.com` metadata and not from memory:
+  `wear.compose` 4/4 at 1.6.2 and 4/4 at 1.7.0 latest (the train moves together), `wear.tiles` 4/4
+  at 1.6.2, `protolayout` 2/2 at 1.4.2. ⚠️ **But `androidx.wear` is a groupId and not a train**:
+  `wear-tooling-preview` 1.0.0 and `wear-input` 1.2.0 live in it at different versions, so
+  "same group, same version" is false there and those two refs stay separate.
+- **Seven mutation probes, seven red.** Production dependency in `:dict-core`; unlisted test alias;
+  a coordinate written by hand instead of through the catalogue; the catalogue contradicting its
+  pinning decision; a `-alpha01` entering `[versions]`; a row declaring the `.toml` as its own
+  enforcer again; a row naming the check and declaring neither half.
+- **The gap was proven before it was closed**: `implementation(libs.guava)` added to `:dict-core`
+  left the audit at **38 checks, 0 failures** and `:dict-core:test` green in **5 s**. A jar resolves
+  where an AAR would not, so what gets in unnoticed is exactly what a KMP move (D-017, D-018) would
+  have to remove again.
+- **Removing Room and regrouping the catalogue changed nothing, proved by the invariant.** The
+  resolved dependency report of all three modules, blank lines stripped: `:app` **61a82bffa07d6a6e**,
+  `:dict-data` **ec9eb1e38309ef93**, `:dict-core` **f2aadd9cf240ed0d** — the same sha256 before and
+  after, over 17,098 / 1,165 / 255 lines. A parse of the catalogue confirms the only losses are
+  `room`, `room-runtime` and `room-compiler`, with every surviving key holding its exact value.
+- **Why Room cannot read a pack, read off the artifact** (2026-09-25): `room-runtime-android` 2.8.5
+  carries `room_master_table` **7 times** and `identity_hash` **4 times**, and `PackFile.open` uses
+  `SQLITE_OPEN_READONLY` plus `PRAGMA query_only = 1`; and 2.8.5 publishes `Fts3` and `Fts4` with
+  **no `Fts5`**, while `fts_def` is contentless FTS5.
+- **And why it buys nothing for the app's own data**: that store caps at 25 + 100 rows, and a
+  serialised `Visit` measures **~106 B** — real headwords at 8.1 B mean and real first glosses at
+  73.8 B mean, over 400 sampled entries of `es-core` — so **the whole store is 12.9 KB**, 32.5 KB
+  with the p95 in every field.
+- **Gate after all of it: exit 0, 1 min 32 s**, 157 of 161 tasks executed. Audit 40/0/3.
+
+**Deviation from the plan.** The question about D-033 offered three options and the owner answered
+none of them — they answered about **commit granularity** instead: grouping goes by context, by
+the files touched and by the kind of change, and *"no podemos separar todo en commits con una línea
+de cambios"*. Reading that as *the bump stays* and revising the row was **an interpretation, not an
+instruction**, and it is the one thing here worth objecting to if it is wrong. The same answer
+retired the plan to restore three deleted comments: information that can be inferred from the repo
+or from the code is *"peor que perderla"* when it is kept as a redundant copy.
+
+**Not verified.** Whether Kotlin 2.4.20 adds a warning that `allWarningsAsErrors` turns into a
+broken build **in code that does not exist yet**. The measurement covers today's tree only, and
+that is the half of D-033's fear that survives; it has no test and cannot have one.
+
+**What went wrong.**
+- ⚠️ **The first version of `check_catalog_pins` failed D-032 on arrival, correctly.** It demanded
+  `-> key = value` from every row naming it, and D-032's rule ("stable, nothing alpha or rc") is
+  not a pin. The check's own first run caught the design hole; the `(stable)` half exists because
+  of it. That is the *"cries wolf on arrival"* shape the ratchet note warns about, caught before
+  shipping rather than after.
+- The first insertion script died on a `SyntaxError` and wrote nothing, which was luck rather than
+  care: a multi-line replacement string was built with an unescaped newline. Re-done with explicit
+  concatenation and an `assert count == 1` per replacement. A second script then asserted on
+  `## 2026-09-24` as if it were unique — there are **eight** of them — so the entry is inserted by
+  line number, below the `---`, which is the only unambiguous anchor this file has and the one its
+  own format note explains.
+- Writing D-033 in English lowered the Spanish-prose count of `docs/decisions.md` by one line, and
+  the ratchet advisory asked for `TECHO_ESPANOL` to come down from 260 to 259. Rewriting D-039 took
+  it to 258. Both done in the same change, which is what that advisory exists to force. The
+  roadmap's discarded row went in in Spanish first and **failed its own ceiling**, which is how it
+  got caught.
+- ⚠️ **Room's cost was priced at ~660 KB of AAR before the resolved graph was looked at, and that
+  was wrong.** `room-runtime` 2.7.0 is **already on `:app`'s runtime classpath**, pulled by
+  `work-runtime` 2.11.2, which keeps its queue in Room. So the bytes were never the argument. The
+  conclusion did not move, but it rests on the identity write, the missing FTS5 and an annotation
+  processor for 12.9 KB — not on APK size. Caught by capturing `:app:dependencies` for the
+  invariant, which is a second thing that capture bought.
+
+**What was left undone.**
+- **The `verify` skill states four counts and all four are stale**: 77 for `:dict-core`, 233 JVM,
+  250 Python and 28 audit checks, against 127 / 439 / 525 / 40. `check_test_counts` watches
+  `README.md`, the three area `CLAUDE.md`, `docs/roadmap.md` and `CLAUDE.md` — **not the skills**,
+  so a document that teaches how to verify is the one carrying unverified numbers.
+- **`gradle/` and the root `.kts` are not under `TECHO_ESPANOL`.** `app/build.gradle.kts` holds
+  long Spanish KDoc that no ceiling watches, so the rule that Spanish only goes down does not reach
+  the build files.
+- **Three comments were deleted whose rationale exists nowhere else**: why `core-ktx` is declared at
+  all, why `compose-navigation` is pinned below the newest train, and why `material-icons-core`
+  carries no version. Left deleted by decision. ⚠️ **The `material-icons-core` one is the one that
+  will cost**: it is the only line explaining why that entry has no `version.ref`, so the next
+  reader sees an omission and adds one.
+- **The catalogue has no `[bundles]`**, the natural next step of the regrouping; it would shorten
+  `:app`'s 50-line dependency block and closes no hole.
+- ⚠️ **`check_catalog_pins` has exactly two subjects and both are in this change.** A check whose
+  only subjects are the rows that motivated it is one edit away from watching nothing.
+
+---
+
 ## 2026-09-24 · s-a2f271-3547d9 — Measured before the expensive rebuild, and one bug had moved field
 **What.** Asked for: implement pronunciation and the proposed pack changes, then rebuild. The
 owner then scoped it down — **no rebuild until they say so**, etymology only once its size was

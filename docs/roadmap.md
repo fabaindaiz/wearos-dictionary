@@ -71,7 +71,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
 pipeline de packs (`tools/`, **525 tests**) están completos y en el gate, junto con los **439 JVM
-de `:app`** y **38 checks** de auditoría estructural — **1129 tests en total**. Los **46
+de `:app`** y **40 checks** de auditoría estructural — **1131 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -5469,7 +5469,7 @@ Retirado con el número, para que siga retirado.
 | zstd para el payload | Costaba una librería nativa además de la de SQLite, por unos puntos de compresión (D-037) |
 | Canario comprimido para el diccionario | Un diccionario **truncado seguía validando**: se derivaba de sí mismo (D-036) |
 | Play Asset Delivery | Sin soporte documentado en Wear OS (D-038) |
-| Room para leer packs | `createFromFile()` copia el archivo: decenas de MB duplicados (D-039) |
+| Room, for packs and for the app's own data | It writes `room_master_table` into the database it opens, and a pack is opened read-only; and it has no FTS5 (D-039) |
 | OkHttp para descargas | `HttpURLConnection` hace `Range` y progreso con cero bytes extra (D-040) |
 | KMP | Wear Compose es solo Android: la UI no se comparte con ningún segundo destino (D-018) |
 | **PanLex** como fuente de traducciones | **CC BY-NC-SA 4.0**, no CC0 como la resume el buscador: `NonCommercial` la bloquea para un pack que se distribuye. Leída en la fuente primaria (2026-09-21) |
