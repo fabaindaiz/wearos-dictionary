@@ -16,9 +16,14 @@ siguiente por ese desvío.
 
 ---
 
-## 2026-09-25 · s-a2f271-b31995 — A wake lock keeps the adb session, and two settings measured useless
-**What.** A new `:watch-keepalive` module: an APK with **no launcher activity**, so it never shows
-up among the watch's apps, whose only job is a foreground service holding a `PARTIAL_WAKE_LOCK`.
+## 2026-09-25 · s-a2f271-b31995 — What kills the adb session is Samsung's freezer, not Android
+**What.** A new `:watch-keepalive` module: a **second app in this repo** (d-a2f271-8ac8d5) with
+**no launcher activity**, so it never shows up among the watch's apps. Its foreground service
+holds three things --- a `PARTIAL_WAKE_LOCK` for the CPU, a `NetworkRequest` so the radio stays
+asked for, and a `WifiLock` in `FULL_HIGH_PERF` to keep the chip out of deep power save --- and
+`install` exempts the package from doze, which is what the vendor's freezer consults. The service
+stops itself when wireless debugging or Wi-Fi is switched off, because that is somebody ending the
+session by hand and a `stop` that never arrives leaves a wake lock held all night.
 `tools/watchsession.py` drives it (`status`, `install`, `start`, `stop`, `probe`, `uninstall`),
 reusing `buscar_adb`/`elegir_dispositivo` from `devpack.py` and reconnecting through mDNS so no IP
 or port is ever typed by hand. `SessionStart`/`SessionEnd` hooks start and stop it.
@@ -32,7 +37,8 @@ does **not** depend on settings and can be started and stopped per debugging ses
 
 **Architecture.** ✅ Complies. The module sits outside `:app → :dict-data → :dict-core` and nobody
 declares it as a dependency, so **the APK that gets measured does not change** — the alternative
-considered was `:app`'s debug source set, rejected for exactly that reason.
+considered was `:app`'s debug source set, rejected for exactly that reason. Where it lives, and
+what would move it out, is d-a2f271-8ac8d5.
 
 **Measured.** All on **2026-09-25**, SM-L715F (Android 17 / SDK 37), **off the charger**, over
 wireless debugging.
@@ -46,14 +52,33 @@ wireless debugging.
 - Wireless debugging was **never disabled**: `adb_wifi_enabled` stayed 1 throughout. What happens is
   that the daemon restarts and re-registers on a different TLS port (**33017 → 41093**), which is
   what makes a reconnect look like a new device.
+- **The wake lock alone does not help either**: held and verified through `dumpsys power`, the
+  session still died at **44 s**. A `PARTIAL_WAKE_LOCK` buys the CPU and not the radio.
+- Adding the `NetworkRequest` took it to **157 s**, and adding the `WifiLock` did not get past
+  **92 s**, at which point the probe read `lock=no` while the device was still answering — the
+  lock was gone before the session was.
+- **The cause is the vendor, not Android.** At 14:38:21, with the foreground service running and
+  all three locks held: `MARsmini_FreecessController$LcdOffFreezer: FZ : cl.fadiaz.watchkeepalive
+  reason: LEV`, then `power_partial_wake_state: [DIS,68266,watchkeepalive:adb(disabled: freecess)]`
+  and `PowerManagerService: [PWL] 'watchkeepalive:adb' DISABLED`. Thawed later with
+  `UFZ ... reason: screenOn`. Samsung freezes the process on LCD-off and disables its wake lock by
+  force, which AOSP does not allow for a foreground service — and which explains why every layer
+  before this one measured as an improvement that still was not enough.
+- **With the package on the doze whitelist: 600 s, 27 samples, zero unreachable, every one of them
+  with the screen in `Dozing` and the lock held.** Against 44 s with nothing.
 - The keep-alive APK is **2.4 MB** (debug).
 
-**Not verified.** **The wake lock has never been observed holding anything.** The watch went offline
-before the APK could be installed, so `start`, its `dumpsys power` check and the probe run that
-would prove a session survives a screen-off are all unrun. It waits as **P-14** in the standing
-list of questions only the watch can answer, `docs/preguntas-del-reloj.md`.
+**Not verified.** Three things, none of them the main claim.
+- **The self-stop was never exercised.** The `ContentObserver` on `adb_wifi_enabled` and the
+  `WIFI_STATE_CHANGED` receiver compile and were never seen firing, so whether the service really
+  ends when somebody switches either off is unknown. It is **P-15**.
+- **Whether the doze exemption survives a reboot** was not checked, and `install` is the only
+  thing that sets it.
+- `start` prints the service's own log filtered by the device's clock, and on the last run it
+  showed one of the three lines instead of three. The filter is cutting too close to the start,
+  which makes a readout that can under-report.
 
-**What went wrong.** Three things, each caught by something different.
+**What went wrong.** Six things, each caught by something different.
 - The first manifest would not parse because a comment contained `--`, which is illegal XML and
   which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
   anyway; the build caught it.
@@ -62,11 +87,22 @@ list of questions only the watch can answer, `docs/preguntas-del-reloj.md`.
   `EXIT=1` on lint's `WearStandaloneAppFlag`. Green afterwards at `EXIT=0`.
 - Both settings were built **and wired into the hooks** before being measured, and both turned out
   useless. One probe run each is what killed them.
+- **The cause was diagnosed wrong three times before the log was read**: the Wi-Fi radio, then the
+  screen timeout, then the CPU. Each was built, measured and killed by its own probe run, and the
+  answer was in `logcat` the whole time under a vendor tag nobody thinks to grep for.
+- `start` reported `NetworkRequest de Wi-Fi tomado` **twice**, one of them left over from an
+  earlier run, because it read the whole logcat buffer. A readout that can show a stale success
+  while the current attempt failed is worse than none; it now filters by the device's own clock.
+- The post-mortem capture came back empty: `adb wait-for-device shell` was run without `-s` while a
+  stale `offline` transport sat beside the live one, and adb answered `more than one device`.
 
-**What was left undone.** The watch may still carry `screen_off_timeout=1800000` from the abandoned
-approach: `~/.cache/wearos-dictionary/` holds the original and `stop` puts it back, but the device
-went offline first. The keep-alive is **not** wired into `:dict-data:connectedDebugAndroidTest` — a
-decision, so the on-device gate does not come to depend on an auxiliary APK.
+**What was left undone.** The keep-alive is **not** wired into
+`:dict-data:connectedDebugAndroidTest` — a decision, so the on-device gate does not come to depend
+on an auxiliary APK. The app's own debug surface was read and **not** touched: `DebugIntents`'
+receiver is not ordered and never calls `setResultData`, so every answer goes to `logcat` and an
+agent has to send, wait an undefined time, and correlate by timestamp. `dump()` already returns
+`List<String>` and is pure with 16 tests in the gate, so answering through the broadcast itself is
+the cheap half; `DEBUG_SEARCH` is asynchronous and would need `goAsync()`. Neither was built.
 
 ## 2026-09-24 · s-a2f271-4612e2 — Pronunciation lands end to end, and no pack carries it yet
 **What.** Asked for: options to keep developing. Chose **IPA in the pack and in the card**,

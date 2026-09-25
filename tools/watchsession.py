@@ -155,6 +155,12 @@ def instalado(serial):
     return PAQUETE in salida
 
 
+def exento_de_doze(serial):
+    """Whether the package is on the idle whitelist, which is what Samsung's freezer consults."""
+    salida = _adb(serial, "shell", "dumpsys", "deviceidle", "whitelist", silencioso=True)
+    return PAQUETE in salida
+
+
 def wakelock_tomado(serial):
     """Whether the lock is actually held, which is not the same as the service having started.
 
@@ -228,6 +234,7 @@ def cmd_status(args):
     serial = elegir_serial(args.device)
     print("dispositivo: %s" % serial)
     print("  %-24s = %s" % ("keep-alive instalado", "si" if instalado(serial) else "no"))
+    print("  %-24s = %s" % ("exento de doze", "si" if exento_de_doze(serial) else "no"))
 
     muestra = muestrear(serial)
     if muestra:
@@ -264,6 +271,27 @@ def cmd_install(args):
     # the permission was already there, so it is done once at install rather than diagnosed later
     # from a session that died for no visible reason.
     _adb(serial, "shell", "appops", "set", PAQUETE, "WRITE_SETTINGS", "allow", silencioso=True)
+
+    # Samsung's own power manager overrides the Android contract. **Measured 2026-09-25**: with
+    # the foreground service running and all three locks held, the LCD went off and the log said
+    #
+    #     MARsmini_FreecessController$LcdOffFreezer: FZ : cl.fadiaz.watchkeepalive reason: LEV
+    #     power_partial_wake_state: [DIS,68266,watchkeepalive:adb(disabled: freecess)]
+    #     PowerManagerService: [PWL] 'watchkeepalive:adb' DISABLED
+    #
+    # The process was frozen and its wake lock disabled by force, then thawed on `screenOn`. A
+    # foreground service holding a wake lock is untouchable under AOSP and this vendor freezes it
+    # anyway, which is why every layer added before this one was measured as an improvement that
+    # still was not enough.
+    #
+    # These two are the exemptions reachable from a shell. Reversed by `uninstall`, and by hand
+    # with `dumpsys deviceidle whitelist -<pkg>`.
+    _adb(serial, "shell", "dumpsys", "deviceidle", "whitelist", "+" + PAQUETE, silencioso=True)
+    _adb(
+        serial, "shell", "cmd", "appops", "set", PAQUETE, "RUN_ANY_IN_BACKGROUND", "allow",
+        silencioso=True,
+    )
+    print("  exento de doze y de restriccion en background")
     return 0
 
 
@@ -279,6 +307,10 @@ def cmd_start(args):
         )
         return 2
 
+    # The device's own clock, not this machine's: logcat stamps its lines with the device's, and
+    # a readout that reaches back before this start would show a previous run's success even when
+    # the current one failed -- an instrument that lies in the dangerous direction.
+    marca = _adb(serial, "shell", "date", "+%m-%d %H:%M:%S.000", silencioso=True)
     _adb(serial, "shell", "am", "start-foreground-service", "-n", COMPONENTE)
     # `am` reports success for delivering the intent, which is not the same as the lock being
     # held. The service has to reach startForeground first, so give it a moment and then ask the
@@ -295,8 +327,11 @@ def cmd_start(args):
     # The lock is only half of it. A service that failed to get CHANGE_NETWORK_STATE holds the
     # CPU, looks perfectly healthy, and still loses the session when the radio goes -- measured
     # 2026-09-25, 44 s. So the service says which of the two it got, and this reads it back.
-    for linea in _adb(serial, "logcat", "-d", "-s", "%s:*" % TAG_LOG, silencioso=True).splitlines():
-        if "NetworkRequest" in linea:
+    reciente = _adb(
+        serial, "logcat", "-d", "-t", marca, "-s", "%s:*" % TAG_LOG, silencioso=True
+    )
+    for linea in reciente.splitlines():
+        if "NetworkRequest" in linea or "WifiLock" in linea:
             print("  %s" % linea.split(TAG_LOG, 1)[-1].lstrip(": ").strip())
     print("\nParalo con:  python3 tools/watchsession.py stop")
     return 0
@@ -321,6 +356,10 @@ def cmd_stop(args):
 def cmd_uninstall(args):
     serial = elegir_serial(args.device)
     print("dispositivo: %s" % serial)
+    # The whitelist entry outlives the package, so it is taken back here: an exemption for
+    # something that is no longer installed is exactly the kind of leftover nobody goes looking
+    # for.
+    _adb(serial, "shell", "dumpsys", "deviceidle", "whitelist", "-" + PAQUETE, silencioso=True)
     print(_adb(serial, "uninstall", PAQUETE, silencioso=True) or "no estaba instalado")
     return 0
 

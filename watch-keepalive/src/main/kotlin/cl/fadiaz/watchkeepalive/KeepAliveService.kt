@@ -4,11 +4,17 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.database.ContentObserver
+import android.provider.Settings
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -34,6 +40,9 @@ class KeepAliveService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var red: ConnectivityManager.NetworkCallback? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+    private var observadorAdb: ContentObserver? = null
+    private var receptorWifi: BroadcastReceiver? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val vencer = Runnable {
@@ -65,6 +74,8 @@ class KeepAliveService : Service() {
         }
 
         pedirRed()
+        tomarWifiLock()
+        vigilarFinDeSesion()
 
         handler.removeCallbacks(vencer)
         handler.postDelayed(vencer, LIMITE_MS)
@@ -107,13 +118,97 @@ class KeepAliveService : Service() {
         }
     }
 
+    /**
+     * Takes the Wi-Fi chip out of deep power save, which is a third thing again.
+     *
+     * **Measured 2026-09-25**: with the lock *and* the network request held, the session reached
+     * 157 s of the screen being off and then died anyway, and the transport was left reading
+     * `offline` rather than absent -- a half-open socket with mDNS still advertising the port.
+     * That is not a radio that was switched off; it is a chip that stopped answering.
+     *
+     * `WIFI_MODE_FULL_LOW_LATENCY` is the modern constant and is no use here: it applies only
+     * while the screen is on and the app is in the foreground, which is exactly the case this
+     * module does not have. `WIFI_MODE_FULL_HIGH_PERF` is deprecated and is the one that works
+     * with the screen off, so the deprecation is suppressed on purpose rather than worked around.
+     */
+    @Suppress("DEPRECATION")
+    private fun tomarWifiLock() {
+        if (wifiLock != null) return
+        val wifi = getSystemService(WifiManager::class.java)
+        wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, TAG_WIFILOCK).apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+        Log.i(TAG, "WifiLock tomado (FULL_HIGH_PERF)")
+    }
+
+    /**
+     * Stops when the person ends the session, without waiting for a `stop` that may never arrive.
+     *
+     * Two signals, and both mean the same thing on purpose: **somebody turned the session off by
+     * hand.** Turning wireless debugging off is unambiguous. Turning Wi-Fi off is not quite --- a
+     * transient drop is not a decision --- but on a watch the radio does not go down by itself
+     * while something holds a request for it, which is precisely what this service is doing.
+     *
+     * It exists because `stop` can fail to arrive at all: the watch drops off adb constantly,
+     * which is the whole reason this module exists, and a service left holding a wake lock
+     * because the command never landed is a flat battery by morning. The hour-long expiry is the
+     * floor; this is the part that reacts.
+     */
+    private fun vigilarFinDeSesion() {
+        if (observadorAdb == null) {
+            val observador = object : ContentObserver(handler) {
+                override fun onChange(selfChange: Boolean) {
+                    if (Settings.Global.getInt(contentResolver, AJUSTE_ADB_WIFI, 0) == 0) {
+                        Log.i(TAG, "Depuracion inalambrica apagada; termino la sesion")
+                        stopSelf()
+                    }
+                }
+            }
+            contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(AJUSTE_ADB_WIFI), false, observador,
+            )
+            observadorAdb = observador
+        }
+
+        if (receptorWifi == null) {
+            val receptor = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    val estado = intent.getIntExtra(
+                        WifiManager.EXTRA_WIFI_STATE, WifiManager.WIFI_STATE_UNKNOWN,
+                    )
+                    if (estado == WifiManager.WIFI_STATE_DISABLING ||
+                        estado == WifiManager.WIFI_STATE_DISABLED
+                    ) {
+                        Log.i(TAG, "Wi-Fi apagado; termino la sesion")
+                        stopSelf()
+                    }
+                }
+            }
+            // NOT_EXPORTED: the only sender that matters is the system, which is exempt from the
+            // flag. Exporting it would let any app on the watch fake the end of a session.
+            registerReceiver(
+                receptor,
+                IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION),
+                Context.RECEIVER_NOT_EXPORTED,
+            )
+            receptorWifi = receptor
+        }
+    }
+
     override fun onDestroy() {
+        observadorAdb?.let { contentResolver.unregisterContentObserver(it) }
+        observadorAdb = null
+        receptorWifi?.let { unregisterReceiver(it) }
+        receptorWifi = null
         handler.removeCallbacks(vencer)
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
         red?.let { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it) }
         red = null
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
-        Log.i(TAG, "Wake lock y NetworkRequest soltados")
+        Log.i(TAG, "Wake lock, NetworkRequest y WifiLock soltados")
         super.onDestroy()
     }
 
@@ -135,6 +230,16 @@ class KeepAliveService : Service() {
     private companion object {
         const val TAG = "WatchKeepAlive"
         const val TAG_WAKELOCK = "watchkeepalive:adb"
+        const val TAG_WIFILOCK = "watchkeepalive:wifi"
+
+        /**
+         * The global setting wireless debugging lives in.
+         *
+         * Spelled out rather than taken from a constant because the constant is `@hide`: passing
+         * the name as a string uses the public `Settings.Global` overloads and asks nothing of
+         * the hidden API list. Verified on the device with `settings get global adb_wifi_enabled`.
+         */
+        const val AJUSTE_ADB_WIFI = "adb_wifi_enabled"
         const val CANAL = "keepalive"
         const val ID_NOTIFICACION = 1
         const val LIMITE_MS = 60L * 60L * 1000L
