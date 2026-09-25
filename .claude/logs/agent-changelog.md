@@ -29,7 +29,26 @@ reusing `buscar_adb`/`elegir_dispositivo` from `devpack.py` and reconnecting thr
 or port is ever typed by hand. `SessionStart`/`SessionEnd` hooks start and stop it.
 
 **Areas.** `watch-keepalive/` (new), `settings.gradle.kts`, `tools/watchsession.py` (new), the
-session hooks in `.claude/settings.json`, and one new row in `docs/preguntas-del-reloj.md`.
+session hooks in `.claude/settings.json`, one row in `docs/decisions.md`, two answered rows in the
+standing watch questions, and three entries under `docs/roadmap.md` §Proceso y herramientas.
+
+**Heuristics.** Four notes were relied on and their checks run at the close.
+- **`a-check-must-be-seen-to-fail`** — ran, and it is what the session is mostly about.
+  `wakelock_tomado` was seen red (`no` after a `stop`, having said `si`) and `start`'s readout was
+  seen change from five lines to three over the same log. ⚠️ **`exento_de_doze` has never been
+  seen red** and is the one check here that could be reading anything; planting the violation
+  needs the watch and it went offline first.
+- **`detect-by-observation-not-build-flag`** — ran. The wake lock is confirmed against
+  `dumpsys power` on the device rather than against `am`'s exit code, and compared with an
+  independent `grep` so the tool does not validate itself.
+- **`derive-state-from-one-clock`** — ran, by removing the clock. Filtering the log by the
+  device's clock under-reported; the readout now anchors on a log event instead of a time, so
+  there is no clock to be wrong about.
+- **`cleanup-belongs-to-the-supervisor`** — partially. The settings state file and the doze
+  whitelist are owned by the supervisor and recovered on the next run, and the probe was killed
+  mid-flight once with the state coming back. ⚠️ **The note's own check** --- a probe that dirties
+  state and hangs, killed at a timeout, with the state back byte for byte --- **was not run as a
+  designed test.**
 
 **Why.** A wireless adb session to a physical watch dies on its own about a minute after the screen
 goes off, which makes every on-device run a race. Asked for: a way to hold the session open that
@@ -76,8 +95,19 @@ wireless debugging.
   and not just the lock.
 - The keep-alive APK is **2.4 MB** (debug).
 
-**Not verified.** Nothing is left open. The two that were --- whether the exemption survives a
-reboot, and the `start` readout under-reporting --- were both closed and are under *Measured*.
+**Not verified.** Two, both found by running the heuristic checks at the close rather than during
+the work --- which is itself the finding.
+- **`exento_de_doze` has never been seen red.** It answered `si` on every run because `install`
+  always sets it, so nothing distinguishes it from a check that reads the wrong thing. The planted
+  violation is one command (`dumpsys deviceidle whitelist -<pkg>`, then read it back, then put it
+  back) and the watch went offline before it could run.
+- **`cleanup-belongs-to-the-supervisor`'s own check was not run as a designed test**: a probe that
+  dirties state and hangs, killed at a timeout, with the state back byte for byte. What happened
+  instead was the unplanned version --- a probe killed mid-flight, state recovered on the next
+  `stop` --- which is weaker evidence.
+
+The two that *were* open --- whether the exemption survives a reboot, and the `start` readout
+under-reporting --- are both closed and sit under *Measured*.
 
 **What went wrong.** Nine things, each caught by something different.
 - The first manifest would not parse because a comment contained `--`, which is illegal XML and
@@ -112,7 +142,11 @@ reboot, and the `start` readout under-reporting --- were both closed and are und
   cached, so the next start reuses the same pid. Anchoring on the last `Wake lock tomado` inside
   that pid is what finally matched, and the same log that printed five lines prints three.
 
-**What was left undone.** The keep-alive is **not** wired into
+**What was left undone.** The `TECHO_ESPANOL` row for `docs/roadmap.md` is one line high (2305
+against 2306) and was **deliberately not lowered**: doing so means editing
+`tools/audit_dictionary.py`, which is one of five files another session had uncommitted at the
+time, with 160 lines of its own added to that exact file. A one-line advisory does not justify
+dragging somebody else's work into a conflict. The keep-alive is **not** wired into
 `:dict-data:connectedDebugAndroidTest` — a decision, so the on-device gate does not come to depend
 on an auxiliary APK. The app's own debug surface was read and **not** touched: `DebugIntents`'
 receiver is not ordered and never calls `setResultData`, so every answer goes to `logcat` and an

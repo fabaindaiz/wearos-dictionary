@@ -4962,9 +4962,20 @@ agente los modifica, no los recrea—, pero crear uno de cero desde vacío no lo
 contra las cuatro rutas y salga **2**. Son ~10 líneas y el repo ya tiene el patrón: el hook
 `PostToolUse` de los vectores. ⚠️ **No se construyó**: las mejoras de proceso se proponen.
 
-### ~~El `--` dentro de un comentario XML rompe el build~~ ✅ **CERRADO el 2026-09-23**
+### El `--` dentro de un comentario XML rompe el build — ⚠️ **REABIERTO el 2026-09-25: cuarta vez**
 
-**Estado.** **Hecho** (D-247), junto con la de fish y en el mismo lugar. Entró aunque falla
+⚠️ **Called closed on 2026-09-23 and it happened again on 2026-09-25**, in
+`watch-keepalive/src/main/AndroidManifest.xml`, with the rule loaded from `CLAUDE.md`
+§Verification and read in that same session. That is what `CLAUDE.md` means by **raising the
+rung**: prose that was in context and did not hold is evidence that prose is the wrong mechanism
+for this rule, not that it should be repeated louder.
+
+⚠️ **And the scope proposed below is too narrow.** It names `app/src/main/res/` and
+`AndroidManifest.xml`; the 2026-09-25 hit was in **another module's** manifest, one that did not
+exist when this was written. The check has to sweep the manifests and the `res/` of **every**
+module, or it closes the hole nobody walks through any more.
+
+**Estado.** Documentado (D-247), junto con la de fish y en el mismo lugar. Entró aunque falla
 **ruidosamente** —el mensaje de AGP nombra el problema— porque es el mismo reflejo: `--` es como
 este repo escribe un inciso en todos lados, incluido este párrafo.
 
@@ -4978,8 +4989,9 @@ seguido de treinta líneas de stack trace de Xerces que no nombran el archivo ha
 El síntoma es `mergeDebugResources FAILED`, que se lee como un problema de recursos y no de
 puntuación.
 
-**Las tres veces.** Dos el 2026-09-22 en `AndroidManifest.xml` —ya están en el changelog de esa
-sesión— y una en `values/strings.xml` el mismo día. En este repo el riesgo es estructural y no
+**The four times.** Two on 2026-09-22 in `AndroidManifest.xml` --- already in that session's
+changelog ---, one in `values/strings.xml` the same day, and one on 2026-09-25 in the manifest of
+`:watch-keepalive`. En este repo el riesgo es estructural y no
 casual: **el estilo de comentario que la casa usa lleva `--` todo el tiempo** («el nombre mentía
 --y lo decidió una medición--»), porque es el guión de inciso que se escribe sin tecla de raya.
 En `.kt` y en `.py` es correcto; en XML rompe el build.
@@ -5350,6 +5362,68 @@ reloj— tampoco pudo entrar a §Comandos, y vive sólo en `tools/CLAUDE.md` y `
 que §Comandos dejó de ser la lista de comandos del repo.
 
 ---
+
+### Debug intents answer through `logcat`, so the caller has to guess when to read · i-a2f271-aa796d
+
+D-232 made the app drivable from `adb` and settled what was blocking: seeding a query without a
+finger. What it did not settle is **how the answer is read**. The receiver is not ordered and never
+calls `setResultData`, so everything goes out through `DictLog` and whoever asked has to send the
+broadcast, **wait for a length of time nobody defines**, and correlate by timestamp against the
+rest of the log.
+
+That undefined wait is where the false negatives come from: the log is read before the app has
+answered and the conclusion is that there are no results. For a person it is an annoyance; for an
+automated session it is a wrong measurement.
+
+**What it would be.** The same command returning the answer:
+
+```
+adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_DUMP
+  Broadcast completed: result=0, data="--- volcado ---
+  app versionCode=2 build=...
+  activo=es-core@..."
+```
+
+**The cost, in two very unequal halves.** The dump is the cheap one: `DebugIntents.dump()`
+**already returns `List<String>`**, is pure, and has 16 tests in the gate, so it only has to join
+those lines into `setResultData` instead of sending them to `DictLog`. `DEBUG_SEARCH` is the
+expensive one: the search is asynchronous, so it needs `goAsync()` and has to wait for the
+ViewModel to settle before answering --- ten seconds of headroom, plenty for one query, but new
+logic and new tests.
+
+**What is NOT needed.** New actions. The surface already has `SEARCH`, `CLEAR`, `DUMP` and `SET`,
+and D-232 records why each one exists. The problem is not missing verbs: it is that none of them
+answers.
+
+⚠️ **First time it is raised** (2026-09-25). It is written down here because it is designed and
+priced, not because it reached a second hit.
+
+### A piped gate reports success while the build failed — two hits, 2026-09-25 · i-a2f271-e2d90a
+
+`CLAUDE.md` §Verification says the gate is **read by its exit code**. On 2026-09-25 it was read by
+its last line **twice in one session**, with the rule in context:
+
+```sh
+./gradlew check 2>&1 | tail -40      # -> exit 0, y Gradle habia impreso BUILD FAILED
+python3 tools/audit_dictionary.py | tail -8   # -> exit 0, y el audit decia "1 fallas"
+```
+
+In both cases the exit code that comes back is `tail`'s, not the one that matters. The first hid a
+red `lintDebug`; the second, a failure of the audit itself. **Neither is visible**: both outputs
+end in text that looks ordinary.
+
+**The arithmetic.** Two hits in one session, both from the same reflex --- cutting long output
+with a pipe --- and both on the two commands this repository uses to decide whether something is
+ready. What each one costs is a false claim that the gate is green, which `CLAUDE.md` names as the
+worst kind of error there is here.
+
+**What closing it would cost.** This is not a new rule: it is that **the rule cannot be followed
+comfortably**. Redirecting to a file and reading `$?` is correct and longer to type than the pipe,
+so the pipe wins. A wrapper --- `tools/gate.sh`, or a Gradle task --- that runs the command, keeps
+the whole output and returns its real exit code would remove the incentive. It is a few lines, and
+it puts the cheap path back on the correct side.
+
+⚠️ **Not built**: process improvements are proposed, not executed (`CLAUDE.md`).
 
 ## Cerrado por medición
 
