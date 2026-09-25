@@ -4027,27 +4027,52 @@ Spanish uses `etymology_texts` (a **list**); English uses `etymology_text` (a **
 implementation that assumes either one produces the other pack with no etymology, **no error and
 no log** — discovered only an hour later, after the build.
 
-✅ **And the cap priced at percentiles and at screen lines, 2026-09-25.** Asked: what about a p95
-cap? It is not one cap — **p95 is 101 characters in Spanish and 349 in English**, and at the
-repo's own measured density for 234 dp (127 characters ≈ 4 lines, so ~32 per line) 349 characters
-is **eleven lines**.
+✅ **The cap priced at percentiles, at screen lines, and filtered by tier — 2026-09-25.**
+
+⚠️ **RETRACTION: the figures first written here on 2026-09-25 were sampled wrong and are
+replaced below.** They drew 1,500 rows from the first 6,000 entries **by id**, and id correlates
+with rank: mean rank **652** in that window against **1,061** over the whole table, so the sample
+was skewed toward the frequent words. Those carry more etymology and, in English, *longer* ones —
+which is why the error ran in **both** directions: Spanish was overstated at every cap, English
+was understated at short caps and badly overstated at p95 (**+39.4 MB written, +18.0 measured**).
+Everything below samples the entire table.
+
+**Cap alone, no filter:**
 
 | Cap | Spanish: fits / pack | English: fits / pack |
 |---|---|---|
-| 2 lines (64) | 90.0 % / +1.9 MB | 71.9 % / +2.7 MB |
-| **3 lines (96)** | **94.7 % / +2.6 MB** | **79.1 % / +6.1 MB** |
-| 4 lines (128) | 96.8 % / +3.1 MB | 83.5 % / +10.0 MB |
-| **p95** | 95.0 % / +2.7 MB *(101)* | 95.0 % / **+39.4 MB** *(349)* |
+| 2 lines (64) | 90.0 % / +1.5 MB | 71.9 % / +6.9 MB |
+| 3 lines (96) | 94.7 % / +1.8 MB | 79.1 % / +9.4 MB |
+| 4 lines (128) | 96.8 % / +2.0 MB | 83.5 % / +10.6 MB |
+| p95 | 95.0 % / +1.8 MB *(101)* | 95.0 % / +18.0 MB *(349)* |
 
 ⚠️ **In Spanish the percentile and the screen agree; in English they do not.** Spanish p95 is 101
-characters and three lines is 96 — the same cap under two names, 95.0 % against 94.7 %. English
-p95 is 349, and buying that last stretch of coverage costs **+29.4 MB over the 128-character cap
-for 11.5 points**.
+characters and three lines is 96 — the same cap under two names. English p95 is 349, which at this
+repo's measured density for 234 dp (127 characters ≈ 4 lines, ~32 per line) is **eleven lines**.
+A percentile lets **the source** decide how much of the watch it gets; a character cap lets **the
+watch** decide. They coincide in Spanish only because that source is already terse.
 
-⚠️ **The lesson is which unit the cap belongs in.** A percentile lets **the source** decide how
-much of the watch it gets, and the English Wiktionary writes long chains of borrowings. A
-character cap lets **the watch** decide. They coincide in Spanish only because that source is
-already terse.
+**Cap 128 (4 lines) and only for a tier's vocabulary** — asked for on 2026-09-25:
+
+| Which words carry it | `es-full` 74.0 | `es-core` 48.5 | `en-full` 314.3 | `en-main` 103.0 | `en-core` 40.9 |
+|---|---|---|---|---|---|
+| everything | **+2.0** | — | **+10.6** | — | — |
+| only `core` | +0.9 | +0.9 | +0.9 | — | +1.0 |
+| only `main` | — | — | **+2.4** | +2.5 | +1.0 |
+
+✅ **The filter costs the reader nothing where the reader is and saves most of the disk where they
+are not.** Filtering English to `main` takes `en-full` from +10.6 to **+2.4 MB** while `en-main`
+and `en-core` carry the datum in full; Spanish has no `main` tier (D-220), so its filter is `core`
+and `es-full` goes from +2.0 to +0.9.
+
+**The APK pays +1.9 MB**, which is the number that matters for the 111 MB build: it ships
+`es-core` and `en-core` only.
+
+⚠️ **What the filter costs is an inconsistency a reader can see.** In a *full* pack `casa` would
+show an etymology and `cherenga` would not, with nothing on screen saying why — the core/main
+boundary is a frequency cut and means nothing to somebody reading one card. It is invisible inside
+a core or main pack, where every word qualifies. Whether that is acceptable is a product call, not
+a measurement.
 
 **Status: NOT in the next rebuild** (owner's call, 2026-09-24, with these numbers on the table).
 The measurements are written here so the decision never has to be re-measured.
