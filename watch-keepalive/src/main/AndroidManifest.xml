@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+        Sin <activity>. No hay punto de entrada y por lo tanto no hay icono en el reloj: un
+        intent explicito por componente arranca el service igual, que es como lo lanza adb.
+    -->
+    <application
+        android:allowBackup="false"
+        android:label="Watch keep-alive">
+
+        <!--
+            standalone: no habla con ningun telefono. Lo exige lint (WearStandaloneAppFlag) y
+            aca la respuesta es trivialmente true, porque lo unico que hace es tomar un lock.
+        -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
+
+        <!--
+            exported: lo arranca `adb shell am start-foreground-service`, que corre como uid
+            shell. Sin esto, el componente no es alcanzable desde afuera del propio paquete.
+
+            Es una superficie abierta: cualquier app del reloj podria arrancarlo. Se acepta
+            porque este APK se instala a mano durante una sesion de depuracion y se desinstala
+            despues; lo peor que consigue quien lo arranque es gastar bateria, y el wake lock se
+            suelta solo (ver KeepAliveService.LIMITE_MS).
+        -->
+        <service
+            android:name=".KeepAliveService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Holds a wake lock so a wireless adb debugging session survives the
+                    watch suspending. Development tool, never shipped." />
+        </service>
+    </application>
+</manifest>
