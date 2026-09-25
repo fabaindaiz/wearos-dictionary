@@ -355,10 +355,6 @@ def cmd_start(args):
         )
         return 2
 
-    # The device's own clock, not this machine's: logcat stamps its lines with the device's, and
-    # a readout that reaches back before this start would show a previous run's success even when
-    # the current one failed -- an instrument that lies in the dangerous direction.
-    marca = _adb(serial, "shell", "date", "+%m-%d %H:%M:%S.000", silencioso=True)
     arranque = ["shell", "am", "start-foreground-service", "-n", COMPONENTE]
     if args.limite:
         arranque += ["--ei", "limite_s", str(args.limite)]
@@ -379,10 +375,24 @@ def cmd_start(args):
     # The lock is only half of it. A service that failed to get CHANGE_NETWORK_STATE holds the
     # CPU, looks perfectly healthy, and still loses the session when the radio goes -- measured
     # 2026-09-25, 44 s. So the service says which of the two it got, and this reads it back.
-    reciente = _adb(
-        serial, "logcat", "-d", "-t", marca, "-s", "%s:*" % TAG_LOG, silencioso=True
+    # Filtered by the service's pid rather than by a timestamp. A clock-based window was tried
+    # first and under-reported --- it showed one of the three lines --- because it has to guess a
+    # boundary the log is still being written across. The pid is exact: a new process **is** a new
+    # start, so nothing from an earlier run can match, and nothing from this one is missed.
+    pid = _adb(serial, "shell", "pidof", PAQUETE, silencioso=True).split()
+    lineas = [
+        linea
+        for linea in _adb(serial, "logcat", "-d", "-s", "%s:V" % TAG_LOG, silencioso=True).splitlines()
+        if len(linea.split()) > 2 and linea.split()[2] in pid
+    ]
+    # Anchored on the last acquisition, not merely on the process. `am stopservice` stops the
+    # service and leaves the process cached, so the next start reuses the same pid and the pid
+    # alone replays the previous run -- which it did, printing a `soltados` from the stop before
+    # the new lines.
+    desde = max(
+        (i for i, linea in enumerate(lineas) if "Wake lock tomado" in linea), default=0
     )
-    for linea in reciente.splitlines():
+    for linea in lineas[desde:]:
         if "NetworkRequest" in linea or "WifiLock" in linea:
             print("  %s" % linea.split(TAG_LOG, 1)[-1].lstrip(": ").strip())
     print("\nParalo con:  python3 tools/watchsession.py stop")
