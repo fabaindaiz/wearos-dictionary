@@ -84,6 +84,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAQUETE = "cl.fadiaz.watchkeepalive"
 COMPONENTE = "%s/.KeepAliveService" % PAQUETE
 TAG_WAKELOCK = "watchkeepalive:adb"
+TAG_LOG = "WatchKeepAlive"
 APK = os.path.join(
     RAIZ, "watch-keepalive", "build", "outputs", "apk", "debug", "watch-keepalive-debug.apk"
 )
@@ -258,6 +259,11 @@ def cmd_install(args):
         return 2
     print("dispositivo: %s" % serial)
     print(_adb(serial, "install", "-r", APK))
+    # `requestNetwork` needs CHANGE_NETWORK_STATE, whose protection level does not hand itself to
+    # an ordinary app on every build. The appop is the documented back door and costs nothing when
+    # the permission was already there, so it is done once at install rather than diagnosed later
+    # from a session that died for no visible reason.
+    _adb(serial, "shell", "appops", "set", PAQUETE, "WRITE_SETTINGS", "allow", silencioso=True)
     return 0
 
 
@@ -280,11 +286,20 @@ def cmd_start(args):
     for _ in range(10):
         if wakelock_tomado(serial):
             print("  wake lock tomado (%s)" % TAG_WAKELOCK)
-            print("\nParalo con:  python3 tools/watchsession.py stop")
-            return 0
+            break
         time.sleep(0.5)
-    print("El service arranco pero el wake lock NO figura en dumpsys power.", file=sys.stderr)
-    return 1
+    else:
+        print("El service arranco pero el wake lock NO figura en dumpsys power.", file=sys.stderr)
+        return 1
+
+    # The lock is only half of it. A service that failed to get CHANGE_NETWORK_STATE holds the
+    # CPU, looks perfectly healthy, and still loses the session when the radio goes -- measured
+    # 2026-09-25, 44 s. So the service says which of the two it got, and this reads it back.
+    for linea in _adb(serial, "logcat", "-d", "-s", "%s:*" % TAG_LOG, silencioso=True).splitlines():
+        if "NetworkRequest" in linea:
+            print("  %s" % linea.split(TAG_LOG, 1)[-1].lstrip(": ").strip())
+    print("\nParalo con:  python3 tools/watchsession.py stop")
+    return 0
 
 
 def cmd_stop(args):

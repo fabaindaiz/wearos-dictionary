@@ -4,6 +4,14 @@
     <uses-feature android:name="android.hardware.type.watch" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+        La red se PIDE, no se escucha: `registerNetworkCallback` observa y no cuenta como
+        request, y lo que apaga la radio es que el contador llegue a cero. `requestNetwork`
+        necesita CHANGE_NETWORK_STATE; si el sistema no la concede, `install` la habilita por
+        appop. Ver KeepAliveService.pedirRed.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
