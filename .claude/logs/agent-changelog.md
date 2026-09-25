@@ -66,19 +66,20 @@ wireless debugging.
   before this one measured as an improvement that still was not enough.
 - **With the package on the doze whitelist: 600 s, 27 samples, zero unreachable, every one of them
   with the screen in `Dozing` and the lock held.** Against 44 s with nothing.
+- **All four ways of ending it work** (P-15): `stop` takes the live wake-lock list from one entry
+  to zero; the expiry, overridden to 30 s, fired at **30.046 s**; Wi-Fi switched off was caught in
+  **1.1 s** and wireless debugging switched off in **0.975 s**, both releasing all three resources
+  and not just the lock.
 - The keep-alive APK is **2.4 MB** (debug).
 
-**Not verified.** Three things, none of them the main claim.
-- **The self-stop was never exercised.** The `ContentObserver` on `adb_wifi_enabled` and the
-  `WIFI_STATE_CHANGED` receiver compile and were never seen firing, so whether the service really
-  ends when somebody switches either off is unknown. It is **P-15**.
+**Not verified.** Two things, neither of them a claim this entry makes.
 - **Whether the doze exemption survives a reboot** was not checked, and `install` is the only
   thing that sets it.
-- `start` prints the service's own log filtered by the device's clock, and on the last run it
-  showed one of the three lines instead of three. The filter is cutting too close to the start,
-  which makes a readout that can under-report.
+- `start` prints the service's own log filtered by the device's clock, and on one run it showed
+  one of the three lines instead of three. The filter cuts too close to the start, which makes a
+  readout that can under-report.
 
-**What went wrong.** Six things, each caught by something different.
+**What went wrong.** Eight things, each caught by something different.
 - The first manifest would not parse because a comment contained `--`, which is illegal XML and
   which `CLAUDE.md` already names as one of the two things that fail in silence here. It was written
   anyway; the build caught it.
@@ -95,6 +96,15 @@ wireless debugging.
   while the current attempt failed is worse than none; it now filters by the device's own clock.
 - The post-mortem capture came back empty: `adb wait-for-device shell` was run without `-s` while a
   stale `offline` transport sat beside the live one, and adb answered `more than one device`.
+- **`wakelock_tomado` could only ever answer yes.** It matched the tag anywhere in `dumpsys power`,
+  which also prints a wake-lock **history** where a released lock stays as `- REL …(partial)`, so
+  once the lock had existed the check said "held" forever. It reported a working `stop` as a
+  failure, and it is what the `lock` column of every earlier probe was reading — the runs stand
+  because reachability, not that column, is what measured them. Caught by being asked to test the
+  shutdown paths, and by nothing else.
+- `instalado()` swallowed adb's exit code, so a watch that had dropped off the network was
+  reported as *"el keep-alive no esta instalado"*, sending whoever read it to reinstall over a
+  connectivity problem.
 
 **What was left undone.** The keep-alive is **not** wired into
 `:dict-data:connectedDebugAndroidTest` — a decision, so the on-device gate does not come to depend
