@@ -83,6 +83,11 @@ filter lives in the one funnel every record passes through; `:dict-core` gained 
   channels are on the glass in both languages.
 - The bilingual's origins, which is what got them removed: **49.9 %** of its Spanish entries
   carried one and **0 %** of its English ones, because only the Spanish side has senses.
+- On the watch, 2026-09-26, with `watchsession.py` holding the session: the **107.9 MB APK in
+  36.3 s** against the 2 min 17 s of 2026-09-23, `en-full`'s **315.5 MB in 1 min 32 s** (~3.4 MB/s),
+  and the launch with the five packs already on disk --the number P-9 said was missing-- at
+  **2,742 ms**, `en-full` opening in 421 ms. The first launch after the install, which extracted
+  the two cores, cost 5,333 ms.
 - The forms table, at 234 dp: `perro` goes from **three rows to two**, and the pair stops
   splitting across lines. A row at that width fits **~30 characters**, which is what puts the
   median Spanish origin (30) at one row, the p90 (127) at four and the English maximum at ~130.
@@ -92,11 +97,13 @@ filter lives in the one funnel every record passes through; `:dict-core` gained 
 owner's instruction. Its price is the +36.8 MB above, of which the APK pays **+8.5** on the two
 cores. Recorded as a Desviación in d-a2f271-bc2a3b and in the roadmap.
 
-**Not verified.** Nothing ran on a real watch. The geometry questions are now answered on
-`avd_como_el_reloj`, which reproduces `sw234dp … round … 340dpi` exactly and is what P-12 was
-waiting for -- but **whether somebody reading on a bus gives up at row six of an origin is not a
-geometry question**, and that is P-16. Performance and battery still need the hardware (D-043).
-`devpack.py` was run against the emulator only, so the watch still holds the packs of 2026-09-21.
+**Not verified.** ⚠️ **Retracted at the close: it did run on a real watch.** The session was held
+with `watchsession.py`, the five packs and the APK went over, and the card was read on the
+SM-L715F -- `perros | plural`, `perra | feminine`, two rows, nothing wrapped, and the origin
+rendering clean twelve swipes down. What is left unverified is only the reading judgement: **whether somebody
+on a bus gives up at row six of an origin**, which is P-16 and is not a geometry question.
+Performance and battery still need a run designed for them (D-043); what this session took are
+transfer and start-up numbers, not steady-state ones.
 
 **What went wrong.**
 - **The first probe measured nothing twice**, and the second time it printed a number. The
