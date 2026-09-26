@@ -345,15 +345,7 @@ fun EntryScreen(
             val forms = current?.forms.orEmpty()
             if (forms.isNotEmpty()) {
                 item(key = "formas") {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        TermList(
-                            R.string.entry_forms_title,
-                            forms.map { labelledForm(it) },
-                            links = emptyMap(),
-                            onOpenWord = {},
-                            prominent = true,
-                        )
-                    }
+                    FormsTable(forms)
                 }
             }
 
@@ -750,28 +742,84 @@ private fun linkedTerms(
 }
 
 /**
- * One principal part as the card shows it: `corriendo (gerundio)`.
+ * The principal parts, **one per row**, the form on the left and what it is on the right.
+ *
+ * ⚠️ **It was a single flowing paragraph and that is what this replaces.** Joined with a
+ * separator, `perros (plural) · perra (feminine)` wrapped wherever the line ran out: seen on the
+ * 234 dp emulator, `perra` ended one line and `(feminine)` opened the next, so the pair a reader
+ * has to hold together was the thing the layout broke. A list of pairs is exactly the shape a
+ * 234 dp row punishes: it fits about 30 characters, and `perros` plus its type is already 22.
+ *
+ * ⚠️ **The type is right-aligned and the form takes the rest**, which is what makes the rows read
+ * as a table without measuring any text: every type ends at the same edge. The alternative --two
+ * `Column`s, which would align both edges-- desynchronises the moment one form wraps, and
+ * `antidisestablishmentarianisms` is 29 characters against the ~20 that fit.
+ *
+ * ⚠️ **The form keeps `onSurfaceVariant` even though it is the datum.** Full `onSurface` here
+ * would read as tappable next to the synonyms and translations that are, and an inflected form is
+ * not a headword: it has no card to open (D-094). The hierarchy is carried by size instead.
+ */
+@Composable
+private fun FormsTable(forms: List<PayloadCodec.InflectedForm>) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Text(
+            text = stringResource(R.string.entry_forms_title),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        forms.forEach { form ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                // Top and not CenterVertically: when a long form wraps, the type stays beside its
+                // FIRST line, where the eye pairs them, instead of floating against the middle.
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    text = form.form,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                formTypeLabel(form.key)?.let { tipo ->
+                    Text(
+                        text = tipo,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.End,
+                        // One line, always: the four labels are ten characters at most, and a type
+                        // that wrapped would push the form it describes out of its own row.
+                        maxLines = 1,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * What an inflected form IS, in the reader's language, or `null` for a key nobody named.
  *
  * ⚠️ **The label comes from the app and not from the pack**, and that is the point of the
  * channel: the pack stores a neutral key (`ger`, `part`) because the same file is shared by a
  * user running the interface in Spanish and one running it in English. Translating belongs to the
  * localization, never to the artefact.
  *
- * ⚠️ **An unknown key shows the form WITHOUT a label rather than hiding it.** Somebody else's
+ * ⚠️ **An unknown key shows the form WITHOUT a type rather than hiding the row.** Somebody else's
  * pack may declare parts this version cannot name, and `corriendo` with no note is still
- * information; `corriendo` missing is not.
+ * information; `corriendo` missing is not. `ger` printed raw would be noise, so what disappears
+ * is the second column and never the form.
  */
 @Composable
-private fun labelledForm(form: PayloadCodec.InflectedForm): String {
-    val label = when (form.key) {
-        "ger" -> R.string.entry_form_gerund
-        "part" -> R.string.entry_form_participle
-        "pl" -> R.string.entry_form_plural
-        "fem" -> R.string.entry_form_feminine
-        else -> null
-    } ?: return form.form
-    return stringResource(R.string.entry_form_item, form.form, stringResource(label))
-}
+private fun formTypeLabel(key: String): String? = when (key) {
+    "ger" -> R.string.entry_form_gerund
+    "part" -> R.string.entry_form_participle
+    "pl" -> R.string.entry_form_plural
+    "fem" -> R.string.entry_form_feminine
+    else -> null
+}?.let { stringResource(it) }
 
 /**
  * A text whose linked words are resolved **by proximity**, not by hitting the glyph.
