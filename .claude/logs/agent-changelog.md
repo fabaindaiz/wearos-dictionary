@@ -81,6 +81,8 @@ filter lives in the one funnel every record passes through; `:dict-core` gained 
   vocabulary (38,067 of 138,083), which is why the flag reads a pack.
 - Emulator, versionCode 11: both cores open (1,606 ms and 403 ms), 22.8 s to ready, and the three
   channels are on the glass in both languages.
+- The bilingual's origins, which is what got them removed: **49.9 %** of its Spanish entries
+  carried one and **0 %** of its English ones, because only the Spanish side has senses.
 - The forms table, at 234 dp: `perro` goes from **three rows to two**, and the pair stops
   splitting across lines. A row at that width fits **~30 characters**, which is what puts the
   median Spanish origin (30) at one row, the p90 (127) at four and the English maximum at ~130.
@@ -123,17 +125,23 @@ geometry question**, and that is P-16. Performance and battery still need the ha
   Caught by reading the table rather than by any check.
 
 **What was left undone.**
-- **The bilingual carries the origin and nobody decided it.** `es-en`'s Spanish side comes from
-  `kaikki.records`, so it picked `I` and `M` up on its own: 41.0 % and 31.5 % of a sample. The
-  objection was size and the size did not move, so the artifact answers the question the roadmap
-  left open — but it was not an explicit call.
+- ~~**The bilingual carries the origin and nobody decided it.**~~ Decided 2026-09-26, and by
+  reading it rather than weighing it: what it carried is the origin of the **Spanish** word written
+  in **English**, because enwiktionary is its source. `conejo` said *"Inherited from Old Spanish
+  conejo, from Latin cuniculus"* where `es-full` says *"Del latín cuniculus, y este de origen
+  ibérico, según Plinio"*. Over 4,000 of its Spanish words, **58.2 %** are also in `es-full`, and
+  of those `es-full` has the origin for **more** of them — 1,736 against 1,642. A duplicate, in the
+  wrong language, of a better copy, in a pack whose purpose is to connect the others. Excluded; the
+  IPA stays, because notation does not arrive in the wrong language and its median is 11
+  characters.
 - ~~**The guard added to `derive` re-decompresses the whole output** and nobody measured it.~~
   Measured before closing, on `es-core` with the same vocabulary in both runs: **19.9 s without it
   against 20.8 s, +5 %**. Writing and indexing dominate, so the four rounds of `derivar_en_rango`
   cost four times a rounding error. The number is in the function's docstring.
 - ~~**The `M` readout in `verify_pack.py` has no test.**~~ Written before closing: four cases,
   including the 0.0 % one that is how a rebuild's debt gets noticed, verified by two mutations.
-  The `I` readout got one too, in the same pass and by the same mutation -- it had shipped with none, and it is the readout that found the last rebuild's debt.
+  The `I` readout got one too, in the same pass and by the same mutation: it had shipped with
+  none, and it is the readout that found the last rebuild's debt.
 - Pruning the `form` table stays documented and unapplied (§O-3), and the on-device tests still do
   not touch the app's UI — only `:dict-data`. The card is covered by Robolectric at 192 and 234 dp,
   which measures structure and not glyphs: its text metrics are synthetic, so **no test here can

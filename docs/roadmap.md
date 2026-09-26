@@ -208,11 +208,12 @@ retrained compression dictionary and the English packs' Spanish `attribution`.
 | `en-core` | 41.0 MB | 66,268 | 96.43 % | 3.69 % |
 | `es-full` | 76.1 MB | 152,281 | — | — |
 | `es-core` | 49.3 MB | 47,952 | 78.87 % | 27.97 % |
-| `es-en` | 67.1 MB | 209,484 | — | — |
+| `es-en` | 63.9 MB | 209,484 | — | — |
 
 What the channels weigh, read off the artifacts and not estimated: `en-full` **314.3 → 315.5 MB**
 and `es-full` **74.0 → 76.1**, because the retrained dictionary (−8.3 % es, −13.1 % en of payload)
-pays for most of what `I` and `M` add. `en-main` grew 103 → 141.2 and `en-core` 40.9 → 41.0; the
+pays for most of what `I` and `M` add. The bilingual **went down**, 67.2 → **63.9 MB**: it gains
+`I` and loses the origins it should never have carried. `en-main` grew 103 → 141.2 and `en-core` 40.9 → 41.0; the
 main one moved because its budget search landed on a different round, not because of the channels.
 
 Channel coverage over a 4,000-entry sample of the two cores, which are the ones the APK ships:
