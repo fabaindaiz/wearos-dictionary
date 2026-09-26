@@ -248,56 +248,32 @@ fun EntryScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 ) {
-                    Text(
-                        // The headword is NOT truncated here, unlike in the list: this screen
-                        // exists precisely to read the whole word, sayings included.
-                        text = current?.headword ?: "…",
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    // ⚠️ **Bare, with no slashes or brackets, and that is a decision.** The pack
+                    // ⚠️ **The whole header is one component** ([WordTitle]), so this card and
+                    // anything else that titles a word cannot drift apart -- the same reason
+                    // `wordDetail` exists for the rows (D-152).
+                    //
+                    // ⚠️ **The pronunciation goes bare, with no slashes or brackets.** The pack
                     // stores the transcription stripped of the source's delimiters
                     // (d-a2f271-13da99), so the card no longer knows whether it was phonemic
-                    // `/…/` or phonetic `[…]`. Adding either back would assert a notation nothing
-                    // recorded -- the D-080 family -- and on 234 dp it would cost two characters
-                    // to say something possibly false. A printed dictionary puts it here, right
-                    // under the headword and before the part of speech.
-                    val ipa = current?.pronunciation
-                    if (!ipa.isNullOrBlank()) {
-                        Text(
-                            text = ipa,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                        )
-                    }
-                    val pos = current?.partOfSpeech
-                    // ⚠️ **The language comes from the LOADED ENTRY, not from a parameter.** This
-                    // screen is reached by tapping a translation, and then the open entry is in
-                    // the OTHER language: taking it from the pack --which in a bidirectional one
-                    // speaks two-- would assert the wrong language, which is worse than putting
-                    // nothing.
+                    // `/…/` or phonetic `[…]`, and adding either back would assert a notation
+                    // nothing recorded -- the D-080 family.
                     //
-                    // It is the LANGUAGE and never the source (D-190): *"it should just be EN, ES.
-                    // I do not like having an ENWIK... because all I care about is knowing the
-                    // language it comes from"*.
-                    val languageTag = current?.lang?.uppercase()
-                    if (pos != null || languageTag != null) {
-                        Text(
-                            // In full, not abbreviated: this screen competes for width with
-                            // nothing, and it is where the part of speech actually gets read. The
-                            // language goes after it, with the same separator the results row
-                            // uses.
-                            text = listOfNotNull(pos?.let { posLabelFull(it) }, languageTag)
-                                .joinToString(stringResource(R.string.entry_list_separator)),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                        )
-                    }
+                    // ⚠️ **The language comes from the LOADED ENTRY and not from a parameter.**
+                    // This screen is reached by tapping a translation, and then the open entry is
+                    // in the OTHER language: taking it from the pack --which in a bidirectional
+                    // one speaks two-- would assert the wrong language, which is worse than
+                    // nothing. And it is the LANGUAGE, never the source (D-190).
+                    //
+                    // The part of speech goes in FULL here rather than abbreviated: this screen
+                    // competes for width with nothing, and it is where it actually gets read.
+                    WordTitle(
+                        headword = current?.headword ?: "…",
+                        pronunciation = current?.pronunciation,
+                        detail = wordDetail(
+                            partOfSpeech = current?.partOfSpeech?.let { posLabelFull(it) },
+                            tag = current?.lang?.uppercase(),
+                        ),
+                    )
                 }
             }
 

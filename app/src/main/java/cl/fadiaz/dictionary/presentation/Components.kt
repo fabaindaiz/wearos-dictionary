@@ -21,6 +21,8 @@ import cl.fadiaz.dictionary.R
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -193,13 +195,24 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable(onClick = onClick)
             .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // ⚠️ **Two lines before an ellipsis, and the row grows to hold them.** It used to cut at
+        // one line, so `antidisestablishmentarianism` and every Spanish saying in the dictionary
+        // read as a prefix with three dots -- in a list whose whole job is to let you recognise
+        // the word you are after. The break is hyphenated and language-aware ([WORD_BREAK]), so
+        // the second line starts where the language allows and not where the pixels ran out.
+        //
+        // The height is a MINIMUM and not a fixed two lines: reserving the second row for every
+        // word would cost a result on a 234 dp screen, and most words are short.
         Text(
             text = headword,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                hyphens = Hyphens.Auto,
+                lineBreak = WORD_BREAK,
+            ),
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
@@ -365,5 +378,69 @@ internal fun ScrollToTopOnReturn(state: TransformingLazyColumnState, firstIndex:
     }
     LaunchedEffect(vueltas) {
         if (vueltas > 1) state.scrollToItem(firstIndex)
+    }
+}
+
+
+/**
+ * How a word is broken when it does not fit: **hyphenated, never cut**.
+ *
+ * ⚠️ **It is one value used by every place a word is drawn**, which is what stops the three from
+ * drifting. A headword, a row and a principal part are the same object seen at three sizes, and
+ * before this each decided its own overflow: the card wrapped mid-word, the row ellipsised, and a
+ * long form pushed its type out of the row.
+ *
+ * `Hyphens.Auto` asks the platform for a break the language allows --`fi-lia-ción`-- instead of
+ * wherever the pixel ran out, and `LineBreak.Heading` is the strategy Compose documents for short
+ * titles: it balances the two lines rather than filling the first and leaving one syllable on the
+ * second. Both need the text's locale, which comes from the composition, so a Spanish word breaks
+ * by Spanish rules and an English one by English ones.
+ */
+internal val WORD_BREAK = LineBreak.Heading
+
+/**
+ * A word as the head of its own screen: the word, how it sounds, and what it is.
+ *
+ * ⚠️ **One component and not three blocks**, because the entry card and anything else that titles
+ * a word have to agree. It is the same reason `wordDetail` exists for rows (D-152): two places
+ * describing the same object differently teach the reader that the difference means something.
+ *
+ * ⚠️ **The word and the pronunciation are a size above what they were.** Asked for on 2026-09-26:
+ * they are the part of an entry that gets looked at first, and they were drawn at the same weight
+ * as the line below them. The word goes `titleMedium` -> `titleLarge` and the pronunciation
+ * `labelSmall` -> `bodySmall`; the `sust. · ES` line stays where it was, which is what makes the
+ * step visible.
+ *
+ * ⚠️ **It wraps instead of truncating, and the entry is where that matters most**: this screen
+ * exists to read the whole word, sayings included.
+ */
+@Composable
+internal fun WordTitle(headword: String, pronunciation: String?, detail: String?) {
+    Text(
+        text = headword,
+        style = MaterialTheme.typography.titleLarge.copy(
+            hyphens = Hyphens.Auto,
+            lineBreak = WORD_BREAK,
+        ),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    if (!pronunciation.isNullOrBlank()) {
+        Text(
+            text = pronunciation,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        )
+    }
+    if (detail != null) {
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        )
     }
 }
