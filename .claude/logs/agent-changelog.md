@@ -114,7 +114,7 @@ and it is the kind of question that only a wrist settles. It joins
   cost four times a rounding error. The number is in the function's docstring.
 - ~~**The `M` readout in `verify_pack.py` has no test.**~~ Written before closing: four cases,
   including the 0.0 % one that is how a rebuild's debt gets noticed, verified by two mutations.
-  ⚠️ **The `I` readout is still unprotected**, and that asymmetry is now the odd one.
+  The `I` readout got one too, in the same pass and by the same mutation -- it had shipped with none, and it is the readout that found the last rebuild's debt.
 - Pruning the `form` table stays documented and unapplied (§O-3), and the on-device tests still do
   not touch the app's UI — only `:dict-data`.
 

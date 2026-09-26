@@ -1373,3 +1373,14 @@ class LecturaDeEtimologiaTest(BuilderTestCase):
         salida = self._verificar([record("casa", etymology="Del latín casa.")])
         self.assertIn("traen etimologia", salida)
         self.assertNotIn("la lleva hasta", salida)
+
+    def test_la_pronunciacion_tiene_la_misma_lectura_y_hasta_hoy_nadie_la_miraba(self):
+        # ⚠️ **The `I` readout shipped with no test**, and it is the one that found the last
+        # rebuild's debt: 0.0 % on `es-full` against 100 % available in the dump. A readout nobody
+        # asserts can stop printing in a refactor and the only symptom is a number that never
+        # appears again -- which reads like a pack that was fine.
+        salida = self._verificar([
+            record("casa", pronunciation="\u02c8kasa"),
+            record("perro"),
+        ])
+        self.assertIn("1 de 2 entradas de la muestra traen pronunciacion (50.0 %)", salida)
