@@ -37,6 +37,7 @@ import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.PackSource
+import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.data.CatalogOffer
 import cl.fadiaz.dictionary.data.CatalogPack
 import cl.fadiaz.dictionary.data.CatalogState
@@ -332,6 +333,70 @@ class ScreensTest {
         }
         compose.onNodeWithText(origen).assertIsDisplayed()
         compose.onNodeWithText("Origen").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h234dp")
+    fun eachPrincipalPartIsItsOwnRowWithItsTypeBesideIt() {
+        // ⚠️ **What this replaces wrapped in the worst place.** The parts were joined into one
+        // flowing paragraph -- `perros (plural) · perra (feminine)` -- and on the project's watch
+        // width `perra` ended one line and `(feminine)` opened the next, splitting the pair the
+        // reader has to hold together. Seen on the 234 dp emulator on 2026-09-25.
+        //
+        // The assertion is structural and not visual: with the paragraph there was ONE node
+        // holding all four words, so no exact match on `perros` could succeed. One node per cell
+        // is the property that makes a row a row.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero cánido doméstico.").copy(
+                    forms = listOf(
+                        PayloadCodec.InflectedForm("pl", "perros"),
+                        PayloadCodec.InflectedForm("fem", "perra"),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("perros").assertIsDisplayed()
+        compose.onNodeWithText("plural").assertIsDisplayed()
+        // `assertExists` and not `assertIsDisplayed` for the second row: at 234 dp it falls below
+        // the fold, and requiring it on screen would be asserting a scroll position rather than
+        // the structure. The four cells being four nodes is the claim.
+        compose.onNodeWithText("perra").assertExists()
+        compose.onNodeWithText("femenino").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h234dp")
+    fun aFormLongerThanTheRowKeepsItsTypeAnyway() {
+        // The width that breaks it: 29 characters against the ~20 a 234 dp row fits. The form
+        // wraps and the type stays beside its first line; what must not happen is the type being
+        // pushed out of the card, which is what a fixed-width column would do.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Una palabra larga.").copy(
+                    forms = listOf(
+                        PayloadCodec.InflectedForm("pl", "antidisestablishmentarianisms"),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("antidisestablishmentarianisms").assertIsDisplayed()
+        compose.onNodeWithText("plural").assertIsDisplayed()
+    }
+
+    @Test
+    fun aFormWhoseKeyNobodyNamedLosesTheTypeAndKeepsTheForm() {
+        // Somebody else's pack can declare parts this version cannot name. `corriendo` with no
+        // note is still information; printing the raw key `sup` beside it would be noise.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero.").copy(
+                    forms = listOf(PayloadCodec.InflectedForm("sup", "perrísimo")),
+                )
+            }
+        }
+        compose.onNodeWithText("perrísimo").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("sup").fetchSemanticsNodes().size)
     }
 
     @Test
