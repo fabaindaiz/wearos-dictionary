@@ -16,6 +16,106 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-25 · s-a2f271-1817f0 — The origin of the word reaches the card, and two silent channel losses on the way
+**What.** The `M` channel end to end: `payload.py` emits and parses it, `PayloadCodec.kt` mirrors
+it, the shared fixture gains two cases so the order of `I` and `M` before the senses is pinned
+across languages, `kaikki._etymology` reads the two field names the dumps disagree on, and the card
+draws an **Origin** section after the senses. The cap is the **tier's vocabulary and never the row's
+length**: `PackBuilder.add` drops the line for any word outside the set `build_pack.py
+--etimologia-hasta <pack.db>` hands it, and the pipeline points English at the previous build's
+`en-main`. Then the whole `dist/` was rebuilt, the APK assembled with the two new cores and
+exercised on the emulator.
+
+**Areas.** `payload.py`, `sources/kaikki.py`, `sources/toy.py`, `build.py`, `build_pack.py`,
+`build_core.py`, `verify_pack.py`, `tools/build_packs.py`, `gen_payload_fixture.py` +
+`vectors/payload-fixture.tsv` · `PayloadCodec.kt`, `Model.kt`, `SqlitePackSource.kt`,
+`EntryScreen.kt`, `values*/strings.xml` · five test files including `SqlitePackSourceTest`
+(instrumented) · `docs/decisions.md` (d-a2f271-bc2a3b), `docs/roadmap.md`, `gradle.properties`.
+
+**Heuristics.** Five notes were relied on and their checks run at the close.
+- **`a-check-must-be-seen-to-fail`** — ran, on every claim. Fourteen mutations: three on the
+  Python codec, one on the Kotlin decoder, two on the vocabulary filter, one on the pipeline's
+  target pack, one on the card's placement, three on the tree rule, and four on the derivation,
+  one per channel. Every one was seen red and restored.
+- **`sweep-the-rendered-extremes`** — ran. With no cap the longest origin in the dump is **3,888
+  characters**; the card is tested at 192 dp with an over-long string, and the test fails when the
+  section is moved above the senses, which is the control it names.
+- **`absence-is-a-third-value`** — ran. Null etymology means three different things (the pack
+  predates the channel, the source has none, the tier does not reach the word) and `verify_pack.py`
+  now prints the coverage **and** the reach, so the third is readable.
+- **`validate-each-transformation-run`** — ran, and it is what found the second defect. The
+  derivation is a transformation whose output was never compared against its input; it is now, by
+  tag letter.
+- **`derived-copy-goes-stale-silently`** — ran. `index.json` and the six `.db.gz` were regenerated
+  from the rebuilt packs and `dictionary.versionCode` went 10 → 11, without which the app skips the
+  comparison and keeps the old bundled core.
+
+**Why.** Asked for, in the owner's words: *«la etimología implementala con el tope que te comenté
+de sólo palabras hasta main sin medir por largo de filas»* — the vocabulary is the cap and the row
+length is not — and then *«empieces a generar los packs en todos los tamaños y compiles la app con
+ellos dentro»*, which is the rebuild and the APK.
+
+**Architecture.** ✅ Complies. The channel is additive so the codec id does not move (D-119); the
+filter lives in the one funnel every record passes through; `:dict-core` gained no JVM API.
+
+**Measured.**
+- Uncapped etymology, per pack, by recompressing a 6,000-entry random sample with each pack's own
+  dictionary and extrapolating: `es-core` **+1.25 ±0.02 MB**, `es-full` **+2.40 ±0.05**, `en-core`
+  **+7.21 ±0.13**, `en-main` **+12.56 ±0.27**, `en-full` **+13.38 ±0.72** — **+36.8 MB** against
+  +8.8 with the cap of 128 the roadmap recommended.
+- The artifacts, which are the number that counts: `en-full` 314.3 → **315.5 MB**, `es-full` 74.0 →
+  **76.1**, `es-en` 67.2 → **67.1**, and the **APK 111 → 107.9 MB**. The retrained dictionary
+  (−8.3 % es, −13.1 % en of payload) pays for most of what `I`, `F` and `M` add.
+- The English etymology tree: **52,925 of 535,571** entries with an origin render it (9.9 %); the
+  marker rule finds the prose in **99.95 %** and leaves 26 with nothing. Raw text 48.1 → 31.5 MB.
+- The derivation defect: the published `es-full` carried `W` in **21.9 %** of a 3,000-entry sample
+  and its `es-core` in **0 %**. After the fix, over 4,000 entries: `es-core` W 18.6 %, F 83.6 %,
+  I 100.0 %, M 85.0 %; `en-core` 10.6 / 61.6 / 89.3 / 88.1.
+- Filtering by frequency signal instead of by a main pack would cover **27.6 %** of `en-main`'s own
+  vocabulary (38,067 of 138,083), which is why the flag reads a pack.
+- Emulator, 384×384, versionCode 11: both cores open (1,606 ms and 403 ms), 22.8 s to ready, and
+  the three channels are on the glass in both languages.
+
+**Deviation from the plan.** ⚠️ **The ~80-character cap the roadmap recommends is not in**, by the
+owner's instruction. Its price is the +36.8 MB above, of which the APK pays **+8.5** on the two
+cores. Recorded as a Desviación in d-a2f271-bc2a3b and in the roadmap.
+
+**Not verified.** Nothing was run on a real watch: the emulator is 384×384 and the project's watch
+is 234 dp, so **how much of a long origin fits before it stops being worth drawing is unanswered**,
+and it is the kind of question that only a wrist settles. It joins
+`docs/preguntas-del-reloj.md`. And `devpack.py` was not run, so the watch still holds the packs of
+2026-09-21.
+
+**What went wrong.**
+- **The first probe measured nothing twice**, and the second time it printed a number. The
+  detection used a word-count rule for where the prose behind the tree starts: it reported 87 % of
+  the trees as having none, and the cases it discarded were `From folk + -ie.` — correct
+  etymologies four words long. A validity criterion written **before** reading the number is what
+  caught it; the rule was replaced by the marker line and re-measured.
+- **The split-half control of the size probe was invalid as designed.** It compared the first half
+  of the sample against the second and gave 60/40, which looked like a problem: `entry.id`
+  correlates with `rank`, so the first half was the frequent words with the longer origins. The
+  sample itself is random; the halves were not. Replaced by the standard error.
+- **A verification raced its own build.** The chained command waited for the output file to be
+  non-empty, and an `echo` made it non-empty immediately, so `verify_pack.py` read an `es-core`
+  that was still being written and reported 22 failures against a pack with 0 entries.
+- **Spanish prose slipped into `tools/` again** — one comment line, caught by the ratchet, exactly
+  what the memory note warns about. And into `docs/roadmap.md`, twice, in a section written in
+  English.
+
+**What was left undone.**
+- **The bilingual carries the origin and nobody decided it.** `es-en`'s Spanish side comes from
+  `kaikki.records`, so it picked `I` and `M` up on its own: 41.0 % and 31.5 % of a sample. The
+  objection was size and the size did not move, so the artifact answers the question the roadmap
+  left open — but it was not an explicit call.
+- **The guard added to `derive` re-decompresses the whole output**, and `derivar_en_rango` calls
+  `derive` up to four times. Nobody measured what that adds to an `en-main` derivation; it is
+  bounded and correctness-first, but it is a cost taken without a number.
+- **The `M` readout in `verify_pack.py` has no test**, which is symmetric with the `I` one and
+  equally unprotected.
+- Pruning the `form` table stays documented and unapplied (§O-3), and the on-device tests still do
+  not touch the app's UI — only `:dict-data`.
+
 ## 2026-09-25 · s-a2f271-b31995 — What kills the adb session is Samsung's freezer, not Android
 **What.** A new `:watch-keepalive` module: a **second app in this repo** (d-a2f271-8ac8d5) with
 **no launcher activity**, so it never shows up among the watch's apps. Its foreground service
