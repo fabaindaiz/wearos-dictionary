@@ -302,3 +302,4 @@ class FiltroDeEtimologiaTest(unittest.TestCase):
         # roadmap says. The second build filters it. Failing here instead would block a rebuild
         # from scratch over a datum that is additive.
         self.assertNotIn("--etimologia-hasta", self._paso("en-full", solo="en")["comando"])
+

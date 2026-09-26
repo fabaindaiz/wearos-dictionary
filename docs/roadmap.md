@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **559 tests**) están completos y en el gate, junto con los **445 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1177 tests en total**. Los **48
+pipeline de packs (`tools/`, **561 tests**) están completos y en el gate, junto con los **445 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1179 tests en total**. Los **48
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -247,12 +247,28 @@ hus, from Old English hūs (“dwelling, shelter, house”)…"*, and `perro` wi
 (plural) · perra (feminine)* and its origin in Spanish. That last screen is what says the tree fix
 reached the glass and not just the test.
 
-⚠️ **The bilingual carries the origin too, and nobody decided that — measurement did.** `es-en`'s
-Spanish side comes straight from `kaikki.records`, so it picked up `I` and `M` on its own: **41.0 %**
-of a sample carry a pronunciation and **31.5 %** an origin. The objection this section raised
-against it was the size, and the size went **67.2 → 67.1 MB**: the retrained dictionary absorbed it.
-The question §*La etimología también* left open for the owner is therefore answered by the
-artifact — it costs nothing — but it was **not** an explicit decision, so it is written here.
+✅ **The bilingual does NOT carry the origin, decided 2026-09-26, and the size was never the
+argument.** It had picked `I` and `M` up on its own, because `es-en`'s Spanish side comes straight
+from `kaikki.records`. Looked at rather than counted, what it was carrying is **the origin of the
+Spanish word written in English** — enwiktionary is its source — so `conejo` read *"Inherited from
+Old Spanish conejo, from Latin cuniculus"* where `es-full` says *"Del latín cuniculus, y este
+de origen ibérico, según Plinio"* -- the same fact, in the language of whoever is reading it.
+
+| over 4,000 of its Spanish words | |
+|---|---|
+| also present in `es-full` | **58.2 %** |
+| of those, with an origin in `es-en` | 1,642 |
+| of those, with an origin in `es-full` | **1,736** |
+
+So it was a duplicate, **in the wrong language, of a better copy** — and off the pack's purpose,
+which the owner states as *«un pack de apoyo o con elementos de traducción que conecten los
+distintos packs»*. An etymology connects nothing. `build_pack` now hands a bilingual an empty
+vocabulary and declares `meta.etymology_vocabulary = none (translation pack)`.
+
+⚠️ **The pronunciation stays and that is a different case.** IPA is notation, not prose, so it
+does not arrive in the wrong language, and at a median of 11 characters it is nearly free: **41.0 %**
+of its entries carry one. It is also the datum somebody gets no other way when they open a
+translation and never leave the bilingual. Left in, deliberately.
 
 ⚠️ **What the previous rebuild found**, in the changelog of 2026-09-22: `--sumar` receiving a pack
 where its reader opens the dump, an intermediate nobody consumed, and the coverage list demanding
