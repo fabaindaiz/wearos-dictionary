@@ -16,6 +16,77 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-26 · s-a2f271-d67782 — Seven small reports, and the two that were not what they looked like
+**What.** Seven usability reports, each fixed and committed on its own. Choosing a text size closes
+the menu it was chosen from. A result row says what the word **is** --`sust. · ES`-- and never why
+it matched. Leaving the app no longer navigates home: `ScrollToTopOnReturn`, one composable used by
+all six screens, returns the open screen to its own top instead, and the entry's magnifier becomes
+a house. A word that does not fit wraps at a break the language allows rather than being cut, in
+the rows, the card's title and the forms. The headword and the pronunciation go up one size step.
+An inflected word in a gloss links to its lemma. A saved word is told its language by the pack when
+the stored row does not know it. And a verb's card shows **ten principal parts** instead of two,
+chosen by measurement.
+
+**Areas.** `EntryScreen.kt`, `SearchScreen.kt`, `Components.kt` (`WordTitle`, `ScrollToTopOnReturn`,
+`WORD_BREAK`), `MainActivity.kt`, `SearchViewModel.kt`, `Labels.kt`, `values*/strings.xml` ·
+`SqlitePackSource.kt`, `Model.kt` · `sources/kaikki.py` · `app/build.gradle.kts` ·
+`ScreensTest`, `SearchViewModelTest`, `SqlitePackSourceTest` (instrumented),
+`test_source_kaikki.py` · and the documents: `docs/decisions.md` (d-a2f271-6c19e4) and
+`docs/roadmap.md`.
+
+**Heuristics.** Three notes were relied on and their checks run.
+- **`a-check-must-be-seen-to-fail`** — ran, on every claim that a test could hold: eleven mutations,
+  including both traps of the new tag table and the four channels of the form query.
+- **`sweep-the-rendered-extremes`** — ran, and it is what found the break strategy: the card was
+  looked at with a 22-character word at the watch's own 234 dp, not at the default.
+- **`absence-is-a-third-value`** — ran. A word not painted and a word that resolved to nothing were
+  the same observation on screen; the card now reports its own count at DEBUG.
+
+**Why.** Seven reports from using the app, and then: *«considera mostrar 10, entre las más útiles y
+las más representativas»* for the verb forms.
+
+**Architecture.** ✅ Complies.
+
+**Measured.**
+- The ten principal parts, over 200,000 pages of the Spanish dump and ~4,400 verbs per form: the
+  fraction whose **stem** is not the lemma's. Subjunctive **27.6 %**, preterite 1sg **18.6 %**,
+  present 1sg **11.1 %**, present 2sg/3sg/3pl **7.3 %**, preterite 3sg **3.9 %**, gerund **2.5 %**,
+  participle **1.4 %** — the two shown before were the two least informative. Future **0.2 %**,
+  conditional **0.2 %**, `presente nosotros` **0.1 %**, imperfect **0.0 %**.
+- The links: `filiación` reports **26 of 31** terms resolved, and on screen `padres` and `hijos` go
+  from plain white to the link colour — **1,988 and 401 lavender pixels** against 0 before, counted
+  rather than squinted at.
+- Robolectric 4.17 needs nine `--add-opens`; without them **every** JVM screen test dies in setUp.
+
+**Deviation from the plan.** The owner chose to have the dependency upgrade fixed as part of this
+work rather than waiting for it. It is in its own commit, not inside a UI one, so a revert of
+either does not take the other.
+
+**Not verified.** The saved-word language tag was proved by test and by mutation but **not seen
+filled in on screen**: the emulator's only untagged rows belong to packs that are no longer
+installed, which is the documented case where it correctly stays untagged. And the hyphen itself is
+still inconsistent — the composition's locale is the interface's and the word is the pack's, so a
+Spanish word is hyphenated by English rules on an English watch.
+
+**What went wrong.**
+- **The first measurement answered the wrong question, and the criterion caught it.** Normalised
+  edit distance to the lemma put `comer → comamos` at the top of "least similar": that measures
+  **suffix length**, not irregularity, and a reader derives `comamos` without thinking. Replaced by
+  *does the stem survive*, whose top rows are what a speaker would name as irregular.
+- **A tag table where one row's requirements are a SUBSET of another's.** The preterite carries the
+  present's four tags plus `perfect`, so the present row matched the preterite too and the card
+  would have labelled `hice` a present. Found by writing the test, not by reading the table.
+- **`LineBreak.Heading` was the obvious pick and the wrong one**: it split
+  `electroencefalográfico` mid-syllable with no hyphen. `Paragraph` is the strategy that consults
+  the hyphenation dictionary.
+- **Two reports were not what they looked like.** `filiation` not linking is not a bug: it is a
+  lemma of `en-full` and not of `en-core`, and the emulator had only the core. The missing `ES` in
+  the saved list is not a missing component --the row is already shared (D-152)-- it is a missing
+  datum.
+
+**What was left undone.** The hyphenation locale, named above. And the packs and the APK are
+rebuilt but **not on the watch**: `devpack.py` has not been run since.
+
 ## 2026-09-25 · s-a2f271-1817f0 — The origin of the word reaches the card, and two silent channel losses on the way
 **What.** The `M` channel end to end: `payload.py` emits and parses it, `PayloadCodec.kt` mirrors
 it, the shared fixture gains two cases so the order of `I` and `M` before the senses is pinned
