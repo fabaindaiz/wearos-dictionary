@@ -105,6 +105,13 @@ on a bus gives up at row six of an origin**, which is P-16 and is not a geometry
 Performance and battery still need a run designed for them (D-043); what this session took are
 transfer and start-up numbers, not steady-state ones.
 
+⚠️ **And the session was not closed cleanly: `stop` never reached the watch.** It left the network
+between the last capture and the close --100 % packet loss, no mDNS record-- so the transport was
+`offline` before the command could go. The keep-alive stops itself when Wi-Fi goes down, measured
+at 1.1 s in the session that built it, and Wi-Fi going down is the most likely reason it
+vanished; **but that is an inference, not a reading**. The check when it comes back is
+`python3 tools/watchsession.py -s <serial> status`: `wake lock tomado = no`.
+
 **What went wrong.**
 - **The first probe measured nothing twice**, and the second time it printed a number. The
   detection used a word-count rule for where the prose behind the tree starts: it reported 87 % of
@@ -130,6 +137,13 @@ transfer and start-up numbers, not steady-state ones.
   got a mechanism: `devicePrecheck` now reads each device's geometry out loud.
 - **A new question took a number that was already answered.** P-14 existed; the new row is P-16.
   Caught by reading the table rather than by any check.
+- **`watchsession.py -s` after the subcommand is rejected**, and the tool's own usage line showed
+  it that way. With an emulator running, the bare `status` then picks the emulator, **says so**,
+  and reports the watch's session as absent -- while the watch was answering on mDNS the whole
+  time. The reading was right and pointed at the wrong device; the usage line is fixed.
+- **The first `adb connect` to the watch said `Host is down`** with the port open and the ping
+  answering. It was the SoC suspended; the second attempt went through. Worth knowing before
+  concluding that a watch is unreachable.
 
 **What was left undone.**
 - ~~**The bilingual carries the origin and nobody decided it.**~~ Decided 2026-09-26, and by
