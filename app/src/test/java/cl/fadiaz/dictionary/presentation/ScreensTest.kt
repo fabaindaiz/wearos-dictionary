@@ -336,6 +336,28 @@ class ScreensTest {
     }
 
     @Test
+    fun choosingATextSizeClosesTheMenuAndGoesBackToTheWord() {
+        // ⚠️ **The size is chosen by looking at the text, and the open dialog covered it.** Every
+        // other action in this menu closes it; this one did not, so the change applied behind the
+        // menu and you had to dismiss it by hand to see what you had picked.
+        var elegida: cl.fadiaz.dictionary.data.TextScale? = null
+        compose.setContent {
+            EntryScreen(
+                1,
+                onOpenWord = {},
+                actions = { listOf(EntryAction(R.string.entry_options) {}) },
+                textScale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
+                onTextScaleChange = { elegida = it },
+            ) { entry("Mamífero cánido doméstico.") }
+        }
+        compose.onNodeWithContentDescription("Opciones").performClick()
+        compose.onAllNodesWithText("Aa")[2].performClick()
+        assertEquals(cl.fadiaz.dictionary.data.TextScale.LARGE, elegida)
+        // The dialog is gone: its title no longer exists anywhere in the tree.
+        assertEquals(0, compose.onAllNodesWithText("Opciones").fetchSemanticsNodes().size)
+    }
+
+    @Test
     @Config(qualifiers = "+w234dp-h234dp")
     fun eachPrincipalPartIsItsOwnRowWithItsTypeBesideIt() {
         // ⚠️ **What this replaces wrapped in the worst place.** The parts were joined into one

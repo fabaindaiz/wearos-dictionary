@@ -479,7 +479,15 @@ fun EntryScreen(
                                         MaterialTheme.colorScheme.surfaceContainer
                                     },
                                 )
-                                .clickable { onTextScaleChange(opcion) }
+                                // ⚠️ **It closes the dialog, like every other action here.**
+                                // It used to stay open, so changing the size showed the change
+                                // behind a menu covering the word it applied to -- and the size
+                                // is chosen by looking at the text, which is the one thing the
+                                // open dialog hid.
+                                .clickable {
+                                    menuOpen = false
+                                    onTextScaleChange(opcion)
+                                }
                                 .heightIn(min = TOUCH_TARGET)
                                 .padding(vertical = 12.dp),
                         )
