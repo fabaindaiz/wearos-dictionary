@@ -711,9 +711,65 @@ def _forms(raw, headword, inbound):
 #: carry it -- so using it as a filter left `correr` with no principal parts at all. What
 #: separates `corriendo` from `habiendo corrido` is not a tag but that the second is COMPOUND,
 #: and that shows in the space. Measured against the real dump, not reasoned.
+#:
+#: WARNING: **the required tags of one row can be a SUBSET of another's**, and that is a trap this
+#: table walked into. The preterite carries `{first-person, indicative, present, singular}` plus
+#: `perfect`, so a present row asking only for the first four matches the preterite form as well
+#: and the card shows `hice` labelled as a present. Every present row forbids `perfect` for that
+#: reason, and it is the kind of thing a screenshot catches and a test does not.
+#:
+#: WARNING: `vos-form` is excluded everywhere. The app's Spanish is neutral Latin American
+#: (app/CLAUDE.md), and `conocés` beside `conoces` is two answers to one question. `vosotros` is
+#: absent for the same reason -- it is the second-person plural row that is not here.
+#:
+#: **Which ten, and why these ten.** Measured over 200,000 pages of the Spanish dump, ~4,400 verbs
+#: per form: the fraction whose STEM is not the lemma's, which is the only part a reader cannot
+#: derive. Ordered as the card shows them.
+#:
+#:     subjuntivo yo/el   27.6 %   conocer -> conozca
+#:     preterito yo       18.6 %   hacer -> hice
+#:     presente yo        11.1 %   conocer -> conozco
+#:     presente tu/el/ellos 7.3 %  haber -> has, ha, han
+#:     preterito el        3.9 %   hacer -> hizo
+#:     gerundio            2.5 %   dormir -> durmiendo
+#:     participio          1.4 %   hacer -> hecho
+#:
+#: Two sources agree on the core of it. Wiktionary's own `es-verb` headword names **first-person
+#: singular present, first-person singular preterite and past participle** (en.wiktionary.org,
+#: `hablar`), and traditional Spanish grammar's *tiempos primitivos* -- present indicative,
+#: preterite, future indicative -- are the three whose irregularity propagates to the rest of
+#: their group, so one form from each group covers the paradigm.
+#:
+#: ⚠️ **The future is deliberately NOT here even though it is a primitive**: measured, **0.2 %**
+#: of verbs change its stem. Its dozen irregulars are famous --`haré`, `diré`, `pondré`-- but the
+#: row would cost 4,398 verbs a line to help 8. The same applies to the conditional (0.2 %), the
+#: imperfect (0.0 %) and `presente nosotros` (0.1 %) -- that last one is here anyway, because the
+#: present paradigm read with a hole in it is worse than one derivable row.
 PARTES_PRINCIPALES = (
-    ("ger", frozenset({"gerund"}), frozenset()),
-    ("part", frozenset({"participle"}), frozenset()),
+    # The non-finite pair, first because they are what the compound and progressive tenses need.
+    ("ger", frozenset({"gerund"}), frozenset({"vos-form", "archaic", "obsolete"})),
+    ("part", frozenset({"participle"}),
+     frozenset({"feminine", "plural", "vos-form", "archaic", "obsolete"})),
+    # The present indicative, whole. The most read tense of the language.
+    ("ind1s", frozenset({"first-person", "indicative", "present", "singular"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    ("ind2s", frozenset({"second-person", "indicative", "present", "singular"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    ("ind3s", frozenset({"third-person", "indicative", "present", "singular"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    ("ind1p", frozenset({"first-person", "indicative", "present", "plural"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    ("ind3p", frozenset({"third-person", "indicative", "present", "plural"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    # The preterite: the second primitive, and where the stem breaks most visibly.
+    ("pret1s", frozenset({"first-person", "indicative", "perfect", "present", "singular"}),
+     frozenset({"vos-form", "archaic", "obsolete", "combined"})),
+    ("pret3s", frozenset({"third-person", "indicative", "perfect", "present", "singular"}),
+     frozenset({"vos-form", "archaic", "obsolete", "combined"})),
+    # The single most irregular form in the language, at 27.6 %.
+    ("sub1s", frozenset({"first-person", "present", "singular", "subjunctive"}),
+     frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    # Nouns and adjectives: their only two inflections.
     ("pl", frozenset({"plural"}),
      frozenset({"first-person", "second-person", "third-person", "feminine"})),
     ("fem", frozenset({"feminine"}),

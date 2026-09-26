@@ -70,6 +70,14 @@
     <string name="entry_etymology_title">Origin</string>
     <string name="entry_form_gerund">gerund</string>
     <string name="entry_form_participle">participle</string>
+    <string name="entry_form_ind1s">I</string>
+    <string name="entry_form_ind2s">you</string>
+    <string name="entry_form_ind3s">he/she</string>
+    <string name="entry_form_ind1p">we</string>
+    <string name="entry_form_ind3p">they</string>
+    <string name="entry_form_pret1s">I, past</string>
+    <string name="entry_form_pret3s">he/she, past</string>
+    <string name="entry_form_sub1s">subjunctive</string>
     <string name="entry_form_plural">plural</string>
     <string name="entry_form_feminine">feminine</string>
     <string name="entry_translations_title">Translation</string>

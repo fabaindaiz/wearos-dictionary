@@ -66,6 +66,14 @@
     <string name="entry_etymology_title">Origen</string>
     <string name="entry_form_gerund">gerundio</string>
     <string name="entry_form_participle">participio</string>
+    <string name="entry_form_ind1s">yo</string>
+    <string name="entry_form_ind2s">tú</string>
+    <string name="entry_form_ind3s">él/ella</string>
+    <string name="entry_form_ind1p">nosotros</string>
+    <string name="entry_form_ind3p">ellos</string>
+    <string name="entry_form_pret1s">yo, pasado</string>
+    <string name="entry_form_pret3s">él/ella, pasado</string>
+    <string name="entry_form_sub1s">subjuntivo</string>
     <string name="entry_form_plural">plural</string>
     <string name="entry_form_feminine">femenino</string>
     <string name="entry_translations_title">Traducción</string>

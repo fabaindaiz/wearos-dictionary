@@ -816,6 +816,18 @@ private fun FormsTable(forms: List<PayloadCodec.InflectedForm>) {
 private fun formTypeLabel(key: String): String? = when (key) {
     "ger" -> R.string.entry_form_gerund
     "part" -> R.string.entry_form_participle
+    // ⚠️ **The person and not the tense name.** `conozco` next to *"first-person singular present
+    // indicative"* is a grammar lesson nobody asked for on a 234 dp row; next to *yo* it is the
+    // word you would say. The tense is carried by the ORDER -- present, then past, then
+    // subjunctive -- which is how a conjugation table is read.
+    "ind1s" -> R.string.entry_form_ind1s
+    "ind2s" -> R.string.entry_form_ind2s
+    "ind3s" -> R.string.entry_form_ind3s
+    "ind1p" -> R.string.entry_form_ind1p
+    "ind3p" -> R.string.entry_form_ind3p
+    "pret1s" -> R.string.entry_form_pret1s
+    "pret3s" -> R.string.entry_form_pret3s
+    "sub1s" -> R.string.entry_form_sub1s
     "pl" -> R.string.entry_form_plural
     "fem" -> R.string.entry_form_feminine
     else -> null

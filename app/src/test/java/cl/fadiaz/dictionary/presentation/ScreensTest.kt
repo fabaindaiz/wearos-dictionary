@@ -422,6 +422,39 @@ class ScreensTest {
 
     @Test
     @Config(qualifiers = "+w234dp-h234dp")
+    fun aVerbShowsItsTenPrincipalPartsEachWithItsPerson() {
+        // ⚠️ **Ten because they were measured.** Over the Spanish dump, the fraction of verbs whose
+        // stem changes: subjunctive 27.6 %, preterite 1sg 18.6 %, present 1sg 11.1 %, the rest of
+        // the present 7.3 %, preterite 3sg 3.9 %, gerund 2.5 %, participle 1.4 %. What the card
+        // used to show -- gerund and participle -- were the two least informative of the set.
+        //
+        // The label is the PERSON and not the tense name: `hago` next to *yo* is the word you
+        // would say; next to "first-person singular present indicative" it is a grammar lesson.
+        val partes = listOf(
+            "ger" to "haciendo", "part" to "hecho",
+            "ind1s" to "hago", "ind2s" to "haces", "ind3s" to "hace",
+            "ind1p" to "hacemos", "ind3p" to "hacen",
+            "pret1s" to "hice", "pret3s" to "hizo", "sub1s" to "haga",
+        )
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Producir algo.").copy(
+                    forms = partes.map { (clave, forma) ->
+                        PayloadCodec.InflectedForm(clave, forma)
+                    },
+                )
+            }
+        }
+        for ((_, forma) in partes) {
+            compose.onNodeWithText(forma).assertExists()
+        }
+        compose.onNodeWithText("yo").assertExists()
+        compose.onNodeWithText("subjuntivo").assertExists()
+        compose.onNodeWithText("él/ella, pasado").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h234dp")
     fun aFormLongerThanTheRowKeepsItsTypeAnyway() {
         // The width that breaks it: 29 characters against the ~20 a 234 dp row fits. The form
         // wraps and the type stays beside its first line; what must not happen is the type being

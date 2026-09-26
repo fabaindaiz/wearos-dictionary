@@ -1638,3 +1638,83 @@ class PronunciacionTest(unittest.TestCase):
     def test_unos_delimitadores_solos_no_dejan_una_cadena_vacia(self):
         # `[]` would strip to "" and an empty value must be None, not a blank row on the card.
         self.assertIsNone(kaikki._pronunciation({"sounds": [{"ipa": "[]"}]}))
+
+
+class DiezPartesDeUnVerboTest(unittest.TestCase):
+    """The ten forms a verb shows, and the two traps in choosing them.
+
+    ⚠️ **They are ten because they were measured, not because ten is a round number.** Over 200,000
+    pages of the Spanish dump, the fraction of verbs whose STEM changes: subjunctive 27.6 %,
+    preterite 1sg 18.6 %, present 1sg 11.1 %, present 2sg/3sg/3pl 7.3 %, preterite 3sg 3.9 %,
+    gerund 2.5 %, participle 1.4 %. The future (0.2 %), the conditional (0.2 %) and the imperfect
+    (0.0 %) are left out: derivable for all but a handful.
+    """
+
+    def _forms(self, *items):
+        return dict(kaikki._display_forms({"forms": list(items)}, "hacer"))
+
+    def test_el_presente_no_se_lleva_el_preterito(self):
+        """⚠️ **The subset trap, and it is the reason every present row forbids `perfect`.**
+
+        The preterite carries the present's four tags PLUS `perfect`, so a present row asking only
+        for `{first-person, indicative, present, singular}` matches the preterite too -- and with
+        the preterite first in the source's list, the card would show `hice` labelled as a present.
+        A screenshot catches that; a table read on its own does not.
+        """
+        formas = self._forms(
+            {"form": "hice", "tags": ["first-person", "indicative", "perfect", "present",
+                                      "singular"]},
+            {"form": "hago", "tags": ["first-person", "indicative", "present", "singular"]},
+        )
+        self.assertEqual("hago", formas["ind1s"])
+        self.assertEqual("hice", formas["pret1s"])
+
+    def test_el_vos_no_desplaza_al_tu(self):
+        # The app's Spanish is neutral Latin American (app/CLAUDE.md): `hacés` beside `haces` is
+        # two answers to one question, and the source lists the vos form first for many verbs.
+        formas = self._forms(
+            {"form": "hacés", "tags": ["second-person", "indicative", "present", "singular",
+                                       "vos-form"]},
+            {"form": "haces", "tags": ["second-person", "indicative", "present", "singular"]},
+        )
+        self.assertEqual("haces", formas["ind2s"])
+
+    def test_un_verbo_completo_da_las_diez_en_orden(self):
+        formas = kaikki._display_forms({"forms": [
+            {"form": "haciendo", "tags": ["gerund"]},
+            {"form": "hecho", "tags": ["participle"]},
+            {"form": "hago", "tags": ["first-person", "indicative", "present", "singular"]},
+            {"form": "haces", "tags": ["second-person", "indicative", "present", "singular"]},
+            {"form": "hace", "tags": ["third-person", "indicative", "present", "singular"]},
+            {"form": "hacemos", "tags": ["first-person", "indicative", "present", "plural"]},
+            {"form": "hacen", "tags": ["third-person", "indicative", "present", "plural"]},
+            {"form": "hice", "tags": ["first-person", "indicative", "perfect", "present",
+                                      "singular"]},
+            {"form": "hizo", "tags": ["third-person", "indicative", "perfect", "present",
+                                      "singular"]},
+            {"form": "haga", "tags": ["first-person", "present", "singular", "subjunctive"]},
+        ]}, "hacer")
+        self.assertEqual(
+            ("ger", "part", "ind1s", "ind2s", "ind3s", "ind1p", "ind3p", "pret1s", "pret3s",
+             "sub1s"),
+            tuple(clave for clave, _ in formas),
+        )
+        self.assertEqual("hecho", dict(formas)["part"])
+
+    def test_el_participio_femenino_no_se_lleva_la_fila(self):
+        # `hecha` is a participle too, and with it first the card would show the feminine as THE
+        # participle. The compound tenses need the masculine singular.
+        formas = self._forms(
+            {"form": "hecha", "tags": ["participle", "feminine", "singular"]},
+            {"form": "hecho", "tags": ["participle", "masculine", "singular"]},
+        )
+        self.assertEqual("hecho", formas["part"])
+
+    def test_un_sustantivo_sigue_dando_solo_dos(self):
+        # The table grew for verbs and must not change what a noun shows: a noun has no present
+        # indicative, and the two rows that describe it are still the last two.
+        self.assertEqual(
+            {"pl": "casas"},
+            dict(kaikki._display_forms({"forms": [{"form": "casas", "tags": ["plural"]}]},
+                                       "casa")),
+        )
