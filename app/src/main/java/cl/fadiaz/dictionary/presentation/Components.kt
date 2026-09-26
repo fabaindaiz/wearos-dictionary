@@ -390,13 +390,18 @@ internal fun ScrollToTopOnReturn(state: TransformingLazyColumnState, firstIndex:
  * before this each decided its own overflow: the card wrapped mid-word, the row ellipsised, and a
  * long form pushed its type out of the row.
  *
- * `Hyphens.Auto` asks the platform for a break the language allows --`fi-lia-ción`-- instead of
- * wherever the pixel ran out, and `LineBreak.Heading` is the strategy Compose documents for short
- * titles: it balances the two lines rather than filling the first and leaving one syllable on the
- * second. Both need the text's locale, which comes from the composition, so a Spanish word breaks
- * by Spanish rules and an English one by English ones.
+ * `Hyphens.Auto` asks the platform for a break the language allows --`elec-tro-en-ce-fa-lo-grá-fi-co`--
+ * instead of wherever the pixel ran out. It needs the text's locale, which comes from the
+ * composition, so a Spanish word breaks by Spanish rules and an English one by English ones.
+ *
+ * ⚠️ **`LineBreak.Paragraph` and not `Heading`, and it took looking at it to find out.** `Heading`
+ * is what Compose documents for short titles and it was the obvious pick; on the 234 dp emulator
+ * it split `electroencefalográfico` as `electroence|falográfico`, with no hyphen and in the middle
+ * of a syllable. `Paragraph` is the high-quality strategy, the one that actually consults the
+ * hyphenation dictionary. The balanced look `Heading` promises is worth nothing if the break it
+ * balances is in the wrong place.
  */
-internal val WORD_BREAK = LineBreak.Heading
+internal val WORD_BREAK = LineBreak.Paragraph
 
 /**
  * A word as the head of its own screen: the word, how it sounds, and what it is.
