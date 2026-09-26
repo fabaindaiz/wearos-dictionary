@@ -231,6 +231,47 @@ def _agrupar(origen, tabla):
     return salida
 
 
+def _tags(texto):
+    """The set of payload tag letters the text carries."""
+    return {linea[0] for linea in texto.split("\n") if len(linea) >= 2 and linea[1] == "\t"}
+
+
+def _ningun_canal_se_perdio(salida, tags_origen):
+    """Fails if the derived pack carries fewer entries of some channel than the source did.
+
+    ⚠️ **It counts TAG LETTERS and not named fields, and that is the whole point.** The named
+    version of this check is the list of arguments in `derive`, and that list is what already went
+    wrong: `W` was dropped there and shipped for weeks in every core -- 21.9 % of the Spanish
+    entries against 0 % in the derived one -- because a pack that loses a channel opens with no
+    error and passes every invariant. Counting letters catches **the next** channel too, the one
+    nobody has written yet, which a per-field check by construction cannot.
+
+    The comparison is `>=` and not equality: `merge_duplicate_senses` can fuse two senses on the
+    way through and legitimately leave one fewer `S`.
+    """
+    db = sqlite3.connect("file:%s?mode=ro" % salida, uri=True)
+    try:
+        diccionario = binascii.unhexlify(
+            dict(db.execute("SELECT key, value FROM meta"))["payload_dict"])
+        tags_salida = {}
+        for (blob,) in db.execute("SELECT payload FROM entry"):
+            for tag in _tags(payload_codec.decompress(blob, diccionario)):
+                tags_salida[tag] = tags_salida.get(tag, 0) + 1
+    finally:
+        db.close()
+    perdidos = sorted(
+        (tag, cuenta, tags_salida.get(tag, 0))
+        for tag, cuenta in tags_origen.items()
+        if tags_salida.get(tag, 0) < cuenta
+    )
+    if perdidos:
+        raise ValueError(
+            "la derivacion perdio canales del payload: %s. Cada tag es un dato que el pack "
+            "completo trae y el derivado no, y eso no falla en ninguna invariante: se ve como "
+            "un diccionario que muestra menos" % ", ".join(
+                "%s %d -> %d" % (tag, antes, ahora) for tag, antes, ahora in perdidos))
+
+
 def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=None):
     """Writes into `salida` the entries of `completo` whose lemma is in `vocabulario`.
 
@@ -265,10 +306,16 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
     traducciones_por_entrada = _agrupar(origen, "trans")
 
     escritos = 0
+    tags_origen = {}
     with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura, lemas)) as constructor:
         for entry_id, uid, headword, pos, rank, blob in filas:
-            _pos_payload, senses, _palabra = payload_codec.parse(
-                payload_codec.decompress(blob, diccionario))
+            # ⚠️ **Everything the payload says ABOUT THE WORD has to be read back and handed
+            # over, and forgetting one is invisible.** The entry is rebuilt from its text, so a
+            # channel that is not named here is not written: the derived pack opens with no error,
+            # passes every invariant and shows less. Measured on the packs published 2026-09-23:
+            # `es-full` carried `W` in 21.9 % of a sample and the `es-core` derived from it in 0 %.
+            texto = payload_codec.decompress(blob, diccionario)
+            _pos_payload, senses, traducciones_de_palabra = payload_codec.parse(texto)
             formas = formas_por_entrada.get(entry_id, ())
             traducciones = traducciones_por_entrada.get(entry_id, ())
             constructor.add(build.Record(
@@ -278,6 +325,12 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
                 rank=rank,
                 forms=formas,
                 translations=traducciones,
+                word_translations=traducciones_de_palabra,
+                display_forms=payload_codec.parse_forms(texto),
+                pronunciation=payload_codec.parse_pronunciation(texto),
+                # The tier filter needs no reapplying: this pack's vocabulary is a subset of the
+                # full one's, which already carries the origin only where it should.
+                etymology=payload_codec.parse_etymology(texto),
                 # ⚠️ **The uid is COPIED and not recomputed.** It is the logical identity and the
                 # join key across packs (D-055): if the core recomputed its `sense_key` counting
                 # ITS homographs, an entry with a twin in the full pack could lose it and end up
@@ -285,7 +338,10 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
                 uid=uid,
             ))
             escritos += 1
+            for tag in _tags(texto):
+                tags_origen[tag] = tags_origen.get(tag, 0) + 1
     origen.close()
+    _ningun_canal_se_perdio(salida, tags_origen)
     return escritos
 
 
