@@ -195,7 +195,70 @@ español completo (73,6 MB) esté por debajo del máximo del rango de `main` (15
 real lo salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía
 no existe**. El plan que se lee no es exactamente el plan que corre.
 
-### La deuda de hoy — NINGUNA, reconstruido el 2026-09-22 a las 17:22
+### La deuda de hoy — NINGUNA, reconstruido el 2026-09-25 a las 22:21
+
+**The six packs in `dist/` came out of this date's builder** and pass `verify_pack.py` whole. This
+rebuild lands the three payload channels the previous one predated —`I`, `F` and `M`— plus the
+retrained compression dictionary and the English packs' Spanish `attribution`.
+
+| pack | size | entries | corpus coverage | fraction of lemmas |
+|---|---|---|---|---|
+| `en-full` | 315.5 MB | 956,150 | — | — |
+| `en-main` | 141.2 MB | 307,233 | 96.63 % | 26.40 % |
+| `en-core` | 41.0 MB | 66,268 | 96.43 % | 3.69 % |
+| `es-full` | 76.1 MB | 152,281 | — | — |
+| `es-core` | 49.3 MB | 47,952 | 78.87 % | 27.97 % |
+| `es-en` | 67.1 MB | 209,484 | — | — |
+
+What the channels weigh, read off the artifacts and not estimated: `en-full` **314.3 → 315.5 MB**
+and `es-full` **74.0 → 76.1**, because the retrained dictionary (−8.3 % es, −13.1 % en of payload)
+pays for most of what `I` and `M` add. `en-main` grew 103 → 141.2 and `en-core` 40.9 → 41.0; the
+main one moved because its budget search landed on a different round, not because of the channels.
+
+Channel coverage over a 4,000-entry sample of the two cores, which are the ones the APK ships:
+
+| | `W` | `F` | `I` | `M` |
+|---|---|---|---|---|
+| `es-core` | 18.6 % | 83.6 % | 100.0 % | 85.0 % |
+| `en-core` | 10.6 % | 61.6 % | 89.3 % | 88.1 % |
+
+⚠️ **The rebuild found two silent losses, and neither was visible from the gate.** Both are the
+shape this section exists for — the pack opens, passes every invariant and shows less.
+
+1. **The etymology tree reached the card as template noise.** English renders `{{etymon}}` INTO
+   `etymology_text`: a literal `Etymology tree` line, one line per proto-form, and only then the
+   prose. Collapsed into spaces it read *"Etymology tree Proto-Indo-European *(s)kewH-der.?
+   Proto-Germanic *hūsą ..."*. **15.1 %** of the English entries carrying an origin carried that.
+   Found by reading entries out of the built pack, not by counting rows. The cut is the marker
+   line —the tree closes with the page's own entry, `English house`— and it finds the prose in
+   **99.95 %** of the 52,925 trees.
+2. **A derived tier was dropping every entry-level channel.** `build_core.derive` rebuilds each
+   entry from its payload text and was handing back only the senses: `W` has been missing from
+   every core since that channel existed —**21.9 %** of a sample in the published `es-full`
+   against **0 %** in its `es-core`— and `I`, `F` and `M` would have followed. It now also
+   compares **tag letters** between source and output and refuses to finish if a count drops,
+   which covers the channel nobody has written yet.
+
+✅ **Seen on the emulator, which is the only place the chain closes.** The APK of this rebuild
+(versionCode 11, 107.9 MB, down from 111 because the retrained dictionary pays for the new
+channels) opens both cores — `en-core@202609260119` and `es-core@202609260121` — and the card draws
+`house` with `haʊ̯s`, *Forms: houses (plural)* and an **Origin** reading *"From Middle English hous,
+hus, from Old English hūs (“dwelling, shelter, house”)…"*, and `perro` with `ˈpero`, *perros
+(plural) · perra (feminine)* and its origin in Spanish. That last screen is what says the tree fix
+reached the glass and not just the test.
+
+⚠️ **The bilingual carries the origin too, and nobody decided that — measurement did.** `es-en`'s
+Spanish side comes straight from `kaikki.records`, so it picked up `I` and `M` on its own: **41.0 %**
+of a sample carry a pronunciation and **31.5 %** an origin. The objection this section raised
+against it was the size, and the size went **67.2 → 67.1 MB**: the retrained dictionary absorbed it.
+The question §*La etimología también* left open for the owner is therefore answered by the
+artifact — it costs nothing — but it was **not** an explicit decision, so it is written here.
+
+⚠️ **What the previous rebuild found**, in the changelog of 2026-09-22: `--sumar` receiving a pack
+where its reader opens the dump, an intermediate nobody consumed, and the coverage list demanding
+promises two packs never made. All three have a test now.
+
+### La deuda del rebuild anterior — 2026-09-22 a las 17:22 · i-a2f271-eccfc3
 
 **Los seis packs de `dist/` salieron del builder de esta fecha** y pasan `verify_pack.py` completo
 y `--como-la-app`. Las seis deudas que esta tabla listaba —la identidad `<idioma>-<nivel>`, los
@@ -223,13 +286,13 @@ hicieron. Los tres tienen test ahora.
 
 | Qué | Por qué importa |
 |---|---|
-| ⚠️ **Ningún pack trae la PRONUNCIACIÓN** | The `I` channel landed on 2026-09-24 (d-a2f271-13da99) and `dist/` predates it: `verify_pack.py` reads **0.0 %** on `es-full` against **100.0 %** available in the dump. The card draws nothing, which is correct and invisible — the exact shape this section exists to catch. It needs `es-full` rebuilt from `es.jsonl`; the toy pack already carries one entry, so the gate covers the channel |
-| **Los packs no están en el reloj** | `dist/` está listo; `devpack.py` no se corrió. Hasta que se corra, el reloj sigue con los packs del 2026-09-21 |
+| ~~**Ningún pack trae la PRONUNCIACIÓN**~~ ✅ **cerrado el 2026-09-25** | The rebuild lands `I`, and `F` and `M` with it. `verify_pack.py` now reads **96.5 %** on `es-full` and **100.0 %** on `es-core`, against the 0.0 % of the previous artifacts |
+| **Los packs no están en el reloj** | `dist/` is ready and the APK carries the two cores of 2026-09-25; the watch was not touched this session, and `devpack.py` has not been run since. What has been exercised on the emulator is the APK's own bundled cores |
 | ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
 | **`Tuesday` en el bilingüe** — ✅ **MEDIDO 2026-09-24, y es más chico de lo que parecía** | Of 7 weekdays, 12 months and 10 control words, **only `tuesday` fails** (28/29 resolve). Over a 4,000-entry sample of the bilingual's 123,979 Spanish entries, the pattern *gloss starts with `Term (`* covers 12.7 %, and of those **1.07 % have no English way in**. Split by class, the genuinely lost single words are **0.05 % → ~62 in the pack**; the rest are multi-word phrases (~806), `alternative form of…` markers that are not translations at all (~217), and proper nouns (~155). ⚠️ **So it is 62 words, not a class of defect** — which is what the measurement was for. See §La traducción glosada |
 | ~~**Los núcleos se llaman `Español (full) (core)`**~~ ✅ **cerrado el 2026-09-23** | El builder le pegaba `(core)` al nombre del completo sin sacarle `(full)`. Arreglado en `build.name_with_tier` y los dos núcleos regenerados — **15 s cada uno**, derivan del completo y no necesitan los dumps. Salieron **byte a byte del mismo tamaño**: cambió el nombre y nada más. Verificado en pantalla: `English (core)`. (D-230) |
 | ~~**Los conteos de `-core` del changelog no reconcilian**~~ ✅ **explicado el 2026-09-23** | No era una contradicción: **la CLI de `build_core.py` llamaba «entradas» a `len(vocabulario)`**, que es el conjunto de palabras elegidas, no las filas de `entry`. Medido sobre `es-core`: **39.021 = `count(DISTINCT norm)`** (el número del changelog), 41.219 lemas distintos y **48.292 filas**, que es lo que declara `meta.entry_count`. Los tres reconcilian. El rótulo dice ahora **«palabras»**, que es lo que evita que vuelva a costar una sesión |
-| ~~**El pack inglés completo mezcla español en su `description`**~~ ⚠️ **se mudó de campo, 2026-09-24** | The `description` was already right in the code **and in `dist/`** — repaired on 2026-09-23. What nobody checked is that the same bug had moved one function over, into **`attribution`**: all three English packs credit OpenSubtitles in Spanish, inside the field D-031 makes non-optional. Fixed in the builder by d-a2f271-803d8a; **`dist/` still carries it** and `repair_meta.py` does not reach that field, so only the rebuild clears it |
+| ~~**El pack inglés completo mezcla español en su `description`**~~ ✅ **cerrado el 2026-09-25** | It had moved one function over, into **`attribution`**: all three English packs credited OpenSubtitles in Spanish, inside the field D-031 makes non-optional. Fixed in the builder by d-a2f271-803d8a, and `repair_meta.py` does not reach that field, so the rebuild is what cleared it from `dist/` |
 | ⚠️ **Un APK incremental carga ~25 MB de relleno muerto** | Medido el 2026-09-23 sobre el mismo código: build **incremental 135.881.265 bytes**, build **limpia 111.020.805**. La suma de las entradas comprimidas es 110,83 MB en las dos, así que los **24,9 MB de diferencia son padding**, no contenido. El APK va al reloj por adb y ya pasa los 75 MB en que la conexión inalámbrica se cortó una vez, así que **el que se sube se arma con `:app:clean` antes**. Sin explicar: qué lo introduce dentro de AGP |
 
 ### ✅ Lo que había que arreglar antes de reconstruir — HECHO el 2026-09-22
