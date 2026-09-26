@@ -88,6 +88,7 @@ fun WordListScreen(
     // which is what keeps the state always obvious.
     var armada by remember { mutableStateOf<Visit?>(null) }
     val listState = rememberTransformingLazyColumnState()
+    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->

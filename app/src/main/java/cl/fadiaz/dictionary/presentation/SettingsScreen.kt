@@ -75,6 +75,7 @@ fun SettingsScreen(
     hasHistory: Boolean,
 ) {
     val listState = rememberTransformingLazyColumnState()
+    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     var emptyHistory by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }

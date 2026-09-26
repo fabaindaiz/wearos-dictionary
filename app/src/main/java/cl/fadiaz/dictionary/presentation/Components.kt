@@ -20,6 +20,16 @@ import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -323,3 +333,37 @@ internal fun rowsThatFit(screenWidthDp: Int): Int =
 /** [rowsThatFit] against the real screen, without the caller having to know how to measure it. */
 @Composable
 internal fun rowsThatFit(): Int = rowsThatFit(LocalConfiguration.current.screenWidthDp)
+
+
+/**
+ * Coming back to the app returns THIS screen to its top, without leaving it.
+ *
+ * ⚠️ **It replaces a `popBackStack`, and the difference is the whole point.** Leaving the app used
+ * to navigate back to the home, on the reasoning that a watch is not closed --the wrist is
+ * lowered-- so an old card is not worth resuming. In use it reads the other way round: lowering
+ * your wrist mid-word and finding the home again is losing your place. What was right about the
+ * old behaviour is the *feeling of starting over*, and that is a scroll, not a navigation.
+ *
+ * ⚠️ **`ON_START` and not `ON_RESUME`**: the system's voice input is a full-screen Activity that
+ * pauses ours, and scrolling on resume would yank the list under somebody who never left. It is
+ * the mirror of why the observer this replaces listened on `ON_STOP`.
+ *
+ * ⚠️ **It skips the FIRST start**, which is the one that happens as the screen appears. Scrolling
+ * there is at best a no-op and at worst fights the position a freshly opened card was given --
+ * `EntryScreen` deliberately opens anchored at item 1, not 0.
+ */
+@Composable
+internal fun ScrollToTopOnReturn(state: TransformingLazyColumnState, firstIndex: Int = 0) {
+    var vueltas by remember { mutableIntStateOf(0) }
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) vueltas++
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(vueltas) {
+        if (vueltas > 1) state.scrollToItem(firstIndex)
+    }
+}

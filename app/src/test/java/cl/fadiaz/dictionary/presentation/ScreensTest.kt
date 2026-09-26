@@ -889,12 +889,12 @@ class ScreensTest {
         }
         compose.waitForIdle()
 
-        val buscar = compose.onNodeWithContentDescription("Buscar").getBoundsInRoot()
+        val inicio = compose.onNodeWithContentDescription("Inicio").getBoundsInRoot()
         val options = compose.onNodeWithContentDescription("Opciones").getBoundsInRoot()
-        assertEquals("no estan en la misma fila", buscar.top, options.top)
+        assertEquals("no estan en la misma fila", inicio.top, options.top)
         assertEquals(
             "no tienen el mismo alto",
-            buscar.bottom - buscar.top,
+            inicio.bottom - inicio.top,
             options.bottom - options.top,
         )
     }
@@ -906,7 +906,7 @@ class ScreensTest {
             EntryScreen(entryId = 1, onOpenWord = {}) { entry("una glosa") }
         }
         compose.waitForIdle()
-        compose.onNodeWithContentDescription("Buscar").assertExists()
+        compose.onNodeWithContentDescription("Inicio").assertExists()
         assertEquals(
             0,
             compose.onAllNodesWithContentDescription("Opciones").fetchSemanticsNodes().size,
@@ -990,7 +990,7 @@ class ScreensTest {
                 entry("una glosa")
             }
         }
-        compose.onNodeWithContentDescription("Buscar").performClick()
+        compose.onNodeWithContentDescription("Inicio").performClick()
         assertEquals(true, volvio)
     }
 

@@ -148,6 +148,7 @@ fun SearchScreen(
             .sortedByDescending { it.first.packId == state.active?.packId }
     }
     val listState = rememberTransformingLazyColumnState()
+    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 

@@ -22,7 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -215,6 +215,7 @@ fun EntryScreen(
     // are visible -- which is the condition it came in under (D-084). Measured: without this,
     // "Show more" with three short senses no longer fit on screen.
     val listState = rememberTransformingLazyColumnState(initialAnchorItemIndex = 1)
+    ScrollToTopOnReturn(listState, firstIndex = 1)
     val focusRequester = remember { FocusRequester() }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
@@ -533,8 +534,13 @@ private fun EntryActionsMenu(onBackToSearch: () -> Unit, onOpenMenu: (() -> Unit
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // ⚠️ **A house and not a magnifier.** The destination was always the home --the search
+        // IS the home in this app-- and the magnifier promised only half of it: it read as
+        // *search again* when what it does is *go back to the start*. Asked for on 2026-09-26,
+        // together with the scroll: tapping it now lands on the top of the home, not wherever
+        // the home was left.
         IconPill(
-            icono = Icons.Filled.Search,
+            icono = Icons.Filled.Home,
             description = stringResource(R.string.entry_back_to_search),
             onClick = onBackToSearch,
             modifier = Modifier.weight(1f),

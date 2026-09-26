@@ -263,9 +263,13 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 onDispose { baja?.invoke() }
             }
 
-            // ⚠️ **Leaving the app returns to a clean home** (see `onLeftApp`). A watch is not
-            // closed, the wrist is lowered: coming back three hours later to some earlier card is
-            // not resuming anything.
+            // ⚠️ **Leaving the app clears the SEARCH and no longer navigates** (see `onLeftApp`).
+            // It used to `popBackStack` to the home as well, on the reasoning that coming back
+            // three hours later to an earlier card is not resuming anything. Reversed on
+            // 2026-09-26 by the owner, who found it the opposite of that in practice: lowering
+            // your wrist mid-word and coming back to the home is losing your place, not starting
+            // fresh. What survives of the idea is the scroll -- each screen returns to its own
+            // top, which is `ScrollToTopOnReturn`.
             //
             // ⚠️ **It hooks `ON_STOP` and NOT `ON_PAUSE`**, and the difference matters: the system
             // input --`ACTION_REMOTE_INPUT`, a full-screen SysUI Activity-- pauses ours, and
@@ -278,7 +282,6 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     if (event != Lifecycle.Event.ON_STOP) return@LifecycleEventObserver
                     if (viewModel.consumeSystemInputPause()) return@LifecycleEventObserver
                     viewModel.onLeftApp()
-                    navController.popBackStack(ROUTE_SEARCH, inclusive = false)
                 }
                 owner.lifecycle.addObserver(observer)
                 onDispose { owner.lifecycle.removeObserver(observer) }
