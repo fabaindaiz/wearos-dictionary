@@ -443,3 +443,78 @@ class AttributionFollowsTheLanguage(unittest.TestCase):
                     self.assertGreater(len(texto), 20, clave)
 
 
+
+
+class CanalesDeNivelEntradaTest(unittest.TestCase):
+    """Everything the payload carries ABOUT THE WORD has to survive the derivation.
+
+    ⚠️ **This was shipping broken and nothing saw it.** `derive` rebuilds each entry from
+    `payload.parse`, which returns the part of speech, the senses and the word-level translations
+    -- and the third was being discarded, along with every channel added since. Measured on the
+    packs published on 2026-09-23: `es-full` carries `W` in **21.9 %** of a 3,000-entry sample and
+    the `es-core` derived from it in **0 %**. A tier that loses a channel opens with no error,
+    passes every invariant and simply shows less.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.completo = os.path.join(self.dir, "completo.db")
+        with build.PackBuilder(self.completo, dict(BASE_META)) as b:
+            b.add(build.Record(
+                headword="casa",
+                senses=[{"gloss": "edificio para habitar"}],
+                part_of_speech="noun",
+                rank=1,
+                forms=["casas"],
+                word_translations=("house", "home"),
+                display_forms=(("pl", "casas"),),
+                pronunciation="ˈkasa",
+                etymology="Del latín casa.",
+            ))
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _cuerpo(self, path):
+        import payload as payload_codec
+        with sqlite3.connect(path) as db:
+            diccionario = bytes.fromhex(
+                db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+            blob = db.execute("SELECT payload FROM entry WHERE headword='casa'").fetchone()[0]
+        return payload_codec, payload_codec.decompress(blob, diccionario)
+
+    def test_los_cuatro_canales_de_palabra_sobreviven_a_la_derivacion(self):
+        salida = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, salida, {"casa"})
+        codec, texto = self._cuerpo(salida)
+        _pos, _senses, traducciones = codec.parse(texto)
+        self.assertEqual(["house", "home"], list(traducciones))
+        self.assertEqual([("pl", "casas")], codec.parse_forms(texto))
+        self.assertEqual("ˈkasa", codec.parse_pronunciation(texto))
+        self.assertEqual("Del latín casa.", codec.parse_etymology(texto))
+
+    def test_el_pack_completo_los_trae_para_que_la_comparacion_valga(self):
+        # The control: without it, a derivation that loses everything and a source that never had
+        # it read the same. It is the mistake this test class exists because of.
+        codec, texto = self._cuerpo(self.completo)
+        _pos, _senses, traducciones = codec.parse(texto)
+        self.assertEqual(["house", "home"], list(traducciones))
+        self.assertEqual("Del latín casa.", codec.parse_etymology(texto))
+
+    def test_un_canal_que_NADIE_nombro_tambien_hace_fallar_la_derivacion(self):
+        """⚠️ The check counts TAG LETTERS, so it covers the channel nobody has written yet.
+
+        The named version of this guard is `derive`'s argument list, and that list is exactly what
+        went wrong. A test per field protects the four that exist today; this one protects the
+        fifth.
+        """
+        salida = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, salida, {"casa"})
+        with self.assertRaises(ValueError) as capturado:
+            build_core._ningun_canal_se_perdio(salida, {"Z": 1})
+        self.assertIn("Z 1 -> 0", str(capturado.exception))
+
+    def test_una_derivacion_completa_NO_hace_fallar_el_chequeo(self):
+        # The control: a guard that always fires is a guard nobody keeps.
+        salida = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, salida, {"casa"})
