@@ -506,6 +506,30 @@ def vocabulario_de_etimologia(ruta):
         return {clave for clave in (normalize.norm(linea.strip()) for linea in handle) if clave}
 
 
+def vocabulario_de_etimologia_del_pack(metadata, ruta=None):
+    """Which words of THIS pack may carry an origin: a set, or `None` for all of them.
+
+    ⚠️ **A bilingual carries none, and the reason is not its size.** What it was carrying is the
+    origin of the SPANISH word written in ENGLISH, because its Spanish side comes from
+    enwiktionary: `conejo` read *"Inherited from Old Spanish conejo, from Latin cuniculus"* where
+    `es-full` says *"Del latin cuniculus, y este de origen iberico, segun Plinio"*. Measured over
+    4,000 of its Spanish words on 2026-09-26, **58.2 %** are also in `es-full`, and of those
+    `es-full` has the origin for **more** of them -- 1,736 against 1,642. A duplicate, in the
+    wrong language, of a better copy.
+
+    And it is off the pack's purpose, which is to connect the others through translations. An
+    etymology connects nothing: it is dictionary content, and the dictionary that owns it is the
+    monolingual one.
+
+    ⚠️ **`set()` and `None` are opposites here**, which is why this returns one or the other and
+    never an empty-or-missing muddle: the empty set means *nobody carries it*, `None` means
+    *everybody does*. `PackBuilder` has a test on exactly that distinction.
+    """
+    if metadata.get("kind") == "bilingual":
+        return set()
+    return vocabulario_de_etimologia(ruta) if ruta else None
+
+
 def _con_sense_key_del_pack_final(nuevos):
     """Recomputes `sense_key` looking at the MERGED pack's homographs, not the source's.
 
@@ -676,14 +700,18 @@ def main(argv):
         # already carries one. See `build.name_with_tier`.
         metadata["name"] = name_with_tier(metadata["name"], "full")
 
-    vocabulario = None
-    if vocabulario_etimologia:
-        vocabulario = vocabulario_de_etimologia(vocabulario_etimologia)
-        # ⚠️ **The pack states its own reach, because the gap is visible and nothing else explains
-        # it.** Inside a `full` pack a frequent word shows an etymology and a rare one does not,
-        # and the boundary means nothing to somebody reading one card. This key is what lets the
-        # app --or whoever opens the pack a year from now-- say *"this pack carries the datum for
-        # that vocabulary"* instead of reading it as missing data.
+    # ⚠️ **The pack states its own reach, because the gap is visible and nothing else explains
+    # it.** Inside a `full` pack a frequent word shows an origin and a rare one does not, and that
+    # boundary means nothing to somebody reading one card. This key is what lets the app --or
+    # whoever opens the pack a year from now-- tell *"this pack does not carry it for that word"*
+    # from *"the source had none"*.
+    vocabulario = vocabulario_de_etimologia_del_pack(metadata, vocabulario_etimologia)
+    if vocabulario is None:
+        pass
+    elif metadata.get("kind") == "bilingual":
+        metadata["etymology_vocabulary"] = "none (translation pack)"
+        print("etimologia: ninguna, es un pack de traduccion")
+    else:
         metadata["etymology_vocabulary"] = "%s (%d words)" % (
             os.path.basename(vocabulario_etimologia), len(vocabulario))
         print("etimologia: %d palabras la llevan, segun %s"

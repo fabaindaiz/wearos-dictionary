@@ -1384,3 +1384,30 @@ class LecturaDeEtimologiaTest(BuilderTestCase):
             record("perro"),
         ])
         self.assertIn("1 de 2 entradas de la muestra traen pronunciacion (50.0 %)", salida)
+
+
+class ElBilingueNoLlevaEtimologiaTest(unittest.TestCase):
+    """A translation pack carries no origins, and the reason is not its size.
+
+    ⚠️ **The datum it was carrying was the origin of the SPANISH word written in ENGLISH**, because
+    the bilingual's Spanish side comes from enwiktionary: `conejo` read *"Inherited from Old
+    Spanish conejo, from Latin cuniculus"* while `es-full` says *"Del latín cuniculus, y este de
+    origen ibérico, según Plinio"*. Measured over 4,000 of its Spanish words on 2026-09-26:
+    **58.2 %** are also in `es-full`, and of those `es-full` has the origin for **more** of them
+    (1,736 against 1,642). So it was a duplicate, in the wrong language, of a better copy.
+
+    And it is off the pack's purpose: *"que sea un pack de apoyo o con elementos de traducción que
+    conecten los distintos packs"*. An etymology connects nothing.
+    """
+
+    def test_el_bilingue_declara_que_no_la_lleva(self):
+        import build_pack
+        metadata = {"kind": "bilingual", "langs": "es,en"}
+        self.assertEqual(set(), build_pack.vocabulario_de_etimologia_del_pack(metadata))
+
+    def test_un_monolingue_sin_bandera_la_lleva_entera(self):
+        import build_pack
+        # `None` and not `set()`: the two mean opposite things to `PackBuilder`, and a monolingual
+        # with no flag carries the origin for every word it holds.
+        metadata = {"kind": "monolingual", "langs": "es"}
+        self.assertIsNone(build_pack.vocabulario_de_etimologia_del_pack(metadata))
