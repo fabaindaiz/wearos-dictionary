@@ -174,10 +174,6 @@
     <string name="pos_full_abbrev">abbreviation</string>
 
     <!-- Why a result showed up. Only the surprising levels get a label. -->
-    <string name="match_inflected">form</string>
-    <string name="match_translation">translation</string>
-    <string name="match_fuzzy">similar</string>
-    <string name="match_definition">definition</string>
     <!-- Catalogo de descarga (D-213). El boton LISTA; instalar sigue siendo por cable. -->
     <string name="packs_catalog_check">Check the catalogue</string>
     <string name="packs_catalog_recheck">Check again</string>

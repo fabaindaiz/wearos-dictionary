@@ -87,6 +87,9 @@ class ScreensTest {
         score = 0,
     )
 
+    private fun suggestion(headword: String, kind: MatchKind) =
+        suggestion(headword).copy(matchKind = kind)
+
     /** A fake pack: only its metadata matters, because the screens are functions of state. */
     private fun meta(
         packId: String = "es-def",
@@ -166,6 +169,36 @@ class ScreensTest {
     }
 
     // --- The results list ---------------------------------------------------------------------
+
+    @Test
+    fun aResultSaysWhatTheWordIsAndNeverWhyItMatched() {
+        // ⚠️ **This reverses half of D-152 on purpose.** The match rung used to REPLACE the part
+        // of speech in a result row, because `sust. · ES · traducción` does not fit in 234 dp.
+        // Asked for on 2026-09-26: the row should say what the word is. What is lost is the cue
+        // that explained an unexpected result; what is gained is that the three lists --results,
+        // history, saved-- finally read identically, which is what D-152 wanted.
+        val estado = readyState().copy(
+            results = listOf(
+                suggestion("casa", MatchKind.TRANSLATION),
+                suggestion("cazar", MatchKind.FUZZY),
+                suggestion("corriendo", MatchKind.INFLECTED_FORM),
+            ),
+        )
+        showSearch(estado)
+        // The three, and that is the point: the rung no longer replaces the part of speech in any
+        // of them, so a translation match reads like a prefix match.
+        assertEquals(
+            3,
+            compose.onAllNodesWithText("sust.", substring = true).fetchSemanticsNodes().size,
+        )
+        for (motivo in listOf("traducción", "parecida", "forma")) {
+            assertEquals(
+                "el motivo '$motivo' sigue apareciendo en la fila",
+                0,
+                compose.onAllNodesWithText(motivo, substring = true).fetchSemanticsNodes().size,
+            )
+        }
+    }
 
     @Test
     fun theListShowsTheHeadwordAndItsPartOfSpeech() {

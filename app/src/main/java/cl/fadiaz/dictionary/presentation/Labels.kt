@@ -5,7 +5,6 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import cl.fadiaz.dictionary.R
-import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackRejection
 
 /**
@@ -85,22 +84,6 @@ internal fun posLabelFull(pos: String): String = when (pos) {
 /** [posLabelRes] for whoever has a `Context` and no composition: the tiles. */
 internal fun posLabel(context: Context, pos: String): String =
     posLabelRes(pos)?.let(context::getString) ?: pos
-
-/**
- * Only the rungs that surprise get labelled.
- *
- * That a result came out by prefix is what is expected and does not deserve a word on a watch
- * screen. That it came out through an inflected form or a near match does: it explains why
- * something the user did not type is showing up.
- */
-@Composable
-internal fun matchLabel(kind: MatchKind): String? = when (kind) {
-    MatchKind.PREFIX -> null
-    MatchKind.INFLECTED_FORM -> stringResource(R.string.match_inflected)
-    MatchKind.TRANSLATION -> stringResource(R.string.match_translation)
-    MatchKind.FUZZY -> stringResource(R.string.match_fuzzy)
-    MatchKind.DEFINITION -> stringResource(R.string.match_definition)
-}
 
 /**
  * Why a dictionary does not load, **in one line**.

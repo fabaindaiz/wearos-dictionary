@@ -213,8 +213,10 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
  * thing with different information teach the user that the tag means something different
  * depending on where it is.
  *
- * `override` is for the results, where the match rung --`form`, `similar`-- replaces the part of
- * speech rather than adding to it: all three do not fit in a 234 dp row.
+ * ⚠️ **There is no longer an `override` for the match rung.** It used to replace the part of
+ * speech in the results --`forma`, `parecida`-- because all three do not fit in a 234 dp row.
+ * Removed on 2026-09-26 by request: a row says what the word IS, and the three lists now say it
+ * identically, which is what this function was written for.
  *
  * The separator comes from the **same resource** the entry uses. It was written by hand here and
  * as a resource there, which is two definitions of the same thing waiting to diverge.
@@ -223,8 +225,7 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
 internal fun wordDetail(
     partOfSpeech: String?,
     tag: String?,
-    override: String? = null,
-): String? = wordDetail(LocalContext.current, partOfSpeech, tag, override)
+): String? = wordDetail(LocalContext.current, partOfSpeech, tag)
 
 /**
  * [wordDetail] for whoever has a `Context` and no composition: **the tiles**.
@@ -242,9 +243,8 @@ internal fun wordDetail(
     context: Context,
     partOfSpeech: String?,
     tag: String?,
-    override: String? = null,
 ): String? {
-    val partes = listOfNotNull(override ?: partOfSpeech, tag)
+    val partes = listOfNotNull(partOfSpeech, tag)
     return partes.takeIf { it.isNotEmpty() }
         ?.joinToString(context.getString(R.string.entry_list_separator))
 }

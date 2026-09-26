@@ -539,12 +539,19 @@ private fun ResultRow(
     // width. The part of speech first because it answers "what kind of word is this", which is
     // what gets looked at first; the language after, which only disambiguates when there is more
     // than one dictionary.
+    //
+    // ⚠️ **It says what the word IS and never why it matched**, which reverses half of D-152.
+    // The rung --`forma`, `parecida`, `traducción`-- used to replace the part of speech here,
+    // because the three do not fit in a 234 dp row. Asked for on 2026-09-26, in the owner's
+    // words: *«que la búsqueda siempre indique que es la palabra en sí, sust. verb.»* and not the
+    // reason it was brought. The row now reads the same in the results, the history and the saved
+    // list, which is what D-152 wanted in the first place; what is lost is the cue that explained
+    // an unexpected result, and that was the price named when the change was asked for.
     ListRow(
         headword = suggestion.headword,
         detail = wordDetail(
             partOfSpeech = suggestion.partOfSpeech?.let { posLabel(it) },
             tag = etiqueta,
-            override = matchLabel(suggestion.matchKind),
         ),
         onClick = onClick,
     )

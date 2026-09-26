@@ -164,10 +164,6 @@
     <string name="pos_full_abbrev">abreviatura</string>
 
     <!-- Por qué salió un resultado -->
-    <string name="match_inflected">forma</string>
-    <string name="match_translation">traducción</string>
-    <string name="match_fuzzy">parecida</string>
-    <string name="match_definition">definición</string>
     <!-- Catalogo de descarga (D-213). El boton LISTA; instalar sigue siendo por cable. -->
     <string name="packs_catalog_check">Consultar el catálogo</string>
     <string name="packs_catalog_recheck">Consultar de nuevo</string>
