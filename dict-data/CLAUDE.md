@@ -10,7 +10,7 @@ gives the same thing on the watch as in the builder.
 
 ```sh
 ./gradlew :dict-data:devicePrecheck            # is there anything to run them on? says what is missing
-./gradlew :dict-data:connectedDebugAndroidTest # the 39 tests
+./gradlew :dict-data:connectedDebugAndroidTest # the 41 tests
 ```
 
 Run them on **every supported API level**, not just one. The whole point of
