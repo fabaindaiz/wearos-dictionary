@@ -151,6 +151,27 @@ tasks.register("devicePrecheck") {
         if (conectados.isNotEmpty()) {
             logger.lifecycle("Dispositivos listos:")
             conectados.forEach { logger.lifecycle("  $it") }
+            // ⚠️ **La geometria se DICE, porque la regla escrita no alcanzo.** `app/CLAUDE.md`
+            // manda usar `tools/avd_como_el_reloj.py` --498x498 a 340 dpi, `sw234dp`, redondo--
+            // y el 2026-09-25 una sesion entera de capturas salio del AVD por defecto, que es
+            // `sw192dp` o `sw384dp` segun cual sea: 64 % mas ancho que la muneca. Lo que se
+            // decide mirando ese emulador se revierte al ver el reloj, y no hay error que lo
+            // avise. Esto lo convierte en una lectura en el momento en que importa.
+            conectados.mapNotNull { it.trim().split(Regex("\\s+")).firstOrNull() }.forEach { serie ->
+                val config = ejecutar(listOf(adb.absolutePath, "-s", serie, "shell", "am", "get-config"))
+                val comoElReloj = "sw234dp" in config && "round" in config
+                logger.lifecycle(
+                    if (comoElReloj) {
+                        "  $serie: sw234dp y redondo, la geometria del reloj"
+                    } else {
+                        "  $serie: ⚠️  NO es la geometria del reloj " +
+                            "(${Regex("sw\\d+dp").find(config)?.value ?: "sw?"}, " +
+                            "${if ("round" in config) "redondo" else "cuadrado"}). " +
+                            "Lo que se decida mirandolo puede no valer en la muneca: " +
+                            "python3 tools/avd_como_el_reloj.py"
+                    },
+                )
+            }
             logger.lifecycle("")
             logger.lifecycle("Corre los tests con:")
             logger.lifecycle("  ./gradlew :dict-data:connectedDebugAndroidTest")
