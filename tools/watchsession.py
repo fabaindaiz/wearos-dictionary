@@ -1,11 +1,16 @@
 """Keeping a wireless adb session to a watch alive, for the length of a session and no longer.
 
-    python3 tools/watchsession.py status    [-s SERIAL]
-    python3 tools/watchsession.py install   [-s SERIAL]      # una vez, o tras recompilar
-    python3 tools/watchsession.py start     [-s SERIAL]
-    python3 tools/watchsession.py stop      [-s SERIAL]
-    python3 tools/watchsession.py probe     [-s SERIAL] [--seconds N] [--out FILE]
-    python3 tools/watchsession.py uninstall [-s SERIAL]
+    python3 tools/watchsession.py [-s SERIAL] status
+    python3 tools/watchsession.py [-s SERIAL] install        # una vez, o tras recompilar
+    python3 tools/watchsession.py [-s SERIAL] start
+    python3 tools/watchsession.py [-s SERIAL] stop
+    python3 tools/watchsession.py [-s SERIAL] probe [--seconds N] [--out FILE]
+    python3 tools/watchsession.py [-s SERIAL] uninstall
+
+⚠️ **`-s` goes BEFORE the subcommand**, and the usage above used to show it after. That is not a
+typo with no cost: with an emulator running, the tool picks the emulator, says so, and reports a
+watch's session as absent -- which is what happened on 2026-09-26 with the watch answering on
+mDNS the whole time.
 
 WHY THIS EXISTS
 
