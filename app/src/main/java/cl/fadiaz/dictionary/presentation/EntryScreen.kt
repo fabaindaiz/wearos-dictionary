@@ -64,6 +64,7 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.GlossTokenizer
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.PayloadCodec
+import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.core.TextNormalizer
 
 /**
@@ -208,6 +209,15 @@ fun EntryScreen(
             .getOrDefault(emptyMap())
             // A link to the entry you are already reading leads nowhere.
             .filterValues { it.entryId != entryId }
+        // ⚠️ **The readout the painting never had.** A word that is not painted and a word that
+        // resolved to nothing look identical on screen, so "the links are broken" and "this gloss
+        // happens to have no lemmas in it" were the same observation. Debug level: it is per card,
+        // which is the detail `log.tag.Dict DEBUG` exists for.
+        DictLog.d {
+            "enlaces de ${loaded.headword}: ${links.size} de " +
+                "${deLaGlosa.size + propios.size + deLasTraducciones.size} " +
+                "(glosa=${deLaGlosa.size} propios=${propios.size} trad=${deLasTraducciones.size})"
+        }
     }
 
     // Anchored at 1 and not 0: item 0 is the shortcut to the search, and the screen has to open
