@@ -326,4 +326,32 @@ class SqlitePackSourceTest {
     fun resolverSinPalabrasNoDevuelveNada() = runTest {
         assertTrue(source.resolveHeadwords(emptySet()).isEmpty())
     }
+
+    @Test
+    fun losCanalesDeNIVEL_PALABRA_sobreviven_al_inflate_DEL_DISPOSITIVO() = runTest {
+        // ⚠️ **What no fixture on the desktop can answer.** The shared `payload-fixture.tsv` pins
+        // that Kotlin decompresses what Python compressed, but it runs on the JVM of a laptop.
+        // The payload travels deflated against a 32 KB PRELOADED dictionary, and what inflates it
+        // here is Android's own zlib: if the preloaded dictionary were applied differently, the
+        // text would come back CORRUPT and not empty -- D-008 measured exactly that failure mode
+        // for a wrong dictionary, with no error raised.
+        //
+        // `casa` is the only toy entry carrying the two word-level channels, and it carries them
+        // non-ASCII on purpose: an accent and a stress mark are what a byte-level mistake breaks
+        // first.
+        val id = source.resolveHeadwords(setOf("casa")).getValue("casa")
+        val entrada = requireNotNull(source.entry(id))
+        assertEquals("ˈkasa", entrada.pronunciation)
+        assertEquals("Del latín *casa*, 'choza'.", entrada.etymology)
+    }
+
+    @Test
+    fun unaEntradaSIN_esos_canales_los_deja_en_null() = runTest {
+        // The degradation, on the device: `correr` has neither, and that has to read as absence
+        // and not as an empty string -- the card decides whether to draw a section on exactly this.
+        val id = source.resolveHeadwords(setOf("correr")).getValue("correr")
+        val entrada = requireNotNull(source.entry(id))
+        assertEquals(null, entrada.pronunciation)
+        assertEquals(null, entrada.etymology)
+    }
 }

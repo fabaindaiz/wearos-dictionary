@@ -66,7 +66,7 @@ Tools → Device Manager → Add a new device → Wear OS → imagen de API 33 o
 
 ```sh
 ./gradlew :dict-data:devicePrecheck             # ¿hay con qué correrlos? Dice qué falta
-./gradlew :dict-data:connectedDebugAndroidTest  # los 39 tests en dispositivo
+./gradlew :dict-data:connectedDebugAndroidTest  # los 41 tests en dispositivo
 ```
 
 **Creá un AVD por cada nivel de API que soportes, no uno solo.** El punto de
