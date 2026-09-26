@@ -365,6 +365,37 @@ android {
             // Robolectric, que traen la implementacion real y no se ven afectados por esto --por
             // eso `DictLogTest` puede afirmar sobre las lineas emitidas.
             isReturnDefaultValues = true
+
+            // ⚠️ **Robolectric 4.17 needs `java.base` opened, and without it NOTHING runs.** Its
+            // `ApplicationSharedMemory.create` goes through
+            // `AndroidInterceptors$FileDescriptorInterceptor`, which reaches
+            // `jdk.internal.access` -- a package `java.base` does not export to the unnamed
+            // module. The JDK refuses, the failure lands in `setUpApplicationState`, and so
+            // **every test of every Robolectric class dies before its body runs**, with a message
+            // --*"Failed to interact with raw FileDescriptor internals; perhaps JRE has
+            // changed?"*-- that names neither Robolectric nor the module. 4.16.1 never reached
+            // that path, which is why the upgrade looked unrelated to the tests.
+            //
+            // ⚠️ **The list is Robolectric's own and is copied whole on purpose**
+            // (robolectric.org/getting-started, *Running with Java 17 and higher*). Trimming it to
+            // the one flag the stack trace names is how this comes back on the next upgrade: the
+            // path that needs `java.text` or `java.awt.font` is simply one nobody has hit yet.
+            //
+            // It goes on the FORK and not in `gradle.properties`: it is the test JVM that needs
+            // the modules opened, and Gradle is what starts it.
+            all {
+                it.jvmArgs(
+                    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                    "--add-opens=java.base/java.util=ALL-UNNAMED",
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-opens=java.base/java.net=ALL-UNNAMED",
+                    "--add-opens=java.base/java.security=ALL-UNNAMED",
+                    "--add-opens=java.base/java.text=ALL-UNNAMED",
+                    "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED",
+                    "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+                )
+            }
         }
     }
 }

@@ -5,11 +5,8 @@ agp = "9.4.1"
 kotlin = "2.4.20"
 
 # ── Wear UI, for :app ─────────────────────────────────────────────────────────
-# One ref per RELEASE TRAIN and not per groupId: `androidx.wear` holds
-# wear-tooling-preview and wear-input at different versions, so a single
-# `androidx.wear` ref would be a lie. The trains below do ship in lockstep.
 composeBom = "2026.09.00"
-wearCompose = "1.6.2"
+wearCompose = "1.7.0"
 wearTooling = "1.0.0"
 wearInput = "1.2.0"
 activityCompose = "1.13.0"
@@ -22,15 +19,12 @@ guava = "33.7.1-android"
 watchfaceComplicationsDataSourceKtx = "1.3.0"
 
 # ── Android platform, for :app ────────────────────────────────────────────────
-coreKtx = "1.18.0"
+coreKtx = "1.19.1"
 coreSplashscreen = "1.2.0"
 
 # ── Packs and background work, for :dict-data and :app ────────────────────────
-# Deliberately stable: sqlite 2.8.0-alpha01 and work 2.12.0-rc01 exist and are
-# NOT used, because the pack reader and the installer are on the product's
-# critical path (D-032).
 sqliteBundled = "2.7.1"
-work = "2.11.2"
+work = "2.12.0"
 coroutines = "1.11.0"
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -43,7 +37,7 @@ androidxTestExtJunit = "1.3.0"
 # Without this, EVERY test doing performClick or performTextInput blows up on
 # API 37 -- the watch's level (D-023, D-093).
 espresso = "3.7.0"
-robolectric = "4.16.1"
+robolectric = "4.17"
 
 [libraries]
 
