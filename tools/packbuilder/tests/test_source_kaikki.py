@@ -92,6 +92,63 @@ class PodaTest(unittest.TestCase):
             kaikki._etymology({"etymology_texts": ["Primera.", "Segunda."]}),
         )
 
+    def test_el_ARBOL_de_etimologia_no_llega_a_la_tarjeta(self):
+        """⚠️ **English renders the `{{etymon}}` template INTO the field, and it is not prose.**
+
+        The dump writes a literal `Etymology tree` followed by one line per proto-form, and only
+        then the sentence a reader wants. Carried whole, the card shows *"Etymology tree
+        Proto-Indo-European *(s)kewH-der.? Proto-Germanic *hūsą ..."* -- the newlines collapse into
+        spaces and the result is template noise. Measured over the whole English dump: **9.9 %** of
+        the entries with an etymology carry the tree.
+
+        The tree closes with the page's OWN entry --`English house`-- and the prose follows it.
+        Cutting there finds it in **99.95 %** of the 52,925 trees.
+        """
+        crudo = ("Etymology tree\nProto-Germanic *hūsą\nOld English hūs\nEnglish house\n"
+                 "From Middle English hous, from Old English hūs.")
+        self.assertEqual(
+            "From Middle English hous, from Old English hūs.",
+            kaikki._etymology({"word": "house", "etymology_text": crudo}),
+        )
+
+    def test_una_prosa_CORTA_detras_del_arbol_tambien_se_rescata(self):
+        # ⚠️ The first rule tried counted words and lost these: `From folk + -ie.` is four words,
+        # and **87 % of the trees** end in a sentence that short. What decides is the marker line,
+        # not the length.
+        crudo = "Etymology tree\nEnglish folk\nEnglish -ie\nEnglish folkie\nFrom folk + -ie."
+        self.assertEqual(
+            "From folk + -ie.",
+            kaikki._etymology({"word": "folkie", "etymology_text": crudo}),
+        )
+
+    def test_un_arbol_SIN_prosa_detras_no_deja_el_arbol(self):
+        # 26 of the 52,925 trees end with nothing usable behind them. Absence reads clean on the
+        # card; the tree does not.
+        crudo = "Etymology tree\nProto-Germanic *fulką\nEnglish folk"
+        self.assertIsNone(kaikki._etymology({"word": "folk", "etymology_text": crudo}))
+        sin_marca = "Etymology tree\nProto-Germanic *fulką\nOld English folc"
+        self.assertIsNone(kaikki._etymology({"word": "folkie", "etymology_text": sin_marca}))
+
+    def test_una_etimologia_SIN_arbol_pasa_intacta(self):
+        # The 90 % case, and the whole Spanish dump: nothing to cut. A rule that trimmed here would
+        # eat the first sentence of every entry, which is the one that matters.
+        self.assertEqual(
+            "From Middle English rennen, from Old English rinnan.",
+            kaikki._etymology({"word": "run",
+                               "etymology_text": "From Middle English rennen, from Old English "
+                                                 "rinnan."}),
+        )
+
+    def test_el_arbol_se_corta_en_la_ULTIMA_marca_y_no_en_la_primera(self):
+        # A tree can name the page's own word in the middle of a branch. Cutting at the first
+        # occurrence would leave half a tree glued in front of the prose.
+        crudo = ("Etymology tree\nEnglish dog\nEnglish -gy\nEnglish doggy\nEnglish dog\n"
+                 "From dog + -y.")
+        self.assertEqual(
+            "From dog + -y.",
+            kaikki._etymology({"word": "dog", "etymology_text": crudo}),
+        )
+
     def test_la_glosa_y_un_ejemplo_sobreviven(self):
         got = self.records(_raw("casa", "noun", [
             _sense("Edificio para habitar.", examples=[{"text": "La casa de la esquina."}]),

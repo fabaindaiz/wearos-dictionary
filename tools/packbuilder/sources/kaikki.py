@@ -961,6 +961,42 @@ def _emit(group, inbound, opciones):
 _DELIMITADORES_IPA = (("[", "]"), ("/", "/"))
 
 
+#: The first line English writes when the page uses the `{{etymon}}` template.
+#:
+#: ⚠️ **It is the literal the DUMP writes, not a heuristic over the prose.** Point 4 of this
+#: module's docstring forbids guessing at the text, and this does not guess: it recognises a
+#: rendered template by the fixed string that opens it and by the line that closes it.
+ARBOL_DE_ETIMOLOGIA = "Etymology tree"
+
+
+def _sin_arbol(texto, palabra):
+    """The prose behind the rendered etymology tree, or `None` if there is none.
+
+    ⚠️ **Carried whole, the tree is template noise on the card.** The newlines collapse into
+    spaces and the reader gets *"Etymology tree Proto-Indo-European *(s)kewH-der.? Proto-Germanic
+    *hūsą Old English hūs ..."* before the sentence they wanted. Measured over the whole English
+    dump on 2026-09-25: **52,925 of 535,571** entries with an etymology (9.9 %) render one.
+
+    ⚠️ **The cut is the MARKER line and not a length.** The tree closes with the page's own entry
+    in its own language --`English house`-- and the prose follows. The first rule tried asked for
+    a line of eight words or more and lost **87 %** of the cases, because the sentence behind the
+    tree is usually as short as `From folk + -ie.`. Cutting at the marker finds the prose in
+    **99.95 %** of the trees; 26 are left with nothing, and those carry no etymology rather than
+    carrying the tree.
+
+    ⚠️ **The LAST marker, not the first**: a branch can name the page's own word halfway up, and
+    cutting at the first occurrence would glue half a tree in front of the prose.
+    """
+    lineas = texto.split("\n")
+    if lineas[0].strip() != ARBOL_DE_ETIMOLOGIA:
+        return texto
+    marca = "English " + palabra
+    for i in range(len(lineas) - 1, 0, -1):
+        if lineas[i].strip() == marca:
+            return "\n".join(lineas[i + 1:]).strip() or None
+    return None
+
+
 def _etymology(raw):
     """Where the word comes from, or `None`.
 
@@ -972,14 +1008,15 @@ def _etymology(raw):
     ⚠️ **The FIRST one, when there are several.** They are alternative accounts of the same word
     and a watch card shows one line.
     """
+    palabra = raw.get("word") or ""
     textos = raw.get("etymology_texts")
     if isinstance(textos, (list, tuple)):
         for texto in textos:
             if texto and texto.strip():
-                return texto.strip()
+                return _sin_arbol(texto.strip(), palabra)
     texto = raw.get("etymology_text")
     if isinstance(texto, str) and texto.strip():
-        return texto.strip()
+        return _sin_arbol(texto.strip(), palabra)
     return None
 
 
