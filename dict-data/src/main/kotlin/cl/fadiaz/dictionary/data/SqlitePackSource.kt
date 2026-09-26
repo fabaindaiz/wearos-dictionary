@@ -396,13 +396,65 @@ class SqlitePackSource(
                 }
                 mejorPorClave.mapValues { (_, par) -> par.first }
             }
+        }.let { lemas -> lemas + porFlexion(norms - lemas.keys, lang) }
+    }
+
+    /**
+     * The keys that are not lemmas but ARE inflected forms, resolved to the lemma they belong to.
+     *
+     * ⚠️ **Without this a gloss links only half of what it could.** `padres` is not an entry of
+     * the Spanish pack: it lives in `form` pointing at `padre`. So the definition of `filiación`
+     * --*"Descendencia de padres a hijos"*-- painted `hijos` and not `padres`, and the reader
+     * learns that the colour is unreliable, which is the very thing D-094 is about.
+     *
+     * ⚠️ **It runs only over what the first query did NOT resolve**, and that ordering is the
+     * rule and not an optimisation: a word that is a lemma resolves to itself. `haya` the tree
+     * beats `haya` the form of `haber`, which is the same precedence the search cascade gives
+     * `PREFIX` over `INFLECTED_FORM`.
+     *
+     * ⚠️ **Its own cap.** `MAX_PALABRAS_POR_CONSULTA` is a hard SQLite limit on bound parameters,
+     * so this is a second statement rather than a bigger `IN`: merging them would silently trim,
+     * and what got trimmed would be invisible.
+     *
+     * `form` is `PRIMARY KEY (norm, entry_id) WITHOUT ROWID`, so filtering by `norm` is served by
+     * that key; the join then fetches one `entry` row per hit by its own primary key.
+     */
+    private suspend fun porFlexion(norms: Set<String>, lang: String?): Map<String, Long> {
+        if (norms.isEmpty()) return emptyMap()
+        val claves = norms.take(MAX_PALABRAS_POR_CONSULTA)
+        return withContext(dispatcher) {
+            val huecos = claves.joinToString(",") { "?" }
+            val filtro = lang?.takeIf { pack.metadata.langs.size > 1 }
+            val porIdioma = if (filtro != null) " AND e.lang = ?" else ""
+            pack.connection().prepare(
+                "SELECT f.norm, e.id, e.rank FROM form f JOIN entry e ON e.id = f.entry_id " +
+                    "WHERE f.norm IN ($huecos)$porIdioma",
+            ).use { statement ->
+                claves.forEachIndexed { indice, clave -> statement.bindText(indice + 1, clave) }
+                if (filtro != null) statement.bindText(claves.size + 1, filtro)
+                val context: CoroutineContext = currentCoroutineContext()
+                val mejorPorClave = HashMap<String, Pair<Long, Int>>()
+                while (statement.step()) {
+                    context.ensureActive()
+                    val clave = statement.getText(0)
+                    val id = statement.getLong(1)
+                    val rank = statement.getInt(2)
+                    val actual = mejorPorClave[clave]
+                    // The same rule as above: a form shared by two lemmas goes to the commoner
+                    // one. `fui` is `ir` and `ser`; the reader means `ir` far more often.
+                    if (actual == null || rank < actual.second) {
+                        mejorPorClave[clave] = id to rank
+                    }
+                }
+                mejorPorClave.mapValues { (_, par) -> par.first }
+            }
         }
     }
 
 
     override suspend fun summary(entryId: Long): EntrySummary? = withContext(dispatcher) {
         pack.connection().prepare(
-            "SELECT headword, pos, rank FROM entry WHERE id = ?",
+            "SELECT headword, pos, rank, lang FROM entry WHERE id = ?",
         ).use { statement ->
             statement.bindLong(1, entryId)
             if (!statement.step()) return@withContext null
@@ -411,6 +463,7 @@ class SqlitePackSource(
                 headword = statement.getText(0),
                 partOfSpeech = statement.getTextOrNull(1),
                 rank = statement.getInt(2),
+                lang = statement.getTextOrNull(3),
             )
         }
     }

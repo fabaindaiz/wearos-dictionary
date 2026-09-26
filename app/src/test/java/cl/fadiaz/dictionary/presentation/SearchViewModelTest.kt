@@ -595,6 +595,42 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aSavedWordWithNoLanguageIsToldItByThePack() = runTest {
+        // ⚠️ **The saved list showed `EN` and not `ES`, and it was read as a missing component.**
+        // It is not: the row is drawn by the shared `WordRow`/`wordDetail` (D-152). What was
+        // missing is the DATUM -- `visitTag` falls back to the pack's `langs.singleOrNull()`, and
+        // a bidirectional pack has no single one, so `atizar` and `stoke` both came out untagged,
+        // as did every row written before `Visit.lang` existed.
+        //
+        // The pack cannot say what language IT is; it can always say what language an ENTRY is,
+        // and that is the question the row has.
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "casa", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+        )
+        val vm = SearchViewModel(
+            { listos(fake) },
+            savedFavorites = { listOf(visit("casa", 7, pack = "fake").copy(lang = null)) },
+        )
+        advanceUntilIdle()
+        assertEquals("es", vm.state.value.favorites.single().lang)
+    }
+
+    @Test
+    fun aSavedWordWhosePackCannotAnswerStaysUntagged() = runTest {
+        // The degradation, and it is the rule this repo already follows for a gloss's links: no
+        // tag beats the wrong one. A row whose pack is gone, or whose entry no longer exists,
+        // draws with nothing rather than borrowing a language from somewhere plausible.
+        val vm = SearchViewModel(
+            { listos(FakeDictionary()) },
+            savedFavorites = { listOf(visit("casa", 7).copy(lang = null)) },
+        )
+        advanceUntilIdle()
+        assertEquals(null, vm.state.value.favorites.single().lang)
+    }
+
+    @Test
     fun theSavedWordsCapIsRespected() = runTest {
         // It ends up in a SharedPreferences String: with no cap it grows without bound.
         val vm = SearchViewModel({ listos(FakeDictionary()) })

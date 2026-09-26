@@ -395,6 +395,17 @@ data class EntrySummary(
     val headword: String,
     val partOfSpeech: String?,
     val rank: Int,
+    /**
+     * The language of THIS entry, which in a bidirectional pack is not the pack's.
+     *
+     * ⚠️ **It is here so a stored row can be told its language without a guess.** A saved word
+     * keeps its own `Visit.lang` since D-265, but rows written before that, and rows from the
+     * bilingual pack --whose `langs` is `es+en`, so `singleOrNull()` gives nothing-- drew with no
+     * tag at all: `ES` missing while `EN` showed. The pack could not answer *what language is
+     * this pack*, which is true; it can always answer *what language is this entry*, which is the
+     * question the row actually has. It is a column of `entry`, so it costs the query nothing.
+     */
+    val lang: String? = null,
 )
 
 /**

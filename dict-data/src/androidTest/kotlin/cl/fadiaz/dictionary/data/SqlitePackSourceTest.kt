@@ -299,11 +299,41 @@ class SqlitePackSourceTest {
     // --- Resolver palabras de una glosa -------------------------------------------------------
 
     @Test
-    fun resolverDevuelveSoloLasPalabrasQueSonLema() = runTest {
+    fun resolverDevuelveSoloLoQueElPackPuedeAbrir() = runTest {
         val resueltas = source.resolveHeadwords(setOf("casa", "correr", "noesunlemadelpack"))
         assertEquals(setOf("casa", "correr"), resueltas.keys)
         assertEquals("casa", source.entry(resueltas.getValue("casa"))?.headword)
         assertEquals("correr", source.entry(resueltas.getValue("correr"))?.headword)
+    }
+
+    @Test
+    fun unaFlexionDeLaGlosaLLEGA_A_SU_LEMA() = runTest {
+        // ⚠️ **Half the links in a gloss were missing and nothing said so.** `padres` is not an
+        // entry of the Spanish pack -- it lives in `form`, pointing at `padre` -- so the
+        // definition of `filiación`, *"Descendencia de padres a hijos"*, painted `hijos` and not
+        // `padres`. A colour that works for one word of a pair and not the other teaches the
+        // reader to stop trusting it, which is what D-094 is about.
+        //
+        // In the toy the pair is `corriendo` -> `correr`, which is the same shape.
+        val resueltas = source.resolveHeadwords(setOf("corriendo"))
+        assertEquals("correr", source.entry(resueltas.getValue("corriendo"))?.headword)
+    }
+
+    @Test
+    fun unLemaGANA_a_la_flexion_que_se_escribe_igual() = runTest {
+        // The order is the rule and not an optimisation: `casa` is an entry AND a form of
+        // `casar`, and what the reader means by it is the noun. The form query runs only over
+        // what the lemma query left unresolved, which is the same precedence the search cascade
+        // gives `PREFIX` over `INFLECTED_FORM`.
+        val resueltas = source.resolveHeadwords(setOf("casa"))
+        assertEquals("casa", source.entry(resueltas.getValue("casa"))?.headword)
+    }
+
+    @Test
+    fun loQueNoEsNI_LEMA_NI_FLEXION_sigue_sin_resolver() = runTest {
+        // The degradation that has to survive: a word the pack cannot open is NOT painted. The
+        // form query widens what resolves; it must not turn "unknown" into a link to nowhere.
+        assertEquals(emptyMap<String, Long>(), source.resolveHeadwords(setOf("noesunlemadelpack")))
     }
 
     @Test

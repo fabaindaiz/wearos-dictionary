@@ -309,6 +309,16 @@ class SearchViewModel(
             val desde = System.nanoTime()
             visits = savedHistory()
             loadPacks()
+            // ⚠️ **After the packs, because only a pack can answer it.** A stored row carries its
+            // own language since D-265, but the ones written before that --and every row of the
+            // bilingual pack, whose `langs` is `es+en` so `singleOrNull()` gives nothing-- drew
+            // with no tag: `ES` missing from the saved list while `EN` showed. That was read as a
+            // gap in the component and it is not; the row component is shared (D-152). It is the
+            // datum that was absent, and the pack has it per ENTRY even when it cannot answer for
+            // itself.
+            visits = conIdioma(visits)
+            favoriteVisits = conIdioma(favoriteVisits)
+            _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
             DictLog.i {
                 "arranque: listo para buscar en ${(System.nanoTime() - desde) / 1_000_000} ms " +
                     "(historial=${visits.size})"
@@ -857,6 +867,26 @@ class SearchViewModel(
     }
 
     /** Only those from open packs: a row that opens nothing is worse than no row at all. */
+    /**
+     * The visits that do not know their language, told it by the pack that holds them.
+     *
+     * ⚠️ **It asks per ENTRY and never per pack**, which is the whole difference. `visitTag` falls
+     * back to `langs.singleOrNull()`, and a bidirectional pack has no single one -- so `atizar`
+     * and `stoke`, which live in the same file, both came out untagged. `summary()` reads the
+     * entry's own `lang` column without decompressing anything.
+     *
+     * ⚠️ **Only the ones that are missing it**, and only once, at startup: a row written from now
+     * on arrives with its language already set, so this costs a query per legacy row and nothing
+     * afterwards. It does not rewrite the store -- what a watch saved is read as it stands, and a
+     * row whose pack is gone simply stays untagged, which is still better than a wrong tag.
+     */
+    private suspend fun conIdioma(visitas: List<Visit>): List<Visit> = visitas.map { visita ->
+        if (visita.lang != null) return@map visita
+        val fuente = opened.firstOrNull { it.metadata.packId == visita.packId }
+        val idioma: String? = runCatching { fuente?.summary(visita.entryId)?.lang }.getOrNull()
+        if (idioma == null) visita else visita.copy(lang = idioma)
+    }
+
     private fun visibleOnes(allSenses: List<Visit>): List<Visit> {
         val installed = opened.map { it.metadata.packId }.toSet()
         return if (installed.isEmpty()) allSenses else allSenses.filter { it.packId in installed }
