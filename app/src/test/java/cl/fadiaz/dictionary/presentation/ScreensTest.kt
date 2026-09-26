@@ -335,6 +335,27 @@ class ScreensTest {
     }
 
     @Test
+    @Config(qualifiers = "+w192dp-h192dp")
+    fun theLONGEST_originDoesNotPushTheDefinitionOffTheCard() {
+        // ⚠️ **The extreme is real, not hypothetical**: with no length cap the English dump's
+        // longest origin is **3,888 characters**, and the card draws it whole. On the generic
+        // 192 dp watch -- the smallest supported, and the one every layout decision was
+        // arithmetic for -- that is hundreds of rows in one lazy item.
+        //
+        // What this pins is the property the section was placed for: the origin sits AFTER the
+        // senses, so however long it is, the definition is still the first thing on the card.
+        // Placing it before the senses passes every other test in this file and fails here.
+        val largo = "Del latín *canis*, y de ahí una cadena de préstamos. ".repeat(75)
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero cánido doméstico.").copy(etymology = largo)
+            }
+        }
+        compose.onNodeWithText("perro").assertIsDisplayed()
+        compose.onNodeWithText("Mamífero cánido doméstico.", substring = true).assertIsDisplayed()
+    }
+
+    @Test
     fun aPackWithNoOriginDrawsNoSectionForIt() {
         // The degradation, and here it covers one case more than the pronunciation's: a `full`
         // pack carries the datum only up to its `main` tier's vocabulary, so a rare word has none
