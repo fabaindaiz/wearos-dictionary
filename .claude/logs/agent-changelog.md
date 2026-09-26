@@ -17,7 +17,8 @@ siguiente por ese desvío.
 ---
 
 ## 2026-09-26 · s-a2f271-d67782 — Seven small reports, and the two that were not what they looked like
-**What.** Seven usability reports, each fixed and committed on its own. Choosing a text size closes
+**What.** Seven usability reports, each fixed and committed on its own, plus a defect in the
+English packs that reading the output turned up. Choosing a text size closes
 the menu it was chosen from. A result row says what the word **is** --`sust. · ES`-- and never why
 it matched. Leaving the app no longer navigates home: `ScrollToTopOnReturn`, one composable used by
 all six screens, returns the open screen to its own top instead, and the entry's magnifier becomes
@@ -83,6 +84,12 @@ Spanish word is hyphenated by English rules on an English watch.
   lemma of `en-full` and not of `en-core`, and the emulator had only the core. The missing `ES` in
   the saved list is not a missing component --the row is already shared (D-152)-- it is a missing
   datum.
+- ⚠️ **English was showing `made` as the plural of `make`, and it had been doing it all along.**
+  Found by reading the first rebuilt pack instead of trusting the row count: English lists its past
+  by person, so the source tags `made` as `past plural`, and the row meant for the plural of a NOUN
+  matched it. The same reading showed `making` claiming the participle row, leaving the compound
+  tenses with nothing. The build was **stopped mid-run and restarted** after fixing both -- an hour
+  of English thrown away, which is cheaper than shipping a wrong label.
 
 **What was left undone.** The hyphenation locale, named above. And the packs and the APK are
 rebuilt but **not on the watch**: `devpack.py` has not been run since.
