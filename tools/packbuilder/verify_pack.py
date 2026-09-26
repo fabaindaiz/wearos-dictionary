@@ -485,6 +485,7 @@ def verify(path):
     decoded = 0
     senses_total = 0
     con_ipa = 0
+    con_etimologia = 0
     failures_before = len(report.failures)
     # ⚠️ **Spread along the table, not the first 200.** It was `ORDER BY id LIMIT 200`, which is
     # exactly what D-142 argues is no use: a pack correct only in its first rows --which happens if
@@ -562,6 +563,9 @@ def verify(path):
             if payload_codec.parse_pronunciation(text):
                 con_ipa += 1
 
+            if payload_codec.parse_etymology(text):
+                con_etimologia += 1
+
             codigos = {payload_codec.sense_code(row["uid"], s["gloss"]) for s in senses}
             if len(codigos) != len(senses):
                 report.check(False,
@@ -584,6 +588,15 @@ def verify(path):
     if decoded:
         report.note("%d de %d entradas de la muestra traen pronunciacion (%.1f %%)"
                     % (con_ipa, decoded, 100.0 * con_ipa / decoded))
+    # ⚠️ **The same readout, and here absence means one thing MORE.** A `full` pack carries the
+    # origin only up to its `main` tier's vocabulary, so a missing `M` can be *this pack does not
+    # carry it for this word* on top of the two the pronunciation has. Which vocabulary that is is
+    # declared in `meta.etymology_vocabulary`, printed beside it so the two are read together.
+    if decoded:
+        alcance = meta.get("etymology_vocabulary")
+        report.note("%d de %d entradas de la muestra traen etimologia (%.1f %%)%s"
+                    % (con_etimologia, decoded, 100.0 * con_etimologia / decoded,
+                       "" if alcance is None else "; el pack la lleva hasta %s" % alcance))
 
     print("\n[planes de consulta]")
     _verify_query_plans(db, report)
