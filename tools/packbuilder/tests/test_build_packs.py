@@ -6,7 +6,9 @@ and is what matters, is **the order** -- because skipping it raises no error.
 """
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(
@@ -149,6 +151,10 @@ class PlanTest(unittest.TestCase):
         "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
         # build_core lee un pack ya construido, no un dump.
         "--flexiones": ["en-full.db"],
+        # The tier filter reads a built pack too, and it has to be `main`'s: the rule is that
+        # `full` carries the origin up to `main`'s vocabulary. A `core` here would take the datum
+        # away from two thirds of `main`, and nothing would fail.
+        "--etimologia-hasta": ["en-main.db"],
         # ⚠️ `--sumar <pack> <dump>` takes TWO values, and the one that is a path is the second.
         # That is how it escaped the old check, which always looked at index+1 and read `es-wd`.
         "--sumar": ["wikidata-lexemes.json.bz2"],
@@ -252,3 +258,47 @@ class PlanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FiltroDeEtimologiaTest(unittest.TestCase):
+    """Which step carries `--etimologia-hasta`, and pointing at what.
+
+    ⚠️ **Skipping it raises no error**, like every other flag in this plan: `en-full` comes out well
+    formed, passes `verify_pack.py` and weighs **+179 MB** instead of +13.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.tmp, DIST))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _previo(self, nombre):
+        ruta = os.path.join(self.tmp, DIST, nombre)
+        open(ruta, "wb").close()
+        return ruta
+
+    def _paso(self, nombre, **kw):
+        return next(p for p in build_packs.plan(self.tmp, **kw) if p["nombre"] == nombre)
+
+    def test_el_ingles_filtra_por_el_main_de_la_construccion_anterior(self):
+        previo = self._previo("en-main.db")
+        comando = self._paso("en-full", solo="en")["comando"]
+        self.assertIn("--etimologia-hasta", comando)
+        self.assertEqual(previo, comando[comando.index("--etimologia-hasta") + 1])
+
+    def test_el_espanol_NO_filtra_porque_su_full_ES_el_main(self):
+        # D-220: `es-full` falls below `main`'s size range and no `es-main` is built, so it carries
+        # the origin for all of its own vocabulary. A filter here would take the datum away from
+        # words its own reader can look up -- and nothing would fail.
+        self._previo("en-main.db")
+        self._previo("es-main.db")
+        self.assertNotIn("--etimologia-hasta", self._paso("es-full", solo="es")["comando"])
+
+    def test_sin_main_anterior_la_primera_construccion_va_sin_filtro(self):
+        # The degradation, and it is said out loud: the first build of a language has no previous
+        # `main` to read, so `en-full` carries the origin for everything and weighs what the
+        # roadmap says. The second build filters it. Failing here instead would block a rebuild
+        # from scratch over a datum that is additive.
+        self.assertNotIn("--etimologia-hasta", self._paso("en-full", solo="en")["comando"])

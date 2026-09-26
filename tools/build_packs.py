@@ -125,14 +125,29 @@ def plan(raiz, solo=None, tamanos=None):
     # ⚠️ **El ingles va PRIMERO**, y no es alfabetico: el bilingue lo necesita construido para
     # `--flexiones`.
     if solo in (None, "en"):
+        # ⚠️ **`--etimologia-hasta` reads the PREVIOUS build's `en-main`, and that is not a
+        # shortcut.** The rule is that `full` carries the origin up to `main`'s vocabulary, and
+        # `main` is defined by a byte budget: it does not exist until this same run derives it,
+        # after this step. The previous one is the only exact statement of that vocabulary
+        # available here, and between rebuilds it moves by a handful of rare words -- what those
+        # few lose is one line, not their entry. Without the flag `en-full` grows +179 MB.
+        #
+        # ⚠️ **Spanish gets NO flag on purpose.** `es-full` IS the Spanish `main` (D-220: it falls
+        # below that tier's range and no `es-main` is built), so it carries the origin for all of
+        # its own vocabulary. Passing it a filter would take the datum away from words its own
+        # reader can look up.
+        vocabulario = _ruta(raiz, DIST, "en-main.db")
+        comando = [sys.executable, BUILD_PACK, "en",
+                   _ruta(raiz, DUMPS, "en.jsonl"),
+                   _ruta(raiz, DIST, "en-full.db"),
+                   "--tesauro", _ruta(raiz, DUMPS, "oewn-2024.xml.gz"),
+                   "--frecuencias", _ruta(raiz, DUMPS, "freq-en-opensubs.txt")]
+        if os.path.exists(vocabulario):
+            comando += ["--etimologia-hasta", vocabulario]
         pasos.append({
             "nombre": "en-full",
             "salida": _ruta(raiz, DIST, "en-full.db"),
-            "comando": [sys.executable, BUILD_PACK, "en",
-                        _ruta(raiz, DUMPS, "en.jsonl"),
-                        _ruta(raiz, DIST, "en-full.db"),
-                        "--tesauro", _ruta(raiz, DUMPS, "oewn-2024.xml.gz"),
-                        "--frecuencias", _ruta(raiz, DUMPS, "freq-en-opensubs.txt")],
+            "comando": comando,
             "verifica": True,
         })
 
