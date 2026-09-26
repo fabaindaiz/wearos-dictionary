@@ -5,6 +5,7 @@
                           [--tesauro <wordnet>] [--sumar <pack> <dump>]
                           [--flexiones <target-language-pack.db>]
                           [--frecuencias <opensubtitles-list.txt>]
+                          [--etimologia-hasta <main-pack.db|word-list.txt>]
 
 `--sample N` builds a pilot pack with 1 in every N lemmas, chosen by hashing the headword:
 deterministic and **with no positional bias**, unlike cutting the first N lines. It serves to look
@@ -64,11 +65,13 @@ with antonyms-- and **5,504** in Spanish. ⚠️ It changes the attribution too.
 
 import hashlib
 import os
+import sqlite3
 import sys
 
 from sources import bilingual, enwikt_examples, kaikki, oewn, tatoeba, wikidata, wordnet
 
 from build import PackBuilder, name_with_tier
+import normalize
 
 # The CATALOG of sources, and the reason it is a table and not loose text (D-138).
 #
@@ -475,6 +478,34 @@ def _keep(headword, sample):
     return int.from_bytes(digest[:4], "big") % sample == 0
 
 
+def vocabulario_de_etimologia(ruta):
+    """The `norm()` keys allowed to carry an etymology, read from a pack or from a word list.
+
+    ⚠️ **A pack and not a number of words**, because the rule is *`full` carries etymology up to
+    `main`'s vocabulary* and `main` is defined by a byte budget, not by a count: it is derived
+    from the full pack afterwards, so the only exact statement of "main's vocabulary" is a main
+    pack. The one from the PREVIOUS build is the right input -- vocabulary moves by a handful of
+    rare words between rebuilds, and what it decides here is only whether those few carry one
+    extra line.
+
+    ⚠️ **What it does NOT do is re-normalize a pack's keys.** `entry.norm` was written by the same
+    `norm()` at the same `NORM_VERSION`, and running it again over the spelling would silently
+    become a second implementation. A `.txt` is normalized, because there the words are raw.
+
+    Measured on `dist/` (2026-09-25): `en-main` gives 138,083 keys, and filtering by frequency
+    signal instead would have given 38,067 -- **27.6 %** of `main`'s own vocabulary, so three out
+    of four words inside `main` would have lost the datum. That is the reason this reads a pack.
+    """
+    if ruta.endswith(".db"):
+        conexion = sqlite3.connect("file:%s?mode=ro" % ruta, uri=True)
+        try:
+            return {fila[0] for fila in conexion.execute("SELECT DISTINCT norm FROM entry")}
+        finally:
+            conexion.close()
+    with open(ruta, encoding="utf-8") as handle:
+        return {clave for clave in (normalize.norm(linea.strip()) for linea in handle) if clave}
+
+
 def _con_sense_key_del_pack_final(nuevos):
     """Recomputes `sense_key` looking at the MERGED pack's homographs, not the source's.
 
@@ -539,6 +570,9 @@ def main(argv):
     lista_frecuencias = None
     if "--frecuencias" in argv:
         lista_frecuencias = argv[argv.index("--frecuencias") + 1]
+    vocabulario_etimologia = None
+    if "--etimologia-hasta" in argv:
+        vocabulario_etimologia = argv[argv.index("--etimologia-hasta") + 1]
     flexiones = None
     if "--flexiones" in argv:
         flexiones = argv[argv.index("--flexiones") + 1]
@@ -642,10 +676,24 @@ def main(argv):
         # already carries one. See `build.name_with_tier`.
         metadata["name"] = name_with_tier(metadata["name"], "full")
 
+    vocabulario = None
+    if vocabulario_etimologia:
+        vocabulario = vocabulario_de_etimologia(vocabulario_etimologia)
+        # ⚠️ **The pack states its own reach, because the gap is visible and nothing else explains
+        # it.** Inside a `full` pack a frequent word shows an etymology and a rare one does not,
+        # and the boundary means nothing to somebody reading one card. This key is what lets the
+        # app --or whoever opens the pack a year from now-- say *"this pack carries the datum for
+        # that vocabulary"* instead of reading it as missing data.
+        metadata["etymology_vocabulary"] = "%s (%d words)" % (
+            os.path.basename(vocabulario_etimologia), len(vocabulario))
+        print("etimologia: %d palabras la llevan, segun %s"
+              % (len(vocabulario), vocabulario_etimologia))
+
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
-    with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro) as builder:
+    with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro,
+                     etymology_vocabulary=vocabulario) as builder:
         # ⚠️ **The ordering prior.** Without this `rank` is page richness --senses, examples and
         # above all FORMS-- and that rewards verbs: measured, it correlates **-0.250** with real
         # usage frequency where -1 would be expected. The symptom shows where D-142's coverage band

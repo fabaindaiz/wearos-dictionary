@@ -320,6 +320,31 @@ class ScreensTest {
     }
 
     @Test
+    fun theCardShowsTheOriginWholeAndAfterTheSenses() {
+        // ⚠️ **After the senses and not before**, unlike the forms: an origin answers *where does
+        // it come from*, which is asked once the meaning is known. And **whole**: the pack already
+        // decided what to carry, by word and not by length, so the card does not cut it.
+        val origen = "Del latín *canis*, y éste del protoindoeuropeo *ḱwṓ*."
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero cánido doméstico.").copy(etymology = origen)
+            }
+        }
+        compose.onNodeWithText(origen).assertIsDisplayed()
+        compose.onNodeWithText("Origen").assertExists()
+    }
+
+    @Test
+    fun aPackWithNoOriginDrawsNoSectionForIt() {
+        // The degradation, and here it covers one case more than the pronunciation's: a `full`
+        // pack carries the datum only up to its `main` tier's vocabulary, so a rare word has none
+        // even where the source does. All three draw nothing.
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero.") } }
+        compose.onNodeWithText("perro").assertIsDisplayed()
+        assertEquals(0, compose.onAllNodesWithText("Origen").fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun theEntryShowsHeadwordPartOfSpeechAndNumberedSenses() {
         compose.setContent { EntryScreen(1, onOpenWord = {}) { entry("Mamífero cánido doméstico.") } }
         compose.onNodeWithText("perro").assertIsDisplayed()

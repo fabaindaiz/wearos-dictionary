@@ -131,6 +131,14 @@ object PayloadCodec {
      */
     private const val TAG_PRONUNCIATION = 'I'
 
+    /**
+     * Where the word comes from, one per entry. Mirrors `payload.TAG_ETYMOLOGY`.
+     *
+     * ⚠️ **Additive, so it does not bump the codec id**: a pack built before this channel keeps
+     * opening because the decoder skips a tag it does not know.
+     */
+    private const val TAG_ETYMOLOGY = 'M'
+
     /** The decoded body, without the data that already comes in `entry`'s columns. */
     data class Body(
         val partOfSpeech: String?,
@@ -154,6 +162,14 @@ object PayloadCodec {
          * from the artefact instead of guessed.
          */
         val pronunciation: String? = null,
+        /**
+         * Where the word comes from, or null. See [TAG_ETYMOLOGY].
+         *
+         * ⚠️ **Null covers two different things and the card cannot tell them apart**: a pack
+         * built before this channel, and a word the pack's tier does not carry it for. Only the
+         * words a pack's own tier can look up get one.
+         */
+        val etymology: String? = null,
     )
 
     /**
@@ -275,6 +291,7 @@ object PayloadCodec {
         val wordTranslations = mutableListOf<String>()
         val forms = mutableListOf<InflectedForm>()
         var pronunciation: String? = null
+        var etymology: String? = null
 
         // The sense whose LAST example can still receive a citation, or null. An `E` sets it and
         // any other line clears it: a `C` that does not come right after its `E` is discarded
@@ -317,6 +334,7 @@ object PayloadCodec {
                 // malformed, and picking one is cheaper than losing the entry over it. Same
                 // leniency as `P`.
                 TAG_PRONUNCIATION -> if (pronunciation == null) pronunciation = value
+                TAG_ETYMOLOGY -> if (etymology == null) etymology = value
                 // No `senses` guard, for the same reason as `W`: it describes the ENTRY.
                 TAG_FORM -> {
                     val cut = value.indexOf(FORM_SEPARATOR)
@@ -337,6 +355,7 @@ object PayloadCodec {
             wordTranslations = wordTranslations.toList(),
             forms = forms.toList(),
             pronunciation = pronunciation,
+            etymology = etymology,
             senses = senses.map {
                 Sense(
                     it.gloss,
@@ -370,6 +389,7 @@ object PayloadCodec {
         // tests -- packs are written by the builder -- so the gap costs nothing today, and it is
         // written down rather than widened in silence.
         body.pronunciation?.let { out.append(TAG_PRONUNCIATION).append('\t').append(it).append('\n') }
+        body.etymology?.let { out.append(TAG_ETYMOLOGY).append('\t').append(it).append('\n') }
         for (sense in body.senses) {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')
             for (example in sense.examples) {

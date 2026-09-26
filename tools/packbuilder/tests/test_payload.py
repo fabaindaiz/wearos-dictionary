@@ -816,3 +816,49 @@ class PronunciacionTest(unittest.TestCase):
         texto = payload.render("noun", [{"gloss": "g"}], pronunciation="\u02c8ka\tsa")
         self.assertEqual("\u02c8ka sa", payload.parse_pronunciation(texto))
         self.assertEqual(1, texto.count("I\t"))
+
+
+class EtymologyTest(unittest.TestCase):
+    """The `M` channel: where the word comes from, one line per entry.
+
+    Its own class for the same reason `PronunciacionTest` is: an etymology is not a principal
+    part, and grouping it under a name that does not describe it is how a filtered run silently
+    skips it.
+    """
+
+    def test_the_etymology_travels_and_comes_back(self):
+        texto = payload.render("noun", [{"gloss": "g"}], etymology="Del latín casa.")
+        self.assertIn("M\tDel latín casa.\n", texto)
+        self.assertEqual("Del latín casa.", payload.parse_etymology(texto))
+
+    def test_the_etymology_goes_before_the_senses(self):
+        # It describes the WORD, like `I`. After an `S` a reader that hangs items off the last
+        # sense would attribute the origin of the word to one of its meanings.
+        texto = payload.render("noun", [{"gloss": "g"}], etymology="Del latín casa.")
+        self.assertLess(texto.index("M\t"), texto.index("S\t"))
+
+    def test_the_etymology_comes_after_the_pronunciation(self):
+        # Both are word-level, so their relative order is a choice, and it is pinned here and in
+        # the shared fixture: the card reads headword, how it sounds, where it comes from.
+        texto = payload.render(
+            "noun", [{"gloss": "g"}], pronunciation="ˈka.sa", etymology="Del latín casa.",
+        )
+        self.assertLess(texto.index("I\t"), texto.index("M\t"))
+
+    def test_a_pack_with_no_etymology_emits_nothing(self):
+        # The degradation, and why the tag does not bump the codec id: every pack built before
+        # this channel carries no `M`, and reads clean on both sides.
+        texto = payload.render("noun", [{"gloss": "g"}])
+        self.assertNotIn("M\t", texto)
+        self.assertIsNone(payload.parse_etymology(texto))
+
+    def test_an_empty_etymology_is_the_same_as_none(self):
+        # What the tier filter produces for vocabulary beyond `main`: the field arrives empty and
+        # no line is written, rather than an `M` with nothing after the tab.
+        self.assertNotIn("M\t", payload.render("noun", [{"gloss": "g"}], etymology=""))
+        self.assertNotIn("M\t", payload.render("noun", [{"gloss": "g"}], etymology="   "))
+
+    def test_a_tab_in_the_etymology_does_not_split_the_line(self):
+        texto = payload.render("noun", [{"gloss": "g"}], etymology="Del\tlatín")
+        self.assertEqual("Del latín", payload.parse_etymology(texto))
+        self.assertEqual(1, texto.count("M\t"))

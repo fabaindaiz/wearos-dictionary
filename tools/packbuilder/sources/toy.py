@@ -74,7 +74,11 @@ _DATA = [
     # stress mark, which is the property that makes this datum non-ASCII by construction.
     ("casa", "noun", 15, [
         ("edificio para habitar", ["la casa de la esquina"], ["house", "home"]),
-    ], ["casas"], None, (), (), "\u02c8kasa"),
+    # ⚠️ The only entry with an ORIGIN (tag `M`), and the only one with TWO word-level channels:
+    # `I` and `M` land one after the other before the senses, and their order is what the shared
+    # fixture pins. It carries an accent and an asterisk for the same reason the IPA carries a
+    # stress mark -- the datum has to be non-ASCII by construction.
+    ], ["casas"], None, (), (), "\u02c8kasa", "Del latín *casa*, 'choza'."),
     ("cazar", "verb", 200, [
         ("perseguir animales para capturarlos", [], ["to hunt"]),
     ], ["caza", "cazando"]),
@@ -221,6 +225,9 @@ def _propias():
         display_forms = tuple(item[7]) if len(item) > 7 else ()
         # Ninth, optional: the word's IPA (tag `I`), without the source's delimiters.
         pronunciation = item[8] if len(item) > 8 else None
+        # Tenth, optional: where the word comes from (tag `M`). Uncapped, because the pack decides
+        # by WORD and not by length -- a cut origin reads worse than none.
+        etymology = item[9] if len(item) > 9 else None
         translations = []
         rendered_senses = []
         for gloss, examples, sense_translations in senses:
@@ -240,6 +247,7 @@ def _propias():
             forms=forms,
             display_forms=display_forms,
             pronunciation=pronunciation,
+            etymology=etymology,
             # The search channel carries both, just as in a real pack, **and an infinitive's bare
             # form**: the dump writes "to run" and whoever searches types "run". Until here
             # `trans`'s tokenization resolved that (D-014); with that table emptied in a

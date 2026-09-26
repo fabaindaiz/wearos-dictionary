@@ -941,6 +941,7 @@ def _emit(group, inbound, opciones):
             forms=forms,
             display_forms=_display_forms(raw, headword),
             pronunciation=_pronunciation(raw),
+            etymology=_etymology(raw),
             # ⚠️ **The SEARCH channel carries both**, attributed and loose: to find `casa` by
             # typing `house` it makes no difference whether the source knew which sense it belongs
             # to. This is what makes a monolingual pack searchable in the other language too.
@@ -958,6 +959,28 @@ def _emit(group, inbound, opciones):
 #: into a value with a stray `)`, half-cleaned and impossible to tell from a real one; left whole,
 #: they are visibly the source's problem.
 _DELIMITADORES_IPA = (("[", "]"), ("/", "/"))
+
+
+def _etymology(raw):
+    """Where the word comes from, or `None`.
+
+    ⚠️ **The two dumps do not agree on the field name, and reading one only is silent.** Spanish
+    writes `etymology_texts`, a LIST; English writes `etymology_text`, a STRING. Assuming either
+    produces the other pack with no etymology at all -- no error, no log, and every invariant
+    still holding. The defect would be an absence, which is the shape this repository cannot see.
+
+    ⚠️ **The FIRST one, when there are several.** They are alternative accounts of the same word
+    and a watch card shows one line.
+    """
+    textos = raw.get("etymology_texts")
+    if isinstance(textos, (list, tuple)):
+        for texto in textos:
+            if texto and texto.strip():
+                return texto.strip()
+    texto = raw.get("etymology_text")
+    if isinstance(texto, str) and texto.strip():
+        return texto.strip()
+    return None
 
 
 def _pronunciation(raw):

@@ -149,6 +149,7 @@ class Record:
         "senses",
         "forms",
         "display_forms",
+        "etymology",
         "pronunciation",
         "translations",
         "word_translations",
@@ -165,6 +166,7 @@ class Record:
         rank=0,
         forms=(),
         display_forms=(),
+        etymology=None,
         pronunciation=None,
         translations=(),
         word_translations=(),
@@ -182,6 +184,9 @@ class Record:
         #: The principal parts the card SHOWS. See `kaikki._display_forms`: not the same as
         #: `forms`, which feeds the normalized search.
         self.display_forms = display_forms
+        #: Where the word comes from. See `kaikki._etymology`: the two dumps disagree on the
+        #: field name, and reading one only is silent.
+        self.etymology = etymology
         #: The word's IPA, or None when the source carried none. See `kaikki._pronunciation`.
         self.pronunciation = pronunciation
         self.translations = translations
@@ -252,7 +257,7 @@ def data_version(ahora=None):
 
 class PackBuilder:
     def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
-                 thesaurus=None):
+                 thesaurus=None, etymology_vocabulary=None):
         """`metadata` are the meta table keys the source contributes.
 
         The builder adds its own (versions, count, date) and fails if the source tries to declare
@@ -266,6 +271,16 @@ class PackBuilder:
         `thesaurus` is WordNet's `(lemma, pos) -> {"synonyms": [...], "antonyms": [...]}` map
         (D-144). It is resolved in `finish()` too, and for a similar reason: the filter that
         removes inflections disguised as synonyms needs the complete `form` table.
+
+        `etymology_vocabulary` is the set of `norm()` keys allowed to carry an etymology, or
+        `None` for all of them.
+
+        ⚠️ **It lives here and not at the call sites because this is the only funnel.** Every
+        record reaches the pack through `add`, including the ones a second source contributes and
+        the ones a bidirectional reader emits; a filter written beside one of those `add` calls
+        would be right the day it was written and silently partial the day a third source is
+        added. The rule it enforces --*each pack carries etymology for the words its reader can
+        look up*, `full` up to `main`'s vocabulary-- is a property of the whole pack.
         """
         reserved = {
             "schema_version",
@@ -297,6 +312,7 @@ class PackBuilder:
 
         self.path = path
         self.metadata = dict(metadata)
+        self.etymology_vocabulary = etymology_vocabulary
         # One profile per language. `fuzzy_profile=` is still accepted for the single-language
         # case, which is 99 % of the calls and of the tests.
         self.fuzzy_profiles = _parse_profiles(
@@ -355,9 +371,17 @@ class PackBuilder:
             # A lemma that normalizes to empty (punctuation only) cannot be searched.
             return
 
+        # ⚠️ **The tier filter, and it is a filter on the WORD, never on the text's length.** An
+        # etymology truncated mid-sentence teaches nothing and costs the same bytes as the part
+        # that would have taught something, so what decides is whether this pack's reader can look
+        # the word up. A word outside the vocabulary keeps its entry and loses only this line.
+        etymology = record.etymology
+        if self.etymology_vocabulary is not None and norm_key not in self.etymology_vocabulary:
+            etymology = None
+
         body = payload_codec.render(
             record.part_of_speech, record.senses, record.word_translations,
-            record.display_forms, record.pronunciation)
+            record.display_forms, record.pronunciation, etymology)
         if not body:
             # With no usable sense the entry has nothing to show.
             return

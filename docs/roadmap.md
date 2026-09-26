@@ -69,9 +69,9 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **127 tests**) y el
-pipeline de packs (`tools/`, **527 tests**) están completos y en el gate, junto con los **439 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1133 tests en total**. Los **46
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
+pipeline de packs (`tools/`, **542 tests**) están completos y en el gate, junto con los **441 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1156 tests en total**. Los **46
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3923,7 +3923,7 @@ rows and would have prevented the question. Not changed: a user-facing string is
 it does need is the **rebuild**, because B's counts are only worth showing over a pack whose
 `fts_def` is the final one.
 
-### Pronunciación (IPA) y etimología en el pack — **IPA: CANAL CONSTRUIDO 2026-09-24**, etimología planificada
+### Pronunciación (IPA) y etimología en el pack — **IPA: CANAL CONSTRUIDO 2026-09-24**, **etimología: CANAL CONSTRUIDO 2026-09-25**
 
 **Estado.** **Planificado**, con las dos mediciones hechas y el canal de la ficha ya construido:
 las partes principales (D-242) abrieron el tag `F` y demostraron que **agregar un tag al payload
@@ -4117,6 +4117,47 @@ cae la cola.
 *cómo se escribe esta palabra*, que es sobre la palabra; una etimología contesta *de dónde viene*,
 que es lo que alguien pregunta **después** de saber qué significa. Empujar la definición hacia
 abajo por la etimología invierte el orden en que se lee un diccionario.
+
+#### CHANNEL BUILT 2026-09-25 — with no length cap, and that is a ⚠️ Desviación
+
+The instruction, in the owner's words: *«la etimología implementala con el tope que te comenté
+de sólo palabras hasta main sin medir por largo de filas»* — that is, the vocabulary is the cap and
+the row length is not. The tier filter went in; **the length cap did not**, against the
+recommendation two paragraphs above. What that costs, measured the same way the table above was —
+a random sample of 6,000 entries per pack, the origin looked up in the dump, the payload
+**recompressed with that pack's own dictionary**, extrapolated to the whole pack:
+
+| Pack | Now | Uncapped | *(cap 128, for contrast)* | Ends at |
+|---|---|---|---|---|
+| `es-core` | 48.5 | **+1.25** ±0.02 | +0.9 | 49.8 |
+| `es-full` *(= main)* | 74.0 | **+2.40** ±0.05 | +2.0 | 76.4 |
+| `en-core` | 40.9 | **+7.21** ±0.13 | +1.0 | 48.1 |
+| `en-main` | 103.0 | **+12.56** ±0.27 | +2.5 | 115.6 |
+| `en-full` *(up to main)* | 314.3 | **+13.38** ±0.72 | +2.4 | 327.7 |
+| | | **+36.8 MB** | +8.8 MB | |
+
+⚠️ **The APK pays +8.5 MB and not +1.9**, because it ships the two cores: **111 → 119.5 MB**. That
+is the number the cap was protecting, and English is where it goes: `en-core` alone grows **7.2
+times** what the capped version would have. Spanish barely notices — its median origin is 30
+characters and its tail is short.
+
+The ±number is one standard error over the sample, not a guess. ⚠️ **The split-half control
+written for this probe was invalid and is worth recording**: comparing the first half of the
+sample against the second gave 60/40 and looked like a problem, but `entry.id` correlates with
+`rank`, so the first half was the frequent words with the longer origins. The sample itself is
+random; the halves were not.
+
+**What holds the filter up.** It lives in `PackBuilder.add`, the one funnel every record passes
+through — a filter written beside one of the two `builder.add` loops would be right the day it was
+written and partial the day a third source arrives. `build_pack.py --etimologia-hasta <pack.db>`
+reads the vocabulary from a **pack** and not from a word count, because `main` is defined by a
+byte budget and the only exact statement of its vocabulary is a main pack; the previous build's
+serves, since vocabulary moves by a handful of rare words between rebuilds. Filtering by frequency
+signal instead was measured and rejected: it covers **27.6 %** of `en-main`'s own vocabulary, so
+three of every four words inside `main` would have lost the datum.
+
+The pack states its reach in `meta.etymology_vocabulary`, so a reader a year from now can tell
+*"this pack does not carry it for that word"* from *"the source had none"*.
 
 #### Lo que las dos comparten, y conviene decirlo una vez
 

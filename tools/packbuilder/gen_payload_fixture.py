@@ -86,6 +86,14 @@ CASES = [
     # The IPA is non-ASCII by construction and carries combining marks, so it also exercises what
     # the accent case does -- but through a channel the sense text never touches.
     ("pronunciacion en IPA", "noun", [{"gloss": "edificacion para vivir"}], "\u02c8ka.sa"),
+    # A fifth element is the etymology. Two cases: one with both channels, because a payload that
+    # carries `I` and `M` puts two word-level lines before the senses and their ORDER is part of
+    # the contract; and one with etymology alone, which is what a pack whose tier grants it but
+    # whose source has no pronunciation looks like.
+    ("etimologia y pronunciacion", "noun", [{"gloss": "edificacion para vivir"}],
+     "\u02c8ka.sa", "Del latin casa, cabana."),
+    ("solo etimologia", "verb", [{"gloss": "desplazarse deprisa"}], None,
+     "Del latin currere, con perdida de la geminada."),
     ("pronunciacion sin acepciones utiles", None, [{"gloss": "x"}], "\u02c8\u03b8i\u027eko"),
     ("ejemplo con cita", "noun", [
         {"gloss": "moverse rapidamente de un lugar a otro",
@@ -123,6 +131,7 @@ def main():
         description, part_of_speech, senses = case[:3]
         text = payload_codec.render(
             part_of_speech, senses, pronunciation=case[3] if len(case) > 3 else None,
+            etymology=case[4] if len(case) > 4 else None,
         )
         blob = payload_codec.compress(text, dictionary)
         # A check of its own before writing: if Python cannot read what it wrote, the fixture is

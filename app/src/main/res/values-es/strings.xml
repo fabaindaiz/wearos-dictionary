@@ -63,6 +63,7 @@
     <string name="entry_back_to_search">Buscar</string>
     <string name="entry_word_translations_title">Traducciones de la palabra</string>
     <string name="entry_forms_title">Formas</string>
+    <string name="entry_etymology_title">Origen</string>
     <string name="entry_form_item">%1$s (%2$s)</string>
     <string name="entry_form_gerund">gerundio</string>
     <string name="entry_form_participle">participio</string>

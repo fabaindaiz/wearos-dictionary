@@ -523,4 +523,13 @@ data class Entry(
      * *why* is answered by `verify_pack.py`, which reports the tag's coverage per pack.
      */
     val pronunciation: String? = null,
+    /**
+     * Where the word comes from, one line, or null. See [PayloadCodec.Body.etymology].
+     *
+     * ⚠️ **Null covers one case more than [pronunciation] does**: besides a pack built before the
+     * channel and a word whose source carried none, a `full` pack carries the datum only up to
+     * its `main` tier's vocabulary, so a rare word has none even though the source has one. The
+     * pack says which vocabulary that is in `meta.etymology_vocabulary`.
+     */
+    val etymology: String? = null,
 )
