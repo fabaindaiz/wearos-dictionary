@@ -74,6 +74,7 @@
     <string name="entry_form_pret1s">yo, pasado</string>
     <string name="entry_form_pret3s">él/ella, pasado</string>
     <string name="entry_form_sub1s">subjuntivo</string>
+    <string name="entry_form_past">pasado</string>
     <string name="entry_form_plural">plural</string>
     <string name="entry_form_feminine">femenino</string>
     <string name="entry_translations_title">Traducción</string>

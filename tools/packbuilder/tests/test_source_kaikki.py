@@ -1718,3 +1718,65 @@ class DiezPartesDeUnVerboTest(unittest.TestCase):
             dict(kaikki._display_forms({"forms": [{"form": "casas", "tags": ["plural"]}]},
                                        "casa")),
         )
+
+
+class PartesDeUnVerboInglesTest(unittest.TestCase):
+    """English names its forms differently, and reading the built pack is what showed it.
+
+    ⚠️ **`made` came out labelled `plural`.** English's conjugation table lists the past by person,
+    so the source tags it `past plural` -- and the row meant for the plural of a NOUN matched it.
+    On the card that reads *the plural of make*: a wrong label on a real word, which this repo
+    rates worse than a missing form, and nothing failed.
+
+    ⚠️ **And `making` came out as THE participle**, because it is tagged `participle present` and
+    comes first in the list, leaving the compound tenses with nothing.
+    """
+
+    def _forms(self, *items):
+        return dict(kaikki._display_forms({"forms": list(items)}, "make"))
+
+    def test_el_pasado_no_se_muestra_como_plural(self):
+        formas = self._forms({"form": "made", "tags": ["past", "plural"]})
+        self.assertNotIn("pl", formas)
+        self.assertEqual({}, formas, "el pasado en plural no es ninguna de las filas")
+
+    def test_el_participio_es_el_pasado_y_no_el_de_presente(self):
+        formas = self._forms(
+            {"form": "making", "tags": ["participle", "present"]},
+            {"form": "gone", "tags": ["participle", "past"]},
+        )
+        self.assertEqual("gone", formas["part"])
+        self.assertEqual("making", formas["ger"], "el -ing es el gerundio, no el participio")
+
+    def test_cuando_pasado_y_participio_son_LA_MISMA_palabra_gana_el_pasado(self):
+        # ⚠️ English's regular verbs make them identical, and a card that showed `made` twice
+        # under two labels would read as a mistake. The past is the more informative of the two,
+        # so it claims the word; the participle row earns its line where they differ.
+        formas = self._forms(
+            {"form": "made", "tags": ["past"]},
+            {"form": "made", "tags": ["participle", "past"]},
+        )
+        self.assertEqual("made", formas["past"])
+        self.assertNotIn("part", formas)
+
+    def test_cuando_DIFIEREN_se_muestran_las_dos(self):
+        formas = kaikki._display_forms({"forms": [
+            {"form": "went", "tags": ["past"]},
+            {"form": "gone", "tags": ["participle", "past"]},
+        ]}, "go")
+        self.assertEqual({"past": "went", "part": "gone"}, dict(formas))
+
+    def test_las_tres_partes_que_nombra_wiktionary(self):
+        # Its own `es-verb` headword names third-person present, preterite and past participle.
+        formas = self._forms(
+            {"form": "makes", "tags": ["present", "singular", "third-person"]},
+            {"form": "made", "tags": ["past"]},
+            {"form": "made", "tags": ["participle", "past"]},
+            {"form": "making", "tags": ["participle", "present"]},
+        )
+        self.assertEqual("makes", formas["ind3s"])
+        self.assertEqual("made", formas["past"])
+
+    def test_el_plural_de_un_sustantivo_sigue_saliendo(self):
+        # The guard must not cost the row its actual job.
+        self.assertEqual({"pl": "makes"}, self._forms({"form": "makes", "tags": ["plural"]}))

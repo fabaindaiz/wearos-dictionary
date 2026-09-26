@@ -747,9 +747,27 @@ def _forms(raw, headword, inbound):
 #: present paradigm read with a hole in it is worse than one derivable row.
 PARTES_PRINCIPALES = (
     # The non-finite pair, first because they are what the compound and progressive tenses need.
+    #
+    # ⚠️ **Two rows for `ger` because the two dumps name it differently.** Spanish tags `corriendo`
+    # as `gerund`; English has no gerund tag and calls `making` a `participle present`. One row
+    # each, and neither can match the other's language, so the key comes out once.
+    #
+    # ⚠️ **`part` forbids `present`, and without it English shows the wrong word.** `making` is a
+    # participle too, and it comes first in the source's list, so the card labelled `making` as THE
+    # participle of `make` and the compound tenses were left with nothing.
     ("ger", frozenset({"gerund"}), frozenset({"vos-form", "archaic", "obsolete"})),
+    ("ger", frozenset({"participle", "present"}),
+     frozenset({"archaic", "obsolete", "dialectal", "nonstandard"})),
+    # ⚠️ **The past goes BEFORE the participle, and in English that decides which label the word
+    # gets.** `made` is both, and the same spelling is only ever shown once, so whichever row runs
+    # first claims it. The past is the more informative label, and the participle row then earns
+    # its row exactly where the two differ -- `go -> went, gone`, which is the case worth a line.
+    ("past", frozenset({"past"}),
+     frozenset({"participle", "plural", "first-person", "second-person", "third-person",
+                "archaic", "obsolete", "dialectal", "nonstandard"})),
     ("part", frozenset({"participle"}),
-     frozenset({"feminine", "plural", "vos-form", "archaic", "obsolete"})),
+     frozenset({"present", "feminine", "plural", "vos-form", "archaic", "obsolete",
+                "dialectal", "nonstandard"})),
     # The present indicative, whole. The most read tense of the language.
     ("ind1s", frozenset({"first-person", "indicative", "present", "singular"}),
      frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
@@ -769,9 +787,20 @@ PARTES_PRINCIPALES = (
     # The single most irregular form in the language, at 27.6 %.
     ("sub1s", frozenset({"first-person", "present", "singular", "subjunctive"}),
      frozenset({"perfect", "vos-form", "archaic", "obsolete", "combined"})),
+    # English does not tag `indicative` at all, so none of the ten rows above reach it. Its own
+    # principal parts are the ones Wiktionary's headword names: third-person present, and the past.
+    ("ind3s", frozenset({"present", "singular", "third-person"}),
+     frozenset({"indicative", "subjunctive", "past", "perfect", "participle", "archaic",
+                "obsolete", "dialectal", "nonstandard"})),
     # Nouns and adjectives: their only two inflections.
+    #
+    # ⚠️ **`pl` forbids every verb tag, and English is why.** Its conjugation table lists the past
+    # by person, so `made` is tagged `past plural` -- and this row, meant for the plural of a NOUN,
+    # matched it and labelled `made` as *the plural of make*. Seen by reading the built pack, not
+    # by any test: a wrong label on a real word is worse than a missing form, and nothing fails.
     ("pl", frozenset({"plural"}),
-     frozenset({"first-person", "second-person", "third-person", "feminine"})),
+     frozenset({"first-person", "second-person", "third-person", "feminine",
+                "past", "present", "participle", "infinitive", "subjunctive"})),
     ("fem", frozenset({"feminine"}),
      frozenset({"plural", "first-person", "second-person", "third-person"})),
 )

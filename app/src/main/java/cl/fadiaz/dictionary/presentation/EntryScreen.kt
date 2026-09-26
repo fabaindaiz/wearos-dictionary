@@ -828,6 +828,9 @@ private fun formTypeLabel(key: String): String? = when (key) {
     "pret1s" -> R.string.entry_form_pret1s
     "pret3s" -> R.string.entry_form_pret3s
     "sub1s" -> R.string.entry_form_sub1s
+    // English's own principal parts: it does not tag `indicative`, so none of the ten above
+    // reach it. `ind3s` is shared -- `hace` and `makes` are the same row of the same table.
+    "past" -> R.string.entry_form_past
     "pl" -> R.string.entry_form_plural
     "fem" -> R.string.entry_form_feminine
     else -> null

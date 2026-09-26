@@ -78,6 +78,7 @@
     <string name="entry_form_pret1s">I, past</string>
     <string name="entry_form_pret3s">he/she, past</string>
     <string name="entry_form_sub1s">subjunctive</string>
+    <string name="entry_form_past">past</string>
     <string name="entry_form_plural">plural</string>
     <string name="entry_form_feminine">feminine</string>
     <string name="entry_translations_title">Translation</string>
