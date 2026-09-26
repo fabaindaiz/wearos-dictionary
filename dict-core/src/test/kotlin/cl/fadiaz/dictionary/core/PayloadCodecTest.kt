@@ -4,6 +4,7 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -518,5 +519,54 @@ class PayloadCodecTest {
         // Only the FIRST separator splits: a key cannot contain one, a form can.
         val body = PayloadCodec.parse("F\tpl:a:b\n")
         assertEquals(listOf(PayloadCodec.InflectedForm("pl", "a:b")), body.forms)
+    }
+
+    // --- Etymology, the other line that describes the WORD and not a sense ------------------
+
+    @Test
+    fun `the etymology reaches the card`() {
+        val body = PayloadCodec.parse("P\tnoun\nM\tDel latín casa, cabaña.\nS\tg\n")
+        assertEquals("Del latín casa, cabaña.", body.etymology)
+    }
+
+    @Test
+    fun `the etymology belongs to the entry, so the first one wins`() {
+        // Same rule as `I`: one per entry. A second line is a builder bug, and keeping the first
+        // is the reading that never shows two contradictory origins on one card.
+        val body = PayloadCodec.parse("M\tuno\nS\tg\nM\tdos\n")
+        assertEquals("uno", body.etymology)
+    }
+
+    @Test
+    fun `a pack built before this channel reads clean`() {
+        // The degradation, and the one that matters most: every pack already on a watch predates
+        // `M`. It must read with no etymology, not fail to open.
+        assertNull(PayloadCodec.parse("P\tnoun\nS\tg\n").etymology)
+    }
+
+    @Test
+    fun `the etymology is absent for a word its tier does not grant it`() {
+        // ⚠️ Not a corruption: the tier filter leaves the channel out for vocabulary beyond
+        // `main`, so null means "this pack does not carry it here", never "the word has none".
+        assertNull(PayloadCodec.parse("M\t\nS\tg\n").etymology)
+    }
+
+    @Test
+    fun `the etymology of the fixture is the one Python emitted`() {
+        // ⚠️ The cross-language contract for `M`. And the case carries `I` too, because the
+        // ORDER of the two word-level lines is part of what the fixture pins.
+        val fixture = loadFixture()
+        val case = fixture.cases.first { it.description.startsWith("etimologia y pronunciacion") }
+        val body = PayloadCodec.decode(case.compressed, fixture.dictionary)
+        assertEquals("Del latin casa, cabana.", body.etymology)
+        assertEquals("\u02c8ka.sa", body.pronunciation)
+    }
+
+    @Test
+    fun `the etymology tag does NOT raise the CODEC_ID`() {
+        // ⚠️ D-119, same as the citation tag: additive, an old reader ignores it, and bumping
+        // the constant would force a 300 MB redownload for a field that reader cannot show.
+        assertEquals("deflate-v2", PayloadCodec.CODEC_ID)
+        assertEquals(2, PayloadCodec.PAYLOAD_VERSION)
     }
 }

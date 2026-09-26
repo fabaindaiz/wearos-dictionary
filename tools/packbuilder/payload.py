@@ -105,6 +105,22 @@ TAG_WORD_TRANSLATION = "W"
 #: parts the rest derive from, which is what a printed dictionary puts beside the headword.
 TAG_FORM = "F"
 
+#: Where the word comes from. One per entry, describing the WORD and not a sense.
+#:
+#: Additive like [TAG_PRONUNCIATION], so **it does not bump the codec id**: a reader that does not
+#: know it skips the line, which is what lets a pack built before this channel keep opening.
+#:
+#: WARNING: **the two dumps do not agree on the field name, and that alone would cost a rebuild.**
+#: Spanish writes `etymology_texts`, a LIST; English writes `etymology_text`, a STRING. An
+#: implementation that assumes either one produces the other pack with no etymology at all, no
+#: error and no log. `kaikki._etymology` reads both.
+#:
+#: WARNING: **not every entry carries it, and a reader can see that.** Only the words a pack's own
+#: tier can look up get one, so inside a `full` pack a common word shows an etymology and a rare
+#: one does not, with nothing on screen saying why. That is a product call, recorded in the
+#: roadmap, and not a property of this tag.
+TAG_ETYMOLOGY = "M"
+
 #: The word's pronunciation, in IPA. One per entry, describing the WORD and not a sense.
 #:
 #: Additive like [TAG_ANTONYM] and [TAG_FORM], so **it does not bump the codec id**: a reader that
@@ -389,7 +405,8 @@ def _sin_repetir(valores):
     return salida
 
 
-def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation=None):
+def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation=None,
+           etymology=None):
     """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
     The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
@@ -414,6 +431,10 @@ def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation
     ipa = sanitize(pronunciation or "")
     if ipa:
         lines.append(TAG_PRONUNCIATION + "\t" + ipa)
+    # Before the senses, like `I`: it describes the WORD, not one of its senses.
+    origen = sanitize(etymology or "")
+    if origen:
+        lines.append(TAG_ETYMOLOGY + "\t" + origen)
     # Before the senses, like `W`: they describe the WORD, not one of its senses.
     for key, form in forms:
         clave = sanitize(key).replace(FORM_SEPARATOR, "")
@@ -476,6 +497,14 @@ def parse_forms(text):
         if clave and forma:
             salida.append((clave, forma))
     return salida
+
+
+def parse_etymology(text):
+    """The etymology line, or `None`. The inverse of what [render] writes for [TAG_ETYMOLOGY]."""
+    for line in text.split("\n"):
+        if len(line) >= 3 and line[0] == TAG_ETYMOLOGY and line[1] == "\t":
+            return line[2:]
+    return None
 
 
 def parse_pronunciation(text):

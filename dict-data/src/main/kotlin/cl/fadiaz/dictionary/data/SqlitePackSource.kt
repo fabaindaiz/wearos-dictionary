@@ -354,6 +354,7 @@ class SqlitePackSource(
                 wordTranslations = body.wordTranslations,
                 forms = body.forms,
                 pronunciation = body.pronunciation,
+                etymology = body.etymology,
             )
         }
     }

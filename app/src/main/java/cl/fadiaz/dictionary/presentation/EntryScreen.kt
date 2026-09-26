@@ -405,6 +405,39 @@ fun EntryScreen(
                     )
                 }
             }
+
+            // ⚠️ **AFTER the senses, unlike the forms, and the asymmetry is the point.** A form
+            // answers *how is this word written*, which is about the word; an origin answers
+            // *where does it come from*, which is what somebody asks **once they know what it
+            // means**. Pushing the definition down for it inverts the order a dictionary is read
+            // in.
+            //
+            // ⚠️ **And its words are NOT tappable.** An origin names Latin and Greek roots --
+            // `cor, cordis` -- which are not headwords of this pack, so linking them would paint
+            // a colour that leads nowhere and teach the reader to stop trusting it (D-094).
+            val etymology = current?.etymology
+            if (!etymology.isNullOrBlank()) {
+                item(key = "etimologia") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Text(
+                            text = stringResource(R.string.entry_etymology_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                        Text(
+                            // Whole, never truncated: the pack already decided what to carry, by
+                            // word and not by length, and an origin cut in half --`Del latín
+                            // *cor, cordis*, y éste del protoind…`-- teaches nothing and costs
+                            // the same. Whoever scrolled this far asked for it.
+                            text = etymology,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
 
     // The options menu. Wear's `AlertDialog` and not a hand-rolled one: it is the one that keeps

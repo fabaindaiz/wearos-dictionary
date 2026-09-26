@@ -1240,3 +1240,87 @@ class ListaDeCoberturaTest(unittest.TestCase):
         report = verify_pack.Report()
         verify_pack._verify_vocabulary(db, meta, report)
         self.assertEqual([], report.failures)
+
+
+class VocabularioDeEtimologiaTest(BuilderTestCase):
+    """The tier filter: which words carry an etymology, and which only lose that line.
+
+    ⚠️ **It lives in the builder and not at the call sites.** Every record reaches the pack through
+    `add` -- the base source's, a second source's, a bidirectional reader's -- so a filter written
+    beside one of those loops would be right the day it was written and partial the next.
+    """
+
+    def build_with_vocabulary(self, records, vocabulary):
+        with build.PackBuilder(self.path, dict(BASE_META),
+                               etymology_vocabulary=vocabulary) as builder:
+            for item in records:
+                builder.add(item)
+        return sqlite3.connect(self.path)
+
+    def etymologies(self, connection):
+        dictionary = bytes.fromhex(connection.execute(
+            "SELECT value FROM meta WHERE key = 'payload_dict'").fetchone()[0])
+        salida = {}
+        for headword, blob in connection.execute("SELECT headword, payload FROM entry"):
+            texto = payload_codec.decompress(blob, dictionary)
+            salida[headword] = payload_codec.parse_etymology(texto)
+        return salida
+
+    def test_a_word_outside_the_vocabulary_loses_the_line_and_keeps_the_entry(self):
+        # The whole point: the filter costs one line, never the entry. A `cherenga` that vanished
+        # would turn a size decision into missing vocabulary.
+        conexion = self.build_with_vocabulary(
+            [record("casa", etymology="Del latín casa."),
+             record("cherenga", etymology="De origen incierto.")],
+            {normalize.norm("casa")},
+        )
+        self.assertEqual({"casa": "Del latín casa.", "cherenga": None},
+                         self.etymologies(conexion))
+
+    def test_with_no_vocabulary_every_word_carries_it(self):
+        # `core` and `main`, where every word qualifies and the filter is not passed at all.
+        conexion = self.build_with_vocabulary(
+            [record("casa", etymology="Del latín casa."),
+             record("cherenga", etymology="De origen incierto.")],
+            None,
+        )
+        self.assertEqual({"casa": "Del latín casa.", "cherenga": "De origen incierto."},
+                         self.etymologies(conexion))
+
+    def test_an_empty_vocabulary_is_not_the_same_as_none(self):
+        # The distinction that makes the flag safe: `set()` is "nobody carries it", `None` is
+        # "everybody does". Reading a list that turned out empty must not silently mean the second.
+        conexion = self.build_with_vocabulary([record("casa", etymology="Del latín casa.")], set())
+        self.assertEqual({"casa": None}, self.etymologies(conexion))
+
+    def test_the_vocabulary_is_matched_on_norm_and_not_on_the_spelling(self):
+        # `entry.norm` is what the reader's query hits, so the set is in the same units. Matching
+        # spellings would drop `Álava` and every accented lemma with no error.
+        conexion = self.build_with_vocabulary(
+            [record("Álava", etymology="Del euskera.")], {normalize.norm("Álava")})
+        self.assertEqual({"Álava": "Del euskera."}, self.etymologies(conexion))
+
+
+class LeerVocabularioDeEtimologiaTest(BuilderTestCase):
+    """`build_pack.vocabulario_de_etimologia`: a pack gives it, or a word list does."""
+
+    def test_a_pack_gives_its_own_norms(self):
+        import build_pack
+
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("casa"))
+            builder.add(record("Álava"))
+        self.assertEqual({normalize.norm("casa"), normalize.norm("Álava")},
+                         build_pack.vocabulario_de_etimologia(self.path))
+
+    def test_a_word_list_is_normalized_and_a_pack_is_not(self):
+        # ⚠️ The asymmetry is deliberate: `entry.norm` was written by this same `norm()` at this
+        # same NORM_VERSION, so running it again would be a second implementation of the key. A
+        # `.txt` holds raw words and has to be normalized here.
+        import build_pack
+
+        lista = os.path.join(self.tmp, "palabras.txt")
+        with open(lista, "w", encoding="utf-8") as handle:
+            handle.write("Casa\n  ÁLAVA  \n\n")
+        self.assertEqual({normalize.norm("casa"), normalize.norm("Álava")},
+                         build_pack.vocabulario_de_etimologia(lista))

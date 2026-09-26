@@ -60,6 +60,38 @@ class PodaTest(unittest.TestCase):
         self.paths.append(path)
         return list(kaikki.records(path))
 
+    def test_la_etimologia_se_lee_de_LOS_DOS_nombres_de_campo(self):
+        """⚠️ The trap that would have cost a rebuild, and it is silent.
+
+        Spanish writes `etymology_texts`, a LIST; English writes `etymology_text`, a STRING.
+        Reading only one produces the other pack with **no etymology at all** -- no error, no log,
+        and `verify_pack.py` passes because every invariant still holds. It is the same shape as a
+        missing `norm()`: the defect is an absence.
+        """
+        self.assertEqual(
+            "Del latín casa.",
+            kaikki._etymology({"etymology_texts": ["Del latín casa."]}),
+            "Spanish: a list",
+        )
+        self.assertEqual(
+            "From Old English hus.",
+            kaikki._etymology({"etymology_text": "From Old English hus."}),
+            "English: a string",
+        )
+
+    def test_sin_etimologia_devuelve_None_y_no_cadena_vacia(self):
+        """`render` skips a falsy value, so both work -- but `None` is what "absent" means."""
+        self.assertIsNone(kaikki._etymology({}))
+        self.assertIsNone(kaikki._etymology({"etymology_texts": []}))
+        self.assertIsNone(kaikki._etymology({"etymology_text": "   "}))
+
+    def test_una_etimologia_con_VARIOS_textos_se_queda_con_el_primero(self):
+        """A watch card shows one. The rest are alternative accounts of the same word."""
+        self.assertEqual(
+            "Primera.",
+            kaikki._etymology({"etymology_texts": ["Primera.", "Segunda."]}),
+        )
+
     def test_la_glosa_y_un_ejemplo_sobreviven(self):
         got = self.records(_raw("casa", "noun", [
             _sense("Edificio para habitar.", examples=[{"text": "La casa de la esquina."}]),
