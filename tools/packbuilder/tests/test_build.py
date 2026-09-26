@@ -1324,3 +1324,52 @@ class LeerVocabularioDeEtimologiaTest(BuilderTestCase):
             handle.write("Casa\n  ÁLAVA  \n\n")
         self.assertEqual({normalize.norm("casa"), normalize.norm("Álava")},
                          build_pack.vocabulario_de_etimologia(lista))
+
+
+class LecturaDeEtimologiaTest(BuilderTestCase):
+    """`verify_pack.py`'s readout: how much origin the pack carries, and up to which vocabulary.
+
+    ⚠️ **A readout and never a check**, like the IPA one: coverage is a property of the source, so
+    demanding a number would fail a pack whose language Wiktionary covers worse and demanding zero
+    would forbid the channel. What it answers is what the card cannot -- an absent origin means
+    *this pack has none*, *this word has none*, or *this tier does not reach this word*.
+    """
+
+    def _verificar(self, records, metadata=None):
+        with build.PackBuilder(self.path, dict(metadata or BASE_META)) as builder:
+            for item in records:
+                builder.add(item)
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            verify_pack.verify(self.path)
+        return salida.getvalue()
+
+    def test_dice_que_fraccion_de_la_muestra_trae_origen(self):
+        salida = self._verificar([
+            record("casa", etymology="Del latín casa."),
+            record("cherenga"),
+            record("perro", etymology="De origen incierto."),
+            record("zarigüeya"),
+        ])
+        self.assertIn("2 de 4 entradas de la muestra traen etimologia (50.0 %)", salida)
+
+    def test_un_pack_sin_origen_lo_dice_en_vez_de_callarse(self):
+        # The one that matters: every pack built before the channel reads 0.0 %, and that line is
+        # how a rebuild's debt gets noticed. Silence would read the same as full coverage.
+        salida = self._verificar([record("casa"), record("perro")])
+        self.assertIn("0 de 2 entradas de la muestra traen etimologia (0.0 %)", salida)
+
+    def test_declara_HASTA_DONDE_lo_lleva_cuando_el_pack_lo_dice(self):
+        # ⚠️ Without the reach, a `full` pack reading 19.5 % looks like a bad source instead of a
+        # tier filter doing its job. The two are printed together so they cannot be read apart.
+        meta = dict(BASE_META)
+        meta["etymology_vocabulary"] = "en-main.db (186543 words)"
+        salida = self._verificar([record("casa", etymology="Del latín casa.")], meta)
+        self.assertIn("el pack la lleva hasta en-main.db (186543 words)", salida)
+
+    def test_sin_esa_clave_no_inventa_un_alcance(self):
+        # `core` and `main` carry it for all of their vocabulary and declare no reach. Printing one
+        # anyway would assert a filter that was never applied.
+        salida = self._verificar([record("casa", etymology="Del latín casa.")])
+        self.assertIn("traen etimologia", salida)
+        self.assertNotIn("la lleva hasta", salida)

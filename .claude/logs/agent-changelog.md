@@ -108,11 +108,13 @@ and it is the kind of question that only a wrist settles. It joins
   `kaikki.records`, so it picked `I` and `M` up on its own: 41.0 % and 31.5 % of a sample. The
   objection was size and the size did not move, so the artifact answers the question the roadmap
   left open — but it was not an explicit call.
-- **The guard added to `derive` re-decompresses the whole output**, and `derivar_en_rango` calls
-  `derive` up to four times. Nobody measured what that adds to an `en-main` derivation; it is
-  bounded and correctness-first, but it is a cost taken without a number.
-- **The `M` readout in `verify_pack.py` has no test**, which is symmetric with the `I` one and
-  equally unprotected.
+- ~~**The guard added to `derive` re-decompresses the whole output** and nobody measured it.~~
+  Measured before closing, on `es-core` with the same vocabulary in both runs: **19.9 s without it
+  against 20.8 s, +5 %**. Writing and indexing dominate, so the four rounds of `derivar_en_rango`
+  cost four times a rounding error. The number is in the function's docstring.
+- ~~**The `M` readout in `verify_pack.py` has no test.**~~ Written before closing: four cases,
+  including the 0.0 % one that is how a rebuild's debt gets noticed, verified by two mutations.
+  ⚠️ **The `I` readout is still unprotected**, and that asymmetry is now the odd one.
 - Pruning the `form` table stays documented and unapplied (§O-3), and the on-device tests still do
   not touch the app's UI — only `:dict-data`.
 
