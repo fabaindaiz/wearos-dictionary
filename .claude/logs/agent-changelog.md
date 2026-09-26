@@ -24,22 +24,28 @@ draws an **Origin** section after the senses. The cap is the **tier's vocabulary
 length**: `PackBuilder.add` drops the line for any word outside the set `build_pack.py
 --etimologia-hasta <pack.db>` hands it, and the pipeline points English at the previous build's
 `en-main`. Then the whole `dist/` was rebuilt, the APK assembled with the two new cores and
-exercised on the emulator.
+exercised on the emulator. The principal parts also stopped being one flowing paragraph and
+became **a table, one row per form**, after the wrapping was seen at the watch's own width.
 
 **Areas.** `payload.py`, `sources/kaikki.py`, `sources/toy.py`, `build.py`, `build_pack.py`,
 `build_core.py`, `verify_pack.py`, `tools/build_packs.py`, `gen_payload_fixture.py` +
 `vectors/payload-fixture.tsv` · `PayloadCodec.kt`, `Model.kt`, `SqlitePackSource.kt`,
-`EntryScreen.kt`, `values*/strings.xml` · five test files including `SqlitePackSourceTest`
-(instrumented) · `docs/decisions.md` (d-a2f271-bc2a3b), `docs/roadmap.md`, `gradle.properties`.
+`EntryScreen.kt`, `values*/strings.xml` · `dict-data/build.gradle.kts` (the precheck's geometry
+readout) · five test files including `SqlitePackSourceTest` (instrumented) ·
+and the documents: `docs/decisions.md` (d-a2f271-bc2a3b), `docs/roadmap.md`,
+`docs/preguntas-del-reloj.md` and `gradle.properties`.
 
 **Heuristics.** Five notes were relied on and their checks run at the close.
 - **`a-check-must-be-seen-to-fail`** — ran, on every claim. Fourteen mutations: three on the
   Python codec, one on the Kotlin decoder, two on the vocabulary filter, one on the pipeline's
   target pack, one on the card's placement, three on the tree rule, and four on the derivation,
   one per channel. Every one was seen red and restored.
-- **`sweep-the-rendered-extremes`** — ran. With no cap the longest origin in the dump is **3,888
-  characters**; the card is tested at 192 dp with an over-long string, and the test fails when the
-  section is moved above the senses, which is the control it names.
+- **`sweep-the-rendered-extremes`** — ran, and then ran again for the right reason. With no cap
+  the longest origin in the dump is **3,888 characters**; the card is tested at 192 dp with an
+  over-long string, and the test fails when the section is moved above the senses. ⚠️ **The note
+  asks for the whole matrix and the first pass swept one width**: the forms defect only appeared
+  at **234 dp**, on the AVD that reproduces the watch, and nothing in the suite had ever rendered
+  this card at that width.
 - **`absence-is-a-third-value`** — ran. Null etymology means three different things (the pack
   predates the channel, the source has none, the tier does not reach the word) and `verify_pack.py`
   now prints the coverage **and** the reach, so the third is readable.
@@ -73,18 +79,22 @@ filter lives in the one funnel every record passes through; `:dict-core` gained 
   I 100.0 %, M 85.0 %; `en-core` 10.6 / 61.6 / 89.3 / 88.1.
 - Filtering by frequency signal instead of by a main pack would cover **27.6 %** of `en-main`'s own
   vocabulary (38,067 of 138,083), which is why the flag reads a pack.
-- Emulator, 384×384, versionCode 11: both cores open (1,606 ms and 403 ms), 22.8 s to ready, and
-  the three channels are on the glass in both languages.
+- Emulator, versionCode 11: both cores open (1,606 ms and 403 ms), 22.8 s to ready, and the three
+  channels are on the glass in both languages.
+- The forms table, at 234 dp: `perro` goes from **three rows to two**, and the pair stops
+  splitting across lines. A row at that width fits **~30 characters**, which is what puts the
+  median Spanish origin (30) at one row, the p90 (127) at four and the English maximum at ~130.
+  `perro`'s own origin is ~470 characters, about **16 rows over two and a half screens**.
 
 **Deviation from the plan.** ⚠️ **The ~80-character cap the roadmap recommends is not in**, by the
 owner's instruction. Its price is the +36.8 MB above, of which the APK pays **+8.5** on the two
 cores. Recorded as a Desviación in d-a2f271-bc2a3b and in the roadmap.
 
-**Not verified.** Nothing was run on a real watch: the emulator is 384×384 and the project's watch
-is 234 dp, so **how much of a long origin fits before it stops being worth drawing is unanswered**,
-and it is the kind of question that only a wrist settles. It joins
-`docs/preguntas-del-reloj.md`. And `devpack.py` was not run, so the watch still holds the packs of
-2026-09-21.
+**Not verified.** Nothing ran on a real watch. The geometry questions are now answered on
+`avd_como_el_reloj`, which reproduces `sw234dp … round … 340dpi` exactly and is what P-12 was
+waiting for -- but **whether somebody reading on a bus gives up at row six of an origin is not a
+geometry question**, and that is P-16. Performance and battery still need the hardware (D-043).
+`devpack.py` was run against the emulator only, so the watch still holds the packs of 2026-09-21.
 
 **What went wrong.**
 - **The first probe measured nothing twice**, and the second time it printed a number. The
@@ -102,6 +112,15 @@ and it is the kind of question that only a wrist settles. It joins
 - **Spanish prose slipped into `tools/` again** — one comment line, caught by the ratchet, exactly
   what the memory note warns about. And into `docs/roadmap.md`, twice, in a section written in
   English.
+- ⚠️ **Every screenshot of the first half of this session came from the wrong emulator.**
+  `app/CLAUDE.md` says functional probes go on `tools/avd_como_el_reloj.py`; the default AVD was
+  used instead, and the forms defect is invisible there. Worse, the write-up then called it "the
+  384 dp emulator" — **384 is its pixels, not its dp**: at 320 dpi it reports `sw192dp`, so the
+  claim that it *flatters* the layout by 64 % was backwards, it is narrower than the watch. The
+  claim was retracted where it was made (the card's comment, P-16, this entry), and the prose rule
+  got a mechanism: `devicePrecheck` now reads each device's geometry out loud.
+- **A new question took a number that was already answered.** P-14 existed; the new row is P-16.
+  Caught by reading the table rather than by any check.
 
 **What was left undone.**
 - **The bilingual carries the origin and nobody decided it.** `es-en`'s Spanish side comes from
@@ -116,7 +135,9 @@ and it is the kind of question that only a wrist settles. It joins
   including the 0.0 % one that is how a rebuild's debt gets noticed, verified by two mutations.
   The `I` readout got one too, in the same pass and by the same mutation -- it had shipped with none, and it is the readout that found the last rebuild's debt.
 - Pruning the `form` table stays documented and unapplied (§O-3), and the on-device tests still do
-  not touch the app's UI — only `:dict-data`.
+  not touch the app's UI — only `:dict-data`. The card is covered by Robolectric at 192 and 234 dp,
+  which measures structure and not glyphs: its text metrics are synthetic, so **no test here can
+  say a line wrapped**. What caught this one was a screenshot.
 
 ## 2026-09-25 · s-a2f271-b31995 — What kills the adb session is Samsung's freezer, not Android
 **What.** A new `:watch-keepalive` module: a **second app in this repo** (d-a2f271-8ac8d5) with
