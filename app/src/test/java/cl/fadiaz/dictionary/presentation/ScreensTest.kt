@@ -1763,6 +1763,48 @@ class ScreensTest {
         assertEquals(0, compose.onAllNodesWithText("Quitar").fetchSemanticsNodes().size)
     }
 
+    @Test
+    fun unaPalabraGUARDADA_cuyo_pack_ya_no_esta_conserva_todos_sus_datos() {
+        // ⚠️ **The saved list is the only one that can hold an orphan.** The history is filtered
+        // by installed pack, so a word whose dictionary was deleted disappears from it; a saved
+        // word is something somebody chose to keep, and dropping it silently would lose that.
+        //
+        // What this pins is the half a colour cannot be asserted for: the row keeps **every datum
+        // it has**. The headword and the part of speech are still true; only the entry behind it
+        // is unreachable, and that is what the error colour says.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                // Empty: no pack of that id is installed, so the row is an orphan.
+                tags = emptyMap(),
+                onDelete = {},
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithText("perro").assertIsDisplayed()
+        compose.onNodeWithText("sust.", substring = true).assertExists()
+    }
+
+    @Test
+    fun laLISTA_GUARDADA_sigue_armando_con_pulsacion_larga() {
+        // The delegation regression guard: `WordRow`'s unarmed branch is now `ListRow`, and the
+        // long press is the one thing it had that `ListRow` did not. If the parameter stops being
+        // passed, the row still draws and the gesture silently does nothing.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(visita("perro")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                onDelete = {},
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithText("perro").performTouchInput { longClick() }
+        compose.onNodeWithText("Quitar").assertExists()
+    }
+
     // --- Toda fila de palabra dice lo mismo: palabra · tipo · idioma (D-152) ----------------
 
     @Test

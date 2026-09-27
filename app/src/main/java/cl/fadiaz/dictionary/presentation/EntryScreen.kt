@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
@@ -776,9 +777,16 @@ private fun FormsTable(forms: List<PayloadCodec.InflectedForm>) {
                 // FIRST line, where the eye pairs them, instead of floating against the middle.
                 verticalAlignment = Alignment.Top,
             ) {
+                // ⚠️ **The same break rule as every other word on screen.** This table was
+                // written before `WORD_BREAK` existed and never got it, so the bubbles cut
+                // `esternocleidomastoideo` where the language allows and the forms cut it
+                // wherever the pixels ran out -- the same word, two behaviours, one screen.
                 Text(
                     text = form.form,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        hyphens = Hyphens.Auto,
+                        lineBreak = WORD_BREAK,
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )

@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -683,11 +684,18 @@ private fun WordOfTheDayRow(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // ⚠️ **A different layout on purpose --this one is the hero item, centred and two-line--
+        // but the same break rule.** What has to match across the screens is how a WORD behaves
+        // when it does not fit, not the box it sits in.
         Text(
             text = word.headword,
-            style = MaterialTheme.typography.titleSmall,
-            maxLines = 1,
+            style = MaterialTheme.typography.titleSmall.copy(
+                hyphens = Hyphens.Auto,
+                lineBreak = WORD_BREAK,
+            ),
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
         // Nullable since the subtitle became the word's own detail: an entry with no `pos` in
         // a pack that declares two languages has nothing to say, and an empty line under the

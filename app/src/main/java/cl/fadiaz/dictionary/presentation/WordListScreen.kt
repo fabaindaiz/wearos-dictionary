@@ -132,6 +132,13 @@ fun WordListScreen(
                         visitTag(visit, tags),
                     ),
                     armada = armada == visit,
+                    // ⚠️ **The saved list is the only one that can hold an orphan.** The history
+                    // is filtered by installed pack, so a word whose dictionary was deleted
+                    // disappears from it; a SAVED word is something somebody chose to keep, and
+                    // dropping it silently would lose that. It is drawn in the error colour and
+                    // keeps every datum it has -- the headword and the part of speech are still
+                    // true, only the entry behind it is unreachable.
+                    orphaned = visit.packId !in tags,
                     onArm = onDelete?.let { { armada = visit } },
                     onConfirm = {
                         onDelete?.invoke(visit)
@@ -165,6 +172,7 @@ private fun WordRow(
     headword: String,
     detail: String?,
     armada: Boolean,
+    orphaned: Boolean,
     onArm: (() -> Unit)?,
     onConfirm: () -> Unit,
     onOpen: () -> Unit,
@@ -204,31 +212,16 @@ private fun WordRow(
         }
         return
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(PILL_SHAPE)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .combinedClickable(onClick = onOpen, onLongClick = onArm)
-            .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = headword,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (detail != null) {
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-    }
+    // ⚠️ **The unarmed row IS `ListRow`, and it used to be a copy of it.** Character for character,
+    // except the long press. So when the break rule landed on `ListRow` --two lines, hyphenated--
+    // this list kept cutting `esternocleidomastoideo` at one, and nothing said the two had drifted:
+    // they were never the same object to begin with. What is genuinely different here is the armed
+    // state above, which is a red bubble with an icon, and that stays.
+    ListRow(
+        headword = headword,
+        detail = detail,
+        onLongClick = onArm,
+        orphaned = orphaned,
+        onClick = onOpen,
+    )
 }

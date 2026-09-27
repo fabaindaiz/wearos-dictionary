@@ -2,6 +2,7 @@ package cl.fadiaz.dictionary.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -187,13 +188,50 @@ internal fun Pill(
  * and going below that would buy density by breaking something worse.
  */
 @Composable
-internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
+internal fun ListRow(
+    headword: String,
+    detail: String?,
+    /**
+     * Long press, for the lists that arm a deletion. Null everywhere else.
+     *
+     * It is the only thing `WordListScreen`'s own row had that this one did not, and copying the
+     * whole row to get it is what left `maxLines = 1` behind there when the break rule landed
+     * here.
+     */
+    onLongClick: (() -> Unit)? = null,
+    /**
+     * The word is in a dictionary that is no longer installed.
+     *
+     * ⚠️ **It keeps every datum and changes only the colour.** A saved word whose pack is gone
+     * still knows its headword and its part of speech, and dropping it would lose what somebody
+     * chose to keep; drawing it identical to a working one promises an entry that will not open.
+     * The third state is the honest one, and the saved list is where it shows -- the history is
+     * filtered by installed pack and never has orphans in it.
+     */
+    orphaned: Boolean = false,
+    // ⚠️ **Last, so the trailing lambda keeps working.** Every call site writes
+    // `ListRow(headword, detail) { abrir() }`, and a parameter added after this one silently binds
+    // the lambda to the wrong slot -- which is what happened the first time: the compiler caught
+    // it because the next slot was a `Boolean`, and would not have if it had been another lambda.
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(PILL_SHAPE)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = onClick)
+            // ⚠️ **`CARD_SHAPE` and not `PILL_SHAPE`, and at one line it is the same thing.** A
+            // 50 % pill on a 48 dp row rounds at 24 dp, which is exactly what `CARD_SHAPE` is. The
+            // difference appears at TWO lines, which this row now allows: the pill's radius grows
+            // with the height and starts eating the first and last letters, and the card's does
+            // not. So it changes nothing for a short word and fixes the long one.
+            .clip(CARD_SHAPE)
+            .background(
+                if (orphaned) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                },
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .heightIn(min = TOUCH_TARGET)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +258,11 @@ internal fun ListRow(headword: String, detail: String?, onClick: () -> Unit) {
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (orphaned) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 maxLines = 1,
                 modifier = Modifier.padding(start = 8.dp),
             )
