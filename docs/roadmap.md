@@ -4198,6 +4198,21 @@ cae la cola.
 que es lo que alguien pregunta **después** de saber qué significa. Empujar la definición hacia
 abajo por la etimología invierte el orden en que se lee un diccionario.
 
+### Siete observaciones de uso — 2026-09-26, **ninguna construida** · i-a2f271-ba2093
+
+From using the build of 2026-09-26 on the watch. Written down as they were reported, with what is
+already known about each, so none of it has to be re-derived. **Nothing here is built.**
+
+| # | What was seen | What is known about it |
+|---|---|---|
+| 1 | **A saved word belonging to no pack** reads `sust.` with no language key. Wanted: the bubble marked as deleted --light red-- keeping every datum it has | The row is right and the pack is gone. `visitTag` returns null by design (*no tag beats a wrong one*), and `conIdioma` cannot fill it because there is no pack to ask. What is missing is a **third state in the row**: present, and present-but-orphaned. Today the two are drawn the same |
+| 2 | **`esternocleidomastoideo`'s forms still break badly**, while the result bubbles break well | The bubbles use `WORD_BREAK` + `Hyphens.Auto`; `FormsTable` was written before that and its two `Text`s never got it. A one-line fix, and the reason it was missed is that the forms were looked at with `perros`, which fits |
+| 3 | **The home's bubbles break well; the *see more* bubbles of recents are still the old ones** | Same cause: `WordRow` in `WordListScreen` is a second row component that `ListRow`'s change did not reach. The standardisation is half done -- `ListRow` and `FormsTable` and `WordTitle` exist, `WordRow` is outside |
+| 4 | **The extra forms still do not show** | ⚠️ **Unresolved, and the two halves disagree.** The packs on the watch DO carry them --read out of `es-full`: `hacer` gives `haciendo · hecho · hago · haces · hace · hacemos · hacen · hice · hizo · haga`-- but the card was never seen with those packs: the session window closed first. Either the card is not drawing them or the observation predates the push. **Verify before changing anything** |
+| 5 | **Some English origins render badly**: they carry an enumeration of forms with no obvious formatting | Not yet looked at. The `M` channel is one line with tabs sanitised to spaces, so a source that used a list arrives as a run-on. Needs the shape measured over the dump before choosing between dropping those, cutting at the enumeration, or rendering it |
+| 6 | **The same origin shows for a word under noun, verb, etc.** Is that right? | ⚠️ **Probably not, and the source can tell.** A page in the dump is one `(word, pos)` pair and carries its own `etymology_text`, so two parts of speech of the same word are two pages and can have different origins. If they show the same, the builder is attributing one page's origin to a sibling -- or the source genuinely repeats it. Measurable: count how many `(word, pos)` pairs of one word disagree |
+| 7 | **Keep exploring what else can improve the packs**, with metrics and a limit on what to add before quality degrades | The frame this repo already uses: every channel priced in MB per pack and in rows on a 234 dp card, against how often the datum is not derivable. §O-3 has the `form` table pruning measured and unapplied; the etymology has its cap open (P-16) |
+
 #### CHANNEL BUILT 2026-09-25 — with no length cap, and that is a ⚠️ Desviación
 
 The instruction, in the owner's words: *«la etimología implementala con el tope que te comenté
@@ -5113,6 +5128,30 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 ---
 
 ## Proceso y herramientas
+
+### The watch session's `stop` does not arrive — **2 of 2 times** · i-a2f271-74604f
+
+**Propuesto, no construido.** Both watch sessions this repo has held ended the same way: the watch
+left the network before `watchsession.py stop` could be sent. 2026-09-25 and 2026-09-26, 100 %
+packet loss and no mDNS record on both. That is not an accident twice, it is the normal ending.
+
+**What is actually at risk is small, and saying so matters**: the keep-alive stops itself when
+Wi-Fi drops --measured at **1.1 s** in the session that built it-- and Wi-Fi dropping is the
+likeliest reason the watch vanishes. So the lock is *probably* released. What is missing is not the
+release, it is **knowing**: the only way to tell is to reconnect later and read `wake lock tomado`.
+
+**Three shapes, cheapest first.**
+
+1. **A deadline inside the watch.** The service already has an expiry --`Limite alcanzado tras 30 s`
+   in its own tests-- so a session started with a ceiling releases everything on its own whether or
+   not a `stop` arrives. It turns the open question into a bounded one.
+2. **`status` at the start of the next session**, printed unasked. It does not prevent the night
+   with the lock held; it stops the *next* session from inheriting an unknown state.
+3. **Nothing, and write the check in the memory note.** Already done, and it is what makes this a
+   proposal rather than an omission.
+
+⚠️ **The arithmetic that puts it here and not in the changelog**: the same friction, twice, with the
+tool loaded and the rule known. D-234's rung.
 
 ### ✅ El triage del método — v8→v16 **CERRADO el 2026-09-23**, v17→v24 **CERRADO el 2026-09-24**
 

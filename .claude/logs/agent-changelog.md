@@ -91,8 +91,28 @@ Spanish word is hyphenated by English rules on an English watch.
   tenses with nothing. The build was **stopped mid-run and restarted** after fixing both -- an hour
   of English thrown away, which is cheaper than shipping a wrong label.
 
-**What was left undone.** The hyphenation locale, named above. And the packs and the APK are
-rebuilt but **not on the watch**: `devpack.py` has not been run since.
+**What was left undone.** The hyphenation locale, named above.
+
+⚠️ **The build IS on the watch, and the probes on it are not.** APK versionCode 12 and the five
+packs of 2026-09-26 went over with the session held --`adb install` in **54.7 s**, `en-full`'s
+316.5 MB after it-- and the watch opened all five, 0 rejected, **ready to search in 2,624 ms**.
+Then the window closed mid-probe: the card was never read with the new packs, so **nothing
+confirms the ten forms reach the screen**, only that they are in the file.
+
+⚠️ **And `stop` did not reach the watch again.** It left the network --100 % packet loss, no mDNS--
+before the command could go. The keep-alive releases everything when Wi-Fi drops, measured at 1.1 s
+in the session that built it, and that is the likeliest reason it vanished; **it is an inference**.
+The check when it comes back is `watchsession.py -s <serial> status`: `wake lock tomado = no`.
+Second time in two sessions, which makes it the normal ending and not an accident -- worth a
+mechanism rather than a note.
+
+**Seven observations came back from using it**, none built, all written into
+`docs/roadmap.md` §*Siete observaciones de uso* with what is already known about each. Two are one
+line of work --the forms table and `WordRow` never got `WORD_BREAK`-- and two need measuring before
+anything is decided: whether the same origin under two parts of speech is the source repeating
+itself or the builder attributing it wrongly, and how an English origin that carries an enumeration
+should be rendered. One is unresolved in both directions: the packs on the watch **do** carry the
+ten forms, read out of the file, and the card was never seen with them.
 
 ## 2026-09-25 · s-a2f271-1817f0 — The origin of the word reaches the card, and two silent channel losses on the way
 **What.** The `M` channel end to end: `payload.py` emits and parses it, `PayloadCodec.kt` mirrors
