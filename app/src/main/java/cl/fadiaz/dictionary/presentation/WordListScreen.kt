@@ -178,34 +178,28 @@ private fun WordRow(
     onOpen: () -> Unit,
 ) {
     if (armada) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(PILL_SHAPE)
-                .background(MaterialTheme.colorScheme.error)
-                .clickable(onClick = onConfirm)
-                .heightIn(min = TOUCH_TARGET)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        // ⚠️ **The same bubble, in another state.** It used to be a hand-rolled `Row` with its own
+        // shape, height and padding -- a fourth copy of the box -- and the only thing it actually
+        // needs to differ in is the colour and what goes inside.
+        val colors = WordBubbleDefaults.armedColors()
+        WordBubble(colors = colors, onClick = onConfirm) {
             Icon(
                 imageVector = Icons.Filled.Delete,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onError,
+                tint = colors.headword,
             )
             Text(
                 text = stringResource(R.string.saved_remove),
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onError,
+                color = colors.headword,
                 maxLines = 1,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).padding(start = 8.dp),
             )
             Text(
                 text = headword,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onError,
+                style = WordBubbleDefaults.detailStyle,
+                color = colors.detail,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

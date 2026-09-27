@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.ui.graphics.Shape
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
 import androidx.compose.ui.res.stringResource
@@ -191,13 +194,7 @@ internal fun Pill(
 internal fun ListRow(
     headword: String,
     detail: String?,
-    /**
-     * Long press, for the lists that arm a deletion. Null everywhere else.
-     *
-     * It is the only thing `WordListScreen`'s own row had that this one did not, and copying the
-     * whole row to get it is what left `maxLines = 1` behind there when the break rule landed
-     * here.
-     */
+    /** Long press, for the lists that arm a deletion. Null everywhere else. */
     onLongClick: (() -> Unit)? = null,
     /**
      * The word is in a dictionary that is no longer installed.
@@ -205,68 +202,20 @@ internal fun ListRow(
      * ⚠️ **It keeps every datum and changes only the colour.** A saved word whose pack is gone
      * still knows its headword and its part of speech, and dropping it would lose what somebody
      * chose to keep; drawing it identical to a working one promises an entry that will not open.
-     * The third state is the honest one, and the saved list is where it shows -- the history is
-     * filtered by installed pack and never has orphans in it.
+     * The saved list is where it shows -- the history is filtered by installed pack.
      */
     orphaned: Boolean = false,
-    // ⚠️ **Last, so the trailing lambda keeps working.** Every call site writes
-    // `ListRow(headword, detail) { abrir() }`, and a parameter added after this one silently binds
-    // the lambda to the wrong slot -- which is what happened the first time: the compiler caught
-    // it because the next slot was a `Boolean`, and would not have if it had been another lambda.
+    // Last, so the trailing lambda keeps working: every call site writes
+    // `ListRow(headword, detail) { abrir() }`.
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // ⚠️ **`CARD_SHAPE` and not `PILL_SHAPE`, and at one line it is the same thing.** A
-            // 50 % pill on a 48 dp row rounds at 24 dp, which is exactly what `CARD_SHAPE` is. The
-            // difference appears at TWO lines, which this row now allows: the pill's radius grows
-            // with the height and starts eating the first and last letters, and the card's does
-            // not. So it changes nothing for a short word and fixes the long one.
-            .clip(CARD_SHAPE)
-            .background(
-                if (orphaned) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainer
-                },
-            )
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .heightIn(min = TOUCH_TARGET)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // ⚠️ **Two lines before an ellipsis, and the row grows to hold them.** It used to cut at
-        // one line, so `antidisestablishmentarianism` and every Spanish saying in the dictionary
-        // read as a prefix with three dots -- in a list whose whole job is to let you recognise
-        // the word you are after. The break is hyphenated and language-aware ([WORD_BREAK]), so
-        // the second line starts where the language allows and not where the pixels ran out.
-        //
-        // The height is a MINIMUM and not a fixed two lines: reserving the second row for every
-        // word would cost a result on a 234 dp screen, and most words are short.
-        Text(
-            text = headword,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                hyphens = Hyphens.Auto,
-                lineBreak = WORD_BREAK,
-            ),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (detail != null) {
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (orphaned) {
-                    MaterialTheme.colorScheme.onErrorContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                maxLines = 1,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
+    val colors = if (orphaned) {
+        WordBubbleDefaults.orphanedColors()
+    } else {
+        WordBubbleDefaults.colors()
+    }
+    WordBubble(colors = colors, onClick = onClick, onLongClick = onLongClick) {
+        WordBubbleContent(headword, detail, colors)
     }
 }
 
@@ -488,6 +437,150 @@ internal fun WordTitle(headword: String, pronunciation: String?, detail: String?
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+        )
+    }
+}
+
+
+/**
+ * What a [WordBubble] is painted with. One value so a caller sets a STATE, not three colours.
+ *
+ * ⚠️ **Immutable, and that is not decoration**: Compose skips a recomposition only when it can
+ * prove the parameters did not change, and an unmarked data class of `Color`s cannot be proven
+ * stable. On a watch a needless recomposition of every row of a list is CPU the battery pays for.
+ */
+@Immutable
+internal data class WordBubbleColors(
+    val container: Color,
+    val headword: Color,
+    val detail: Color,
+)
+
+/**
+ * The defaults of [WordBubble], in the shape Compose itself uses for this.
+ *
+ * ⚠️ **A `Defaults` object and a content slot, rather than a growing list of optional flags.**
+ * The row started as `ListRow(headword, detail, onClick)` and grew `onLongClick`, then `orphaned`;
+ * the next state would have been a fourth boolean, and a component whose API is a pile of booleans
+ * cannot say which combinations are meaningful. Here a caller passes the STATE it is in --
+ * [orphanedColors], [armedColors] -- and whatever it wants inside.
+ *
+ * It is the convention `androidx.wear.compose` follows for its own components (`ButtonDefaults`,
+ * and the `RotaryScrollableDefaults` this app already calls), so it is also what a reader coming
+ * from the library expects. ⚠️ **KMP itself stays out** (D-018): Wear Compose is Android only and
+ * there is no second target to share with. What is borrowed is the API shape, not the build.
+ */
+internal object WordBubbleDefaults {
+
+    /** See [CARD_SHAPE]: identical to the pill at one line, and correct at two. */
+    val Shape: Shape get() = CARD_SHAPE
+
+    val MinHeight: Dp get() = TOUCH_TARGET
+
+    val Padding get() = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+
+    /** The word. Hyphenated and language-aware, which is the rule every word on screen follows. */
+    val headwordStyle: TextStyle
+        @Composable get() = MaterialTheme.typography.bodyLarge.copy(
+            hyphens = Hyphens.Auto,
+            lineBreak = WORD_BREAK,
+        )
+
+    /** What the word IS: `sust. · ES`. Never why it matched (D-152, and 2026-09-26). */
+    val detailStyle: TextStyle
+        @Composable get() = MaterialTheme.typography.labelSmall
+
+    @Composable
+    fun colors(
+        container: Color = MaterialTheme.colorScheme.surfaceContainer,
+        headword: Color = MaterialTheme.colorScheme.onSurface,
+        detail: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    ): WordBubbleColors = WordBubbleColors(container, headword, detail)
+
+    /** The word's dictionary is no longer installed: it keeps every datum and changes colour. */
+    @Composable
+    fun orphanedColors(): WordBubbleColors = colors(
+        container = MaterialTheme.colorScheme.errorContainer,
+        headword = MaterialTheme.colorScheme.onErrorContainer,
+        detail = MaterialTheme.colorScheme.onErrorContainer,
+    )
+
+    /** A deletion is armed and the next tap confirms it. */
+    @Composable
+    fun armedColors(): WordBubbleColors = colors(
+        container = MaterialTheme.colorScheme.error,
+        headword = MaterialTheme.colorScheme.onError,
+        detail = MaterialTheme.colorScheme.onError,
+    )
+}
+
+/**
+ * The bubble every word in this app sits in. **The content is the caller's.**
+ *
+ * ⚠️ **What it owns is the box, not what goes in it**: the shape, the touch target, the padding
+ * and the background. Three screens used to own their own copy of that box --and one of them was
+ * `ListRow` character for character-- so a change to the box reached one of the three and nothing
+ * said the others had drifted.
+ *
+ * `onClick` is nullable because a bubble is not always tappable, and `combinedClickable` is only
+ * attached when it is: an empty click handler still consumes the gesture and still ripples, which
+ * on a row that leads nowhere reads as the app ignoring you.
+ */
+@Composable
+internal fun WordBubble(
+    modifier: Modifier = Modifier,
+    colors: WordBubbleColors = WordBubbleDefaults.colors(),
+    shape: Shape = WordBubbleDefaults.Shape,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.container)
+            .let {
+                if (onClick == null) {
+                    it
+                } else {
+                    it.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                }
+            }
+            .heightIn(min = WordBubbleDefaults.MinHeight)
+            .padding(WordBubbleDefaults.Padding),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/**
+ * The usual inside of a [WordBubble]: the word, and what it is, right-aligned.
+ *
+ * Separate from the bubble so a caller with something else to put in --the armed row puts an icon
+ * and a label-- uses the same box without inheriting this layout.
+ */
+@Composable
+internal fun RowScope.WordBubbleContent(
+    headword: String,
+    detail: String?,
+    colors: WordBubbleColors = WordBubbleDefaults.colors(),
+) {
+    Text(
+        text = headword,
+        style = WordBubbleDefaults.headwordStyle,
+        color = colors.headword,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+    )
+    if (detail != null) {
+        Text(
+            text = detail,
+            style = WordBubbleDefaults.detailStyle,
+            color = colors.detail,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 8.dp),
         )
     }
 }

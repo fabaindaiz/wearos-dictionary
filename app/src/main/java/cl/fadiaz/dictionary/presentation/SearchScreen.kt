@@ -674,13 +674,19 @@ private fun WordOfTheDayRow(
     subtitle: String?,
     onClick: () -> Unit,
 ) {
+    // ⚠️ **The layout is its own and the BOX is not.** This one stacks the word over its detail
+    // and centres both, because it is the hero item of the home; forcing it into `WordBubble`,
+    // which is a `Row`, would ask for a direction parameter nobody else needs. What it does take
+    // from [WordBubbleDefaults] is everything that has to match: the shape, the touch target and
+    // the colours. Those are what drifted before, not the arrangement.
+    val colors = WordBubbleDefaults.colors()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(PILL_SHAPE)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .clip(WordBubbleDefaults.Shape)
+            .background(colors.container)
             .clickable(onClick = onClick)
-            .heightIn(min = TOUCH_TARGET)
+            .heightIn(min = WordBubbleDefaults.MinHeight)
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -703,8 +709,8 @@ private fun WordOfTheDayRow(
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = WordBubbleDefaults.detailStyle,
+                color = colors.detail,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
