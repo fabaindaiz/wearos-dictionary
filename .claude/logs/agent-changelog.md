@@ -106,6 +106,18 @@ The check when it comes back is `watchsession.py -s <serial> status`: `wake lock
 Second time in two sessions, which makes it the normal ending and not an accident -- worth a
 mechanism rather than a note.
 
+**Four of the seven were then closed the same day.** The word bubble became `WordBubble` +
+`WordBubbleDefaults` --a component with defaults and a content slot, the shape `androidx.wear.compose`
+uses for its own; KMP itself stays out per D-018-- and four hand-rolled copies of the same box
+became one. `FormsTable` and `WordOfTheDayRow` got the break rule they never had. A saved word whose
+dictionary is gone draws in the error container and keeps every datum.
+
+⚠️ **And the fourth resolved itself on the emulator: it was the pack, not the card.** With
+`es-full@202609260102` --the build before the ten forms-- `conocer` showed two rows; with the new
+pack pushed over it, the same card shows all ten, tabulated. The device being looked at had a stale
+pack. ⚠️ **A trap worth keeping**: searching `hacer` opens the NOUN first, and a noun has no verb
+forms, so that card correctly shows `haceres · plural` and looks like the feature is missing.
+
 **Seven observations came back from using it**, none built, all written into
 `docs/roadmap.md` §*Siete observaciones de uso* with what is already known about each. Two are one
 line of work --the forms table and `WordRow` never got `WORD_BREAK`-- and two need measuring before
