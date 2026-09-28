@@ -58,9 +58,40 @@ releases flattens a watch overnight.
 NO IP ADDRESSES BY HAND
 
 The mDNS name (`adb-XXXX._adb-tls-connect._tcp`) survives the daemon restart: the service is
-re-registered under the same name on the new port and the host picks it up on its own. When no
-device is present at all, this command asks `adb mdns services` and connects to what it finds, so
-a port never has to be typed.
+re-registered under the same name on the new port and the host picks it up on its own. This
+command asks `adb mdns services` and connects to what it finds, so a port never has to be typed.
+
+⚠️ **It used to do that only when NO device was present and NO serial had been asked for, which
+excluded the two cases it exists for** -- found by using it on 2026-09-28, at the cost of two
+hand-typed `adb connect`s. While developing there is almost always an emulator connected, so a
+device *was* present and it gave up; and passing the previous session's serial raised immediately,
+which is exactly when the watch has come back on a **new TLS port under the same name**. It now
+always tries, and after a reconnect it does not insist on the string that was asked for: what it
+matches is *being the only watch*, and it says which one it took and why.
+
+IT IS A WATCH'S SESSION, AND IT REFUSES ANYTHING ELSE
+
+Taking a wake lock or holding Wi-Fi means nothing on an emulator, and `elegir_dispositivo` picks
+the emulator when several devices are ready. Asking for one by `-s` is now refused rather than
+quietly answered about another device, which is D-080's family: not a wrong answer so much as an
+answer about something else.
+
+⚠️ **`ro.build.characteristics` says `watch` on the Wear AVDs too** --measured:
+`emulator,nosdcard,watch`-- so what tells them apart is the `emulator-` prefix, not the
+characteristic that sounds like it would.
+
+THE WATCH LEAVING IS THE NORMAL CASE, NOT A FAILURE
+
+Measured over five sessions: `stop` reached the watch twice. The other three times it had already
+left the network, and the raw error sent whoever read it looking for a problem that is not there
+-- the keep-alive **releases the lock on its own when Wi-Fi drops**, measured at 1.1 s. `stop` now
+says that, and what to check on reconnecting, and exits 0.
+
+⚠️ **And a reading taken from a watch that is going away looks like data.** `adb` answers an
+unreachable device on **stdout**, so an empty or `adb: device offline` answer reads as a value.
+`_colapsar_duplicados` treated it as *a second watch* and gave up with the live one in front of
+it; it now ignores transports that cannot answer. The same trap bit a hand-run `run-as cat` the
+same day, which came back empty and looked like the app had lost its preferences.
 
 READING THE RESULT, NOT THE EXIT CODE
 
@@ -157,14 +188,44 @@ def _colapsar_duplicados(adb, seriales):
     for a watch that was the only one in the room. The hardware serial is what tells that apart
     from two watches genuinely being connected, and it is worth a round trip each because the
     alternative is a tool that cannot run unattended.
+
+    ⚠️ **A transport that cannot answer is IGNORED, not counted as a different device**, and
+    that distinction had to be learned: after a reconnect the same watch is listed twice --
+    `192.168.100.65:44179` and `adb-RFGL...._adb-tls-connect._tcp` -- and the older one is often
+    already dead. Treating its empty answer as "a second watch" made this return None and the
+    caller give up, with the live watch sitting right there. What still returns None is two
+    transports that both answer with **different** hardware serials, which is two real watches.
     """
-    hardware = set()
+    vivos = []
     for serial in seriales:
         salida = subprocess.run(
             [adb, "-s", serial, "shell", "getprop", "ro.serialno"], capture_output=True
         )
-        hardware.add(salida.stdout.decode("utf-8", "replace").strip())
-    return seriales[0] if len(hardware) == 1 and "" not in hardware else None
+        hw = salida.stdout.decode("utf-8", "replace").strip()
+        # `adb` reports an unreachable device on stdout as well, so an answer that is not a
+        # serial is the same as no answer.
+        if hw and "adb:" not in hw and "error" not in hw.lower():
+            vivos.append((serial, hw))
+    if not vivos:
+        return None
+    return vivos[0][0] if len({hw for _, hw in vivos}) == 1 else None
+
+
+def _parece_reloj(adb, serial):
+    """Whether this transport leads to a watch and not to an emulator.
+
+    ⚠️ **A `watchsession` on an emulator is always a mistake**, and it used to be a silent one:
+    with an emulator running and the watch off the network, `elegir_dispositivo` handed back the
+    emulator and every command ran against it -- taking a wake lock nothing needs, reporting a
+    session that is not the one anybody asked about. `characteristics` says `watch` on a watch and
+    on the Wear AVDs alike, so what tells them apart is being an emulator at all.
+    """
+    if serial.startswith("emulator-"):
+        return False
+    salida = subprocess.run(
+        [adb, "-s", serial, "shell", "getprop", "ro.build.characteristics"], capture_output=True
+    )
+    return "watch" in salida.stdout.decode("utf-8", "replace")
 
 
 def elegir_serial(pedido=None):
@@ -175,21 +236,66 @@ def elegir_serial(pedido=None):
             "utf-8", "replace"
         )
 
+    def relojes(salida):
+        return [s for s in _listos(salida) if _parece_reloj(adb, s)]
+
     salida = listar()
+
+    # ⚠️ **Asking for something that is NOT a watch is refused, not quietly swapped.** The two
+    # cases look alike and are opposite: a serial that is simply stale --the watch's port from the
+    # last session-- should be reconnected and replaced, which is the whole point below; a serial
+    # that names a connected EMULATOR is somebody pointing at the wrong thing, and answering about
+    # another device would be D-080's family, a result that is not wrong so much as about
+    # something else.
+    if pedido and pedido in _listos(salida) and not _parece_reloj(adb, pedido):
+        raise SinDispositivo(
+            "%s no es un reloj, y esta utilidad maneja la sesion de un RELOJ: tomar un wake lock "
+            "o sostener el Wi-Fi no significa nada en un emulador. Corre sin -s y elige el reloj "
+            "solo, o pasa el serial del reloj." % pedido
+        )
+
     try:
-        return elegir_dispositivo(salida, pedido)
-    except SinDispositivo:
-        if pedido:
-            raise
-        seriales = _listos(salida)
-        if len(seriales) > 1:
-            unico = _colapsar_duplicados(adb, seriales)
-            if unico:
-                return unico
-            raise
+        serial = elegir_dispositivo(salida, pedido)
+        if not _parece_reloj(adb, serial):
+            raise SinDispositivo("el unico dispositivo listo no es un reloj")
+        return serial
+    except SinDispositivo as e:
+        # ⚠️ **The reconnect used to be skipped in the two cases where it is most needed**, and
+        # both cost a hand-typed `adb connect` on 2026-09-28. It only ran when NO device was
+        # present and NO serial had been asked for:
+        #
+        #  - with an emulator connected --the normal state while developing-- a device *was*
+        #    present, so it gave up;
+        #  - and passing `-s <el serial de la sesion anterior>` raised immediately, which is
+        #    exactly the case the mDNS reconnect exists for: the watch leaves the network after
+        #    every `stop`, and comes back on a NEW TLS port under the SAME mDNS name.
+        #
+        # Now it always tries, and it does not insist on the string that was asked for: after a
+        # reconnect the same watch answers to a different serial, so what is matched is *being
+        # the only watch*, and the tool says which one it took.
         if reconectar_por_mdns() is None:
             raise
-        return elegir_dispositivo(listar(), pedido)
+        salida = listar()
+        try:
+            serial = elegir_dispositivo(salida, pedido)
+            if _parece_reloj(adb, serial):
+                return serial
+        except SinDispositivo:
+            pass
+        encontrados = relojes(salida)
+        if len(encontrados) > 1:
+            unico = _colapsar_duplicados(adb, encontrados)
+            if unico:
+                return unico
+        if len(encontrados) == 1:
+            if pedido and pedido != encontrados[0]:
+                print(
+                    "  %s no estaba; reconectado como %s (el puerto TLS cambia en cada "
+                    "reinicio del daemon)" % (pedido, encontrados[0]),
+                    file=sys.stderr,
+                )
+            return encontrados[0]
+        raise e
 
 
 def instalado(serial):
@@ -405,7 +511,23 @@ def cmd_start(args):
 
 
 def cmd_stop(args):
-    serial = elegir_serial(args.device)
+    # ⚠️ **The watch is usually gone by the time anybody runs this, and that used to look like a
+    # tool failure.** Measured over five sessions: `stop` reached the watch twice. The other three
+    # times it had already left the network, and the raw `SinDispositivo` sent whoever read it
+    # looking for a problem that is not there -- the keep-alive **releases the lock on its own
+    # when Wi-Fi drops**, measured at 1.1 s. What is worth saying is that, and what to check on
+    # reconnecting.
+    try:
+        serial = elegir_serial(args.device)
+    except SinDispositivo as e:
+        print(
+            "El reloj no esta accesible: %s\n\n"
+            "No es un problema del stop. El keep-alive suelta el lock solo al caerse el Wi-Fi\n"
+            "(medido en 1,1 s), asi que la bateria no queda drenando. Al reconectar, confirmalo:\n"
+            "  python3 tools/watchsession.py status" % e,
+            file=sys.stderr,
+        )
+        return 0
     print("dispositivo: %s" % serial)
     if instalado(serial):
         _adb(serial, "shell", "am", "stopservice", "-n", COMPONENTE, silencioso=True)
@@ -428,6 +550,66 @@ def cmd_uninstall(args):
     # for.
     _adb(serial, "shell", "dumpsys", "deviceidle", "whitelist", "-" + PAQUETE, silencioso=True)
     print(_adb(serial, "uninstall", PAQUETE, silencioso=True) or "no estaba instalado")
+    return 0
+
+
+def cmd_deploy(args):
+    """The whole upload, as one command: session, install, launch, read, close.
+
+    ⚠️ **It exists because the sequence was assembled by hand every time, and drifted.** What a
+    watch probe is allowed to be is three steps -- install, launch, read `logcat -s Dict` -- and
+    on 2026-09-28 it grew taps, `uiautomator` dumps and screenshots, which belong on the emulator
+    (`app/CLAUDE.md`). Every extra step is another chance for the watch to leave the network, and
+    one of those drops caught an install in flight.
+
+    ⚠️ **It closes the session even when something fails**, which hand-assembling never did
+    reliably: a `stop` that is never reached is a wake lock held until somebody notices.
+
+    It says what it read and nothing else. Whatever has to be SEEN is seen on the emulator before
+    uploading.
+    """
+    serial = elegir_serial(args.device)
+    print("dispositivo: %s" % serial)
+    if not os.path.isfile(args.apk):
+        print("no existe el APK: %s" % args.apk, file=sys.stderr)
+        return 2
+
+    inicio = time.time()
+    if cmd_start(argparse.Namespace(device=serial, limite=args.limite)) != 0:
+        return 1
+    try:
+        print("\ninstalando %s (%.1f MB)..."
+              % (os.path.basename(args.apk), os.path.getsize(args.apk) / 1e6))
+        salida = _adb(serial, "install", "-r", args.apk)
+        if "Success" not in salida:
+            print(salida, file=sys.stderr)
+            return 1
+        print("  instalado en %.0f s" % (time.time() - inicio))
+
+        _adb(serial, "logcat", "-c", silencioso=True)
+        _adb(serial, "shell", "am", "start", "-n", args.actividad, silencioso=True)
+        print("\narrancando y leyendo el log (hasta %d s)..." % args.espera)
+        limite = time.time() + args.espera
+        lineas = []
+        while time.time() < limite:
+            texto = _adb(serial, "logcat", "-d", "-s", args.tag, silencioso=True)
+            lineas = [l for l in texto.splitlines() if ": " in l]
+            if any("arranque" in l for l in lineas):
+                break
+            time.sleep(2)
+        else:
+            print("  ⚠️  no llego la linea de arranque; el log es lo que haya", file=sys.stderr)
+        for linea in lineas:
+            print("  " + linea.split(": ", 1)[-1])
+        # ⚠️ **The geometry is read back, because a build that says it is not the watch's means
+        # the numbers in it were taken somewhere else.** It is the same line the app prints at
+        # startup; repeating the check here is what makes it impossible to miss in a log that
+        # scrolls.
+        if not any("la del reloj" in l for l in lineas):
+            print("  ⚠️  el arranque NO declaro la geometria del reloj", file=sys.stderr)
+    finally:
+        print("")
+        cmd_stop(argparse.Namespace(device=serial))
     return 0
 
 
@@ -508,6 +690,17 @@ def main(argv=None):
     sub.add_parser("stop", help="lo suelta, y revierte ajustes viejos si quedaron")
     sub.add_parser("uninstall", help="saca el APK del reloj")
 
+    p_deploy = sub.add_parser(
+        "deploy", help="sesion + install + arranque + log + stop, que es TODA la prueba del reloj"
+    )
+    p_deploy.add_argument("apk", help="el APK a instalar")
+    p_deploy.add_argument(
+        "--actividad", default="cl.fadiaz.dictionary/.presentation.MainActivity"
+    )
+    p_deploy.add_argument("--tag", default="Dict", help="el tag de logcat a leer")
+    p_deploy.add_argument("--espera", type=int, default=90, help="segundos para el arranque")
+    p_deploy.add_argument("--limite", type=int, help="tope del wake lock, en segundos")
+
     p_probe = sub.add_parser("probe", help="mide si la sesion se sostiene")
     p_probe.add_argument("--seconds", type=int, default=300)
     p_probe.add_argument("--interval", type=int, default=15)
@@ -519,6 +712,7 @@ def main(argv=None):
         "install": cmd_install,
         "start": cmd_start,
         "stop": cmd_stop,
+        "deploy": cmd_deploy,
         "uninstall": cmd_uninstall,
         "probe": cmd_probe,
     }

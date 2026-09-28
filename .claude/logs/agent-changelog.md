@@ -16,6 +16,52 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-28 · s-a2f271-3ee5b2 — What using `watchsession.py` for a day found in it
+**What.** Four defects in the tool that controls the watch's session, all of them things that cost
+time the same day, plus a `deploy` command that makes the whole upload one invocation: session,
+install, launch, read `logcat -s Dict`, close -- and it closes **even when something fails**.
+
+**Areas.** `tools/watchsession.py`, `app/CLAUDE.md`.
+
+**Why.** Asked for: improve the utility from what using it taught. Everything below is a failure
+that happened, not a review of the code.
+
+**Architecture.** ✅ Complies.
+
+**Measured.**
+- `stop` reached the watch **2 of 5 sessions**. The other three it had already left the network.
+- The Wear AVD reports `ro.build.characteristics = emulator,nosdcard,watch` -- it says **watch**,
+  so the characteristic that sounds decisive is not.
+- `deploy` end to end on the watch: install **34 s** for 115.1 MB, startup read, session closed.
+
+**What went wrong (in the tool, found by using it).**
+- **The mDNS reconnect was skipped in the two cases it exists for.** It only ran when NO device was
+  present and NO serial had been asked for. While developing there is always an emulator connected,
+  so a device *was* present; and passing the previous session's serial raised immediately, which is
+  exactly when the watch has come back on a **new TLS port under the same name**. Two hand-typed
+  `adb connect`s.
+- **It would run against an emulator.** `elegir_dispositivo` prefers the emulator when several are
+  ready, and a wake lock there means nothing. An explicit `-s <emulator>` is now refused rather
+  than quietly answered about another device.
+- **A transport that cannot answer counted as a second watch.** `adb` reports an unreachable device
+  on **stdout**, so `ro.serialno` comes back as `adb: device offline` -- a value. The duplicate
+  collapse read that as two watches and gave up with the live one in front of it.
+- **`stop` failing looked like a tool failure.** The keep-alive releases the lock on its own when
+  Wi-Fi drops, measured at 1.1 s, so the watch being gone is the normal case and not a problem. It
+  now says that, says what to check on reconnecting, and exits 0.
+
+**Not verified.** After the `deploy` run the app reported `historial=0` where it had read
+`historial=25` earlier. The follow-up read of `shared_prefs` came back empty **from a connection
+that was dropping at that moment**, which is the same trap as above -- an unreachable device
+answering on stdout -- so it proves nothing either way. Whether anything actually cleared the
+history is open, and the only honest next step is to read it from a watch that is reachable.
+
+**What was left undone.** The tool has no tests: every fix here was verified by running it against
+the watch and the emulator, which is repeatable by hand and not by the gate. A fake `adb` would
+make `elegir_serial` testable, and that is its own change.
+
+---
+
 ## 2026-09-28 · s-a2f271-529a9b — The tiles, the wrong emulator, and a batch that reached the watch
 **What.** The tiles got their first real pass: the word of the day shows **two words, one per
 language**, both tiles draw a word with the **same bubble**, and each says what the word is --
