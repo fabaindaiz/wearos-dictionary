@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.data
 
+import cl.fadiaz.dictionary.core.SearchTuning
 import android.content.Context
 // `edit { }` and not `.edit()....apply()`: the second form compiles without the trailing
 // `apply()` and then saves NOTHING, with no error and no log. The lambda cannot be
@@ -206,6 +207,15 @@ object PackStore {
         context: Context,
         preferred: String?,
         onExtracting: () -> Unit = {},
+        /**
+         * The cascade's numbers, from `assets/tuning.json`.
+         *
+         * ⚠️ **Handed in and not read here**, even though this function has a `Context` and could.
+         * The asset is a build-time constant read once at startup; reading it per `open` would be
+         * one file read per pack, and reading it in two places is how two parts of the same build
+         * end up tuned differently.
+         */
+        tuning: SearchTuning = SearchTuning(),
     ): PackSet = withContext(Dispatchers.IO) {
         val dir = packsDir(context)
         dir.mkdirs()
@@ -253,7 +263,7 @@ object PackStore {
         DictLog.i { "packs en disco: ${installed.size} (${installed.joinToString { it.name }})" }
         for (file in installed) {
             val desde = System.nanoTime()
-            when (val loaded = openFile(context, file)) {
+            when (val loaded = openFile(context, file, tuning)) {
                 is PackLoad.Ready -> {
                     opened += PackHandle.Open(
                         source = loaded.source,
@@ -664,7 +674,7 @@ object PackStore {
      * that would already know how to read that pack, and the user would see a dictionary gone
      * forever.
      */
-    private fun openFile(context: Context, file: File): PackLoad {
+    private fun openFile(context: Context, file: File, tuning: SearchTuning): PackLoad {
         val memo = prefs(context).getString(KEY_VERIFIED, null)
         val fingerprint = PackVerification.fingerprint(
             file.length(),
@@ -688,7 +698,7 @@ object PackStore {
         return try {
             val pack = PackFile.open(file.path, verifyKeys = !yaVerificado)
             if (!yaVerificado) recordar(context, memo, file.name, fingerprint, null)
-            PackLoad.Ready(SqlitePackSource(pack))
+            PackLoad.Ready(SqlitePackSource(pack, tuning = tuning))
         } catch (e: PackFile.IncompatibleException) {
             // The pack is from another format version or from other normalization rules. It
             // would return FEWER results than it holds, in silence: that is why it is rejected

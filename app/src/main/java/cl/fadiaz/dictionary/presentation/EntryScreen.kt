@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,8 +82,12 @@ import cl.fadiaz.dictionary.core.TextNormalizer
  * median is **3 senses**, p90 is 7 and the maximum is **47**. Cutting at three leaves half the
  * entries untouched --no extra button, no extra gesture-- and keeps "justicia", with its ten,
  * from turning into a scroll where the useful sense sits below nine nobody was looking for.
+ *
+ * ⚠️ **The number now lives in `assets/tuning.json`** and this measurement is what it was set
+ * from. Moving it there means it can be changed without re-reading this paragraph, which is the
+ * cost of every value that leaves the code; the paragraph is left here, next to nothing, so the
+ * next person to move it at least finds out what it was chosen against.
  */
-private const val VISIBLE_SENSES = 3
 
 /**
  * Where a link leads: **which pack and which entry**.
@@ -158,7 +163,30 @@ fun EntryScreen(
     var expanded by remember(entryId) { mutableStateOf(false) }
     var links by remember(entryId) { mutableStateOf(emptyMap<String, WordLink>()) }
     var menuOpen by remember(entryId) { mutableStateOf(false) }
+    /**
+     * The text size somebody just chose, pending application. See where it is set, in the options
+     * dialog, for why it cannot be applied and dismissed in one frame.
+     */
+    var escalaPedida by remember(entryId) { mutableStateOf<TextScale?>(null) }
     val actionsFor = entry?.let(actions).orEmpty()
+
+    // Apply the size **while the dialog is still open**, let one frame go by so the tree can be
+    // rebuilt at the new density undisturbed, and only then dismiss. The order matters and the
+    // frame in between is what makes it an order at all: `withFrameNanos` waits for the next
+    // composition to have been drawn, which is exactly the boundary a plain `delay` would be
+    // approximating with a number nobody measured.
+    LaunchedEffect(escalaPedida) {
+        val pedida = escalaPedida ?: return@LaunchedEffect
+        onTextScaleChange(pedida)
+        withFrameNanos { }
+        menuOpen = false
+        escalaPedida = null
+        // The readout exists because the failure here is silent in the worst way: if this
+        // coroutine did not reach its last line the dialog would stay open **forever**, with no
+        // exception and nothing on screen to say why. One DEBUG line per size change is cheap --
+        // it is a rare action, not a per-row or per-keystroke one.
+        DictLog.d { "escala: $pedida aplicada y menu cerrado" }
+    }
 
     LaunchedEffect(entryId) {
         // Without the try, anything `load` throws --a SQLiteException, an inflate over a
@@ -229,8 +257,11 @@ fun EntryScreen(
     // are visible -- which is the condition it came in under (D-084). Measured: without this,
     // "Show more" with three short senses no longer fit on screen.
     val listState = rememberTransformingLazyColumnState(initialAnchorItemIndex = 1)
-    ScrollToTopOnReturn(listState, firstIndex = 1)
     val focusRequester = remember { FocusRequester() }
+    // Read HERE and not inside the list: a lazy column's lambda is not a composition scope, so
+    // `LocalTuning.current` does not compile in there. Same reason the words of the day are
+    // computed above the list on the home.
+    val ajustes = LocalTuning.current
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -333,7 +364,18 @@ fun EntryScreen(
             // ⚠️ **And they are NOT tappable**, unlike synonyms and translations: an inflected
             // form is not a headword, so it has no card of its own to go to. Painting something
             // that leads nowhere teaches the reader not to trust the colour (D-094).
+            // ⚠️ **Which forms are shown, and in what ORDER, comes from `assets/tuning.json`**
+            // (d-a2f271). The pack carries every principal part it found; the build decides which
+            // six of them a 234 dp card is worth spending rows on. Sorting by the configured
+            // order and not by the pack's is the half that is easy to miss: a conjugation table
+            // read out of order is not a table.
+            //
+            // A key nobody configured is not drawn, and a configured key the entry lacks costs
+            // nothing -- so the same file works for a verb, a noun and an English past tense.
+            val orden = ajustes.forms
             val forms = current?.forms.orEmpty()
+                .filter { it.key in orden }
+                .sortedBy { orden.indexOf(it.key) }
             if (forms.isNotEmpty()) {
                 item(key = "formas") {
                     FormsTable(forms)
@@ -356,7 +398,8 @@ fun EntryScreen(
             }
 
             val allSenses = current?.senses.orEmpty()
-            val visibleOnes = if (expanded) allSenses else allSenses.take(VISIBLE_SENSES)
+            val visibleOnes =
+                if (expanded) allSenses else allSenses.take(ajustes.visibleSenses)
             val hidden = allSenses.size - visibleOnes.size
 
             // With `key` the item keeps its identity when expanding; without it, the lazy
@@ -475,10 +518,23 @@ fun EntryScreen(
                                 // behind a menu covering the word it applied to -- and the size
                                 // is chosen by looking at the text, which is the one thing the
                                 // open dialog hid.
-                                .clickable {
-                                    menuOpen = false
-                                    onTextScaleChange(opcion)
-                                }
+                                //
+                                // ⚠️ **But it does NOT close it in the same frame, and that is
+                                // the fix.** Doing both at once made the menu leave, come back
+                                // and leave again -- recorded on the emulator on 2026-09-28 and
+                                // reported as exactly that: it animates out to the word, back to
+                                // the menu, and only then out again. The cause is that changing the
+                                // size moves `LocalDensity`, which invalidates the whole subtree
+                                // and restarts the dialog's exit transition mid-flight. `Guardar`
+                                // and `Copiar` animate cleanly because they touch no density.
+                                //
+                                // ⚠️ **Swapping the two lines does nothing**: Compose applies
+                                // both state changes before the next composition, so they stay
+                                // the same frame. What has to be separated is the frames, which
+                                // is what [escalaPedida] below does -- and it needs no guessed
+                                // duration, which a `delay` tuned to the dialog's animation
+                                // would have.
+                                .clickable { escalaPedida = opcion }
                                 .heightIn(min = TOUCH_TARGET)
                                 .padding(vertical = 12.dp),
                         )
@@ -884,6 +940,7 @@ private fun LinkedText(
     // **Centred and not trimmed**, because the default hangs the extra leading below the glyph:
     // the band would grow downwards only and a tap ABOVE the word would still miss, which is half
     // the mis-taps.
+    val enFuentes = LocalTuning.current.glossLineHeightInFonts
     val abierto = targets.isNotEmpty() && style.fontSize.isSpecified
     val estilo = if (!abierto) {
         style
@@ -894,7 +951,7 @@ private fun LinkedText(
             // nothing: a line of `bodyMedium` already lays out at 36 px and twice its declared
             // line height is under that, so the layout floor swallowed the whole effect. The font
             // size is the one number that is always there and always the glyph's.
-            lineHeight = style.fontSize * LINE_HEIGHT_IN_FONTS,
+            lineHeight = style.fontSize * enFuentes,
             lineHeightStyle = LineHeightStyle(
                 alignment = LineHeightStyle.Alignment.Center,
                 trim = LineHeightStyle.Trim.None,

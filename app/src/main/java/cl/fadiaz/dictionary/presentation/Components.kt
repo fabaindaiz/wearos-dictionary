@@ -18,31 +18,26 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.graphics.Shape
+import cl.fadiaz.dictionary.core.DisplayTuning
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumnState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -65,6 +60,22 @@ import kotlin.math.ceil
  * than the duplication it came to fix. What the six do share is [PILL_SHAPE] and [TOUCH_TARGET],
  * which is where the real risk was.
  */
+
+/**
+ * What the build was tuned to draw. See `assets/tuning.json` and
+ * [cl.fadiaz.dictionary.core.DisplayTuning].
+ *
+ * ⚠️ **A `CompositionLocal` and not a parameter, and the trade is worth saying.** Threading it
+ * through six screens would put a `tuning` argument on every signature between `MainActivity` and
+ * a `FormsTable` that is four levels down, and every one of those is a place to forget it. What a
+ * local costs in exchange is that the dependency stops being visible in a signature -- acceptable
+ * here precisely because this is a **build-time constant**: it does not change while the app
+ * runs, so there is no state to reason about, only a number to read.
+ *
+ * Its default is the shipped default, so a screen composed by a test that provides nothing draws
+ * the same thing the app draws.
+ */
+internal val LocalTuning = staticCompositionLocalOf { DisplayTuning() }
 
 /**
  * The minimum touch target the Wear OS guidance asks for.
@@ -205,6 +216,21 @@ internal fun ListRow(
      * The saved list is where it shows -- the history is filtered by installed pack.
      */
     orphaned: Boolean = false,
+    /**
+     * The language the WORD is in, as a code (`es`, `en`), for hyphenating it.
+     *
+     * ⚠️ **It is the pack's language and not the interface's, and nothing connected the two
+     * before.** `Hyphens.Auto` asks the platform where a word may break, and the platform asks
+     * the composition's locale -- which is the UI's. With the interface in Spanish, `Household`
+     * came out as `Hou-|sehold`: a legal SPANISH syllable split applied to an English word, where
+     * a reader expects `House-|hold`. Seen on the emulator on 2026-09-28.
+     *
+     * Null means *not known*, and then nothing is overridden: the composition's locale is a
+     * better guess than a wrong one. Every list that has the datum passes it -- the results,
+     * because the search is strict by language (D-189) so the active language IS the row's, and
+     * the saved words, because a stored row carries its own since D-265.
+     */
+    lang: String? = null,
     // Last, so the trailing lambda keeps working: every call site writes
     // `ListRow(headword, detail) { abrir() }`.
     onClick: () -> Unit,
@@ -214,8 +240,27 @@ internal fun ListRow(
     } else {
         WordBubbleDefaults.colors()
     }
-    WordBubble(colors = colors, onClick = onClick, onLongClick = onLongClick) {
-        WordBubbleContent(headword, detail, colors)
+    // ⚠️ **The orphan state is SAID and not only painted, and that is two fixes in one.**
+    // A colour is invisible to a screen reader, so a row that carries its meaning only in its
+    // fill tells somebody using TalkBack nothing at all. And it is invisible to the gate for the
+    // same reason -- Robolectric sees structure, not pixels -- which is why the mutation that
+    // stops painting this used to pass every test. A state description is read by both.
+    val aviso = if (orphaned) stringResource(R.string.word_orphaned) else null
+    WordBubble(
+        colors = colors,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        // The word goes to one edge and its detail to the other. With both halves weighted and
+        // `fill = false` there is slack left over whenever neither needs its ceiling, and this is
+        // what sends that slack to the middle instead of leaving it hanging off the right.
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = if (aviso == null) {
+            Modifier
+        } else {
+            Modifier.semantics { stateDescription = aviso }
+        },
+    ) {
+        WordBubbleContent(headword, detail, colors, lang)
     }
 }
 
@@ -340,40 +385,6 @@ internal fun rowsThatFit(): Int = rowsThatFit(LocalConfiguration.current.screenW
 
 
 /**
- * Coming back to the app returns THIS screen to its top, without leaving it.
- *
- * ⚠️ **It replaces a `popBackStack`, and the difference is the whole point.** Leaving the app used
- * to navigate back to the home, on the reasoning that a watch is not closed --the wrist is
- * lowered-- so an old card is not worth resuming. In use it reads the other way round: lowering
- * your wrist mid-word and finding the home again is losing your place. What was right about the
- * old behaviour is the *feeling of starting over*, and that is a scroll, not a navigation.
- *
- * ⚠️ **`ON_START` and not `ON_RESUME`**: the system's voice input is a full-screen Activity that
- * pauses ours, and scrolling on resume would yank the list under somebody who never left. It is
- * the mirror of why the observer this replaces listened on `ON_STOP`.
- *
- * ⚠️ **It skips the FIRST start**, which is the one that happens as the screen appears. Scrolling
- * there is at best a no-op and at worst fights the position a freshly opened card was given --
- * `EntryScreen` deliberately opens anchored at item 1, not 0.
- */
-@Composable
-internal fun ScrollToTopOnReturn(state: TransformingLazyColumnState, firstIndex: Int = 0) {
-    var vueltas by remember { mutableIntStateOf(0) }
-    val owner = LocalLifecycleOwner.current
-    DisposableEffect(owner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) vueltas++
-        }
-        owner.lifecycle.addObserver(observer)
-        onDispose { owner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(vueltas) {
-        if (vueltas > 1) state.scrollToItem(firstIndex)
-    }
-}
-
-
-/**
  * How a word is broken when it does not fit: **hyphenated, never cut**.
  *
  * ⚠️ **It is one value used by every place a word is drawn**, which is what stops the three from
@@ -385,14 +396,50 @@ internal fun ScrollToTopOnReturn(state: TransformingLazyColumnState, firstIndex:
  * instead of wherever the pixel ran out. It needs the text's locale, which comes from the
  * composition, so a Spanish word breaks by Spanish rules and an English one by English ones.
  *
- * ⚠️ **`LineBreak.Paragraph` and not `Heading`, and it took looking at it to find out.** `Heading`
- * is what Compose documents for short titles and it was the obvious pick; on the 234 dp emulator
- * it split `electroencefalográfico` as `electroence|falográfico`, with no hyphen and in the middle
- * of a syllable. `Paragraph` is the high-quality strategy, the one that actually consults the
- * hyphenation dictionary. The balanced look `Heading` promises is worth nothing if the break it
- * balances is in the wrong place.
+ * ⚠️ **It is composed rather than picked from the presets, and the reason is that BOTH presets
+ * were wrong in different halves.**
+ *
+ * `LineBreak.Heading` was the obvious pick for a short title and was rejected on the 234 dp
+ * emulator: it split `electroencefalográfico` as `electroence|falográfico`, with no hyphen and in
+ * the middle of a syllable. `LineBreak.Paragraph` replaced it and breaks correctly -- but it is
+ * the **greedy** strategy, so it fills the first line and drops whatever is left. The request was
+ * the opposite: both lines of a similar size, the top one slightly longer, and the break chosen
+ * well.
+ *
+ * The two presets differ in more than one field, and attributing `Heading`'s bad break to its
+ * BALANCE was the mistake this fixes. `Heading` is `Balanced` + `Loose`; `Paragraph` is
+ * `HighQuality` + `Strict`. The break quality lives in **strictness**, the shape of the two lines
+ * in **strategy**, and nothing said they had to move together:
+ *
+ * - **`Strategy.Balanced`** evens the line lengths, which is what was asked for. It also leans
+ *   the first line long, which is the preference that came with the request.
+ * - **`Strictness.Strict`** keeps the rules that make a break legal for the language, and it is
+ *   the half `Heading` gave away.
+ * - **`WordBreak.Phrase`** is what both presets already carried.
+ *
+ * `Hyphens.Auto` on top asks the platform for a break the language allows --
+ * `elec-tro-en-ce-fa-lo-grá-fi-co`-- instead of wherever the pixel ran out. It needs the text's
+ * locale, which comes from the composition.
+ *
+ * ⚠️ **Measured on the emulator, 2026-09-28, and it moved more than the shape.** With the greedy
+ * strategy `perroflauta` came out as `per-|roflauta`: a legal Spanish break --`per|ro|flau|ta`--
+ * but the latest one that fit, which is what greedy filling picks. Balanced moves the break to the
+ * middle and lands it on `perro-|flauta`, the compound boundary. So the ugly break was never a
+ * hyphenation-rule problem; it was the strategy.
+ *
+ * ⚠️ **What that does NOT fix is the locale, and the same session found a word that shows it.**
+ * With the interface in Spanish, `Household` breaks as `Hou-|sehold`: a legal SPANISH syllable
+ * split --`Hou|se|hold`-- applied to an English word, where the break a reader expects is
+ * `House-|hold`. The composition's locale is the INTERFACE's and the word's language is the
+ * PACK's, and nothing connects them. Carrying `entry.lang` down to each row is its own change and
+ * remains undone; what the balanced strategy bought is that the break is now in the middle, so
+ * when it is wrong it is wrong in a nicer place.
  */
-internal val WORD_BREAK = LineBreak.Paragraph
+internal val WORD_BREAK = LineBreak(
+    strategy = LineBreak.Strategy.Balanced,
+    strictness = LineBreak.Strictness.Strict,
+    wordBreak = LineBreak.WordBreak.Phrase,
+)
 
 /**
  * A word as the head of its own screen: the word, how it sounds, and what it is.
@@ -500,9 +547,18 @@ internal object WordBubbleDefaults {
     /** The word's dictionary is no longer installed: it keeps every datum and changes colour. */
     @Composable
     fun orphanedColors(): WordBubbleColors = colors(
-        container = MaterialTheme.colorScheme.errorContainer,
-        headword = MaterialTheme.colorScheme.onErrorContainer,
-        detail = MaterialTheme.colorScheme.onErrorContainer,
+        // ⚠️ **It used to fill the whole bubble with `errorContainer` and that was too loud**:
+        // *«el rojo en palabras no existentes es muy fuerte»*. A saved word whose dictionary is
+        // gone is not an error the user made and not something about to be destroyed -- it is a
+        // row that cannot be opened. Shouting it in the same red as the armed delete spent the
+        // strongest signal on the mildest state.
+        //
+        // The bubble keeps the normal fill; the word is dimmed and only its detail carries the
+        // colour. It is a smaller signal, and it can be: since 2026-09-28 the row also **says**
+        // it through a state description, so the colour stopped being the only carrier.
+        container = MaterialTheme.colorScheme.surfaceContainer,
+        headword = MaterialTheme.colorScheme.onSurfaceVariant,
+        detail = MaterialTheme.colorScheme.error,
     )
 
     /** A deletion is armed and the next tap confirms it. */
@@ -533,9 +589,18 @@ internal fun WordBubble(
     shape: Shape = WordBubbleDefaults.Shape,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
+    /**
+     * How the content is spread across the row.
+     *
+     * Packed to the start by default, which is what a bubble with an icon and a label wants. A
+     * word row passes [Arrangement.SpaceBetween] so its two halves go to the two edges without
+     * either of them having to claim the middle -- see [WordBubbleContent].
+     */
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
     content: @Composable RowScope.() -> Unit,
 ) {
     Row(
+        horizontalArrangement = horizontalArrangement,
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
@@ -565,14 +630,34 @@ internal fun RowScope.WordBubbleContent(
     headword: String,
     detail: String?,
     colors: WordBubbleColors = WordBubbleDefaults.colors(),
+    /** The word's own language, for hyphenation. See `ListRow`'s parameter of the same name. */
+    lang: String? = null,
 ) {
+    // ⚠️ **Both halves are weighted, and the detail used to have no weight at all.** In a `Row`
+    // the children WITHOUT a weight are measured first, against the full width, and whatever is
+    // left goes to the weighted one -- so the unweighted detail was the half in charge and the
+    // headword got the remainder. Measured on the emulator: `prop. noun · ES` took **196 of the
+    // ~296 px** available and left the headword **68**, which turned `Serendipia` into `Ser` /
+    // `en…` and `Pero` into `Per` / `o`. The word is the subject of the row and it was the half
+    // being cut.
+    //
+    // `fill = false` is what keeps this from being a worse trade: neither half claims its slot
+    // when it does not need it, so a short detail like `ES` still takes only `ES`. What the
+    // weight buys is a CEILING -- half the row each when both want more than half.
+    //
+    // The ceiling is a proportion and not a dp cap, for the same reason `GlossTap`'s radius is:
+    // a number in dp stops meaning the same thing the moment the text-size setting moves.
     Text(
         text = headword,
-        style = WordBubbleDefaults.headwordStyle,
+        // ⚠️ **The locale of the WORD, not of the interface.** Without it the platform hyphenates
+        // by whatever language the UI happens to be in; see `ListRow`'s `lang`.
+        style = WordBubbleDefaults.headwordStyle.let { base ->
+            if (lang == null) base else base.copy(localeList = LocaleList(lang))
+        },
         color = colors.headword,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.weight(1f, fill = false),
     )
     if (detail != null) {
         Text(
@@ -580,7 +665,23 @@ internal fun RowScope.WordBubbleContent(
             style = WordBubbleDefaults.detailStyle,
             color = colors.detail,
             maxLines = 1,
-            modifier = Modifier.padding(start = 8.dp),
+            // It truncates instead of pushing the word around: between losing the end of
+            // `prop. noun` and losing the end of the word, the word wins.
+            //
+            // ⚠️ **`MiddleEllipsis` was tried here and reverted, measured.** It would keep the
+            // language tag --a trailing ellipsis eats it, and the tag is the one part of this
+            // label that is not decoration (D-261)-- but it asks for more width, and the headword
+            // went back to two lines: `Serendipia` from 140 px on one line to 74 px tall on two.
+            // That is the very thing this row was just fixed for.
+            //
+            // ⚠️ **And the loss it would have prevented does not happen in the mode that
+            // matters.** Measured on the emulator at NORMAL: `n. propio · ES` is 124 px against
+            // the ~148 this half gets, so nothing truncates. The tag only disappears at LARGE,
+            // and the large text mode is out of scope by decision: it was ruled out as breaking
+            // the layout wholesale, so nothing here is shaped for it.
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp),
         )
     }
 }

@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.data.TuningStore
 import android.app.LocaleManager
 import android.content.ClipData
 import android.content.Context
@@ -132,6 +133,13 @@ private fun catalogoEnUso(context: android.content.Context): String =
 
 @Composable
 fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
+    // ⚠️ **Read ONCE, above everything, and never again.** `assets/tuning.json` is a build-time
+    // constant that happens to be stored as a file; re-reading it per screen would let two
+    // screens disagree about the same build, and re-reading it per query would put an asset open
+    // inside the cascade. `remember` with no key is what makes "once" true across recompositions.
+    val ctx = LocalContext.current.applicationContext
+    val tuning = remember { TuningStore.load(ctx) }
+    CompositionLocalProvider(LocalTuning provides tuning.display) {
     DictionaryTheme {
         AppScaffold {
             val navController = rememberSwipeDismissableNavController()
@@ -145,8 +153,16 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     initializer {
                         SearchViewModel(
                             openPacks = { onExtracting ->
-                                PackStore.open(context, PackStore.preferredPack(context), onExtracting)
+                                PackStore.open(
+                                    context,
+                                    PackStore.preferredPack(context),
+                                    onExtracting,
+                                    tuning.search,
+                                )
                             },
+                            // What the build was tuned to do. Read once, here, and passed down as
+                            // a value: see `TuningStore`.
+                            tuning = tuning,
                             // With no stored preference the watch locale decides, not the alphabet.
                             preferred = {
                                 PackStore.preferredPack(context) ?: Locale.getDefault().language
@@ -268,8 +284,13 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
             // three hours later to an earlier card is not resuming anything. Reversed on
             // 2026-09-26 by the owner, who found it the opposite of that in practice: lowering
             // your wrist mid-word and coming back to the home is losing your place, not starting
-            // fresh. What survives of the idea is the scroll -- each screen returns to its own
-            // top, which is `ScrollToTopOnReturn`.
+            // fresh.
+            //
+            // ⚠️ **And the compromise that replaced it --scrolling each screen back to its own
+            // top-- was reverted too, on 2026-09-28: *«sólo no hagas nada con reabrirla»*.** It
+            // was the same idea in a cheaper currency and it read the same way on the wrist: an
+            // animation that moves the thing you were reading is losing your place whether or not
+            // the route changed. Reopening now restores what was on screen and does nothing else.
             //
             // ⚠️ **It hooks `ON_STOP` and NOT `ON_PAUSE`**, and the difference matters: the system
             // input --`ACTION_REMOTE_INPUT`, a full-screen SysUI Activity-- pauses ours, and
@@ -512,6 +533,9 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         // The same tags as the results (D-152): a saved word and a result are the
                         // same word.
                         tags = historyTags(state.available),
+                        // Which list is the right one lives in `installedPackIds`, where a
+                        // test can reach it.
+                        installed = installedPackIds(state),
                         // Same reason as the history: the stored id may belong to an earlier
                         // pack. See `SearchViewModel.targetOf`.
                         onOpen = { visit ->
@@ -581,7 +605,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         uiLanguage = uiLanguage,
                         appVersion = BuildConfig.VERSION_NAME,
                         buildCommit = BuildConfig.BUILD_COMMIT,
-                        buildTime = BuildConfig.BUILD_TIME,
+                        buildDate = BuildConfig.BUILD_DATE,
                         crossLanguageFallback = state.settings.crossLanguageFallback,
                         onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         onScaleChange = viewModel::onTextScaleChange,
@@ -607,5 +631,6 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
             }
             }
         }
+    }
     }
 }

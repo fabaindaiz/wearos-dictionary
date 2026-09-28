@@ -1,0 +1,21 @@
+{
+  "_": "The knobs that shape behaviour and travel WITH THE BUILD. Edit, then build again.",
+  "_defaults": "Any key may be missing: Tuning.kt's default is used and DictLog says which.",
+
+  "search": {
+    "_": "MEASURED with tools/measure_query_cost.py over the real packs. See SearchTuning.",
+    "limit": 30,
+    "prefixOverfetch": 3,
+    "fuzzyTrigger": 5,
+    "fuzzyCandidates": 200
+  },
+
+  "display": {
+    "_forms": "The six of a conjugation table. Possible keys: ind1s ind2s ind3s ind1p ind3p pret1s pret3s sub1s part ger past pl fem",
+    "_forms2": "Adding 'pl' and 'fem' gives nouns and adjectives their Forms section back; 'past' gives it back to English verbs.",
+    "forms": ["ind1s", "ind3s", "pret1s", "pret3s", "sub1s", "part"],
+    "visibleSenses": 3,
+    "emptyProbeCap": 9,
+    "glossLineHeightInFonts": 2.8
+  }
+}

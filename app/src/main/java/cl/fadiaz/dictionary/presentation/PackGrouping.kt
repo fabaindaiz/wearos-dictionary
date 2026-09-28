@@ -205,5 +205,23 @@ internal fun historyTags(packs: List<PackHandle>): Map<String, String> =
  * installed, or whose language nothing can establish. It draws with no tag, which is the rule a
  * gloss's links are painted by -- no tag beats the wrong one.
  */
+/**
+ * The `packId`s that are **open**, which is the only honest answer to *is this word's dictionary
+ * still there*.
+ *
+ * ⚠️ **It takes the whole state instead of a list, and that is the point.** Two lists could be
+ * handed in and only one is right: `available` is `offerable()`'s output and **drops a bundled
+ * core whose languages another pack already covers**, so a word from a shadowed pack -- on disk,
+ * open, answering queries -- would come back as missing. Naming the choice here means a call site
+ * cannot get it wrong, and a test can reach the decision, which it could not while the `.map`
+ * lived inline in `MainActivity`.
+ *
+ * ⚠️ **And it is NOT [historyTags].** That map answers *what language is this row in*, is built
+ * with `langs.singleOrNull()`, and therefore leaves a bidirectional pack out on purpose. Reusing
+ * it here painted every word saved from `es-tr-enwikt-freq` in the error colour.
+ */
+internal fun installedPackIds(state: SearchState): Set<String> =
+    state.loaded.map { it.packId }.toSet()
+
 internal fun visitTag(visit: Visit, tags: Map<String, String>): String? =
     visit.lang?.uppercase() ?: tags[visit.packId]

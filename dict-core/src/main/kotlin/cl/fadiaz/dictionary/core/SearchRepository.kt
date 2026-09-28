@@ -77,6 +77,14 @@ class SearchRepository(
     private val lang: String? = null,
     /** Where the cascade reports what it did. See [SearchTrace]. */
     private val trace: SearchTrace = SearchTrace.None,
+    /**
+     * How many results a query returns, from `assets/tuning.json`.
+     *
+     * ⚠️ **It is not a display number**, which is the easy way to read it wrong: the screen shows
+     * three or four rows, and this is the size of the list the cascade fills **before it stops
+     * climbing rungs**. Lowering it makes the tolerant rung fire MORE often, not less.
+     */
+    private val limit: Int = DEFAULT_LIMIT,
 ) {
 
     /** The ids of the active language, for [orderFor]'s tie-break. */
@@ -100,7 +108,7 @@ class SearchRepository(
      * `limit` applies to the **merged** list, not to each pack: asking for three and getting
      * three per pack would fill a watch screen with whichever pack answered first.
      */
-    suspend fun suggest(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> {
+    suspend fun suggest(query: String, limit: Int = this.limit): List<Suggestion> {
         val propias = recolectar(packs) { it.suggest(query, limit, lang) }
         val ajenas = if (needsFallback(query, propias)) {
             recolectar(otherLanguages) { it.suggest(query, limit) }
@@ -152,7 +160,7 @@ class SearchRepository(
     }
 
     /** The free-text search over definitions (D-084). Same merge, same order. */
-    suspend fun searchDefinitions(query: String, limit: Int = DEFAULT_LIMIT): List<Suggestion> =
+    suspend fun searchDefinitions(query: String, limit: Int = this.limit): List<Suggestion> =
         // No `query` for the band: here what was typed is not a prefix of the lemma but a word
         // from the definition, so coverage means nothing. See [coverageBand].
         //
@@ -197,7 +205,20 @@ class SearchRepository(
         return todas
     }
 
-    private companion object {
+    companion object {
+        /**
+         * The shipped value, and what a caller that configures nothing gets.
+         *
+         * ⚠️ **The companion stopped being `private` for this one constant**, and the rest of it
+         * stays hidden. What that buys is a test in `:app` that compares this against
+         * `SearchTuning.limit`: two copies of a number that nothing compares are two numbers that
+         * will disagree, and here the disagreement is a search that returns a different amount
+         * than the file says, with nothing red anywhere.
+         *
+         * ⚠️ **It is a second copy of `SearchTuning.limit`**, because that data class cannot be
+         * referenced from a default parameter without making every construction of this class
+         * depend on it. `SearchTuningDefaultsTest` compares them.
+         */
         const val DEFAULT_LIMIT = 30
 
         /**

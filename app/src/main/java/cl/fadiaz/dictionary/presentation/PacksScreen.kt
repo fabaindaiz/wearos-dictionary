@@ -96,7 +96,6 @@ fun PacksScreen(
     onCancel: (CatalogPack) -> Unit = {},
 ) {
     val listState = rememberTransformingLazyColumnState()
-    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     // ⚠️ **A candidate and not a `PackHandle`, because there are now TWO classes of deletable
     // row** and only one has `metadata`. A `PackHandle` would force the dialog to ask which class

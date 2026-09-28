@@ -129,6 +129,9 @@ fun SearchScreen(
     // which with a two-language pack no longer sufficed: the same pack would have had to return
     // `ES` for some rows and `EN` for others.
     val etiqueta = resultTag(state.activeLang)
+    // The same cap the probe counted with. A pill drawing `9+` against a different cap from the
+    // one that stopped the count would be stating a number nobody measured.
+    val topeSonda = LocalTuning.current.emptyProbeCap
     // The home's history carries the OTHER mechanism: its rows can come from a pack that is no
     // longer there. See `historyTags`.
     val etiquetasHistorial = remember(state.available) { historyTags(state.available) }
@@ -149,7 +152,6 @@ fun SearchScreen(
             .sortedByDescending { it.first.packId == state.active?.packId }
     }
     val listState = rememberTransformingLazyColumnState()
-    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 
@@ -369,6 +371,9 @@ fun SearchScreen(
                                     visit.partOfSpeech?.let { posLabel(it) },
                                     visitTag(visit, etiquetasHistorial),
                                 ),
+                                // The row's own language, for hyphenating the word by its own
+                                // rules rather than by the interface's.
+                                lang = visit.lang,
                             ) { onOpenVisita(visit) }
                         }
                         // Only if there are more: a button leading to the same list you are
@@ -423,7 +428,7 @@ fun SearchScreen(
                                             stringResource(R.string.home_searching_definitions)
                                         enDefiniciones != null -> stringResource(
                                             R.string.home_search_definitions_n,
-                                            hintCount(enDefiniciones),
+                                            hintCount(enDefiniciones, topeSonda),
                                         )
                                         else -> stringResource(R.string.home_search_definitions)
                                     },
@@ -469,7 +474,7 @@ fun SearchScreen(
                                     text = if (enElOtro != null) {
                                         stringResource(
                                             R.string.home_search_in_n,
-                                            hintCount(enElOtro),
+                                            hintCount(enElOtro, topeSonda),
                                             languageName(otroIdioma).orEmpty(),
                                         )
                                     } else {
@@ -586,6 +591,11 @@ private fun ResultRow(
             partOfSpeech = suggestion.partOfSpeech?.let { posLabel(it) },
             tag = etiqueta,
         ),
+        // ⚠️ **The tag IS the language here**, and that is not a shortcut: the search is strict
+        // by language (D-189) and filters by `entry.lang` inside a bidirectional pack, so every
+        // visible row is in the active one -- which is the same reason the whole list carries a
+        // single tag.
+        lang = etiqueta?.lowercase(),
         onClick = onClick,
     )
 }

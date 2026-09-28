@@ -43,7 +43,6 @@ import cl.fadiaz.dictionary.data.PackHandle
 @Composable
 fun AttributionScreen(packs: List<PackHandle>) {
     val listState = rememberTransformingLazyColumnState()
-    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     val spec = rememberTransformationSpec()
 

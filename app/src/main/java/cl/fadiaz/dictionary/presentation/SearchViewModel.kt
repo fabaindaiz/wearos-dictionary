@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.core.Tuning
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cl.fadiaz.dictionary.core.LanguageScope
@@ -205,6 +206,13 @@ data class SearchState(
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class SearchViewModel(
     private val openPacks: suspend (onExtracting: () -> Unit) -> PackSet,
+    /**
+     * What the build was tuned to do. See `assets/tuning.json`.
+     *
+     * Defaulted so every test constructs this ViewModel exactly as before and gets the shipped
+     * numbers, which is also what makes the default the thing under test.
+     */
+    private val tuning: Tuning = Tuning(),
     /**
      * Last time's **language**, or the watch's. Never alphabetical order.
      *
@@ -528,6 +536,7 @@ class SearchViewModel(
             },
             lang = idioma,
             trace = LogSearchTrace,
+            limit = tuning.search.limit,
         )
     }
 
@@ -828,14 +837,15 @@ class SearchViewModel(
         val otroIdioma = idiomasDisponibles(_state.value.available)
             .firstOrNull { it != _state.value.activeLang }
         sonda = viewModelScope.launch {
-            val enDefiniciones = repo.searchDefinitions(text, limit = SONDA_TOPE).size
+            val tope = tuning.display.emptyProbeCap
+            val enDefiniciones = repo.searchDefinitions(text, limit = tope).size
             // The other language is probed through a repository built for IT, not by passing a
             // `lang` to the active one: `repositoryFor` is what decides which packs answer, and
             // with two files installed the answer lives in the other file entirely.
             val enElOtro = otroIdioma
                 ?.let { lang -> representanteDe(lang)?.let { it to lang } }
                 ?.let { (pack, lang) ->
-                    repositoryFor(pack, lang).suggest(text, limit = SONDA_TOPE).size
+                    repositoryFor(pack, lang).suggest(text, limit = tope).size
                 }
             // Same guard as the definition search: if something else was typed meanwhile, these
             // counts belong to a query that is no longer on screen.
@@ -1348,7 +1358,8 @@ class SearchViewModel(
         const val DEBOUNCE_MS: Long = 120
 
         /**
-         * How far the probe of the empty result counts before it stops.
+         * How far the probe of the empty result counts before it stops, **when nothing configures
+         * it**. What runs comes from `assets/tuning.json` -- see `DisplayTuning.emptyProbeCap`.
          *
          * Nine because the pill shows the number and **the number stops meaning anything above
          * one screenful**: with 192 dp there are four rows, so *"9+ in the definitions"* and

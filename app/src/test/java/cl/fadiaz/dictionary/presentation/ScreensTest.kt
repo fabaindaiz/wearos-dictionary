@@ -52,6 +52,8 @@ import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -387,6 +389,22 @@ class ScreensTest {
         }
         compose.onNodeWithContentDescription("Opciones").performClick()
         compose.onAllNodesWithText("Aa")[2].performClick()
+        // ⚠️ **The two halves no longer happen in the same frame, and this waits for both.** The
+        // size is applied while the dialog is still open and the dismissal lands one frame later,
+        // because doing them together restarted the dialog's exit animation -- the menu left,
+        // came back and left again. What this test pins is unchanged: the size is applied AND the
+        // menu is gone. That it takes two frames is the mechanism, not the claim.
+        //
+        // ⚠️ **And this test could NOT have caught the bug it now guards, which is worth saying
+        // rather than implying.** `onTextScaleChange` here only records a value; in the app it
+        // moves `LocalDensity`, and that is the whole cause. A double that does not do the thing
+        // that breaks it makes the test pass against a fiction.
+        //
+        // What did catch it is the emulator, measured rather than watched: frame-by-frame
+        // brightness across the interaction, where every transition of the dialog is a step.
+        // **Seven steps before the fix and two after** (2026-09-28) -- the `+13.2 / -13.2 /
+        // -9.8 / +21.3` sequence is the menu leaving, coming back and leaving again.
+        compose.waitForIdle()
         assertEquals(cl.fadiaz.dictionary.data.TextScale.LARGE, elegida)
         // The dialog is gone: its title no longer exists anywhere in the tree.
         assertEquals(0, compose.onAllNodesWithText("Opciones").fetchSemanticsNodes().size)
@@ -406,33 +424,45 @@ class ScreensTest {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Mamífero cánido doméstico.").copy(
+                    // ⚠️ **Claves que este build dibuja.** Antes eran `pl` y `fem`, y desde
+                    // que `assets/tuning.json` decide cuáles se muestran esas dos quedaron
+                    // afuera de las seis por defecto: el test medía la estructura de la tabla y
+                    // habría empezado a fallar por el contenido. La propiedad que fija --una
+                    // celda, un nodo-- no depende de qué formas sean.
                     forms = listOf(
-                        PayloadCodec.InflectedForm("pl", "perros"),
-                        PayloadCodec.InflectedForm("fem", "perra"),
+                        PayloadCodec.InflectedForm("ind1s", "hago"),
+                        PayloadCodec.InflectedForm("ind3s", "hace"),
                     ),
                 )
             }
         }
-        compose.onNodeWithText("perros").assertIsDisplayed()
-        compose.onNodeWithText("plural").assertIsDisplayed()
+        compose.onNodeWithText("hago").assertIsDisplayed()
+        compose.onNodeWithText("yo").assertIsDisplayed()
         // `assertExists` and not `assertIsDisplayed` for the second row: at 234 dp it falls below
         // the fold, and requiring it on screen would be asserting a scroll position rather than
         // the structure. The four cells being four nodes is the claim.
-        compose.onNodeWithText("perra").assertExists()
-        compose.onNodeWithText("femenino").assertExists()
+        compose.onNodeWithText("hace").assertExists()
+        compose.onNodeWithText("él/ella").assertExists()
     }
 
     @Test
     @Config(qualifiers = "+w234dp-h234dp")
-    fun aVerbShowsItsTenPrincipalPartsEachWithItsPerson() {
-        // ⚠️ **Ten because they were measured.** Over the Spanish dump, the fraction of verbs whose
-        // stem changes: subjunctive 27.6 %, preterite 1sg 18.6 %, present 1sg 11.1 %, the rest of
-        // the present 7.3 %, preterite 3sg 3.9 %, gerund 2.5 %, participle 1.4 %. What the card
-        // used to show -- gerund and participle -- were the two least informative of the set.
+    fun aVerbShowsTheSixOfAConjugationTableAndInThatOrder() {
+        // ⚠️ **Eran diez y ahora son seis, pedido así**: *«que sean máximo 6 mejor porque 10 son
+        // muchas»*. Las diez se habían elegido midiendo cuánto cambia la raíz --subjuntivo
+        // 27,6 %, pretérito 1sg 18,6 %, presente 1sg 11,1 %, gerundio 2,5 %, participio 1,4 %--
+        // y las seis que quedan se eligieron por otra razón: **se leen como la primera columna
+        // de un libro de verbos**. La medición vieja queda escrita acá porque es lo que nadie
+        // reconstruye del código.
         //
-        // The label is the PERSON and not the tense name: `hago` next to *yo* is the word you
-        // would say; next to "first-person singular present indicative" it is a grammar lesson.
-        val partes = listOf(
+        // ⚠️ **El ORDEN es parte de la afirmación y no un detalle.** El pack entrega las formas
+        // en el orden que las encontró; una tabla de conjugación leída fuera de orden no es una
+        // tabla. Lo que manda es la lista de `assets/tuning.json`.
+        //
+        // La etiqueta es la PERSONA y no el nombre del tiempo: `hago` al lado de *yo* es la
+        // palabra que dirías; al lado de "primera persona del singular del presente de
+        // indicativo" es una clase de gramática.
+        val enElPack = listOf(
             "ger" to "haciendo", "part" to "hecho",
             "ind1s" to "hago", "ind2s" to "haces", "ind3s" to "hace",
             "ind1p" to "hacemos", "ind3p" to "hacen",
@@ -441,18 +471,26 @@ class ScreensTest {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Producir algo.").copy(
-                    forms = partes.map { (clave, forma) ->
+                    forms = enElPack.map { (clave, forma) ->
                         PayloadCodec.InflectedForm(clave, forma)
                     },
                 )
             }
         }
-        for ((_, forma) in partes) {
+        val mostradas = listOf("hago", "hace", "hice", "hizo", "haga", "hecho")
+        for (forma in mostradas) {
             compose.onNodeWithText(forma).assertExists()
         }
-        compose.onNodeWithText("yo").assertExists()
-        compose.onNodeWithText("subjuntivo").assertExists()
-        compose.onNodeWithText("él/ella, pasado").assertExists()
+        for (fuera in listOf("haciendo", "haces", "hacemos", "hacen")) {
+            assertEquals(
+                "se dibujó $fuera, que no está entre las seis configuradas",
+                0,
+                compose.onAllNodesWithText(fuera).fetchSemanticsNodes().size,
+            )
+        }
+        // El orden de la tabla: `hago` (presente) antes que `hice` (pretérito), y `hecho` último.
+        val y = mostradas.map { compose.onNodeWithText(it).fetchSemanticsNode().positionInRoot.y }
+        assertEquals("las formas salieron fuera del orden configurado", y.sorted(), y)
     }
 
     @Test
@@ -465,28 +503,43 @@ class ScreensTest {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Una palabra larga.").copy(
                     forms = listOf(
-                        PayloadCodec.InflectedForm("pl", "antidisestablishmentarianisms"),
+                        PayloadCodec.InflectedForm("ind1s", "antidisestablishmentarianisms"),
                     ),
                 )
             }
         }
         compose.onNodeWithText("antidisestablishmentarianisms").assertIsDisplayed()
-        compose.onNodeWithText("plural").assertIsDisplayed()
+        compose.onNodeWithText("yo").assertIsDisplayed()
     }
 
     @Test
-    fun aFormWhoseKeyNobodyNamedLosesTheTypeAndKeepsTheForm() {
-        // Somebody else's pack can declare parts this version cannot name. `corriendo` with no
-        // note is still information; printing the raw key `sup` beside it would be noise.
+    fun aFormNobodyConfiguredIsNotDrawnAtAll() {
+        // ⚠️ **Este test decía lo contrario hasta el 2026-09-28, y el cambio es deliberado.**
+        // Antes: un pack ajeno puede declarar partes que esta versión no sabe nombrar, y
+        // `perrísimo` sin nota seguía siendo información. Ahora `assets/tuning.json` lleva una
+        // **lista blanca** --se pidió *«qué formas se muestran y cuáles no»*-- y lo que no está
+        // en ella no se dibuja.
+        //
+        // El costo queda dicho: una clave mal escrita en el JSON no falla, **desaparece**, y una
+        // sección más corta es indistinguible de un verbo al que le faltan formas en el pack. Lo
+        // que acota eso es `TuningStoreTest`, que compara las claves del asset contra las que
+        // `formTypeLabel` sabe etiquetar.
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Mamífero.").copy(
-                    forms = listOf(PayloadCodec.InflectedForm("sup", "perrísimo")),
+                    forms = listOf(
+                        PayloadCodec.InflectedForm("sup", "perrísimo"),
+                        PayloadCodec.InflectedForm("ind1s", "perreo"),
+                    ),
                 )
             }
         }
-        compose.onNodeWithText("perrísimo").assertIsDisplayed()
-        assertEquals(0, compose.onAllNodesWithText("sup").fetchSemanticsNodes().size)
+        compose.onNodeWithText("perreo").assertIsDisplayed()
+        assertEquals(
+            "se dibujó una forma que el build no pidió",
+            0,
+            compose.onAllNodesWithText("perrísimo").fetchSemanticsNodes().size,
+        )
     }
 
     @Test
@@ -1689,6 +1742,128 @@ class ScreensTest {
         )
     }
 
+    /**
+     * How many rows on screen SAY they are orphans.
+     *
+     * It reads the state description and not the text, and that distinction is the point: the
+     * orphan state is carried by a semantics property precisely because it used to be carried
+     * only by a colour, which neither a screen reader nor this test can see. `onNodeWithText`
+     * does not look there, which is what made the first version of these tests find nothing.
+     */
+    private fun huerfanasEnPantalla(): Int = compose.onAllNodes(
+        SemanticsMatcher.keyIsDefined(SemanticsProperties.StateDescription),
+    ).fetchSemanticsNodes().size
+
+    @Test
+    fun aWordIsHyphenatedByItsOwnLanguageAndNotByTheInterfaces() {
+        // ⚠️ **`Hyphens.Auto` asks the platform where a word may break, and the platform asks the
+        // COMPOSITION's locale** -- which is the interface's, while the word's language is the
+        // pack's. Nothing connected the two, and it shows: with the UI in Spanish, `Household`
+        // came out as `Hou-|sehold`, a legal Spanish syllable split applied to an English word
+        // where a reader expects `House-|hold`. Seen on the emulator on 2026-09-28.
+        //
+        // ⚠️ **What this test can and cannot do.** Robolectric lays text out with stub font
+        // metrics and no hyphenation dictionary, so it cannot assert WHERE the break lands --
+        // that stays an emulator question. What it pins is the wiring: the row asks for the
+        // word's language, so a change that stops passing it fails here.
+        val visitas = listOf(Visit("en-core", 1L, "Household", "name", lang = "en"))
+        var estilos = 0
+        compose.setContent {
+            WordListScreen(
+                words = visitas,
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                installed = setOf("en-core"),
+                onOpen = {},
+            )
+        }
+        val salida = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("Household").fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult].action!!.invoke(salida)
+        estilos = salida.first().layoutInput.style.localeList?.size ?: 0
+        assertEquals("la fila no le pasó el idioma de la palabra al estilo", 1, estilos)
+        assertEquals(
+            "le pasó otro idioma",
+            "en",
+            salida.first().layoutInput.style.localeList!!.first().language,
+        )
+    }
+
+    @Test
+    fun aWordFromABidirectionalPackIsNotAnOrphan() {
+        // ⚠️ **The bug this pins was reported as *"the red is applied to words that DO exist"*,
+        // and its cause is two questions sharing one map.** The orphan check read
+        // `visit.packId !in tags`, where `tags` answers *what language is this row in* and is
+        // built with `langs.singleOrNull()` -- which leaves a bidirectional pack out ON PURPOSE,
+        // because such a pack has no single answer. Reused as *is its dictionary installed*, that
+        // deliberate omission painted every word saved from `es-tr-enwikt-freq` in the error
+        // colour, with the pack open and answering queries the whole time.
+        //
+        // The two assertions below are the trap itself, so re-merging them fails here.
+        val bidi = meta("es-en", "es", "Español ↔ English", langs = listOf("es", "en"))
+        val etiquetas = historyTags(listOf(handle(bidi)))
+        assertEquals("el mapa de idiomas NO puede contestar por un pack bilingüe", 0, etiquetas.size)
+
+        compose.setContent {
+            WordListScreen(
+                words = listOf(Visit("es-en", 7L, "atizar", "verb", lang = "es")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                tags = etiquetas,
+                installed = setOf("es-en"),
+                onOpen = {},
+            )
+        }
+        compose.onNodeWithText("atizar").assertIsDisplayed()
+        assertEquals(
+            "una palabra de un pack instalado se dibujó como huérfana",
+            0,
+            huerfanasEnPantalla(),
+        )
+    }
+
+    @Test
+    fun aWordWhoseDictionaryIsGoneSaysSoAndDoesNotOnlyLookRed() {
+        // ⚠️ **The colour was the ONLY carrier of this, which failed two different readers.** A
+        // screen reader gets nothing from a fill, and neither does the gate: Robolectric sees
+        // structure and not pixels, so the mutation that stops painting the orphan used to pass
+        // every test. A state description is read by both, which is why this assertion can exist
+        // at all.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(
+                    Visit("es-core", 1L, "perro", "noun", lang = "es"),
+                    Visit("se-fue", 2L, "perron", "noun", lang = "es"),
+                ),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                installed = setOf("es-core"),
+                onOpen = {},
+            )
+        }
+        assertEquals(
+            "sólo la palabra sin diccionario lo dice",
+            1,
+            huerfanasEnPantalla(),
+        )
+    }
+
+    @Test
+    fun aListThatWasNotToldWhatIsInstalledCallsNothingAnOrphan() {
+        // The same asymmetry the escape hatches use: not knowing is not the same as knowing there
+        // is nothing. A screen that does not wire `installed` must not claim every saved word is
+        // missing -- that would turn an unwired parameter into a list painted entirely red.
+        compose.setContent {
+            WordListScreen(
+                words = listOf(Visit("es-core", 1L, "perro", "noun", lang = "es")),
+                title = cl.fadiaz.dictionary.R.string.saved_title,
+                empty = cl.fadiaz.dictionary.R.string.saved_empty,
+                onOpen = {},
+            )
+        }
+        assertEquals(0, huerfanasEnPantalla())
+    }
+
     @Test
     fun UN_TOQUE_NORMAL_NO_ARMA_EL_BORRADO() {
         // The row goes on doing what it did: opening the word. Deletion cannot be one tap away
@@ -2591,7 +2766,7 @@ class ScreensTest {
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 appVersion = "9.9.9",
                 buildCommit = "abc1234567+dirty",
-                buildTime = "2026-09-23 15:02 UTC",
+                buildDate = "2026-09-23",
                 uiLanguage = uiLanguage,
                 onUiLanguageChange = onUiLanguageChange,
                 onManagePacks = {},

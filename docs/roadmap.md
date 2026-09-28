@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **462 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1213 tests en total**. Los **51
+pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **475 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1226 tests en total**. Los **51
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -4676,13 +4676,30 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
 
-### Pendiente de subir al reloj — **SÍ: lo del 2026-09-28**
+### Pendiente de subir al reloj — **SÍ: todo lo del 2026-09-28**
 
-⚠️ **El reloj corre `versionCode 12` y le faltan tres cambios de interfaz**, ninguno de los
-cuales toca un pack: las escotillas sondeadas (d-a2f271-9f78e2), el interlineado abierto en las
-glosas con enlaces (d-a2f271-d83740) y la invalidación del APK cuando cambian los packs
-empaquetados (5d52f0e). Los tres se verificaron en el emulador; lo que el emulador no contesta es
-si la banda más ancha alcanza en la muñeca, que es **P-11**.
+⚠️ **The watch runs `versionCode 12` and a whole batch of interface work is missing from it.**
+**None of these touches a pack**, which is what makes them uploadable on their own: the APK alone,
+about 32 s measured, against the minute and a half `en-full` costs.
+
+| What | Where |
+|---|---|
+| The probed escape hatches: each pill says what it holds, or does not draw | d-a2f271-9f78e2 |
+| The opened-up leading in glosses that have links | d-a2f271-d83740 |
+| The APK stops carrying dead packs when the bundled ones change | 5d52f0e |
+| The orphan red stopped painting words that do exist, and came down in tone | d-a2f271-0d87de |
+| A row stops cutting the word so its label fits | d-a2f271-c45f65 |
+| A word breaks balanced, top line slightly longer | d-a2f271-d18942 |
+| Each word is hyphenated by its own language | d-a2f271-856f17 |
+| Choosing a text size no longer makes the menu bounce | d-a2f271-10c2dc |
+| Reopening the app moves nothing | — |
+| Settings shows the build and the compile date on two rows | — |
+| The forms shown drop to six and come out of `assets/tuning.json` | d-a2f271-b0d86f, d-a2f271-0d87de |
+
+All verified on the emulator **at the normal text size**, which is the one that matters: the large
+mode is out of scope by decision --it breaks the layout wholesale-- and is not tuned for. What the
+emulator cannot answer is still **P-11**, and now also whether the quieter red still reads on a
+wrist.
 
 ✅ **El reloj corre `versionCode 12`** con los cinco packs del 2026-09-26, todos abiertos y 0
 rechazados, listo para buscar en **2.624 ms**. La subida se hizo con la sesión tomada por

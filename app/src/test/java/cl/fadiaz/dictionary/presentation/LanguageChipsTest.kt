@@ -37,6 +37,33 @@ class LanguageChipsTest {
         isBundled = demo,
     )
 
+    // --- Qué packs siguen instalados, que es lo que decide el rojo de huérfana ---------------
+
+    @Test
+    fun UN_PACK_TAPADO_SIGUE_INSTALADO() {
+        // ⚠️ **Dos listas podían entrar acá y sólo una es correcta.** `available` sale de
+        // `offerable()`, que **descarta un núcleo empaquetado cuyos idiomas ya cubre otro pack**:
+        // el archivo está en disco, abierto y contestando consultas, y no aparece en esa lista.
+        // Una palabra guardada de ese pack se habría pintado de rojo por una regla que nadie
+        // quiso. Por eso la función toma el estado y no una lista: el call site no puede elegir
+        // mal, y esta prueba llega a la decisión — antes vivía como un `.map` dentro de
+        // `MainActivity`, donde ninguna mutación la tocaba.
+        val nucleo = pack("es-core", "es", entries = 10, subsetOf = "es-full")
+        val grande = pack("es-full", "es", entries = 100)
+        val estado = SearchState(
+            loaded = listOf(nucleo, grande).filterIsInstance<PackHandle.Open>(),
+            available = listOf(grande),
+        )
+        assertEquals(setOf("es-core", "es-full"), installedPackIds(estado))
+    }
+
+    @Test
+    fun SIN_PACKS_ABIERTOS_NO_HAY_NADA_INSTALADO() {
+        // El conjunto vacío es lo que la lista lee como *no sé*, y por eso no dibuja ninguna
+        // huérfana. Devolver algo aquí convertiría "todavía no cargó" en "todo desapareció".
+        assertEquals(emptySet(), installedPackIds(SearchState()))
+    }
+
     // --- El representante de un idioma, que ahora usan tres pantallas (D-151) ---------------
 
     @Test

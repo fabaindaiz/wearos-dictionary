@@ -58,7 +58,7 @@ fun SettingsScreen(
     /** The commit this APK came out of, with `+dirty` if the tree was not clean. */
     buildCommit: String,
     /** When it was built, to the minute and in UTC. */
-    buildTime: String,
+    buildDate: String,
     /**
      * Whether the other languages answer when the active one found nothing close (D-266).
      *
@@ -75,7 +75,6 @@ fun SettingsScreen(
     hasHistory: Boolean,
 ) {
     val listState = rememberTransformingLazyColumnState()
-    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
     var emptyHistory by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
@@ -236,8 +235,18 @@ fun SettingsScreen(
             // yesterday's APK"* are the same report. The `+dirty` is the honest half: almost
             // everything installed on the watch comes out of an uncommitted tree, and there the
             // hash does NOT identify what is running.
+            // ⚠️ **Two rows and not one, asked for that way.** The identity and the date are
+            // read at different moments: the hash gets compared against a commit, the date
+            // answers *is this today's build* at a glance. Joined into one
+            // `Build a1b2c3 · 2026-09-28 01:08 UTC`, neither of them reads fast, which is the one
+            // thing a diagnostic row has to do.
             item(key = "build") {
-                Diagnostic(stringResource(R.string.settings_build, buildCommit, buildTime))
+                Diagnostic(stringResource(R.string.settings_build, buildCommit))
+            }
+            // The day alone, no time and no zone. See `buildDate` in `app/build.gradle.kts`
+            // for why it is in local time while the dump's diagnostic stays in UTC.
+            item(key = "compilada") {
+                Diagnostic(stringResource(R.string.settings_built_on, buildDate))
             }
             // ⚠️ **The per-dictionary entry count was removed on request.** It was a diagnostic
             // figure nobody uses to decide anything: how many lemmas a pack carries does not say

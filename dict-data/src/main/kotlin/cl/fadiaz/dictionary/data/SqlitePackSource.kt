@@ -8,6 +8,7 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.fuzzyProfileFor
 import cl.fadiaz.dictionary.core.PackMetadata
+import cl.fadiaz.dictionary.core.SearchTuning
 import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.PrefixRange
 import cl.fadiaz.dictionary.core.Suggestion
@@ -41,6 +42,16 @@ import kotlinx.coroutines.withContext
 class SqlitePackSource(
     private val pack: PackFile,
     private val dispatcher: CoroutineDispatcher = defaultDispatcher(),
+    /**
+     * The cascade's numbers, which since 2026-09-28 come from `assets/tuning.json`.
+     *
+     * ⚠️ **Defaulted, and that default is the shipped value**: a caller that does not pass it --
+     * every test, and `measure_query_cost.py`'s replica-- behaves exactly as before. What the
+     * parameter buys is that the numbers can be changed in one file instead of three, and what it
+     * costs is that they can be changed without measuring again. That cost was named before the
+     * decision; see [SearchTuning].
+     */
+    private val tuning: SearchTuning = SearchTuning(),
 ) : DictionarySource {
 
     override val metadata: PackMetadata get() = pack.metadata
@@ -71,7 +82,7 @@ class SqlitePackSource(
             }
             // The tolerant rung only enters when what came before was nearly empty. With good
             // results already in hand, adding edit-distance candidates only muddies them.
-            if (accumulated.size < FUZZY_TRIGGER) {
+            if (accumulated.size < tuning.fuzzyTrigger) {
                 byFuzzy(normalized, query, filtro).forEach { accumulated.putIfBetter(it) }
             }
 
@@ -132,7 +143,7 @@ class SqlitePackSource(
             if (upper != null) statement.bindText(i++, upper)
             if (lang != null) statement.bindText(i++, lang)
             statement.bindText(i++, normalized)
-            statement.bindInt(i, limit * PREFIX_OVERFETCH)
+            statement.bindInt(i, limit * tuning.prefixOverfetch)
             statement.collectSuggestions(MatchKind.PREFIX, rankIndex = 3)
         }
 
@@ -222,7 +233,7 @@ class SqlitePackSource(
             statement.bindText(i++, prefix)
             statement.bindText(i++, upper)
             if (lang != null) statement.bindText(i++, lang)
-            statement.bindInt(i, FUZZY_CANDIDATES)
+            statement.bindInt(i, tuning.fuzzyCandidates)
             val context = currentCoroutineContext()
             while (statement.step()) {
                 context.ensureActive()
@@ -526,7 +537,18 @@ class SqlitePackSource(
     }
 
     companion object {
-        /** If the trustworthy cascade returned fewer than this, the tolerant rung is tried. */
+        /**
+         * If the trustworthy cascade returned fewer than this, the tolerant rung is tried.
+         *
+         * ⚠️ **These three are now the DEFAULT and not the value.** What runs comes from
+         * [SearchTuning], fed by `assets/tuning.json`; these are what a caller that passes
+         * nothing gets, and what the tests and `measure_query_cost.py`'s replica measure.
+         *
+         * ⚠️ **They ARE a second copy of the same numbers**, because [SearchTuning] lives in
+         * `:dict-core` and cannot read `:dict-data` -- the dependency runs the other way. Two
+         * copies of a number is how they drift in silence, so a test compares them field by
+         * field: see `SearchTuningDefaultsTest`.
+         */
         const val FUZZY_TRIGGER: Int = 5
 
         /**

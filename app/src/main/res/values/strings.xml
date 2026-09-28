@@ -125,7 +125,8 @@
     <string name="settings_ui_language_note">Automatic follows the watch\'s language setting.</string>
     <string name="settings_about">About</string>
     <string name="settings_version">App %1$s</string>
-    <string name="settings_build">Build %1$s · %2$s</string>
+    <string name="settings_build">Build %1$s</string>
+    <string name="settings_built_on">Built %1$s</string>
     <!-- Plural y no string: con una sola entrada, "1 entries" esta mal en los dos
          idiomas. Es el unico contador que la interfaz muestra. -->
 
@@ -201,4 +202,5 @@
     <string name="packs_dl_done">Installed</string>
     <string name="packs_dl_failed">Failed \u2014 it will retry</string>
     <string name="packs_dl_tap">%1$s \u00b7 tap to download</string>
+    <string name="word_orphaned">its dictionary is not installed</string>
 </resources>

@@ -74,6 +74,26 @@ fun WordListScreen(
      */
     tags: Map<String, String> = emptyMap(),
     /**
+     * The `packId`s that are **open right now**. It is what decides whether a row is an orphan.
+     *
+     * ⚠️ **A separate parameter from [tags] on purpose, and its absence was a bug.** The orphan
+     * check used to read `visit.packId !in tags`, and the two answer different questions that
+     * happen to share a key: [tags] is *what language is this row in*, built with
+     * `langs.singleOrNull()`, which **deliberately leaves a bidirectional pack out** because such
+     * a pack has no single answer. Reused as *is its dictionary still installed*, that exclusion
+     * turned into: every word saved from `es-tr-enwikt-freq` -- installed, open and working --
+     * was painted in the error colour. Two questions merged because their shape matched, not
+     * because they meant the same thing.
+     *
+     * ⚠️ **It is fed from the OPEN packs and not from the offered ones.** `offerable()` drops a
+     * bundled core whose languages another pack already covers, so a word from a shadowed pack is
+     * on disk, answering queries, and absent from that list -- an orphan by a rule nobody meant.
+     *
+     * Empty by default, which draws **no orphans at all**: a screen that does not wire it is not
+     * claiming that every word is missing.
+     */
+    installed: Set<String> = emptySet(),
+    /**
      * Removing a word from the list, or `null` if this list is not curated by hand (D-155).
      *
      * ⚠️ **The saved ones yes, the history no.** A saved word you put there yourself with one tap
@@ -88,7 +108,6 @@ fun WordListScreen(
     // which is what keeps the state always obvious.
     var armada by remember { mutableStateOf<Visit?>(null) }
     val listState = rememberTransformingLazyColumnState()
-    ScrollToTopOnReturn(listState, firstIndex = 0)
     val focusRequester = remember { FocusRequester() }
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
@@ -138,7 +157,13 @@ fun WordListScreen(
                     // dropping it silently would lose that. It is drawn in the error colour and
                     // keeps every datum it has -- the headword and the part of speech are still
                     // true, only the entry behind it is unreachable.
-                    orphaned = visit.packId !in tags,
+                    //
+                    // It asks [installed] and never [tags]: see that parameter for what reusing
+                    // the language map here actually painted red.
+                    orphaned = installed.isNotEmpty() && visit.packId !in installed,
+                    // A stored row carries its own language since D-265; the pack's map is the
+                    // fallback, and null when neither can say.
+                    lang = visit.lang ?: tags[visit.packId]?.lowercase(),
                     onArm = onDelete?.let { { armada = visit } },
                     onConfirm = {
                         onDelete?.invoke(visit)
@@ -173,6 +198,7 @@ private fun WordRow(
     detail: String?,
     armada: Boolean,
     orphaned: Boolean,
+    lang: String?,
     onArm: (() -> Unit)?,
     onConfirm: () -> Unit,
     onOpen: () -> Unit,
@@ -216,6 +242,7 @@ private fun WordRow(
         detail = detail,
         onLongClick = onArm,
         orphaned = orphaned,
+        lang = lang,
         onClick = onOpen,
     )
 }
