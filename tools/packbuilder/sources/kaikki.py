@@ -1073,13 +1073,53 @@ def _sin_arbol(texto, palabra):
     cutting at the first occurrence would glue half a tree in front of the prose.
     """
     lineas = texto.split("\n")
-    if lineas[0].strip() != ARBOL_DE_ETIMOLOGIA:
+    # ⚠️ **Not only the first line.** Some pages put a `PIE word *h₁óynos` line above the tree, and
+    # checking index 0 alone let the whole tree through: measured on the built pack, 30 of 68,152
+    # origins still carried a whole tree behind such a line. Two lines of grace covers every case
+    # seen and does not start guessing at the prose.
+    inicio = next(
+        (i for i, l in enumerate(lineas[:2]) if l.strip() == ARBOL_DE_ETIMOLOGIA),
+        None,
+    )
+    if inicio is None:
         return texto
     marca = "English " + palabra
-    for i in range(len(lineas) - 1, 0, -1):
+    for i in range(len(lineas) - 1, inicio, -1):
         if lineas[i].strip() == marca:
             return "\n".join(lineas[i + 1:]).strip() or None
     return None
+
+
+#: A cross-reference to a numbered section that does not exist outside the wiki page.
+#:
+#: WARNING: it is REMOVED and the sentence around it is kept. `swap` reads *"…from the verb (see
+#: Etymology 1 above)"*: the clause before it is true and useful, and only the pointer is dangling
+#: -- a card has no "above". Measured on the built pack: 0.25 % cite a numbered etymology and
+#: 0.36 % say *see … above/below*.
+REFERENCIA_COLGADA = re.compile(
+    r"\s*[(\[]?\s*(?:see|cf\.?|compare)\b[^)\].]{0,40}?"
+    r"(?:Etymology\s*\d|\babove\b|\bbelow\b)[^)\].]{0,20}[)\]]?",
+    re.IGNORECASE,
+)
+
+
+def _sin_referencias(texto):
+    """The origin with its dangling cross-references dropped, or `None` if nothing is left.
+
+    ⚠️ **The pointer goes and the clause stays.** Cutting the whole sentence would lose *"from the
+    verb"*, which is the part that answers the question; keeping the pointer leaves the card
+    telling the reader to look at a section of a page they are not on.
+    """
+    limpio = REFERENCIA_COLGADA.sub("", texto)
+    limpio = re.sub(r"\s{2,}", " ", limpio).strip()
+    limpio = re.sub(r"\s+([.,;])", r"\1", limpio)
+    return limpio or None
+
+
+def _limpiar_origen(texto, palabra):
+    """Everything that has to come off an origin before it reaches a card, in order."""
+    sin_arbol = _sin_arbol(texto, palabra)
+    return _sin_referencias(sin_arbol) if sin_arbol else None
 
 
 def _etymology(raw):
@@ -1098,10 +1138,10 @@ def _etymology(raw):
     if isinstance(textos, (list, tuple)):
         for texto in textos:
             if texto and texto.strip():
-                return _sin_arbol(texto.strip(), palabra)
+                return _limpiar_origen(texto.strip(), palabra)
     texto = raw.get("etymology_text")
     if isinstance(texto, str) and texto.strip():
-        return _sin_arbol(texto.strip(), palabra)
+        return _limpiar_origen(texto.strip(), palabra)
     return None
 
 

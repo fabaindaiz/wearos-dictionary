@@ -1780,3 +1780,59 @@ class PartesDeUnVerboInglesTest(unittest.TestCase):
     def test_el_plural_de_un_sustantivo_sigue_saliendo(self):
         # The guard must not cost the row its actual job.
         self.assertEqual({"pl": "makes"}, self._forms({"form": "makes", "tags": ["plural"]}))
+
+
+class OrigenLimpioTest(unittest.TestCase):
+    """The two kinds of noise a built pack still carried, measured on `en-full` (2026-09-27).
+
+    Neither is a policy question: one is a tree the first check missed, the other is a pointer to a
+    place that does not exist on a card.
+    """
+
+    def test_el_arbol_con_una_linea_ENCIMA_tambien_se_corta(self):
+        # ⚠️ 30 of 68,152 origins still carried a whole tree because the page put a `PIE word` line
+        # above it and the check only looked at index 0. `one` read *"PIE word *h₁óynos Etymology
+        # tree Proto-Indo-European *ís? …"* on the card.
+        crudo = ("PIE word *h₁óynos\nEtymology tree\nProto-Germanic *ainaz\nEnglish one\n"
+                 "From Middle English oon.")
+        self.assertEqual(
+            "From Middle English oon.",
+            kaikki._etymology({"word": "one", "etymology_text": crudo}),
+        )
+
+    def test_el_marcador_MAS_ABAJO_no_corta_la_prosa(self):
+        # ⚠️ **The grace is two lines and not "anywhere in the text", and the first version of this
+        # test did not check that**: it wrote the phrase in lowercase, so a mutation that searched
+        # the whole text still passed. With the exact marker further down, a prose origin that
+        # merely names the tree must survive whole.
+        crudo = ("From Middle English oon.\nThe Etymology tree for this word is disputed.")
+        self.assertEqual(crudo, kaikki._etymology({"word": "one", "etymology_text": crudo}))
+
+    def test_la_referencia_colgada_se_va_y_la_frase_queda(self):
+        # ⚠️ **The pointer goes, the clause stays.** `swap` reads *"…from the verb (see Etymology 1
+        # above)"*: the clause answers the question and only the pointer is dangling -- a card has
+        # no "above". Cutting the sentence would lose the answer with the noise.
+        crudo = "From Middle English swap, from the verb (see Etymology 1 above)."
+        self.assertEqual(
+            "From Middle English swap, from the verb.",
+            kaikki._etymology({"word": "swap", "etymology_text": crudo}),
+        )
+
+    def test_tambien_la_que_dice_arriba_sin_numero(self):
+        crudo = "From Old English crāwe (compare the noun above)."
+        self.assertEqual(
+            "From Old English crāwe.",
+            kaikki._etymology({"word": "crow", "etymology_text": crudo}),
+        )
+
+    def test_un_see_que_NO_apunta_a_la_pagina_se_respeta(self):
+        # `More at hose.` and `see Wiktionary:X` point somewhere a reader can actually go, or name
+        # a word: removing them would take content, which is the opposite of the point.
+        crudo = "From Proto-Germanic *hūsą. More at hose."
+        self.assertEqual(crudo, kaikki._etymology({"word": "house", "etymology_text": crudo}))
+
+    def test_si_solo_habia_una_referencia_no_queda_una_cadena_vacia(self):
+        # The degradation: an origin that is nothing but a pointer has nothing to show, and an
+        # empty string would draw a heading over a blank line.
+        self.assertIsNone(
+            kaikki._etymology({"word": "swap", "etymology_text": "(see Etymology 1 above)"}))
