@@ -547,6 +547,9 @@ val bundlePacks = tasks.register("bundlePacks") {
     // ⚠️ Copia local del nombre, por el mismo motivo: leer una `val` de nivel de script desde el
     // `doLast` captura el objeto del script y el configuration cache lo rechaza.
     val nombreDelIndice = CORE_INDEX
+    // Resuelto en CONFIGURACION, como todo lo demas que el `doLast` necesita: leer una `val` del
+    // script desde la accion captura el objeto del script y el configuration cache lo rechaza.
+    val salidaDeApks = layout.buildDirectory.dir("outputs/apk").get().asFile
     doLast {
         // ⚠️ **Avisa fuerte cuando no hay nucleos, y eso NO es cosmetica.** Que la lista venga
         // vacia es un caso soportado --un clone limpio no tiene los packs, que pesan 372 MB y
@@ -564,8 +567,34 @@ val bundlePacks = tasks.register("bundlePacks") {
         destino.mkdirs()
         // Se limpia lo anterior: dejar un pack viejo al lado de uno nuevo significa que la app
         // abre los dos, y el viejo contesta con datos de otra construccion.
+        val antes = destino.listFiles()?.filter { it.name.endsWith(".db") }?.map { it.name }
+            ?.toSortedSet() ?: sortedSetOf()
         destino.listFiles()?.filter { it.name.endsWith(".db") }?.forEach { it.delete() }
         aCopiar.forEach { it.copyTo(File(destino, it.name), overwrite = true) }
+
+        // ⚠️ **AGP empaqueta de forma INCREMENTAL y no saca lo que ya no esta en assets.** Un
+        // asset borrado sigue viviendo en el `.apk` anterior como bytes huerfanos: medido el
+        // 2026-09-23, un APK sin ningun `.db` adentro pesaba **111 MB** contra los **53,96** que
+        // da borrandolo antes. El zip es valido --los lectores usan el directorio central-- asi
+        // que nada avisa, y lo que cuesta son minutos de `adb` inalambrico justo cuando se quiere
+        // probar el estado que menos datos necesita.
+        //
+        // Borrar el APK cuando el CONJUNTO de nucleos cambio deja que el siguiente empaquetado
+        // salga limpio. Solo cuando cambio: hacerlo siempre tiraria el empaquetado incremental de
+        // cada build, que es justamente lo que lo hace rapido.
+        val ahora = aCopiar.map { it.name }.toSortedSet()
+        if (antes != ahora) {
+            val borrados = listOf("debug", "release", "benchmark")
+                .flatMap { File(salidaDeApks, it).listFiles()?.toList().orEmpty() }
+                .filter { it.name.endsWith(".apk") }
+                .count { it.delete() }
+            if (borrados > 0) {
+                logger.lifecycle(
+                    "bundlePacks: el conjunto de nucleos cambio ($antes -> $ahora), " +
+                        "$borrados APK(s) borrado(s) para que no queden bytes huerfanos",
+                )
+            }
+        }
 
         // El indice de versiones. Ver [versionesDeclaradas]: sin el, la app no puede saber si el
         // nucleo del APK es mas nuevo que el que el usuario bajo, y lo deja como esta.

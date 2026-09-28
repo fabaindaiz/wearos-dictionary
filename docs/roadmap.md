@@ -3611,9 +3611,23 @@ inside a definition. `searchDefinitions` says so in its own comment and that has
 result should point at it — *"nothing in Spanish; turn on the other language?"* — belongs with
 §The two escape hatches on an empty result, which is the row that owns that screen.
 
-### The APK keeps dead bytes when assets are removed — MEASURED 2026-09-23
+### The APK keeps dead bytes when assets are removed — ✅ **CLOSED 2026-09-28**
 
-**Status.** **A trap, written down.** Not a defect in this repo: AGP packages incrementally.
+**Status.** ✅ **Built.** It was written down as a trap to remember; it is now one the build cannot
+fall into. `bundlePacks` records which cores were in `assets/` before it copies, and when the SET
+changed it deletes the output APKs so the next packaging starts clean.
+
+⚠️ **Only when the set changed**, and that condition is the whole design: deleting always would
+throw away the incremental packaging that makes every ordinary build fast, to defend against a
+case that happens when somebody switches pack directories.
+
+**Measured on 2026-09-28, reproducing the original trap**: with the two cores the APK is 109.2 MB;
+building with `-Pdictionary.packsDir=<empty>` gives **52.3 MB**. Verified by mutation — with the
+invalidation disabled the same build produces **108.6 MB carrying zero packs**, which is the
+defect, silent and valid as a zip.
+
+**The cause, kept because it explains the shape.** Not a defect in this repo: AGP packages
+incrementally.
 
 Building with `-Pdictionary.packsDir=<empty>` — which is how you get a pack-less APK to test the
 first-run path — leaves the previous build's packs in the file as **orphaned bytes**. Measured:
