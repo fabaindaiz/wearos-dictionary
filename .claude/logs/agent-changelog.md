@@ -66,6 +66,18 @@ itself by opening words; the saved ones, which are chosen by hand, were not touc
 connection that was dropping, and `adb` answers an unreachable device on stdout. That is the same
 trap fixed in `_colapsar_duplicados` above, hitting a hand-run command an hour later.
 
+**Heuristics whose *Verify by* ran.** `absence-is-a-third-value`: the three-valued fields of this
+session -- the probe hints, `installed`, and now the leading knob -- were grepped for their
+readers, and every reader agrees on what the absent case means (7 sites, no third reading).
+`a-check-must-be-seen-to-fail`: **21 mutations applied across the session, 19 bite**; the two that
+survived were vacuous tests, one rewritten and one deleted. `fail-closed-defaults`: `TuningStoreTest`
+green, every field of the JSON falling back on its own.
+
+⚠️ **`test-double-fidelity`'s check did NOT run**, and it is the note this session broke. Its
+*Verify by* is running the fake and the real dependency on the same cases; instead a double that
+records a value stood in for one that moves `LocalDensity`, and the test could not fail. The
+failure it predicts is the failure that happened.
+
 **What was left undone.** The tool has no tests: every fix here was verified by running it against
 the watch and the emulator, which is repeatable by hand and not by the gate. A fake `adb` would
 make `elegir_serial` testable, and that is its own change.
