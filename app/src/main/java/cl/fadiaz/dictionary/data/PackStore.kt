@@ -427,8 +427,24 @@ object PackStore {
      * second format is a second format that can diverge. The date goes in its own key instead of
      * as a fifth field, precisely so that codec is left untouched.
      */
+    /**
+     * The cached week, or **nothing when it was written by another build**.
+     *
+     * ⚠️ **The expiry is by `versionCode`, and it is not a precaution: it is a bug that happened.**
+     * The app only rewrites this cache when the date or the set of packs changes, which is right
+     * for its CONTENT and blind to its SHAPE. A build that started storing one more field per row
+     * -- the language, so the tile could say `interj. · ES` like every other row (D-152) -- found
+     * yesterday's cache still valid, kept it, and drew rows missing the new field. On the surface
+     * nobody opens on purpose, so nobody would connect the update to the missing tag.
+     *
+     * Same rule as the pack memo (D-225) and the debug overrides: equality and not `>=`, because
+     * sideloading moves the number both ways. The window it costs is one app launch -- the tile
+     * shows its empty state until the app fills it again, which is the right degradation: better
+     * with no word than with one drawn half.
+     */
     fun weekWords(context: Context): Pair<String?, List<Visit>> {
         val prefs = prefs(context)
+        if (prefs.getInt(KEY_WEEK_BY, 0) != versionCode(context)) return null to emptyList()
         return prefs.getString(KEY_WEEK_SINCE, null) to
             parseVisits(prefs.getString(KEY_WEEK_WORDS, null).orEmpty())
     }
@@ -437,6 +453,7 @@ object PackStore {
         prefs(context).edit {
             putString(KEY_WEEK_SINCE, since)
             putString(KEY_WEEK_WORDS, serializeVisits(words))
+            putInt(KEY_WEEK_BY, versionCode(context))
         }
     }
 
@@ -469,6 +486,9 @@ object PackStore {
     private const val KEY_FAVORITES = "favoritos"
     private const val KEY_WEEK_WORDS = "palabras_semana"
     private const val KEY_WEEK_SINCE = "palabras_desde"
+
+    /** The `versionCode` that wrote the week. See [weekWords] for why it expires the cache. */
+    private const val KEY_WEEK_BY = "palabras_por"
 
 
     /**

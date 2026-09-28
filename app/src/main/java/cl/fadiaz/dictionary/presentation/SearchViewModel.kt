@@ -1121,6 +1121,16 @@ class SearchViewModel(
                         headword = picked.headword,
                         partOfSpeech = picked.partOfSpeech,
                         gloss = primera,
+                        // ⚠️ **The tile cannot work this out and the app can.** A tile may not
+                        // open a pack (D-106), so a row it draws knows only what was written
+                        // here; without this the word of the day showed `interj.` where the
+                        // history showed `interj. · ES`, which is the same row saying two
+                        // different things on two surfaces (D-152).
+                        //
+                        // `singleOrNull` and not `first`: a bidirectional pack has no single
+                        // answer, and no tag beats the wrong tag -- the rule a gloss's links are
+                        // painted by. These are definition packs, so in practice it is the one.
+                        lang = pack.metadata.langs.singleOrNull(),
                     )
                 }
             }

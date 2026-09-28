@@ -724,6 +724,51 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun theCachedWeekCarriesOneWordPerLanguageAndTheLanguageWithIt() = runTest {
+        // ⚠️ **The home has shown one word of the day per language since D-151 and the tile
+        // showed only the active pack's** -- the same rule holding on one surface and not on its
+        // parallel, which is the failure this repo has hit four times. Asked for: up to two when
+        // more than one definition language is installed.
+        //
+        // ⚠️ **And the language has to travel WITH the row.** A tile may not open a pack (D-106),
+        // so what it draws it knows only from here; without it the word of the day said `interj.`
+        // where the history said `interj. · ES`, which is the same row saying two different
+        // things on two surfaces (D-152).
+        val es = FakeDictionary(packId = "es-full", lang = "es", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "es$it", "noun", 900) }
+        }
+        val en = FakeDictionary(packId = "en-core", lang = "en", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "en$it", "noun", 900) }
+        }
+        var savedWords: List<Visit> = emptyList()
+        val vm = SearchViewModel(
+            { listos(es, en) },
+            todayDate = { "2026-09-19" },
+            saveWeekWords = { _, words -> savedWords = words },
+        )
+        advanceUntilIdle()
+
+        // Day-major: seven days times two languages. The tile derives the count from the length,
+        // so the shape is part of the contract and not an implementation detail.
+        assertEquals(TileContents.CACHED_DAYS * 2, savedWords.size, "no cacheo los dos idiomas")
+        assertEquals(
+            setOf("es-full", "en-core"),
+            savedWords.map { it.packId }.toSet(),
+            "falto un idioma",
+        )
+        assertEquals(
+            listOf("es-full", "en-core"),
+            savedWords.take(2).map { it.packId },
+            "el primer dia tiene que traer los dos, no dos dias del mismo",
+        )
+        assertEquals(
+            setOf("es", "en"),
+            savedWords.mapNotNull { it.lang }.toSet(),
+            "las filas no llevan su idioma, asi que el tile no puede etiquetarlas",
+        )
+    }
+
+    @Test
     fun theCachedWeekHasADifferentWordPerDay() = runTest {
         // If the hash ignored the date, the tile's Timeline would have seven windows with the
         // same word and "word of the day" would just be a word.

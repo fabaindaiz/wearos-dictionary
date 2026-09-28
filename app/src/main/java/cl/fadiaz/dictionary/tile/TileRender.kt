@@ -20,6 +20,7 @@ import androidx.wear.protolayout.types.layoutString
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.presentation.posLabel
+import cl.fadiaz.dictionary.presentation.wordDetail
 
 /**
  * The gap between two stacked cards in a tile.
@@ -140,6 +141,42 @@ internal fun MaterialScope.emptyTile(context: Context, message: String): LayoutE
         mainSlot = { text(message.layoutString, typography = Typography.BODY_LARGE) },
     )
 
+/**
+ * The bubble a word sits in, **the same one on both tiles**.
+ *
+ * ⚠️ **The two tiles used to draw a word two different ways** -- the recent list as a one-line
+ * `textButton` reading `porta · sust.`, the word of the day as a `titleCard` with the headword
+ * large and its gloss under it. Asked for: the recent list uses the word-of-the-day bubble. That
+ * is also what D-152 already required of the app's three lists and what the tiles had never been
+ * held to.
+ *
+ * ⚠️ **The type and the language go in the `time` slot**, which is the card's small label beside
+ * the title. Naming it `time` is the library's, not ours; what it is, is the only slot that adds
+ * a second datum **without taking a line from the content** -- and the content is the gloss, which
+ * is the part worth keeping whole.
+ *
+ * [glossLines] at zero draws no content at all: a history visit carries no gloss, and a card with
+ * an empty body reads as a card that failed to load.
+ */
+private fun MaterialScope.wordBubble(
+    context: Context,
+    visit: Visit,
+    glossLines: Int,
+): LayoutElement {
+    // ⚠️ **The gloss wins over the part of speech as the BODY.** `futuro · sust.` teaches nothing;
+    // the first sense is what makes a word of the day useful at a glance. Since the type now has
+    // a slot of its own, it is no longer a fallback -- both are shown.
+    val cuerpo = visit.gloss?.takeIf { glossLines > 0 }
+    return titleCard(
+        onClick = openTheEntry(context, visit),
+        title = { text(visit.headword.layoutString, maxLines = 1) },
+        time = tileDetail(context, visit)?.let { detalle ->
+            { text(detalle.layoutString, maxLines = 1) }
+        },
+        content = cuerpo?.let { { text(it.layoutString, maxLines = glossLines) } },
+    )
+}
+
 /** The most recently opened entries, one per row, each opening its own entry. */
 internal fun MaterialScope.historyRows(
     context: Context,
@@ -158,22 +195,9 @@ internal fun MaterialScope.historyRows(
                 if (index > 0) {
                     column.addContent(Spacer.Builder().setHeight(dp(CARD_GAP_DP)).build())
                 }
-                column.addContent(
-                    textButton(
-                        onClick = openTheEntry(context, visit),
-                        width = expand(),
-                        // ⚠️ **The SAME function as the app**, not a copy: the row said just
-                        // `perro` where the home says `perro · sust.`, and not out of density but
-                        // because it shared nothing. The tiles guidance asks not to show LESS
-                        // information than fits.
-                        labelContent = {
-                            text(
-                                detalleDeFila(context, visit).layoutString,
-                                maxLines = 1,
-                            )
-                        },
-                    ),
-                )
+                // No gloss: a history visit does not store one. The headword leads and the type
+                // sits beside it, which is the same bubble the word of the day draws.
+                column.addContent(wordBubble(context, visit, glossLines = 0))
             }
             column.build()
         },
@@ -210,19 +234,7 @@ internal fun MaterialScope.wordCard(
                 if (index > 0) {
                     column.addContent(Spacer.Builder().setHeight(dp(CARD_GAP_DP)).build())
                 }
-                // ⚠️ **The gloss wins over the part of speech.** `futuro · sust.` teaches
-                // nothing; the first sense is what makes a word of the day useful at a glance.
-                // The part of speech stays as a fallback for a pack that does not carry it, and
-                // for a cache written before that field existed.
-                val cuerpo = visit.gloss
-                    ?: visit.partOfSpeech?.let { posLabel(context, it) }
-                column.addContent(
-                    titleCard(
-                        onClick = openTheEntry(context, visit),
-                        title = { text(visit.headword.layoutString, maxLines = 1) },
-                        content = cuerpo?.let { { text(it.layoutString, maxLines = lineas) } },
-                    ),
-                )
+                column.addContent(wordBubble(context, visit, glossLines = lineas))
             }
             column.build()
         },
@@ -230,18 +242,28 @@ internal fun MaterialScope.wordCard(
     )
 
 /**
- * What a tile row says: the same as what a home row says.
+ * What a tile's bubble says beside the word: `sust. · ES`. **The same string the app's rows say.**
  *
- * ⚠️ **Without the language tag, and on purpose.** In the app it comes from the ACTIVE language,
- * which a tile does not know: asking would mean opening a pack, which in a tile is forbidden
- * (D-106). And a `Visit` does not store the language, so inventing it would assert a provenance
- * nobody checked -- D-080's family. Better to say less than to say something false.
+ * ⚠️ **It used to leave the language tag out, and the reason it gave has expired.** It said a
+ * `Visit` does not store the language, so inventing one would assert a provenance nobody checked
+ * -- D-080's family, and right at the time. `Visit.lang` has existed since D-265: the row carries
+ * what was true when it was written, so the tag is now a fact and not an inference. A stale
+ * justification is worse than none, because it looks like a decision.
+ *
+ * It still refuses to guess: a row written before that field, or one whose language nothing can
+ * establish, shows the type alone. No tag beats the wrong tag, which is the rule a gloss's links
+ * are painted by.
+ *
+ * `wordDetail` and not a copy: it is the function the home, the history and the saved words all
+ * use (D-152), and the last time this file had its own the tile said `perro` where the home said
+ * `perro · sust.`.
  */
-private fun detalleDeFila(context: Context, visit: Visit): String =
-    listOfNotNull(
-        visit.headword,
+private fun tileDetail(context: Context, visit: Visit): String? =
+    wordDetail(
+        context,
         visit.partOfSpeech?.let { posLabel(context, it) },
-    ).joinToString(context.getString(R.string.entry_list_separator))
+        visit.lang?.uppercase(),
+    )
 
 /** The bottom edge: search for another word, the only action a tile of this offers. */
 private fun MaterialScope.searchButton(context: Context) =
