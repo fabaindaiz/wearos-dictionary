@@ -16,6 +16,80 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-28 · s-a2f271-577148 — The two escape hatches are probed before they are offered
+**What.** An empty result no longer offers two blind taps. A submitted query that returns nothing
+probes both hatches and each pill says what it holds --*«3 en las definiciones»*, *«1 en
+Español»*-- or does not draw at all; the dead end was that either pill could be tapped to reach a
+second empty screen. A gloss **that has links** now lays its lines out at 2,8 times the font size,
+which doubles the band a tap resolves inside; one without links keeps the leading it had. And the
+orphaned saved word was finally **seen** in its colour.
+
+**Areas.** `SearchViewModel.kt`, `SearchScreen.kt`, `EntryScreen.kt`, `GlossTap.kt`, `Labels.kt`
+and `values*/strings.xml`; the tests in `SearchViewModelTest.kt`, `ScreensTest.kt`,
+`GlossTapTest.kt` and `FakeDictionary.kt`; and the documents `docs/decisions.md`,
+`docs/roadmap.md` and `docs/preguntas-del-reloj.md`.
+
+**Why.** The owner picked A5, B1, B2, B3 and B4 off the list of open points. B1 and B4 shipped
+earlier (54a4b9c, 5d52f0e); this is the rest, in two commits -- 8648e70 for the leading, 2f7a9ea
+for the probes. B3 was the roadmap's option B, held back on one
+number; B2 was option A of the mis-tap evaluation; A5 was *see the orphan colour*, and the condition on
+it was that no pack be modified -- *«siempre que no considere modificar el pack»*.
+
+**Architecture.** ✅ Complies. D-243's bounds are untouched, D-261's naming levels survive inside
+the counted label, and D-189 is not re-litigated: nothing falls back on its own, the pill still
+has to be tapped.
+
+**Measured.**
+- The probes against **the cascade that just failed**, which is the comparison that decides --on
+  an empty result the user already paid it: **0,72x** on `es-full`, **1,88x** on the bidirectional
+  `es-en`, **0,83x** on the `es-core` the APK carries (2026-09-28, desktop, real packs).
+- Across two installed files, the full cascade over a **cold** `en-full` costs **0,5--1,1 ms**
+  against the 0,5--4,0 ms of the Spanish one that returned nothing.
+- `instrumento musical` is inside **112** Spanish definitions and the probe stops at nine, which
+  is why the pill reads `9+`.
+- The opened-up gloss on the emulator: a `bodyMedium` line goes **~40 px to 79 px**, **1,98x**.
+  Its neighbour in the same card, a `TermList` with no links, stays at 40 px -- the A/B in one
+  screenshot.
+- **11 mutations**, all of which bite.
+
+**Deviation from the plan.** The cross-language probe was built cheap first --prefix and
+inflection, no fuzzy rung-- on the argument that a fuzzy hit is not *«the answer is in EN»*.
+Measuring killed it: `libary` with Spanish active reaches `library` only through that rung, over
+23 candidate rows, so the cheap probe would have reported zero, **hidden the pill and deleted the
+only way out**. Under-reporting is the safe side only while reporting less does not turn something
+off. The probe now runs the same cascade the tap runs.
+
+**Not verified.** Whether the wider band is enough on a wrist --**P-11**, narrowed rather than
+answered. The publish-guard in `sondearVacio` is claimed and not tested: every path into a new
+query cancels the probe first, so the race it guards cannot be scheduled from a virtual clock, and
+it is kept because cancellation is cooperative. The dp of the opened-up leading are not in the
+gate: Robolectric lays text out with stub metrics.
+
+**What went wrong.**
+- **Two tests passed vacuously and the mutation probes caught both.** One asserted a stale probe
+  does not land on the next query; removing the guard changed nothing, because three separate
+  mechanisms already cancelled it. Rewritten to assert what is actually observable --the probe is
+  **cancelled**, which the fake records-- which then bit.
+- **The first line-height implementation multiplied the style's declared `lineHeight` and changed
+  nothing at all**: 36 px before, 36 px after. A style's declared line height can sit under what
+  the font lays out. Switched to a multiple of the font size.
+- **Raising the line height would have widened the horizontal snap too**, from ~10 to ~21 dp --
+  precisely the case `linkAt` documents as the one it cannot get right, so the fix for one mis-tap
+  would have made another likelier. The measured height is divided back before `linkAt` sees it,
+  and that arithmetic moved into `GlossTap` so the gate covers it.
+- Staging the orphan by deleting a pack had failed before and failed again. What works needs no
+  pack touched: write the saved word into `shared_prefs` with the `packId` of a pack **on disk
+  that does not load**, piped as base64 through `run-as` --`run-as` cannot read `/sdcard` and the
+  image has no root.
+
+**What was left undone.** A1 (the first-sentence etymology cut, measured at en 18,1 to 12,0 MB),
+A2, A3, A4 and B5--B8 are untouched. `LINE_HEIGHT_OVER_NATURAL` is an approximation --2, measured
+1,98-- and getting it wrong moves the horizontal snap a few dp; it is written down rather than
+inferred. And the build is **not on the watch**: three interface changes now sit between
+`versionCode 12` and what the emulator was tested with.
+
+---
+
 ## 2026-09-26 · s-a2f271-d67782 — Seven small reports, and the two that were not what they looked like
 **What.** Seven usability reports, each fixed and committed on its own, plus a defect in the
 English packs that reading the output turned up. Choosing a text size closes
