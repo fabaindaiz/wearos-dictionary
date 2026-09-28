@@ -50,11 +50,21 @@ that happened, not a review of the code.
   Wi-Fi drops, measured at 1.1 s, so the watch being gone is the normal case and not a problem. It
   now says that, says what to check on reconnecting, and exits 0.
 
-**Not verified.** After the `deploy` run the app reported `historial=0` where it had read
-`historial=25` earlier. The follow-up read of `shared_prefs` came back empty **from a connection
-that was dropping at that moment**, which is the same trap as above -- an unreachable device
-answering on stdout -- so it proves nothing either way. Whether anything actually cleared the
-history is open, and the only honest next step is to read it from a watch that is reachable.
+**What went wrong (mine, not the tool's).** After the `deploy` run the app reported `historial=0`
+where it had read `historial=25`. Read from a watch that was actually reachable: `historial` and
+`historial_tile` are **both empty** and everything else -- 4 saved words, the settings, the active
+pack, the 14-row week -- is intact. That pair is written by exactly one function, `clearHistory()`,
+and the only way to reach it is the two-tap *Borrar el historial* control in Settings.
+
+**I cleared it, with blind `input tap`s on the watch while hunting for the About block.** Which tap
+did it cannot be established, but nothing else writes that pair, and no other key was touched. It
+is precisely the harm the rule given the same day prevents -- a watch probe is install, launch,
+read the log -- and the best argument for it that this session produced. The history rebuilds
+itself by opening words; the saved ones, which are chosen by hand, were not touched.
+
+⚠️ **The first read of `shared_prefs` said every key was ABSENT and was worthless**: it came from a
+connection that was dropping, and `adb` answers an unreachable device on stdout. That is the same
+trap fixed in `_colapsar_duplicados` above, hitting a hand-run command an hour later.
 
 **What was left undone.** The tool has no tests: every fix here was verified by running it against
 the watch and the emulator, which is repeatable by hand and not by the gate. A fake `adb` would
