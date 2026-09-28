@@ -135,6 +135,11 @@ class FakeDictionary(
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?): List<Suggestion> {
         definitionMode += query
         if (demora > 0) delay(demora)
+        // `vocabulary` is what this fake KNOWS, and the definitions know it too. Without this a
+        // fake with an empty vocabulary still answered the free-text path, so the probe of the
+        // empty result could not be given a pack that holds nothing -- which is the only state
+        // where it decides to hide a pill.
+        if (vocabulary != null && query !in vocabulary) return emptyList()
         return listOf(
             Suggestion(
                 packId = packId,

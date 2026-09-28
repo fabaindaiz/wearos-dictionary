@@ -128,6 +128,10 @@ data class SearchState(
     val wordsOfTheDay: Map<String, EntrySummary> = emptyMap(),
     val settings: Settings = Settings(),
     val favorites: List<Visit> = emptyList(),
+    /**
+     * What the escape hatches found, when the result came out empty. See [EmptyHints].
+     */
+    val hints: EmptyHints = EmptyHints(),
 ) {
     /**
      * Which path produced the results currently on screen.
@@ -138,6 +142,43 @@ data class SearchState(
      * headword one.
      */
     enum class Mode { NORMAL, BUSCANDO_DEFINICIONES, DEFINICIONES }
+
+    /**
+     * How many answers each escape hatch would give, probed **before** it is offered.
+     *
+     * Until this existed both pills could be tapped to reach a second empty screen: they said
+     * *what would be searched* and nothing about whether it holds anything. A probed count turns
+     * two blind taps into one informed one -- *"3 in the definitions"*, *"1 in English"*, or no
+     * pill at all when the answer is not there either.
+     *
+     * ⚠️ **`null` is NOT zero and the difference is the whole safety of this.** `null` means the
+     * probe has not answered --it is still running, or nobody wired it, or the pack threw-- and
+     * the pill then draws **exactly as it did before**, with its plain label. Only a probe that
+     * came back with `0` hides it. A probe that does not run cannot remove an escape hatch, which
+     * is the failure this would otherwise introduce: a hatch that silently stops drawing is
+     * indistinguishable from an app that is broken (D-094's family, from the other side).
+     *
+     * ⚠️ **The probe runs the SAME cascade the tap runs**, fuzzy rung included, and that is
+     * measured rather than assumed. A cheaper probe --prefix and inflection only-- was written
+     * first and rejected: with `libary` typed and Spanish active, the English pack's fuzzy rung
+     * reaches `library` with **23 candidate rows**, so the cheap probe would have reported `0`,
+     * hidden the pill, and deleted the only way out. Under-reporting is only the safe side when
+     * reporting less does not turn something off.
+     *
+     * Cost, measured 2026-09-28 over the real packs, against the cascade that **just failed** --
+     * which is the right comparison base, because on an empty result the user already paid it:
+     * both probes together are **0.72x** of it on `es-full`, **1.88x** on the bidirectional
+     * `es-en`, **0.83x** on the `es-core` the APK carries. Across two installed files, the full
+     * cascade over a cold `en-full` costs **0.5--1.1 ms** against the 0.5--4.0 ms of the Spanish
+     * one that returned nothing. Desktop milliseconds are not a watch's (D-043); what transfers
+     * is the ratio.
+     */
+    data class EmptyHints(
+        /** Rows the free-text search over `fts_def` would return, capped at [SONDA_TOPE]. */
+        val definitions: Int? = null,
+        /** Rows the normal cascade would return in the other language, capped at [SONDA_TOPE]. */
+        val otherLanguage: Int? = null,
+    )
 
     sealed interface Status {
         data object Loading : Status
@@ -283,6 +324,12 @@ class SearchViewModel(
     private var definitionMode: Job? = null
 
     /**
+     * The probe of the empty result in flight, kept for the same reason as [definitionMode]:
+     * it crosses into another pack and can still be alive when something else was typed.
+     */
+    private var sonda: Job? = null
+
+    /**
      * The full history, unfiltered.
      *
      * It is filtered when DISPLAYED and not pruned when saved: uninstalling a pack and installing it
@@ -347,7 +394,19 @@ class SearchViewModel(
                     if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
                         // `submitted` and not `query`: publishing `query` would overwrite what the
                         // user is typing at that instant.
-                        _state.update { it.copy(submitted = text, results = results) }
+                        //
+                        // The hints are cleared **in the same update** that publishes the
+                        // results. Published apart they would survive one frame belonging to the
+                        // previous query, and a pill reading *"3 in the definitions"* under
+                        // another word is a label asserting something nobody checked.
+                        _state.update {
+                            it.copy(
+                                submitted = text,
+                                results = results,
+                                hints = SearchState.EmptyHints(),
+                            )
+                        }
+                        if (text.isNotBlank() && results.isEmpty()) sondearVacio(text)
                     }
                 }
                 .collect {}
@@ -619,10 +678,7 @@ class SearchViewModel(
      * the pack comes out of the same rules that choose a representative in the selector.
      */
     fun onLanguageChange(lang: String) {
-        // Among the ones that get queried, not among the open ones: tapping a language's chip
-        // cannot activate an old build the selection already discarded.
-        val candidatos = packsToQuery(opened).filter { lang in it.metadata.langs }
-        val pack = candidatos.maxByOrNull { it.metadata.entryCount } ?: return
+        val pack = representanteDe(lang) ?: return
         // The combine is going to repeat the prefix query on the new pack and would overwrite the
         // definition results anyway: better to leave the mode explicitly than leave the race open.
         leaveDefinitionMode()
@@ -636,6 +692,20 @@ class SearchViewModel(
         cacheWeekForTile(pack)
         saveActiveLanguage(lang)
     }
+
+    /**
+     * The pack that answers for [lang]: the largest among the ones that actually get queried.
+     *
+     * **Among the ones queried and not among the ones open**, which is the part worth keeping in
+     * one place: tapping a language cannot activate an old build that `packsToQuery` already
+     * discarded. It is shared by the chip and by the probe of the empty result, and they have to
+     * choose the SAME pack -- a probe counting one file while the tap opens another would be
+     * exactly the label-asserting-a-provenance-nobody-checked bug that D-255 fixed here.
+     */
+    private fun representanteDe(lang: String): DictionarySource? =
+        packsToQuery(opened)
+            .filter { lang in it.metadata.langs }
+            .maxByOrNull { it.metadata.entryCount }
 
     fun onQueryChange(text: String) {
         // Editing the query is how you get back from the definitions to the normal search. There is
@@ -727,10 +797,60 @@ class SearchViewModel(
 
     fun onLeftApp() {
         definitionMode?.cancel()
+        sonda?.cancel()
         _state.update {
-            it.copy(query = "", submitted = "", results = emptyList(), mode = SearchState.Mode.NORMAL)
+            it.copy(
+                query = "",
+                submitted = "",
+                results = emptyList(),
+                mode = SearchState.Mode.NORMAL,
+                hints = SearchState.EmptyHints(),
+            )
         }
         queries.value = ""
+    }
+
+    /**
+     * Asks both escape hatches whether they hold anything, and publishes the counts.
+     *
+     * Fired only when a submitted query came back **empty** in the normal mode, which is the one
+     * state where the pills draw at all -- so it costs exactly zero on every search that worked.
+     * See [SearchState.EmptyHints] for the measured price and for why `null` is not zero.
+     *
+     * ⚠️ **The two probes are sequential and the definitions one goes first**, because it is the
+     * pill that draws first and the cheaper of the two on a monolingual pack. Fanning them out
+     * would need a second coroutine to save a few tenths of a millisecond on a state nobody is
+     * looking at yet.
+     */
+    private fun sondearVacio(text: String) {
+        sonda?.cancel()
+        val repo = searcher.value ?: return
+        val otroIdioma = idiomasDisponibles(_state.value.available)
+            .firstOrNull { it != _state.value.activeLang }
+        sonda = viewModelScope.launch {
+            val enDefiniciones = repo.searchDefinitions(text, limit = SONDA_TOPE).size
+            // The other language is probed through a repository built for IT, not by passing a
+            // `lang` to the active one: `repositoryFor` is what decides which packs answer, and
+            // with two files installed the answer lives in the other file entirely.
+            val enElOtro = otroIdioma
+                ?.let { lang -> representanteDe(lang)?.let { it to lang } }
+                ?.let { (pack, lang) ->
+                    repositoryFor(pack, lang).suggest(text, limit = SONDA_TOPE).size
+                }
+            // Same guard as the definition search: if something else was typed meanwhile, these
+            // counts belong to a query that is no longer on screen.
+            if (text != queries.value) return@launch
+            _state.update {
+                it.copy(hints = SearchState.EmptyHints(enDefiniciones, enElOtro))
+            }
+            // The readout, because this is a silent failure by construction: a probe that
+            // answers 0 removes a pill, and a pill that is not there leaves no trace on screen
+            // of whether it was hidden on purpose or never drew (D-212).
+            DictLog.d {
+                "sonda de vacio \"$text\": definiciones=$enDefiniciones " +
+                    "otro=${otroIdioma ?: "sin otro idioma"}:$enElOtro"
+            }
+        }
     }
 
     fun onSearchDefinitions() {
@@ -895,6 +1015,8 @@ class SearchViewModel(
     private fun leaveDefinitionMode() {
         definitionMode?.cancel()
         definitionMode = null
+        sonda?.cancel()
+        sonda = null
         if (_state.value.mode != SearchState.Mode.NORMAL) {
             _state.update { it.copy(mode = SearchState.Mode.NORMAL, results = emptyList()) }
         }
@@ -1224,6 +1346,17 @@ class SearchViewModel(
     companion object {
         /** How long a finger takes to chain two letters on a watch screen. */
         const val DEBOUNCE_MS: Long = 120
+
+        /**
+         * How far the probe of the empty result counts before it stops.
+         *
+         * Nine because the pill shows the number and **the number stops meaning anything above
+         * one screenful**: with 192 dp there are four rows, so *"9+ in the definitions"* and
+         * *"112 in the definitions"* lead to the same list and the same decision. The cap is what
+         * keeps the probe bounded -- `instrumento musical` really does appear in 112 Spanish
+         * definitions, and counting all of them to draw one pill is work nobody reads.
+         */
+        const val SONDA_TOPE: Int = 9
 
         /**
          * How many recent entries are REMEMBERED. How many are SHOWN is the screen's decision.

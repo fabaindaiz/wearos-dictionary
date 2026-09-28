@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **454 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1205 tests en total**. Los **51
+pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **462 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1213 tests en total**. Los **51
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3963,11 +3963,39 @@ over `Status.Failed`, **not** over this branch -- so despite its name nothing ex
 | **B** | Draw the whole Options section in this state too | 3–4 rows | Consistent, and wrong: `Saved` and `Recent` are empty by construction with no packs, so it offers three dead rows to make one live. A test pins this |
 | **C** | Leave it, and rely on the APK always carrying a core | 0 | ⚠️ It was today's accidental answer rather than a decision, and it expires the moment a pack-less build ships |
 
-### The two escape hatches on an empty result — EVALUATED 2026-09-23, not built
+### ✅ The two escape hatches on an empty result — **OPTION B BUILT 2026-09-28**
 
-**Status.** **Planned**, options priced, nothing built. The owner described the two buttons on
-screen — one that searches the definitions, one that searches the other language — and asked for
-**options rather than a change**: *«quiero mejorar esto pero dame opciones»*.
+**Status.** ✅ **Done** (d-a2f271-9f78e2). A and B are both built; C and D stay discarded for the
+reasons in the table. The owner described the two buttons on screen — one that searches the
+definitions, one that searches the other language — and asked for **options rather than a
+change**: *«quiero mejorar esto pero dame opciones»*.
+
+**What it does now.** A submitted query that comes back empty probes both hatches and each pill
+says what it holds — *«3 en las definiciones»*, *«1 en Español»* — or does not draw at all. Seen
+on the emulator: `murcielago` with English active draws **one** pill, `1 in Español`; `zzzqx`
+draws **none**, and below the message the next thing is *About this data*.
+
+⚠️ **The measurement B was conditional on, and it changed the design.** The number this entry
+asked for was a bounded `COUNT` over `fts_def`; it is cheap — but pricing the OTHER probe is what
+mattered. The cheap version of it (prefix and inflection, no fuzzy rung) was written first and
+**rejected after measuring**: `libary` typed with Spanish active reaches `library` in the English
+pack only through the fuzzy rung, over 23 candidate rows, so the cheap probe would have reported
+zero, hidden the pill and deleted the only way out. Under-reporting is the safe side only while
+reporting less does not turn something off. The probe therefore runs **the same cascade the tap
+runs**, and that is what makes hiding a pill safe.
+
+| Probe, against the cascade that just failed | `es-full` | `es-en` | `es-core` |
+|---|---|---|---|
+| both probes together | **0,72x** | **1,88x** | **0,83x** |
+
+Across two installed files the full cascade over a **cold** `en-full` costs **0,5–1,1 ms**,
+against the 0,5–4,0 ms of the Spanish one that returned nothing. Desktop milliseconds are not a
+watch's (D-043); what transfers is the ratio.
+
+⚠️ **What is left open, said rather than implied.** `null` is not zero: a probe that has not
+answered leaves both pills as they were, so a hatch cannot vanish because a probe failed. The one
+thing no test reaches is the publish-guard in `sondearVacio` — every path into a new query cancels
+the probe first, and the race it guards cannot be scheduled from a virtual clock.
 
 **What is there today.** When a submitted query returns nothing, `SearchScreen` draws up to two
 `Pill`s: *Search the definitions* (free-text over `fts_def`, hidden when that is already the mode,
@@ -4009,13 +4037,12 @@ rows and would have prevented the question. Not changed: a user-facing string is
 | | Option | Cost in this repo's units | What it closes / what it costs |
 |---|---|---|---|
 | **A** | Fix the two defects and leave two pills | ~10 lines; 0 extra rows | Gate the block on `otroIdioma` alone and label it with the **language**, not the pack name. Does not improve the interaction at all — but everything below is wrong while the label lies. **Prerequisite for B, C and D, not an alternative to them** |
-| **B** | **One pill that says where the answer is**, after probing both | 2 `COUNT` queries before drawing; 1 row instead of 2 | *«3 in definitions»* / *«1 in EN»* / nothing at all. Turns two blind taps into one informed one, and **removes the dead end**: today both pills can be tapped to find another empty screen. ⚠️ Price unmeasured — `tools/measure_query_cost.py` prices the cascade on the desktop, and a bounded `COUNT` over `fts_def` is the number to get first. **Recommended, conditional on that measurement** |
+| **B** | **One pill that says where the answer is**, after probing both | 2 bounded queries before drawing; 1 row instead of 2 | *«3 in definitions»* / *«1 in EN»* / nothing at all. Turns two blind taps into one informed one, and **removes the dead end**: both pills could be tapped to find another empty screen. ✅ **BUILT on 2026-09-28 (d-a2f271-9f78e2)**, after the measurement it was conditional on — which also moved the design: the second probe has to run the **whole** cascade, fuzzy rung included, or it hides a pill that worked |
 | **C** | Run both automatically and show grouped results | 1 header row per group; the full cost of both queries, always | No taps at all. ⚠️ Pays the cascade on **every** empty query including typos, which is the common case, and it re-litigates D-189 through the back door — strict-by-language was chosen on purpose |
 | **D** | Revert to the automatic fallback | 0 UI | ⚠️ **Discarded.** D-189 decided this: a result silently in another language is the D-080 family again, and the owner asked for the chip to be the thing that decides |
 
-**What unblocks it.** Nothing on a watch: A is pure code and B needs one desktop measurement. What
-it does need is the **rebuild**, because B's counts are only worth showing over a pack whose
-`fts_def` is the final one.
+**What unblocks it.** Nothing: the rebuild landed on 2026-09-26, so the counts are shown over the
+`fts_def` that ships.
 
 ### Pronunciación (IPA) y etimología en el pack — **IPA: CANAL CONSTRUIDO 2026-09-24**, **etimología: CANAL CONSTRUIDO 2026-09-25**
 
@@ -4219,7 +4246,7 @@ already known about each, so none of it has to be re-derived. **Nothing here is 
 
 | # | What was seen | What is known about it |
 |---|---|---|
-| 1 | ~~**A saved word belonging to no pack** reads like a working one~~ ✅ **construido**, ⚠️ **no visto** | `ListRow(orphaned = true)` paints it in the error container and keeps every datum. ⚠️ **The colour is not covered by any test and was not seen on screen**: a mutation that stops painting it passes everything, because Robolectric sees structure and not colour, and the attempt to stage one on the emulator --save a word, delete its pack-- did not land. The test pins the half that can be pinned: the row keeps its headword and its part of speech |
+| 1 | ~~**A saved word belonging to no pack** reads like a working one~~ ✅ **construido y VISTO** (2026-09-28) | `ListRow(orphaned = true)` paints it in the error container and keeps every datum. ⚠️ **No test covers the colour** --a mutation that stops painting it passes everything, because Robolectric sees structure and not colour-- so it was **seen on the emulator instead**, which is the only thing that can answer it. Staging it by deleting a pack had failed; what works is writing the saved word straight into `shared_prefs` with a `packId` of a pack **on disk that does not load** (one rejected by `schema_version`), which needs no pack touched and no download: `base64 | adb shell run-as <app> sh -c 'base64 -d > .../dictionary.xml'`, because `run-as` cannot read `/sdcard` and the image has no root. The row draws a saturated red bubble, unmistakable against its neighbours, and long-pressing it still reaches the pale `Remove` state -- the two reds do not collide, which was the open worry |
 | 2 | ~~**`esternocleidomastoideo`'s forms still break badly**~~ ✅ **hecho** | `FormsTable` was written before `WORD_BREAK` existed and never got it. Fixed, along with `WordOfTheDayRow`, which had the same gap |
 | 3 | ~~**The *see more* bubbles of recents are still the old ones**~~ ✅ **hecho, y con la estandarización detrás** | `WordRow`'s unarmed branch was `ListRow` character for character. It delegates now, and the box itself became `WordBubble` + `WordBubbleDefaults` -- a component with defaults and a content slot, the shape `androidx.wear.compose` uses for its own. Four hand-rolled copies of the box became one |
 | 4 | ~~**The extra forms still do not show**~~ ✅ **resolved 2026-09-26: it was the pack, not the card** | Seen on the emulator: with `es-full@202609260102` --the build before the ten-- `conocer` showed two rows; with `es-full@202609262056` pushed over it, the same card shows `conociendo · conocido · conozco · conoces · conoce · conocemos · conocen · conocí …` tabulated and right-aligned. ⚠️ **The trap worth keeping**: searching `hacer` opens the NOUN first, and a noun has no verb forms, so the card correctly shows only `haceres · plural`. Checking this needs a word that is only a verb |
@@ -4649,7 +4676,13 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
 
-### Pendiente de subir al reloj — **NADA, subido el 2026-09-26**
+### Pendiente de subir al reloj — **SÍ: lo del 2026-09-28**
+
+⚠️ **El reloj corre `versionCode 12` y le faltan tres cambios de interfaz**, ninguno de los
+cuales toca un pack: las escotillas sondeadas (d-a2f271-9f78e2), el interlineado abierto en las
+glosas con enlaces (d-a2f271-d83740) y la invalidación del APK cuando cambian los packs
+empaquetados (5d52f0e). Los tres se verificaron en el emulador; lo que el emulador no contesta es
+si la banda más ancha alcanza en la muñeca, que es **P-11**.
 
 ✅ **El reloj corre `versionCode 12`** con los cinco packs del 2026-09-26, todos abiertos y 0
 rechazados, listo para buscar en **2.624 ms**. La subida se hizo con la sesión tomada por

@@ -54,7 +54,9 @@
     <string name="home_no_results_for">Sin resultados para “%1$s”</string>
     <string name="home_searching_definitions">Buscando en las definiciones…</string>
     <string name="home_search_definitions">Buscar en las definiciones</string>
+    <string name="home_search_definitions_n">%1$s en las definiciones</string>
     <string name="home_search_in">Buscar en %1$s</string>
+    <string name="home_search_in_n">%1$s en %2$s</string>
 
     <!-- Entrada -->
     <string name="entry_gone">Esa entrada ya no está en el diccionario.</string>

@@ -115,3 +115,17 @@ internal fun packRejectionLabelRes(rejection: PackRejection): Int = when (reject
     PackRejection.PAYLOAD_DICTIONARY -> R.string.pack_reason_dictionary
     PackRejection.DAMAGED -> R.string.pack_reason_damaged
 }
+
+/**
+ * How a probed count is WRITTEN on an escape hatch's pill.
+ *
+ * At the cap it reads `9+` rather than `9`, and that is the honest form: the probe stopped
+ * counting there, so `9` would be a number nobody measured. It is also the only form that stays
+ * true -- `instrumento musical` appears in 112 Spanish definitions and the probe sees nine of
+ * them.
+ *
+ * Not `@Composable` and not localized: a digit and a `+` read the same in both interface
+ * languages, and the sentence around it is the one that gets translated.
+ */
+internal fun hintCount(n: Int, cap: Int = SearchViewModel.SONDA_TOPE): String =
+    if (n >= cap) "$cap+" else "$n"

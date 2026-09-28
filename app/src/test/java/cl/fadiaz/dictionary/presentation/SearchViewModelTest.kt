@@ -1498,6 +1498,98 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun anEmptyResultProbesBothHatchesAndOnlyOneOfThemHoldsAnything() = runTest {
+        // The probe of option B, and what it closes is a **dead end**: both pills could be tapped
+        // to reach a SECOND empty screen, because they said what would be searched and nothing
+        // about whether it holds anything.
+        //
+        // Spanish knows `casa` and not `dog`; English knows `dog`. With Spanish active and `dog`
+        // typed, the definitions of the active language hold nothing and the other language holds
+        // one. The screen hides the first pill and counts on the second.
+        val es = FakeDictionary("es-def", "es", vocabulary = setOf("casa"))
+        val en = FakeDictionary("en-def", "en", vocabulary = setOf("dog"))
+        val vm = SearchViewModel({ listos(es, en) })
+        advanceUntilIdle()
+
+        vm.onQueryChange("dog")
+        advanceUntilIdle()
+        assertEquals(emptyList(), vm.state.value.results.map { it.headword }, "la lista sale vacia")
+        assertEquals(0, vm.state.value.hints.definitions, "las definiciones de es no lo tienen")
+        assertEquals(1, vm.state.value.hints.otherLanguage, "en si")
+    }
+
+    @Test
+    fun aProbeCountsInTheOtherLanguagesOwnPackAndNotInTheActiveOne() = runTest {
+        // ⚠️ **The pack the probe counts in has to be the one the TAP opens**, and the two are
+        // chosen in different places: the pill switches language and `onLanguageChange` derives
+        // the representative pack, while the probe derives its own. They now share
+        // `representanteDe` for that reason -- counting one file and opening another is the
+        // label-asserting-a-provenance-nobody-checked bug D-255 fixed on this very screen.
+        //
+        // Two English packs, and the probe must land on the BIGGER one, which is the one the chip
+        // activates: the small one does not know the word at all.
+        val es = FakeDictionary("es-def", "es", vocabulary = setOf("casa"))
+        val chico = FakeDictionary("en-chico", "en", entryCount = 10, vocabulary = emptySet())
+        val grande = FakeDictionary("en-grande", "en", entryCount = 1_000, vocabulary = setOf("dog"))
+        val vm = SearchViewModel({ listos(es, chico, grande) })
+        advanceUntilIdle()
+
+        vm.onQueryChange("dog")
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.hints.otherLanguage, "conto en el pack que el chip activa")
+        vm.onLanguageChange("en")
+        advanceUntilIdle()
+        assertEquals("en-grande", vm.state.value.active?.packId, "y es el mismo que abre el tap")
+    }
+
+    @Test
+    fun aQueryThatAnswersCostsNoProbeAtAll() = runTest {
+        // The price of the whole thing, asserted rather than argued: the probe runs **only** in
+        // the state where the pills draw. A search that worked must not pay for a free-text query
+        // over an index far larger than the lemma one (D-084) -- and that is not visible on
+        // screen, so nothing but a test can see it happen.
+        val es = FakeDictionary("es-def", "es", vocabulary = setOf("casa"))
+        val vm = conPack(es)
+        advanceUntilIdle()
+
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+        assertEquals(listOf("casa"), vm.state.value.results.map { it.headword })
+        assertEquals(emptyList(), es.definitionMode, "una busqueda que contesta no sondea nada")
+        assertEquals(null, vm.state.value.hints.definitions, "y no hay pista que publicar")
+    }
+
+    @Test
+    fun theProbeOfAQueryLeftBehindIsCancelledRatherThanFinished() = runTest {
+        // The probe crosses into ANOTHER pack, so it is the slowest thing this screen starts and
+        // it can still be alive when something else has been typed. Two things had to be true and
+        // only one of them is observable, which is worth saying rather than implying:
+        //
+        //  - **It is cancelled**, and that is what this asserts: the fake records a `suggest` that
+        //    started and did not finish. On a watch that is the point -- stopping the work beats
+        //    discarding its result, because the CPU is the battery.
+        //  - Its counts never land on a newer query. `sondearVacio` also checks that before
+        //    publishing, and **no test reaches that check**: every path into a new query goes
+        //    through `onQueryChange`, which cancels first. It is kept because cancellation is
+        //    cooperative -- the tail after the last suspension point runs anyway -- and that race
+        //    cannot be scheduled from a virtual clock. Claimed, not verified.
+        val es = FakeDictionary("es-def", "es", vocabulary = setOf("casa"))
+        val en = FakeDictionary("en-def", "en", demora = 300, vocabulary = setOf("dog"))
+        val vm = SearchViewModel({ listos(es, en) })
+        advanceUntilIdle()
+
+        vm.onQueryChange("dog")
+        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 10)
+        assertEquals(listOf("dog"), en.queries.toList(), "la sonda salio hacia el otro pack")
+        vm.onQueryChange("casa")
+        advanceUntilIdle()
+
+        assertEquals("casa", vm.state.value.submitted)
+        assertEquals(listOf("dog"), en.canceladas, "la sonda vieja se corto, no se dejo terminar")
+        assertEquals(null, vm.state.value.hints.otherLanguage, "y no publico nada sobre casa")
+    }
+
+    @Test
     fun aVisitFromABidirectionalPackRecordsTheLanguageItWasSearchedIn() = runTest {
         // D-265, and the bidirectional pack is the case that has no other answer: `atizar` and
         // `stoke` both come out of `es-tr-enwikt-freq`, which declares es+en, so deriving the tag

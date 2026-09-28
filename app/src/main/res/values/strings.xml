@@ -58,7 +58,9 @@
     <string name="home_no_results_for">No results for “%1$s”</string>
     <string name="home_searching_definitions">Searching the definitions…</string>
     <string name="home_search_definitions">Search the definitions</string>
+    <string name="home_search_definitions_n">%1$s in the definitions</string>
     <string name="home_search_in">Search in %1$s</string>
+    <string name="home_search_in_n">%1$s in %2$s</string>
 
     <!-- Entry -->
     <string name="entry_gone">That entry is no longer in the dictionary.</string>

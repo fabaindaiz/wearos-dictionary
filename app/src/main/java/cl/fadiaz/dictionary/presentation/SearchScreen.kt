@@ -400,14 +400,32 @@ fun SearchScreen(
                         }
                         // Search the word INSIDE the definitions. Not offered if we are
                         // already looking at definitions: that would be a loop.
-                        if (state.mode != SearchState.Mode.DEFINICIONES) {
+                        //
+                        // ⚠️ **And not offered when the probe came back empty**, which is what
+                        // turns it from a blind tap into an informed one: until this, both pills
+                        // could be tapped to reach a SECOND empty screen. The count is drawn in
+                        // the label for the same reason -- *"3 in the definitions"* says whether
+                        // the tap is worth the row it costs.
+                        //
+                        // ⚠️ **`null` is not zero, and the asymmetry is deliberate.** A probe
+                        // that has not answered --still running, never wired, or a pack that
+                        // threw-- leaves the pill exactly as it was before, plain label and all.
+                        // Only a probe that came back with `0` hides it. A hatch that stops
+                        // drawing because a probe failed would be indistinguishable from a broken
+                        // app, which is the very reason `onSearchDefinitions` carries no default.
+                        val enDefiniciones = state.hints.definitions
+                        if (state.mode != SearchState.Mode.DEFINICIONES && enDefiniciones != 0) {
                             item(key = "escotilla-definiciones") {
                                 val searching = state.mode == SearchState.Mode.BUSCANDO_DEFINICIONES
                                 Pill(
-                                    text = if (searching) {
-                                        stringResource(R.string.home_searching_definitions)
-                                    } else {
-                                        stringResource(R.string.home_search_definitions)
+                                    text = when {
+                                        searching ->
+                                            stringResource(R.string.home_searching_definitions)
+                                        enDefiniciones != null -> stringResource(
+                                            R.string.home_search_definitions_n,
+                                            hintCount(enDefiniciones),
+                                        )
+                                        else -> stringResource(R.string.home_search_definitions)
                                     },
                                     // No onClick while searching: it stays on screen so the
                                     // list does not jump, but it fires no second query.
@@ -434,19 +452,32 @@ fun SearchScreen(
                         // The tag and not a pack name is also what the rest of the app shows:
                         // *"it should just be EN, ES, because all I care about is knowing the
                         // language it comes from"*.
+                        //
+                        // ⚠️ **And it too is hidden by a probe that answered zero**, on the same
+                        // rule: switching language to find another empty screen is the dead end
+                        // this state exists to get out of.
                         val otroIdioma = idiomasDisponibles(state.available)
                             .firstOrNull { it != state.activeLang }
-                        if (otroIdioma != null) {
+                        val enElOtro = state.hints.otherLanguage
+                        if (otroIdioma != null && enElOtro != 0) {
                             item(key = "escotilla-idioma") {
                                 Pill(
                                     // The LANGUAGE's name and not the code: this is a
                                     // sentence the user reads once, and `EN` inside one reads
                                     // like an abbreviation nobody expanded. The code is for the
                                     // badge on a result row, which repeats. See `languageName`.
-                                    text = stringResource(
-                                        R.string.home_search_in,
-                                        languageName(otroIdioma).orEmpty(),
-                                    ),
+                                    text = if (enElOtro != null) {
+                                        stringResource(
+                                            R.string.home_search_in_n,
+                                            hintCount(enElOtro),
+                                            languageName(otroIdioma).orEmpty(),
+                                        )
+                                    } else {
+                                        stringResource(
+                                            R.string.home_search_in,
+                                            languageName(otroIdioma).orEmpty(),
+                                        )
+                                    },
                                     onClick = { onLanguageChange(otroIdioma) },
                                 )
                             }

@@ -2163,6 +2163,118 @@ class ScreensTest {
     }
 
     @Test
+    fun aProbedHatchSaysHowManyItHolds() {
+        // Option B: one informed tap instead of two blind ones. The count is what turns *"Search
+        // the definitions"* -- which answers *what will be searched* and not *what will be found*
+        // -- into something the user can decide on before spending a row and a tap.
+        val es = meta()
+        val en = meta("en-def", "en", "Diccionario inglés de bolsillo")
+        val state = readyState().copy(
+            query = "dog",
+            submitted = "dog",
+            results = emptyList(),
+            active = es,
+            activeLang = "es",
+            available = listOf(handle(es), handle(en)),
+            hints = SearchState.EmptyHints(definitions = 3, otherLanguage = 1),
+        )
+        showSearch(state)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("definiciones", substring = true))
+        compose.onNodeWithText("3 en las definiciones", substring = true).assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("English", substring = true))
+        // Still the LANGUAGE's name and not the pack's, exactly as D-261 left it: the count is
+        // added to that sentence, it does not replace it. The pack is called "de bolsillo" on
+        // purpose so this can tell the two apart.
+        compose.onNodeWithText("1 en English", substring = true).assertIsDisplayed()
+        assertEquals(
+            "the counted pill named the pack instead of the language",
+            0,
+            compose.onAllNodesWithText("bolsillo", substring = true).fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun aHatchThatLeadsNowhereIsNotDrawn() {
+        // ⚠️ **This is the dead end the probe exists to remove**, and it is the half that cannot
+        // be seen by looking at the screen afterwards: a pill that is not there leaves no trace
+        // of whether it was hidden on purpose. Both probes came back empty, so neither pill
+        // draws -- and the message that says there is nothing still does, because the user has
+        // to be told something.
+        val es = meta()
+        val en = meta("en-def", "en", "English")
+        val state = readyState().copy(
+            query = "zzzqx",
+            submitted = "zzzqx",
+            results = emptyList(),
+            active = es,
+            activeLang = "es",
+            available = listOf(handle(es), handle(en)),
+            hints = SearchState.EmptyHints(definitions = 0, otherLanguage = 0),
+        )
+        showSearch(state)
+        // The message, not the field: the query is also in the input box.
+        compose.onNodeWithText("Sin resultados para", substring = true).assertExists()
+        assertEquals(
+            "it offered a definition search that holds nothing",
+            0,
+            compose.onAllNodesWithText("definiciones", substring = true).fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "it offered a language that holds nothing",
+            0,
+            compose.onAllNodesWithText("en English", substring = true).fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun aProbeThatNeverAnsweredLeavesBothHatchesExactlyAsTheyWere() {
+        // ⚠️ **`null` is not zero, and this is the test that holds the difference.** A probe
+        // still running, never wired, or on a pack that threw leaves the pills drawing with
+        // their plain labels -- which is what the app did before any of this existed. Only a
+        // probe that came back with `0` hides one.
+        //
+        // Without this the feature introduces a failure worse than the one it fixes: an escape
+        // hatch that silently stops drawing is indistinguishable from a broken app, which is the
+        // very reason `onSearchDefinitions` carries no default parameter.
+        val es = meta()
+        val en = meta("en-def", "en", "English")
+        val state = readyState().copy(
+            query = "dog",
+            submitted = "dog",
+            results = emptyList(),
+            active = es,
+            activeLang = "es",
+            available = listOf(handle(es), handle(en)),
+        )
+        assertEquals("el default es 'no contestó'", null, state.hints.definitions)
+        showSearch(state)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("definiciones", substring = true))
+        compose.onNodeWithText("Buscar en las definiciones").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("English", substring = true))
+        compose.onNodeWithText("Buscar en English", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aCountTheProbeStoppedAtSaysSoWithAPlus() {
+        // `instrumento musical` really is inside 112 Spanish definitions and the probe sees nine.
+        // Drawing `9` would be a number nobody measured; `9+` is the only form that stays true,
+        // and above one screenful the exact figure changes no decision anyway.
+        val es = meta()
+        val state = readyState().copy(
+            query = "instrumento",
+            submitted = "instrumento",
+            results = emptyList(),
+            active = es,
+            activeLang = "es",
+            available = listOf(handle(es)),
+            hints = SearchState.EmptyHints(definitions = SearchViewModel.SONDA_TOPE),
+        )
+        showSearch(state)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("definiciones", substring = true))
+        compose.onNodeWithText("9+ en las definiciones", substring = true).assertIsDisplayed()
+    }
+
+    @Test
     fun theAttributionShowsBothPacks() {
         // D-031 with two sources: showing one license alone breaches the other one's terms.
         compose.setContent {
