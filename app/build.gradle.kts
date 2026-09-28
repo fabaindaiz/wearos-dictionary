@@ -73,26 +73,66 @@ val catalogUrl: String =
  * `providers.exec` y no un `Runtime.exec`: es una entrada declarada, asi que el configuration
  * cache se invalida cuando el commit cambia. Degrada a `"unknown"` en vez de romper, porque un
  * tarball sin `.git` tiene que seguir compilando (D-086).
+ *
+ * ⚠️ **Y esa degradacion NO estaba implementada, aunque este parrafo la prometia desde D-086.**
+ * `orElse` cubre un valor AUSENTE; un proceso que termina con codigo distinto de cero lanza
+ * `ProcessExecutionException` al pedir la salida, y ninguna cadena de `map`/`orElse` la atrapa. El
+ * build entero moria con *«failed to compute value with custom source ProcessOutputValueSource»*,
+ * que no nombra a git ni al `.git` faltante. Lo reporto un IDE, no el gate: aca `git` anda, asi
+ * que el camino degradado no se recorria nunca. Lo que lo hace real es `isIgnoreExitValue` mas
+ * mirar el `exitValue`, y el `runCatching` para cuando `git` **ni siquiera existe** en el PATH --
+ * eso ni siquiera llega a ser un codigo de salida.
+ *
+ * ⚠️ **`workingDir = rootDir` y no el directorio heredado**: Gradle corre con el cwd que le dejo
+ * quien lo lanzo, y un IDE no promete cual es. Preguntar por el commit desde otro arbol contesta
+ * el commit de otro repositorio, que es peor que no contestar.
  */
+fun gitSays(vararg args: String): String? = runCatching {
+    val salida = providers.exec {
+        workingDir = rootDir
+        commandLine("git", *args)
+        isIgnoreExitValue = true
+    }
+    if (salida.result.get().exitValue == 0) salida.standardOutput.asText.get() else null
+}.getOrNull()
+
 val buildCommit: String = run {
-    val sha = providers.exec {
-        commandLine("git", "rev-parse", "--short=10", "HEAD")
-    }.standardOutput.asText.map { it.trim() }.orElse("unknown").get()
-    val sucio = providers.exec {
-        commandLine("git", "status", "--porcelain=v1")
-    }.standardOutput.asText.map { it.isNotBlank() }.orElse(false).get()
-    if (sucio) "$sha+dirty" else sha
+    val sha = gitSays("rev-parse", "--short=10", "HEAD")?.trim()?.takeIf { it.isNotEmpty() }
+    // ⚠️ **Sin sha no hay `+dirty` que agregar.** Decir `unknown+dirty` seria afirmar un estado
+    // del arbol que no se pudo leer; `unknown` solo ya dice todo lo que se sabe.
+    if (sha == null) {
+        "unknown"
+    } else {
+        val sucio = gitSays("status", "--porcelain=v1")?.isNotBlank() ?: false
+        if (sucio) "$sha+dirty" else sha
+    }
 }
 
 /**
- * Cuando se armo, **al minuto y en UTC**.
+ * Cuando se armo. **Un solo instante, formateado dos veces para dos lectores.**
  *
- * Al segundo cambiaria en cada build sin decir nada que el commit no diga, y en hora local el
- * mismo APK contaria dos historias distintas segun quien lo lea.
+ * - [buildTime], **al minuto y en UTC**, es el diagnostico: se compara contra otro build, y al
+ *   segundo cambiaria en cada compilacion sin decir nada que el commit no diga.
+ * - [buildDate], **solo el dia y en la zona de la maquina que compilo**, es el que sale en
+ *   Ajustes. Pedido asi: *«una linea para el build y otra para la fecha de compilacion con dia
+ *   pero sin hora ni tz»*.
+ *
+ * ⚠️ **La zona local es deliberada justo ahi, y UTC habria sido peor.** La pregunta que contesta
+ * esa fila es *«¿es el build de hoy?»*, y compilando a las 21:30 en Chile el dia UTC ya es el
+ * siguiente: la fila diria manana. Eso es exactamente la confusion que todo este mecanismo
+ * existe para evitar. El formateo pasa **al compilar**, asi que la fecha queda congelada y no
+ * cambia segun quien la lea.
+ *
+ * ⚠️ **Los dos salen del MISMO `Date()`**: con dos llamadas podrian caer a los lados de la
+ * medianoche y contradecirse en la misma pantalla.
  */
+private val buildInstant = Date()
+
 val buildTime: String = SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply {
     timeZone = TimeZone.getTimeZone("UTC")
-}.format(Date())
+}.format(buildInstant)
+
+val buildDate: String = SimpleDateFormat("yyyy-MM-dd").format(buildInstant)
 
 /**
  * Los datos de firma del release, o null si no hay ninguno configurado.
@@ -138,6 +178,7 @@ android {
         // La identidad del build. Se calcula arriba, fuera de `android { }`: ver [buildCommit].
         buildConfigField("String", "BUILD_COMMIT", "\"$buildCommit\"")
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
+        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
 
         applicationId = "cl.fadiaz.dictionary"
         minSdk = 33
