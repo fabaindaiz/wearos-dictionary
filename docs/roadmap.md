@@ -657,6 +657,60 @@ inglés, así que ahí lo único que dice que una frase fue citada de un texto e
 Costo esperado: el pack español tiene ejemplo en el **11,4 %** de sus entradas contra el 33,3 %
 del inglés, así que el +2,52 % medido en inglés debería quedar muy por debajo. **Sin medir.**
 
+### Do very long multi-word locutions belong in the pack? — ASKED 2026-09-28, measured, **not decided** · i-a2f271-e8eb96
+
+**Status.** **Open, and not to be resolved alone.** It came from seeing
+`conocer como a la palma de la mano` truncate in a tile row: *«¿tiene sentido incluir locuciones
+multipalabra muy largas como esta en el pack?»*. Nothing was changed; what follows is the
+measurement so that whoever decides is not deciding on an impression.
+
+**What they cost in bytes: nothing worth naming.**
+
+| pack | entries of 4+ words | share | payload |
+|---|---|---|---|
+| `es-full` | 1,637 | **1.07 %** | **0.2 MB** of 80 |
+| `es-core` | 11 | 0.02 % | ~0 |
+| `en-core` | 6 | 0.01 % | ~0 |
+
+⚠️ **But the bytes are the wrong currency, and the right one says the opposite.** What a locution
+really spends is a **row on a 234 dp screen that shows three**. Replicating the pack's own prefix
+query --`ORDER BY exact, rank, norm`-- over the first 30 results:
+
+| prefix typed | of the first 30, how many are 4+ words |
+|---|---|
+| `estar` | **16** |
+| `meter` | 5 |
+| `arma` | 4 |
+| `conocer` | 2 |
+| `cantar` | 2 |
+
+**So a common verb fills half its list with locutions.** Their `rank` is no defence: the best of
+them is 986 of a 0–1998 range, with **38,935 entries ranked better** — they lose every ordering
+contest and still arrive, because a prefix has only so many words behind it.
+
+⚠️ **And the question is not "are they worth it" but "are they worth it HERE".** `arma de doble
+filo` is a real thing to look up and a dictionary that lacks it is worse. What is in tension is
+three things this repo already decided: a row is one line and 48 dp (D-073), a headword is not
+truncated where the language forbids it, and the search is a prefix over the lemma (D-067) — by
+which the only way to reach a six-word locution is to type its first word, where it competes with
+that word itself.
+
+**What would decide it, and none of it is done:**
+
+- **Which tier.** They are already almost absent from `core` (11 entries) and live in `full`. If
+  the answer is *keep them but not in core*, it is already true and the question is closed by
+  measurement rather than by a change.
+- **A cap by word count at build time**, the way the etymology got a vocabulary cap
+  (d-a2f271-bc2a3b): one line in `build_pack.py`, and it rebuilds the pack.
+- **Ordering instead of exclusion**: a locution ranks below any single word of the same prefix,
+  which costs no content and no bytes and is a change to the merge, not to the pack.
+- **Nothing, and fix the row instead**: the tile truncates them because a title and a detail
+  compete for one line, which is a layout question and not a content one.
+
+⚠️ **Measured on ONE language.** English has a different rate of locutions --6 entries in
+`en-core` against Spanish's 11, but `en-full` was not looked at-- and the table above would have
+to be repeated before generalising.
+
 ### La calidad del contenido del pack español
 
 **Estado.** **En gran parte hecho** (2026-09-20). De una sola fuente se pasó a **cuatro**, y lo
