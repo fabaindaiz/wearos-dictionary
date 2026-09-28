@@ -503,13 +503,28 @@ class ScreensTest {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Una palabra larga.").copy(
                     forms = listOf(
-                        PayloadCodec.InflectedForm("ind1s", "antidisestablishmentarianisms"),
+                        // `pret1s`, whose label `yo, pasado` is the long one: it is the case
+                        // where the form and its type really do compete for the row.
+                        PayloadCodec.InflectedForm("pret1s", "antidisestablishmentarianisms"),
                     ),
                 )
             }
         }
         compose.onNodeWithText("antidisestablishmentarianisms").assertIsDisplayed()
-        compose.onNodeWithText("yo").assertIsDisplayed()
+        compose.onNodeWithText("yo, pasado").assertIsDisplayed()
+        // ⚠️ **The type deliberately takes its intrinsic width here, unlike a search row**, and
+        // that difference was tested by breaking it. Giving both halves a ceiling of half the row
+        // -- which is what fixed the search rows -- pinned the form at **140 px** and made EVERY
+        // form wrap, including `comercializo`, which had 233 px and one line beside a `yo` of
+        // 31 px. Measured on the emulator and reverted.
+        //
+        // The case that looks like the bug is not one: `él/ella, pasado` measures 124 of the
+        // ~264 px a row has, so a long label beside a long word has no allocation that saves it.
+        //
+        // No width assertion: one was written and **removed after it survived the mutation**.
+        // Robolectric lays text out with stub metrics, so even at 234 dp with the longest label
+        // everything fits and the comparison holds either way. A check that cannot go red earns
+        // no trust. What stays here is that the type is not pushed out of the card.
     }
 
     @Test

@@ -840,6 +840,20 @@ private fun FormsTable(forms: List<PayloadCodec.InflectedForm>) {
                 // written before `WORD_BREAK` existed and never got it, so the bubbles cut
                 // `esternocleidomastoideo` where the language allows and the forms cut it
                 // wherever the pixels ran out -- the same word, two behaviours, one screen.
+                // ⚠️ **The type is deliberately UNWEIGHTED, and it was changed to match the
+                // search row's ceiling and changed back, measured.** In a `Row` an unweighted
+                // child is measured first at its intrinsic width and the weighted one takes the
+                // rest -- which reads like the defect that squeezed a result row, and here it is
+                // the right allocation instead. The labels are short in the common case: `yo` is
+                // **31 px** and leaves the form 233, one line. Capping both halves at half the
+                // row gave the form a fixed **140 px** and made EVERY form wrap, including the
+                // ones that fitted comfortably.
+                //
+                // What looked like the same bug --`comercialicé` breaking as `comer-|cialicé`--
+                // is not a sharing problem: `él/ella, pasado` genuinely measures **124 of the
+                // ~264 px** a row has. A long label beside a long word on a 234 dp screen has no
+                // allocation that saves it; what would is a shorter label, and those are the
+                // owner's.
                 Text(
                     text = form.form,
                     style = MaterialTheme.typography.bodyMedium.copy(
@@ -855,8 +869,8 @@ private fun FormsTable(forms: List<PayloadCodec.InflectedForm>) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.End,
-                        // One line, always: the four labels are ten characters at most, and a type
-                        // that wrapped would push the form it describes out of its own row.
+                        // One line, always: a type that wrapped would push the form it describes
+                        // out of its own row.
                         maxLines = 1,
                         modifier = Modifier.padding(start = 8.dp),
                     )

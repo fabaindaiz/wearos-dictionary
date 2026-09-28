@@ -674,11 +674,13 @@ internal fun RowScope.WordBubbleContent(
             // went back to two lines: `Serendipia` from 140 px on one line to 74 px tall on two.
             // That is the very thing this row was just fixed for.
             //
-            // ⚠️ **And the loss it would have prevented does not happen in the mode that
-            // matters.** Measured on the emulator at NORMAL: `n. propio · ES` is 124 px against
-            // the ~148 this half gets, so nothing truncates. The tag only disappears at LARGE,
-            // and the large text mode is out of scope by decision: it was ruled out as breaking
-            // the layout wholesale, so nothing here is shaped for it.
+            // ⚠️ **The tag IS lost sometimes, at the normal size too, and saying otherwise
+            // would be the comfortable version.** It was first written here that at NORMAL
+            // `n. propio · ES` fits in 124 px of the ~148 this half gets -- true for that word,
+            // and not the general case: with `Household`, whose headword wraps and therefore
+            // claims its whole ceiling, the detail gets the other half and comes out
+            // `n. propi...`. The trade is still the right way round -- losing the end of a part
+            // of speech beats losing the end of the word -- but it is a trade, not a free win.
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.End,
             modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp),
