@@ -605,7 +605,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         uiLanguage = uiLanguage,
                         appVersion = BuildConfig.VERSION_NAME,
                         buildCommit = BuildConfig.BUILD_COMMIT,
-                        buildDate = BuildConfig.BUILD_DATE,
+                        buildLocalTime = BuildConfig.BUILD_LOCAL_TIME,
                         crossLanguageFallback = state.settings.crossLanguageFallback,
                         onManagePacks = { navController.navigate(ROUTE_PACKS) },
                         onScaleChange = viewModel::onTextScaleChange,

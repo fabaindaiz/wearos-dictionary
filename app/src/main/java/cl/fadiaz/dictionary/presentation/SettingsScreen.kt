@@ -58,7 +58,7 @@ fun SettingsScreen(
     /** The commit this APK came out of, with `+dirty` if the tree was not clean. */
     buildCommit: String,
     /** When it was built, to the minute and in UTC. */
-    buildDate: String,
+    buildLocalTime: String,
     /**
      * Whether the other languages answer when the active one found nothing close (D-266).
      *
@@ -243,11 +243,20 @@ fun SettingsScreen(
             item(key = "build") {
                 Diagnostic(stringResource(R.string.settings_build, buildCommit))
             }
-            // The day alone, no time and no zone. See `buildDate` in `app/build.gradle.kts`
-            // for why it is in local time while the dump's diagnostic stays in UTC.
-            item(key = "compilada") {
-                Diagnostic(stringResource(R.string.settings_built_on, buildDate))
-            }
+            // ⚠️ **Bare, with no label in front of it, and asked for that way.** Santiago's
+            // wall clock with its offset in brackets -- `2026-09-28 15:22 (-3)` -- directly under
+            // `Build <hash>`, where its position already says what it is. A `Compilada el` in
+            // front spent a third of a 234 dp row on a word that the row above makes obvious, and
+            // pushed the value onto a line of its own.
+            //
+            // ⚠️ **And that is why it carries NO string resource.** A timestamp is a value, not a
+            // sentence: there is nothing in it to translate, and a resource whose whole content
+            // is `%1$s` is a level of indirection that only hides where the text comes from. Same
+            // exception the endonyms take in the language picker.
+            //
+            // See `buildLocalTime` in `app/build.gradle.kts` for why the zone is pinned, and why
+            // the dump's diagnostic stays in UTC.
+            item(key = "compilada") { Diagnostic(buildLocalTime) }
             // ⚠️ **The per-dictionary entry count was removed on request.** It was a diagnostic
             // figure nobody uses to decide anything: how many lemmas a pack carries does not say
             // whether it works, and it took one row per dictionary on the longest screen in the

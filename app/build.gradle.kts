@@ -113,15 +113,19 @@ val buildCommit: String = run {
  *
  * - [buildTime], **al minuto y en UTC**, es el diagnostico: se compara contra otro build, y al
  *   segundo cambiaria en cada compilacion sin decir nada que el commit no diga.
- * - [buildDate], **solo el dia y en la zona de la maquina que compilo**, es el que sale en
- *   Ajustes. Pedido asi: *«una linea para el build y otra para la fecha de compilacion con dia
- *   pero sin hora ni tz»*.
+ * - [buildLocalTime], **al minuto, en la hora de Santiago y con su desfase entre parentesis**, sale
+ *   en Ajustes. Primero fue solo el dia; se pidio despues poner la hora local y la zona en vez
+ *   de sacarlas, y lo que se gana es que la fila contesta *«¿es el build que acabo de hacer?»* y
+ *   no solo *«¿es de hoy?»*, que con varias compilaciones en un dia es la pregunta real.
  *
- * ⚠️ **La zona local es deliberada justo ahi, y UTC habria sido peor.** La pregunta que contesta
- * esa fila es *«¿es el build de hoy?»*, y compilando a las 21:30 en Chile el dia UTC ya es el
+ * ⚠️ **La zona esta FIJADA a `America/Santiago`, no es la de la maquina.** Con la zona del
+ * sistema el mismo APK diria una hora distinta segun donde se compilo, y la fila dejaria de ser
+ * comparable contra el reloj de quien la lee. Fijarla tambien hace que el desfase se calcule
+ * solo: `-03` en verano y `-04` en invierno, sin que nadie lo mantenga.
+ *
+ * ⚠️ **Y UTC habria sido peor justo ahi.** Compilando a las 21:30 en Chile el dia UTC ya es el
  * siguiente: la fila diria manana. Eso es exactamente la confusion que todo este mecanismo
- * existe para evitar. El formateo pasa **al compilar**, asi que la fecha queda congelada y no
- * cambia segun quien la lea.
+ * existe para evitar. El formateo pasa **al compilar**, asi que queda congelado.
  *
  * ⚠️ **Los dos salen del MISMO `Date()`**: con dos llamadas podrian caer a los lados de la
  * medianoche y contradecirse en la misma pantalla.
@@ -132,7 +136,27 @@ val buildTime: String = SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply {
     timeZone = TimeZone.getTimeZone("UTC")
 }.format(buildInstant)
 
-val buildDate: String = SimpleDateFormat("yyyy-MM-dd").format(buildInstant)
+private val SANTIAGO: TimeZone = TimeZone.getTimeZone("America/Santiago")
+
+/**
+ * `2026-09-28 15:22 (-3)`.
+ *
+ * ⚠️ **El desfase se arma a mano y no con un patron de `SimpleDateFormat`.** Ninguno de los
+ * suyos da la forma pedida: `X` escribe `-03`, `XX` `-0300` y `XXX` `-03:00`, y con la forma
+ * larga la fila ocupaba **tres lineas** en la pantalla de Ajustes de 234 dp. El cero a la
+ * izquierda y los dos puntos no dicen nada que `-3` no diga.
+ *
+ * ⚠️ **Se calcula con `getOffset(instante)` y no con `rawOffset`**: Santiago cambia de hora, y
+ * `rawOffset` ignora el horario de verano — un build de enero diria `-4` siendo `-3`.
+ *
+ * ⚠️ **Si la zona no cayera en horas enteras esto mentiria**, redondeando hacia cero. No pasa en
+ * Santiago, que es lo unico que este valor formatea; queda dicho por si alguien fija otra.
+ */
+val buildLocalTime: String = run {
+    val reloj = SimpleDateFormat("yyyy-MM-dd HH:mm").apply { timeZone = SANTIAGO }.format(buildInstant)
+    val horas = SANTIAGO.getOffset(buildInstant.time) / 3_600_000
+    "$reloj (${if (horas >= 0) "+" else ""}$horas)"
+}
 
 /**
  * Los datos de firma del release, o null si no hay ninguno configurado.
@@ -178,7 +202,7 @@ android {
         // La identidad del build. Se calcula arriba, fuera de `android { }`: ver [buildCommit].
         buildConfigField("String", "BUILD_COMMIT", "\"$buildCommit\"")
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
-        buildConfigField("String", "BUILD_DATE", "\"$buildDate\"")
+        buildConfigField("String", "BUILD_LOCAL_TIME", "\"$buildLocalTime\"")
 
         applicationId = "cl.fadiaz.dictionary"
         minSdk = 33

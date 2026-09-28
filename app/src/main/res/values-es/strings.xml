@@ -119,7 +119,6 @@
     <string name="settings_about">Acerca de</string>
     <string name="settings_version">App %1$s</string>
     <string name="settings_build">Build %1$s</string>
-    <string name="settings_built_on">Compilada el %1$s</string>
 
     <!-- Gestión de diccionarios -->
     <string name="packs_on_watch">En el reloj</string>

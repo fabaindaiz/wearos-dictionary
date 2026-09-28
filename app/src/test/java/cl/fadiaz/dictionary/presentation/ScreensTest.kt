@@ -2766,7 +2766,7 @@ class ScreensTest {
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 appVersion = "9.9.9",
                 buildCommit = "abc1234567+dirty",
-                buildDate = "2026-09-23",
+                buildLocalTime = "2026-09-23 15:16 -03:00",
                 uiLanguage = uiLanguage,
                 onUiLanguageChange = onUiLanguageChange,
                 onManagePacks = {},
