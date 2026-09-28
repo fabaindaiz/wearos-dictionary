@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.compose.ui.platform.LocalConfiguration
 import cl.fadiaz.dictionary.data.TuningStore
 import android.app.LocaleManager
 import android.content.ClipData
@@ -139,6 +140,23 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
     // inside the cascade. `remember` with no key is what makes "once" true across recompositions.
     val ctx = LocalContext.current.applicationContext
     val tuning = remember { TuningStore.load(ctx) }
+    // ⚠️ **The geometry is stated in the log, and that is a rung and not a nicety.**
+    // `:dict-data:devicePrecheck` already warns when the connected device is not `sw234dp` and
+    // round -- added on 2026-09-25 after a whole session of screenshots came out of the default
+    // AVD -- and it happened again on 2026-09-28, because the check lives behind a task nobody
+    // runs before taking a screenshot. `app/CLAUDE.md` says it too, in prose, and prose did not
+    // hold twice.
+    //
+    // Saying it here puts the answer in the one artefact every session already reads. The
+    // default Wear AVD reports `sw192dp`; the watch reports `sw234dp`. A layout decided on the
+    // wrong one gets reverted on the wrist, and nothing else says so.
+    val config = LocalConfiguration.current
+    LaunchedEffect(config.screenWidthDp, config.densityDpi) {
+        DictLog.i {
+            "pantalla: sw${config.screenWidthDp}dp ${config.densityDpi}dpi" +
+                if (config.screenWidthDp == 234) " (la del reloj)" else " ⚠️ NO es la del reloj (234dp)"
+        }
+    }
     CompositionLocalProvider(LocalTuning provides tuning.display) {
     DictionaryTheme {
         AppScaffold {

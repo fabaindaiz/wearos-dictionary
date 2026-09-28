@@ -51,6 +51,9 @@ import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -1768,6 +1771,48 @@ class ScreensTest {
     private fun huerfanasEnPantalla(): Int = compose.onAllNodes(
         SemanticsMatcher.keyIsDefined(SemanticsProperties.StateDescription),
     ).fetchSemanticsNodes().size
+
+    @Test
+    fun aRowThatNamesAnActionIsNotHyphenatedLikeAWord() {
+        // ⚠️ **Five of the seven rows in this app are labels and all seven carried the word
+        // rule.** `Hyphens.Auto` and the balanced break exist so a headword that does not fit
+        // breaks where its language allows -- `elec-tro-en-ce-fa-lo-grá-fi-co` -- which is right
+        // for the thing being looked up and wrong for a control that names an action: a label
+        // gains nothing from a syllable break and looks like a word that got cut.
+        //
+        // The home's own rows are the ones to check, because they are the labels: `Guardadas`,
+        // `Ajustes`, `Ver más`.
+        showSearch(readyState().copy(query = "", submitted = ""))
+        // ⚠️ **Se afirma contra `Auto`, no a favor de `None`.** El estilo de etiqueta simplemente
+        // NO fija la hifenación, así que queda `Unspecified` --la plataforma decide, y su decisión
+        // es no silabear--. Exigir `None` sería exigir una implementación; lo que importa es que
+        // no sea la regla de palabra.
+        val estilo = estiloDe("Ajustes")
+        assertTrue("una etiqueta no se silabea como palabra", estilo.hyphens != Hyphens.Auto)
+        assertTrue("ni usa el corte balanceado, que es para palabras", estilo.lineBreak != WORD_BREAK)
+    }
+
+    @Test
+    fun aRowThatCarriesAWordKeepsTheWordRule() {
+        // The other side of the same parameter: the three rows that really do hold a headword --
+        // results, history and saved words -- must keep hyphenating. Without this, turning the
+        // rule off everywhere would pass the test above and break the thing it exists for.
+        val estado = readyState("electroencefalográfico").copy(
+            query = "electro",
+            submitted = "electro",
+        )
+        showSearch(estado)
+        val estilo = estiloDe("electroencefalográfico")
+        assertEquals(Hyphens.Auto, estilo.hyphens)
+    }
+
+    /** The style a row's text was actually laid out with. */
+    private fun estiloDe(texto: String): TextStyle {
+        val salida = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(texto, substring = true).fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult].action!!.invoke(salida)
+        return salida.first().layoutInput.style
+    }
 
     @Test
     fun aWordIsHyphenatedByItsOwnLanguageAndNotByTheInterfaces() {

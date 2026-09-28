@@ -217,6 +217,14 @@ internal fun ListRow(
      */
     orphaned: Boolean = false,
     /**
+     * The text is a **label and not a word**: an action, a destination, a count.
+     *
+     * It turns off the hyphenation and the balanced break, which are there for a headword. See
+     * [WordBubbleDefaults.labelStyle]. Default `false` because the row was born for words; the
+     * rows that name an action pass it.
+     */
+    isLabel: Boolean = false,
+    /**
      * The language the WORD is in, as a code (`es`, `en`), for hyphenating it.
      *
      * ⚠️ **It is the pack's language and not the interface's, and nothing connected the two
@@ -260,7 +268,7 @@ internal fun ListRow(
             Modifier.semantics { stateDescription = aviso }
         },
     ) {
-        WordBubbleContent(headword, detail, colors, lang)
+        WordBubbleContent(headword, detail, colors, lang, isLabel)
     }
 }
 
@@ -533,6 +541,23 @@ internal object WordBubbleDefaults {
             lineBreak = WORD_BREAK,
         )
 
+    /**
+     * A bubble whose text is a **label and not a word**: `Gestionar`, `Ver más`, `Ajustes`.
+     *
+     * ⚠️ **Same size, no hyphenation, and that is the whole difference.** [WORD_BREAK] and
+     * `Hyphens.Auto` exist so a headword that does not fit breaks where its LANGUAGE allows --
+     * `elec-tro-en-ce-fa-lo-grá-fi-co` -- which is right for the thing being looked up and wrong
+     * for a control that names an action. A label is not read letter by letter and gains nothing
+     * from a syllable break; what it would gain is looking like a word that got cut.
+     *
+     * ⚠️ **Five of the seven rows in this app are labels**, so the rule was applying mostly where
+     * it did not belong: the manage-dictionaries row, *see more*, *Saved*, *Settings* and the
+     * one that leads to the downloader. Only the three that carry an actual headword -- results,
+     * history and saved words -- want the word rule.
+     */
+    val labelStyle: TextStyle
+        @Composable get() = MaterialTheme.typography.bodyLarge
+
     /** What the word IS: `sust. · ES`. Never why it matched (D-152, and 2026-09-26). */
     val detailStyle: TextStyle
         @Composable get() = MaterialTheme.typography.labelSmall
@@ -632,6 +657,8 @@ internal fun RowScope.WordBubbleContent(
     colors: WordBubbleColors = WordBubbleDefaults.colors(),
     /** The word's own language, for hyphenation. See `ListRow`'s parameter of the same name. */
     lang: String? = null,
+    /** The text names an action rather than being a word. See `ListRow`'s parameter. */
+    isLabel: Boolean = false,
 ) {
     // ⚠️ **Both halves are weighted, and the detail used to have no weight at all.** In a `Row`
     // the children WITHOUT a weight are measured first, against the full width, and whatever is
@@ -650,9 +677,14 @@ internal fun RowScope.WordBubbleContent(
     Text(
         text = headword,
         // ⚠️ **The locale of the WORD, not of the interface.** Without it the platform hyphenates
-        // by whatever language the UI happens to be in; see `ListRow`'s `lang`.
-        style = WordBubbleDefaults.headwordStyle.let { base ->
-            if (lang == null) base else base.copy(localeList = LocaleList(lang))
+        // by whatever language the UI happens to be in; see `ListRow`'s `lang`. A label takes
+        // neither: it is written in the interface's language and is not hyphenated at all.
+        style = if (isLabel) {
+            WordBubbleDefaults.labelStyle
+        } else {
+            WordBubbleDefaults.headwordStyle.let { base ->
+                if (lang == null) base else base.copy(localeList = LocaleList(lang))
+            }
         },
         color = colors.headword,
         maxLines = 2,

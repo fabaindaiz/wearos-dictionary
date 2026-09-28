@@ -242,6 +242,7 @@ fun SearchScreen(
                         ListRow(
                             headword = stringResource(R.string.pack_none_installed_action),
                             detail = null,
+                            isLabel = true,
                             onClick = onManagePacks,
                         )
                     }
@@ -383,6 +384,7 @@ fun SearchScreen(
                                 ListRow(
                                     headword = stringResource(R.string.home_recent_more),
                                     detail = state.history.size.toString(),
+                                    isLabel = true,
                                     onClick = onOpenHistory,
                                 )
                             }
@@ -520,6 +522,7 @@ fun SearchScreen(
                         item(key = "favoritos") {
                             ListRow(
                                 headword = stringResource(R.string.home_saved),
+                                isLabel = true,
                                 detail = state.favorites.size.takeIf { it > 0 }?.toString(),
                                 onClick = onOpenFavoritos,
                             )
@@ -527,6 +530,7 @@ fun SearchScreen(
                         item(key = "ajustes") {
                             ListRow(
                                 headword = stringResource(R.string.home_settings),
+                                isLabel = true,
                                 detail = null,
                                 onClick = onOpenSettings,
                             )

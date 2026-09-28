@@ -98,6 +98,8 @@ fun SettingsScreen(
                 ListRow(
                     headword = stringResource(R.string.settings_manage),
                     detail = opened.size.toString(),
+                    // Names an action; it is not a word being looked up.
+                    isLabel = true,
                     onClick = onManagePacks,
                 )
             }
