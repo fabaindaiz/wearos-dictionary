@@ -16,6 +16,73 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-28 · s-a2f271-1a3811 — Eight reports from the watch, and the one the gate could not have caught
+**What.** The build went onto the watch, came back with eight reports, and all but one are fixed.
+A saved word from the bidirectional pack stopped being painted as missing, and the red came down
+in tone. A row stopped cutting the word so its label could fit. A word that does not fit now
+breaks balanced instead of greedily. Each word is hyphenated by its own language. Choosing a text
+size stopped making the menu bounce. Reopening the app moves nothing. Settings shows the build and
+the compile date on two rows. The forms shown dropped from ten to six, and **which ones** now
+comes out of `assets/tuning.json`, along with the rest of what the build was tuned to do. And the
+build that would not compile from the IDE compiles.
+
+**Areas.** `build.gradle.kts`, `Components.kt`, `EntryScreen.kt`, `SearchScreen.kt`,
+`WordListScreen.kt`, `SearchViewModel.kt`, `SettingsScreen.kt`, `PackGrouping.kt`,
+`MainActivity.kt`, `PackStore.kt`; new `Tuning.kt`, `TuningStore.kt`, `assets/tuning.json`;
+`SqlitePackSource.kt` and `SearchRepository.kt`; the tests in `ScreensTest.kt`,
+`LanguageChipsTest.kt` and a new `TuningStoreTest.kt`.
+
+**Why.** The owner installed the build, listed eight observations, and then asked for everything
+that can ship **without rebuilding a pack** to be closed and made ready to upload.
+
+**Architecture.** ✅ Complies. The configuration file is a fourth kind of setting and its row says
+what separates it from the user's settings and from the debug overrides, which is the confusion
+that would make it useless.
+
+**Measured.**
+- The row: `prop. noun · ES` took **196 of the ~296 px** and left the headword **68**.
+  `Serendipia` went from two lines to **140 px on one**.
+- The word break: `perroflauta` from `per-|roflauta` to **`perro-|flauta`**.
+- The menu's animation, by frame-by-frame brightness where each transition is a step:
+  **7 steps before, 2 after**.
+- The text size in scope is **NORMAL**: at LARGE `n. propio · ES` overflows, at NORMAL it is
+  124 px against ~148 and nothing truncates.
+- **17 mutations across the batch, all of which bite.**
+
+**Deviation from the plan.** The configuration file's scope was chosen wider than I recommended:
+it carries the cascade's measured numbers, which invites moving them without measuring again. And
+the six forms were chosen as a conjugation table rather than by how much the stem changes, which
+leaves nouns and adjectives with **no Forms section** and English verbs without their past tense.
+Both costs were stated before the choice, both are recorded on their decision rows, and both are
+one line of JSON away from being reversed.
+
+**Not verified.** Whether the quieter red still reads on a wrist, and **P-11**. `Household`'s
+break after the locale fix was not seen again: the wiring is pinned by a test proven by mutation,
+but the emulator's navigation kept landing on another screen and I stopped chasing it rather than
+claim it. Robolectric cannot see where a break lands --stub font metrics, no hyphenation
+dictionary-- so that half is an emulator question by construction.
+
+**What went wrong.**
+- **A test passed against a fiction, and only the emulator could tell.** The first fix for the
+  text-size menu looked green: the test's `onTextScaleChange` records a value, while the real one
+  moves `LocalDensity`, which is the entire cause. A double that does not do the thing that breaks
+  it cannot fail. What settled it was measuring the recording, not watching it.
+- **I misread my own recording twice**, once concluding the dialog was stuck open when the frames
+  I tiled were simply before the close. Counting brightness steps replaced the eyeballing.
+- **`MiddleEllipsis` was built and reverted.** It keeps the language tag that a trailing ellipsis
+  eats, and it asks for more width: the headword went back to two lines, which is the defect that
+  had just been fixed. Reverted with the measurement that says the loss only happens at LARGE.
+- **Three attempts at reproducing the animation failed** on emulator navigation before one worked.
+- **Nine lines of Spanish prose went into the code and the gate caught them**, exactly as the
+  standing note says it would: the trigger is editing inside a section that is already Spanish.
+
+**What was left undone.** The hyphenation locale is wired and its visual result unconfirmed. Four
+rows all reading `pero` for the query `perro` --the tolerant rung returning one lemma under four
+parts of speech, spending a 192 dp screen on one word-- is reported and **not built**: it is a
+search-behaviour decision, not a defect. And the language tag is still lost at LARGE.
+
+---
+
 ## 2026-09-28 · s-a2f271-577148 — The two escape hatches are probed before they are offered
 **What.** An empty result no longer offers two blind taps. A submitted query that returns nothing
 probes both hatches and each pill says what it holds --*«3 en las definiciones»*, *«1 en
