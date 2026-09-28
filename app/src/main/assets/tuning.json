@@ -16,6 +16,10 @@
     "forms": ["ind1s", "ind3s", "pret1s", "pret3s", "sub1s", "part"],
     "visibleSenses": 3,
     "emptyProbeCap": 9,
-    "glossLineHeightInFonts": 2.8
+
+    "_gloss": "OFF. Uncomment to open up the leading of glosses that have links, as a multiple of",
+    "_gloss2": "the font size. It doubles the band a tap resolves inside (2.8 measured ~40px -> 79px)",
+    "_gloss3": "and costs a sense about half its visible lines, which is why it is off. See P-11.",
+    "_glossLineHeightInFonts": 2.8
   }
 }

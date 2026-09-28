@@ -954,9 +954,14 @@ private fun LinkedText(
     // **Centred and not trimmed**, because the default hangs the extra leading below the glyph:
     // the band would grow downwards only and a tap ABOVE the word would still miss, which is half
     // the mis-taps.
+    // Null unless `assets/tuning.json` asks for it, and it does not by default: see
+    // `DisplayTuning.glossLineHeightInFonts` for why the wider band was reverted on sight.
+    // Null also when there is nothing to tap, which is what keeps the cost off the majority of
+    // glosses -- one value carries both conditions, so the style and the radius below cannot
+    // disagree about whether the leading was opened.
     val enFuentes = LocalTuning.current.glossLineHeightInFonts
-    val abierto = targets.isNotEmpty() && style.fontSize.isSpecified
-    val estilo = if (!abierto) {
+        ?.takeIf { targets.isNotEmpty() && style.fontSize.isSpecified }
+    val estilo = if (enFuentes == null) {
         style
     } else {
         style.copy(
@@ -1026,7 +1031,7 @@ private fun LinkedText(
                     cajas,
                     position.x,
                     position.y,
-                    GlossTap.radiusFor(alto, openedUp = abierto),
+                    GlossTap.radiusFor(alto, openedUp = enFuentes != null),
                 ) ?: return@detectTapGestures
                 onOpenWord(targets[elegido].second)
             }

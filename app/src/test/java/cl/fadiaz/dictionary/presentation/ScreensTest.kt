@@ -54,6 +54,8 @@ import org.junit.Assert.assertNull
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.runtime.CompositionLocalProvider
+import cl.fadiaz.dictionary.core.DisplayTuning
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -2692,18 +2694,17 @@ class ScreensTest {
     }
 
     @Test
-    fun onlyAGlossThatHasLinksPaysForTheOpenedUpLeading() {
-        // ⚠️ **The tap landing on the neighbouring word is geometry**, and this is the cheap half
-        // of it: the touch area of a linked word is its glyph, ~40 x 14 dp against Android's
-        // 48 x 48 minimum, and it is the 14 that is 3.4x under. Doubling the line height doubles
-        // the band `GlossTap` resolves a tap inside without touching a single glyph.
+    fun byDefaultAGlossWithLinksIsSpacedLikeOneWithout() {
+        // ⚠️ **This test asserted the OPPOSITE for one day, and the code changed rather than the
+        // test.** The opened-up leading was built to widen the band `GlossTap` resolves a tap
+        // inside -- the touch area of a linked word is its glyph, ~40 x 14 dp against a 48 dp
+        // minimum -- and its cost was named when it was built: a sense goes from 3--4 visible
+        // lines to about 2. Seen on the watch, the cost is what shows: *«las definiciones se ven
+        // en líneas separadas con mucho interlineado»*. Reverted on sight, which is the rule this
+        // project already had written down.
         //
-        // It is paid in the only currency this screen has -- with 192 dp a sense goes from 3--4
-        // visible lines to about 2 -- so it is charged **only where there are links**. A gloss
-        // with none is the majority and keeps every line it had.
-        //
-        // The two senses are measured in the SAME composition on purpose: rendering them apart
-        // would compare two layout passes instead of two styles.
+        // What stays is the knob, off. So the thing to pin is that the majority case -- every
+        // gloss, since the default ships off -- pays nothing.
         compose.setContent {
             EntryScreen(
                 1,
@@ -2716,18 +2717,41 @@ class ScreensTest {
             }
         }
         compose.waitForIdle()
-        val conEnlace = altoDeLinea("Mamífero")
-        val sinEnlace = altoDeLinea("Persona")
-        // ⚠️ **Strictly greater, and no magnitude is asserted here.** One comparison covers both
-        // halves: if the leading did not open the two are equal, and if it opened on BOTH glosses
-        // they are equal again. What it cannot check is HOW MUCH, because Robolectric lays text
-        // out with stub font metrics -- a line of `bodyMedium` comes out 36 px for a ~14 px font,
-        // a ratio of 2.5 that no real font has. Calibrating the constant against that number
-        // would be calibrating against a fake. **The size of the band is an emulator question**
-        // and it is recorded as such; this test holds the mechanism, not the dp.
+        assertEquals(
+            "una glosa con enlaces se separó de una sin ellos, y el ajuste viene apagado",
+            altoDeLinea("Persona"),
+            altoDeLinea("Mamífero"),
+        )
+    }
+
+    @Test
+    fun theKnobStillOpensTheLeadingWhenTheBuildAsksForIt() {
+        // The other half: the value was kept rather than deleted because the measurement behind
+        // it is real and not reconstructable from the code -- at 2.8 a `bodyMedium` line goes
+        // from ~40 px to 79 px, which doubles the vertical band with no glyph touched. Whoever
+        // wants that trade sets the number, so the number has to still work.
+        compose.setContent {
+            CompositionLocalProvider(
+                LocalTuning provides DisplayTuning(glossLineHeightInFonts = 2.8f),
+            ) {
+                EntryScreen(
+                    1,
+                    onOpenWord = {},
+                    resolveIn = { norms, _, _ ->
+                        norms.filter { it == "canido" }.associateWith { WordLink("es-def", 42L) }
+                    },
+                ) {
+                    entry("Mamífero cánido doméstico.", "Persona de poco entendimiento.")
+                }
+            }
+        }
+        compose.waitForIdle()
+        // Strictly greater, and no magnitude: Robolectric lays text out with stub font metrics,
+        // so how much it opens is an emulator question. One comparison covers both halves -- if
+        // it opened on the gloss WITHOUT links too, the two would be equal again.
         assertTrue(
-            "la glosa con enlaces no abrió el interlineado: $conEnlace vs $sinEnlace",
-            conEnlace > sinEnlace,
+            "la perilla dejó de abrir el interlineado",
+            altoDeLinea("Mamífero") > altoDeLinea("Persona"),
         )
     }
 

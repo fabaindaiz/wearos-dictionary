@@ -103,11 +103,21 @@ data class DisplayTuning(
      */
     val emptyProbeCap: Int = 9,
     /**
-     * How tall a line becomes in a gloss that **has links**, as a multiple of its font size.
+     * How tall a line becomes in a gloss that **has links**, as a multiple of its font size, or
+     * `null` to leave the leading exactly as the typography sets it.
      *
-     * It widens the band a tap resolves inside without touching a glyph. 2.8 is about twice a
-     * typography's own ratio; measured on the emulator it lands at 1.98x the natural height.
-     * Lowering it gives visible lines back and takes touch area away.
+     * ⚠️ **It defaults to OFF, and it defaulted to 2.8 for one day.** It was built to widen the
+     * band `GlossTap` resolves a tap inside -- the touch area of a linked word is its glyph,
+     * ~40 x 14 dp against a 48 dp minimum -- and the cost was named when it was built: a sense
+     * goes from 3--4 visible lines to about 2. Seen on the watch, the cost is what shows: a
+     * definition reads as separate lines with a gap between them, which is what a reader notices
+     * before any mis-tap. Reverted by the owner on sight, which is the rule this project already
+     * had written down -- an interface decision reasoned at a desk gets reverted on the wrist.
+     *
+     * It stays as a value rather than being deleted because the measurement behind it is real
+     * and is not reconstructable from the code: at 2.8 a `bodyMedium` line goes from ~40 px to
+     * **79 px**, 1.98x, which doubles the vertical band with no glyph touched. Whoever wants that
+     * trade sets the number; the mis-tap it was for is still open as **P-11**.
      */
-    val glossLineHeightInFonts: Float = 2.8f,
+    val glossLineHeightInFonts: Float? = null,
 )

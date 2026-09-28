@@ -16,6 +16,78 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-28 · s-a2f271-529a9b — The tiles, the wrong emulator, and a batch that reached the watch
+**What.** The tiles got their first real pass: the word of the day shows **two words, one per
+language**, both tiles draw a word with the **same bubble**, and each says what the word is --
+`banco · interj. · ES`. The recent list asked for three rows on a screen that fits two. A row that
+names an action stopped being hyphenated like a word. The compile stamp says which build and not
+just which day. And the whole batch went onto the watch.
+
+**Areas.** `tile/TileContent.kt`, `TileRender.kt`, `WordOfTheDayTileService.kt`,
+`HistoryTileService.kt`; `SearchViewModel.kt`, `PackStore.kt`, `Components.kt`, `SearchScreen.kt`,
+`SettingsScreen.kt`, `MainActivity.kt`, `build.gradle.kts`; the tests in `TileContentTest.kt`,
+`SearchViewModelTest.kt`, `ScreensTest.kt`, `TilesTest.kt` and a new `WeekCacheTest.kt`;
+`docs/decisions.md` and `docs/roadmap.md`.
+
+**Why.** The owner put the tiles on the emulator's home and asked for two things: up to two words
+of the day with more than one definition language installed, and the recent list to show its sizes
+properly. Then that the recent list use the word-of-the-day bubble, and that the word of the day
+carry its type and its pack.
+
+**Architecture.** ✅ Complies. D-151's rule --one word of the day per language-- now holds on the
+tile too, which is what D-106 made easy to forget: a tile cannot ask, so the app has to leave it
+written.
+
+**Measured.**
+- The tile's main slot is **132 dp of 234**, read off the rendered tile. The home's `rowsThatFit`
+  discounts 60 dp of chrome and a tile spends **102**: the third row came out **68 px instead of
+  102**, clipped, 32 dp against the 48 a touch target needs.
+- **1,637 entries of 4+ words in `es-full`** -- 1.07 %, 0.2 MB of 80 -- but the prefix `estar`
+  brings **16 of them in the first 30 results**. Registered as an open question, not decided.
+- The install on the watch: **1 min 20 s** for 115.1 MB, APK only.
+- **10 mutations across the batch, 9 of which bite.**
+
+**Deviation from the plan.** None. What there was is a **reversal**: the opened-up leading in
+glosses with links (d-a2f271-d83740), built the day before as option A for the mis-taps, was
+reverted on sight -- *«las definiciones se ven en líneas separadas con mucho interlineado»*. The
+cost was named when it was built, so nothing was a surprise; what changed is who looked at it. It
+survives as a knob in `assets/tuning.json`, shipped off, because the measurement behind it is real
+and **P-11** is still open.
+
+**Not verified.** **P-11**, and whether the quieter orphan red reads on a wrist. The
+**single-language** case of the word of the day is reasoned and not seen: one card has more room
+than two, and the cache shape is covered by a test, but nobody looked at it. The gloss dropping to
+one line when there are two cards lives in protolayout and no JVM test reaches it.
+
+**What went wrong.**
+- ⚠️ **The whole review before this one ran on the wrong emulator.** `wear_api37` reports
+  **`sw192dp`** against the watch's **`sw234dp`** -- 22 % narrower -- so several things reported as
+  defects are not: `Guardadas` measures 152 px of a 442 px bubble and never wraps. The repo already
+  had the defence: `tools/avd_como_el_reloj.py` (D-150), a line in `app/CLAUDE.md`, and a warning
+  in `:dict-data:devicePrecheck` **added on 2026-09-25 after the same mistake**. It happened again
+  because that check lives behind a task nobody runs before taking a screenshot. The app now states
+  its geometry in the startup log, which is the one artefact every session already reads.
+- **A fix that worked in one place made things worse in the one that looked the same.** Giving both
+  halves of a row a ceiling fixed the search rows and, copied to the forms table, pinned the form at
+  140 px and made **every** form wrap -- `comercializo` had 233 px and one line beside a `yo` of 31.
+  Reverted. A content rule is the same everywhere; a share of space depends on what each side
+  measures there.
+- **A width assertion survived its mutation and was deleted**: Robolectric's stub metrics make
+  everything fit at 234 dp, so it could not go red either way.
+- **The language did not reach the tile even after the writer learned to store it.** The guard that
+  decides whether to rewrite the cache compares the date and the set of packs -- right for its
+  CONTENT, blind to its SHAPE. It now expires by `versionCode`, like the pack memo (D-225).
+- **A test demanded the wrong thing and the code was changed instead**: it expected a truncated
+  cache to be salvaged, and salvaging it hands back the wrong word every day.
+
+**What was left undone.** A long headword in a tile loses more than it did --`conocer como a la
+palma de la mano` went from `conocer como a l...` to `conocer c...`-- because the title now
+competes with the detail, and protolayout does not expose the weights. The tile's history rows
+still cannot be reached by any JVM test. And the open question about long locutions is registered
+with its measurement and nothing more.
+
+---
+
 ## 2026-09-28 · s-a2f271-1a3811 — Eight reports from the watch, and the one the gate could not have caught
 **What.** The build went onto the watch, came back with eight reports, and all but one are fixed.
 A saved word from the bidirectional pack stopped being painted as missing, and the red came down

@@ -77,7 +77,7 @@ object TuningStore {
             forms = formas(json, d.forms),
             visibleSenses = positivo(json, "visibleSenses", d.visibleSenses),
             emptyProbeCap = positivo(json, "emptyProbeCap", d.emptyProbeCap),
-            glossLineHeightInFonts = fraccion(json, "glossLineHeightInFonts", d.glossLineHeightInFonts),
+            glossLineHeightInFonts = fraccionOpcional(json, "glossLineHeightInFonts"),
         )
     }
 
@@ -115,13 +115,21 @@ object TuningStore {
         return valor
     }
 
-    /** A positive fraction, or the default. Same rule as [positivo]. */
-    private fun fraccion(json: JSONObject, clave: String, porDefecto: Float): Float {
-        if (!json.has(clave)) return porDefecto
-        val valor = json.optDouble(clave, porDefecto.toDouble()).toFloat()
+    /**
+     * A positive fraction, or **null when the key is absent**.
+     *
+     * ⚠️ **Absent means OFF here, not "use a default"**, and that asymmetry with [positivo] is the
+     * point: the values that one reads are counts, where zero is never what somebody meant. This
+     * one is an override of the typography, and *not overriding* is a real and desirable state --
+     * the one this build ships in. Falling back to a number would make the knob impossible to
+     * turn off from the file it lives in.
+     */
+    private fun fraccionOpcional(json: JSONObject, clave: String): Float? {
+        if (!json.has(clave)) return null
+        val valor = json.optDouble(clave, 0.0).toFloat()
         if (!valor.isFinite() || valor <= 0f) {
-            DictLog.w { "tuning: '$clave'=$valor no es un numero positivo; se usa $porDefecto" }
-            return porDefecto
+            DictLog.w { "tuning: '$clave'=$valor no es un numero positivo; se ignora" }
+            return null
         }
         return valor
     }
