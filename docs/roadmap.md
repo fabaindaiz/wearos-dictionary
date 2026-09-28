@@ -4730,30 +4730,40 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
 
-### Pendiente de subir al reloj — **SÍ: todo lo del 2026-09-28**
+### Pendiente de subir al reloj — **NADA, subido el 2026-09-28**
 
-⚠️ **The watch runs `versionCode 12` and a whole batch of interface work is missing from it.**
-**None of these touches a pack**, which is what makes them uploadable on their own: the APK alone,
-about 32 s measured, against the minute and a half `en-full` costs.
+✅ **The watch runs `04f247c`**, uploaded and read back the same day. The APK alone: none of that
+batch touches a pack, which is what let it go up in **34 s** against the minute and a half
+`en-full` costs. What it carries -- the probed escape hatches, the orphan red fixed and toned
+down, the row that stops cutting the word, the balanced break, hyphenation by the word's own
+language, the text-size menu that no longer bounces, reopening that moves nothing, the build and
+compile stamp, six forms out of `assets/tuning.json`, and both tiles redrawn -- has a decision row
+each.
 
-| What | Where |
-|---|---|
-| The probed escape hatches: each pill says what it holds, or does not draw | d-a2f271-9f78e2 |
-| The opened-up leading in glosses that have links | d-a2f271-d83740 |
-| The APK stops carrying dead packs when the bundled ones change | 5d52f0e |
-| The orphan red stopped painting words that do exist, and came down in tone | d-a2f271-0d87de |
-| A row stops cutting the word so its label fits | d-a2f271-c45f65 |
-| A word breaks balanced, top line slightly longer | d-a2f271-d18942 |
-| Each word is hyphenated by its own language | d-a2f271-856f17 |
-| Choosing a text size no longer makes the menu bounce | d-a2f271-10c2dc |
-| Reopening the app moves nothing | — |
-| Settings shows the build and the compile date on two rows | — |
-| The forms shown drop to six and come out of `assets/tuning.json` | d-a2f271-b0d86f, d-a2f271-0d87de |
+✅ **And the watch says what it is running, which is the point of the line added the same day:**
 
-All verified on the emulator **at the normal text size**, which is the one that matters: the large
-mode is out of scope by decision --it breaks the layout wholesale-- and is not tuned for. What the
-emulator cannot answer is still **P-11**, and now also whether the quieter red still reads on a
-wrist.
+```
+tuning: formas=ind1s,ind3s,pret1s,pret3s,sub1s,part acepciones=3 sonda=9 interlineado=null …
+pantalla: sw234dp 340dpi (la del reloj)
+listo: 5 abiertos, 0 rechazados, activo=en-full
+arranque: listo para buscar en 2095 ms
+```
+
+⚠️ **`interlineado=null` is the half worth reading**: the opened-up leading was reverted on sight
+the same day (d-a2f271-d83740) and this is what proves the build on the wrist is the one without
+it. Before that line existed, *«the fix did not work»* and *«the watch runs yesterday's APK»* were
+the same report.
+
+**The upload is now one command** (`tools/watchsession.py deploy <apk>`), which also closes the
+session when something fails -- see §*Proceso y herramientas*.
+
+⚠️ **What the watch still cannot be said to have answered.** **P-11**, and whether the quieter
+orphan red reads on a wrist. Both need the watch **being used**, not a log, and the probe is
+deliberately limited to install, launch and read (`app/CLAUDE.md`): blind taps on a watch cleared
+the owner's history on 2026-09-28, which is the cost that rule now carries in writing.
+
+<details>
+<summary>Lo anterior, del 2026-09-26, conservado</summary>
 
 ✅ **El reloj corre `versionCode 12`** con los cinco packs del 2026-09-26, todos abiertos y 0
 rechazados, listo para buscar en **2.624 ms**. La subida se hizo con la sesión tomada por
@@ -4768,6 +4778,8 @@ confiable de información falsa que tiene el repo. Lo que la cierra no es escrib
 **Lo que quedó sin verificar en esa subida**, y no es de la subida sino de la ventana: la ficha
 nunca se leyó con los packs nuevos en la muñeca porque el reloj se fue de la red a mitad de las
 pruebas. Se verificó después en el emulador con la misma geometría.
+
+</details>
 
 ⚠️ **`extractIfNewer` sigue sin comprobarse en un dispositivo** (D-226): necesita un núcleo bajado
 del catálogo cuyo `data_version` difiera del que trae el APK, y hoy los dos salen del mismo
