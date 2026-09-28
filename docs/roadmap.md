@@ -5249,6 +5249,56 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
+### The gate cannot see colour, animation or where a line breaks · i-a2f271-6b7752
+
+**Proposed, not built.** Three times on 2026-09-28 a green suite meant nothing, always for the same
+reason: **Robolectric sees structure, not pixels.**
+
+| What it cannot see | How it bit |
+|---|---|
+| Colour | The mutation that stops painting an orphaned word passed every test |
+| Animation | The size menu left, came back and left again; the suite was green |
+| Where a line breaks | Stub font metrics: `bodyMedium` lays out at 36 px for a ~14 px font, a ratio of 2.5 no real font has |
+
+⚠️ **And the worst case is a double that does not do the thing that breaks it.** The test's
+`onTextScaleChange` records a value; the real one moves `LocalDensity`, which is the entire cause
+of the bounce. The test could not have failed. `test-double-fidelity` in `.agents/knowledge`
+names this and its *Verify by* -- run the fake and the real dependency on the same cases -- was not
+run, which is exactly how it was predicted to go wrong.
+
+**Three moves worked and are worth generalising**, each turning an invisible property into a
+visible one rather than testing harder:
+
+1. **Give the datum a carrier that is not the pixel.** The orphan state moved to a
+   `stateDescription`: read by a screen reader *and* by the gate, and the mutation now bites. That
+   one also fixed an accessibility gap nobody had filed.
+2. **Move the arithmetic into a pure object.** The tap radius went to `GlossTap.radiusFor` with a
+   flag, where the gate reaches it.
+3. **Measure the animation instead of watching it.** Frame-by-frame brightness over a
+   `screenrecord`, where every transition of a dialog is a step: **7 steps before the fix and 2
+   after**. Contact sheets of frames made me conclude the wrong thing twice before that.
+
+**What would close it.** Nothing here is a test framework: it is a habit and a paragraph in
+`app/CLAUDE.md`, which already carries the Robolectric caveats. The open question is whether the
+gate should **refuse** an assertion it cannot distinguish -- a width comparison written that day
+survived its mutation and was deleted, and nothing would have caught it but running the mutation.
+
+### `watchsession.py` has no tests, and every fix in it was hand-verified · i-a2f271-a4725e
+
+**Proposed, not built.** Four defects were found in it on 2026-09-28 **by using it**, and each was
+verified by running it against the watch and the emulator: a reconnect that skipped the two cases
+it exists for, a session taken on an emulator, a dead transport counted as a second watch, and a
+`stop` whose normal outcome looked like a failure.
+
+⚠️ **All four are decisions about `adb devices -l` output, which is a string.** `elegir_serial` and
+`_colapsar_duplicados` take an `adb` path and shell out; passing a fake that returns canned output
+would put every one of those decisions in the gate, in milliseconds, with no watch in the room.
+`devpack.elegir_dispositivo` is already pure and already tested that way, so the shape exists.
+
+**What it costs to leave.** The tool is what holds the session that every upload depends on, and
+its failures look like the watch's: three of the four above were mistaken for a flaky connection
+before being read as bugs. **A fifth would be too.**
+
 ### A status section nobody updates is the repo's most trusted lie · i-a2f271-8adca7
 
 **Proposed, not built.** §*Pendiente de subir al reloj* said `versionCode 5` and *"el reloj sigue
