@@ -3,9 +3,11 @@ package cl.fadiaz.dictionary.tile
 import android.content.ComponentName
 import android.content.Context
 import androidx.wear.protolayout.ActionBuilders
+import androidx.wear.protolayout.DimensionBuilders.dp
 import androidx.wear.protolayout.DimensionBuilders.expand
 import androidx.wear.protolayout.LayoutElementBuilders.Column
 import androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
+import androidx.wear.protolayout.LayoutElementBuilders.Spacer
 import androidx.wear.protolayout.ModifiersBuilders.Clickable
 import androidx.wear.protolayout.material3.MaterialScope
 import androidx.wear.protolayout.material3.Typography
@@ -18,6 +20,18 @@ import androidx.wear.protolayout.types.layoutString
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.presentation.posLabel
+
+/**
+ * The gap between two stacked cards in a tile.
+ *
+ * ⚠️ **Without it they touch**, and two bubbles with no light between them read as one block --
+ * seen on the watch's geometry on 2026-09-28, on both tiles. It is the same 4 dp the home puts
+ * between its rows, so the two surfaces space alike.
+ *
+ * It is affordable: with two rows of 48 dp in a 132 dp main slot there is room to spare, which is
+ * exactly why the row count had to come down to two first. A third row left no space for this.
+ */
+private const val CARD_GAP_DP = 4f
 
 /**
  * From [TileContent] to pixels. The only thing these files decide is how it looks.
@@ -140,7 +154,10 @@ internal fun MaterialScope.historyRows(
         },
         mainSlot = {
             val column = Column.Builder().setWidth(expand()).setHeight(expand())
-            for (visit in visits) {
+            for ((index, visit) in visits.withIndex()) {
+                if (index > 0) {
+                    column.addContent(Spacer.Builder().setHeight(dp(CARD_GAP_DP)).build())
+                }
                 column.addContent(
                     textButton(
                         onClick = openTheEntry(context, visit),
@@ -163,11 +180,21 @@ internal fun MaterialScope.historyRows(
         bottomSlot = { searchButton(context) },
     )
 
-/** Today's word: the headword large and its part of speech underneath. */
+/**
+ * Today's word, or **today's two words** when two definition languages are installed.
+ *
+ * ⚠️ **The gloss shrinks to ONE line when there are two cards, and that is the whole layout
+ * decision.** The main slot of a tile measures **132 dp** on the watch's geometry (see
+ * `TileContents.TILE_CHROME_DP`, measured). One card with a two-line gloss fills it; two cards
+ * with two-line glosses do not fit, and what does not fit in a tile is not scrolled to -- it is
+ * clipped, which is how the history tile was drawing a 32 dp third row.
+ *
+ * So the second word costs the first one a line of its gloss. That is the trade, and it is the
+ * right way round: a word with no gloss at all teaches nothing, and `futuro · sust.` even less.
+ */
 internal fun MaterialScope.wordCard(
     context: Context,
-    visit: Visit,
-    partOfSpeech: String?,
+    visits: List<Visit>,
 ): LayoutElement =
     primaryLayout(
         titleSlot = {
@@ -177,18 +204,27 @@ internal fun MaterialScope.wordCard(
             )
         },
         mainSlot = {
-            // ⚠️ **The gloss wins over the part of speech.** `futuro · sust.` teaches nothing; the
-            // first sense is what makes a word of the day useful at a glance. The part of speech
-            // stays as a fallback for a pack that does not carry it, and for a cache written
-            // before this field existed.
-            val cuerpo = visit.gloss ?: partOfSpeech
-            titleCard(
-                onClick = openTheEntry(context, visit),
-                title = { text(visit.headword.layoutString, maxLines = 1) },
-                // Two lines: an average gloss is 64 characters and on a single one it is clipped
-                // almost every time. The tile does not scroll, so what does not fit does not exist.
-                content = cuerpo?.let { { text(it.layoutString, maxLines = 2) } },
-            )
+            val lineas = if (visits.size > 1) 1 else 2
+            val column = Column.Builder().setWidth(expand()).setHeight(expand())
+            for ((index, visit) in visits.withIndex()) {
+                if (index > 0) {
+                    column.addContent(Spacer.Builder().setHeight(dp(CARD_GAP_DP)).build())
+                }
+                // ⚠️ **The gloss wins over the part of speech.** `futuro · sust.` teaches
+                // nothing; the first sense is what makes a word of the day useful at a glance.
+                // The part of speech stays as a fallback for a pack that does not carry it, and
+                // for a cache written before that field existed.
+                val cuerpo = visit.gloss
+                    ?: visit.partOfSpeech?.let { posLabel(context, it) }
+                column.addContent(
+                    titleCard(
+                        onClick = openTheEntry(context, visit),
+                        title = { text(visit.headword.layoutString, maxLines = 1) },
+                        content = cuerpo?.let { { text(it.layoutString, maxLines = lineas) } },
+                    ),
+                )
+            }
+            column.build()
         },
         bottomSlot = { searchButton(context) },
     )

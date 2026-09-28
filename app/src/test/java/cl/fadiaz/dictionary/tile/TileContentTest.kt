@@ -52,23 +52,85 @@ class TileContentTest {
         visit("jueves", 4), visit("viernes", 5), visit("sabado", 6), visit("domingo", 7),
     )
 
+    /** Two languages: the cache is stored day-major, `dia0-es, dia0-en, dia1-es, ...`. */
+    private val semanaDeDos = (1L..7L).flatMap { dia ->
+        listOf(visit("es$dia", dia, "es-full"), visit("en$dia", dia + 100, "en-core"))
+    }
+
+    @Test
+    fun twoLanguagesGiveTwoWordsForTheSameDay() {
+        // ⚠️ **The home already showed one word of the day per language (D-151) and the tile
+        // showed only the active pack's** -- the same rule holding on one surface and not on its
+        // parallel, which is the failure this repo has hit four times. Asked for: up to two when
+        // more than one definition language is installed.
+        val hoy = TileContents.wordOfTheDay("2026-09-19", semanaDeDos, "2026-09-19")
+        assertEquals(TileContent.Word(listOf(visit("es1", 1, "es-full"), visit("en1", 101, "en-core"))), hoy)
+
+        val tercerDia = TileContents.wordOfTheDay("2026-09-19", semanaDeDos, "2026-09-21")
+        assertEquals(TileContent.Word(listOf(visit("es3", 3, "es-full"), visit("en3", 103, "en-core"))), tercerDia)
+    }
+
+    @Test
+    fun aCacheWrittenByAnOlderBuildStillReads() {
+        // ⚠️ **This is why the count is DERIVED from the length and not stored beside it.** A
+        // build that cached one word per day wrote exactly `week`, and after an update the tile
+        // has to keep working from it: a format version or a migration for seven rows that
+        // rebuild themselves the next time the app opens would be machinery with no purpose. A
+        // second field could also disagree with the list next to it.
+        val hoy = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-21")
+        assertEquals(TileContent.Word(listOf(week[2])), hoy)
+    }
+
+    @Test
+    fun aCacheThatIsNotAWholeNumberOfDaysIsEmptyAndNotGuessedAt() {
+        // ⚠️ **This test was written expecting the opposite and the code was changed instead.**
+        // The first version salvaged what it could; with 13 entries the derived count says one
+        // per day and day 6 hands back day 3's word. That is a WRONG word of the day, every day,
+        // on the surface nobody opens on purpose -- so nobody would report it. Deriving the count
+        // only works while the list is rectangular, and outside that the honest answer is that
+        // the cache cannot be read.
+        //
+        // The writer cannot produce this shape: it builds the week in memory and saves once. The
+        // guard is for the disk, which is a contract with something outside this process.
+        val cortada = semanaDeDos.dropLast(1)
+        assertEquals(TileContent.Empty, TileContents.wordOfTheDay("2026-09-19", cortada, "2026-09-25"))
+        assertEquals(TileContent.Empty, TileContents.wordOfTheDay("2026-09-19", cortada, "2026-09-19"))
+    }
+
+    // --------------------------------------------------------- how many rows fit
+
+    @Test
+    fun aTileFitsFewerRowsThanTheHomeDoes() {
+        // ⚠️ **Measured, not assumed** (2026-09-28, `sw234dp` at 340 dpi, read off the rendered
+        // tile with `uiautomator`): the main slot is 132 dp of 234, because a tile has a title
+        // slot AND an edge button that the home does not. The home's `rowsThatFit` discounts 60
+        // dp and said three; the third row came out **68 px instead of 102**, clipped, and 32 dp
+        // against the 48 dp a touch target needs.
+        assertEquals(2, TileContents.rowsThatFitInATile(234))
+        // And it goes DOWN on a narrower watch instead of pretending, which is what protects the
+        // generic one.
+        assertEquals(1, TileContents.rowsThatFitInATile(192))
+        // Never zero: an empty tile reads as broken, not as empty.
+        assertEquals(1, TileContents.rowsThatFitInATile(100))
+    }
+
     @Test
     fun theFirstCachedDayIsTheFirstWord() {
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-19")
-        assertEquals(TileContent.Word(week[0]), content)
+        assertEquals(TileContent.Word(listOf(week[0])), content)
     }
 
     @Test
     fun eachDayShiftsByOnePosition() {
         val content = TileContents.wordOfTheDay("2026-09-19", week, "2026-09-21")
-        assertEquals(TileContent.Word(week[2]), content)
+        assertEquals(TileContent.Word(listOf(week[2])), content)
     }
 
     @Test
     fun crossingAMonthBoundaryDoesNotMisalign() {
         // The index is a difference between dates, not a subtraction of days of the month.
         val content = TileContents.wordOfTheDay("2026-09-29", week, "2026-10-02")
-        assertEquals(TileContent.Word(week[3]), content)
+        assertEquals(TileContent.Word(listOf(week[3])), content)
     }
 
     @Test
@@ -109,7 +171,7 @@ class TileContentTest {
         for (day in week.indices) {
             val eseDia = TileContents.plusDays(today, day)
             assertEquals(
-                TileContent.Word(week[day]),
+                TileContent.Word(listOf(week[day])),
                 TileContents.wordOfTheDay(today, week, eseDia),
                 "el dia $day no coincide",
             )

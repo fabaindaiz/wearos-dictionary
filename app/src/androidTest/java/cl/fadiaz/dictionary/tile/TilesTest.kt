@@ -59,7 +59,18 @@ class TilesTest {
     @Test
     fun theWordOfTheDayRenders() {
         val layout = materialScope(context, dispositivo) {
-            wordCard(context, visit("corriente"), "sustantivo")
+            wordCard(context, listOf(visit("corriente")))
+        }
+        assertNotNull(layout)
+    }
+
+    @Test
+    fun twoWordsOfTheDayRender() {
+        // With two definition languages installed the tile shows one word each. It is the case
+        // that made the gloss drop to a single line, and the one a real device has to survive:
+        // two `titleCard`s plus a spacer inside a 132 dp main slot.
+        val layout = materialScope(context, dispositivo) {
+            wordCard(context, listOf(visit("corriente"), visit("current")))
         }
         assertNotNull(layout)
     }
@@ -68,7 +79,7 @@ class TilesTest {
     fun aWordWithoutAPartOfSpeechRenders() {
         // `partOfSpeech` is nullable in Visit and the real pack carries entries with no pos.
         val layout = materialScope(context, dispositivo) {
-            wordCard(context, visit("corriente"), null)
+            wordCard(context, listOf(visit("corriente").copy(partOfSpeech = null)))
         }
         assertNotNull(layout)
     }

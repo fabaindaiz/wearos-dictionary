@@ -21,8 +21,16 @@ internal sealed interface TileContent {
     /** The most recently opened entries, in the order the ViewModel left them. */
     data class ListRows(val visits: List<Visit>) : TileContent
 
-    /** Today's word. */
-    data class Word(val visit: Visit) : TileContent
+    /**
+     * Today's word, **one per language, up to [TileContents.MAX_WORDS]**.
+     *
+     * ⚠️ **A list and not a single one, and it used to be single.** The home already shows one
+     * word of the day per language (D-151) and the tile showed only the active pack's: the same
+     * rule holding on one surface and not on its parallel, which is the failure this repo has
+     * hit four times. Asked for in those words -- up to two when more than one definition
+     * language is installed.
+     */
+    data class Word(val visits: List<Visit>) : TileContent
 
     /**
      * There is nothing to show, and the tile has to say so.
@@ -43,6 +51,37 @@ internal object TileContents {
      * is confirmed from inside the app a fourth row may fit.
      */
     const val MAX_ROWS: Int = 3
+
+    /**
+     * How much of a tile is NOT its main slot, in dp. **Measured, not assumed.**
+     *
+     * The app's `rowsThatFit` discounts 60 dp of chrome and a tile has more: a title slot AND an
+     * edge button, neither of which the home has. Measured on the watch's own geometry
+     * (`sw234dp`, 340 dpi) on 2026-09-28, reading the rendered tile with `uiautomator`:
+     *
+     *     title `Recent`      y=66..99     (33 px)
+     *     main slot           y=112..393   (281 px = 132 dp)
+     *     edge button         y=393..491   (98 px)
+     *
+     * So 234 - 132 = **102 dp**, not 60. With the wrong number the tile asked for three rows and
+     * **the third came out 68 px instead of 102** -- clipped, and 32 dp tall against the 48 dp
+     * minimum a touch target needs. Two rows fit; the third never did.
+     */
+    const val TILE_CHROME_DP: Int = 102
+
+    /** Up to how many words of the day a tile shows: one per language, and no more than two. */
+    const val MAX_WORDS: Int = 2
+
+    /**
+     * How many history rows fit in a TILE, which is fewer than fit on the home.
+     *
+     * ⚠️ **It is not `rowsThatFit`, and importing that one was the bug.** The two surfaces have
+     * different chrome: see [TILE_CHROME_DP]. Sharing the function looked like the right instinct
+     * --one rule, both surfaces-- and shared the wrong half: what is common is the 48 dp row, not
+     * how much room is left over for rows.
+     */
+    fun rowsThatFitInATile(screenWidthDp: Int, rowDp: Int = 48): Int =
+        ((screenWidthDp - TILE_CHROME_DP) / rowDp).coerceIn(1, MAX_ROWS)
 
     /**
      * How many days of word of the day are precomputed.
@@ -78,9 +117,27 @@ internal object TileContents {
         val start = date(since) ?: return TileContent.Empty
         val current = date(today) ?: return TileContent.Empty
 
+        // ⚠️ **The cache is stored day-major, and how many words a day holds is DERIVED from its
+        // length.** With two languages it is `día0-es, día0-en, día1-es, día1-en, …`, and with
+        // one it is exactly what it always was -- so a cache written by an older build reads
+        // correctly here without a format version or a migration. That is the whole reason the
+        // count is not stored: a second field could disagree with the list beside it.
+        // ⚠️ **A length that is not a whole number of days is UNREADABLE, not something to
+        // salvage.** Deriving the count only works while the list is rectangular: with 13 entries
+        // the division says one per day and day 6 hands back day 3's word -- a wrong word of the
+        // day, every day, on the surface nobody opens on purpose and therefore where nobody would
+        // report it. That is the failure this whole function is written against, so it fails
+        // closed instead of guessing.
+        //
+        // The writer cannot produce this: it builds the week in memory and saves once, so an
+        // interrupted run leaves the previous cache untouched. The guard is for the disk, which
+        // is a contract with something outside this process.
+        if (words.size % CACHED_DAYS != 0) return TileContent.Empty
+        val porDia = words.size / CACHED_DAYS
         val index = ChronoUnit.DAYS.between(start, current)
-        if (index < 0 || index >= words.size) return TileContent.Empty
-        return TileContent.Word(words[index.toInt()])
+        if (index < 0 || index >= CACHED_DAYS) return TileContent.Empty
+        val desde = (index * porDia).toInt()
+        return TileContent.Word(words.subList(desde, desde + porDia))
     }
 
     /**

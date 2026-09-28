@@ -1074,40 +1074,82 @@ class SearchViewModel(
         // If there is no definitions dictionary for the active language, nothing is cached and the
         // tile shows what it already had. That is the right degradation: better with no word than
         // with one that explains nothing when tapped.
-        val active = elegirParaPalabraDelDia(activo) ?: return
-        val packId = active.metadata.packId
+        // ⚠️ **One pack per LANGUAGE, up to two, and the active one first.** The tile used to
+        // cache only the active pack's week, so with Spanish and English installed it showed one
+        // word while the home showed two (D-151). That is the same rule holding on one surface
+        // and not on its parallel, which is the failure this repo has hit four times; asked for
+        // in those words -- up to two when more than one definition language is installed.
+        //
+        // The active language leads because with room for one it is the one to keep.
+        val packs = representativesForTheDay(activo).take(TileContents.MAX_WORDS)
+        if (packs.isEmpty()) return
+        val ids = packs.map { it.metadata.packId }
         val (since, cacheadas) = savedWeekWords()
-        if (since == today && cacheadas.isNotEmpty() && cacheadas.all { it.packId == packId }) return
+        // ⚠️ **The guard compares the SET of packs and not just the date.** With only the date it
+        // would keep yesterday's single-language cache after a second dictionary is installed,
+        // and the second word would not appear until the next day -- on the surface nobody opens
+        // on purpose, so nobody would connect the two.
+        if (since == today && cacheadas.map { it.packId }.distinct() == ids) return
 
         viewModelScope.launch {
+            // Stored **day-major**: `día0-es, día0-en, día1-es, …`. The tile derives how many a
+            // day holds from the length, so a cache written by an older build --one per day--
+            // reads with no migration. See `TileContents.wordOfTheDay`.
             val week = mutableListOf<Visit>()
             for (day in 0 until TileContents.CACHED_DAYS) {
-                val picked = runCatching {
-                    WordOfTheDay.pick(
-                        date = TileContents.plusDays(today, day) ?: return@launch,
+                val fecha = TileContents.plusDays(today, day) ?: return@launch
+                for (pack in packs) {
+                    val packId = pack.metadata.packId
+                    val picked = runCatching {
+                        WordOfTheDay.pick(
+                            date = fecha,
+                            packId = packId,
+                            entryCount = pack.metadata.entryCount,
+                            read = { id -> pack.summary(id) },
+                            rankBasis = pack.metadata.rankBasis,
+                        )
+                    }.getOrNull() ?: return@launch
+                    // ⚠️ **The gloss is read HERE and not in the tile**, and that is half the
+                    // design: opening an entry decompresses its payload, and `onTileRequest` is
+                    // `@MainThread` with ten seconds (D-106). The app, which already has the pack
+                    // open, leaves it written. It is seven reads a day per language.
+                    val primera = runCatching { pack.entry(picked.entryId) }
+                        .getOrNull()?.senses?.firstOrNull()?.gloss
+                    week += Visit(
                         packId = packId,
-                        entryCount = active.metadata.entryCount,
-                        read = { id -> active.summary(id) },
-                        rankBasis = active.metadata.rankBasis,
+                        entryId = picked.entryId,
+                        headword = picked.headword,
+                        partOfSpeech = picked.partOfSpeech,
+                        gloss = primera,
                     )
-                }.getOrNull() ?: return@launch
-                // ⚠️ **The gloss is read HERE and not in the tile**, and that is half the design:
-                // opening an entry decompresses its payload, and `onTileRequest` is `@MainThread`
-                // with ten seconds (D-106). The app, which already has the pack open, leaves it
-                // written. It is seven reads once a day.
-                val primera = runCatching { active.entry(picked.entryId) }
-                    .getOrNull()?.senses?.firstOrNull()?.gloss
-                week += Visit(
-                    packId = packId,
-                    entryId = picked.entryId,
-                    headword = picked.headword,
-                    partOfSpeech = picked.partOfSpeech,
-                    gloss = primera,
-                )
+                }
             }
             saveWeekWords(today, week)
             notifyTiles()
+            DictLog.i {
+                "semana del tile: ${packs.size} idioma(s) (${ids.joinToString(",")}), " +
+                    "${week.size} palabras desde $today"
+            }
         }
+    }
+
+    /**
+     * The definition packs whose weeks get cached: **one per language**, the active one first.
+     *
+     * It is `representativePacks`' rule --the one the home already draws its words of the day
+     * with-- narrowed to the packs that actually define something. A translation pack generates
+     * no word of the day (D-200), and letting one through would put a word from a dictionary
+     * that explains nothing on the surface nobody opens on purpose.
+     */
+    private fun representativesForTheDay(activo: DictionarySource): List<DictionarySource> {
+        val conDefiniciones = packsToQuery(opened).filter { givesWordOfTheDay(it.metadata) }
+        val porIdioma = conDefiniciones
+            .groupBy { it.metadata.langs.firstOrNull() ?: "" }
+            .values
+            .mapNotNull { delIdioma -> delIdioma.maxByOrNull { it.metadata.entryCount } }
+        // The active language leads: with room for one, it is the one to keep.
+        val suyo = elegirParaPalabraDelDia(activo)
+        return (listOfNotNull(suyo) + porIdioma).distinctBy { it.metadata.packId }
     }
 
     /**

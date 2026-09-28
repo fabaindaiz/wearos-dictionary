@@ -9,7 +9,6 @@ import androidx.wear.tiles.TileService
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.PackStore
-import cl.fadiaz.dictionary.presentation.rowsThatFit
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -37,15 +36,16 @@ class HistoryTileService : TileService() {
         // How many rows, against the REAL screen. A tile does not scroll, so here the size does
         // decide -- unlike the home, where trimming would only hide (D-131).
         //
-        // ⚠️ It is capped at `MAX_ROWS`, which is the measured number, and not allowed to grow: a
-        // tile's chrome --the title, the renderer's margins-- **is not measured**, and
-        // `rowsThatFit` is anchored to the SCREEN. Letting it grow would assert a number nobody
-        // measured. What it does do is go DOWN on a small watch, which is what protects the
-        // generic one.
-        val rows = minOf(
-            rowsThatFit(requestParams.deviceConfiguration.screenWidthDp),
-            TileContents.MAX_ROWS,
-        )
+        // ⚠️ **The tile's own budget, not the home's, and that was the defect.** This used to
+        // call `rowsThatFit`, which discounts 60 dp of chrome -- right for the home, which has
+        // neither a title slot nor an edge button. A tile has both: measured on the watch's
+        // geometry the main slot is **132 dp of 234**, so the chrome is 102. Asking for three
+        // rows produced a third one **68 px tall instead of 102**, clipped, and 32 dp against the
+        // 48 dp a touch target needs.
+        //
+        // Sharing the function looked like the right instinct --one rule, both surfaces-- and
+        // shared the wrong half: what is common is the 48 dp row, not what is left for rows.
+        val rows = TileContents.rowsThatFitInATile(requestParams.deviceConfiguration.screenWidthDp)
         val content = TileContents.history(PackStore.tileHistory(this), rows)
         val layout = materialScope(this, requestParams.deviceConfiguration) {
             when (content) {

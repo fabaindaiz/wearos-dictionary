@@ -43,11 +43,16 @@ class WordOfTheDayTileService : TileService() {
         val (since, words) = PackStore.weekWords(this)
         val timeline = TimelineBuilders.Timeline.Builder()
 
-        val days = windows(since, words.size)
+        // ⚠️ **One window per DAY, and a day may hold more than one word.** The cache is stored
+        // day-major --`día0-es, día0-en, día1-es, …`-- so the number of windows is the number of
+        // days, not the number of words. Deriving it from the length is what lets a cache written
+        // by an older build, one word per day, read here with no migration.
+        val porDia = (words.size / TileContents.CACHED_DAYS).coerceAtLeast(1)
+        val days = windows(since, words.size / porDia)
         if (days.isEmpty()) {
             timeline.addTimelineEntry(
                 TimelineBuilders.TimelineEntry.Builder()
-                    .setLayout(wrap(requestParams, null))
+                    .setLayout(wrap(requestParams, emptyList()))
                     .build(),
             )
         } else {
@@ -55,7 +60,15 @@ class WordOfTheDayTileService : TileService() {
                 timeline.addTimelineEntry(
                     TimelineBuilders.TimelineEntry.Builder()
                         .setValidity(window)
-                        .setLayout(wrap(requestParams, words[index]))
+                        .setLayout(
+                            wrap(
+                                requestParams,
+                                words.subList(
+                                    index * porDia,
+                                    ((index + 1) * porDia).coerceAtMost(words.size),
+                                ),
+                            ),
+                        )
                         .build(),
                 )
             }
@@ -87,17 +100,13 @@ class WordOfTheDayTileService : TileService() {
 
     private fun wrap(
         requestParams: RequestBuilders.TileRequest,
-        visit: cl.fadiaz.dictionary.data.Visit?,
+        visits: List<cl.fadiaz.dictionary.data.Visit>,
     ): androidx.wear.protolayout.LayoutElementBuilders.Layout {
         val item: LayoutElement = materialScope(this, requestParams.deviceConfiguration) {
-            if (visit == null) {
+            if (visits.isEmpty()) {
                 emptyTile(this@WordOfTheDayTileService, getString(R.string.tile_word_empty))
             } else {
-                wordCard(
-                    this@WordOfTheDayTileService,
-                    visit,
-                    visit.partOfSpeech?.let { posLabel(this@WordOfTheDayTileService, it) },
-                )
+                wordCard(this@WordOfTheDayTileService, visits.take(TileContents.MAX_WORDS))
             }
         }
         return androidx.wear.protolayout.LayoutElementBuilders.Layout.fromLayoutElement(item)
