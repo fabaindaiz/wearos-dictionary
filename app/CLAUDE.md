@@ -69,7 +69,15 @@ more row, and a change that helps the project's watch while hurting a generic on
 ⚠️ **Functional probes go on the EMULATOR, not on the watch.** Searching words, result order,
 opening entries, navigation: all of it on `tools/avd_como_el_reloj.py`, which has the watch's
 geometry (D-150). **The watch is for debug data and short experiments only** — performance,
-battery, Perfetto, `dumpsys`. That is not a preference: it is measured cost. The watch dropped
+battery, Perfetto, `dumpsys`.
+
+⚠️ **And a watch probe is THREE steps and no more**: install, launch, read `logcat -s Dict`. No
+`input tap`, no `input swipe`, no `uiautomator dump`, no `screencap` of the app. Asked for in
+those words on 2026-09-28, and the reason is the connection as much as the geometry: the watch
+leaves the network during long sequences, so every extra step is another chance to reconnect
+mid-install. The startup log already carries what a basic probe needs — `pantalla:`, `tuning:`,
+`listo: N abiertos`, `arranque: listo en N ms`. Whatever has to be *seen* is seen on the emulator
+**before** uploading. That is not a preference: it is measured cost. The watch dropped
 mid-run on 2026-09-21, `connectedAndroidTest` had already uninstalled the app, and **the five
 packs went with it** — ~450 MB to push again. The watch's IME also reorders the keystrokes of
 `adb shell input text` and discards them on BACK, so every on-screen probe costs several tries.
