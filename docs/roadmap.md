@@ -4635,33 +4635,23 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
 
-### Pendiente de subir al reloj
+### Pendiente de subir al reloj — **NADA, subido el 2026-09-26**
 
-⚠️ **Hay un APK nuevo listo y SIN subir: `versionCode 5` / `0.5.0`, debug, 111,0 MB**
-(2026-09-23). El reloj sigue en `versionCode 4`. Lo que trae y por qué hay que subirlo:
+✅ **El reloj corre `versionCode 12`** con los cinco packs del 2026-09-26, todos abiertos y 0
+rechazados, listo para buscar en **2.624 ms**. La subida se hizo con la sesión tomada por
+`watchsession.py`: el APK de 107,9 MB en **36,3 s** y `en-full`'s 315,5 MB en **1 min 32 s**.
 
-- **Los dos núcleos viajan adentro por primera vez que funciona.** `bundlePacks` buscaba en
-  `../wearos-dictionary-data/` y el rebuild del 22 los movió a `dist/`: el APK que se armó desde
-  entonces **no llevaba ningún diccionario**, en silencio (D-228). Verificado en el emulador: los
-  dos núcleos se extraen y abren, `48.292` y `75.734` entradas, 0 rechazados.
-- **Instalarlo caduca el memo de packs verificados** (D-225), así que el primer arranque en el
-  reloj re-verifica **todos** los packs que tenga — los dos núcleos nuevos y los cinco completos
-  que ya están. Es lo esperado y conviene saberlo antes de leer el arranque como una regresión.
-- **`en-core` vuelve a aparecer en el selector** aunque haya un completo de español instalado
-  (D-227). Ése es el cambio que hay que mirar en el reloj, porque el reloj **sí** tiene completos
-  instalados y el emulador no.
+⚠️ **Esta sección decía `versionCode 5` y «el reloj sigue en 4» hasta el 2026-09-27**, cuatro días
+y siete versiones después. Nadie la leyó en el medio, que es exactamente por lo que miente: una
+sección de estado que no se toca en el mismo commit que el estado se vuelve la fuente más
+confiable de información falsa que tiene el repo. Lo que la cierra no es escribirla mejor sino
+**que el paso de subir la actualice**, y eso está anotado en §*Proceso y herramientas*.
 
-```sh
-./gradlew :app:installDebug          # 111 MB por adb; ver la advertencia de abajo
-```
+**Lo que quedó sin verificar en esa subida**, y no es de la subida sino de la ventana: la ficha
+nunca se leyó con los packs nuevos en la muñeca porque el reloj se fue de la red a mitad de las
+pruebas. Se verificó después en el emulador con la misma geometría.
 
-⚠️ **Y no se pudo verificar en el emulador, por falta de herramienta**: que buscar en un núcleo
-devuelva resultados **por la vía del usuario**. El campo de búsqueda no toma foco con un tap
-sintético — ver §Sembrar la consulta desde `adb`. Se contestó leyendo el pack con `sqlite3`
-(`cas` → `casa, caso, casi`; `hous` → `house, household, housing`), que comprueba el dato y no la
-pantalla.
-
-⚠️ **Tampoco se verificó `extractIfNewer` en un dispositivo** (D-226): necesita un núcleo bajado
+⚠️ **`extractIfNewer` sigue sin comprobarse en un dispositivo** (D-226): necesita un núcleo bajado
 del catálogo cuyo `data_version` difiera del que trae el APK, y hoy los dos salen del mismo
 `dist/`, así que son iguales y no hay nada que comparar. El gate cubre el plan; el cableado no.
 
@@ -5128,6 +5118,26 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 ---
 
 ## Proceso y herramientas
+
+### A status section nobody updates is the repo's most trusted lie · i-a2f271-8adca7
+
+**Proposed, not built.** §*Pendiente de subir al reloj* said `versionCode 5` and *"el reloj sigue
+en 4"* until 2026-09-27 — **four days and seven versions after it stopped being true**. It is the
+one section a session reads to know what the watch has, so being wrong there is worse than being
+absent: an absent section gets checked, a confident one gets believed.
+
+⚠️ **Writing it better does not fix it**, which is why this is not a note telling the next session
+to be careful. The fix is that **the act of uploading updates it**, and there are two shapes:
+
+1. **Derive it instead of writing it.** `devpack.py list` and `DEBUG_DUMP` already know what the
+   watch holds; a `tools/` command that prints that section's table is a readout, and a readout
+   cannot drift. The section becomes a pointer to the command.
+2. **A check with a subject the audit can see.** It cannot read a watch, but it can compare the
+   `versionCode` named in the section against `gradle.properties`. That catches this exact
+   failure — a section naming a version the repo left behind — and nothing else.
+
+⚠️ **The second is the one that fits the audit's existing shape**, and it is cheap. The first is
+better and larger. Neither is built.
 
 ### The watch session's `stop` does not arrive — **2 of 2 times** · i-a2f271-74604f
 
