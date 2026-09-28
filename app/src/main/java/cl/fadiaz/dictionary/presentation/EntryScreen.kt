@@ -33,6 +33,9 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import cl.fadiaz.dictionary.data.TextScale
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.times
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -871,9 +874,36 @@ private fun LinkedText(
     color: Color = Color.Unspecified,
 ) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    // ⚠️ **The leading is opened up ONLY in a text that has links**, which is what makes this
+    // affordable. The touch area of a linked word is its glyph --about 40 x 14 dp-- and it is the
+    // 14 that is 3.4x under Android's 48 dp minimum; doubling the line height doubles the band
+    // `GlossTap` resolves a tap inside, which is the cheap half of that gap. The price is paid in
+    // the only currency this screen has: with 192 dp of screen a sense goes from 3--4 visible
+    // lines to 2, so a gloss with no links --the majority-- keeps every one of them.
+    //
+    // **Centred and not trimmed**, because the default hangs the extra leading below the glyph:
+    // the band would grow downwards only and a tap ABOVE the word would still miss, which is half
+    // the mis-taps.
+    val abierto = targets.isNotEmpty() && style.fontSize.isSpecified
+    val estilo = if (!abierto) {
+        style
+    } else {
+        style.copy(
+            // ⚠️ **A multiple of the FONT SIZE and not of the style's own `lineHeight`.** The
+            // first version multiplied `lineHeight`, and measured under Robolectric it changed
+            // nothing: a line of `bodyMedium` already lays out at 36 px and twice its declared
+            // line height is under that, so the layout floor swallowed the whole effect. The font
+            // size is the one number that is always there and always the glyph's.
+            lineHeight = style.fontSize * LINE_HEIGHT_IN_FONTS,
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.None,
+            ),
+        )
+    }
     Text(
         text = text,
-        style = style,
+        style = estilo,
         color = color,
         onTextLayout = { layout = it },
         // ⚠️ **Keyed on `targets` ALONE, never on `layout`.** The first version added `layout`
@@ -925,7 +955,7 @@ private fun LinkedText(
                     cajas,
                     position.x,
                     position.y,
-                    GlossTap.radiusFor(alto),
+                    GlossTap.radiusFor(alto, openedUp = abierto),
                 ) ?: return@detectTapGestures
                 onOpenWord(targets[elegido].second)
             }

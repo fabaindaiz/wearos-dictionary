@@ -130,4 +130,19 @@ class GlossTapTest {
         assertEquals(10.5f, GlossTap.radiusFor(14f))
         assertEquals(21f, GlossTap.radiusFor(28f))
     }
+
+    @Test
+    fun `opening up the leading widens the band and not the snap`() {
+        // ⚠️ **The two must not move together, and nothing else can catch it if they do.** A text
+        // that has links lays out with twice the leading it needs, so its measured line height is
+        // twice as tall; passing that straight in would widen the HORIZONTAL snap from ~10 dp to
+        // ~21 dp -- about two characters. That is the one case `linkAt` documents as unable to
+        // get right: with two links side by side a wider radius reaches the wrong one with more
+        // confidence, so the fix for a mis-tap would have made a different mis-tap likelier.
+        //
+        // An opened-up line of 28 has to give the radius of the natural 14 it came from.
+        assertEquals(GlossTap.radiusFor(14f), GlossTap.radiusFor(28f, openedUp = true))
+        // And a text with no links is unaffected: same number as before this existed.
+        assertEquals(GlossTap.radiusFor(28f), GlossTap.radiusFor(28f, openedUp = false))
+    }
 }

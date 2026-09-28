@@ -51,6 +51,8 @@ import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -2340,6 +2342,59 @@ class ScreensTest {
         compose.onNodeWithText("Sinónimos").assertIsDisplayed()
         assertEquals(0, compose.onAllNodesWithText("Antónimos").fetchSemanticsNodes().size)
         assertEquals(0, compose.onAllNodesWithText("Relacionadas").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun onlyAGlossThatHasLinksPaysForTheOpenedUpLeading() {
+        // ⚠️ **The tap landing on the neighbouring word is geometry**, and this is the cheap half
+        // of it: the touch area of a linked word is its glyph, ~40 x 14 dp against Android's
+        // 48 x 48 minimum, and it is the 14 that is 3.4x under. Doubling the line height doubles
+        // the band `GlossTap` resolves a tap inside without touching a single glyph.
+        //
+        // It is paid in the only currency this screen has -- with 192 dp a sense goes from 3--4
+        // visible lines to about 2 -- so it is charged **only where there are links**. A gloss
+        // with none is the majority and keeps every line it had.
+        //
+        // The two senses are measured in the SAME composition on purpose: rendering them apart
+        // would compare two layout passes instead of two styles.
+        compose.setContent {
+            EntryScreen(
+                1,
+                onOpenWord = {},
+                resolveIn = { norms, _, _ ->
+                    norms.filter { it == "canido" }.associateWith { WordLink("es-def", 42L) }
+                },
+            ) {
+                entry("Mamífero cánido doméstico.", "Persona de poco entendimiento.")
+            }
+        }
+        compose.waitForIdle()
+        val conEnlace = altoDeLinea("Mamífero")
+        val sinEnlace = altoDeLinea("Persona")
+        // ⚠️ **Strictly greater, and no magnitude is asserted here.** One comparison covers both
+        // halves: if the leading did not open the two are equal, and if it opened on BOTH glosses
+        // they are equal again. What it cannot check is HOW MUCH, because Robolectric lays text
+        // out with stub font metrics -- a line of `bodyMedium` comes out 36 px for a ~14 px font,
+        // a ratio of 2.5 that no real font has. Calibrating the constant against that number
+        // would be calibrating against a fake. **The size of the band is an emulator question**
+        // and it is recorded as such; this test holds the mechanism, not the dp.
+        assertTrue(
+            "la glosa con enlaces no abrió el interlineado: $conEnlace vs $sinEnlace",
+            conEnlace > sinEnlace,
+        )
+    }
+
+    /** The height of the first line of the text node containing [fragmento], in pixels. */
+    private fun altoDeLinea(fragmento: String): Float {
+        val salida = mutableListOf<TextLayoutResult>()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText(fragmento, substring = true))
+        compose.onNodeWithText(fragmento, substring = true)
+            .fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult]
+            .action!!
+            .invoke(salida)
+        val r = salida.first()
+        return r.getLineBottom(0) - r.getLineTop(0)
     }
 
     @Test

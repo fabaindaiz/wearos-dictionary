@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **452 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1203 tests en total**. Los **51
+pipeline de packs (`tools/`, **578 tests**) están completos y en el gate, junto con los **454 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1205 tests en total**. Los **51
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3547,16 +3547,16 @@ están a ~4 dp. No es un defecto de implementación: es geometría.
 
 | | Opción | Costo en unidades de este repo | Qué cierra / qué cuesta |
 |---|---|---|---|
-| **A** | Subir `lineHeight` sólo en glosas con enlaces | ~2 de las 3–4 filas que caben | Sube el alto efectivo de 14 a ~28 dp. Barato y reversible; **no llega a 48** |
+| **A** | Subir `lineHeight` sólo en glosas con enlaces | ~2 de las 3–4 filas que caben | ✅ **CONSTRUIDA el 2026-09-28 (d-a2f271-d83740)**, y medida en el emulador: una línea de `bodyMedium` pasa de ~40 px a **79 px**, 1,98 ×. Barato y reversible; **no llega a 48**, y no lo pretende |
 | **B** | **El tap abre una confirmación** *«¿Ir a X?»* con la palabra ya resuelta | 1 fila temporal, 1 toque extra | ⚠️ **Convierte un error en un rechazo**: equivocarse deja de costar una navegación perdida. Es lo único que resuelve el problema sin pelear contra la geometría. **Recomendada** |
 | **C** | Chips de 48 dp con las palabras tocables, debajo de la glosa | 1–2 filas por acepción | Toques perfectos y el dato ya existe (`links`). ⚠️ Rompe la lectura: la glosa deja de ser el objeto y pasa a ser un índice |
 | **D** | Lupa propia (zoom al mantener apretado) | Alto: gesto, render y medición en reloj | ⚠️ **Wear OS ya trae una lupa del sistema** en accesibilidad. Construir una propia duplica plataforma y la haría peor. **Descartada** |
 | **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. ✅ **CONSTRUIDA el 2026-09-23 (D-243), contra esta recomendación**, con tres cotas que acotan la objeción: un acierto exacto no se pisa, un tap dentro de una línea no salta de línea, y más allá del radio no pasa nada. Lo que sigue sin resolver es el hueco entre dos enlaces pegados |
 
-**What unblocks it.** **P-11** of `docs/preguntas-del-reloj.md`. It used to point at P-2, which
-was answered on the emulator on 2026-09-23 — the links exist and they hit — so P-2 no longer
-blocks anything. What is missing is the wrist: choosing between A and B depends on how much the
-extra tap annoys, and that is not something a desktop can feel.
+**What unblocks it.** **P-11** of `docs/preguntas-del-reloj.md`, and only for **B**. A is built,
+so the question narrowed: it is no longer *what do we do about mis-taps* but *is the wider band
+enough, or is the confirmation still worth an extra tap*. That is the half a desktop cannot feel,
+and now it gets asked against a screen that already has the cheap fix in it.
 
 ### ✅ `abiertos=` in the debug dump undercounts — FIXED, and this row was stale for a day
 

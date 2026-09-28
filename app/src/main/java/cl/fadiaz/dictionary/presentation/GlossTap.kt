@@ -134,6 +134,52 @@ internal object GlossTap {
      */
     const val RADIUS_IN_LINES: Float = 0.75f
 
-    /** The radius in pixels for a given line height. */
-    fun radiusFor(lineHeightPx: Float): Float = abs(lineHeightPx) * RADIUS_IN_LINES
+    /**
+     * The radius in pixels for a given line height.
+     *
+     * ⚠️ **[openedUp] divides the measured height back, and that is not bookkeeping.** A text
+     * that has links lays out with [LINE_HEIGHT_OVER_NATURAL] times the leading it needs, so its
+     * lines really are that much taller -- and feeding that straight in would widen the
+     * HORIZONTAL snap by the same factor, from about one character to two. That is precisely the
+     * case [linkAt] documents as the one it cannot get right: with two links side by side, a
+     * wider radius reaches the wrong one with more confidence. The extra leading is meant to
+     * widen the vertical band a tap lands in and nothing else.
+     */
+    fun radiusFor(lineHeightPx: Float, openedUp: Boolean = false): Float {
+        val natural = if (openedUp) abs(lineHeightPx) / LINE_HEIGHT_OVER_NATURAL else abs(lineHeightPx)
+        return natural * RADIUS_IN_LINES
+    }
 }
+
+/**
+ * How tall a line becomes in a text that HAS links, as a multiple of its own font size.
+ *
+ * It is the cheap half of the geometry [GlossTap] exists to work around: the glyph is ~14 dp tall
+ * against a 48 dp minimum, and opening up the leading widens the band a tap resolves inside
+ * without changing a single glyph. It is applied **only where there are links**, so a gloss with
+ * none keeps all 3--4 of its visible lines; one with links drops to about 2, which on 192 dp is
+ * the real price and the reason this is not simply the screen's line height.
+ *
+ * ⚠️ **A multiple of the FONT SIZE and not of the style's declared line height.** Multiplying the
+ * line height was the first version and it is measurably wrong: a style's `lineHeight` can sit
+ * under what the font actually lays out, and then doubling it changes nothing at all -- under
+ * Robolectric a line of `bodyMedium` comes out 36 px and twice its declared line height is less
+ * than that. The font size is the one number that is always present and always the glyph's.
+ *
+ * 2.8 is about twice a typical typography's own ratio of ~1.4. ⚠️ **The resulting dp are NOT
+ * verified by the gate**: Robolectric lays text out with stub font metrics, so the unit tests can
+ * only see that a gloss with links got taller than one without. How tall it looks is an emulator
+ * question.
+ */
+internal const val LINE_HEIGHT_IN_FONTS: Float = 2.8f
+
+/**
+ * How much taller than natural an opened-up line is, for the purpose of undoing it.
+ *
+ * ⚠️ **It exists so that [GlossTap.radiusFor] can divide the measured height back**, and it is
+ * the approximation in this design: the true ratio is [LINE_HEIGHT_IN_FONTS] over whatever the
+ * font lays out naturally, which is only known after layout and differs per typography. Two is
+ * the intended doubling. Getting it wrong does not break anything visible -- it moves the
+ * horizontal snap a few dp -- which is exactly why it is written down instead of inferred.
+ */
+internal const val LINE_HEIGHT_OVER_NATURAL: Float = 2f
