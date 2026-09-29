@@ -1836,3 +1836,378 @@ class OrigenLimpioTest(unittest.TestCase):
         # empty string would draw a heading over a blank line.
         self.assertIsNone(
             kaikki._etymology({"word": "swap", "etymology_text": "(see Etymology 1 above)"}))
+
+
+class ArtefactoDeTablaTest(unittest.TestCase):
+    """Rows the conjugation TABLE contributed about itself, which are not forms of anything.
+
+    Measured on the built `en-full` (2026-09-29): `glossary` sat in the `form` table as an
+    inflection of **575 English verbs** --`try`, `pull`, `enter`, `design`-- and `no table tags`
+    of 577. `glossary` is also a real entry, so typing it returned the noun plus 575 verbs.
+
+    ⚠️ **The marker is the SOURCE's, not a denylist of ours.** Both rows carry a tag naming what
+    they are: a row of the inflection template, not an inflection. Recognising them by their word
+    would leave the next artefact in, and there is no reason to believe these two are the last.
+    """
+
+    def test_la_fila_del_template_no_es_una_flexion(self):
+        raw = {"forms": [
+            {"form": "ravens", "tags": ["present", "third-person"]},
+            {"form": "glossary", "source": "conjugation", "tags": ["inflection-template"]},
+        ]}
+        self.assertEqual(("ravens",), kaikki._forms(raw, "raven", ()))
+
+    def test_tampoco_la_que_dice_que_la_tabla_no_tiene_tags(self):
+        raw = {"forms": [
+            {"form": "ravened", "tags": ["past"]},
+            {"form": "no-table-tags", "source": "conjugation", "tags": ["table-tags"]},
+        ]}
+        self.assertEqual(("ravened",), kaikki._forms(raw, "raven", ()))
+
+    def test_una_flexion_de_verdad_con_muchos_tags_sobrevive(self):
+        # The control. The filter looks at two named tags and must not become "drop anything with
+        # an unfamiliar tag" -- a Spanish verb carries up to 137 forms, all of them real.
+        raw = {"forms": [
+            {"form": "corráis", "tags": ["second-person", "plural", "present", "subjunctive"]},
+        ]}
+        self.assertEqual(("corráis",), kaikki._forms(raw, "correr", ()))
+
+    def test_la_CLASE_de_conjugacion_tampoco_es_una_flexion(self):
+        # ⚠️ **Found by the repetition backstop, after the two tags above were already filtered.**
+        # The bilingual pack carried `c z alternation` on **956** entries and `c qu alternation`
+        # and `g gu alternation` beside it -- the verb's conjugation CLASS, which the source labels
+        # as such. Nobody types it and it is not a form of anything.
+        #
+        # ⚠️ **Safe because it was counted in all three dumps**: `es-en-wikt.jsonl` has 5,163 forms
+        # tagged `class` and every one is an `X-Y alternation`; `es.jsonl` and `en.jsonl` have
+        # **zero**. It never marks a real inflection.
+        raw = {"forms": [
+            {"form": "sueno", "tags": ["first-person", "singular", "present"]},
+            {"form": "o-ue alternation", "source": "conjugation", "tags": ["class"]},
+        ]}
+        self.assertEqual(("sueno",), kaikki._forms(raw, "sonar", ()))
+
+    def test_la_anotacion_renderizada_de_la_cabecera_tampoco_es_una_flexion(self):
+        # ⚠️ **The third layer the repetition backstop peeled, and the first with no usable tag.**
+        # `f same meaning` sat on **107** entries of the bilingual -- `lente`, `color`, `mundial`,
+        # nouns whose gender is ambiguous -- and it carries `canonical`, which is a REAL tag: the
+        # lemma's own spelling carries it too. So the marker has to be the rendered label itself,
+        # which is the same idiom as `ARBOL_DE_ETIMOLOGIA`: a fixed string the dump writes.
+        #
+        # ⚠️ **Measured before pinning it.** Of the 267 multi-word `canonical` forms in
+        # `es-en-wikt.jsonl`, **118** end in one of these two labels and the other 149 are real --
+        # `el TLCAN`, `El Cairo`, `o … o`. English has 6,120 and every one is a `the X`, so no rule
+        # about word counts could have separated them.
+        raw = {"forms": [
+            {"form": "lente", "tags": ["canonical"]},
+            {"form": "f same meaning", "tags": ["canonical"]},
+            {"form": "lentes", "tags": ["plural"]},
+        ]}
+        self.assertEqual(("lentes",), kaikki._forms(raw, "lente", ()))
+
+    def test_una_forma_con_articulo_NO_es_una_anotacion(self):
+        # The control. `el TLCAN` and `Los Alpes` are `canonical` and multi-word and are exactly
+        # what somebody types; a rule keyed on the shape rather than on the label would eat them.
+        raw = {"forms": [{"form": "el TLCAN", "tags": ["canonical"]}]}
+        self.assertEqual(("el TLCAN",), kaikki._forms(raw, "TLCAN", ()))
+
+    def test_una_conjuncion_correlativa_tampoco(self):
+        raw = {"forms": [{"form": "tanto ... como", "tags": ["canonical"]}]}
+        self.assertEqual(("tanto ... como",), kaikki._forms(raw, "tanto", ()))
+
+    def test_una_palabra_que_CONTIENE_la_etiqueta_sin_terminar_en_ella_se_queda(self):
+        # ⚠️ **The control that pins `endswith` against "anywhere in the form", and it is a real
+        # word, not an invented one**: `gender-neutralize` is an English lemma and its three
+        # inflections all CONTAIN `gender-neutral`. Matching the label anywhere would delete them,
+        # which is three search keys lost in silence.
+        #
+        # ⚠️ Measured over the whole English dump: exactly **2** forms END in one of the labels,
+        # `more gender-neutral` and `most gender-neutral`, and the periphrastic rule already drops
+        # both -- so this filter cannot cost English anything.
+        raw = {"forms": [
+            {"form": "gender-neutralized", "tags": ["past"]},
+            {"form": "gender-neutralizes", "tags": ["third-person", "singular", "present"]},
+        ]}
+        self.assertEqual(
+            ("gender-neutralized", "gender-neutralizes"),
+            kaikki._forms(raw, "gender-neutralize", ()),
+        )
+
+
+class LemaPartidoPorComasTest(unittest.TestCase):
+    """wiktextract splits ONE multi-word lemma into several `form_of` targets, on its commas.
+
+    Measured over the whole English dump (2026-09-29): **178 of 537,579** senses carrying a
+    `form_of` name more than one target, and **161** of those are one lemma cut into pieces. The
+    page `ate, breathed, and slept` names `['eat', 'breathe', 'and sleep']`, so `eat` and
+    `breathe` each receive an inflection they do not have and the real lemma receives none.
+
+    ⚠️ **The gloss is the control and that is the whole design.** It names the lemma in prose, so
+    rejoining the targets with `", "` either reproduces it --the pieces were one lemma-- or it does
+    not, and then they are genuinely several lemmas and all of them stay.
+    """
+
+    def test_las_piezas_se_vuelven_a_unir_en_el_lema_verdadero(self):
+        pagina = {
+            "word": "ate, breathed, and slept", "pos": "verb", "lang_code": "en",
+            "senses": [{
+                "glosses": ["simple past and past participle of eat, breathe, and sleep"],
+                "form_of": [{"word": "eat"}, {"word": "breathe"}, {"word": "and sleep"}],
+            }],
+        }
+        inbound, _ = kaikki._inbound_forms(_jsonl(pagina))
+        self.assertEqual(
+            {"eat, breathe, and sleep": {"ate, breathed, and slept"}}, inbound)
+
+    def test_dos_lemas_de_verdad_se_quedan_los_dos(self):
+        # The control that stops this becoming "always keep the first". `postie` IS the diminutive
+        # of both, the gloss says `or` and not a comma, and losing `postwoman` would be the same
+        # class of defect in the other direction.
+        pagina = {
+            "word": "postie", "pos": "noun", "lang_code": "en",
+            "senses": [{
+                "glosses": ["Diminutive of postman or postwoman."],
+                "form_of": [{"word": "postman"}, {"word": "postwoman"}],
+            }],
+        }
+        inbound, _ = kaikki._inbound_forms(_jsonl(pagina))
+        self.assertEqual({"postman": {"postie"}, "postwoman": {"postie"}}, inbound)
+
+    def test_un_solo_destino_no_pasa_por_nada_de_esto(self):
+        pagina = {
+            "word": "ran", "pos": "verb", "lang_code": "en",
+            "senses": [{"glosses": ["simple past of run"], "form_of": [{"word": "run"}]}],
+        }
+        inbound, _ = kaikki._inbound_forms(_jsonl(pagina))
+        self.assertEqual({"run": {"ran"}}, inbound)
+
+
+class OrigenSinListaNiCabeceraTest(unittest.TestCase):
+    """A wiki list and a section heading, flattened into one line, read as a run-on on the card.
+
+    Measured over the English dump on the text that SURVIVES `_sin_arbol` -- which is what reaches
+    the card, and measuring the raw dump instead would aim at the tree, already stripped:
+    **0.64 %** of the 535,529 surviving origins carry a bullet, and once the tree is gone only
+    **324 distinct** bare heading lines are left, `Cognates` (1,165) and `PIE word` (638) first.
+
+    ⚠️ The payload is one line with the newlines sanitised to spaces, so `sword` reached the glass
+    as *"…(“sharp”). Cognates Cognate with North Frisian Swērt…"*.
+    """
+
+    def test_las_vinetas_se_unen_y_NINGUNA_se_pierde(self):
+        # ⚠️ **This reverses the first version of the rule, which kept only the first bullet.**
+        # Measured, that dropped the alternative accounts of 2,791 of 535,529 origins: `Tilly`
+        # explains the given name and the surname, and showing one reads complete while being
+        # incomplete. The separator is what keeps the text honest.
+        crudo = ("* (given name, nickname): Shortened from Matilda, + -y.\n"
+                 "* (surname): The surname may also have origins as a matronymic from Matilda.")
+        self.assertEqual(
+            "(given name, nickname): Shortened from Matilda, + -y. · "
+            "(surname): The surname may also have origins as a matronymic from Matilda.",
+            kaikki._etymology({"word": "Tilly", "etymology_text": crudo}),
+        )
+
+    def test_la_prosa_que_INTRODUCE_la_lista_se_queda(self):
+        # `bloke`: the sentence before the bullets is the one that answers the question, and it
+        # ends in a colon -- dropping it would leave the card starting mid-thought. Both
+        # hypotheses follow it, which is what the source offered.
+        crudo = ("Origin unknown; the following borrowings have been hypothesized:\n"
+                 "* From a modern Celtic language, such as Irish bloc (“block”).\n"
+                 "* From Hindustani لوک (lok).")
+        self.assertEqual(
+            "Origin unknown; the following borrowings have been hypothesized:\n"
+            "From a modern Celtic language, such as Irish bloc (“block”). · "
+            "From Hindustani لوک (lok).",
+            kaikki._etymology({"word": "bloke", "etymology_text": crudo}),
+        )
+
+    def test_la_cabecera_de_seccion_se_va_y_la_seccion_se_queda(self):
+        # `seek`. The heading is a line of its own that names what follows; flattened it doubles
+        # the next word. What follows it is content and stays.
+        crudo = ("From Middle English seke, from Old English sēċan.\n"
+                 "Cognates\n"
+                 "Cognate with Yola zeek (“to seek”).")
+        self.assertEqual(
+            "From Middle English seke, from Old English sēċan.\n"
+            "Cognate with Yola zeek (“to seek”).",
+            kaikki._etymology({"word": "seek", "etymology_text": crudo}),
+        )
+
+    def test_una_forma_reconstruida_NO_es_una_vineta(self):
+        # The control that matters most. Etymology is written full of `*proto-form`, and a rule
+        # keying on the asterisk alone would behead half the origins in the pack. A bullet is an
+        # asterisk followed by a SPACE.
+        crudo = "From Proto-Germanic *hūsą.\n*hūsą is itself of uncertain origin."
+        self.assertEqual(crudo, kaikki._etymology({"word": "house", "etymology_text": crudo}))
+
+    def test_la_palabra_de_la_cabecera_dentro_de_la_prosa_se_respeta(self):
+        # `Cognates` as a line is a heading; inside a sentence it is the sentence.
+        crudo = "From Old English hrōc. Cognates in Frisian are attested."
+        self.assertEqual(crudo, kaikki._etymology({"word": "rook", "etymology_text": crudo}))
+
+
+class ArbolTresLineasArribaTest(unittest.TestCase):
+    """The tree marker sits at line 2 on 75 pages, and the fixture that said otherwise hid it.
+
+    Measured over the whole English dump (2026-09-29), the index of the `Etymology tree` line:
+
+        linea 0 : 52,925   (99.81 %)
+        linea 1 :     22
+        linea 2 :     75   <- `brother`, `one`, `September`
+        linea 4 :      2   <- `creep`
+
+    ⚠️ **The two-line grace was believed to cover `one` and did not**, because the fixture that
+    proved it wrote `PIE word *h₁óynos` as ONE line. The dump writes the label and the value on
+    two, so the marker lands at index 2 and the whole tree shipped: `brother` reached the card as
+    *"PIE word *bʰréh₂tēr Etymology tree Proto-Indo-European *bʰréh₂tēr Proto-Germanic *brōþēr…"*.
+    The fixture here is copied from the dump, line for line.
+
+    ⚠️ **Three and not five.** The two pages left --`creep`-- would need a five-line grace, and
+    every extra line is one more chance to cut a real opening paragraph. They stay, visibly.
+    """
+
+    def test_la_forma_REAL_del_dump_se_corta(self):
+        crudo = ("PIE word\n"
+                 " *bʰréh₂tēr\n"
+                 "Etymology tree\n"
+                 "Proto-Indo-European *bʰréh₂tēr\n"
+                 "Proto-Germanic *brōþēr\n"
+                 "Old English brōþor\n"
+                 "Middle English brother\n"
+                 "English brother\n"
+                 "Inherited from Middle English brother, broþer.")
+        self.assertEqual(
+            "Inherited from Middle English brother, broþer.",
+            kaikki._etymology({"word": "brother", "etymology_text": crudo}),
+        )
+
+    def test_mas_abajo_de_la_gracia_el_arbol_se_corta_y_la_prosa_de_ARRIBA_se_queda(self):
+        # ⚠️ **This test used to assert the opposite**, that a tree at line 4 stayed whole, and it
+        # was written as *"the boundary, stated rather than left to be discovered"*. It was the
+        # wrong boundary: `verify_pack`'s content check read all 956,150 entries and reported
+        # `creep` still shipping a tree. What the grace decides is not WHETHER the tree is cut but
+        # whether the lines above it go with it -- above a leading tree sit its labels, above a
+        # trailing one sits the answer.
+        crudo = ("a\nb\nc\nd\nEtymology tree\nProto-Germanic *kreupaną\nEnglish creep\nFrom Old "
+                 "English crēopan.")
+        salida = kaikki._etymology({"word": "creep", "etymology_text": crudo})
+        self.assertNotIn("Etymology tree", salida)
+        self.assertIn("From Old English crēopan.", salida)
+        self.assertIn("a", salida.split("\n"))
+
+    def test_tres_lineas_de_prosa_que_nombran_el_arbol_no_se_cortan(self):
+        # The control the widened grace needs: the marker has to be a LINE OF ITS OWN.
+        crudo = ("From Old English crēopan.\nIt is old.\nThe Etymology tree is disputed.")
+        self.assertEqual(crudo, kaikki._etymology({"word": "creep", "etymology_text": crudo}))
+
+    def test_PIE_word_NO_es_una_cabecera_de_seccion(self):
+        # ⚠️ **Found by previewing the new builder against the published pack, not by a test.**
+        # Listing `PIE word` among the headings made `brother` WORSE: the label vanished and the
+        # tree stayed, so the card showed a tree with the one word that identified it removed.
+        # The label belongs to the tree, and `_sin_arbol` is what removes the whole block --
+        # which matters on the pages whose tree survives, like `creep` at line 4.
+        self.assertIn(
+            "PIE word",
+            kaikki._sin_cabeceras("PIE word\n *bʰréh₂tēr\nEtymology tree\nProto-Germanic *x"),
+        )
+
+
+class ComparativoPerifrasticoTest(unittest.TestCase):
+    """`more X` and `most X` are the lemma plus a word, and as search keys they are dead weight.
+
+    Measured on the built `en-full` (2026-09-29): **158,678** rows of `form` are exactly
+    `more`/`most` + the lemma's own `norm`, **16.1 %** of the table and ~3.1 MiB of a 316.5 MiB
+    pack. Nobody reaches `fuchsialike` by typing `more fuchsialike`; the lemma is its own entry.
+
+    ⚠️ **The rule is the SHAPE, not the words `more` and `most`.** It drops a comparative whose
+    tail is the lemma itself -- which is what periphrastic means -- so a synthetic comparative is
+    untouched in any language. Keying on the two English words would be a heuristic over prose,
+    which this module's docstring forbids at point 4.
+
+    ⚠️ **Only 28 `more`/`most` rows in the whole pack are NOT this shape**, and every one of them
+    is real: `most favoured nations` → `most favoured nation`, `more so` → `moreso`. They are what
+    the tail test protects.
+    """
+
+    def test_el_comparativo_perifrastico_no_es_clave_de_busqueda(self):
+        raw = {"forms": [
+            {"form": "more fuchsialike", "tags": ["comparative"]},
+            {"form": "most fuchsialike", "tags": ["superlative"]},
+        ]}
+        self.assertEqual((), kaikki._forms(raw, "fuchsialike", ()))
+
+    def test_el_comparativo_SINTETICO_se_queda(self):
+        # `bigger` is not derivable from `big` by a reader who does not know English morphology,
+        # and it is the case the whole `form` table exists for.
+        raw = {"forms": [
+            {"form": "bigger", "tags": ["comparative"]},
+            {"form": "biggest", "tags": ["superlative"]},
+        ]}
+        self.assertEqual(("bigger", "biggest"), kaikki._forms(raw, "big", ()))
+
+    def test_una_flexion_que_EMPIEZA_con_most_pero_es_un_plural_se_queda(self):
+        # `most favoured nation` is a lemma whose plural starts with `most`. The tail is not the
+        # lemma, and the row carries no comparative tag: two independent reasons to keep it.
+        raw = {"forms": [{"form": "most favoured nations", "tags": ["plural"]}]}
+        self.assertEqual(("most favoured nations",),
+                         kaikki._forms(raw, "most favoured nation", ()))
+
+    def test_una_perifrasis_sin_el_tag_se_queda(self):
+        # The control that keeps this from becoming "drop anything of the shape `x <lemma>`".
+        # Spanish builds compound tenses that way and they are real inflections.
+        raw = {"forms": [{"form": "habiendo corrido", "tags": ["compound"]}]}
+        self.assertEqual(("habiendo corrido",), kaikki._forms(raw, "corrido", ()))
+
+
+class ResiduosQueEncontroElArtefactoTest(unittest.TestCase):
+    """Two shapes that survived every rule and were found by `verify_pack`'s `[contenido]` section.
+
+    ⚠️ **Neither was in any list.** The rules had unit tests and a mutation probe, and the packs
+    built on 2026-09-29 were read by hand over seven chosen words — `brother`, `swap`, `rook`,
+    `Tilly`, `bloke`, `galosh`, `seek`. `jimmy` and `minneola` are not words anybody would think to
+    check; the check that reads all 956,150 entries found them in four seconds.
+
+    Counted over the whole English dump: **13** origins carry a lone `*` line and **2** still carry
+    the tree.
+    """
+
+    def test_una_linea_que_es_SOLO_un_asterisco_se_descarta(self):
+        # `jimmy`: the dump writes a bare `*` on its own line and the real bullet on the next. The
+        # bullet rule needs `"* "` --asterisk and SPACE, so a reconstructed form is not one-- so
+        # the lone marker survived and, flattened into the payload's single line, read exactly
+        # like a bullet nobody had stripped.
+        crudo = "*\n* (chocolate sprinkles): Unknown. Named after Jim Crow, perhaps."
+        self.assertEqual(
+            "(chocolate sprinkles): Unknown. Named after Jim Crow, perhaps.",
+            kaikki._etymology({"word": "jimmy", "etymology_text": crudo}),
+        )
+
+    def test_un_origen_que_es_SOLO_un_asterisco_no_es_un_origen(self):
+        # `minneola`'s whole etymology is one `*`. Drawing an Origin heading over it is worse than
+        # drawing nothing, and it is the rule this module already applies to an origin left empty
+        # by its own cleaning.
+        self.assertIsNone(kaikki._etymology({"word": "minneola", "etymology_text": "*"}))
+
+    def test_el_arbol_DESPUES_de_la_prosa_tambien_se_corta(self):
+        # `creep`: the tree is trailing, not leading, so the three-line grace could never reach it.
+        # The prose in front of it is the answer and has to survive; the tree has to go.
+        crudo = ("From Middle English crepen, from Old English crēopan.\n"
+                 "The noun is derived from the verb.\n"
+                 "a\nb\n"
+                 "Etymology tree\n"
+                 "Proto-Germanic *kreupaną\n"
+                 "English creep\n")
+        salida = kaikki._etymology({"word": "creep", "etymology_text": crudo})
+        self.assertNotIn("Etymology tree", salida)
+        self.assertIn("From Middle English crepen", salida)
+        self.assertIn("The noun is derived from the verb.", salida)
+
+    def test_el_arbol_ADELANTE_sigue_llevandose_su_etiqueta(self):
+        # The control for the case above: a LEADING tree drops everything before the closing
+        # marker, label lines included, which is what keeps `PIE word` from reaching the card.
+        crudo = ("PIE word\n *b\nEtymology tree\nProto-Germanic *x\nEnglish one\n"
+                 "From Middle English oon.")
+        self.assertEqual(
+            "From Middle English oon.",
+            kaikki._etymology({"word": "one", "etymology_text": crudo}),
+        )

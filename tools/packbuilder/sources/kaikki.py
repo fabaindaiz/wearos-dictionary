@@ -684,6 +684,59 @@ def _senses(raw, translations_to=None, perfil=None):
     return out
 
 
+#: Tags with which the source marks a row that describes the inflection TABLE, not an inflection.
+#:
+#: ⚠️ **They are the dump's own markers and not a list of words we dislike.** `glossary` arrives
+#: as `{"form": "glossary", "source": "conjugation", "tags": ["inflection-template"]}` and
+#: `no-table-tags` as `["table-tags"]`. Measured on the built `en-full` (2026-09-29), the two of
+#: them sat in `form` as inflections of **575 and 577 English verbs** -- `try`, `pull`, `enter` --
+#: and `glossary` is a real entry, so typing it answered with the noun plus 575 verbs. Recognising
+#: them by spelling would leave the next artefact in; the Spanish dump carries **0** of either,
+#: which is why this filter cannot move that pack.
+#:
+#: ⚠️ **`class` joined them after the first two were already filtered, and the repetition backstop
+#: is what found it.** The bilingual carried `c z alternation` on **956** entries: the verb's
+#: conjugation class, which the source labels `["class"]`. Counted across all three dumps before
+#: adding it -- `es-en-wikt.jsonl` has **5,163** forms tagged `class` and every one is an
+#: `X-Y alternation`, while `es.jsonl` and `en.jsonl` have **zero**, so it never marks a real
+#: inflection. That two markers were not the whole set is why `verify_pack` now checks the
+#: consequence and not only this list.
+TAGS_DE_LA_TABLA = frozenset({"table-tags", "inflection-template", "class"})
+
+#: Labels a rendered headword template leaves behind where a form should be.
+#:
+#: ⚠️ **The third layer the repetition backstop peeled, and the first with no usable tag.** `f same
+#: meaning` sat on **107** entries of the bilingual -- `lente`, `color`, `mundial`, nouns whose
+#: gender is ambiguous -- and it carries `canonical`, which is a REAL tag that the lemma's own
+#: spelling also carries. So the marker is the rendered label itself, the same idiom as
+#: [ARBOL_DE_ETIMOLOGIA]: a fixed string the dump writes, not a guess about the text.
+#:
+#: ⚠️ **Measured before pinning, in all three dumps.** Of the 267 multi-word `canonical` forms in
+#: `es-en-wikt.jsonl`, **118** end in one of these and the other 149 are real: `el TLCAN`,
+#: `El Cairo`, `o … o`, `tanto ... como`. English has **6,120** multi-word canonical forms and
+#: every one is a `the X`, so no rule about word counts could have told them apart.
+ANOTACIONES_RENDERIZADAS = ("same meaning", "gender-neutral")
+
+#: Tags that mark a degree form, which in English is often built with a word in front.
+#:
+#: ⚠️ **What is dropped is the SHAPE, never the words `more` and `most`.** A degree form whose
+#: tail is the lemma itself is periphrastic, and as a search key it is dead weight: nobody reaches
+#: `fuchsialike` by typing `more fuchsialike`, and the lemma is its own entry. A SYNTHETIC one --
+#: `bigger` -- is exactly what `form` exists for and is untouched. Keying on the two English words
+#: would be a heuristic over prose, which point 4 of this module's docstring forbids.
+#:
+#: Measured on the built `en-full` (2026-09-29): **158,678** rows are `more`/`most` + the lemma's
+#: own `norm`, **16.1 %** of the table and ~3.1 MiB of a 316.5 MiB pack. Only **28** rows starting
+#: with those words are NOT that shape --`most favoured nations`, `more so`-- and the tail test is
+#: what protects them.
+TAGS_DE_GRADO = frozenset({"comparative", "superlative"})
+
+
+def _es_perifrastico(forma, headword, tags):
+    """A degree form that is another word plus the lemma, so it says nothing the lemma does not."""
+    return bool(TAGS_DE_GRADO & tags) and forma.endswith(" " + headword)
+
+
 def _forms(raw, headword, inbound):
     """The inflections that lead to this lemma, deduplicated and without the lemma.
 
@@ -693,6 +746,11 @@ def _forms(raw, headword, inbound):
     seen = {}
     for item in raw.get("forms") or []:
         form = (item.get("form") or "").strip()
+        tags = set(item.get("tags") or ())
+        if (TAGS_DE_LA_TABLA & tags
+                or _es_perifrastico(form, headword, tags)
+                or form.endswith(ANOTACIONES_RENDERIZADAS)):
+            continue
         if form and form != headword:
             seen[form] = None
     for form in sorted(inbound):
@@ -1053,6 +1111,14 @@ _DELIMITADORES_IPA = (("[", "]"), ("/", "/"))
 #: rendered template by the fixed string that opens it and by the line that closes it.
 ARBOL_DE_ETIMOLOGIA = "Etymology tree"
 
+#: How many lines above the tree marker still belong to the tree rather than to the prose.
+#:
+#: ⚠️ **Measured, not chosen**: over the whole English dump the marker sits on line 0 for 99.81 %
+#: of the 53,024 pages that carry a tree, line 1 for 22 and line 2 for 75. Three covers 99.996 %
+#: of them, and each extra line is one more chance to swallow a real opening paragraph -- which is
+#: why a tree found BEYOND this keeps what comes before it instead of widening the number.
+GRACIA_DE_LA_ETIQUETA = 3
+
 
 def _sin_arbol(texto, palabra):
     """The prose behind the rendered etymology tree, or `None` if there is none.
@@ -1073,21 +1139,33 @@ def _sin_arbol(texto, palabra):
     cutting at the first occurrence would glue half a tree in front of the prose.
     """
     lineas = texto.split("\n")
-    # ⚠️ **Not only the first line.** Some pages put a `PIE word *h₁óynos` line above the tree, and
-    # checking index 0 alone let the whole tree through: measured on the built pack, 30 of 68,152
-    # origins still carried a whole tree behind such a line. Two lines of grace covers every case
-    # seen and does not start guessing at the prose.
+    # ⚠️ **Anywhere, not only at the top**, and what the position decides is what goes WITH it.
+    # Counting the index of the marker over the whole English dump (2026-09-29): line 0 on 52,925
+    # pages (99.81 %), line 1 on 22, line 2 on 75 and **line 4 on 2**.
     inicio = next(
-        (i for i, l in enumerate(lineas[:2]) if l.strip() == ARBOL_DE_ETIMOLOGIA),
+        (i for i, l in enumerate(lineas) if l.strip() == ARBOL_DE_ETIMOLOGIA),
         None,
     )
     if inicio is None:
         return texto
+    # The tree closes with the page's own entry; with no closing marker it runs to the end.
     marca = "English " + palabra
-    for i in range(len(lineas) - 1, inicio, -1):
-        if lineas[i].strip() == marca:
-            return "\n".join(lineas[i + 1:]).strip() or None
-    return None
+    fin = next(
+        (i for i in range(len(lineas) - 1, inicio, -1) if lineas[i].strip() == marca),
+        len(lineas) - 1,
+    )
+    # ⚠️ **A LEADING tree takes the lines above it and a TRAILING one does not**, and that is the
+    # whole of this distinction. Above a leading tree sit its own label lines --`PIE word`, then
+    # ` *bʰréh₂tēr` on the next-- which are the tree's and not prose; `brother`, `one` and
+    # `September` shipped a whole tree while the grace was two, because the fixture that proved it
+    # had written the label and its value on one line and so agreed with the code, not the dump.
+    #
+    # ⚠️ **Above a trailing tree sits the answer.** `creep` reads *"From Middle English crepen…"*
+    # and then the tree; dropping what comes before would throw away the etymology to remove the
+    # noise. The two pages this covers were found by `verify_pack`'s content check reading every
+    # entry, not by any test -- the rule was believed complete and had a mutation probe.
+    resto = lineas[fin + 1:] if inicio < GRACIA_DE_LA_ETIQUETA else lineas[:inicio] + lineas[fin + 1:]
+    return "\n".join(resto).strip() or None
 
 
 #: A cross-reference to a numbered section that does not exist outside the wiki page.
@@ -1116,10 +1194,89 @@ def _sin_referencias(texto):
     return limpio or None
 
 
+#: Lines that NAME a section instead of saying anything, pinned from what the dump writes.
+#:
+#: ⚠️ **Counted on the text that survives `_sin_arbol`, which is the only text that reaches a
+#: card.** Measured on the whole English dump (2026-09-29): once the tree is gone, **324** distinct
+#: bare heading lines remain over 535,529 origins, and these five are the ones that name a section
+#: rather than being a leftover tree node -- `Cognates` (1,165), `More information` (7),
+#: `Abbreviation` (7), `Details` (6), `Etymological notes` (5). Flattened into the payload's
+#: single line, `Cognates` doubles the next word: `sword` read *"…(“sharp”). Cognates Cognate
+#: with North Frisian Swērt…"*.
+#:
+#: ⚠️ **Whole line and exact, never a substring.** *"Cognates in Frisian are attested"* is a
+#: sentence, and a rule that matched inside the prose would eat it.
+#:
+#: ⚠️ **`PIE word` is deliberately NOT here, and putting it here made `brother` worse.** It is the
+#: tree's own label, not a section heading: removing it while the tree is still there deletes the
+#: one word that made the tree recognisable and leaves the tree. It belongs to `_sin_arbol`, which
+#: is what cuts the whole block.
+CABECERAS_DE_SECCION = frozenset({
+    "Cognates", "More information", "Abbreviation", "Details", "Etymological notes",
+})
+
+#: A wiki bullet: an asterisk and a SPACE.
+#:
+#: ⚠️ **The space is the whole rule and it is not cosmetic.** Etymology is written full of
+#: reconstructed forms --`*hūsą`, `*bʰréh₂tēr`-- so keying on the asterisk alone would behead a
+#: large share of the origins in the pack. Measured: **0.64 %** of the surviving origins carry a
+#: real bullet.
+VINETA = "* "
+
+#: What joins the items of a bulleted list once their markers are gone.
+#:
+#: ⚠️ **They are JOINED and not cut down to the first, and that is a deliberate reversal.** The
+#: first version kept only the first bullet, reasoning that `_etymology` already keeps the first of
+#: several `etymology_texts`. Measured, that silently dropped the alternative accounts of **2,791**
+#: of 535,529 origins: `bloke` carries two hypotheses about where it comes from and would have
+#: shown one -- reading complete and being incomplete, which is the failure this repository treats
+#: as the worst kind. The separator costs two characters and keeps the text honest.
+SEPARADOR_DE_VINETAS = " · "
+
+
+def _sin_cabeceras(texto):
+    """The origin without the lines that only name a section."""
+    return "\n".join(l for l in texto.split("\n") if l.strip() not in CABECERAS_DE_SECCION)
+
+
+def _sin_vinetas(texto):
+    """A bulleted list as one line: the markers go, the items are joined, nothing is lost.
+
+    ⚠️ **The prose ABOVE the list stays.** `bloke` reads *"Origin unknown; the following
+    borrowings have been hypothesized:"* and then the bullets -- dropping it would start the card
+    mid-thought.
+
+    ⚠️ **Every item survives**; see [SEPARADOR_DE_VINETAS] for why this is a join and not a cut.
+    """
+    salida = []
+    lista = []
+    for linea in texto.split("\n"):
+        # ⚠️ **A line that is ONLY the marker is dropped, and it is not a hypothetical.** The dump
+        # writes a bare `*` above the real bullets on 13 pages: `jimmy` reached the card as
+        # *"* (chocolate sprinkles): Unknown…"*, which reads exactly like a bullet nobody stripped,
+        # and `minneola`'s entire etymology is that one character. An empty bullet says nothing,
+        # and an origin that is nothing at all comes out as `None` rather than as a heading over a
+        # blank line.
+        if linea.strip() == VINETA.strip():
+            continue
+        if linea.lstrip().startswith(VINETA):
+            lista.append(linea.lstrip()[len(VINETA):].strip())
+            continue
+        if lista:
+            salida.append(SEPARADOR_DE_VINETAS.join(lista))
+            lista = []
+        salida.append(linea)
+    if lista:
+        salida.append(SEPARADOR_DE_VINETAS.join(lista))
+    return "\n".join(salida)
+
+
 def _limpiar_origen(texto, palabra):
     """Everything that has to come off an origin before it reaches a card, in order."""
     sin_arbol = _sin_arbol(texto, palabra)
-    return _sin_referencias(sin_arbol) if sin_arbol else None
+    if not sin_arbol:
+        return None
+    return _sin_referencias(_sin_vinetas(_sin_cabeceras(sin_arbol)))
 
 
 def _etymology(raw):
@@ -1173,6 +1330,36 @@ def _is_form_page(raw):
     return bool(senses) and all(_is_form_of(sense) for sense in senses)
 
 
+#: How a gloss names the lemma it points at, in either dump.
+_LEMA_EN_LA_GLOSA = re.compile(r"\b(?:of|de)\s+(.+?)\s*$", re.IGNORECASE | re.DOTALL)
+
+
+def _lemas_de(sense):
+    """The lemmas a form page really leads to, with a comma-split one put back together.
+
+    ⚠️ **wiktextract cuts a multi-word lemma on its own commas.** The page `ate, breathed, and
+    slept` declares `form_of = ['eat', 'breathe', 'and sleep']`, so `eat` and `breathe` each
+    receive an inflection they do not have and `eat, breathe, and sleep` receives none. Measured
+    over the whole English dump (2026-09-29): **178 of 537,579** senses with a `form_of` name more
+    than one target, and **161** of those are one lemma in pieces.
+
+    ⚠️ **The gloss decides, and that is what keeps this from eating the real cases.** It names the
+    lemma in prose, so rejoining the pieces with `", "` either reproduces it -- they were one
+    lemma -- or it does not, and then they are several lemmas and every one of them stays.
+    `postie` is the diminutive of `postman` OR `postwoman`, and both survive.
+    """
+    destinos = [t.get("word") for t in sense.get("form_of") or [] if t.get("word")]
+    if len(destinos) < 2:
+        return destinos
+    glosa = (sense.get("glosses") or [""])[0] or ""
+    cola = _LEMA_EN_LA_GLOSA.search(glosa)
+    if cola:
+        junto = ", ".join(destinos)
+        if junto.casefold() == cola.group(1).strip().rstrip(".").casefold():
+            return [junto]
+    return destinos
+
+
 def _inbound_forms(path):
     """Pass 1: inverts the form-of pages into a lemma -> forms-that-lead-to-it map.
 
@@ -1200,9 +1387,8 @@ def _inbound_forms(path):
                     lemas_en_minuscula.add(word)
                 continue
             for sense in raw["senses"]:
-                for target in sense.get("form_of") or []:
-                    lemma = target.get("word")
-                    if lemma and lemma != word:
+                for lemma in _lemas_de(sense):
+                    if lemma != word:
                         inbound.setdefault(lemma, set()).add(word)
     return inbound, lemas_en_minuscula
 
