@@ -2850,7 +2850,12 @@ class ScreensTest {
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 appVersion = "9.9.9",
                 buildCommit = "abc1234567+dirty",
-                buildLocalTime = "2026-09-23 15:16 -03:00",
+                // ⚠️ **The shape `app/build.gradle.kts` really produces**, not a plausible one.
+                // This read `-03:00` -- a form the builder has never emitted, before or after the
+                // 2026-09-29 change from `(-3)` to `-03`. Nothing failed, because the row renders
+                // whatever string it is handed; what a fixture out of step with its producer costs
+                // is that any test measuring how the row FITS measures a width nobody will see.
+                buildLocalTime = "2026-09-29 17:49 -03",
                 uiLanguage = uiLanguage,
                 onUiLanguageChange = onUiLanguageChange,
                 onManagePacks = {},

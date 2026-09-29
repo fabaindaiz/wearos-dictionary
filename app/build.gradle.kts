@@ -113,7 +113,7 @@ val buildCommit: String = run {
  *
  * - [buildTime], **al minuto y en UTC**, es el diagnostico: se compara contra otro build, y al
  *   segundo cambiaria en cada compilacion sin decir nada que el commit no diga.
- * - [buildLocalTime], **al minuto, en la hora de Santiago y con su desfase entre parentesis**, sale
+ * - [buildLocalTime], **al minuto, en la hora de Santiago y con su desfase como `-03`**, sale
  *   en Ajustes. Primero fue solo el dia; se pidio despues poner la hora local y la zona en vez
  *   de sacarlas, y lo que se gana es que la fila contesta *«¿es el build que acabo de hacer?»* y
  *   no solo *«¿es de hoy?»*, que con varias compilaciones en un dia es la pregunta real.
@@ -139,15 +139,21 @@ val buildTime: String = SimpleDateFormat("yyyy-MM-dd HH:mm 'UTC'").apply {
 private val SANTIAGO: TimeZone = TimeZone.getTimeZone("America/Santiago")
 
 /**
- * `2026-09-28 15:22 (-3)`.
+ * `2026-09-28 15:22 -03`.
  *
- * ⚠️ **El desfase se arma a mano y no con un patron de `SimpleDateFormat`.** Ninguno de los
- * suyos da la forma pedida: `X` escribe `-03`, `XX` `-0300` y `XXX` `-03:00`, y con la forma
- * larga la fila ocupaba **tres lineas** en la pantalla de Ajustes de 234 dp. El cero a la
- * izquierda y los dos puntos no dicen nada que `-3` no diga.
+ * ⚠️ **The offset is written `-03` and not `(-3)`, asked for on 2026-09-29.** This reverses what
+ * the line above it used to argue --*"the leading zero and the colon say nothing that `-3` does
+ * not"*-- and the argument that stood behind it does not carry over: what cost **three lines** on
+ * the 234 dp Settings screen was the LONG form, `-03:00`. At three characters against the four of
+ * `(-3)`, this one is shorter than what it replaces, so the reason to avoid it is gone.
+ *
+ * ⚠️ **Still built by hand rather than with a `SimpleDateFormat` pattern.** `X` would give exactly
+ * `-03` here, and it is not used because it is right only by luck: `X` writes `Z` for UTC and
+ * needs more than hours for a zone that is not on the hour, so the pattern would quietly change
+ * shape the day somebody pins a different zone. `%+03d` says what it prints.
  *
  * ⚠️ **Se calcula con `getOffset(instante)` y no con `rawOffset`**: Santiago cambia de hora, y
- * `rawOffset` ignora el horario de verano — un build de enero diria `-4` siendo `-3`.
+ * `rawOffset` ignora el horario de verano — un build de enero diria `-04` siendo `-03`.
  *
  * ⚠️ **Si la zona no cayera en horas enteras esto mentiria**, redondeando hacia cero. No pasa en
  * Santiago, que es lo unico que este valor formatea; queda dicho por si alguien fija otra.
@@ -155,7 +161,7 @@ private val SANTIAGO: TimeZone = TimeZone.getTimeZone("America/Santiago")
 val buildLocalTime: String = run {
     val reloj = SimpleDateFormat("yyyy-MM-dd HH:mm").apply { timeZone = SANTIAGO }.format(buildInstant)
     val horas = SANTIAGO.getOffset(buildInstant.time) / 3_600_000
-    "$reloj (${if (horas >= 0) "+" else ""}$horas)"
+    "%s %+03d".format(reloj, horas)
 }
 
 /**
