@@ -143,10 +143,32 @@ over adb. Verified inside the APK rather than assumed: `assets/core-index.tsv` d
 the manifest reads `versionCode='13'`. `watch-keepalive-debug.apk` (2.7 MB) built too, since
 `watchsession.py` needs it to hold the session and it did not exist.
 
-**Not verified.** **Nothing has been seen on a screen** — not the emulator, not the watch. Every
-claim above is about files on this machine. Whether the cleaned origin fits a 234 dp card, whether
-the new bilingual entries are reachable from the search box, and whether the app logs that it
-**compared** the cores rather than skipping the comparison, are the three the upload answers.
+**Seen on the emulator** --`wear_sm_l715f`, 498x498 at density 340, which is the watch's 234 dp
+(D-150)-- which is where `app/CLAUDE.md` says functional probes belong.
+
+- **`tuesday` returns `martes`.** The case that named the whole day, on screen.
+- **`rookie` draws its word translations**: `novato · sorche · rookie`, so the bilingual `W`
+  channel reaches the card.
+- **The word of the day is one per language**: `lock` (EN) and `encantado` (ES) on the same home.
+- **5 packs open, 0 rejected**, all five at today's or the correct version, and the log of the
+  extraction from the APK names both bundled cores, which is the `copy` branch on a fresh install.
+- **`brother`'s origin renders as flowing prose** with no template noise in it.
+
+⚠️ **And it renders as SCREENS of prose.** `brother`'s cognate list runs past four swipes. The
+origin is correct and enormous, which is obs #5's long tail --median 26 characters, maximum
+2,914-- landing on one of the most common words there is. Nothing decided; it is now seen rather
+than computed.
+
+⚠️ **Startup wants a look on the watch, not here.** With four packs the log said `listo para
+buscar en 512 ms`; with `en-full`'s 312 MiB added, **12,377 ms**. On an emulator, in a debug build,
+that number is not a measurement (D-043, and `app/CLAUDE.md`) -- but it is the first thing to read
+in the watch's log.
+
+**Not verified.** **The START of a cleaned origin was never seen on screen.** Four attempts went
+past it or landed on the wrong row, and the tap budget was not worth more; the data is proven by
+reading the `.db`, the rendering of its first line is not. And **nothing at all has been on the
+watch**: whether the app logs that it **compared** the cores rather than skipping the comparison
+is what the upload answers.
 
 **What went wrong.**
 - ⚠️ **The bullet rule started out deleting content and the owner's risk review caught it.**
