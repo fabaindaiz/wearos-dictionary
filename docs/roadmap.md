@@ -4939,9 +4939,25 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 13 it would have installed the new APK and gone on opening September's `en-core`, with no error
 and no log.
 
-⚠️ **None of it has been seen on a screen** — not the emulator, not the watch. What the upload has
-to answer: whether the cleaned origin fits 234 dp, whether `tuesday` is reachable from the search
-box, and whether the log says the app **compared** the cores instead of skipping the comparison.
+✅ **Seen on the emulator** --`wear_sm_l715f`, 498x498 at density 340, the watch's own 234 dp--
+which is where `app/CLAUDE.md` puts functional probes. `tuesday` returns **`martes`**; `rookie`
+draws its word translations `novato · sorche · rookie`; the word of the day shows one per
+language; five packs open and **0 are rejected**; and `brother`'s origin renders as prose with no
+template noise in it.
+
+⚠️ **Two things the emulator showed that no count would have.** `brother`'s origin runs past
+**four swipes** of cognates — correct and enormous, which is obs #5's long tail landing on a very
+common word. And startup went from **512 ms** with four packs to **12,377 ms** once `en-full`'s
+312 MiB joined them; on an emulator in a debug build that is not a measurement (D-043), but it is
+the first line to read in the watch's log.
+
+⚠️ **What the emulator did NOT answer**: the **start** of a cleaned origin was never seen — four
+attempts went past it or landed on the wrong row. The data is proven by reading the `.db`; the
+first line's rendering is not.
+
+⚠️ **And nothing has been on the watch.** What only the upload answers: whether the log says the
+app **compared** the cores instead of skipping the comparison, which is what the jump to
+versionCode 13 exists for.
 
 ---
 
