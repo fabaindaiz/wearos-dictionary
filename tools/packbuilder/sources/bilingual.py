@@ -70,8 +70,17 @@ def translation_keys(gloss, for_search=True):
         return []
 
     salida = []
-    for bruto in _SEPARATORS.split(gloss):
-        termino = " ".join(_PARENTHETICAL.sub(" ", bruto).split()).strip(_BORDES)
+    # ⚠️ **The parenthetical goes BEFORE the split, and the order is the whole bug.** Splitting
+    # first cuts a parenthesis that contains a comma in half: `martes` reads *"Tuesday (the third
+    # day of the week in many religious traditions, and the second…)"*, so the first piece kept an
+    # unbalanced `(` and was rejected as a fragment while the second started with `and` and was
+    # rejected as a description -- and `Tuesday`, which is right there in front, never got a turn.
+    # `tuesday` appears 14,074 times in the frequency list, so it is not a tail case.
+    #
+    # ⚠️ Removing it earlier does NOT weaken the unbalanced check: `_PARENTHETICAL` still requires
+    # a matched pair, so a genuinely broken gloss keeps its `(` and is still thrown away.
+    for bruto in _SEPARATORS.split(_PARENTHETICAL.sub(" ", gloss)):
+        termino = " ".join(bruto.split()).strip(_BORDES)
         # A leftover bracket means the gloss had an unbalanced one and what is left is a fragment
         # of a description, not a term.
         if not termino or "(" in termino or _DESCRIBES.match(termino):

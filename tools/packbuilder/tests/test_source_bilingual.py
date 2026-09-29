@@ -267,3 +267,43 @@ class LadoInversoTest(unittest.TestCase):
         )
         get = next(r for r in registros if r.headword == "get")
         self.assertEqual({"got", "gets", "getting"}, set(get.forms))
+
+
+class ParentesisConComaTest(unittest.TestCase):
+    """`Tuesday` was not an entry of the bilingual pack, and it is an order-of-operations bug.
+
+    The gloss of `martes` is *"Tuesday (the third day of the week in many religious traditions,
+    and the second day of the week in systems that…)"*. The separator split runs BEFORE the
+    parenthetical is removed, so a parenthesis containing a comma is cut in half: the first piece
+    keeps an unbalanced `(` and is rejected as a fragment, the second starts with `and` and is
+    rejected as a description. The term in front of it never gets a chance.
+
+    ⚠️ **This is not the prose heuristic the roadmap feared.** Nothing here guesses at meaning:
+    the parenthetical was already being removed, just too late. `_PARENTHETICAL` still requires a
+    balanced pair, so a genuinely unbalanced gloss keeps its `(` and is still rejected.
+
+    ⚠️ `tuesday` appears **14,074** times in `freq-en-opensubs.txt`, so it is not a tail case.
+    """
+
+    def test_el_parentesis_con_coma_ya_no_se_come_el_termino(self):
+        gloss = ("Tuesday (the third day of the week in many religious traditions, and the "
+                 "second day of the week in systems that make Monday the first)")
+        self.assertEqual(["Tuesday"], bilingual.translation_keys(gloss))
+
+    def test_el_parentesis_SIN_coma_sigue_funcionando_igual(self):
+        # The case that already worked, pinned so the reorder cannot quietly change it.
+        self.assertEqual(["foot"], bilingual.translation_keys("foot (a part of the body)"))
+
+    def test_un_parentesis_DESBALANCEADO_sigue_rechazandose(self):
+        # The protection the order change must not remove: an unbalanced gloss is a fragment, and
+        # `CAT scan")` is a key nobody can type.
+        self.assertEqual([], bilingual.translation_keys("CAT scan\") (an imaging"))
+
+    def test_varios_terminos_separados_por_coma_siguen_saliendo_todos(self):
+        # The reorder must not turn the separator off: a real list of alternatives still splits.
+        self.assertEqual(["dog", "hound"], bilingual.translation_keys("dog, hound"))
+
+    def test_un_termino_con_parentesis_y_una_alternativa_despues(self):
+        # Both behaviours at once, which is what the order change is really claiming.
+        self.assertEqual(["Tuesday", "martes"],
+                         bilingual.translation_keys("Tuesday (the day, after Monday), martes"))
