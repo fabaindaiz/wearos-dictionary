@@ -1411,3 +1411,145 @@ class ElBilingueNoLlevaEtimologiaTest(unittest.TestCase):
         # with no flag carries the origin for every word it holds.
         metadata = {"kind": "monolingual", "langs": "es"}
         self.assertIsNone(build_pack.vocabulario_de_etimologia_del_pack(metadata))
+
+
+class _Reporte:
+    """The smallest thing `_verify_content` needs: it records failures and prints notes."""
+
+    def __init__(self):
+        self.failures = []
+
+    def check(self, ok, mensaje):
+        print(("  ok    " if ok else "  FALLA ") + mensaje)
+        if not ok:
+            self.failures.append(mensaje)
+
+    def note(self, mensaje):
+        print("  --    " + mensaje)
+
+
+class ContenidoExtraidoTest(BuilderTestCase):
+    """`verify_pack`'s `[contenido]` section: what the builder EXTRACTED, judged on the artifact.
+
+    ⚠️ **Every defect checked here shipped in a published pack while its own unit test was green.**
+    That is the whole argument for the section: a test agrees with the code, and these agree with
+    the file. The rendered etymology tree had a rule, a test and a mutation probe, and survived on
+    75 pages because the fixture put the marker on a line the dump does not use.
+    """
+
+    def _con_origen(self, origen):
+        """A pack of one entry whose `M` channel is whatever is handed in."""
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        diccionario = bytes.fromhex(db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        cuerpo = "P\tverb\nM\t%s\nS\tuna glosa\n" % origen
+        db.execute("UPDATE entry SET payload = ?",
+                   (payload_codec.compress(cuerpo, diccionario),))
+        db.commit()
+        db.close()
+
+    def _verifica(self):
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        return codigo, salida.getvalue()
+
+    def test_un_arbol_de_etimologia_en_el_origen_hace_fallar(self):
+        # The shape `brother` shipped with: the label, then the rendered tree, then the prose.
+        self._con_origen("PIE word *b Etymology tree Proto-Germanic *x English correr From x.")
+        codigo, salida = self._verifica()
+        self.assertEqual(1, codigo)
+        self.assertIn("arbol de etimologia", salida)
+
+    def test_una_vineta_de_wiki_al_frente_hace_fallar(self):
+        # `rook` opened with `* Inherited from Middle English rok…`.
+        self._con_origen("* Inherited from Middle English correre.")
+        codigo, salida = self._verifica()
+        self.assertEqual(1, codigo)
+        self.assertIn("vineta de wiki", salida)
+
+    def test_un_origen_que_ABRE_con_una_forma_reconstruida_NO_hace_fallar(self):
+        # ⚠️ **The control, and the first version of it did not bite.** It put the asterisk in the
+        # middle --`from Proto-Germanic *hūsą`-- where no rule would ever have looked, so a
+        # mutation dropping the space from the marker survived it. Etymology is written full of
+        # reconstructed forms and some origins OPEN with one; that is the case the `"* "` and not
+        # `"*"` is defending, so that is the case the control has to use.
+        self._con_origen("*hūsą is the reconstructed ancestor, of uncertain origin.")
+        codigo, _ = self._verifica()
+        self.assertEqual(0, codigo)
+
+    def test_el_comparativo_perifrastico_en_form_hace_fallar(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("INSERT OR REPLACE INTO form (norm, entry_id) VALUES ('more correr', 1)")
+        db.commit()
+        db.close()
+        codigo, salida = self._verifica()
+        self.assertEqual(1, codigo)
+        self.assertIn("comparativo perifrastico", salida)
+
+    def test_una_forma_multipalabra_repetida_hace_fallar(self):
+        # The backstop, and it is not hypothetical: it is what found `class` after
+        # `inflection-template` and `table-tags` were already filtered. `c z alternation` sat on
+        # 956 entries of the bilingual pack.
+        cuantas = verify_pack.REPETICION_MAXIMA_DE_FORMA + 1
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            for i in range(cuantas):
+                builder.add(record("palabra%d" % i))
+        db = sqlite3.connect(self.path)
+        for fila in db.execute("SELECT id FROM entry").fetchall():
+            db.execute("INSERT OR REPLACE INTO form (norm, entry_id) VALUES ('c z alternation', ?)",
+                       (fila[0],))
+        db.commit()
+        db.close()
+        codigo, salida = self._verifica()
+        self.assertEqual(1, codigo)
+        self.assertIn("metadato de tabla", salida)
+
+    def test_una_forma_multipalabra_REAL_repetida_pocas_veces_no_hace_fallar(self):
+        # The control that keeps the threshold honest: `ha hecho` repeats 5 times in the real
+        # Spanish pack and `f ks` 37 in the English one, and both are legitimate.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            for i in range(5):
+                builder.add(record("palabra%d" % i))
+        db = sqlite3.connect(self.path)
+        for fila in db.execute("SELECT id FROM entry").fetchall():
+            db.execute("INSERT OR REPLACE INTO form (norm, entry_id) VALUES ('ha hecho', ?)",
+                       (fila[0],))
+        db.commit()
+        db.close()
+        codigo, _ = self._verifica()
+        self.assertEqual(0, codigo)
+
+    def test_si_no_se_leyo_NINGUN_payload_la_seccion_no_pasa_en_vacio(self):
+        """⚠️ Found by running `report-coverage-before-findings`'s own check on the new section.
+
+        Zero findings and zero coverage read identically and mean opposite things. With every
+        payload unreadable, both origin checks printed `ok … (0 entradas leidas)` — a green line
+        over an input nobody could evaluate, which is the shape that note exists to forbid.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        # Not a valid deflate stream: the payload section reports it and the content section must
+        # not then report success over what it could not read.
+        db.execute("UPDATE entry SET payload = ?", (b"no es un payload",))
+        db.commit()
+        db.close()
+        db = sqlite3.connect(self.path)
+        db.row_factory = sqlite3.Row
+        diccionario = bytes.fromhex(db.execute(
+            "SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        reporte = _Reporte()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            verify_pack._verify_content(db, diccionario, reporte)
+        db.close()
+        # ⚠️ Called at its own level and not through `verify()`, because `_verify_search_paths`
+        # RAISES on a corrupt payload instead of reporting it -- a separate defect, written down
+        # rather than fixed here, and one this test would otherwise hide behind.
+        self.assertTrue(reporte.failures, "la seccion paso en vacio sobre un pack ilegible")
+        self.assertIn("se leyo el contenido de", salida.getvalue())

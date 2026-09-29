@@ -111,9 +111,39 @@ POLITICAS_DE_NOMBRES_PROPIOS = ("excluded", "lexical-only", "definitions-only",
 
 REQUIRED_INDEXES = ("idx_entry_norm", "idx_entry_fuzzy")
 
-# How many entries get decompressed to check the payloads. Decompressing the whole pack on a real
-# dictionary would take minutes; a random sample detects the same thing.
+# How many entries get decompressed for the per-entry checks -- the ones that cost more than the
+# decompression itself (`sense_code` over every sense, the orphan citations, the unknown tags).
+#
+# ⚠️ **This used to say "decompressing the whole pack would take minutes" and that is false**:
+# measured 2026-09-29 on `en-full`, **222,000 payloads a second**, so its 956,150 come out in
+# about **4 seconds**. What the sample saves is the per-sense work, not the inflation. That is why
+# [_verify_content] below reads **every** entry: a defect at 0.04 % is invisible to 200 rows, and
+# 0.04 % is exactly the rate at which the rendered etymology tree survived into a published pack.
 PAYLOAD_SAMPLE = 200
+
+#: The rendered `{{etymon}}` template's own first line. Mirror of `kaikki.ARBOL_DE_ETIMOLOGIA`.
+#:
+#: ⚠️ **It is checked over the ARTIFACT and not only in the source's tests, because that is where
+#: it was found.** The rule that strips it had unit tests and a mutation probe, and a published
+#: pack still carried the tree on 75 pages -- the fixture had the marker on the wrong line. A test
+#: can only agree with the code; this agrees with the file that ships.
+MARCADOR_DE_ARBOL = "Etymology tree"
+
+#: A flattened wiki bullet at the head of an origin.
+VINETA_WIKI = "* "
+
+#: How often one multi-word `form` may repeat before it is read as table metadata, not a form.
+#:
+#: ⚠️ **A threshold, and the measured headroom is what makes it usable.** A real inflection barely
+#: repeats: measured 2026-09-29 over the rebuilt packs, the most repeated multi-word form is **37**
+#: in English (`f ks`, a censored spelling) and **5** in Spanish (`ha follado`). The artefacts sat
+#: at **575** (`glossary`), **577** (`no table tags`) and **956** (`c z alternation`).
+#:
+#: ⚠️ **It is a BACKSTOP and not the mechanism.** The filter lives in `kaikki.TAGS_DE_LA_TABLA` and
+#: keys on the marker the source itself writes. This exists for the next marker nobody has seen --
+#: which is not hypothetical: `class` was found by this very repetition, after `inflection-template`
+#: and `table-tags` were already filtered.
+REPETICION_MAXIMA_DE_FORMA = 60
 
 #: The list to check `meta.corpus_coverage` against, or None. `main` sets it from the CLI.
 FRECUENCIAS_PARA_VERIFICAR = None
@@ -379,7 +409,7 @@ def verify(path):
     # eliminate -- the same deal D-142 made with the sample.
     #
     # Measured: **7.6 s** over the Spanish pack's 1,309,880 distinct keys and **4.3 s** over
-    # English's 801,758. Expensive for a watch and cheap for an hour-long build, which is precisely
+    # English's 801,758. Expensive for a watch and cheap for a minutes-long build, which is precisely
     # why it lives here and not in `PackFile`.
     for table in ("form", "trans"):
         malas = []
@@ -598,6 +628,9 @@ def verify(path):
                     % (con_etimologia, decoded, 100.0 * con_etimologia / decoded,
                        "" if alcance is None else "; el pack la lleva hasta %s" % alcance))
 
+    print("\n[contenido]")
+    _verify_content(db, dictionary, report)
+
     print("\n[planes de consulta]")
     _verify_query_plans(db, report)
 
@@ -616,6 +649,95 @@ def verify(path):
         return 1
     print("todas las comprobaciones pasaron")
     return 0
+
+
+def _verify_content(db, dictionary, report):
+    """What the builder EXTRACTED, judged on the artifact instead of on the rule that made it.
+
+    See `docs/decisions.md` d-a2f271-c226a1 for why every entry and why the tolerances differ.
+
+    ⚠️ **This section exists because every defect it looks for shipped in a published pack while
+    its own unit tests were green.** A test agrees with the code; these agree with the file. The
+    rendered etymology tree had a rule, a test and a mutation probe, and survived on 75 pages
+    because the fixture put the marker on a line the dump does not use.
+
+    ⚠️ **Every entry, not a sample.** At 0.04 % --the rate the tree actually survived at-- a
+    200-row sample sees nothing. Measured 2026-09-29: inflating the whole of `en-full` is about
+    **4 seconds**, so there is no reason to guess. See [PAYLOAD_SAMPLE].
+    """
+    con_arbol = []
+    con_vineta = []
+    leidos = 0
+    for row in db.execute("SELECT headword, payload FROM entry"):
+        try:
+            texto = payload_codec.decompress(row["payload"], dictionary)
+        except Exception:  # noqa: BLE001 - el payload ya lo reporta la seccion anterior
+            continue
+        leidos += 1
+        origen = payload_codec.parse_etymology(texto)
+        if not origen:
+            continue
+        if MARCADOR_DE_ARBOL in origen:
+            con_arbol.append(row["headword"])
+        if origen.lstrip().startswith(VINETA_WIKI):
+            con_vineta.append(row["headword"])
+
+    # ⚠️ **Coverage before findings, because the two zeros read the same and mean the opposite.**
+    # With every payload unreadable this section printed `ok ... (0 entradas leidas)` twice: a
+    # green line over an input nobody could evaluate. Stating what was read, and failing when it
+    # is not all of it, is what keeps a silent reader from reporting a clean pack.
+    total = db.execute("SELECT COUNT(*) FROM entry").fetchone()[0]
+    report.check(
+        leidos == total,
+        "se leyo el contenido de las %d entradas del pack (leidas: %d)" % (total, leidos),
+    )
+
+    # ⚠️ **Zero tolerance, and that is the difference from the pronunciation readout above.** How
+    # much origin a pack carries is a property of the SOURCE; a rendered template in the middle of
+    # it is a property of OUR extraction, so any amount of it is a defect and not a datum.
+    report.check(
+        not con_arbol,
+        "ningun origen arrastra el arbol de etimologia (%d entradas leidas)%s"
+        % (leidos, "" if not con_arbol else ": %s" % ", ".join(con_arbol[:5])),
+    )
+    report.check(
+        not con_vineta,
+        "ningun origen abre con una vineta de wiki%s"
+        % ("" if not con_vineta else ": %s" % ", ".join(con_vineta[:5])),
+    )
+
+    # ⚠️ **The English shape and not the rule's shape, and saying so is the point.** The builder
+    # drops a DEGREE-tagged form whose tail is the lemma, which is language neutral; the artifact
+    # has no tags left, so all that can be checked here is what that rule produces in English.
+    # A language that builds its comparative differently would pass this by construction.
+    #
+    # ⚠️ It cannot be widened to `<any word> <lemma>`: measured, that shape covers **6,100** rows
+    # of `en-full` that are legitimate --`the Kola Peninsula` leads to `Kola Peninsula`-- and a
+    # check that flags them is a check that gets switched off.
+    perifrasticos = db.execute(
+        "SELECT COUNT(*) FROM form f JOIN entry e ON e.id = f.entry_id"
+        " WHERE f.norm = 'more ' || e.norm OR f.norm = 'most ' || e.norm"
+    ).fetchone()[0]
+    report.check(
+        perifrasticos == 0,
+        "ninguna fila de form es el comparativo perifrastico de su propio lema (%d)"
+        % perifrasticos,
+    )
+
+    # The backstop. See [REPETICION_MAXIMA_DE_FORMA] for why a threshold and where it comes from.
+    repetida = db.execute(
+        "SELECT norm, COUNT(*) c FROM form WHERE norm LIKE '% %'"
+        " GROUP BY norm ORDER BY c DESC LIMIT 1"
+    ).fetchone()
+    if repetida is None:
+        report.note("no hay formas multipalabra que contar")
+    else:
+        report.check(
+            repetida["c"] <= REPETICION_MAXIMA_DE_FORMA,
+            "ninguna forma multipalabra se repite como metadato de tabla"
+            " (la mas repetida es %r, %d veces; el tope es %d)"
+            % (repetida["norm"], repetida["c"], REPETICION_MAXIMA_DE_FORMA),
+        )
 
 
 def _citas_huerfanas(text):
