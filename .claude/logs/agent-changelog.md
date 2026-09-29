@@ -136,10 +136,17 @@ with **identical corpus coverage** (96.63 %). In the bilingual, `Tuesday → mar
 Yugoslavia`, `of`/`from`/`about` all now exist, and `Croatia [adj]` went from six equivalents to
 `splitense · Croacia`.
 
-**Not verified.** **Nothing has been seen on a device.** The APK was not rebuilt and no pack was
-installed, so every claim above is about a `.db` on this machine. Whether the cleaned origin fits
-a 234 dp card, and whether the new bilingual entries are reachable from the search box, are still
-open — and they are the half only the emulator answers.
+**And the artifacts that carry it.** `app-debug.apk`, **113.9 MB**, versionCode **13**, assembled
+after `:app:clean` because an incremental build carries ~25 MB of dead padding and this one goes
+over adb. Verified inside the APK rather than assumed: `assets/core-index.tsv` declares
+`en-core.db 202609291559` and `es-core.db 202609262100`, matching `dist/index.json` exactly, and
+the manifest reads `versionCode='13'`. `watch-keepalive-debug.apk` (2.7 MB) built too, since
+`watchsession.py` needs it to hold the session and it did not exist.
+
+**Not verified.** **Nothing has been seen on a screen** — not the emulator, not the watch. Every
+claim above is about files on this machine. Whether the cleaned origin fits a 234 dp card, whether
+the new bilingual entries are reachable from the search box, and whether the app logs that it
+**compared** the cores rather than skipping the comparison, are the three the upload answers.
 
 **What went wrong.**
 - ⚠️ **The bullet rule started out deleting content and the owner's risk review caught it.**
@@ -178,6 +185,14 @@ open — and they are the half only the emulator answers.
   testing the coverage check through `verify()`: a pack whose payloads do not inflate crashes the
   verifier rather than failing it, so the reason never reaches whoever ran it. The new test calls
   `_verify_content` at its own level instead of hiding behind that crash. **Not fixed.**
+- ⚠️ **`es-full` and `es-core` were deliberately not rebuilt, and the last of the five reasons was
+  measured only at the end.** Four of the changes cannot reach Spanish by construction --0
+  conjugation-table artefacts, 0 rendered labels, 0 periphrastic degree forms, 0 of the two noise
+  patterns over 4,811 sampled origins. The fifth, the comma-split `form_of`, applies to every
+  language and had been measured on English only: `es.jsonl` has **67,977 senses (8.21 %)** with
+  several targets and **zero** that the gloss rejoins, because they are real --`amigo` is a form
+  of both `amigar` and `amigarse`. The claim was true; it was one fifth unmeasured for most of
+  the day.
 - ⚠️ **`dictionary.versionCode` went 12 → 13, and forgetting it would have made the whole day
   invisible on the watch.** `en-core`'s bytes changed with no Kotlin touched, and `PackStore.plan`
   returns `compare = emptyList()` when `last == current` — so the watch, running 12, would have

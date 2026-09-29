@@ -4922,9 +4922,30 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ✅ **funciona de punta a punta** (2026-09-22, D-214) | Descarga con reanudación, comprueba los dos hashes, instala atómicamente y recarga; la cancelación libera el `.part` (D-231). ⚠️ **Lo que falta es de producto, no de mecanismo**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo y sólo `debug` habla por `http://`. **Es el ítem #3 de las tres que desbloquean todo** |
 
-### Pendiente de subir al reloj — **NADA, subido el 2026-09-28**
+### Pendiente de subir al reloj — **SÍ: APK 13 y cuatro packs, construidos el 2026-09-29**
 
-✅ **The watch runs `04f247c`**, uploaded and read back the same day. The APK alone: none of that
+⚠️ **Built and NOT uploaded**, which is the state this section exists so nobody loses:
+
+| | |
+|---|---|
+| `app-debug.apk` | **113.9 MB**, versionCode **13**, assembled after `:app:clean` |
+| what it carries | `en-core.db` **202609291559** (today's) and `es-core.db` 202609262100 |
+| new packs in `dist/` | `en-full`, `en-core`, `en-main`, `es-en` |
+| untouched, and measured | `es-full` and `es-core` — none of the five changes can reach them |
+| the keep-alive | `watch-keepalive-debug.apk`, 2.7 MB, built |
+
+⚠️ **The versionCode is what makes any of this arrive.** `PackStore.plan` returns
+`compare = emptyList()` when `last == current`, and the watch is running 12: without the jump to
+13 it would have installed the new APK and gone on opening September's `en-core`, with no error
+and no log.
+
+⚠️ **None of it has been seen on a screen** — not the emulator, not the watch. What the upload has
+to answer: whether the cleaned origin fits 234 dp, whether `tuesday` is reachable from the search
+box, and whether the log says the app **compared** the cores instead of skipping the comparison.
+
+---
+
+**Lo anterior, del 2026-09-28.** ✅ **The watch runs `04f247c`**, uploaded and read back the same day. The APK alone: none of that
 batch touches a pack, which is what let it go up in **34 s** against the minute and a half
 `en-full` costs. What it carries -- the probed escape hatches, the orphan red fixed and toned
 down, the row that stops cutting the word, the balanced break, hyphenation by the word's own
