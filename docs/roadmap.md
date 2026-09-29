@@ -183,6 +183,23 @@ pasa es que le falta lo que se construyó después. No hay error, no hay log, y 
 da por bueno mientras sus invariantes se cumplan. La única forma de saberlo es comparar lo que el
 builder hace **hoy** contra lo que los `.db` publicados dicen que son.
 
+### Lo que cuesta, medido y no recordado · i-a2f271-4a6d9c
+
+⚠️ **`~1 h` circulaba en ocho lugares y nunca se había medido.** Cronometrado el 2026-09-29 en
+esta máquina, con los dumps en disco local:
+
+| | |
+|---|---|
+| cadena inglesa (`en-full` + `en-core` + `en-main`) | **4 min 52 s** |
+| `es-full` (con Tatoeba, WordNet y Wikidata) | **7 min 31 s** |
+| bilingüe | **65 s** |
+| **pipeline completo** | **≈ 14 min** |
+
+Es el número con el que se decide si algo espera al próximo build, así que estar 4× de más no es
+un detalle de documentación: cambia qué entra y qué se aplaza. ⚠️ **Y la primera corrección
+también estuvo mal**: medir sólo el inglés daba «10× de más», y el español —que es el lento— lo
+bajó a 4×.
+
 ### Cómo se contesta, en dos comandos
 
 ```sh
@@ -195,11 +212,105 @@ español completo (73,6 MB) esté por debajo del máximo del rango de `main` (15
 real lo salte. El guard está en `_niveles` y mira el tamaño del `full`, que **en un dry-run todavía
 no existe**. El plan que se lee no es exactamente el plan que corre.
 
-### La deuda de hoy — NINGUNA, reconstruido el 2026-09-25 a las 22:21
+### La deuda de hoy — **NINGUNA**, reconstruido el 2026-09-29 (tres vueltas, 12:20 a 13:20)
 
-**The six packs in `dist/` came out of this date's builder** and pass `verify_pack.py` whole. This
-rebuild lands the three payload channels the previous one predated —`I`, `F` and `M`— plus the
-retrained compression dictionary and the English packs' Spanish `attribution`.
+**English and the bilingual came out of this date's builder** and pass `verify_pack.py` whole and
+`--como-la-app`. `es-full` and `es-core` were **deliberately not rebuilt**: measured beforehand,
+none of the seven changes can reach them — the Spanish dump carries 0 conjugation-table artefacts,
+0 of the two etymology noise patterns over 4,811 sampled origins, and **0 periphrastic degree
+forms out of 266 tagged**.
+
+| pack | before (2026-09-26) | now | entries |
+|---|---|---|---|
+| `en-full` | 316.5 MiB | **312.7 MiB** | 956,150 (=) |
+| `en-main` | 140.1 MiB | **129.2 MiB** | 263,244 (−39,529) |
+| `en-core` | 41.04 MiB | 41.1 MiB | 66,678 (+578) |
+| `es-en` | 64.18 MiB | **63.98 MiB** | 210,417 (+933) |
+| `es-full`, `es-core` | — | *untouched, and that is the measurement* | — |
+
+⚠️ **`en-main` lost 39,529 entries and gained nothing to worry about**: corpus coverage is
+**96.63 %, identical**, and `en-core`'s is 96.44 % against 96.43 %. The budget search converged on
+a different round and dropped rare lemmas, not words anybody looks up — 10.9 MiB lighter for the
+same reach. ⚠️ **But it IS the etymology vocabulary** (`--etimologia-hasta en-main.db`, which reads
+the *previous* build's), so the next rebuild will carry the datum for 181,935 words instead of
+218,339. Noticed, not acted on.
+
+**What the rebuild landed, read off the artifacts and not predicted:**
+
+| | before | now |
+|---|---|---|
+| rows in `form` | 985,992 | **825,589** (−160,403) |
+| conjugation-table artefacts in `form` | 1,152 | **0** |
+| `more`/`most` rows | 158,706 | **28** — exactly the legitimate ones the tail test protects |
+| origins dragging a whole tree | 0.04 % | **0.00 %** |
+| `glossary` as a real entry | ✅ | ✅ still there |
+
+Read out of the built pack: `brother` opens *"Inherited from Middle English brother, broþer…"*,
+`rook` has lost its leading bullet, `swap` its dangling pointer, `seek` its glued `Cognates`, and
+`Tilly` keeps **both** accounts joined by `·`.
+
+**And in the bilingual**, also read and not predicted:
+
+| word | before | now |
+|---|---|---|
+| `Tuesday` | **did not exist** | ✅ `→ martes` |
+| `Yugoslavia` | **did not exist** | ✅ `→ Yugoslavia` |
+| `of`, `from`, `about` | did not exist | ✅ all three |
+| `Croatia [adj]` | `ragusiano · splitense · Yugoslavia · Croacia · Balcanes · Danubio` | ✅ `splitense · Croacia` |
+
+### ⚠️ What `verify_pack`'s content checks found in the packs of two hours earlier · i-a2f271-22f8a7
+
+**The rebuild was declared good, read by hand over seven chosen words, and had three defects.**
+The checks added the same afternoon read **all 956,150 entries in four seconds** and reported
+them; two were words nobody would have thought to look at.
+
+| found | what it was | pages |
+|---|---|---|
+| `c z alternation` on 956 entries | the verb's **conjugation class**, tagged `class` by the source | 5,163 forms |
+| `jimmy`, `minneola`, `Aussie` | a bare `*` on its own line, which the `"* "` rule does not see; `minneola`'s whole etymology was that character | **13** |
+| `creep` | the tree **after** the prose, which a grace measured from the top can never reach | **2** |
+| `f same meaning` on 107 entries | a rendered gender annotation, carrying `canonical` — a **real** tag the lemma's own spelling also has | 161 forms |
+
+**Three of the four were peeled by the same backstop**, one rebuild at a time, and each had a
+structural marker of its own that was counted in all three dumps before being trusted. The fourth
+--`creep`-- is the one worth keeping: it had been **measured, documented and accepted in prose**
+as *"two pages, they stay, visibly"*. Seen as a red exit code instead of a note, the question
+stopped being *is it worth chasing two pages* and became *why does my rule not cover them* — and
+the answer was simpler than the rule it replaced. The grace no longer decides **whether** the tree
+is cut but **what goes with it**: above a leading tree sit its labels, above a trailing one sits
+the answer.
+
+⚠️ **A test that asserted the wrong boundary had to be replaced**, not extended: it read *"the
+boundary, stated rather than left to be discovered"* and stated the boundary the artifact
+disproved.
+
+### ⚠️ Two things this rebuild did NOT fix, and the second corrects a claim made before it · i-a2f271-92cf8f
+
+1. **A residual class of dangling reference**, 0.27 % of origins, which `REFERENCIA_COLGADA` never
+   targeted: it catches *"see … above/below"*, and these are prose that **names** a section —
+   `down`: *"More at Etymology 2 below"*, `felon`: *"Etymology 1, adjective sense 3"*, `root`:
+   *"the related noun (Etymology 1)"*. Some are dead on a card, others carry meaning (`charcoal`:
+   *"char (Etymology 3 [verb]) + coal"* says which `char`). **It needs its own decision**, and the
+   0.30 % figure measured before the rebuild counted this class rather than the one that was fixed.
+
+2. ⚠️ **`Spain`, `etc` and `Colombia` are still English entries pointing at nonsense**, and the
+   explanation given before the rebuild was wrong. They were described as *regional usage labels
+   inside a parenthesis*; `canario`'s gloss has **no parenthesis at all**: *"of, from or relating
+   to the Canary Islands, Spain"*. Split on commas, `of` and `Spain` are each one word and neither
+   starts with a describing word, so both become translation keys. The 275 parenthetical sources
+   of `Spain` did go — there are simply enough non-parenthetical ones left that the entry and its
+   eight displayed words do not move.
+
+   **The real shape**: `translation_keys` accepts any 1–2 word fragment of a comma-split gloss, and
+   `_DESCRIBES` only guards the fragment's *first* word. Fixing it means deciding when a gloss is a
+   description rather than a list — the prose heuristic `kaikki.py` point 4 warns about — so it
+   needs a measurement before any code, and it did not get one.
+
+---
+
+**The build of 2026-09-25 at 22:21, kept as history.** Landed the three payload
+channels the previous one predated —`I`, `F` and `M`— plus the retrained compression dictionary
+and the English packs' Spanish `attribution`.
 
 | pack | size | entries | corpus coverage | fraction of lemmas |
 |---|---|---|---|---|
@@ -306,7 +417,7 @@ hicieron. Los tres tienen test ahora.
 | ~~**Ningún pack trae la PRONUNCIACIÓN**~~ ✅ **cerrado el 2026-09-25** | The rebuild lands `I`, and `F` and `M` with it. `verify_pack.py` now reads **96.5 %** on `es-full` and **100.0 %** on `es-core`, against the 0.0 % of the previous artifacts |
 | ~~**Los packs no están en el reloj**~~ ✅ **cerrado el 2026-09-26** | The five it holds are all from this build: `en-core@202609260119`, `en-full@202609260117`, `es-core@202609260121`, `es-full@202609260102`, `es-tr-enwikt-freq@202609260418`. APK versionCode 11 installed, 5 open and 0 rejected, ready to search in **2,742 ms** |
 | ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
-| **`Tuesday` en el bilingüe** — ✅ **MEDIDO 2026-09-24, y es más chico de lo que parecía** | Of 7 weekdays, 12 months and 10 control words, **only `tuesday` fails** (28/29 resolve). Over a 4,000-entry sample of the bilingual's 123,979 Spanish entries, the pattern *gloss starts with `Term (`* covers 12.7 %, and of those **1.07 % have no English way in**. Split by class, the genuinely lost single words are **0.05 % → ~62 in the pack**; the rest are multi-word phrases (~806), `alternative form of…` markers that are not translations at all (~217), and proper nouns (~155). ⚠️ **So it is 62 words, not a class of defect** — which is what the measurement was for. See §La traducción glosada |
+| ~~**`Tuesday` en el bilingüe**~~ ✅ **BUILT 2026-09-29, and it was never a prose heuristic** | The 2026-09-24 measurement counted the wrong thing. It is an **order-of-operations bug**: `translation_keys` splits on commas BEFORE removing the parenthetical, so a parenthesis containing a comma is cut in half — the first piece keeps an unbalanced `(` and is rejected as a fragment, the second starts with `and` and is rejected as a description. Moving `_PARENTHETICAL.sub` ahead of the split is two lines, and the unbalanced check survives because the pattern still requires a matched pair. **4,501 senses change (0.51 % of 875,591)** — far past the ~62 words this row estimated. ⚠️ **And it was producing WRONG answers, not only absences**: `Yugoslavia`'s gloss names *«…Croatia, North Macedonia, Montenegro, Serbia»* inside its parenthesis, so the pack carries `Croatia [en] adj → ragusiano · splitense · Yugoslavia` and **no English entry for `Yugoslavia` at all**. `de` gains `of`, `from` and `about`; `estar` gains `to be` |
 | ~~**Los núcleos se llaman `Español (full) (core)`**~~ ✅ **cerrado el 2026-09-23** | El builder le pegaba `(core)` al nombre del completo sin sacarle `(full)`. Arreglado en `build.name_with_tier` y los dos núcleos regenerados — **15 s cada uno**, derivan del completo y no necesitan los dumps. Salieron **byte a byte del mismo tamaño**: cambió el nombre y nada más. Verificado en pantalla: `English (core)`. (D-230) |
 | ~~**Los conteos de `-core` del changelog no reconcilian**~~ ✅ **explicado el 2026-09-23** | No era una contradicción: **la CLI de `build_core.py` llamaba «entradas» a `len(vocabulario)`**, que es el conjunto de palabras elegidas, no las filas de `entry`. Medido sobre `es-core`: **39.021 = `count(DISTINCT norm)`** (el número del changelog), 41.219 lemas distintos y **48.292 filas**, que es lo que declara `meta.entry_count`. Los tres reconcilian. El rótulo dice ahora **«palabras»**, que es lo que evita que vuelva a costar una sesión |
 | ~~**El pack inglés completo mezcla español en su `description`**~~ ✅ **cerrado el 2026-09-25** | It had moved one function over, into **`attribution`**: all three English packs credited OpenSubtitles in Spanish, inside the field D-031 makes non-optional. Fixed in the builder by d-a2f271-803d8a, and `repair_meta.py` does not reach that field, so the rebuild is what cleared it from `dist/` |
@@ -631,10 +742,19 @@ ojo, **antes** de escribir la regla. Sin eso se estaría ratificando el orden qu
 produzca.
 
 
-### La cita del ejemplo en español — MEDIDO, no construido
+### ~~La cita del ejemplo en español~~ — ✅ **BUILT**, and this section said otherwise
 
-**Estado.** **Planificado.** El mecanismo existe y está construido para el inglés (D-216); lo que
-falta en español es **una línea**: declarar `separador_de_cita` en su `Perfil`.
+**Estado.** ✅ **Done, verified 2026-09-29 against the built pack.** The *«one line»* below is in
+the `es` profile --`separador_de_cita="."` and `fusiona_iniciales=True`-- and it reaches the
+artifact: over a 12,000-entry sample of `es-full` (seed 3), **48.6 %** of the entries that carry
+an example carry a citation, trimmed to author and work as designed: `Celedonio Esteban Flores.
+Bulín`, `Daniel Barros Grez. La academia político-literaria`.
+
+⚠️ **One degenerate case left, and it is new information**: `prognatismo` cites `«Prognatismo»` —
+the word itself, with no author. Worth a look before deciding it is fine.
+
+What follows is the measurement that decided the rule, kept because it is what a future change
+would have to re-derive.
 
 No se construyó en el mismo pase porque **el Wikcionario sirve el `ref` con otra forma** y
 aplicarle el separador inglés produciría basura:
@@ -710,6 +830,35 @@ that word itself.
 ⚠️ **Measured on ONE language.** English has a different rate of locutions --6 entries in
 `en-core` against Spanish's 11, but `en-full` was not looked at-- and the table above would have
 to be repeated before generalising.
+
+#### ⚠️ Re-measured 2026-09-29 and the case for building anything got weaker, not stronger
+
+**The missing English half, counted**: `en-full` **14,663 (1.53 %)**, `en-main` 5,340 (1.76 %),
+`en-core` **6 (0.01 %)**. So the pattern holds across both languages, and with it the answer this
+section itself named: *keep them but not in core* is **already true by measurement**, with no
+change to anything.
+
+⚠️ **And the number that reframes the complaint: the measurement counted 30 rows, the screen
+shows 3.** The visible list for `estar` is already single words --`estar`, `estar`, `estarse`,
+`estarme`, `estarcir`-- and the first locution is **row 6**. `poner` is single words through row 4.
+
+⚠️ **Excluding them does not give back words, it gives back shorter locutions.** Demoting the 4+
+word ones promotes `estar en definición`, `estar pez`, `estar de pie`. The reason is that there is
+nothing else behind those prefixes, counted on `es-full`:
+
+| prefix | single words | 2–3 words | 4+ words |
+|---|---|---|---|
+| `estar` | **15** | 19 | 35 |
+| `poner` | **4** | 30 | 17 |
+| `conocer` | **3** | 1 | 2 |
+
+`poner` has **four single words in the whole dictionary**. A build-time cut would not fill the
+list with something better; it would make the list shorter and lose `arma de doble filo`.
+
+**What that leaves**: the original report was a **tile row truncating**, which is the fourth
+option this section lists --a layout question, not a content one-- and the only one the
+measurement still supports. ⚠️ **Nothing was built**, and the reason is now a number rather than a
+hesitation.
 
 ### La calidad del contenido del pack español
 
@@ -961,7 +1110,7 @@ memoria.
 | 4 | Resolver los enlaces en la ficha | El mapa de enlaces tiene que llevar `packId`: toca el límite de D-080 |
 | 5 | Los **10.438 pares** de `en.jsonl` a `trans` del pack inglés | Hace que `perro` encuentre `dog`. No sirven para `T`: **0 `sense_index` de 9.987** |
 | 6 | ~~Índice de flexiones inglesas~~ **hecho (D-184)**, y desde D-196 vive en el `form` de la entrada inglesa: `went` es flexión de `go` | **1,84 MB (+3,7 %)**; sube la inversa de 78,1 % a 98,9 % |
-| 7 | **Reconstruir los packs reales** | ~1 hora. Decidido: **un solo build al final**. Sus 350 excepciones de direccionabilidad se cierran ahí |
+| 7 | **Reconstruir los packs reales** | ⚠️ **~14 min, no «~1 hora»** — medido el 2026-09-29: ingles 4 min 52 s, `es-full` 7 min 31 s, bilingue 65 s. Decidido: **un solo build al final**. Sus 350 excepciones de direccionabilidad se cierran ahí |
 
 #### Sin decidir — son decisiones, no trabajo
 
@@ -1949,7 +2098,8 @@ In order, cheapest first, none of it built:
    part that needs `SearchRepository` to compose across packs and is entry-level, not sense-level.
 
 ⚠️ **Step 1 changes what a pack contains, not how it is read**, so under D-001 the packs are
-rebuilt rather than migrated — an hour of build for the Spanish pack, and the app needs no change
+rebuilt rather than migrated — **7 min 31 s** of build for the Spanish pack (measured 2026-09-29,
+not the hour this line used to claim), and the app needs no change
 beyond rendering a field it already parses.
 
 
@@ -2527,27 +2677,56 @@ la mesa, no de paso.
   mirarlas.
 - **Nada de esto corrió en un reloj físico**, y menos con 295 MiB.
 
-#### ⚠️ El 38,7 % de la tabla `form` inglesa no son flexiones — medido 2026-09-21
+#### ⚠️ ~~El 38,7 % de la tabla `form` inglesa no son flexiones~~ — **RETRACTED 2026-09-29**
 
-Encontrado de rebote, midiendo el índice inverso del pack bilingüe, y **es un defecto del pack
-inglés por sí solo**: de sus **985.992** filas de `form`,
+**The 2026-09-21 measurement was right and its diagnosis was wrong**, and because the row told a
+future session to go build a filter, the retraction goes where the claim was. What it said: that
+the **381,590 (38.7 %)** rows of `form` carrying a space are *«frases de ejemplo que el parser
+dejó caer»*, and that the fix is to drop any form that is not *«una palabra, alfabética, no
+artefacto»*, which *«descarta el 35 % de los candidatos sin mover la cobertura ni una décima»*.
 
-- **381.590 (38,7 %) contienen un espacio** — `big fat hairy deals`, `ate breathed and slept`,
-  `1 000 000 questions`. Son frases de ejemplo que el parser dejó caer en la tabla de flexiones.
-- **`no table tags` (577 filas) y `glossary` (575) son artefactos de wiktextract**, no palabras.
-  Se delatan por repetición: una flexión real casi no se repite.
+⚠️ **Building that filter would have deleted half a million good inflections, in silence.** The
+381,590 English rows, classified:
 
-El contraste con el español cierra el diagnóstico: sus 1.499.895 filas tienen como forma más
-repetida `unas`, **16 veces**. El defecto es de la fuente inglesa y del filtro que no está, no del
-pipeline.
+| | rows | |
+|---|---|---|
+| inflections of multi-word lemmas (`gold cloths` → `gold cloth`) | 197,917 | 51.9 % |
+| `more`/`most` comparatives (`more fuchsialike` → `fuchsialike`) | 158,706 | 41.6 % |
+| spelling variants (`cactus like` → `cactuslike`, `the internet` → `Internet`) | 24,113 | 6.3 % |
+| **wiktextract artefacts** | **854** | **0.2 %** |
 
-**Qué cuesta.** Peso muerto en el peldaño `byInflectedForm` del pack inglés —nadie va a teclear
-`ate breathed and slept`— y filas que el índice nunca usa. **Qué lo arregla**: el mismo filtro que
-el índice inverso ya necesita (una palabra, alfabética, no artefacto), aplicado en `kaikki.py` al
-construir. Ahí se midió que **descarta el 35 % de los candidatos sin mover la cobertura ni una
-décima**.
+**And the three examples the row offered as proof are the three that are legitimate.** `form`
+stores `norm(form)` and `norm` strips punctuation: `ate, breathed, and slept` —a real inflection
+of the idiom `eat, breathe, and sleep`— is stored as `ate breathed and slept`, which read out of a
+`SELECT` looks like debris. It is the same trap D-242 hit from the other side: **the table is
+written in the search engine's alphabet, not the reader's**, and any diagnosis made by reading it
+directly inherits that distortion.
 
-Se arregla cuando se reconstruya el pack inglés; no justifica reconstruir 295 MiB por sí solo.
+**Spanish would have suffered worse, and the contrast that closed the diagnosis measured something
+else.** Its rows with a space are **868,577 (57.9 %)**, more than English's; what was true is that
+they do not *repeat* (`unas`, 16 times), because they are distinct compound and pronominal
+conjugations: `hubierais encarnizado` → `encarnizar`, `os hubieseis desparejado` → `desparejarse`.
+
+**What did survive, and was built on 2026-09-29.** The 854 artefacts, which are not a size problem
+but a correctness one: `glossary` sat in `form` as an inflection of **575 English verbs** —`try`,
+`pull`, `enter`, `design`— and is also a real entry, so typing it answered with the noun plus 575
+verbs. They are recognised by the marker the **source itself** puts on them (`inflection-template`,
+`table-tags`) and not by a denylist; the Spanish dump carries **0** of either, which is the control
+saying that pack cannot move.
+
+**And the one lever it left open was built the same day.** The `more`/`most` comparatives are
+**158,678 rows, 16.1 % of the table and ~3.1 MiB of a 316.5 MiB pack (1 %)** — small, but the
+rule turned out to be exact rather than approximate, which is what made it worth doing.
+
+⚠️ **The rule is the SHAPE and not the two English words**: a form carrying a degree tag whose
+**tail is the lemma itself**. `bigger` is synthetic and stays; `more fuchsialike` says nothing
+`fuchsialike` does not. Keying on `more`/`most` would be a heuristic over prose, which point 4 of
+`kaikki.py`'s docstring forbids. Only **28** rows in the whole pack begin with those words without
+being that shape --`most favoured nations` → `most favoured nation`, `more so` → `moreso`-- and
+the tail test is what protects them.
+
+⚠️ **What it costs, stated**: typing *«more fuchsialike»* stops finding it. The lemma is its own
+entry and is reached by typing the lemma.
 
 ### Qué contenido tiene el pack de demostración
 
@@ -2847,7 +3026,18 @@ geometría, no el hardware.
 
 ### Dividir los packs grandes en vez de achicarlos
 
-**Estado.** **Diseñado y medido, sin construir** (actualizado 2026-09-21). Decisión del usuario:
+**Estado.** ⚠️ **BUILT, and this section said otherwise until 2026-09-29.** `build_core.py`
+exists with `--rango-mb`, `--tier` and `--frecuencias`; `en-core`, `en-main` and `es-core` are in
+`dist/` and on the watch. What follows described it as *«sin construir»* for days, which is how a
+session gets sent to build something twice.
+
+⚠️ **And it was not built the way this section designed it.** The plan below picks a *top N* of
+**Tatoeba** words; what exists picks by a **megabyte budget range** using **OpenSubtitles**
+frequencies. The reasoning below about why frequency beats `rank` --and why picking by `rank`
+drags the whole `form` table-- still holds and is why the built version also takes a frequency
+list. The *numbers* below are the plan's estimates, not the artifacts': the real ones are in §🔁.
+
+Historical, and kept because the reasoning is what justified the mechanism. Decisión del usuario:
 *«que los packs muy grandes, en lugar de reducirse, se pueda evaluar dividirlos funcionalmente»*,
 y después *«lo del pack core por ahora quiero planificarlo y dejarlo en el roadmap; necesito
 entender bien el mecanismo con que funcionará antes de querer implementarlo»*. Lo que sigue es el
@@ -3601,16 +3791,16 @@ están a ~4 dp. No es un defecto de implementación: es geometría.
 
 | | Opción | Costo en unidades de este repo | Qué cierra / qué cuesta |
 |---|---|---|---|
-| **A** | Subir `lineHeight` sólo en glosas con enlaces | ~2 de las 3–4 filas que caben | ✅ **CONSTRUIDA el 2026-09-28 (d-a2f271-d83740)**, y medida en el emulador: una línea de `bodyMedium` pasa de ~40 px a **79 px**, 1,98 ×. Barato y reversible; **no llega a 48**, y no lo pretende |
+| **A** | Subir `lineHeight` sólo en glosas con enlaces | ~2 de las 3–4 filas que caben | ⚠️ **CONSTRUIDA y REVERTIDA el mismo día (d-a2f271-d83740)**. Medida en el emulador: una línea de `bodyMedium` pasa de ~40 px a **79 px**, 1,98 ×. En la muñeca el precio es lo que se ve —*«mucho interlineado»*— y se retiró en el acto. **Sobrevive como perilla apagada**, `glossLineHeightInFonts` en `assets/tuning.json`: el número no se pierde, el efecto no se paga. **No llega a 48**, y no lo pretende |
 | **B** | **El tap abre una confirmación** *«¿Ir a X?»* con la palabra ya resuelta | 1 fila temporal, 1 toque extra | ⚠️ **Convierte un error en un rechazo**: equivocarse deja de costar una navegación perdida. Es lo único que resuelve el problema sin pelear contra la geometría. **Recomendada** |
 | **C** | Chips de 48 dp con las palabras tocables, debajo de la glosa | 1–2 filas por acepción | Toques perfectos y el dato ya existe (`links`). ⚠️ Rompe la lectura: la glosa deja de ser el objeto y pasa a ser un índice |
 | **D** | Lupa propia (zoom al mantener apretado) | Alto: gesto, render y medición en reloj | ⚠️ **Wear OS ya trae una lupa del sistema** en accesibilidad. Construir una propia duplica plataforma y la haría peor. **Descartada** |
 | **E** | Heurística de cercanía sobre `TextLayoutResult` | ~30 líneas | Es lo que hacen los navegadores. ⚠️ **Sin señal visual, un acierto y un "casi" se sienten igual**, y con dos enlaces contiguos elige mal con confianza — peor que fallar visiblemente. ✅ **CONSTRUIDA el 2026-09-23 (D-243), contra esta recomendación**, con tres cotas que acotan la objeción: un acierto exacto no se pisa, un tap dentro de una línea no salta de línea, y más allá del radio no pasa nada. Lo que sigue sin resolver es el hueco entre dos enlaces pegados |
 
-**What unblocks it.** **P-11** of `docs/preguntas-del-reloj.md`, and only for **B**. A is built,
-so the question narrowed: it is no longer *what do we do about mis-taps* but *is the wider band
-enough, or is the confirmation still worth an extra tap*. That is the half a desktop cannot feel,
-and now it gets asked against a screen that already has the cheap fix in it.
+**What unblocks it.** **P-11** of `docs/preguntas-del-reloj.md`, and only for **B**. A was built
+and withdrawn, so the question went back to its original shape: the screen being used has **no**
+cheap fix in it, and the choice is between paying A's two lines per sense and paying B's extra
+tap. That is the half a desktop cannot feel.
 
 ### ✅ `abiertos=` in the debug dump undercounts — FIXED, and this row was stale for a day
 
@@ -4351,9 +4541,11 @@ The pack states its reach in `meta.etymology_vocabulary`, so a reader a year fro
 
 #### Lo que las dos comparten, y conviene decirlo una vez
 
-**Ninguna de las dos necesita un rebuild propio**: entran en el próximo. Un rebuild completo es
-~1 h con los dumps presentes, así que el costo de juntarlas es cero y el de separarlas es una hora
-por cabeza.
+**Ninguna de las dos necesita un rebuild propio**: entran en el próximo. ⚠️ **Un rebuild completo
+es ~14 min y no «~1 h»**, medido el 2026-09-29 con los dumps en disco: la cadena inglesa 4 min
+52 s, `es-full` 7 min 31 s, el bilingüe 65 s. El costo de juntarlas sigue siendo cero, pero el de
+separarlas son **minutos y no una hora** — y ese número es con el que se decide si algo espera al
+próximo build, así que estar 4× de más cambia decisiones.
 
 ⚠️ **What rides along is no longer four defects but two, and the distinction is the point.** Of
 the four `dist/` carried on 2026-09-23, **two lived entirely in `meta`** — the name
@@ -4722,13 +4914,13 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 
 | Qué | Estado | Por qué importa |
 |---|---|---|
-| **Gate completo** | ✅ 21 checks, verde | |
+| **Gate completo** | ✅ **40 checks, 1.197 tests, verde** | |
 | **Tests instrumentados en API 37** | ✅ 34 tests, 0 fallas | |
 | **Tests instrumentados en API 33** (el `minSdk`) | ❌ **sin correr** | El AVD `wear_api33` existe. **El propósito de esos tests es que el ICU difiere entre versiones**, así que correr uno solo no prueba lo que intentan probar |
-| **Cualquier cosa vista en el reloj real** | ⚠️ **parcial** | La app, los dos packs y siete comprobaciones se vieron el 2026-09-20; los tiles dibujando y los tests instrumentados, no. Ver §Lo que YA se vio en el reloj |
-| **R8** | ❌ apagado | **32,9 de los 33 MB son dex.** Es la palanca más grande que queda. Encenderlo reintroduce la clase de bug que sólo aparece en release, así que va atado a la verificación en dispositivo. Ver O-2 |
+| **Cualquier cosa vista en el reloj real** | ⚠️ **parcial, y el borde se movió** | La app, los dos packs y siete comprobaciones se vieron el 2026-09-20, y el 2026-09-28 el reloj corre y **reporta** el build del día. Lo que sigue sin verse **en la muñeca** es todo lo que pide usarla: **P-3, P-4, P-5, P-11, P-13, P-16**. ⚠️ Y ya no se puede cerrar tocando el reloj: la prueba ahí es instalar y leer el log. Ver §Lo que YA se vio en el reloj |
+| **R8** | ✅ **encendido en `release` desde el 2026-09-20 (D-163)** | El APK pasó de 33,0 a 5,5 MB y el dex de 29,5 a 2,7 — **91 % menos** — sin una sola regla de keep. ⚠️ **Lo que falta no es encenderlo, es verificarlo en dispositivo**: lo que R8 rompe, lo rompe sólo en release y sin error de compilación, y los dos `TileService` son el borde filoso. Para eso existe el build `benchmark`. Ver O-2 |
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
-| **Instalador de packs** | ❌ no existe | Los packs se copian a mano con `devpack.py`. Para publicar hace falta, y está bloqueado por el `sha256` del pack entero |
+| **Instalador de packs** | ✅ **funciona de punta a punta** (2026-09-22, D-214) | Descarga con reanudación, comprueba los dos hashes, instala atómicamente y recarga; la cancelación libera el `.part` (D-231). ⚠️ **Lo que falta es de producto, no de mecanismo**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo y sólo `debug` habla por `http://`. **Es el ítem #3 de las tres que desbloquean todo** |
 
 ### Pendiente de subir al reloj — **NADA, subido el 2026-09-28**
 

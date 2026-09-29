@@ -16,6 +16,197 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-29 · s-a2f271-b04804 — The `form` table was not the defect the roadmap said it was
+**What.** Seven changes the next rebuild lands, plus four retractions. In `kaikki.py`: the
+conjugation table's own rows stop being inflections, a lemma wiktextract cuts on its commas is put
+back together, the etymology loses its flattened wiki bullets and its glued section headings, the
+tree's grace goes from two lines to three, and periphrastic degree forms leave `form`. In
+`bilingual.py`: the parenthetical is removed **before** the separator split. And four roadmap
+sections were asserting things that were not true — §🔁's *«deuda NINGUNA»*, O-3's `form`
+diagnosis, §*Dividir los packs grandes* as unbuilt, and §*La cita del ejemplo en español* as
+unbuilt.
+
+**Areas.** `tools/packbuilder/sources/kaikki.py`, `tools/packbuilder/sources/bilingual.py`, their
+two test files, `docs/roadmap.md` (§🔁, §O-3, §*Dividir*, §*La cita*, §*locutions*), `README.md`,
+`tools/CLAUDE.md`.
+
+**Why.** Asked for: review the new changes, report what the roadmap has open, and take the pack
+items so an afternoon rebuild is possible. Then scoped, because a build is ~1 h: every change
+defined and ready *«antes de hacer un build de los packs»*.
+
+**Architecture.** ✅ Complies. Nothing touches the schema, `norm()` or `NORM_VERSION`.
+
+**Measured.** All on 2026-09-29, against `dist/` built 2026-09-26 20:50–21:00Z and the dumps.
+- **`dist/` was not the build the roadmap described.** Real `entry_count`s are `en-main` 302,773,
+  `en-core` 66,100, `es-core` 46,634 — matching no column of the documented table, which belongs
+  to the 2026-09-25 22:21 build.
+- **The published English pack still carries the noise `2b9f214` fixed on 2026-09-27**: over a
+  random sample of 25,000 entries (seed 7, 5,353 with an origin), **0.04 %** drag a whole tree and
+  **0.30 %** cite an absent section. `brother`, `swap`, `felon`.
+- **O-3's `form` pruning, retracted.** Of the 381,590 English rows with a space: 51.9 % are
+  inflections of multi-word lemmas, 41.6 % `more`/`most` comparatives, 6.3 % spelling variants,
+  **0.2 % (854) artefacts**. Spanish has **868,577 (57.9 %)**, all real compound and pronominal
+  conjugations. The only size lever left is 3.1 MiB of a 316.5 MiB pack.
+- **`glossary` sat in `form` as an inflection of 575 English verbs** and `no-table-tags` of 577.
+  Both carry the source's own marker; the Spanish dump has **0** of either.
+- **The tree marker's line index over the whole English dump**: line 0 on 52,925 pages (99.81 %),
+  line 1 on 22, **line 2 on 75**, line 4 on 2.
+- **`form_of` with more than one target**: 178 of 537,579 senses, 161 of them one split lemma.
+- **Obs #6 answered and needs no code**: `rook` carries byte-identical `etymology_text` under
+  `noun` and `verb` in the dump. 88.5 % of 808 judgeable words repeat the origin — the source
+  repeats it, the builder is not misattributing.
+- **Periphrastic degree forms**: `more`/`most` + the lemma is **158,678 rows**, 16.1 % of the
+  English `form` table, ~3.1 MiB of 316.5. Only **28** rows start with those words without being
+  that shape, and all 28 are real.
+- **The bilingual's parenthetical bug is an order of operations, not a prose heuristic**, and far
+  bigger than the row that tracked it estimated: **4,501 senses change (0.51 % of 875,591)**
+  against the ~62 words the 2026-09-24 measurement predicted. ⚠️ **It produces wrong answers and
+  not only absences**: the published `es-en` carries `Croatia [en] adj → ragusiano · splitense ·
+  Yugoslavia` and **no English entry for `Yugoslavia`**, because that word's gloss lists the
+  successor states inside its parenthesis. `de` gains `of`, `from`, `about`; `estar` gains `to be`.
+- **Locutions, re-measured, and it argues against building anything**: `en-full` 14,663 (1.53 %),
+  `en-main` 5,340 (1.76 %), `en-core` **6**. The complaint counted 30 rows and the screen shows 3
+  — `estar`'s visible list is already single words and the first locution is row 6. Behind
+  `poner` there are **four single words in the whole dictionary**, so excluding locutions makes
+  the list shorter rather than better.
+- **Three roadmap sections asserted work as pending that was done**, verified against the code:
+  `build_core.py` with its tiers in `dist/`, and the Spanish citation separator, which reaches
+  **48.6 %** of the Spanish entries that carry an example (sample 12,000, seed 3).
+- **The periphrastic filter provably cannot touch Spanish**: over the whole `es.jsonl`, **266** forms carry a degree tag and **0** of them are periphrastic.
+- **The bilingual fix removes more noise than it adds keys, and that is the point**: 1,559 senses only gain, 524 only lose, 2,418 both; **4,061 keys of noise go** (1,798 distinct), led by `Spain` (275), `etc` (208), `Colombia` (133). Read off the published pack, those keys are entries: `Spain [adj] → canario · nazareno · rojiblanco`, `etc [adv] → qué · tiempo · mejor`. And the right key arrives: `España` → `Spain`.
+- **22 mutations applied, 22 bite.** 15 against the new tests, after one survivor was closed.
+- Gate green by exit code: **1,261 tests**, 40 checks, 0 failures.
+
+**Heuristics whose *Verify by* ran.**
+- **`a-check-must-be-seen-to-fail`** — ran, and it is the spine of the day: **29 mutations across
+  the builder (20) and `verify_pack` (10, after one survivor)**, plus 7 tests that plant each new
+  content defect and require exit 1. Two mutations survived first and both were controls of mine
+  written where no rule looks — the asterisk mid-text, and `endswith` with no case distinguishing
+  it from `in`. The second was closed by a real word: `gender-neutralized` contains the label
+  without ending in it, so matching anywhere would delete three search keys.
+- **`report-coverage-before-findings`** — ran, and **it found a hole in the section I had just
+  written**: with every payload unreadable, both origin checks printed `ok … (0 entradas leidas)`.
+  Zero findings and zero coverage read identically. `_verify_content` now states `se leyo el
+  contenido de las N entradas` and fails when it is not all of them.
+- **`validate-each-transformation-run`** — ran. The `[contenido]` section IS this note applied:
+  the projection the builder must preserve is compared after **every** build, over every entry,
+  and a planted loss is rejected by its own test.
+- **`count-both-sides-and-use-a-control-window`** — ran, on the bilingual fix: 1,559 senses only
+  gain, 524 only lose, 2,418 both, and the **losses were read** rather than assumed benign.
+- **`derived-copy-goes-stale-silently`** — half ran. The APK's bundled cores declare a version
+  and a size that match `dist/index.json` exactly, checked. ⚠️ **The planted half did not run**:
+  making `bundlePacks` see a stale index needs the catalogue edited, and corrupting the real one
+  to prove a guard is a bad trade. The guard is documented, not re-verified today.
+- **`absence-is-a-third-value`** — ran. `verify_pack` reports the etymology rate **and** the
+  vocabulary reach (`hasta en-main.db (181935 words)`), so *the source had none*, *this pack does
+  not carry it for this word* and *the word has none* stay three answers. ⚠️ `minneola` now
+  collapses a fourth case into the first — the source had a `*`, which is nothing a card can show.
+
+**Deviation from the plan.** Twice, and both times the measurement came before the code.
+- The owner chose to include O-3's `form` pruning. Measuring it first showed its premise false,
+  was reported before any code was written, and the owner scoped it down to the 854 artefacts.
+- The owner chose to include the locutions cap. Measuring it showed the visible list is already
+  single words, that excluding them returns shorter locutions rather than words, and that the
+  original report was a tile row truncating. **Reported and not built**, with the numbers in the
+  section so the next session does not re-derive them.
+
+**And then the checks that make it repeatable.** `verify_pack.py` gains a `[contenido]` section:
+no origin drags the rendered etymology tree, none opens with a wiki bullet, no `form` row is its
+own lemma's periphrastic comparative, and no multi-word form repeats like table metadata. It reads
+**every** entry rather than the 200-row sample, because the constant justifying that sample said
+inflating a whole pack *"would take minutes"* and it is **4 seconds** -- and a defect at 0.04 %,
+which is the rate the tree actually survived at, is invisible to 200 rows.
+
+⚠️ **The checks found three defects in the packs built two hours earlier, and two were words
+nobody would have looked at.** `c z alternation` on 956 bilingual entries (the conjugation class,
+tagged `class`); a bare `*` on its own line on 13 English pages, with `minneola`'s entire etymology
+being that one character; and `creep`, still carrying its tree. A fourth surfaced after the first
+fix: `f same meaning` on 107 entries, a rendered gender annotation carrying `canonical` -- a real
+tag the lemma's own spelling also has, so the marker had to be the label itself.
+
+**Built and read, 12:20–13:20, three rounds.** English and the bilingual were rebuilt; `es-full` and `es-core`
+were deliberately not, because each of the seven changes was measured beforehand as unable to
+reach them. All six pass `verify_pack.py` whole and `--como-la-app`; the catalogue index was
+regenerated from the artifacts.
+
+Prediction against artifact, read and not counted: `form` 985,992 → **825,589**, conjugation-table
+artefacts 1,152 → **0**, `more`/`most` rows 158,706 → **28** (exactly the legitimate ones),
+origins dragging a tree 0.04 % → **0.00 %**. `en-full` 316.5 → 312.7 MiB, `en-main` 140.1 → 129.2
+with **identical corpus coverage** (96.63 %). In the bilingual, `Tuesday → martes`, `Yugoslavia →
+Yugoslavia`, `of`/`from`/`about` all now exist, and `Croatia [adj]` went from six equivalents to
+`splitense · Croacia`.
+
+**Not verified.** **Nothing has been seen on a device.** The APK was not rebuilt and no pack was
+installed, so every claim above is about a `.db` on this machine. Whether the cleaned origin fits
+a 234 dp card, and whether the new bilingual entries are reachable from the search box, are still
+open — and they are the half only the emulator answers.
+
+**What went wrong.**
+- ⚠️ **The bullet rule started out deleting content and the owner's risk review caught it.**
+  Keeping only the first bullet looked consistent with `_etymology` keeping the first of several
+  `etymology_texts`; measured, it dropped the alternative accounts of **2,791 of 535,529** origins.
+  `bloke` carries two hypotheses about its origin and would have shown one — reading complete and
+  being incomplete. It joins them now. **It was the only change of the seven that removed
+  information, and nothing downstream would ever have reported it.**
+- ⚠️ **I put `PIE word` in the section-heading list and it made `brother` worse.** Removing the
+  label while the tree was still there deleted the one word that identified the block as a tree.
+  **Caught by previewing the new builder against the published pack, not by any test** — the
+  suite was green. A test now pins the decision, and a mutation that puts it back bites.
+- ⚠️ **The two-line grace was believed to cover `one` and did not, for 75 pages.** The fixture
+  that proved it wrote `PIE word *h₁óynos` as one line; the dump writes the label and the value on
+  two, so the marker lands at index 2. The test agreed with the code and not with the source.
+- **The first diagnosis of O-3 was the roadmap's and I nearly built it.** What stopped it was
+  sampling 20 rows with their lemma instead of counting them: every Spanish one was a real
+  conjugation.
+- **New prose came out in Spanish, twice,** because both blocks sit inside Spanish sections. The
+  prose ceiling caught it and both were rewritten in English.
+
+**What was left undone.**
+- **The rebuild itself**, deliberately: the owner asked for every change defined and green first.
+- **The locutions**, deliberately: see the deviation above.
+- ⚠️ **`Spain`, `etc` and `Colombia` are still English entries pointing at nonsense, and my
+  explanation of why was wrong.** I called them regional usage labels inside a parenthesis;
+  `canario`'s gloss has none — *"of, from or relating to the Canary Islands, Spain"* — so the comma
+  split yields `of` and `Spain` as one-word fragments of a **description**. The 275 parenthetical
+  sources did go; enough non-parenthetical ones remain that the entry does not move. The real
+  shape is that `translation_keys` accepts any 1–2 word fragment and `_DESCRIBES` guards only its
+  first word. Written into §🔁 with the example.
+- **A residual class of dangling reference**, 0.27 % of origins: prose that NAMES a section
+  (`down`: *"More at Etymology 2 below"*) rather than saying *see … above*. The 0.30 % measured
+  before the rebuild was counting this class, not the one that got fixed.
+- ⚠️ **`_verify_search_paths` RAISES on a corrupt payload instead of reporting it.** Found while
+  testing the coverage check through `verify()`: a pack whose payloads do not inflate crashes the
+  verifier rather than failing it, so the reason never reaches whoever ran it. The new test calls
+  `_verify_content` at its own level instead of hiding behind that crash. **Not fixed.**
+- ⚠️ **`dictionary.versionCode` went 12 → 13, and forgetting it would have made the whole day
+  invisible on the watch.** `en-core`'s bytes changed with no Kotlin touched, and `PackStore.plan`
+  returns `compare = emptyList()` when `last == current` — so the watch, running 12, would have
+  gone on opening September's core against a new APK. Checked in the code, not remembered.
+- ⚠️ **The `form` table needed four denylist entries in one afternoon** -- `table-tags`,
+  `inflection-template`, `class`, and two rendered labels. Each had a structural marker counted in
+  all three dumps before being trusted, and each was found by the repetition backstop rather than
+  by reading. Whether that converges or keeps going is not answered; what is answered is that the
+  next layer surfaces in an exit code instead of in a published pack.
+- ⚠️ **The `~1 h` rebuild is four times too big, and it was the frame for most of today's
+  decisions.** Timed on this machine with the dumps on local disk, 2026-09-29: the English chain
+  --`en-full` plus both derived tiers-- **4 min 52 s**, `es-full` **7 min 31 s**, the bilingual
+  **65 s**, the whole pipeline **~14 min**. Every *"include it now or pay another hour"* framing in
+  this session rested on it. ⚠️ **And the first correction was itself wrong**: measuring only
+  English gave *"ten times off"*, which the Spanish number --genuinely the slow one-- cut to four.
+  Eight citations corrected, in `roadmap.md` ×3, `tools/CLAUDE.md` ×2, `build_core.py`,
+  `repair_meta.py` and `verify_pack.py`.
+- ⚠️ **`en-main` is the etymology vocabulary and it shrank** from 218,339 to 181,935 words, so the
+  next rebuild carries the datum for ~17 % fewer words. Noticed, not acted on.
+- **The Spanish citation's degenerate case**: `prognatismo` cites `«Prognatismo»`, the word itself
+  with no author. Found while verifying the section was stale; not looked into.
+- **`creep` and one other page still ship a trailing tree** — the marker sits at line 4, after
+  real prose, so `_sin_arbol`'s model (tree on top, prose after) does not describe them.
+- **The 17 of 178 `form_of` cases the gloss does not rejoin**: `postie` → `postman`/`postwoman` is
+  correct as is, `dices` → `dice`/`when` is not, and no measurement separates them yet.
+- **Obs #5's long tail**: the median English origin is 26 characters and the longest is 2,914. A
+  length cap collides with the owner's 2026-09-25 decision and was not proposed.
+
+
 ## 2026-09-28 · s-a2f271-3ee5b2 — What using `watchsession.py` for a day found in it
 **What.** Four defects in the tool that controls the watch's session, all of them things that cost
 time the same day, plus a `deploy` command that makes the whole upload one invocation: session,

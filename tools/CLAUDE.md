@@ -182,7 +182,14 @@ is among the most-used words of the language.
 ⚠️ **It derives rather than rebuilding from the dumps, and that is correctness rather than
 convenience.** The core declares `subset_of`, and deriving it makes that claim true **by
 construction** — built separately it would hold only while both runs used the same sources and the
-same filters, a promise nothing checks. It also takes seven seconds instead of an hour.
+same filters, a promise nothing checks. It also takes seven seconds instead of minutes.
+
+⚠️ **That comparison used to read *"instead of an hour"* and the hour was never measured.**
+Timed on 2026-09-29 with the dumps on disk: the English chain --`en-full` plus both derived
+tiers-- is **4 min 52 s**, `es-full` is **7 min 31 s**, the bilingual **65 s**, and the whole
+pipeline about **14 minutes**. The ratio that justifies deriving is still enormous; the number
+it was written against was four times too big, and it is the number every *"does this wait for
+the next rebuild"* decision is made with.
 
 ⚠️ **The vocabulary comes from usage frequency (Tatoeba), never from `rank`, and the gap is
 measured**: by `rank` a core takes **91 %** of the Spanish inflection table — the richest pages are
@@ -300,8 +307,8 @@ instead of "another format version" purely from having it backwards.
 
 ## `repair_meta.py`: fixing the metadata without re-exporting the content
 
-A full rebuild of the English pack is an hour and needs the dumps. Some defects live entirely in
-the `meta` table, and rewriting those rows takes a second.
+A full rebuild of the English pack is **4 min 52 s** (measured 2026-09-29) and needs the dumps.
+Some defects live entirely in the `meta` table, and rewriting those rows takes a second.
 
 ```sh
 python3 tools/packbuilder/repair_meta.py ../wearos-dictionary-data/dist/*.db            # reports

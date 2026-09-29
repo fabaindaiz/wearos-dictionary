@@ -12,7 +12,9 @@ vocabulary. Deriving from the full pack is better for two reasons, and the first
    parallel it would be true only while both runs used the same sources, the same filters and the
    same pruning -- a promise nothing checks and that breaks in silence the first time somebody adds
    an option to only one of them.
-2. It takes seconds instead of an hour, and it does not need the 4.5 GB of dumps.
+2. It takes seconds instead of minutes, and it does not need the 4.5 GB of dumps.
+   (Measured 2026-09-29: rebuilding `en-full` from the dumps is 4 min 52 s with both tiers,
+   `es-full` 7 min 31 s. This line used to say `an hour`, which was never measured.)
 
 ## The trap this avoids, measured
 

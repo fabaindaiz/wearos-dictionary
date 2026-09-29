@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Repair a built pack's METADATA, without re-exporting its content.
 
-A full rebuild of the English pack is an hour and needs the dumps. Some defects, though, live
+A full rebuild of the English pack is 4 min 52 s (measured 2026-09-29) and needs the dumps. Some defects, though, live
 entirely in the `meta` table -- a name with two tier tokens, a description assembled in the wrong
 language -- and rewriting six rows takes a second. This is the tool that does that, and it exists
 so that repairing a pack is a **reproducible act with a record**, not someone typing UPDATE into
