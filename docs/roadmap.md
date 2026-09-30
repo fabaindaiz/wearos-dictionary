@@ -1060,14 +1060,54 @@ that treats them alike will be wrong on one of them.
 3. **¿Se ataca el defecto inglés ahora o con el próximo rebuild?** It is content: it reaches
    nothing without rebuilding the bilingual (65 s, measured 2026-09-29).
 
-#### Lo que falta medir, y no necesita a nadie
+#### ✅ The two measurements that were missing — DONE 2026-09-30, and they reframe the problem
 
-- **How often somebody lands on one.** The 848 Spanish and 3,556 English with signal are the
-  population; replicating the search cascade over them gives the rate at which a real query ends
-  on a translation-only row. Without it, *«aparecen sueltas»* has no frequency attached.
-- **Whether the English single-word orphans are a fourth class.** 2,678 of them, and the sample
-  shows `aftereffect/after-effect` — a **slash-joined pair** rendered as one headword, which is
-  an artifact and not a word.
+**1. How often somebody lands on one.** The population is the frequency list and not the pack,
+because picking it by what the pack holds would define it by a quantity the process produced
+(`population-by-outcome`). Over the **5,000 commonest Spanish words**:
+
+| | | |
+|---|---|---|
+| with a definition in `es-full` | 4,575 | 91.5 % |
+| **only a translation** | **280** | **5.6 %** |
+| in no pack at all | 145 | 2.9 % |
+| corpus mass of the translation-only ones | | **1.09 %** of occurrences |
+
+⚠️ **And then classifying them dissolves most of the complaint.** Of the 125 that are bilingual
+**entries** --the other 155 are reachable there only as a form, and the two counts are named apart
+rather than averaged--:
+
+| | | occurrences |
+|---|---|---|
+| English words inside a Spanish subtitle corpus (`hey`, `john`, `the`, `frank`) | **59.2 %** | 1,155,825 |
+| proper nouns, excluded from `es-full` by D-116 (`michael`, `peter`, `mary`) | **32.0 %** | 558,500 |
+| verb + enclitic whose stem IS in the pack (`haberlo` ← `haber`) | 2.4 % | 39,614 |
+| the rest (`srta`, `divorcio`, `casualidad`, `madame`) | 6.4 % | 188,705 |
+
+**So at the frequency where it matters, this is not a vocabulary hole.** Nine in ten are proper
+nouns or English words that the subtitle corpus put in a Spanish frequency list, and both are
+there by decisions already taken. The genuine Spanish gaps in that set are a handful, and
+`divorcio` and `casualidad` are the empty-gloss cascade of the item below, not this one.
+
+⚠️ **That moves the answer from data to labelling.** If what is left is mostly *a proper noun the
+Spanish dictionary deliberately excludes*, then filling a gap is the wrong fix and saying what the
+row is, is the right one — which is question 1 above, now with a number behind it.
+
+**2. The English single-word orphans are NOT one class.** Of the 2,678:
+
+| | | |
+|---|---|---|
+| hyphenated compounds (`accident-filled`, `Afro-Bolivian`) | 1,297 | 48.4 % |
+| the rest, mostly rare terms (`abdicatingly`, `Achatocarpus`) | 1,174 | 43.8 % |
+| headwords outside ASCII, such as `Acandí` and `Airén` | 129 | 4.8 % |
+| **slash-joined pairs** (`aftereffect/after-effect`) | **71** | 2.7 % |
+| with digits (`1959`, `2016`) | 7 | 0.3 % |
+
+**Mostly legitimate**, then: rare English terms enwiktionary used to translate a Spanish word and
+`en-full` does not carry. The artefacts are the 71 slash pairs plus **159 Spanish words that
+leaked onto the English side** (0.19 % of it) — `abiertas` is an English entry translating to
+`PASO`, because that gloss reads *«Primarias Abiertas, Simultáneas y Obligatorias»* and the
+comma split makes `Abiertas` a one-word key. Same root as cause 3, in the other direction.
 
 ### Una glosa vacía en la fuente se lleva el lema y todas sus formas · i-a2f271-753e34
 

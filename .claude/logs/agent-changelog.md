@@ -106,6 +106,25 @@ honest half; the other half is that those 107 include `introducir`, `detectar`, 
 `contemplar` and `casualidad`. It explains only **3.3 %** of the orphans above, so the two are
 separate problems.
 
+**And the two measurements that item left open were then done, which reframed it.** Over the
+**5,000 commonest Spanish words**: 91.5 % have a definition in `es-full`, **5.6 % (280) have only
+a translation**, 2.9 % are in no pack — and the translation-only ones are **1.09 %** of corpus
+occurrences. ⚠️ **Classifying them dissolves most of the complaint**: of the 125 that are
+bilingual *entries*, **59.2 % are English words the subtitle corpus put into a Spanish frequency
+list** (`hey`, `john`, `the`) and **32 % are proper nouns** `es-full` excludes by D-116. Nine in
+ten are there because of decisions already taken, not because of a hole. **That moves the answer
+from data to labelling**, which is question 1 of the item, now with a number behind it.
+
+The English single-word orphans are not one class either: of 2,678, **48.4 %** are hyphenated
+compounds and **43.8 %** rare terms — legitimate — against **71** slash-joined pairs
+(`aftereffect/after-effect`) and **159 Spanish words leaked onto the English side** (0.19 %):
+`abiertas` is an English entry translating to `PASO`, because that gloss reads *«Primarias
+Abiertas, Simultáneas y Obligatorias»* and the comma split makes `Abiertas` a one-word key.
+
+⚠️ **Two of my own scripts disagreed, 280 against 125, and both numbers are kept.** One counted a
+word reachable in the bilingual as an entry **or** a form, the other as an entry only. The gap is
+the 155 that arrive as a form; averaging them would have hidden which question each answers.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
