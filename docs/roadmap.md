@@ -5160,12 +5160,26 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 
 ### Pendiente de subir al reloj — **un APK, listo el 2026-09-30**
 
-⚠️ **A newer APK is built and waiting**: it carries the absorbed-pack row, seen on the emulator
-and not on the watch. **No pack changed**, so nothing else needs uploading — the table below is
-still what the watch holds.
+✅ **The APK carrying the absorbed-pack row is on the watch**, uploaded the same day it was
+built. **No pack changed**, so only the APK travelled.
 
-✅ **APK versionCode 13 and three packs are on the watch**, uploaded and read back the same day by
-the fixed four steps: session, upload, probe by log, close.
+| | |
+|---|---|
+| `app-debug.apk` | 115.1 MB, versionCode 13, **67 s** to install |
+| identity, read back from the watch | `build=0ade3b6d54`, **no `+dirty`**, and it is the pushed commit |
+| result | **5 packs open, 0 rejected**, ready to search in **1,875 ms** |
+| overrides | `ninguno (corre como fue construida)` |
+
+⚠️ **`versionCode` was deliberately NOT bumped**, and the reason is the one that bumped it
+before: the previous jumps exist so `PackStore.plan` does not take its `last == current` branch
+and go on opening a stale core. No bundled pack changed here, so skipping the re-extraction is the
+correct behaviour rather than an oversight.
+
+⚠️ **The new row cannot be seen on the watch and that is not a failure**: it renders only for a
+pack another installed one contains, and the watch has none. It was seen on the emulator instead.
+
+✅ **APK versionCode 13 and three packs were uploaded earlier the same day**, by the same four
+steps: session, upload, probe by log, close.
 
 | | |
 |---|---|
@@ -5791,11 +5805,18 @@ to be careful. The fix is that **the act of uploading updates it**, and there ar
 ⚠️ **The second is the one that fits the audit's existing shape**, and it is cheap. The first is
 better and larger. Neither is built.
 
-### The watch session's `stop` does not arrive — **2 of 2 times** · i-a2f271-74604f
+### The watch session's `stop` does not arrive — **2 of 3 times** · i-a2f271-74604f
 
-**Propuesto, no construido.** Both watch sessions this repo has held ended the same way: the watch
-left the network before `watchsession.py stop` could be sent. 2026-09-25 and 2026-09-26, 100 %
-packet loss and no mDNS record on both. That is not an accident twice, it is the normal ending.
+**Propuesto, no construido.** Two of the three watch sessions this repo has held ended the same
+way: the watch left the network before `watchsession.py stop` could be sent. 2026-09-25 and
+2026-09-26, 100 % packet loss and no mDNS record on both.
+
+⚠️ **On 2026-09-30 it DID arrive**, which retires the sentence this item used to end on --*"that
+is not an accident twice, it is the normal ending"*-- and leaves a weaker and truer one: it is the
+**common** ending, not the only one. `deploy` printed `wake lock soltado` and a separate `status`
+confirmed it: lock released, `wifi_always_requested` and `stay_on_while_plugged_in` both back to
+0. So the failure is not deterministic, and a fix cannot be validated by *"the stop arrived"* on a
+single run.
 
 **What is actually at risk is small, and saying so matters**: the keep-alive stops itself when
 Wi-Fi drops --measured at **1.1 s** in the session that built it-- and Wi-Fi dropping is the

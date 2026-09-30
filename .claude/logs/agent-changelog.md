@@ -244,6 +244,29 @@ files** in `files/packs/` that the manager does not list. Deleting them is proba
 --they are extracted from the APK and would come back-- but that reasoning was not checked, and
 *"the user cannot see 94 MB"* is the kind of thing this repo prefers written down over assumed.
 
+**And it reached the watch** (SM-L715F, Wear OS 7 / API 37), by the fixed four steps. Only the
+APK travelled: no pack changed.
+
+| | |
+|---|---|
+| install | 115.1 MB in **67 s** |
+| identity, read back with `DEBUG_DUMP` | `build=0ade3b6d54`, **no `+dirty`** — the pushed commit |
+| open | **5 packs, 0 rejected**, `overrides: ninguno` |
+| ready to search | **1,875 ms**, against 2,134 ms earlier today |
+
+⚠️ **Reading the identity back is not ceremony, and this session is why.** The startup log lists
+packs and timings but **not the build stamp**; it lives on a screen, which the watch's rules do not
+allow tapping to. Without `DEBUG_DUMP` the only evidence would have been `lastUpdateTime`, which
+says something was installed and not **what**. And `versionCode` could not settle it either: it was
+deliberately left at 13, because the earlier bumps exist so `PackStore.plan` does not take its
+`last == current` branch over a changed bundled pack, and no pack changed here.
+
+⚠️ **`watchsession.py stop` DID arrive, and that retires a claim.** `i-a2f271-74604f` read *"2 of
+2 times — that is not an accident twice, it is the normal ending"*. `deploy` printed `wake lock
+soltado` and a separate `status` confirmed the lock released with both settings back to 0. The item
+now says **2 of 3**, and the sentence it ended on is gone: the failure is not deterministic, so a
+fix for it cannot be validated by one good run.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything. Plus the
