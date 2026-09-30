@@ -16,13 +16,16 @@ siguiente por ese desvío.
 
 ---
 
-## 2026-09-30 · s-a2f271-d66548 — The verifier stopped crashing where it was supposed to report
-**What.** `_verify_search_paths` decompressed the top-ranked entry with no guard, so a pack whose
-payloads are corrupt ended `verify_pack.py` in a `zlib.error` traceback instead of a sentence. It
-reports now, and an entry with no senses --which a bidirectional pack has by design (D-196)-- says
-so rather than raising on `senses[0]`.
+## 2026-09-30 · s-a2f271-d66548 — The verifier stopped crashing, and the watch got yesterday's work
+**What.** Two things. `_verify_search_paths` decompressed the top-ranked entry with no guard, so a
+pack whose payloads are corrupt ended `verify_pack.py` in a `zlib.error` traceback instead of a
+sentence; it reports now, and an entry with no senses --which a bidirectional pack has by design
+(D-196)-- says so rather than raising on `senses[0]`. And **the whole of yesterday reached the
+watch**: APK versionCode 13 plus `en-full` and `es-en`, with the two Spanish packs deliberately
+left alone.
 
-**Areas.** `tools/packbuilder/verify_pack.py`, `tools/packbuilder/tests/test_build.py`.
+**Areas.** `tools/packbuilder/verify_pack.py`, `tools/packbuilder/tests/test_build.py`, and the
+watch itself.
 
 **Why.** Named as *not fixed* in yesterday's entry, found there while testing a different check
 through `verify()`. It is the one open item that closes with no pack rebuilt.
@@ -45,10 +48,44 @@ through `verify()`. It is the one open item that closes with no pack rebuilt.
 - **The second test needed the fuzzy profile** and was written with `None`, which
   `normalize.fuzzy` rejects outright. Noisy, not silent: fixed on the first run.
 
-**What was left undone.** Everything else from yesterday: the `Spain`/`etc`/`Colombia` keys that
-come from a comma-split description, the 0.27 % residual dangling references, and `en-main`'s
-shrunken etymology vocabulary. All three are **content** and reach nothing without a rebuild.
-⚠️ **And nothing has been on the watch**: APK 13 plus `en-full` and `es-en` are built and waiting.
+**On the watch** (SM-L715F, Wear OS 7 / API 37), the fixed four steps: session, upload, probe by
+log, close. No taps, no screenshots -- what had to be *seen* was seen on the emulator yesterday.
+
+- **The versionCode bump proved itself, which is the point of having made it.** The watch was on
+  12 with `en-core` at **43,036,672** bytes (2026-09-26); after installing 13 it reads
+  **42,909,696** and `dataVersion=202609291559`. With the number left alone, `PackStore.plan`
+  returns `compare = emptyList()` and the watch would have gone on opening September's core
+  against a new APK, with no error and no log.
+- **The five packs open, 0 rejected**, each at the version it should be: `en-core` and `en-full`
+  and `es-tr-enwikt-freq` from 2026-09-29, `es-core` and `es-full` untouched from 2026-09-26.
+- ⚠️ **And the byte counts settled the contradiction this repo had been carrying.** Two records
+  disagreed about which Spanish packs the watch held. `es-full` is 80,211,968 and `es-core`
+  51,539,968 on **both** sides, so the changelog was right and the roadmap row was stale -- which
+  is why neither was uploaded.
+
+**Measured on the watch, which is the only place these mean anything (D-043).**
+
+| | |
+|---|---|
+| startup, 5 packs, clean relaunch | **2,134 ms** |
+| startup including the core extraction | 4,366 ms |
+| the emulator said, yesterday | **12,377 ms** — 5.8x |
+| APK install, 113.9 MB | **36 s** (the record said 54.7 s) |
+| `es-en`, 64 MiB | 25 s |
+| `en-full`, 312 MiB, on-device sha256 included | **100 s** |
+
+⚠️ **Every transfer number beat its record and the startup beat it by 5.8x**, so the emulator's
+figure was a ceiling rather than an estimate -- the direction D-043 predicts, at a size nobody had
+put on it.
+
+**What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
+keys that come from a comma-split description, the 0.27 % residual dangling references, and
+`en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
+
+⚠️ **And nothing was SEARCHED on the watch, by rule.** `app/CLAUDE.md` puts functional probes on
+the emulator and allows the watch three steps: install, launch, read the log. So what the watch
+says is that the packs open and how fast; that `tuesday` returns `martes` is yesterday's emulator
+evidence, not today's.
 
 
 ## 2026-09-29 · s-a2f271-b04804 — The `form` table was not the defect the roadmap said it was

@@ -415,7 +415,7 @@ hicieron. Los tres tienen test ahora.
 | Qué | Por qué importa |
 |---|---|
 | ~~**Ningún pack trae la PRONUNCIACIÓN**~~ ✅ **cerrado el 2026-09-25** | The rebuild lands `I`, and `F` and `M` with it. `verify_pack.py` now reads **96.5 %** on `es-full` and **100.0 %** on `es-core`, against the 0.0 % of the previous artifacts |
-| ~~**Los packs no están en el reloj**~~ ✅ **cerrado el 2026-09-26** | The five it holds are all from this build: `en-core@202609260119`, `en-full@202609260117`, `es-core@202609260121`, `es-full@202609260102`, `es-tr-enwikt-freq@202609260418`. APK versionCode 11 installed, 5 open and 0 rejected, ready to search in **2,742 ms** |
+| ~~**Los packs no están en el reloj**~~ ✅ **cerrado, y esta fila quedó vieja el mismo día** | It listed the build of 01:xx and the watch got the one of 20:xx a few hours later, so for four days it named versions the device did not have -- and on 2026-09-29 it contradicted the changelog while nobody could tell which was right. ⚠️ **The bytes settled it on 2026-09-30**: `es-full` is 80,211,968 and `es-core` 51,539,968 on the watch and in `dist`, so the changelog was right. The watch now runs **APK 13** with `en-core@202609291559`, `en-full@202609291558`, `es-tr-enwikt-freq@202609291614` and the two Spanish ones untouched: 5 open, 0 rejected, ready in **2,134 ms**. See §*Pendiente de subir al reloj* |
 | ~~**El fixture del índice del catálogo**~~ ✅ **cerrado el 2026-09-23** | `app/src/test/resources/catalog-index-fixture.json` fija los `pack_id` viejos. Es **deliberado** —incluye un pack schema 3 que el `dist/` nuevo ya no puede producir, y regenerarlo debilitaría el test—. Lo que faltaba era la retractación: `tools/CLAUDE.md` afirmaba que el fixture describe el directorio real y ya lo dice al revés |
 | ~~**`Tuesday` en el bilingüe**~~ ✅ **BUILT 2026-09-29, and it was never a prose heuristic** | The 2026-09-24 measurement counted the wrong thing. It is an **order-of-operations bug**: `translation_keys` splits on commas BEFORE removing the parenthetical, so a parenthesis containing a comma is cut in half — the first piece keeps an unbalanced `(` and is rejected as a fragment, the second starts with `and` and is rejected as a description. Moving `_PARENTHETICAL.sub` ahead of the split is two lines, and the unbalanced check survives because the pattern still requires a matched pair. **4,501 senses change (0.51 % of 875,591)** — far past the ~62 words this row estimated. ⚠️ **And it was producing WRONG answers, not only absences**: `Yugoslavia`'s gloss names *«…Croatia, North Macedonia, Montenegro, Serbia»* inside its parenthesis, so the pack carries `Croatia [en] adj → ragusiano · splitense · Yugoslavia` and **no English entry for `Yugoslavia` at all**. `de` gains `of`, `from` and `about`; `estar` gains `to be` |
 | ~~**Los núcleos se llaman `Español (full) (core)`**~~ ✅ **cerrado el 2026-09-23** | El builder le pegaba `(core)` al nombre del completo sin sacarle `(full)`. Arreglado en `build.name_with_tier` y los dos núcleos regenerados — **15 s cada uno**, derivan del completo y no necesitan los dumps. Salieron **byte a byte del mismo tamaño**: cambió el nombre y nada más. Verificado en pantalla: `English (core)`. (D-230) |
@@ -4922,42 +4922,45 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ✅ **funciona de punta a punta** (2026-09-22, D-214) | Descarga con reanudación, comprueba los dos hashes, instala atómicamente y recarga; la cancelación libera el `.part` (D-231). ⚠️ **Lo que falta es de producto, no de mecanismo**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo y sólo `debug` habla por `http://`. **Es el ítem #3 de las tres que desbloquean todo** |
 
-### Pendiente de subir al reloj — **SÍ: APK 13 y cuatro packs, construidos el 2026-09-29**
+### Pendiente de subir al reloj — **NADA, subido el 2026-09-30**
 
-⚠️ **Built and NOT uploaded**, which is the state this section exists so nobody loses:
+✅ **APK versionCode 13 and three packs are on the watch**, uploaded and read back the same day by
+the fixed four steps: session, upload, probe by log, close.
 
 | | |
 |---|---|
-| `app-debug.apk` | **113.9 MB**, versionCode **13**, assembled after `:app:clean` |
-| what it carries | `en-core.db` **202609291559** (today's) and `es-core.db` 202609262100 |
-| new packs in `dist/` | `en-full`, `en-core`, `en-main`, `es-en` |
-| untouched, and measured | `es-full` and `es-core` — none of the five changes can reach them |
-| the keep-alive | `watch-keepalive-debug.apk`, 2.7 MB, built |
+| `app-debug.apk` | 113.9 MB, versionCode 13, stamp `676dfd9922` clean, **36 s** to install |
+| `en-full` | 312 MiB, **100 s** with the on-device sha256 included |
+| `es-en` | 64 MiB, 25 s |
+| `es-full`, `es-core` | **deliberately not uploaded** — byte-identical on both sides |
+| result | **5 packs open, 0 rejected**, ready to search in **2,134 ms** |
 
-⚠️ **The versionCode is what makes any of this arrive.** `PackStore.plan` returns
-`compare = emptyList()` when `last == current`, and the watch is running 12: without the jump to
-13 it would have installed the new APK and gone on opening September's `en-core`, with no error
-and no log.
+⚠️ **The versionCode bump is what made it arrive, and the watch proved it rather than the
+argument.** It was running 12 with `en-core` at **43,036,672** bytes (2026-09-26); after 13 it
+reads **42,909,696** and `dataVersion=202609291559`. Left at 12, `PackStore.plan` returns
+`compare = emptyList()` and the watch goes on opening September's core against a new APK, with no
+error and no log.
 
-✅ **Seen on the emulator** --`wear_sm_l715f`, 498x498 at density 340, the watch's own 234 dp--
-which is where `app/CLAUDE.md` puts functional probes. `tuesday` returns **`martes`**; `rookie`
-draws its word translations `novato · sorche · rookie`; the word of the day shows one per
-language; five packs open and **0 are rejected**; and `brother`'s origin renders as prose with no
-template noise in it.
+⚠️ **And the bytes settled which Spanish packs the watch had**, which two records in this
+repository disagreed about: `es-full` is 80,211,968 and `es-core` 51,539,968 on **both** sides.
+The changelog was right, the row in §*Lo que sigue desfasado* was stale, and that is why neither
+was uploaded.
 
-⚠️ **Two things the emulator showed that no count would have.** `brother`'s origin runs past
-**four swipes** of cognates — correct and enormous, which is obs #5's long tail landing on a very
-common word. And startup went from **512 ms** with four packs to **12,377 ms** once `en-full`'s
-312 MiB joined them; on an emulator in a debug build that is not a measurement (D-043), but it is
-the first line to read in the watch's log.
+⚠️ **Nothing was SEARCHED there, by rule.** `app/CLAUDE.md` puts functional probes on the emulator
+and allows the watch three steps. What the watch answers is that the packs open and how fast; that
+`tuesday` returns `martes` is the emulator's evidence from 2026-09-29.
 
-⚠️ **What the emulator did NOT answer**: the **start** of a cleaned origin was never seen — four
-attempts went past it or landed on the wrong row. The data is proven by reading the `.db`; the
-first line's rendering is not.
+#### The numbers, and every one beat its record
 
-⚠️ **And nothing has been on the watch.** What only the upload answers: whether the log says the
-app **compared** the cores instead of skipping the comparison, which is what the jump to
-versionCode 13 exists for.
+| | watch | what it was compared against |
+|---|---|---|
+| startup, 5 packs | **2,134 ms** | the emulator said **12,377 ms** — 5.8x |
+| APK install | **36 s** | 54.7 s recorded on 2026-09-26 |
+| `en-full` transfer | **100 s** | — |
+
+⚠️ **So the emulator's startup figure was a ceiling and not an estimate** — the direction D-043
+predicts, at a factor nobody had measured. Any performance number taken there should be read as an
+upper bound of this size, not as an approximation.
 
 ---
 
