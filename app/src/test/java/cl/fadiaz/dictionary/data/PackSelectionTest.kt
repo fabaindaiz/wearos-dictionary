@@ -121,6 +121,59 @@ class PackSelectionTest {
 
     // ------------------------------------------------- cuál queda ACTIVO, que es la otra mitad
 
+    /**
+     * ⚠️ **The same rule, asked a second question, and extracted rather than rewritten.**
+     * `packsToQuery` answers *which packs are searched*; Settings needs *which ones are on disk
+     * doing nothing*, and writing that separately would be a second implementation of one rule.
+     * This repository has failed that way four times -- see `una-regla-vale-en-todas-las-
+     * superficies`. Both callers now share [absorbedPackIds].
+     */
+    @Test
+    fun unSubconjuntoAbsorbidoSeNombraComoTal() {
+        val absorbidos = absorbedPackIds(
+            listOf(pack("en-full"), pack("en-main", subsetOf = "en-full")).map { it.metadata },
+        )
+        assertEquals(setOf("en-main"), absorbidos)
+    }
+
+    @Test
+    fun sinElPackQueLoAbsorbeNoHayAbsorbido() {
+        val absorbidos = absorbedPackIds(
+            listOf(pack("en-main", subsetOf = "en-full")).map { it.metadata },
+        )
+        assertEquals(emptySet<String>(), absorbidos)
+    }
+
+    @Test
+    fun enUnCicloNingunoAbsorbeAlOtro() {
+        // The same degradation `packsToQuery` documents: with nobody able to absorb, they all
+        // survive. Naming one of them absorbed here would hide a pack that IS being searched.
+        val absorbidos = absorbedPackIds(
+            listOf(
+                pack("a", subsetOf = "b"),
+                pack("b", subsetOf = "a"),
+            ).map { it.metadata },
+        )
+        assertEquals(emptySet<String>(), absorbidos)
+    }
+
+    @Test
+    fun loQueSeConsultaEsExactamenteLoQueNoEstaAbsorbido() {
+        // The property that keeps the two answers from drifting: what Settings calls dead weight
+        // is exactly what the search is not asking. A test, and not a comment, because the two
+        // live in different screens and nothing else would notice them diverging.
+        val todos = listOf(
+            pack("en-full"),
+            pack("en-main", subsetOf = "en-full"),
+            pack("es-full"),
+        )
+        val absorbidos = absorbedPackIds(todos.map { it.metadata })
+        assertEquals(
+            todos.map { it.metadata.packId }.filterNot { it in absorbidos }.toSet(),
+            ids(packsToQuery(todos)).toSet(),
+        )
+    }
+
     private fun handle(source: cl.fadiaz.dictionary.core.DictionarySource, demo: Boolean = false) =
         PackHandle.Open(source = source, isBundled = demo)
 

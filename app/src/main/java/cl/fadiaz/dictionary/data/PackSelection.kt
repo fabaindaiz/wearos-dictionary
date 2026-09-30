@@ -29,9 +29,8 @@ import cl.fadiaz.dictionary.core.speaks
  * 2. **A pack is not queried if the one containing it is there too.** It is the rule the core pack
  *    needs: each of its answers either already came from the full one and is dropped on
  *    deduplication, or is a lemma the full one does not have, **which cannot happen if it really
- *    is a subset**. Today **nobody uses it**: no pack declares `subset_of`. It is written because
- *    it is the same shape as the first one and separating them would be two passes with the same
- *    bug.
+ *    is a subset**. In use since the 2026-09-22 build, where the cores and the `main` tier declare
+ *    the full pack that contains them.
  *
  * The order matters: the build of each dictionary is chosen first and containment is looked at
  * **afterwards**, so a core does not survive merely because the installed full one is an old
@@ -58,14 +57,34 @@ internal fun packsToQuery(opened: List<DictionarySource>): List<DictionarySource
     val masNuevos = opened
         .groupBy { it.metadata.packId }
         .map { (_, versiones) -> versiones.maxBy { it.metadata.dataVersion } }
-    val presentes = masNuevos.map { it.metadata.packId }.toSet()
-    // The ones that can absorb another: the ones not absorbed themselves. In a cycle none
-    // qualifies, and they all survive.
-    val absorbentes = masNuevos
-        .filter { it.metadata.subsetOf == null || it.metadata.subsetOf !in presentes }
-        .map { it.metadata.packId }
+    val absorbidos = absorbedPackIds(masNuevos.map { it.metadata })
+    return masNuevos.filterNot { it.metadata.packId in absorbidos }
+}
+
+/**
+ * The packs that another installed pack already contains, by `packId`.
+ *
+ * ⚠️ **Extracted rather than written twice, and that is the whole point of it existing.**
+ * [packsToQuery] answers *which packs are searched*; the dictionary manager and the download
+ * screen need the same fact asked the other way — *which ones sit on disk, or would be
+ * downloaded, doing nothing*. Two implementations of one rule is how the same answer starts
+ * differing per screen, and this repository has already spent four occurrences on exactly that.
+ * A test asserts the two answers are complementary over the same input.
+ *
+ * ⚠️ **In a cycle nobody absorbs anybody**, which is the same degradation [packsToQuery]
+ * documents: with `a ⊂ b` and `b ⊂ a`, both are searched, so calling either one absorbed would
+ * tell the user a pack is dead weight while the search is still asking it.
+ *
+ * It is pure and free of Android so the gate covers it on the JVM (D-072).
+ */
+internal fun absorbedPackIds(metadatas: List<PackMetadata>): Set<String> {
+    val presentes = metadatas.map { it.packId }.toSet()
+    // The ones that can absorb another: the ones not absorbed themselves.
+    val absorbentes = metadatas
+        .filter { it.subsetOf == null || it.subsetOf !in presentes }
+        .map { it.packId }
         .toSet()
-    return masNuevos.filterNot { it.metadata.subsetOf in absorbentes }
+    return metadatas.filter { it.subsetOf in absorbentes }.map { it.packId }.toSet()
 }
 
 /**

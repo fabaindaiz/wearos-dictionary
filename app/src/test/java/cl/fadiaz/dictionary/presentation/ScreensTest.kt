@@ -107,6 +107,8 @@ class ScreensTest {
         entries: Int = 1,
         /** With two, the pack is bidirectional and contributes a chip for each. */
         langs: List<String>? = null,
+        /** The `packId` of the pack that already contains this one, if any. */
+        subsetOf: String? = null,
     ) = PackMetadata(
         packId = packId,
         schemaVersion = 4,
@@ -121,6 +123,7 @@ class ScreensTest {
         dataVersion = 1,
         license = "CC-BY-SA-4.0",
         attribution = "Definiciones del Wikcionario, CC BY-SA 4.0",
+        subsetOf = subsetOf,
     )
 
     private fun handle(m: PackMetadata) = PackHandle.Open(FakeSource(m))
@@ -2782,6 +2785,40 @@ class ScreensTest {
             }
         }
         compose.onNodeWithText("bobo · zonzo").assertIsDisplayed()
+    }
+
+    @Test
+    fun aPackAnotherOneAlreadyContainsSaysSoAndKeepsItsSize() {
+        // ⚠️ **129 MB read exactly never, with a delete button and no reason to press it.**
+        // `packsToQuery` already drops it from the search; until now nothing said so, so the row
+        // looked like any working dictionary. The size STAYS because it is what decides whether
+        // deleting is worth it; what goes is the type, which repeats the name above.
+        showPacks(
+            listOf(
+                handle(meta(packId = "en-full", name = "English (full)")),
+                handle(meta(packId = "en-main", name = "English (main)", subsetOf = "en-full"))
+                    .copy(bytes = 129_000_000),
+            ),
+        )
+        // ⚠️ The whole phrase and not just the absorber's name: that name is also the row ABOVE,
+        // so the loose assertion matched two nodes and could not tell the note from the pack.
+        compose.onNodeWithText("Cubierto por English (full)", substring = true)
+            .assertIsDisplayed()
+        // The size stays, because it is what decides whether deleting is worth it.
+        compose.onNodeWithText("129,0 MB", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun withoutTheContainingPackNothingIsCalledCovered() {
+        // The control. `subsetOf` names a pack that is not installed, so nothing absorbs this one
+        // and the search does ask it -- saying it is covered would be a lie about dead weight.
+        showPacks(
+            listOf(
+                handle(meta(packId = "en-main", name = "English (main)", subsetOf = "en-full"))
+                    .copy(bytes = 129_000_000),
+            ),
+        )
+        compose.onNodeWithText("Cubierto", substring = true).assertDoesNotExist()
     }
 
     @Test

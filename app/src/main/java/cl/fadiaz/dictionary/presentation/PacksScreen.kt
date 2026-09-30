@@ -40,6 +40,7 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.R
+import cl.fadiaz.dictionary.data.absorbedPackIds
 import cl.fadiaz.dictionary.data.Catalog
 import cl.fadiaz.dictionary.data.CatalogOffer
 import cl.fadiaz.dictionary.data.CatalogState
@@ -105,6 +106,15 @@ fun PacksScreen(
 
     val installed = packs.filterIsInstance<PackHandle.Open>()
 
+    // ⚠️ **The same rule the search uses, asked the other way round.** `packsToQuery` drops a pack
+    // another one already contains; here that same fact has to be SAID, because otherwise the row
+    // looks like any working dictionary while the search never asks it. `en-main` beside `en-full`
+    // is 129 MB that is read exactly never, with a delete button that gives no reason to press it.
+    // Computing it here instead of reusing `absorbedPackIds` would be a second implementation of
+    // one rule, which is how the two screens start disagreeing.
+    val absorbidos = absorbedPackIds(installed.map { it.metadata })
+    val nombrePorId = installed.associate { it.packId to it.metadata.name }
+
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
             contentPadding = withScreenMargins(contentPadding),
@@ -135,12 +145,23 @@ fun PacksScreen(
                     // already says it --"Español", "Español ↔ English"-- so the code repeated in
                     // abbreviation what the line above says in full, and it was the third thing
                     // competing for a width that was already being clipped.
-                    detail = if (pack.isBundled) {
-                        "${packTypeLabel(pack.metadata.kind)} · " +
-                            stringResource(R.string.packs_bundled)
-                    } else {
-                        "${packTypeLabel(pack.metadata.kind)} · ${asHumanSize(pack.bytes)}"
+                    // ⚠️ **The absorbed one replaces the TYPE and keeps the size**, and the
+                    // choice is the opposite of the bundled row's for the same reason: there the
+                    // size is the redundant datum, because a bundled pack cannot be deleted; here
+                    // the size is the whole point, because it is what decides whether deleting is
+                    // worth it. What goes is the type, which repeats what the name above says.
+                    detail = when {
+                        pack.isBundled ->
+                            "${packTypeLabel(pack.metadata.kind)} · " +
+                                stringResource(R.string.packs_bundled)
+                        pack.packId in absorbidos ->
+                            "${asHumanSize(pack.bytes)} · " + stringResource(
+                                R.string.packs_absorbed,
+                                nombrePorId[pack.metadata.subsetOf] ?: pack.metadata.subsetOf.orEmpty(),
+                            )
+                        else -> "${packTypeLabel(pack.metadata.kind)} · ${asHumanSize(pack.bytes)}"
                     },
+                    absorbed = pack.packId in absorbidos,
                     // The bundled one cannot be deleted: it would come back on restart.
                     onDelete = if (pack.isBundled) {
                         null
@@ -327,6 +348,17 @@ private fun PackRow(
      */
     incompatible: Boolean = false,
     /**
+     * Whether this row is a dictionary another installed one already contains.
+     *
+     * ⚠️ **It only buys the second line, and for the reason the rejected row already proved.**
+     * The normal detail is type and size and fits on one; *«129,0 MB · Cubierto por English
+     * (full)»* is nearly twice that and at ~140 dp it would be clipped exactly where the reason
+     * starts — the same failure `incompatible` was given two lines for, measured on the emulator.
+     * The colour does NOT change: the pack is redundant, not broken, and painting it like an
+     * error would say the wrong thing about a file that works.
+     */
+    absorbed: Boolean = false,
+    /**
      * What tapping the row does, or `null` if it does nothing.
      *
      * The catalog uses it: an offer is downloaded by tapping it. The installed rows remain
@@ -386,7 +418,7 @@ private fun PackRow(
                     // dp it was clipped at `Another format ve…`, seen on the emulator. The row
                     // grows ~14 dp in a case that is normally zero rows, and in exchange the only
                     // information that row holds is read in full.
-                    maxLines = if (incompatible) 2 else 1,
+                    maxLines = if (incompatible || absorbed) 2 else 1,
                     // ⚠️ **ONE line, and now it does fit.** It took two because it read
                     // `definiciones · 315,9` with the `MB · EN` clipped; removing the language code
                     // freed what was missing, and the request is explicit: *"that the type and

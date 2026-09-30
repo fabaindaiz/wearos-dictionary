@@ -134,6 +134,10 @@
     <string name="packs_to_download">To download</string>
     <string name="packs_wip">Tap to see which dictionaries are available to download.</string>
     <string name="packs_bundled">Bundled</string>
+    <!-- Second line of a dictionary another installed one already contains. It replaces the
+         TYPE and not the size: the size is what decides whether deleting is worth it, and the
+         type repeats what the name above already says. -->
+    <string name="packs_absorbed">Covered by %1$s</string>
     <string name="packs_delete_question">Delete %1$s?</string>
     <string name="packs_delete_cost">It takes %1$s. To get it back you have to install it again from the computer.</string>
     <string name="packs_delete">Delete</string>

@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **627 tests**) están completos y en el gate, junto con los **486 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1286 tests en total**. Los **52
+pipeline de packs (`tools/`, **627 tests**) están completos y en el gate, junto con los **492 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1292 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3408,7 +3408,7 @@ forma, y separarlas habrían sido dos recorridos con el mismo bug:
 | Regla | Qué hace | Quién la usa hoy |
 |---|---|---|
 | **De cada `pack_id`, el `data_version` mayor** | Dos archivos con el mismo `pack_id` son el mismo diccionario (D-138) y el build viejo es estrictamente peor (D-170) | **Sí**: cierra un defecto de hoy |
-| **Un pack no se consulta si el que lo contiene está** | La que el núcleo necesita | **No**: ningún pack declara `subset_of` todavía |
+| **Un pack no se consulta si el que lo contiene está** | La que el núcleo necesita | **Sí** desde el build del 2026-09-22: los núcleos y `en-main` declaran su pack completo |
 
 ⚠️ **Y la distinción que lo hace correcto: instalado y consultado dejan de ser la misma lista.**
 Ajustes sigue mostrando **todo** lo que ocupa disco —si no, un pack que no se consulta se vuelve
@@ -4173,7 +4173,7 @@ language. Closing it means `entry.lang` reaching `EntrySummary`, which is a `:di
 | **B** | Derive it from the entry when the row is drawn | a read per row, on a list that scrolls | ⚠️ Puts a pack read on the home's scroll path, which D-106's reasoning rules out for the tile and is uncomfortable here |
 | **C** | Tag it with the **active** language | 0 | ⚠️ **Wrong, and the KDoc already refused it**: a history row can be from another language than the active one, and asserting otherwise is D-080's family |
 
-### `full` and `main` of the same origin installed together — REVIEWED 2026-09-23, partly handled
+### `full` and `main` of the same origin installed together — 2 of 3 BUILT, the catalogue warning open
 
 **Status.** **Better than expected, and the gap is not where it looks.** Asked for: handle
 explicitly what happens when a `full` pack is installed and then the `main` of the same origin
@@ -4192,23 +4192,48 @@ So installing `en-main` next to `en-full` — **in either order** — already me
 queried, and no result is duplicated. The mechanism is order-independent, which is what makes
 *"and vice versa"* a non-question.
 
-⚠️ **What is NOT handled, and these are the explicit decisions being asked for:**
+**The three pieces this was split into, two of them now closed:**
 
-1. **The shadowed pack keeps its disk.** `en-main` is **103 MB** that is never read once `en-full`
-   is there. Nothing says so, nothing offers to delete it, and the dictionary manager lists it
-   looking exactly like a working pack.
-2. **The catalogue will happily sell it to you.** Downloading `en-main` with `en-full` already
-   installed is **72 MB over the wire** for a pack that is shadowed the moment it lands. The
-   download screen has the information to warn — `subset_of` is in the index — and does not.
-3. **Two surfaces use different rules, which is this repo's recurring failure.** `packsToQuery`
-   honours `subset_of`; `representativePacks` — which decides the attribution shown and whose
-   word of the day appears — picks by `entryCount` and does not. Today it lands correctly by
-   luck, because an absorber always has more entries than its subset. **It is a coincidence, not
-   an invariant**, and nothing fails if it stops being true.
+1. ✅ **BUILT on 2026-09-30. The shadowed pack keeps its disk, and now says so.** Read off
+   `index.json` the same day, `en-main` is **134.5 MB** on disk that is never read once `en-full`
+   is there — the 103 MB this item used to quote is from before the rebuild. The dictionary
+   manager's row now reads `134,5 MB · Covered by English (full)`: it keeps the size, which is
+   what decides whether deleting is worth it, and drops the type, which repeats the name above.
+   The rule is `absorbedPackIds`, **extracted from `packsToQuery` rather than written a second
+   time** — see (3) for why that is not a stylistic preference.
+2. ⚠️ **OPEN, and this item described it wrongly.** Downloading `en-main` with `en-full` already
+   installed is **97.0 MB over the wire** for a pack that is shadowed the moment it lands. It said
+   *"the download screen has the information — `subset_of` is in the index"*: **it does not.**
+   Checked on 2026-09-30, `index.json` publishes 17 fields per pack and `subset_of` is not among
+   them, because `packserver.py` → `META_FIELDS` does not copy it. So this is not the same string
+   in another screen; it touches **one of the four cross-language mirrors** — `packserver.py` →
+   `META_FIELDS` ↔ `Catalog.kt` → `Catalog.parse`, whose failure mode is *"the download screen
+   says «nothing new» forever"* — plus regenerating `index.json` and hand-updating
+   `catalog-index-fixture.json`, which deliberately keeps a schema-3 pack and so cannot simply be
+   re-dumped. **The cheap version costs nothing and is worth pricing first**: the app already
+   knows which packs are installed and each candidate's `pack_id`, so it can warn when the pack
+   being offered is the `core` or `main` tier of an installed `full` — inferring from the
+   `pack_id` grammar (D-138) instead of publishing the field. That trades a real declaration for a
+   naming convention, which is the objection to it.
+3. ✅ **BUILT on 2026-09-23** (`fix(app): a shadowed pack can no longer represent its language`).
+   `packsToQuery` honoured `subset_of` and `representativePacks` — which decides the attribution
+   shown and whose word of the day appears — picked by `entryCount` and did not. It landed
+   correctly **by arithmetic rather than by rule**: an absorber happens to have more entries than
+   its subset. Both surfaces now call the same function, and shadowed is a *last resort* rather
+   than an exclusion, so a language whose every pack is absorbed keeps a representative instead of
+   vanishing from the selector.
 
-**Cheapest first**: (3) is a correctness question and costs a few lines plus a test; (1) is a row
-in the dictionary manager saying *"covered by English (full)"*; (2) is the same string in the
-catalogue. None needs a rebuild.
+Neither (1) nor (3) needed a rebuild, and (2) does not either.
+
+⚠️ **And looking at the built row on the emulator raised a fourth thing, not acted on.** With
+five packs on disk the manager listed **three**: `en-core` and `es-core` are absorbed as well and
+appear nowhere, because `offerable` hides an APK pack once another speaks all of its languages
+(the D-088 / D-175 lineage) — which is a different rule from this one and older. The consequence
+is that these two are **94 MB of files in `files/packs/` the user cannot see or delete**. Deleting
+them is probably meaningless, since they are extracted from the APK and would return, **but that
+was reasoned and not checked**, and it is the answer that decides whether this is a defect or
+correct behaviour badly described. It also means the absorbed row only ever renders for a
+**downloaded** pack.
 
 ### The APK is 111 MB and the estimate said 60 — MEASURED 2026-09-23
 
@@ -5133,7 +5158,11 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ✅ **funciona de punta a punta** (2026-09-22, D-214) | Descarga con reanudación, comprueba los dos hashes, instala atómicamente y recarga; la cancelación libera el `.part` (D-231). ⚠️ **Lo que falta es de producto, no de mecanismo**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo y sólo `debug` habla por `http://`. **Es el ítem #3 de las tres que desbloquean todo** |
 
-### Pendiente de subir al reloj — **NADA, subido el 2026-09-30**
+### Pendiente de subir al reloj — **un APK, listo el 2026-09-30**
+
+⚠️ **A newer APK is built and waiting**: it carries the absorbed-pack row, seen on the emulator
+and not on the watch. **No pack changed**, so nothing else needs uploading — the table below is
+still what the watch holds.
 
 ✅ **APK versionCode 13 and three packs are on the watch**, uploaded and read back the same day by
 the fixed four steps: session, upload, probe by log, close.

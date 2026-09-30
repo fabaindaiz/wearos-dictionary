@@ -37,6 +37,10 @@ through `verify()`. It is the one open item that closes with no pack rebuilt.
 - The six real packs still pass whole, and **all six still run the FTS check** — the new early
   return never fires on a healthy pack, the bilingual included (`twenty`, 62 entries contain it).
 - **3 mutations, 3 bite**, after one survived.
+- Full gate, required once Kotlin was touched: **exit 0**, 627 tests, 40 structural checks, 0
+  failures. ⚠️ Lint found the string for the unbuilt catalogue half unused and **failed the gate
+  over it** — a resource written ahead of its consumer does not compile here, which is the scope
+  split enforced mechanically rather than remembered. It was removed; both locales stay at 165.
 
 **What went wrong.**
 - ⚠️ **The first test passed for somebody else's reason, and only the mutation probe said so.**
@@ -191,9 +195,60 @@ asserts the LOG comes out in enum order, so it guarantees two lines are comparab
 the enum may not be reshuffled. Reordering it would move the priority and nothing would go red.
 The document says so where a reader will meet it.
 
+✅ **And the shadowed pack now says so** (`d-a2f271-d02d0e`). `en-main` is **134,5 MB** that stops
+being read the moment `en-full` lands, and its row in the dictionary manager looked exactly like a
+working pack's. It reads `134,5 MB · Covered by English (full)` — the size stays because it is
+what decides whether deleting is worth it, the type goes because it repeats the name above.
+**4 mutations, 4 bite.**
+
+⚠️ **The rule was extracted, not written twice, and the precedent for that is this same field.**
+`absorbedPackIds` is now shared by `packsToQuery` and the manager, with a test asserting the two
+answers are complementary. The previous occurrence was `representativePacks` ignoring `subset_of`
+while `packsToQuery` honoured it — fixed on 2026-09-23, and it had landed correctly only because
+an absorber happens to have more entries than its subset.
+
+⚠️ **The roadmap was wrong twice about this item, and one of the two changes its scope.** It said
+*"the download screen has the information — `subset_of` is in the index"*: checked in
+`index.json`, **it is not** — 17 fields per pack and `packserver.py` → `META_FIELDS` does not copy
+it. So warning **before** the 97,0 MB download is not the same string in another screen; it
+touches one of the four cross-language mirrors, plus regenerating the index and hand-updating
+`catalog-index-fixture.json`, which deliberately keeps a schema-3 pack. **That half stays open**,
+with the cheap alternative priced in the roadmap: infer the tier from the `pack_id` grammar
+(D-138) instead of publishing the field, trading a declaration for a naming convention. And the
+second error was quieter: the KDoc and the roadmap both still said *"nobody uses `subset_of`"*
+when **three packs have declared it since the 2026-09-22 build**, and the item's disk figure was
+the pre-rebuild 103 MB.
+
+**Seen on the emulator (`wear_sm_l715f`, 498x498), which is the only thing that could judge
+this.** The absorbed row was built from a measured precedent --`maxLines = 2`, because the
+incompatible row clipped at ~140 dp-- and a precedent is not a measurement. Installing `en-main`
+beside `en-full` renders it in **two lines with no clipping**, breaking after the separator:
+
+```
+English (main)
+134,5 MB · Cubierto por
+English (full)
+```
+
+⚠️ **And looking at the real screen found something the tests cannot see, which was the point of
+looking.** The first attempt showed **three rows for five packs on disk**: `en-core` and `es-core`
+are absorbed too and appeared nowhere. It is not this change --`offerable` hides an APK pack when
+another already speaks all its languages (the D-088 / D-175 lineage), so the cores never reach the
+screen at all-- but it means the row only ever renders for a **downloaded** pack, which is the
+case the roadmap named. It took pushing `en-main` onto the emulator to see the feature work at
+all, and without that the Robolectric green would have been the only evidence: it feeds the list
+directly and therefore cannot notice that nothing upstream delivers such a pack.
+
+**An observation left for the roadmap rather than acted on**: those two cores are **94 MB of real
+files** in `files/packs/` that the manager does not list. Deleting them is probably meaningless
+--they are extracted from the APK and would come back-- but that reasoning was not checked, and
+*"the user cannot see 94 MB"* is the kind of thing this repo prefers written down over assumed.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
-`en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
+`en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything. Plus the
+catalogue half above, and the threshold that decides when the pinned dictionary is retrained —
+both of which are the user's calls and not measurements.
 
 ⚠️ **And nothing was SEARCHED on the watch, by rule.** `app/CLAUDE.md` puts functional probes on
 the emulator and allows the watch three steps: install, launch, read the log. So what the watch
