@@ -970,7 +970,25 @@ def _verify_search_paths(db, report, profile):
     dictionary = bytes.fromhex(
         db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
     )
-    _pos, senses, _palabra = payload_codec.parse(payload_codec.decompress(sample["payload"], dictionary))
+    # ⚠️ **Reported and not raised, and the difference is the whole job of this file.** This line
+    # used to decompress with no guard, so a pack whose payloads are corrupt ended the run in a
+    # `zlib.error` traceback naming a line of Python -- while the `[payloads]` section above had
+    # already said, in words, that the entry could not be decoded. The exit code was right either
+    # way; what was lost is the sentence, which is the only thing whoever ran it can act on.
+    #
+    # ⚠️ **`senses` can also be empty** and `senses[0]` would raise the same way. A bidirectional
+    # pack's reverse side legitimately has no senses (D-196), so this is not even a defect there:
+    # it is a shape this check cannot use, and it says so instead of dying.
+    senses = None
+    try:
+        _pos, senses, _palabra = payload_codec.parse(
+            payload_codec.decompress(sample["payload"], dictionary)
+        )
+    except Exception as error:  # noqa: BLE001 - se reporta, no se propaga
+        report.check(False, "no se pudo decodificar la entrada mejor rankeada: %r" % (error,))
+    if not senses:
+        report.note("la entrada mejor rankeada no da una glosa con la que probar FTS")
+        return
     words = [w for w in normalize.norm(senses[0]["gloss"]).split(" ") if len(w) > 3]
     if not words:
         report.note("no se encontro una palabra utilizable para probar FTS")

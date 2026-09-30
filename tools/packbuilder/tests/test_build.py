@@ -902,6 +902,58 @@ class StructureTest(BuilderTestCase):
 
 
 class FailureModeTest(BuilderTestCase):
+    def test_un_payload_que_no_infla_se_REPORTA_y_no_revienta_el_verificador(self):
+        """⚠️ `verify()` used to die with a traceback over a pack whose payloads are corrupt.
+
+        Found on 2026-09-29 while testing a different check THROUGH `verify()`: the run ended in
+        `zlib.error` from `_verify_search_paths`, which decompresses the top-ranked entry with no
+        guard. The verifier exists to say **what is wrong with a pack**, and a stack trace naming
+        zlib says nothing about the pack -- whoever ran it is left reading Python instead of a
+        reason. The section above it already reports the same condition; this one contradicted it
+        by crashing on the way past.
+
+        ⚠️ **The exit code is the point.** `verify_pack.py` is read by its exit code before
+        publishing, and an uncaught exception also exits non-zero -- so the pack is rejected either
+        way and nothing shipped because of this. What was lost is the sentence.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("UPDATE entry SET payload = ?", (b"esto no es un flujo deflate",))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertEqual(1, codigo)
+
+    def test_la_entrada_mejor_rankeada_ilegible_es_una_FALLA_de_su_propia_seccion(self):
+        """⚠️ The end-to-end test above cannot tell this apart, and a mutation probe said so.
+
+        `[payloads]` already reports an entry that does not decode, and with almost the same
+        words, so `verify()` returns 1 whatever this section does: replacing its `check` with a
+        `note` survived. The first version of the test asserted on that shared message and was
+        therefore passing because of somebody else's check.
+
+        ⚠️ **And `check` is right rather than convenient.** `[payloads]` reads a 200-row sample
+        while this reads the single top-ranked entry, so the one case only this can see is a pack
+        whose best entry is corrupt and whose sample happens to miss it.
+        """
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        db.execute("UPDATE entry SET payload = ?", (b"esto no es un flujo deflate",))
+        db.commit()
+        db.row_factory = sqlite3.Row
+        reporte = _Reporte()
+        with contextlib.redirect_stdout(io.StringIO()):
+            verify_pack._verify_search_paths(db, reporte, BASE_META["fuzzy_profile"])
+        db.close()
+        self.assertTrue(
+            any("mejor rankeada" in f for f in reporte.failures),
+            "la seccion no reporto como FALLA que no pudo leer la entrada: %r" % reporte.failures,
+        )
+
     def test_reserved_meta_keys_are_rejected(self):
         # A hand-written schema_version would be a silent way of breaking the validation the watch
         # does when opening the pack.

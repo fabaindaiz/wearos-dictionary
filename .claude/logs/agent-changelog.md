@@ -16,6 +16,41 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-09-30 · s-a2f271-d66548 — The verifier stopped crashing where it was supposed to report
+**What.** `_verify_search_paths` decompressed the top-ranked entry with no guard, so a pack whose
+payloads are corrupt ended `verify_pack.py` in a `zlib.error` traceback instead of a sentence. It
+reports now, and an entry with no senses --which a bidirectional pack has by design (D-196)-- says
+so rather than raising on `senses[0]`.
+
+**Areas.** `tools/packbuilder/verify_pack.py`, `tools/packbuilder/tests/test_build.py`.
+
+**Why.** Named as *not fixed* in yesterday's entry, found there while testing a different check
+through `verify()`. It is the one open item that closes with no pack rebuilt.
+
+**Architecture.** ✅ Complies.
+
+**Measured.**
+- Light gate, asked for: **620 builder tests**, 40 structural checks, 0 failures.
+- The six real packs still pass whole, and **all six still run the FTS check** — the new early
+  return never fires on a healthy pack, the bilingual included (`twenty`, 62 entries contain it).
+- **3 mutations, 3 bite**, after one survived.
+
+**What went wrong.**
+- ⚠️ **The first test passed for somebody else's reason, and only the mutation probe said so.**
+  `[payloads]` already reports an entry that does not decode, with nearly the same words, so
+  `verify()` returns 1 whatever this section does: replacing its `check` with a `note` survived.
+  The assertion was matching the other section's message. It is now two tests — one that
+  `verify()` does not raise, and one calling `_verify_search_paths` with a report double, which is
+  the only level where this line's own verdict is visible.
+- **The second test needed the fuzzy profile** and was written with `None`, which
+  `normalize.fuzzy` rejects outright. Noisy, not silent: fixed on the first run.
+
+**What was left undone.** Everything else from yesterday: the `Spain`/`etc`/`Colombia` keys that
+come from a comma-split description, the 0.27 % residual dangling references, and `en-main`'s
+shrunken etymology vocabulary. All three are **content** and reach nothing without a rebuild.
+⚠️ **And nothing has been on the watch**: APK 13 plus `en-full` and `es-en` are built and waiting.
+
+
 ## 2026-09-29 · s-a2f271-b04804 — The `form` table was not the defect the roadmap said it was
 **What.** Seven changes the next rebuild lands, plus four retractions. In `kaikki.py`: the
 conjugation table's own rows stop being inflections, a lemma wiktextract cuts on its commas is put
