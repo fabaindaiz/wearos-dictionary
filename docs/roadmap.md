@@ -3834,6 +3834,43 @@ parcheada; sólo sigue en la 0.6.4).
 **Qué hay que decidir antes.** Nada de producto. Es puramente *¿el ahorro medido justifica el
 cliente?*, y el paso siguiente es la medición del punto 1, que no necesita ni reloj ni servidor.
 
+#### ✅ El número que faltaba — MEDIDO el 2026-09-30, y la pregunta era otra · i-a2f271-69bbd4
+
+`sqldiff` is not installed and is not needed: the bound comes from comparing the two builds' 4 KB
+SQLite pages, which is the method this section already named. Two builds of the same six packs,
+2026-09-26 against 2026-09-29.
+
+| pack | MB new | same block at the SAME offset | same block ANYWHERE | still to download |
+|---|---|---|---|---|
+| `en-full` | 312.4 | 0.0 % | **34.8 %** | 203.7 MB |
+| `en-main` | 128.2 | 0.0 % | **0.0 %** | 128.2 MB |
+| `en-core` | 40.9 | 0.0 % | 0.0 % | 40.9 MB |
+| `es-full` | 76.5 | 0.1 % | **70.0 %** | 22.9 MB |
+| `es-core` | 49.2 | 0.0 % | 0.0 % | 49.1 MB |
+| `es-en` | 63.9 | 0.0 % | **1.4 %** | 63.0 MB |
+
+⚠️ **A naive differ saves nothing at all** — 0.0 % at a fixed offset, everywhere. SQLite's page
+allocation shifts on any insert, so the rolling checksum is not an optimisation of the idea, it is
+the whole idea.
+
+⚠️ **And the spread is the finding, not the average.** `es-full` keeps 70 % and `es-en` keeps
+**1.4 %**, from the same pair of builds. The cause is ours: **every pack is compressed against a
+freshly trained dictionary** — the four checked carry four different `payload_dict_sha256` across
+the two builds — so every page that holds payload changes wholesale, and the pages that survive
+are exactly the ones that do not. `es-full` survives because its `form` table is 32.9 MiB of its
+76.5 and holds uncompressed keys; `es-en` is nearly all payload and keeps almost nothing.
+
+**So the question this section was waiting on turns out to be a different question.** It is not
+*«does the saving justify a zsync client»* — with the builder as it stands the saving collapses to
+near zero in exactly the case that triggers a rebuild, which is a change to the builder. It is
+**«should the compression dictionary be pinned between builds»**, and that is a decision about the
+pack format with a cost of its own: a pinned dictionary compresses new content worse, and the
+retraining was measured on 2026-09-25 as worth **−8.3 % es and −13.1 % en** of payload.
+
+⚠️ **Nobody has measured the other half**: what a pinned dictionary would cost in pack size against
+what it would buy in delta. Until that exists, a zsync client is being priced against a number the
+builder itself controls.
+
 #### Los tres momentos de validación, y por qué no usan lo mismo
 
 | Momento | Qué pregunta | Con qué | Estado |

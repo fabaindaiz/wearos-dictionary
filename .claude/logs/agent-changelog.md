@@ -125,6 +125,27 @@ Abiertas, Simultáneas y Obligatorias»* and the comma split makes `Abiertas` a 
 word reachable in the bilingual as an entry **or** a form, the other as an entry only. The gap is
 the 155 that arrive as a form; averaging them would have hidden which question each answers.
 
+**Two queued measurements, run.**
+
+⚠️ **The pre-publish validator has 60 checks and 39 of them (65 %) have never been observed to
+fail.** The knowledge base had this queued for `a-check-must-be-seen-to-fail` at an hour of
+planting violations by hand; instrumenting the reporter to record each **call site** and running
+the suite once answers it over every site instead of the ones somebody thinks to plant. 21 ever
+red, 33 exercised and never red, 6 never reached. **The never-red set is not the periphery**: the
+format version, the normalisation version, the payload codec, the compression-dictionary hash, the
+one-row-per-entry link between the text index and the entries, and the query plan the design rests
+on. ⚠️ Several of those have a *mirror* on the app side that IS tested, through another entry
+point — so counting by subject rather than by call site would have read 65 % as much smaller.
+
+⚠️ **And the delta-update number that had blocked a decision for weeks says the decision is a
+different one.** Comparing the 4 KB pages of two real builds: a fixed-offset differ saves **0.0 %**
+everywhere, and even with a rolling checksum the spread is `es-full` **70 %** against `es-en`
+**1.4 %** from the same pair. The cause is ours — **every pack is compressed against a freshly
+trained dictionary**, four different `payload_dict_sha256` across the two builds, so every page
+holding payload changes wholesale and only the pages that hold none survive. So the question is not
+*does the saving justify a zsync client*; it is **whether the compression dictionary should be
+pinned between builds**, which nobody has priced against the −8.3 %/−13.1 % that retraining buys.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
