@@ -5067,10 +5067,18 @@ the whole of it without reading all three:
 ordinal and immune to a badly calibrated pack — and it lives in a comment inside
 `SearchRepository`, not anywhere a person would look for "how are results ordered".
 
+⚠️ **And the table above was incomplete, which is itself the argument for the document.** Read
+against the code on 2026-09-30, `orderFor` has **eleven** keys and not five: it also demotes a
+`PREFIX` with no frequency signal, prefers the active language **after** quality, re-applies the
+match kind once language has broken the tie, and prefers the better-calibrated pack **after**
+`score`. And `score` is not uniformly *position in the pack's list*: in `FUZZY` it is the **edit
+distance**, two quantities under one name.
+
 **What is missing, in order:**
 
-1. **One document that states the whole order**, end to end, and what each step is defending
-   against. Today the *why* of every step exists — in three files.
+1. ~~**One document that states the whole order**~~ ✅ **WRITTEN 2026-09-30**:
+   `docs/orden-de-resultados.md`, the four stages end to end, what each step defends against, and
+   what the order explicitly does **not** promise. Routed from `CLAUDE.md`.
 2. **A way to see the order change.** Every improvement so far was found by running a query
    against the real pack and reading the list (D-142's `cas`, D-154's `ital`). That was done by
    hand each time; `tools/measure_query_cost.py` already opens real packs and could print the

@@ -195,6 +195,7 @@ its own format, and why, at its end.
 | Why is this decided this way? Can I change it? | `docs/decisions.md` |
 | A word is missing / duplicates show up / the pack will not open | the `troubleshoot-diccionario` skill, `docs/contratos-cruzados.md` |
 | What does the `.db` look like inside? Which query do I use? | `docs/formato-pack.md` |
+| Why is this word first? What decides the order? | `docs/orden-de-resultados.md` |
 | Where does a new file go? What are the layers? | `docs/architecture.md` |
 | What is next? What does what I want to do collide with? | `docs/roadmap.md` |
 | How do I measure this? Is it slow? What does it cost in battery? | the `benchmark` skill, `docs/bateria.md`, `docs/roadmap.md` §Optimización |

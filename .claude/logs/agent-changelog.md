@@ -174,6 +174,23 @@ there is no automatic threshold**: *«it changes too much»* is a judgement abou
 content, and a guessed number would make that call silently on every run. **4 mutations, 4 bite**,
 after one survived twice. ⚠️ **It reaches nothing until a rebuild uses it.**
 
+✅ **And §*Result ordering*'s step 1 is written: `docs/orden-de-resultados.md`.** The order is
+computed in four stages across four files and none of them reads as *the* order, which is why
+every improvement so far had half its reasoning re-derived from comments.
+
+⚠️ **Reading the code to write it found the roadmap's own table incomplete**, which is the
+argument for the document rather than an aside. `orderFor` has **eleven** keys and the table listed
+five: it also demotes a `PREFIX` with no frequency signal, prefers the active language **after**
+quality, re-applies the match kind once language has broken the tie, and prefers the
+better-calibrated pack **after** `score`. And `score` is not uniformly *position in the pack's
+list* — in `FUZZY` it is the **edit distance**, two quantities under one name.
+
+⚠️ **And one claim I had written went in overstated and came back out.** `app/CLAUDE.md` says a
+test pins the rung order; it does, but narrowly — `DictLogTest` feeds the trace a reversed map and
+asserts the LOG comes out in enum order, so it guarantees two lines are comparable, **not** that
+the enum may not be reshuffled. Reordering it would move the priority and nothing would go red.
+The document says so where a reader will meet it.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
