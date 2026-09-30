@@ -47,6 +47,15 @@ through `verify()`. It is the one open item that closes with no pack rebuilt.
   the only level where this line's own verdict is visible.
 - **The second test needed the fuzzy profile** and was written with `None`, which
   `normalize.fuzzy` rejects outright. Noisy, not silent: fixed on the first run.
+- ⚠️ **The pinned dictionary's end-to-end test passed while the flag was wired to `None`**, and
+  the mutation probe caught it twice. First there was no end-to-end test at all --two unit tests
+  covered `PackBuilder(dictionary=…)` and the pack reader separately while nothing checked that
+  one reached the other, which is exactly how a feature parses its argument and throws it away.
+  Then the test built the SAME tiny dump twice: the trained dictionary is a function of the
+  sample, so both builds produced identical bytes and the assertion held with nothing reused. It
+  needed a second dump with different words **and a control asserting those two dumps really do
+  train different dictionaries** — without that control the test cannot tell reuse from
+  coincidence.
 
 **On the watch** (SM-L715F, Wear OS 7 / API 37), the fixed four steps: session, upload, probe by
 log, close. No taps, no screenshots -- what had to be *seen* was seen on the emulator yesterday.
@@ -156,6 +165,14 @@ measured by compressing this build's payloads with the previous build's dictiona
 decided it: pinned across builds, retrained only when the payload changes shape (d-a2f271-dab1de).
 ⚠️ **Not built** — `PackBuilder` assembles it from its sample and accepts none — and the threshold
 for *changes too much* is undefined.
+
+✅ **And the decision was then built: `build_pack.py --diccionario <pack.db>`.** It reads
+`meta.payload_dict` from an already built pack and hands it to `PackBuilder`, the shape
+`--flexiones` and `--etimologia-hasta` already use — a pack and not a file of bytes, because the
+dictionary that matters is the one a published artifact carries. ⚠️ **The flag is explicit and
+there is no automatic threshold**: *«it changes too much»* is a judgement about one build's
+content, and a guessed number would make that call silently on every run. **4 mutations, 4 bite**,
+after one survived twice. ⚠️ **It reaches nothing until a rebuild uses it.**
 
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and

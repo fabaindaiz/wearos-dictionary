@@ -1605,3 +1605,85 @@ class ContenidoExtraidoTest(BuilderTestCase):
         # rather than fixed here, and one this test would otherwise hide behind.
         self.assertTrue(reporte.failures, "la seccion paso en vacio sobre un pack ilegible")
         self.assertIn("se leyo el contenido de", salida.getvalue())
+
+
+class DiccionarioFijadoTest(BuilderTestCase):
+    """d-a2f271-dab1de: the compression dictionary can be reused from a previous pack.
+
+    ⚠️ **Retraining it buys almost nothing and destroys delta updating.** Measured 2026-09-30 by
+    compressing one build's payloads with the previous build's dictionary: pinning costs **0.47 %**
+    of payload on `en-full` and **2.07 %** on `en-main`. Against it, a fresh dictionary changes
+    every page that holds payload, and block reuse between two builds falls to **1.4 %** on the
+    bilingual pack and **0 %** on the derived tiers.
+
+    ⚠️ **The flag is explicit and there is no automatic threshold, deliberately.** *«It changes too
+    much»* is a judgement about the content of a particular build, the same kind `--flexiones` and
+    `--etimologia-hasta` already leave to whoever runs the pipeline. Encoding a guessed threshold
+    would decide it silently on every build instead.
+    """
+
+    def test_el_diccionario_que_se_pasa_es_el_que_queda(self):
+        prestado = payload_codec.build_dictionary(["una glosa cualquiera de prueba"])
+        with build.PackBuilder(self.path, dict(BASE_META), dictionary=prestado) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        guardado = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.close()
+        self.assertEqual(prestado, guardado)
+
+    def test_sin_pasarle_ninguno_lo_entrena_como_siempre(self):
+        # The control: the default path is untouched, so a build that does not ask for pinning
+        # behaves exactly as it did.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr", gloss="una glosa con palabras repetidas repetidas"))
+        db = sqlite3.connect(self.path)
+        guardado = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.close()
+        self.assertTrue(guardado)
+        self.assertNotEqual(payload_codec.build_dictionary(["otra cosa"]), guardado)
+
+    def test_el_pack_construido_con_uno_prestado_se_lee_igual(self):
+        """⚠️ The point of the whole change, and the thing a size number cannot show.
+
+        A pinned dictionary is only safe if the pack still decodes, and it decodes because the
+        dictionary travels **inside** the pack: `payload_dict_sha256` is checked on opening and
+        deflate returns corrupt text rather than failing when the dictionary is wrong (D-008).
+        """
+        prestado = payload_codec.build_dictionary(["una glosa cualquiera de prueba"])
+        with build.PackBuilder(self.path, dict(BASE_META), dictionary=prestado) as builder:
+            builder.add(record("correr", gloss="moverse deprisa"))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            self.assertEqual(0, verify_pack.verify(self.path))
+        db = sqlite3.connect(self.path); db.row_factory = sqlite3.Row
+        dic = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        fila = db.execute("SELECT payload FROM entry LIMIT 1").fetchone()
+        self.assertIn("moverse deprisa", payload_codec.decompress(fila["payload"], dic))
+        db.close()
+
+    def test_diccionario_de_pack_lee_el_de_un_artefacto_real(self):
+        # The flag reads a PACK and not a file of bytes, the shape `--flexiones` and
+        # `--etimologia-hasta` already use: the dictionary that matters is the one a published
+        # artifact actually carries.
+        import build_pack
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        esperado = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.close()
+        self.assertEqual(esperado, build_pack.diccionario_de_pack(self.path))
+
+    def test_un_pack_sin_payload_dict_se_rechaza_en_voz_alta(self):
+        # The degradation that must NOT be silent: reusing nothing while believing you reused
+        # something would retrain the dictionary and undo the whole point without saying so.
+        import build_pack
+        vacio = os.path.join(self.tmp, "vacio.db")
+        db = sqlite3.connect(vacio)
+        db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        db.commit(); db.close()
+        with self.assertRaises(SystemExit):
+            build_pack.diccionario_de_pack(vacio)

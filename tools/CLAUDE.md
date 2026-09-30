@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 620 tests
+hatch run test              # the 627 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -271,6 +271,7 @@ worse.** There is no error to notice, so they are listed here rather than only i
 | `es` | `--frases` · `--tesauro` · `--sumar es-wd` | examples, WordNet synonyms, 5,283 lemmas |
 | **`es-en`** | **`--flexiones en-def-wikt.db`** | **the reverse direction**: without it `ran`, `went` and `eaten` do not arrive. ⚠️ **Since D-196 the inflections go to the ENGLISH ENTRY's `form`** --`went` is an inflection of `go`, and `go` is already a lemma-- instead of expanding inside `trans`, which in a bidirectional pack is empty. Skipping the flag cost **8.6 points** of reverse coverage in the top 1,000, measured over the built pack: 97.0 % with it, 89.8 % without it |
 | `en` | `--tesauro` | +30,423 entries with synonyms |
+| **any** | **`--diccionario <pack.db>`** | **block-level reuse between builds.** Without it the compression dictionary is retrained, every page that holds payload changes, and a delta update saves **1.4 %** on the bilingual pack and **0 %** on the derived tiers. Pinning costs 0.47–2.07 % of payload (d-a2f271-dab1de). ⚠️ Omit it **on purpose** when the payload changes shape — a new channel — which is the case worth retraining for |
 
 ⚠️ **And the bilingual one is built AFTER English, not in any order**: `--flexiones` reads an
 already built pack, so `en-def-wikt.db` has to exist first. A rebuild's complete order is

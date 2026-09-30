@@ -257,7 +257,7 @@ def data_version(ahora=None):
 
 class PackBuilder:
     def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
-                 thesaurus=None, etymology_vocabulary=None):
+                 thesaurus=None, etymology_vocabulary=None, dictionary=None):
         """`metadata` are the meta table keys the source contributes.
 
         The builder adds its own (versions, count, date) and fails if the source tries to declare
@@ -361,6 +361,9 @@ class PackBuilder:
         self._sentences = sentences or {}
         self._thesaurus = thesaurus or {}
         self._sample = []
+        # None means "train one from the sample", which is what every build did before
+        # d-a2f271-dab1de. See `finish`.
+        self._dictionary = dictionary
         self._sampled = 0
         # Deterministic: two builds of the same input give the same pack.
         self._random = random.Random(0)
@@ -571,7 +574,23 @@ class PackBuilder:
 
         self._reject_uid_collisions()
 
-        dictionary = payload_codec.build_dictionary(self._sample)
+        # ⚠️ **A dictionary handed in is used verbatim; without one it is trained from the
+        # sample, which is what every build did until d-a2f271-dab1de.** Retraining it buys
+        # almost nothing and destroys delta updating: measured 2026-09-30 by compressing one
+        # build's payloads with the previous build's dictionary, pinning costs **0.47 %** of
+        # payload on the full English pack and **2.07 %** on its `main` tier, while a fresh one
+        # changes every page that holds payload -- block reuse between two builds falls to
+        # **1.4 %** on the bilingual pack and **0 %** on the derived tiers.
+        #
+        # ⚠️ **Deciding WHEN to retrain is not encoded here, and that is deliberate.** *"The pack
+        # changed too much"* is a judgement about one build's content, the same kind
+        # `--flexiones` and `--etimologia-hasta` already leave to whoever runs the pipeline; a
+        # guessed threshold would make that call silently on every build instead.
+        #
+        # ⚠️ **What makes reuse safe is that the dictionary travels INSIDE the pack.** deflate
+        # does not fail on the wrong dictionary, it returns corrupt text (D-008), so the pack
+        # carries its own and `payload_dict_sha256` is checked when it opens.
+        dictionary = self._dictionary or payload_codec.build_dictionary(self._sample)
 
         # Pass 2: compress and populate entry + fts_def. It iterates with a separate cursor so as
         # not to load the whole staging into memory.

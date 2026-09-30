@@ -287,3 +287,66 @@ class SegundaFuenteTest(unittest.TestCase):
         self.assertEqual(["El acomodador nos tendía los abrigos."],
                          por_lema["acomodador"][0]["examples"])
         self.assertEqual([[], []], [s["examples"] for s in por_lema["banco"]])
+
+
+class DiccionarioFijadoDesdeLaCLITest(unittest.TestCase):
+    """`--diccionario <pack.db>` has to reach the builder, and only an end-to-end run shows it.
+
+    ⚠️ **A mutation probe is what asked for this test.** `PackBuilder(dictionary=…)` and
+    `diccionario_de_pack()` each had their own test and both passed while the flag was wired to
+    `None` — the feature parsed its argument, read the dictionary and threw it away, silently
+    retraining. That is the exact failure the whole change exists to prevent, and neither unit
+    test could see it.
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.uno = os.path.join(self.dir, "uno.jsonl")
+        self.dos = os.path.join(self.dir, "dos.jsonl")
+        _dump_kaikki(self.uno)
+        # ⚠️ **A SECOND dump with different words, and the control below is why.** With one dump
+        # built twice the trained dictionary comes out identical --it is a function of the sample--
+        # so the assertion held with the flag wired to `None` and the mutation survived. The test
+        # was passing because nothing had changed, not because anything was reused.
+        filas = [
+            {"word": "murcielago", "pos": "noun", "lang_code": "es", "lang": "Español",
+             "pos_title": "Sustantivo",
+             "senses": [{"glosses": ["Mamifero volador nocturno de alas membranosas."],
+                         "sense_index": "1"}]},
+            {"word": "ferrocarril", "pos": "noun", "lang_code": "es", "lang": "Español",
+             "pos_title": "Sustantivo",
+             "senses": [{"glosses": ["Camino con dos rieles paralelos para trenes."],
+                         "sense_index": "1"},
+                        {"glosses": ["Empresa que explota ese transporte."], "sense_index": "2"}]},
+        ]
+        with open(self.dos, "w", encoding="utf-8") as h:
+            for fila in filas:
+                h.write(json.dumps(fila, ensure_ascii=False) + "\n")
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _construir(self, fuente, salida, *extra):
+        import contextlib
+        import io as _io
+        argv = ["build_pack.py", "es", fuente, salida] + list(extra)
+        with contextlib.redirect_stdout(_io.StringIO()):
+            build_pack.main(argv)
+        db = sqlite3.connect(salida)
+        valor = db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
+        db.close()
+        return valor
+
+    def test_dos_contenidos_distintos_entrenan_diccionarios_distintos(self):
+        # The control. Without it the test below cannot tell reuse from coincidence.
+        a = self._construir(self.uno, os.path.join(self.dir, "a.db"))
+        b = self._construir(self.dos, os.path.join(self.dir, "b.db"))
+        self.assertNotEqual(a, b)
+
+    def test_el_segundo_pack_lleva_el_diccionario_del_primero(self):
+        primero = os.path.join(self.dir, "uno.db")
+        segundo = os.path.join(self.dir, "dos.db")
+        dic_uno = self._construir(self.uno, primero)
+        dic_dos = self._construir(self.dos, segundo, "--diccionario", primero)
+        self.assertEqual(dic_uno, dic_dos)

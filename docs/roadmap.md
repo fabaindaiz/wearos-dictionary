@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **620 tests**) están completos y en el gate, junto con los **486 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1279 tests en total**. Los **52
+pipeline de packs (`tools/`, **627 tests**) están completos y en el gate, junto con los **486 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1286 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -3888,11 +3888,14 @@ over 6,000 real payloads, deflate alone saves **23 %** and the preloaded diction
 top of that**, so the dictionary is worth more than the algorithm. What is cheap to give up is
 *retraining it*, not having it.
 
-**Decided by the owner on 2026-09-30** (d-a2f271-dab1de): the dictionary is pinned across builds
-and retrained only when the payload changes shape. ⛔ **Not built**: `PackBuilder` assembles it
-from its sample and accepts none — the flag would have the shape `--flexiones` and
-`--etimologia-hasta` already use, reading `meta.payload_dict` from a previous pack. And **the
-threshold for *changes too much* is undefined**, which is the piece to settle before writing it.
+**Decided by the owner on 2026-09-30** (d-a2f271-dab1de) and ✅ **built the same day**:
+`build_pack.py --diccionario <pack.db>` reads `meta.payload_dict` from an already built pack and
+hands it to `PackBuilder`, the shape `--flexiones` and `--etimologia-hasta` already use.
+
+⚠️ **The flag is explicit and there is no automatic threshold, deliberately.** *«It changes too
+much»* is a judgement about one build's content; a guessed number would make that call silently on
+every run. ⚠️ **And it reaches nothing until a rebuild uses it** — the packs in `dist/` each still
+carry a dictionary of their own.
 
 #### Los tres momentos de validación, y por qué no usan lo mismo
 

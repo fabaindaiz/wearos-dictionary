@@ -6,6 +6,7 @@
                           [--flexiones <target-language-pack.db>]
                           [--frecuencias <opensubtitles-list.txt>]
                           [--etimologia-hasta <main-pack.db|word-list.txt>]
+                          [--diccionario <pack.db>]
 
 `--sample N` builds a pilot pack with 1 in every N lemmas, chosen by hashing the headword:
 deterministic and **with no positional bias**, unlike cutting the first N lines. It serves to look
@@ -63,6 +64,7 @@ format: **WN-LMF** (`english-wordnet-*.xml.gz`, CC BY 4.0) for English and **OMW
 with antonyms-- and **5,504** in Spanish. ⚠️ It changes the attribution too.
 """
 
+import contextlib
 import hashlib
 import os
 import sqlite3
@@ -478,6 +480,31 @@ def _keep(headword, sample):
     return int.from_bytes(digest[:4], "big") % sample == 0
 
 
+def diccionario_de_pack(ruta):
+    """The compression dictionary of an already built pack, to reuse instead of training one.
+
+    ⚠️ **Retraining it every build buys almost nothing and destroys delta updating**
+    (d-a2f271-dab1de). Measured 2026-09-30 by compressing one build's payloads with the previous
+    build's dictionary: pinning costs **0.47 %** of payload on the full English pack and **2.07 %**
+    on its `main` tier, while a fresh dictionary changes every page that holds payload — block
+    reuse between two builds falls to **1.4 %** on the bilingual pack and **0 %** on the derived
+    tiers.
+
+    ⚠️ **It reads a PACK and not a file of bytes**, the same shape `--flexiones` and
+    `--etimologia-hasta` use: the dictionary that matters is the one a published artifact actually
+    carries, and asking for the artifact makes that impossible to get wrong.
+
+    ⚠️ **And WHEN to stop reusing it is not decided here.** *"The pack changed too much"* is a
+    judgement about one build's content; leaving it to the flag keeps it an explicit act instead of
+    a threshold that decides silently on every run.
+    """
+    with contextlib.closing(sqlite3.connect("file:%s?mode=ro" % ruta, uri=True)) as db:
+        fila = db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()
+    if not fila or not fila[0]:
+        raise SystemExit("el pack %s no declara payload_dict" % ruta)
+    return bytes.fromhex(fila[0])
+
+
 def vocabulario_de_etimologia(ruta):
     """The `norm()` keys allowed to carry an etymology, read from a pack or from a word list.
 
@@ -597,6 +624,9 @@ def main(argv):
     vocabulario_etimologia = None
     if "--etimologia-hasta" in argv:
         vocabulario_etimologia = argv[argv.index("--etimologia-hasta") + 1]
+    diccionario_prestado = None
+    if "--diccionario" in argv:
+        diccionario_prestado = diccionario_de_pack(argv[argv.index("--diccionario") + 1])
     flexiones = None
     if "--flexiones" in argv:
         flexiones = argv[argv.index("--flexiones") + 1]
@@ -721,7 +751,8 @@ def main(argv):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro,
-                     etymology_vocabulary=vocabulario) as builder:
+                     etymology_vocabulary=vocabulario,
+                     dictionary=diccionario_prestado) as builder:
         # ⚠️ **The ordering prior.** Without this `rank` is page richness --senses, examples and
         # above all FORMS-- and that rewards verbs: measured, it correlates **-0.250** with real
         # usage frequency where -1 would be expected. The symptom shows where D-142's coverage band
