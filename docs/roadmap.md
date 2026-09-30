@@ -1002,6 +1002,106 @@ desalineación a cambio de 20.644 aportes, o seguir perdiéndolos.
 **Con qué más choca.** Es el mismo bloqueo de §Composición entre packs: sumar la definición de
 Wikidata a una entrada que ya existe exige saber **a qué acepción** pertenece.
 
+### Palabras del pack de traducción que no están en ningún pack de idioma · i-a2f271-73edb1
+
+**Estado.** **Medido el 2026-09-30, sin decidir.** Reported from using it: there are words in the
+translation pack that correspond to nothing in the language packs, so they show up *«sueltas como
+traducciones únicamente»*. Measured before planning, and the symptom turned out to be **three
+different things wearing one face** — which is why no single fix answers it.
+
+**The size of it**, counting a word as reachable if the monolingual pack has it as a lemma **or**
+as an inflected form, which is what the coverage lists count and what a person experiences:
+
+| side of `es-en` | distinct norms | unreachable in the monolingual pack |
+|---|---|---|
+| Spanish | 110,145 | **55,791 (50.7 %)** |
+| English | 85,617 | **15,336 (17.9 %)** |
+
+⚠️ **But half a pack is not half a problem, and the rank band says so.** `rank < 500` means the
+word carried a real frequency signal from OpenSubtitles; above it there is none (see
+`FRONTERA_CON_SENAL`), and `+1000` is the proper-noun penalty.
+
+| | Spanish | English |
+|---|---|---|
+| with a frequency signal — **the ones somebody actually types** | **848** | **3,556** |
+| no signal (rare words) | 51,168 | 11,436 |
+| proper nouns | 3,936 | 316 |
+
+#### The three causes, separated
+
+1. **Two dictionaries cover different vocabularies, and that is not a defect.** `es-full` comes
+   from **eswiktionary**, the bilingual's Spanish side from **enwiktionary's Spanish section**.
+   They are different datasets (the `pack-workflow` skill says so at the top), so `sexy`, `hey`,
+   `okay`, `madame`, `Srta.` exist in one and not the other. **53,941 of the 55,791** Spanish
+   orphans are this.
+2. **Proper nouns are excluded from `es-full` by decision (D-116)** and kept by the bilingual.
+   3,936 Spanish and 316 English. Also not a defect: it is two policies meeting.
+3. ⚠️ **The English side's frequent orphans are the gloss-fragment defect**, the same root as
+   `Spain`/`etc`/`Colombia`: `translation_keys` accepts any 1–2 word fragment of a comma-split
+   gloss and `_DESCRIBES` guards only its first word. **82.5 %** of the English orphans are
+   two-word items, and the frequent ones read as descriptions rather than terms — `above
+   something`, `20-peso note`, `100 pesos`, `forms adverbs`, `indicates reason`, `expresses
+   surprise`, `compared to`, `of the`.
+
+**So the English half is largely OUR bug and the Spanish half largely is not**, and any answer
+that treats them alike will be wrong on one of them.
+
+#### Las preguntas que quedan, para contestar con el dueño
+
+1. **¿Qué debería ver alguien que abre una de estas?** Today the card draws the translations and
+   nothing says *why* there is no definition. The three candidate answers are not equivalent: a
+   line saying *«no hay definición en tu diccionario de español»* costs one string and is honest;
+   filling the gap from the bilingual source means Spanish words explained **in English**, which
+   is the same objection that took the etymology out of that pack; and suppressing them would
+   delete `divorcio` from the app altogether, which is worse than the symptom.
+2. **¿Los nombres propios cuentan como el mismo problema?** 3,936 of them are there because two
+   packs apply two policies. Either D-116 extends to the bilingual, or the app says the row comes
+   from a pack with another policy — it is a product call, not a measurement.
+3. **¿Se ataca el defecto inglés ahora o con el próximo rebuild?** It is content: it reaches
+   nothing without rebuilding the bilingual (65 s, measured 2026-09-29).
+
+#### Lo que falta medir, y no necesita a nadie
+
+- **How often somebody lands on one.** The 848 Spanish and 3,556 English with signal are the
+  population; replicating the search cascade over them gives the rate at which a real query ends
+  on a translation-only row. Without it, *«aparecen sueltas»* has no frequency attached.
+- **Whether the English single-word orphans are a fourth class.** 2,678 of them, and the sample
+  shows `aftereffect/after-effect` — a **slash-joined pair** rendered as one headword, which is
+  an artifact and not a word.
+
+### Una glosa vacía en la fuente se lleva el lema y todas sus formas · i-a2f271-753e34
+
+**Estado.** **Medido el 2026-09-30, sin construir.** Found while chasing the item above, and it is
+bigger than it: it is not about the bilingual pack at all.
+
+**`es-full` has no `divorcio` and no `divorciar`.** The dump has both — `divorcio` as a form page
+of the verb, and `divorciar` as a verb record with **one sense whose gloss is the empty string**.
+The builder drops a record with no usable sense, correctly and by its own rule; the form page then
+points at a lemma that is not there and disappears with it. **The whole family vanishes, silently,
+and `verify_pack` passes.**
+
+| | |
+|---|---|
+| Spanish lemmas whose only page has an empty gloss | **4,502** |
+| form pages that fall with them | **205,067** |
+| norms lost in total | **209,569** — against `es-full`'s current 138,490 |
+
+⚠️ **Most of them are rare and that is the honest half**: only **107 (2.4 %)** appear in the
+OpenSubtitles corpus at all, and together they are **0.0626 %** of its occurrences.
+
+⚠️ **And the other half is that the 107 are ordinary words.** `casualidad` (11,421 occurrences),
+`rescatar`, `retroceder`, `ocuparse`, `quitarse`, `detectar`, `rellenar`, `repasar`, `restaurar`,
+**`introducir`**, `esquiar`, `contemplar`. A Spanish dictionary missing `introducir` and `detectar`
+is visibly broken, and each of them drags its ~33 conjugated forms with it.
+
+**What it is not.** It explains only **1,850 (3.3 %)** of the bilingual's Spanish orphans, so
+fixing it does **not** answer the item above. They are separate.
+
+**What would close it**, and none of it is decided: whether a lemma with an empty gloss should be
+kept as an entry with no definition (so its forms resolve and the word is at least *findable*), or
+filled from another source, or left out with the loss written down. ⚠️ **It needs a rebuild of
+`es-full` either way** — 7 min 31 s, measured.
+
 ### Composición entre packs
 
 **Estado.** **La capa existe; el join, no** (2026-09-20). `SearchRepository` se construyó (D-136)

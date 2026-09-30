@@ -78,6 +78,34 @@ log, close. No taps, no screenshots -- what had to be *seen* was seen on the emu
 figure was a ceiling rather than an estimate -- the direction D-043 predicts, at a size nobody had
 put on it.
 
+**And a report turned into two roadmap items, measured and not decided.** Asked: there are words
+in the translation pack matching nothing in the language packs, so they appear loose as
+translations only. Measured before planning, and the symptom is **three things wearing one face**
+— which is why no single fix answers it.
+
+- Counting a word reachable if the monolingual pack has it as a lemma **or** a form: **55,791 of
+  110,145** Spanish norms (50.7 %) and **15,336 of 85,617** English ones (17.9 %) are unreachable.
+- ⚠️ **Half a pack is not half a problem.** With a real frequency signal --the ones somebody
+  types-- they are **848** and **3,556**.
+- **53,941 of the Spanish ones are two dictionaries covering different vocabularies**: `es-full`
+  is eswiktionary, the bilingual's Spanish side is enwiktionary's Spanish section. Not a defect.
+- **3,936 are proper nouns**, kept by one pack and excluded from the other by D-116. Two policies
+  meeting, not a defect either.
+- ⚠️ **The English frequent ones ARE our bug**, and the same one as `Spain`/`etc`: 82.5 % are
+  two-word items and the frequent ones read as descriptions --`above something`, `forms adverbs`,
+  `expresses surprise`, `of the`. So the English half is largely ours and the Spanish half is
+  largely not, and one answer cannot be right about both.
+
+⚠️ **And chasing it found something bigger that is not about the bilingual pack at all.** `es-full`
+has neither `divorcio` nor `divorciar`: the dump carries `divorciar` with **one sense whose gloss
+is the empty string**, the builder drops a record with no usable sense --correctly, by its own
+rule-- and the form page `divorcio` then points at a lemma that is not there and disappears with
+it. **4,502 lemmas** go that way and **205,067 form pages** fall with them, **209,569 norms**
+against `es-full`'s current 138,490. Only **107 (2.4 %)** are in the corpus at all, which is the
+honest half; the other half is that those 107 include `introducir`, `detectar`, `rescatar`,
+`contemplar` and `casualidad`. It explains only **3.3 %** of the orphans above, so the two are
+separate problems.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
