@@ -3867,9 +3867,32 @@ near zero in exactly the case that triggers a rebuild, which is a change to the 
 pack format with a cost of its own: a pinned dictionary compresses new content worse, and the
 retraining was measured on 2026-09-25 as worth **−8.3 % es and −13.1 % en** of payload.
 
-⚠️ **Nobody has measured the other half**: what a pinned dictionary would cost in pack size against
-what it would buy in delta. Until that exists, a zsync client is being priced against a number the
-builder itself controls.
+#### ✅ The other half, measured the same day — and the owner decided
+
+Compressing this build's payloads with the **previous build's** dictionary:
+
+| pack | with its own | with the old one | **cost of pinning** |
+|---|---|---|---|
+| `en-full` | 583,767 | 586,498 | **0.47 %** |
+| `es-en` | 254,072 | 256,053 | **0.78 %** |
+| `es-full` | 537,341 | 542,327 | **0.93 %** |
+| `en-main` | 1,153,658 | 1,177,521 | **2.07 %** |
+
+⚠️ **And it reconciles the number above, which measures something else.** The −8.3 % es / −13.1 %
+en of 2026-09-25 compared a dictionary that did not know the three new channels (`I`, `F`, `M`)
+against one that did — a change to the **shape** of the payload. Between ordinary builds, with the
+shape unchanged, retraining is worth half a percent.
+
+⚠️ **The compression itself was never in question**, and saying so avoids the wrong conclusion:
+over 6,000 real payloads, deflate alone saves **23 %** and the preloaded dictionary **39 % more on
+top of that**, so the dictionary is worth more than the algorithm. What is cheap to give up is
+*retraining it*, not having it.
+
+**Decided by the owner on 2026-09-30** (d-a2f271-dab1de): the dictionary is pinned across builds
+and retrained only when the payload changes shape. ⛔ **Not built**: `PackBuilder` assembles it
+from its sample and accepts none — the flag would have the shape `--flexiones` and
+`--etimologia-hasta` already use, reading `meta.payload_dict` from a previous pack. And **the
+threshold for *changes too much* is undefined**, which is the piece to settle before writing it.
 
 #### Los tres momentos de validación, y por qué no usan lo mismo
 

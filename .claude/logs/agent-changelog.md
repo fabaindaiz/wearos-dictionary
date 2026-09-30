@@ -146,6 +146,17 @@ holding payload changes wholesale and only the pages that hold none survive. So 
 *does the saving justify a zsync client*; it is **whether the compression dictionary should be
 pinned between builds**, which nobody has priced against the −8.3 %/−13.1 % that retraining buys.
 
+⚠️ **And that measurement produced a decision, after a correction I had to make to my own
+framing.** Asked whether zlib is worth it at all, which it is and by a margin: over 6,000 real
+payloads deflate alone saves **23 %** and the preloaded dictionary **39 % more on top**, so the
+dictionary is worth more than the algorithm. My previous message had let *compression* and
+*retraining the dictionary every build* read as one thing; they are not, and only the second
+conflicts with delta updating. Pinning the dictionary costs **0.47 % to 2.07 %** of payload,
+measured by compressing this build's payloads with the previous build's dictionary. The owner
+decided it: pinned across builds, retrained only when the payload changes shape (d-a2f271-dab1de).
+⚠️ **Not built** — `PackBuilder` assembles it from its sample and accepts none — and the threshold
+for *changes too much* is undefined.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything.
