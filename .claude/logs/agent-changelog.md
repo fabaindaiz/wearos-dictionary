@@ -276,6 +276,36 @@ artifact, not proof — the full pack should keep it at **171**, because `Españ
 it. And the *"no definition"* notice still cannot be seen on a screen until a pack carries an
 entry that shows it.
 
+✅ **`rowPreview` is built, and it answers two requests with one mechanism** — asked for: that a
+translation entry be recognisable as one, and that the result list preview the definition. A row
+with no senses means **different things** in the two kinds of pack, and only the pack's `kind`
+separates them: bidirectional is a reverse entry doing its job (D-196), monolingual is a lemma the
+source could not define. Reading the payload answers both at once. **5 mutations, 5 bite.**
+
+⚠️ **`TranslationOnly` carries the equivalents and not a label**, which is the point of it:
+`perro, can` **is** what somebody searching `dog` wants, and a row reading *"translation"* makes
+them open it to find out what the translation is.
+
+**Measured before promising it, because the list is served from a covering index that does not
+hold the payload** --`(norm, rank, headword, pos, lang)`-- so a preview means reading and inflating
+per row: **0.124 ms for 10 rows** and 0.637 ms for 40, on the desktop against `es-full`. At a
+20-50x watch penalty that is single-digit milliseconds for a screenful.
+
+⚠️ **And D-106 does NOT forbid it, which I had to read rather than remember.** It says the tiles
+do not open a pack because of `onTileRequest`'s **API contract**, and explicitly *not* as an
+unmeasured performance precaution (D-042). The search screen is another surface.
+
+⚠️ **Two of its own tests could not fail at first.** The fixture for *"cut on a word"* happened to
+break at a boundary, so the mutation that removes the word search survived; and no fixture put a
+comma at the cut, so dropping the punctuation trim survived too. Both now use glosses chosen so
+the case actually occurs.
+
+⚠️ **It reaches nothing yet, on purpose.** What is left is the row's layout, and it is a real
+trade rather than a wiring task: `ListRow` is **48 dp and one line**, chosen because at 52 dp
+*"four rows did not fit"*. A preview either replaces the part of speech or makes the row two lines
+— **four rows per screen become three**. That is an emulator decision
+(`la-ui-se-decide-viendo-el-reloj`) and the owner's.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description
