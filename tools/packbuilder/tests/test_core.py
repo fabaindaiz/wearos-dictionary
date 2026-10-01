@@ -77,6 +77,35 @@ class NombreConNivelTest(unittest.TestCase):
         )
 
 
+class MetaQueNoSeHeredaTest(unittest.TestCase):
+    """What a derived tier must NOT copy from the pack it came from.
+
+    ⚠️ **`drop_ledger` describes the full pack's RUN, and inheriting it is a lie about this
+    artifact.** A tier never read a dump: it cuts by byte budget, not by the rules that ledger
+    names, so carrying `pagina de forma=534957` has it assert something that never happened to it.
+    Found by deriving a tier during the rebuild's pre-flight and reading its `meta` — every test
+    was green and so was `verify_pack`.
+    """
+
+    def _meta(self):
+        return {
+            "pack_id": "en-def-wikt", "langs": "en", "name": "English",
+            "drop_ledger": "nombre propio (D-116)=0; pagina de forma=534957",
+            "license": "CC-BY-SA-4.0",
+        }
+
+    def test_el_nivel_NO_hereda_el_libro_de_bajas_del_pack_completo(self):
+        salida = build_core._meta_del_nivel(self._meta(), "core")
+        self.assertNotIn("drop_ledger", salida)
+
+    def test_y_SI_hereda_lo_que_sigue_siendo_cierto_de_el(self):
+        # The guard against fixing this by dropping too much: the licence and the name are
+        # properties of the dictionary, and a tier is still that dictionary.
+        salida = build_core._meta_del_nivel(self._meta(), "core")
+        self.assertEqual("CC-BY-SA-4.0", salida["license"])
+        self.assertEqual("en-def-wikt", salida["subset_of"])
+
+
 class BuildCoreTest(unittest.TestCase):
 
     def setUp(self):

@@ -253,6 +253,29 @@ logcat. So the detection is not what is missing: what is missing is a **durable,
 list**, and that is the part that opens a privacy surface logcat does not. It stays on the owner's
 decision.
 
+⚠️ **The rebuild's pre-flight found two more things, and neither was a test failure.** Sample
+builds of all three packs plus a derived tier, each verified:
+
+- ⚠️ **`MissingDefinitionTest.kt` was never committed.** `git commit --only` stages changes to
+  known paths and does **not** pick up a new file, so `b808a3a` shipped `lacksDefinition` with no
+  coverage and the gate stayed green because the file was on disk locally. **A clean worktree
+  would have reported four fewer tests** — the check that catches exactly this, and the one I
+  skipped on that commit.
+- ⚠️ **A derived tier inherited `drop_ledger` and it was a lie about itself.** A tier never reads
+  a dump: it cuts by byte budget, not by the rules that ledger names, so `en-core` declared
+  `pagina de forma=534957` about a run that never happened to it. Every test was green and so was
+  `verify_pack`; it was found by deriving a tier and reading its `meta`.
+
+**What the pre-flight confirms**, each built and verified at sample size: `es` (536 entries), `en`
+(2,444), `es-en` (1,095) and a derived tier (478). The four garbage keys read **0** in the real
+bilingual artifact. The only failure in any of them is the coverage list, which a 1-in-N sample
+cannot satisfy by construction.
+
+**What it cannot confirm, said rather than implied**: `Spain` reading 0 in the sample is a sample
+artifact, not proof — the full pack should keep it at **171**, because `España` does translate to
+it. And the *"no definition"* notice still cannot be seen on a screen until a pack carries an
+entry that shows it.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

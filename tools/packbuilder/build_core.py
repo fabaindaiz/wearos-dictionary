@@ -51,6 +51,13 @@ TOP_POR_DEFECTO = 8000
 DERIVADAS = {
     "schema_version", "norm_version", "payload_codec", "payload_dict", "payload_dict_sha256",
     "entry_count", "built_at", "uid_recipe", "data_version", "trans_dropped",
+    # ⚠️ **`drop_ledger` describes the FULL pack's run and inheriting it is a lie.** A derived
+    # tier never read a dump: it drops by byte budget, not by the rules that ledger names, so
+    # carrying `pagina de forma=534957` would have this artifact assert something about itself
+    # that never happened to it. Found by deriving a tier in the rebuild's pre-flight and reading
+    # its `meta`, not by a test. The tier states its own cut in `corpus_coverage` and
+    # `lemma_coverage`, which is the number that is true of IT.
+    "drop_ledger",
 }
 
 

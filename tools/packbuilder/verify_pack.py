@@ -649,6 +649,10 @@ def verify(path):
     if libro:
         for parte in libro.split("; "):
             report.note("no entro: %s" % parte)
+    elif meta.get("subset_of"):
+        # A derived tier never read a dump: its cut is the byte budget, stated in
+        # `corpus_coverage`. Asking it what did not enter is asking the wrong artifact.
+        report.note("nivel derivado: su recorte es el presupuesto, no una regla de lectura")
     else:
         report.note("el pack no declara drop_ledger: no se sabe que NO entro")
     _verify_content(db, dictionary, report)
