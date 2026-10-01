@@ -227,6 +227,32 @@ whether it compiled.
 predate the rescue, so no entry exists that can show the notice. The emulator also spent two
 attempts with a third-party app stealing the foreground, which is the second session it does that.
 
+✅ **And the plan's third item** (`d-a2f271-81829a`): the pack declares `meta.drop_ledger` — what
+the source offered and did not arrive, counted by the **named rule** that dropped it — and
+`verify_pack` prints it. **6 mutations, 6 bite.**
+
+⚠️ **Measuring changed its shape.** `[cobertura de vocabulario]` already existed, so the item read
+as done; it measures recall **against a curated list**, which is why it could not see 4,503 lemmas
+vanish. The missing direction was the other one. ⚠️ **A readout and never a check**: D-116 removes
+22.1 % of the Spanish entries on purpose, so no threshold is right — the same asymmetry
+`d-a2f271-c226a1` draws.
+
+⚠️ **The first version could not do the one thing it was for.** It wrote only the buckets that
+fired, so a rule that **stops** firing showed nothing — absent is not zero. Found by building a
+sample and reading its `meta`, not by a test; every reason is now declared and written at zero.
+
+⚠️ **And a probe found the wiring untested for the FOURTH time this session.** The ledger had
+tests and the line writing it into `meta` had none: replacing it with a no-op left everything
+green. After `--diccionario` wired to `None`, `verificar_restricciones` never called, and the
+card's pack kind read inline, the pattern is not a coincidence — **the function gets a test and
+what carries its result does not**, and only mutation has ever caught it.
+
+⚠️ **And item 2 is better understood than it was.** The app **already detects and logs a search
+that returns nothing** --`sonda de vacio "<text>"`, D-212-- and already sends the query text to
+logcat. So the detection is not what is missing: what is missing is a **durable, owner-readable
+list**, and that is the part that opens a privacy surface logcat does not. It stays on the owner's
+decision.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

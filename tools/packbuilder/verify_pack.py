@@ -639,6 +639,18 @@ def verify(path):
                        "" if alcance is None else "; el pack la lleva hasta %s" % alcance))
 
     print("\n[contenido]")
+    # ⚠️ **A READOUT and never a check, and the asymmetry is the same one d-a2f271-c226a1
+    # draws.** How many records a rule drops is a property of the SOURCE as much as of us:
+    # D-116 removes 22.1 % of the Spanish entries on purpose, so no threshold is right. What
+    # it buys is that a bucket at zero that should not be, or one that jumps between
+    # rebuilds, becomes something a person can see -- which is exactly what was missing when
+    # 4,503 lemmas and 207,256 form pages were lost in silence.
+    libro = meta.get("drop_ledger")
+    if libro:
+        for parte in libro.split("; "):
+            report.note("no entro: %s" % parte)
+    else:
+        report.note("el pack no declara drop_ledger: no se sabe que NO entro")
     _verify_content(db, dictionary, report)
 
     print("\n[planes de consulta]")

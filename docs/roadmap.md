@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **137 tests**) y el
-pipeline de packs (`tools/`, **652 tests**) están completos y en el gate, junto con los **498 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1327 tests en total**. Los **52
+pipeline de packs (`tools/`, **656 tests**) están completos y en el gate, junto con los **498 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1331 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1197,10 +1197,14 @@ traducción*, now with an answer from outside this repo.
    that improves every future rebuild instead of this one**, and ⚠️ **it is a privacy decision
    before it is a feature**: what a person looks up is the most personal thing this app holds, so
    whatever is kept has to be on-device, readable by its owner, and never shipped anywhere.
-3. **Track truthfulness and coverage as two numbers, not one.** `verify_pack` already judges
-   content; what it does not do is **report the two axes separately** — how much of the source
-   arrived (coverage) against how much of what arrived is sound (truthfulness). Having them apart
-   is what makes `d-a2f271-4f0311` checkable instead of a principle.
+3. ✅ **BUILT 2026-10-01** (`d-a2f271-81829a`), and the shape changed once it was measured.
+   `[cobertura de vocabulario]` already measures recall **against a curated list**, not against the
+   source — which is why it could not see 4,503 lemmas vanish. What was missing is the other
+   direction: **what the source offered and did not arrive**. The pack now declares
+   `meta.drop_ledger`, counted by the named rule that dropped it, and `verify_pack` prints it.
+   ⚠️ **A readout and never a check**: D-116 removes 22.1 % of the Spanish entries on purpose, so
+   no threshold is right. ⚠️ **Every reason is written even at zero** — absent is not zero, and a
+   rule that stops firing is exactly what this exists to show.
 
 ⚠️ **What this review did NOT find, and the absence is the finding.** No measurement of whether
 readers consult etymology. The 8.11 MB it costs was decided on price and on the owner's call,

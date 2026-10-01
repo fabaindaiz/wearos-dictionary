@@ -46,6 +46,7 @@ stopped grouping them, what warns is `build.py`'s identity check, which fails lo
 fusing two entries.
 """
 
+import collections
 import json
 import os
 import re
@@ -999,10 +1000,14 @@ class Opciones:
     """
 
     __slots__ = ("perfil", "politica", "translations_to", "frequencies",
-                 "lemas_en_minuscula")
+                 "lemas_en_minuscula", "bajas")
 
     def __init__(self, perfil, politica, translations_to=None, frequencies=None,
-                 lemas_en_minuscula=()):
+                 lemas_en_minuscula=(), bajas=None):
+        #: How many records left, by the NAMED rule that dropped them. See [records].
+        self.bajas = bajas if bajas is not None else {}
+        for motivo in MOTIVOS_DE_BAJA:
+            self.bajas.setdefault(motivo, 0)
         self.perfil = perfil
         self.politica = politica
         self.translations_to = translations_to
@@ -1098,15 +1103,45 @@ def _ensena_algo_sin_acepciones(raw, translations_to):
     )
 
 
+#: Every reason a record can leave, declared so a count of **zero** is visible.
+#:
+#: ⚠️ **Absent is not zero, and the first version of the ledger could not tell them apart.** The
+#: point of counting by rule is that *a bucket at zero that should not be* is noticed; a ledger
+#: that only lists what fired shows nothing when a rule stops firing, which is the failure it was
+#: built to catch. Listing them here also means adding a `continue` without a line in this tuple
+#: is a silent drop again -- so a new reason goes in both places or in neither.
+MOTIVOS_DE_BAJA = (
+    "nombre propio (D-116)",
+    "pagina de forma, absorbida en `form`",
+    "sin glosa y sin nada que mostrar",
+)
+
+
+def _anotar_baja(libro, motivo):
+    """One more record left by `motivo`.
+
+    ⚠️ **`get` and not `+=`, so a plain `dict` works.** A caller that has to import `Counter` to
+    ask a question about its own build is a caller that does not ask it, and the first test
+    written for this passed a `{}` and got a `KeyError`.
+    """
+    libro[motivo] = libro.get(motivo, 0) + 1
+
+
 def _emit(group, inbound, opciones):
     """Turns a group of records of the same `word` into Records."""
     perfil, politica = opciones.perfil, opciones.politica
     prepared = []
     for raw in group:
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
+            _anotar_baja(opciones.bajas, "nombre propio (D-116)")
             continue
         senses = _senses(raw, opciones.translations_to, perfil)
         if not senses and not _ensena_algo_sin_acepciones(raw, opciones.translations_to):
+            crudas = raw.get("senses") or []
+            _anotar_baja(opciones.bajas,
+                         "pagina de forma, absorbida en `form`"
+                         if crudas and all(_is_form_of(s) for s in crudas)
+                         else "sin glosa y sin nada que mostrar")
             continue
         prepared.append((raw, senses))
 
@@ -1445,7 +1480,7 @@ def _inbound_forms(path):
 
 
 def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None,
-            frequencies=None):
+            frequencies=None, bajas=None):
     """Iterates the JSONL and yields Records. Those of the same `word` are grouped for homographs.
 
     **Proper nouns do NOT come out by default** (`pos = "name"`: surnames, toponyms, given names).
@@ -1471,7 +1506,7 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
     # Pass 1 FIRST: `lemas_en_minuscula`, which `Opciones` needs, comes out of it.
     inbound, lemas_en_minuscula = _inbound_forms(path)
     opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies,
-                        lemas_en_minuscula)
+                        lemas_en_minuscula, bajas)
     group = []
     current = None
     with open(path, encoding="utf-8") as handle:

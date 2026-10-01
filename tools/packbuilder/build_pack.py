@@ -865,6 +865,13 @@ def main(argv):
     if os.path.dirname(output):
         os.makedirs(os.path.dirname(output), exist_ok=True)
 
+    # ⚠️ **What the source offered and did NOT arrive, by the named rule that dropped it.** The
+    # 2026-10-01 session lost 4,503 lemmas and 207,256 form pages to an empty gloss and **nothing
+    # could see it**: the entry was never written, so no invariant was broken. A check cannot catch
+    # that --the right number is unknowable without the dump-- but a count per rule, carried in the
+    # artifact, turns it into something a person reads. See `verify_pack.py` [contenido].
+    bajas = {}
+
     with PackBuilder(output, metadata, sentences=frases, thesaurus=tesauro,
                      etymology_vocabulary=vocabulario,
                      dictionary=diccionario_prestado) as builder:
@@ -930,7 +937,12 @@ def main(argv):
         if reader is bilingual and mapa_flexiones:
             argumentos = argumentos + (mapa_flexiones,)
             mapa_flexiones = {}
-        for record in reader.records(*argumentos):
+        # ⚠️ **The ledger is asked of the kaikki reader only, and the limit is stated rather than
+        # hidden.** `bilingual` calls it two layers down and its own drops are a different
+        # question --a gloss that is not a translation is not a lost lemma-- so threading it there
+        # would put two unlike numbers under one name.
+        extra_kw = {"bajas": bajas} if reader is kaikki else {}
+        for record in reader.records(*argumentos, **extra_kw):
             if not _keep(record.headword, sample):
                 continue
             _pegar_ejemplo(record, ejemplos)
@@ -963,6 +975,13 @@ def main(argv):
                 nuevos.append(record)
             for record in _con_sense_key_del_pack_final(nuevos):
                 builder.add(record)
+
+        # ⚠️ **On `builder.metadata` and not on `metadata`**: `PackBuilder` copies the dict it is
+        # given, so writing to the outer one reaches nothing and the field would be absent with no
+        # error -- the same silence this ledger exists to end.
+        if bajas:
+            builder.metadata["drop_ledger"] = "; ".join(
+                "%s=%d" % (motivo, n) for motivo, n in sorted(bajas.items()))
 
     print("%s: %d entradas, %d bytes" % (output, builder.count, os.path.getsize(output)))
     return 0

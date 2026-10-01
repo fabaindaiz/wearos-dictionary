@@ -15,7 +15,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import build_pack  # noqa: E402
+import build_pack
+from sources import kaikki  # noqa: E402
 
 
 def _dump_kaikki(path):
@@ -340,6 +341,31 @@ class DiccionarioFijadoDesdeLaCLITest(unittest.TestCase):
         valor = db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
         db.close()
         return valor
+
+    def test_el_libro_de_bajas_LLEGA_al_meta_del_pack(self):
+        """⚠️ **A mutation probe demanded this, and it is the fourth time this session.**
+
+        The ledger had tests and the line that writes it into `meta` had none: replacing it with a
+        no-op left every test green. It is the same shape as a flag parsed and thrown away, as
+        `--diccionario` wired to `None`, as `verificar_restricciones` never called, and as the
+        card's pack kind read inline. **The function is covered; what carries its result is not.**
+
+        ⚠️ **And `PackBuilder` COPIES the metadata it is given**, so writing to the outer dict
+        reaches nothing and the field is simply absent -- no error, which is the silence this
+        ledger exists to end.
+        """
+        import contextlib
+        import io as _io
+        salida = os.path.join(self.dir, "ledger.db")
+        argv = ["build_pack.py", "es", self.uno, salida, "--a-proposito", "todas"]
+        with contextlib.redirect_stdout(_io.StringIO()):
+            build_pack.main(argv)
+        db = sqlite3.connect(salida)
+        fila = db.execute("SELECT value FROM meta WHERE key='drop_ledger'").fetchone()
+        db.close()
+        self.assertIsNotNone(fila, "el pack no declara drop_ledger")
+        for motivo in kaikki.MOTIVOS_DE_BAJA:
+            self.assertIn(motivo, fila[0])
 
     def test_dos_contenidos_distintos_entrenan_diccionarios_distintos(self):
         # The control. Without it the test below cannot tell reuse from coincidence.

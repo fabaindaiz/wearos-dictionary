@@ -227,6 +227,56 @@ class PodaTest(unittest.TestCase):
         )
         self.assertEqual(sorted(r.headword for r in got), ["amigar", "amigo"])
 
+    def test_el_libro_de_bajas_dice_POR_QUE_regla_se_fue_cada_registro(self):
+        """⚠️ **The readout that would have made this session's worst defect visible at build
+        time.** 4,503 Spanish lemmas and 207,256 form pages were lost to an empty gloss and the
+        loss was silent: the entry was never written, so no invariant could be found broken. What
+        was missing was not a check but a **number per named rule** -- a bucket at zero that should
+        not be, or one that jumps between rebuilds, is what a person notices.
+
+        ⚠️ **It counts by RULE and not a single total**, because a total cannot distinguish a
+        deliberate pruning from a defect: D-116 removes 22.1 % of the Spanish entries **on
+        purpose**, and that number sitting beside the others is what makes the others readable.
+        """
+        bajas = {}
+        path = _jsonl(
+            # ⚠️ The category and not the gloss: `_es_registro_de_nombres` reads what wiktextract
+            # emits from the wiki's own classification, so a fixture without it is not a surname
+            # however much its text says "Apellido." -- the first version of this test learnt that.
+            _raw("Pérez", "name", [_sense("Apellido.", categories=[{"name": "ES:Apellidos"}])]),
+            _raw("casa", "noun", [_sense("Edificio para habitar.")]),
+            _raw("zzz", "verb", [_sense("")]),
+            _raw("tecleando", "verb", [
+                {"glosses": ["Gerundio de teclear."],
+                 "form_of": [{"word": "teclear"}], "sense_index": "1"},
+            ], pos_title="Forma verbal", sounds=[{"ipa": "tekleˈando"}]),
+        )
+        self.paths.append(path)
+        salieron = [r.headword for r in kaikki.records(
+            path, lang="es", politica="definitions-only", bajas=bajas)]
+        self.assertEqual(["casa"], salieron)
+        self.assertEqual(1, bajas["nombre propio (D-116)"])
+        self.assertEqual(1, bajas["sin glosa y sin nada que mostrar"])
+        self.assertEqual(1, bajas["pagina de forma, absorbida en `form`"])
+
+    def test_un_motivo_que_NO_disparo_sale_en_cero_y_no_ausente(self):
+        """⚠️ **Absent is not zero, and the first version could not tell them apart.** The point of
+        counting by rule is that a bucket at zero *that should not be* gets noticed; a ledger
+        listing only what fired shows nothing when a rule **stops** firing, which is the failure it
+        was built to catch. Found by reading a real sample's `meta`, not by a test.
+        """
+        bajas = {}
+        path = _jsonl(_raw("casa", "noun", [_sense("Edificio para habitar.")]))
+        self.paths.append(path)
+        list(kaikki.records(path, lang="es", bajas=bajas))
+        for motivo in kaikki.MOTIVOS_DE_BAJA:
+            self.assertEqual(0, bajas[motivo], motivo)
+
+    def test_sin_pedir_el_libro_el_lector_sigue_igual(self):
+        """The ledger is opt-in: a caller that does not ask for it is not made to carry one."""
+        got = self.records(_raw("casa", "noun", [_sense("Edificio para habitar.")]))
+        self.assertEqual(["casa"], [r.headword for r in got])
+
     def test_una_glosa_vacia_no_es_una_acepcion(self):
         got = self.records(_raw("casa", "noun", [
             _sense(""), _sense("Edificio para habitar."),
