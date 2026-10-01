@@ -4,6 +4,7 @@ import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.core.PackMetadata
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -172,6 +173,25 @@ class PackSelectionTest {
             todos.map { it.metadata.packId }.filterNot { it in absorbidos }.toSet(),
             ids(packsToQuery(todos)).toSet(),
         )
+    }
+
+    @Test
+    fun `el kind sale del pack de LA ENTRADA y no del activo`() {
+        // ⚠️ Esta función existe porque la expresión estaba inline en `MainActivity` y una sonda
+        // la reemplazó por `null` literal: compiló y TODOS los tests pasaron. El Composable estaba
+        // cubierto y el cableado que lo alimenta no.
+        val packs = listOf(
+            handle(pack("es-def", kind = PackKind.MONOLINGUAL)),
+            handle(pack("es-tr", kind = PackKind.BILINGUAL, langTarget = "en")),
+        )
+        assertEquals(PackKind.MONOLINGUAL, packKindOf(packs, "es-def"))
+        assertEquals(PackKind.BILINGUAL, packKindOf(packs, "es-tr"))
+    }
+
+    @Test
+    fun `un pack que no esta instalado no tiene kind, y eso deja la tarjeta callada`() {
+        assertNull(packKindOf(listOf(handle(pack("es-def"))), "no-esta"))
+        assertNull(packKindOf(emptyList(), "es-def"))
     }
 
     private fun handle(source: cl.fadiaz.dictionary.core.DictionarySource, demo: Boolean = false) =

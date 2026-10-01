@@ -66,6 +66,8 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.lacksDefinition
 import cl.fadiaz.dictionary.core.GlossTokenizer
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.PayloadCodec
@@ -146,6 +148,15 @@ fun EntryScreen(
      */
     textScale: TextScale? = null,
     onTextScaleChange: (TextScale) -> Unit = {},
+    /**
+     * The kind of pack this entry comes from, or `null` when it is not known.
+     *
+     * ⚠️ **It is here only to decide whether the missing definition gets said**, and `null` stays
+     * SILENT on purpose. Saying *"this dictionary has no definition"* over a bidirectional pack's
+     * reverse entry would call its whole purpose a defect on 164,249 rows (D-196), so when the
+     * kind is unknown the card says nothing rather than risking that. See [lacksDefinition].
+     */
+    packKind: PackKind? = null,
     /**
      * Which terms on this screen are lemmas, and which entry they lead to.
      *
@@ -416,6 +427,24 @@ fun EntryScreen(
                         sense = sense,
                         links = links,
                         onOpenWord = onOpenWord,
+                    )
+                }
+            }
+
+            // ⚠️ **The absence is SAID and not left to be inferred**, which is what the
+            // lexicographic literature asks for and no measurement had surfaced: *"if the examples
+            // remain untranslated, the user is not made aware of the problem of non-equivalence"*.
+            // Since `d-a2f271-e0e67e` these lemmas exist so their forms resolve --`introduje` finds
+            // `introducir`-- and the card would otherwise show an IPA line and a conjugation table
+            // with no hint of why there is no definition. See `i-a2f271-0e2a2f`.
+            if (packKind != null && current != null && current.lacksDefinition(packKind)) {
+                item(key = "sin-definicion") {
+                    Text(
+                        text = stringResource(R.string.entry_no_definition),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     )
                 }
             }

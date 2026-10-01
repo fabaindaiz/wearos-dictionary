@@ -64,6 +64,10 @@
 
     <!-- Entry -->
     <string name="entry_gone">That entry is no longer in the dictionary.</string>
+    <!-- Shown on a card whose source gives no definition at all. ⚠️ It names the DICTIONARY and
+         not the app: the word exists and its forms resolve, what is missing is upstream, and
+         "no definition available" reads like the app failed to load one. -->
+    <string name="entry_no_definition">This dictionary has no definition for this word.</string>
     <string name="entry_show_more">Show more (%1$d)</string>
     <string name="entry_options">Options</string>
     <string name="entry_back_to_search">Home</string>

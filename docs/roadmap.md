@@ -69,9 +69,9 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **652 tests**) están completos y en el gate, junto con los **492 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1317 tests en total**. Los **52
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **137 tests**) y el
+pipeline de packs (`tools/`, **652 tests**) están completos y en el gate, junto con los **498 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1327 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1182,11 +1182,12 @@ traducción*, now with an answer from outside this repo.
 
 #### The plan, cheapest first
 
-1. **Say that there is no definition.** One string, and the app can already tell: an entry with no
-   `S` line is the case. It closes the oldest of the three open questions and it is the one thing
-   the literature asks for outright. ⚠️ **The wording is the owner's**, and it is not obvious —
-   *"this dictionary has no definition for this word"* is honest, *"no definition available"*
-   sounds like a failure of the app rather than of the source.
+1. ✅ **BUILT 2026-10-01** (`d-a2f271-49d25d`). The card says *"Este diccionario no tiene una
+   definición para esta palabra."*, and a bidirectional pack's reverse entry stays silent — the
+   hard half, and the larger one at **164,249** rows. The wording names the **dictionary** and not
+   the app, because the word exists and its forms resolve; what is missing is upstream.
+   ⚠️ **Not seen on a screen yet**: the published packs predate the rescue, so no entry exists that
+   can show it. It is an emulator check that waits for the rebuild.
 2. **Learn from a search that returns nothing.** Bergenholtz and Johnsen's result is that log
    files *"reveal lemma lacuna"* and are *"a useful supplement to corpus-based lemma selection"*;
    the Swahili study derived *"a list of lemma lacuna that cause the majority of unsuccessful

@@ -88,6 +88,27 @@ internal fun absorbedPackIds(metadatas: List<PackMetadata>): Set<String> {
 }
 
 /**
+ * The kind of the pack an entry came from, or `null` when it is not installed.
+ *
+ * ⚠️ **It is a function so the lookup can be tested, and a mutation probe is why.** The card's
+ * *"this dictionary has no definition"* notice is driven by the pack's `kind`; with the expression
+ * inline in `MainActivity`, replacing it with a literal `null` **compiled and every test passed**.
+ * That is the same shape as a flag parsed and thrown away: the Composable was covered and the
+ * wiring that feeds it was not.
+ *
+ * ⚠️ **It asks for THIS entry's pack and never the active one.** A card is reached by tapping a
+ * translation, and then it is showing a word from another pack -- asking the active one what kind
+ * it is would consult the wrong dictionary, which is the D-080 family.
+ *
+ * Pure and free of Android, so the gate covers it on the JVM (D-072).
+ */
+internal fun packKindOf(packs: List<PackHandle>, packId: String): PackKind? =
+    packs.filterIsInstance<PackHandle.Open>()
+        .firstOrNull { it.packId == packId }
+        ?.metadata?.kind
+
+
+/**
  * Which pack ends up **active**, which is the other half of the same rules.
  *
  * ⚠️ **Choosing the active one apart from [packsToQuery] was a hole, and one that cancelled

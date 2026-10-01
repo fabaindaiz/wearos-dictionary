@@ -472,6 +472,28 @@ data class Sense(
 )
 
 /** An entry's full body, as it comes out of the decompressed payload. */
+/**
+ * Whether the card has to say that this dictionary has no definition for the word.
+ *
+ * ⚠️ **It is asked for by the literature and not by a measurement**, which is why it exists at all.
+ * Since `d-a2f271-e0e67e` a monolingual pack keeps lemmas whose source gives **no gloss at all** --
+ * `introducir`, `detectar`, `casualidad` -- so their forms resolve and the word is findable. On
+ * zero equivalence the recommendation is that *"the importance of explicitly marking"* the gap be
+ * recognised, and that *"if the examples remain untranslated, the user is not made aware of the
+ * problem of non-equivalence"*. A card showing an IPA line and a conjugation, and nothing about
+ * **why** there is no definition, is the silence that recommendation rules out. See
+ * `docs/references.md` §*Lexicographic method*.
+ *
+ * ⚠️ **The hard half is the case that must stay SILENT, and it is the larger one.** A bidirectional
+ * pack's reverse entry has no senses **by design** (D-196): `dog` answers *"how is it said"* and
+ * never *"what does it mean"*, which is the monolingual pack's job. Marking those would call the
+ * pack's whole purpose a defect, on **164,249** English entries. So the question is not *"are
+ * there senses"* but *"was a definition owed here"*, and only the pack's `kind` answers that.
+ */
+fun Entry.lacksDefinition(packKind: PackKind): Boolean =
+    packKind != PackKind.BILINGUAL && senses.isEmpty()
+
+
 data class Entry(
     val packId: String,
     val entryId: Long,

@@ -44,6 +44,7 @@ import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.BuildConfig
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.data.PackHandle
+import cl.fadiaz.dictionary.data.packKindOf
 import androidx.work.WorkManager
 import cl.fadiaz.dictionary.data.DebugIntents
 import cl.fadiaz.dictionary.data.DictLog
@@ -450,6 +451,12 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     val packId = backStackEntry.arguments?.getString("packId").orEmpty()
                     EntryScreen(
                         entryId = backStackEntry.arguments?.getLong("entryId") ?: 0L,
+                        // ⚠️ **Read from THIS entry's pack and not from the active one.** The card
+                        // is reached by tapping a translation, and then it is showing a word from
+                        // another pack -- using the active one would ask the wrong dictionary what
+                        // kind it is, which is the D-080 family. Unknown stays null, and null says
+                        // nothing.
+                        packKind = packKindOf(state.available, packId),
                         // The word is resolved and opened in THE SAME pack as the entry that
                         // contains it. Sending it to the active pack would be the D-080 bug all
                         // over again: it would open another word, with no error.

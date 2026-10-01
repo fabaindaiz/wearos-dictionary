@@ -336,6 +336,48 @@ class ScreensTest {
         senses = glosses.map { Sense(it) },
     )
 
+    @Test
+    fun `a word the dictionary cannot define SAYS so`() {
+        // ⚠️ Asked for by the lexicographic literature and not by a measurement: *"if the examples
+        // remain untranslated, the user is not made aware of the problem of non-equivalence"*.
+        // Since `d-a2f271-e0e67e` these lemmas exist so their forms resolve -- `introduje` finds
+        // `introducir` -- and the card would otherwise show an IPA line and a conjugation with no
+        // hint of why there is no definition. See `i-a2f271-0e2a2f`.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}, packKind = PackKind.MONOLINGUAL) { entry() }
+        }
+        compose.onNodeWithText("Este diccionario no tiene una definición para esta palabra.")
+            .assertExists()
+    }
+
+    @Test
+    fun `a bilingual reverse entry stays silent, because the absence is its design`() {
+        // D-196: 164,249 English entries of `es-en` have no senses and are not defective. Saying
+        // it there would call the pack's whole purpose a defect.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}, packKind = PackKind.BILINGUAL) { entry() }
+        }
+        compose.onNodeWithText("Este diccionario no tiene una definición para esta palabra.")
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun `with a definition the notice is not shown`() {
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}, packKind = PackKind.MONOLINGUAL) { entry("Mamífero.") }
+        }
+        compose.onNodeWithText("Este diccionario no tiene una definición para esta palabra.")
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun `with the pack kind unknown it stays silent rather than guessing`() {
+        // The default. Marking a reverse entry wrongly is worse than saying nothing.
+        compose.setContent { EntryScreen(1, onOpenWord = {}) { entry() } }
+        compose.onNodeWithText("Este diccionario no tiene una definición para esta palabra.")
+            .assertDoesNotExist()
+    }
+
     /** A link inside a gloss: all that identifies it is that it is clickable and what it hangs
      *  off. Compose gives the link's rectangle no text of its own. */
     private fun linkAt(textoDeLaGlosa: String) =

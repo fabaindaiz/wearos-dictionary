@@ -202,6 +202,31 @@ the owner's call, not on evidence, and the roadmap row says so.
 paywalled and the LREC PDFs refused — so Zgusta's distinction and the precision/recall split come
 from search summaries and not from the text.
 
+✅ **And the first item of that plan is built** (`d-a2f271-49d25d`): the card now says *"Este
+diccionario no tiene una definición para esta palabra."* — the thing the literature asks for
+outright and no measurement had surfaced. **6 mutations, 6 bite.**
+
+⚠️ **The hard half is the case that must stay SILENT, and it is the larger one.** A bidirectional
+pack's reverse entry has no senses **by design** (D-196), so marking those would call the pack's
+whole purpose a defect on **164,249** rows. The question is not *"are there senses"* but *"was a
+definition owed here"*, and only the pack's `kind` answers it. An unknown kind says nothing.
+
+⚠️ **A mutation found the wiring untested and changed the design.** With the kind lookup inline in
+`MainActivity`, replacing it with a literal `null` **compiled and every test passed**: the
+Composable was covered and what feeds it was not — the third instance this session of the same
+shape, after `--diccionario` wired to `None` and `verificar_restricciones` never called. It is now
+`packKindOf`, a pure function with its own tests, which is the move `absorbedPackIds` already
+established here.
+
+⚠️ **And one probe was a false positive, caught by checking it.** The first wiring mutation was
+`null ?: state.available…`, which is a no-op; it reported red because it failed to **compile**. A
+mutation that dies at the compiler proves nothing about the tests, so every probe since reports
+whether it compiled.
+
+⚠️ **Not seen on a screen, and that is not an omission I can close today**: the published packs
+predate the rescue, so no entry exists that can show the notice. The emulator also spent two
+attempts with a third-party app stealing the foreground, which is the second session it does that.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description
