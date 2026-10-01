@@ -155,6 +155,25 @@ appears alone as a key in today's dump --zero-- so dropping the second-word requ
 nothing real and the mutation survived. The guard stays because `formas` glossing as `forms` is a
 plausible next dump; there the test is the specification and not a sample.
 
+⚠️ **And then a sample build found that the empty-gloss rescue promoted FORM PAGES to entries.**
+`_senses` empties a form page --every sense is `form_of`-- and the rescue kept it for its IPA, so
+`teclearon`, `vociferareis` and `zocatearan` became entries instead of forms of their verbs. A
+1-in-120 Spanish pack came out at **7,059** entries against **1,294**, and `verify_pack` reported
+**170 entries with nothing to show**.
+
+**649 tests were green, every mutation probe bit, and the pack was wrong.** What caught it was
+building a pack and verifying the artifact -- the pre-flight before exporting, run because the
+question asked was *"can we export?"* and not *"is the gate green?"*. The module's own docstring
+had warned it: an entry that is really an inflected form is not an entry.
+
+⚠️ **Fixing it exposed an invariant I had broken without noticing.** `verify_pack` forbade an
+entry with *"no senses and no word translations"*, which the rescued lemmas legitimately are: they
+render pronunciation, conjugation and sometimes origin, and `payload_codec.parse` returns none of
+those, so the check was asking the wrong question. It now reads the payload's own lines and
+forbids exactly what it meant to -- a card showing **nothing but its part of speech** -- which is
+the same rule the builder applies, checked on the artifact instead of trusted. **8 mutations,
+8 bite** between the two fixes.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

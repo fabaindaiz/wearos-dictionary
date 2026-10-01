@@ -1083,6 +1083,13 @@ def _ensena_algo_sin_acepciones(raw, translations_to):
     and defines only **404 (9 %)** of them; `introducir` is an entry with no sense there too. The
     definition is missing upstream, not lost in our extraction.
     """
+    crudas = raw.get("senses") or []
+    # ⚠️ **A form page is never an entry, whatever else it carries.** `_senses` empties it because
+    # every sense is `form_of`, and looking only at the rest of the record kept `teclearon` for its
+    # IPA -- an entry instead of a form of `teclear`. Over a 1-in-120 sample `verify_pack` found
+    # **170** of these; the gate was green and the mutation probes bit the whole time.
+    if crudas and all(_is_form_of(sense) for sense in crudas):
+        return False
     return bool(
         _etymology(raw)
         or raw.get("sounds")

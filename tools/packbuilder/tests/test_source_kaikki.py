@@ -306,6 +306,28 @@ class PodaTest(unittest.TestCase):
         self.assertEqual(["casualidad"], [r.headword for r in got])
         self.assertEqual("Del latín casualitas.", got[0].etymology)
 
+    def test_una_PAGINA_DE_FORMA_no_se_promueve_a_entrada_por_su_pronunciacion(self):
+        """⚠️ **The regression a green gate could not see, found by building a real sample.**
+
+        `_senses` empties a form page --every sense is `form_of`-- and the rescue then looked at
+        what else the record carried and kept it for its IPA. `teclearon`, `vociferareis` and
+        `zocatearan` became **entries** instead of forms of `teclear`, `vociferar` and `zocatear`.
+        Over a 1-in-120 Spanish sample `verify_pack` reported **170 entries with neither senses
+        nor translations**; in a full build that is thousands, and the module's own docstring had
+        warned it: an entry that is really an inflected form is not an entry.
+
+        649 tests were green, the mutation probes bit, and the pack was still wrong. What caught
+        it was building the pack and verifying the artifact.
+        """
+        got = self.records(_raw(
+            "teclearon", "verb", [
+                {"glosses": ["Tercera persona del plural del pretérito de teclear."],
+                 "form_of": [{"word": "teclear"}], "sense_index": "1"},
+            ], pos_title="Forma verbal", sounds=[{"ipa": "tekleˈaɾon"}],
+            etymology_texts=["De teclear."]),
+        )
+        self.assertEqual([], got, "una pagina de forma no es una entrada")
+
     def test_una_forma_resuelve_al_lema_rescatado(self):
         """The point of rescuing it: `introduje` has to find `introducir` again."""
         path = _jsonl(

@@ -17,6 +17,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import normalize  # noqa: E402
+import payload
 import verify_pack  # noqa: E402
 from sources import toy  # noqa: E402
 
@@ -899,6 +900,46 @@ class StructureTest(BuilderTestCase):
         rows = [row[0] for row in db.execute(
             "SELECT rowid FROM fts_def WHERE fts_def MATCH ?", ('"rapidamente"',))]
         self.assertEqual([entry_id], rows)
+
+
+class EntradaVaciaTest(BuilderTestCase):
+    """What counts as an EMPTY entry, now that a lemma may legitimately carry no senses.
+
+    The rule used to be *"no senses and no word translations"*. Since `d-a2f271-e0e67e` a
+    monolingual pack carries lemmas whose source gives no gloss at all --`introducir` arrives
+    tagged `no-gloss`-- and they render their pronunciation, their conjugation and sometimes their
+    origin. `payload_codec.parse` returns neither, so asking it was asking the wrong question and
+    a 1-in-120 Spanish sample reported **170** good entries as defects.
+
+    ⚠️ **It is still a check**: a row that takes space, appears in the list and opens onto the word
+    `verbo` is a defect, and it is exactly what the rescue would produce if its rule ever widened
+    to *"the rendered body is non-empty"*.
+    """
+
+    def _verificar(self, cuerpo):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("correr"))
+        db = sqlite3.connect(self.path)
+        dicc = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0])
+        db.execute("UPDATE entry SET payload = ?", (payload.compress(cuerpo, dicc),))
+        db.commit()
+        db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        return codigo, salida.getvalue()
+
+    def test_solo_la_parte_de_la_oracion_es_una_entrada_vacia(self):
+        codigo, texto = self._verificar("P\tverbo")
+        self.assertEqual(1, codigo)
+        self.assertIn("no tiene nada que mostrar", texto)
+
+    def test_sin_acepciones_pero_CON_formas_y_pronunciacion_es_valida(self):
+        """`introducir`: no gloss in the source, and still a card worth opening."""
+        codigo, texto = self._verificar(
+            "P\tverbo\nI\tĩn̪t̪ɾoð̞uˈsiɾ\nM\tDel latín introducere.\nF\tind1s:introduzco")
+        self.assertNotIn("no tiene nada que mostrar", texto)
 
 
 class FailureModeTest(BuilderTestCase):

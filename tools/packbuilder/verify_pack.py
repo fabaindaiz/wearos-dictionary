@@ -532,15 +532,25 @@ def verify(path):
         try:
             text = payload_codec.decompress(row["payload"], dictionary)
             _pos, senses, palabra = payload_codec.parse(text)
-            # ⚠️ **With no senses it is accepted ONLY if it carries word translations**, and that
-            # exception is a bidirectional pack's reverse side: `dog` answers *"how is it said"*
-            # --`perro`, `can`-- and not *"what does it mean"*, which is the English monolingual
-            # pack's job. What is still forbidden is an EMPTY entry: it takes a row, appears in the
-            # list, and on opening it there is nothing.
-            if not senses and not palabra:
+            # ⚠️ **What is forbidden is an entry whose card shows NOTHING BUT ITS PART OF
+            # SPEECH**, and that is narrower than it used to be. The rule read *"no senses and no
+            # word translations"*, which covered a bidirectional pack's reverse side --`dog`
+            # answers *"how is it said"* and not *"what does it mean"*. Since d-a2f271-e0e67e a
+            # monolingual pack also carries lemmas whose source gives **no gloss at all**:
+            # `introducir` and `detectar` arrive tagged `no-gloss`, and dropping them took every
+            # form page pointing at them. They render their pronunciation, their conjugation and
+            # sometimes their origin, which `parse` does not return -- so asking it was asking the
+            # wrong question, and this reads the payload's own lines instead.
+            #
+            # ⚠️ **It stays a check and not a readout**: a row that takes space, appears in the
+            # list and opens onto the word `verbo` is still a defect, and it is what the rescue
+            # would produce if its rule ever widened to "the body is non-empty".
+            otras_lineas = [l for l in text.split("\n")
+                            if l and not l.startswith(payload_codec.TAG_PART_OF_SPEECH + "\t")]
+            if not otras_lineas:
                 report.check(
                     False,
-                    "la entrada %s no tiene ni acepciones ni traducciones" % row["headword"])
+                    "la entrada %s no tiene nada que mostrar" % row["headword"])
             # ⚠️ **Every sense has to be reachable by `(language, word, sense)`.** The code comes
             # from `(uid, gloss)`, so two senses of the same entry with an identical gloss share a
             # code and one becomes **unreachable** -- a link written against it leads to the other,
