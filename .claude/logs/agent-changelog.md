@@ -174,6 +174,34 @@ forbids exactly what it meant to -- a card showing **nothing but its part of spe
 the same rule the builder applies, checked on the artifact instead of trusted. **8 mutations,
 8 bite** between the two fixes.
 
+✅ **And the content decisions were checked against the lexicographic literature**
+(`i-a2f271-0e2a2f`), which had never been done: every rule in this pack had been taken by
+measurement alone. Sources and quotations in `docs/references.md` §*Lexicographic method*.
+
+**Three confirmed, one contradicted, one unverified.** The form-page fix turns out to be the
+textbook answer — an electronic dictionary makes a form **findable without being a headword** —
+and Zgusta's split between **insertable** and **explanatory** equivalents is the name for what
+`translation_keys` had been groping toward by measurement.
+
+⚠️ **The contradiction is about work from the same week.** Keeping the 4,503 lemmas with no gloss
+is supported; **leaving the gap silent is not**. On zero equivalence the recommendation is that
+*"the importance of explicitly marking"* it be recognised, and that *"if the examples remain
+untranslated, the user is not made aware of the problem of non-equivalence"*. Our rescued card
+shows an IPA line and a conjugation and says nothing about why there is no definition.
+
+⚠️ **And the review's most useful output is a recommendation this repo does not follow.**
+Bergenholtz and Johnsen: log files *"reveal lemma lacuna"* and are *"a useful supplement to
+corpus-based lemma selection"*. **A search that returns nothing is the one event this pack cannot
+learn from**, and `DictLog` already exists. It is also a privacy decision before it is a feature.
+
+⚠️ **One search came back empty and that is recorded as the finding rather than skipped.** No
+empirical research on whether readers consult etymology. `d-a2f271-94e801` rests on price and on
+the owner's call, not on evidence, and the roadmap row says so.
+
+⚠️ **Two sources are marked ASSUMPTION because they would not fetch** — the Springer chapter is
+paywalled and the LREC PDFs refused — so Zgusta's distinction and the precision/recall split come
+from search summaries and not from the text.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

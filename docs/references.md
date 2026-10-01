@@ -242,6 +242,88 @@ one of those entries is about to hold up a decision, read the source first.
 
   Produced: D-031.
 
+## Lexicographic method
+
+**Why this section exists.** Everything above is about **sources**; this is about **practice** —
+how dictionaries are compiled, and by what criteria a lemma, an equivalent or a form earns its
+place. It was read on 2026-10-01 to check decisions that had been taken by measurement alone.
+⚠️ **It confirmed most of them, contradicted one, and left one unverified**, which is the only
+reason it is worth the page.
+
+- **[Wójtowicz, *Revisiting Lemma Lists in Swahili Dictionaries*, Lexikos 27 (2017):
+  561–577](https://lexikos.journals.ac.za/pub/article/download/1415/869)** — *(primary source,
+  read in full)* Log-file study of a real bilingual dictionary, plus a survey of lemma-selection
+  practice.
+
+  **What it confirms:** that an inflected form must be **findable without being an entry**. On
+  p. 567: *"it can be easily solved in an electronic version of a dictionary, where we can, for
+  example, allow searches on plural forms, which are provided within an entry"*. That is exactly
+  `form` plus the `INFLECTED_FORM` rung, and it is the principle the 2026-10-01 form-page defect
+  broke — `teclearon` became an entry instead of a form of `teclear`.
+
+  ⚠️ **The tension it names, and how this pack resolves it.** On p. 565: *"According to
+  lexicographical recommendations, all forms which naturally come to mind to users when searching
+  a dictionary should function as headwords"*. Read as written that argues for the defect. What
+  reconciles them is the sentence above: in an electronic dictionary **findable** and **headword**
+  stop being the same thing, and only a paper dictionary has to choose.
+
+  **What it corrects:** the idea that a frequency list settles a lemma list. Citing Müller-Spitzer
+  et al. (2015), *"frequency does matter — even in lower frequency bands"*, and users *"look up
+  frequent words even beyond the first few thousands"*. It supports D-142's frequency band and
+  argues **against** trimming a tier by rank alone.
+
+  **The recommendation this repo does not yet follow**: Bergenholtz and Johnsen (2005), that log
+  files *"reveal lemma lacuna, frequent misspellings, frequency of searches for multiword units"*,
+  and are *"a useful supplement to corpus-based lemma selection"*. The study identified *"a list
+  of lemma lacuna that cause the majority of unsuccessful searches"*. **A search that returns
+  nothing is the one event this pack cannot currently learn from.**
+
+- **[Gouws and Prinsloo et al., *Approaches to the Treatment of Zero Equivalence in a Bilingual
+  Dictionary*, Lexikos 27 (2017)](https://www.scielo.org.za/scielo.php?script=sci_arttext&pid=S2224-00392017000100022)**
+  — *(primary source, read)* What a dictionary owes the user when it has the word and not the
+  answer.
+
+  ⚠️ **What it CONTRADICTS, and it is about work done the same week.** `d-a2f271-e0e67e` keeps
+  4,503 Spanish lemmas whose source gives no gloss, so `introducir` and `detectar` exist and their
+  forms resolve. The literature supports keeping them — a lemma lacuna is the defect log-file
+  research exists to hunt — **but it does not accept leaving the gap silent**: *"the importance of
+  explicitly marking zero equivalence"* is stressed, and *"if the examples remain untranslated,
+  the user is not made aware of the problem of non-equivalence"*. The English–Slovene Dictionary
+  marks it with two symbols, `0` for no equivalent at all and `#` for equivalence only at message
+  level. **Our rescued card shows pronunciation and a conjugation table and says nothing about
+  why there is no definition.** That is the open question in `docs/roadmap.md` §*Palabras del pack
+  de traducción*, and the literature answers it: mark it.
+
+- **Zgusta's distinction, via
+  [Adamska-Sałaciak, *Bilingual Lexicography: Translation
+  Dictionaries*](https://link.springer.com/content/pdf/10.1007/978-3-642-45369-4_6-1.pdf)** —
+  **ASSUMPTION**: the chapter itself is paywalled and this comes from search summaries, not from
+  the text.
+
+  **What it names:** the line `translation_keys` has been groping for. Zgusta separates
+  **translational / contextual / insertable** equivalents — what you could drop into a sentence —
+  from **explanatory / descriptive** equivalents, which describe rather than substitute. Every
+  rule added on 2026-10-01 is an instance: `of, from or relating to the Canary Islands, Spain` is
+  explanatory and `Spain` is a fragment of it, `forms nouns` describes what the word does, and
+  `playground slide` is insertable and stays. **The repo found the distinction by measurement and
+  the field has a name for it**; having the name is what makes the next case arguable instead of
+  re-measured.
+
+- **[Wiktextract / ENGLAWI on extraction quality](https://aclanthology.org/2020.lrec-1.369.pdf)**
+  — **ASSUMPTION**, from search summaries; the LREC PDFs did not fetch.
+
+  **What it confirms:** that **truthfulness (precision) and coverage (recall) are separate
+  criteria**, which is `d-a2f271-4f0311`'s split between cleaning garbage and shrinking. It also
+  states the trade-off this pack lives on: restricting extraction to prototypical articles is
+  *"relatively easily feasible but leads to a resource containing only a small subset"*.
+
+- **Etymology in general dictionaries — NOT FOUND, and said so rather than assumed.** The search
+  for empirical user research on whether and how often readers consult etymology returned
+  nothing usable: dictionary-use research exists as a field, but no measurement of etymology
+  consultation surfaced. `d-a2f271-94e801` removed the limit on the English packs' etymology for
+  **8.11 MB**, and that decision rests on the owner's call and on the cost being small, **not on
+  evidence that the datum is used**. The honest status is unverified.
+
 ## Kotlin Multiplatform
 
 - **[Compose Multiplatform and watchOS](https://slack-chats.kotlinlang.org/t/13151865/are-there-plans-for-compose-to-target-watchos-apple-watch)**

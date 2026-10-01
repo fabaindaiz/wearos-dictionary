@@ -1157,6 +1157,55 @@ leaked onto the English side** (0.19 % of it) — `abiertas` is an English entry
 `PASO`, because that gloss reads *«Primarias Abiertas, Simultáneas y Obligatorias»* and the
 comma split makes `Abiertas` a one-word key. Same root as cause 3, in the other direction.
 
+### What the lexicographic literature says about decisions already taken · i-a2f271-0e2a2f
+
+**Estado.** **Reviewed 2026-10-01.** The pack's content rules had been taken by measurement alone;
+this checked them against lexicographic practice. Sources and quotations in `docs/references.md`
+§*Lexicographic method*. **Three confirmed, one contradicted, one unverified** — and the
+contradiction is the useful part.
+
+| Decision | Verdict |
+|---|---|
+| A form page is not an entry (2026-10-01 fix) | ✅ **Confirmed, and it names our mechanism**: in an electronic dictionary a form is made **findable without being a headword**, which is `form` plus the `INFLECTED_FORM` rung |
+| Demonym and description fragments are not keys (`d-a2f271-3098e4`, `d-a2f271-ad9d44`) | ✅ **Confirmed, and the field has a name for it**: Zgusta separates **insertable** equivalents from **explanatory** ones |
+| Garbage ≠ shrinking (`d-a2f271-4f0311`) | ✅ **Confirmed**: extraction research tracks **truthfulness (precision)** and **coverage (recall)** as separate criteria |
+| Keeping a lemma with no gloss (`d-a2f271-e0e67e`) | ⚠️ **Half contradicted.** Keeping it is right; **leaving the gap silent is not** |
+| Unlimited etymology (`d-a2f271-94e801`) | ❓ **Unverified.** No empirical research found on whether readers consult etymology |
+
+⚠️ **The contradiction, in its own words.** On zero equivalence the recommendation is that
+*"the importance of explicitly marking"* it be recognised, and that *"if the examples remain
+untranslated, the user is not made aware of the problem of non-equivalence"*. The English–Slovene
+Dictionary marks it with `0` for no equivalent at all and `#` for equivalence only at message
+level. Our rescued card shows an IPA line and a conjugation table and **says nothing about why
+there is no definition** — which is exactly the open question in §*Palabras del pack de
+traducción*, now with an answer from outside this repo.
+
+#### The plan, cheapest first
+
+1. **Say that there is no definition.** One string, and the app can already tell: an entry with no
+   `S` line is the case. It closes the oldest of the three open questions and it is the one thing
+   the literature asks for outright. ⚠️ **The wording is the owner's**, and it is not obvious —
+   *"this dictionary has no definition for this word"* is honest, *"no definition available"*
+   sounds like a failure of the app rather than of the source.
+2. **Learn from a search that returns nothing.** Bergenholtz and Johnsen's result is that log
+   files *"reveal lemma lacuna"* and are *"a useful supplement to corpus-based lemma selection"*;
+   the Swahili study derived *"a list of lemma lacuna that cause the majority of unsuccessful
+   searches"* from them. **This pack cannot currently learn from the one event that matters most**
+   — a query with zero results. `DictLog` and D-212 are the mechanism that already exists; what is
+   missing is recording the miss and a way to read the list back. ⚠️ **It is the only item here
+   that improves every future rebuild instead of this one**, and ⚠️ **it is a privacy decision
+   before it is a feature**: what a person looks up is the most personal thing this app holds, so
+   whatever is kept has to be on-device, readable by its owner, and never shipped anywhere.
+3. **Track truthfulness and coverage as two numbers, not one.** `verify_pack` already judges
+   content; what it does not do is **report the two axes separately** — how much of the source
+   arrived (coverage) against how much of what arrived is sound (truthfulness). Having them apart
+   is what makes `d-a2f271-4f0311` checkable instead of a principle.
+
+⚠️ **What this review did NOT find, and the absence is the finding.** No measurement of whether
+readers consult etymology. The 8.11 MB it costs was decided on price and on the owner's call,
+which is legitimate — but it is not evidence, and the row above says so rather than implying the
+literature backs it.
+
 ### Una glosa vacía en la fuente se lleva el lema y todas sus formas · i-a2f271-753e34
 
 **Estado.** ✅ **CONSTRUIDO el 2026-09-30** (`d-a2f271-e0e67e`). Falta **un rebuild de `es-full`** para que llegue a algún lado — 7 min 31 s, medidos. Found while chasing the item above, and it is
