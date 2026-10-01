@@ -5296,7 +5296,37 @@ ls app/build/outputs/apk/release/          # tiene que decir app-release.apk, NO
 | **ABIs** | ✅ sólo `arm64-v8a` y `armeabi-v7a` en release | ⚠️ **El APK de release ya no se instala en un emulador x86**; el de debug sigue trayendo las cuatro |
 | **Instalador de packs** | ✅ **funciona de punta a punta** (2026-09-22, D-214) | Descarga con reanudación, comprueba los dos hashes, instala atómicamente y recarga; la cancelación libera el `.part` (D-231). ⚠️ **Lo que falta es de producto, no de mecanismo**: `BuildConfig.CATALOG_URL` apunta a un servidor de desarrollo y sólo `debug` habla por `http://`. **Es el ítem #3 de las tres que desbloquean todo** |
 
-### Pendiente de subir al reloj — **un APK, listo el 2026-09-30**
+### Pendiente de subir al reloj — **NADA, todo subido el 2026-10-01**
+
+✅ **The 2026-10-01 rebuild is on the watch, whole**: APK versionCode 14 and the three packs that
+are not bundled. The two cores were **not** uploaded and did not need to be — they travel inside
+the APK and the versionCode bump makes `PackStore.plan` re-extract them, which it did.
+
+| | |
+|---|---|
+| `app-debug.apk` | 106.1 MB, versionCode 14, **33 s** |
+| `es-en` | 67.0 MB, **19 s** |
+| `es-full` | 92.2 MB, **28 s** |
+| `en-full` | 335.4 MB, **1 min 29 s** |
+| identity, read back from the watch | `build=dedbcd0d62`, no `+dirty`, `overrides: ninguno` |
+| result | **5 packs open, 0 rejected**, ready to search in **1,222 ms** |
+
+⚠️ **1,222 ms against 1,875 the day before and 2,134 on Monday**, with larger packs. Not an
+optimisation anybody made: it is the number, recorded so the next one has something to compare to.
+
+✅ **And the defect this whole series opened with is closed on the device**, probed by debug intent:
+
+| query | on the watch |
+|---|---|
+| `introduje` | **2 results, both `inflected_form`** — it reaches `introducir` |
+| `divorcio` | **5, with `inflected_form=1`** — it reaches `divorciar` |
+| `detectar` · `casualidad` · `sonreir` | 7 · 1 · 4, all with a `prefix` hit |
+
+⚠️ **The watch dropped off the network at 100 % of the first pack**, and what that proved is the
+installer's atomic rename: the `.part` stopped at 50 of 67 MB and **the old pack was untouched**,
+so there was never a corrupt dictionary wearing the good one's name. ⚠️ **The progress bar counts
+bytes handed to `adb` and not bytes written**, which is why it read 100 % with 50 MB on disk — it
+invites believing a transfer finished.
 
 ✅ **The APK carrying the absorbed-pack row is on the watch**, uploaded the same day it was
 built. **No pack changed**, so only the APK travelled.

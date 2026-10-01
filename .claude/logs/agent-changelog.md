@@ -62,10 +62,38 @@ all **1 → 0**.
   shells**, whose command line contains that string, so the pipeline read as still running long
   after it had failed.
 
-**What was left undone.** The APK is built but **not yet uploaded**, and nothing has been seen on
-a screen: the *"no definition"* notice finally has entries that can show it, and that is the first
-emulator check. `es-main` is correctly not built — `es-full` is 87.9 MiB, under the main tier's
-100 MiB floor.
+✅ **And it reached the watch, whole**, by the fixed four steps. Only the three non-bundled packs
+travelled: the cores ride inside the APK and the versionCode bump re-extracted them, which the
+startup log confirms.
+
+| | |
+|---|---|
+| APK | 106.1 MB, versionCode 14, 33 s |
+| `es-en` · `es-full` · `en-full` | 19 s · 28 s · 1 min 29 s |
+| identity read back | `build=dedbcd0d62`, no `+dirty`, `overrides: ninguno` |
+| result | **5 open, 0 rejected**, ready in **1,222 ms** (1,875 yesterday, 2,134 on Monday) |
+
+✅ **The defect this series opened with is closed on the device**: `introduje` gives **2 results,
+both `inflected_form`**, and `divorcio` gives **5 with `inflected_form=1`**. They reach `introducir`
+and `divorciar`.
+
+⚠️ **I nearly reported a false success on exactly that verification.** The first probe returned no
+log lines and I read the silence as *"it found results"*. The **control disproved it**: a word that
+cannot exist logged nothing either, because the per-search line is `DictLog.d` and `-s Dict`
+filters by priority. It needed `-s Dict:V`. Without running the control, the session's most
+important check would have been reported backwards.
+
+⚠️ **The watch dropped off the network at 100 % of the first pack**, and that proved the
+installer: the `.part` stopped at **50 of 67 MB** and the old pack was untouched, so there was never
+a corrupt dictionary wearing the good one's name. ⚠️ **The progress bar counts bytes handed to
+`adb`, not bytes written** — it read 100 % with 50 MB on disk, which invites believing a transfer
+finished. The wake lock had also been released by the drop and had to be retaken.
+
+**What was left undone.** **Nothing has been seen on a screen.** The *"no definition"* notice
+finally has entries that can show it --`introducir` and `detectar` are in the pack with no gloss--
+and the result list's definition preview has not been looked at against real words either. Both are
+**emulator** checks by this repo's rule, and both were left for the next session. `es-main` is
+correctly not built — `es-full` is 87.9 MiB, under the main tier's 100 MiB floor.
 
 ## 2026-10-01 · s-a2f271-2198bf — Two defects the packs carried, and the rules that were measured and thrown away
 **What.** The bilingual pack's `Spain`, `Mexico` and `etc` stop being English entries pointing at
