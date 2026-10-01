@@ -67,7 +67,7 @@ rare words between rebuilds"*, and between `dist.prev` and `dist` **63,307 left 
 entered**. Retracted in its KDoc.
 
 Rather than patch the churn, the limit went: it reached **120,247** of the **471,648** words the
-dump has an origin for. **14.5 MB compressed** on 312 MB, and `en-main` pays in lemmas rather than
+dump has an origin for. **8.11 MB compressed** on 312 MB (+2.60 %), and `en-main` pays in lemmas rather than
 size — **13,245 fewer (7.4 %)** at **0.000 points** of corpus coverage.
 
 ⚠️ **Three of my own measurements were wrong before they were right, and each failed loudly only
@@ -85,6 +85,40 @@ because it was checked.**
 ⚠️ **And it carries no enforcer.** The flag still exists and must simply not be passed for `en`.
 It is recorded in `tools/CLAUDE.md` §*the flags that are not optional*, as the only row there that
 says to leave one out — which is prose holding a rule, the shape this repo distrusts.
+
+✅ **And the rule stopped being prose: each pack DECLARES which flags it requires and forbids**
+(`d-a2f271-c64f91`). `build_pack` refuses a build that breaks one, `--a-proposito <bandera>` states
+a deviation and prints it, and `RestriccionesDeclaradasTest` checks the pipeline's own plan against
+the same declaration. **8 mutations, 8 bite.**
+
+⚠️ **Asked for after I reported the gap, and the gap was real and one commit old.** The previous
+commit wrote *"English stops passing `--etimologia-hasta`"* into `tools/CLAUDE.md` — and
+`tools/build_packs.py` **went on passing it**, from another file. Nothing failed, because a pack
+built with the wrong flags is well formed and `verify_pack.py` passes it. The table now explains
+and the declaration rules.
+
+⚠️ **Two defects of the check itself came from mutation, not from review.** Its escape hatch's
+argument counted as an occurrence of the flag, so `--a-proposito --tesauro` **satisfied** the
+requirement in silence — the exact failure it exists to stop, reintroduced by its own escape. And
+deleting the call from `main` left every test green, the same shape as a flag parsed and thrown
+away; it took a test that runs `main`.
+
+⚠️ **Adding a key to `PACKS` leaked it into the artifact.** `metadata = dict(PACKS[lang])` copies
+the whole declaration, so a dict reached `_write_metadata` and SQLite said `Error binding parameter
+1 - probably unsupported type`: no field name, three layers from the cause, 15 tests red at once.
+`PACKS` says two things — what the pack declares about itself and how it is built — and a guard now
+names the next key that confuses them.
+
+⚠️ **And the number I gave for this decision was wrong, so it is retracted everywhere it was
+written.** I priced the unlimited etymology at **14.5 MB**, extrapolated from a 2,584-entry sample
+that was not representative. Measured exactly over the **362,921** entries that gain one: **8.11 MB**,
+**2.60 %** of a 312 MB pack. The pipeline's own comment was worse — *"without the flag `en-full`
+grows +179 MB"*, wrong by **22×** and unexplained. Both corrected in `decisions.md`, the roadmap,
+`tools/CLAUDE.md` and this file.
+
+⚠️ **Spanish prose slipped into `tools/` three times** — reason strings, an error message and a
+comment — where the ceiling is **0**. Each was caught by the audit and rewritten, never by me
+noticing while typing.
 
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,

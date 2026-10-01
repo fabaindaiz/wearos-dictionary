@@ -103,7 +103,8 @@ class SumarVocabularioTest(unittest.TestCase):
         import io as _io
         argv = ["build_pack.py", "es", self.kaikki, self.salida] + list(extra)
         with contextlib.redirect_stdout(_io.StringIO()):
-            build_pack.main(argv)
+            # Fixture build: it checks something else and has no thesaurus to feed.
+            build_pack.main(argv + ["--a-proposito", "todas"])
         db = sqlite3.connect(self.salida)
         filas = list(db.execute("SELECT headword, pos FROM entry ORDER BY headword"))
         meta = dict(db.execute("SELECT key, value FROM meta").fetchall())
@@ -201,7 +202,8 @@ class SegundaFuenteTest(unittest.TestCase):
         import contextlib
         import io as _io
         with contextlib.redirect_stdout(_io.StringIO()):
-            build_pack.main(argv)
+            # Fixture build: it checks something else and has no thesaurus to feed.
+            build_pack.main(argv + ["--a-proposito", "todas"])
         db = sqlite3.connect(self.salida)
         meta = dict(db.execute("SELECT key, value FROM meta").fetchall())
         db.close()
@@ -332,7 +334,8 @@ class DiccionarioFijadoDesdeLaCLITest(unittest.TestCase):
         import io as _io
         argv = ["build_pack.py", "es", fuente, salida] + list(extra)
         with contextlib.redirect_stdout(_io.StringIO()):
-            build_pack.main(argv)
+            # Fixture build: it checks something else and has no thesaurus to feed.
+            build_pack.main(argv + ["--a-proposito", "todas"])
         db = sqlite3.connect(salida)
         valor = db.execute("SELECT value FROM meta WHERE key='payload_dict'").fetchone()[0]
         db.close()

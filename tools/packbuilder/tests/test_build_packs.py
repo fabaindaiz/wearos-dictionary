@@ -5,6 +5,7 @@ the pipeline needs 4.4 GB of dumps and an hour, and that does not enter the gate
 and is what matters, is **the order** -- because skipping it raises no error.
 """
 
+import io
 import os
 import shutil
 import sys
@@ -16,6 +17,11 @@ sys.path.insert(
 )
 
 import build_packs  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))), "tools", "packbuilder"))
+import build_pack  # noqa: E402
+
+BUILD_PACK_NOMBRE = "build_pack.py"
 
 BUILD, DIST = build_packs.BUILD, build_packs.DIST
 
@@ -28,6 +34,116 @@ def _pasos(**kw):
 
 def _nombres(pasos):
     return [p["nombre"] for p in pasos]
+
+
+class RestriccionesDeclaradasTest(unittest.TestCase):
+    """⚠️ **The flags that change a pack are DECLARED, and the pipeline is checked against them.**
+
+    A pack built without its flags comes out well formed, passes `verify_pack.py` and is quietly
+    worse, so the list used to live in prose -- `tools/CLAUDE.md` §*the flags that are not
+    optional*. Prose does not hold: on 2026-10-01 the decision to stop passing
+    `--etimologia-hasta` for English was written into that table **and the pipeline went on passing
+    it**, because the two live in different files. That is the defect this class exists to make
+    impossible.
+    """
+
+    def _comando(self, nombre):
+        for paso in _pasos():
+            if paso["nombre"].startswith(nombre):
+                return paso["comando"]
+        self.fail("no hay paso %r en el plan" % nombre)
+
+    def test_el_plan_cumple_lo_que_cada_pack_declara(self):
+        """The mirror check: every restriction in `PACKS`, verified against the real plan."""
+        revisados = 0
+        for paso in _pasos():
+            comando = paso["comando"]
+            if BUILD_PACK_NOMBRE not in comando[1]:
+                continue
+            clave = comando[2]
+            for bandera, (estado, razon) in build_pack.PACKS[clave].get(
+                    "restricciones", {}).items():
+                revisados += 1
+                if estado == build_pack.REQUERIDA:
+                    self.assertIn(bandera, comando,
+                                  "%s necesita %s: %s" % (clave, bandera, razon))
+                else:
+                    self.assertNotIn(bandera, comando,
+                                     "%s no debe pasar %s: %s" % (clave, bandera, razon))
+        # ⚠️ Without this the test passes when NOBODY declares anything, which is how it goes vacuous.
+        self.assertGreaterEqual(revisados, 6, "se revisaron %d restricciones" % revisados)
+
+    def _argv(self, clave, *extra):
+        return ["build_pack.py", clave, "dump.jsonl", "salida.db"] + list(extra)
+
+    def test_falta_una_requerida_y_el_build_no_arranca(self):
+        """⚠️ **It refuses instead of warning, and that is the point.** A pack built without its
+        flags is well formed and passes `verify_pack.py`; a warning in a log nobody reads is the
+        same as nothing.
+        """
+        with self.assertRaises(SystemExit) as caja:
+            build_pack.verificar_restricciones("en", self._argv("en"))
+        self.assertIn("--tesauro", str(caja.exception))
+        self.assertIn("30,423", str(caja.exception), "la razon viaja con la queja")
+
+    def test_sobra_una_prohibida_y_el_build_no_arranca(self):
+        with self.assertRaises(SystemExit) as caja:
+            build_pack.verificar_restricciones(
+                "en", self._argv("en", "--tesauro", "x", "--etimologia-hasta", "y"))
+        self.assertIn("--etimologia-hasta", str(caja.exception))
+
+    def test_un_piloto_se_salta_las_requeridas_y_NO_las_prohibidas(self):
+        """`--sample` exists to look at content before spending the full build. Demanding a
+        thesaurus for a 1-in-200 pack would teach the habit of reaching for the escape hatch.
+        """
+        build_pack.verificar_restricciones("en", self._argv("en", "--sample", "200"))
+        with self.assertRaises(SystemExit):
+            build_pack.verificar_restricciones(
+                "en", self._argv("en", "--sample", "200", "--etimologia-hasta", "y"))
+
+    def test_a_proposito_convierte_la_negativa_en_una_desviacion_QUE_IMPRIME(self):
+        """A deviation that leaves no line in the log is indistinguishable from a mistake."""
+        salida = io.StringIO()
+        desviaciones = build_pack.verificar_restricciones(
+            "en", self._argv("en", "--a-proposito", "--tesauro"), salida=salida)
+        self.assertEqual(1, len(desviaciones))
+        self.assertIn("DELIBERATE DEVIATION", salida.getvalue())
+        self.assertIn("--tesauro", salida.getvalue())
+
+    def test_main_LLAMA_a_la_verificacion_y_no_solo_la_define(self):
+        """⚠️ **A mutation probe demanded this one: deleting the call from `main` survived.**
+
+        It is the same defect as a flag parsed and thrown away -- the function is covered, the
+        wiring is not. The build has to stop on the declaration **before** touching the dump, so
+        the failure here is the restriction and not a missing file.
+        """
+        with self.assertRaises(SystemExit) as caja:
+            build_pack.main(["build_pack.py", "en", "no-existe.jsonl", "salida.db"])
+        self.assertIn("--tesauro", str(caja.exception))
+
+    def test_lo_que_describe_el_BUILD_no_llega_al_artefacto(self):
+        """⚠️ **Adding `restricciones` to `PACKS` leaked it into the pack's `meta`.**
+
+        `metadata = dict(PACKS[lang])` copies the whole declaration, so a dict value reached
+        `_write_metadata` and SQLite answered `Error binding parameter 1 - probably unsupported
+        type`: no field name, three layers from the cause, and 15 tests red at once. `PACKS` says
+        two different things -- what the pack declares about itself, and how it is built -- and
+        only the first is the artifact's.
+        """
+        self.assertIn("restricciones", build_pack.PACKS["en"])
+        for clave, valor in build_pack.PACKS["en"].items():
+            if clave == "restricciones":
+                continue
+            self.assertIsInstance(
+                valor, str, "meta.%s llegaria al pack siendo %s" % (clave, type(valor).__name__))
+
+    def test_un_pack_sin_restricciones_declaradas_no_estorba(self):
+        self.assertEqual([], build_pack.verificar_restricciones("en-core", self._argv("en-core")))
+
+    def test_el_espanol_sigue_llevando_sus_tres(self):
+        comando = self._comando("es-full")
+        for bandera in ("--frases", "--tesauro", "--sumar"):
+            self.assertIn(bandera, comando)
 
 
 class PlanTest(unittest.TestCase):
@@ -256,15 +372,18 @@ class PlanTest(unittest.TestCase):
         self.assertTrue(all("bilingue" not in n for n in nombres), nombres)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FiltroDeEtimologiaTest(unittest.TestCase):
-    """Which step carries `--etimologia-hasta`, and pointing at what.
+    """That NOBODY carries `--etimologia-hasta`, and that this is checked with the file present.
 
-    ⚠️ **Skipping it raises no error**, like every other flag in this plan: `en-full` comes out well
-    formed, passes `verify_pack.py` and weighs **+179 MB** instead of +13.
+    ⚠️ **This class used to pin the opposite**, and its own docstring carried the number that
+    justified it: *"weighs +179 MB instead of +13"*. Measured on 2026-10-01 by recompressing the
+    **362,921** affected entries against the pack's own dictionary, dropping the filter costs
+    **8.11 MB** -- 2.60 % of a 312 MB pack -- and buys the origin for **351,401** words that had
+    none. The flag is gone for every pack here (`d-a2f271-94e801`).
+
+    ⚠️ **The previous `main` is CREATED in each test, and without that they are vacuous.** The flag
+    used to be added only `if os.path.exists(vocabulario)`, so an assertion over a plan whose path
+    is absent holds whatever the code does.
     """
 
     def setUp(self):
@@ -282,13 +401,12 @@ class FiltroDeEtimologiaTest(unittest.TestCase):
     def _paso(self, nombre, **kw):
         return next(p for p in build_packs.plan(self.tmp, **kw) if p["nombre"] == nombre)
 
-    def test_el_ingles_filtra_por_el_main_de_la_construccion_anterior(self):
+    def test_el_ingles_no_lo_lleva_NI_con_el_main_anterior_presente(self):
         previo = self._previo("en-main.db")
-        comando = self._paso("en-full", solo="en")["comando"]
-        self.assertIn("--etimologia-hasta", comando)
-        self.assertEqual(previo, comando[comando.index("--etimologia-hasta") + 1])
+        self.assertTrue(os.path.exists(previo), "el fixture tiene que existir o el test es vacuo")
+        self.assertNotIn("--etimologia-hasta", self._paso("en-full", solo="en")["comando"])
 
-    def test_el_espanol_NO_filtra_porque_su_full_ES_el_main(self):
+    def test_el_espanol_tampoco_porque_su_full_ES_el_main(self):
         # D-220: `es-full` falls below `main`'s size range and no `es-main` is built, so it carries
         # the origin for all of its own vocabulary. A filter here would take the datum away from
         # words its own reader can look up -- and nothing would fail.
@@ -296,10 +414,6 @@ class FiltroDeEtimologiaTest(unittest.TestCase):
         self._previo("es-main.db")
         self.assertNotIn("--etimologia-hasta", self._paso("es-full", solo="es")["comando"])
 
-    def test_sin_main_anterior_la_primera_construccion_va_sin_filtro(self):
-        # The degradation, and it is said out loud: the first build of a language has no previous
-        # `main` to read, so `en-full` carries the origin for everything and weighs what the
-        # roadmap says. The second build filters it. Failing here instead would block a rebuild
-        # from scratch over a datum that is additive.
-        self.assertNotIn("--etimologia-hasta", self._paso("en-full", solo="en")["comando"])
 
+if __name__ == "__main__":
+    unittest.main()

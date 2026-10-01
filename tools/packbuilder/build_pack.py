@@ -334,9 +334,30 @@ def _primario(clave):
     return PACKS[clave]["langs"].split(",")[0].strip()
 
 
+#: The two states a declared build flag can be in. They are strings so a violation prints
+#: something a person can read, and not `True`/`False` that have to be looked up.
+REQUERIDA = "requerida"
+PROHIBIDA = "prohibida"
+
 PACKS = {
     "es": {
         "pack_id": "es-def-wikc",
+        # ⚠️ **What this pack is worse WITHOUT, declared instead of remembered.** A pack built
+        # without its flags comes out well formed, passes `verify_pack.py` and is quietly worse,
+        # so the list used to live in prose. Prose did not hold: on 2026-10-01 the decision to
+        # stop passing `--etimologia-hasta` was written into `tools/CLAUDE.md` and the pipeline
+        # went on passing it, because the two live in different files. `main` refuses a build that
+        # breaks one of these, and a test checks the pipeline's plan against them.
+        "restricciones": {
+            "--frases": (REQUERIDA, "the Tatoeba examples"),
+            "--tesauro": (REQUERIDA, "the WordNet synonyms"),
+            "--sumar": (REQUERIDA, "5,283 lemmas the Wiktionary does not have (D-146)"),
+            "--etimologia-hasta": (
+                PROHIBIDA,
+                "es-full IS the Spanish main (D-220), so a filter would take the origin away "
+                "from words its own reader can look up"),
+        },
+
         "kind": "monolingual",
         "name": "Español",
         "description": (
@@ -397,6 +418,17 @@ PACKS = {
     # in the dump. See sources/bilingual.py.
     "es-en": {
         "pack_id": "es-tr-enwikt",
+        "restricciones": {
+            "--flexiones": (
+                REQUERIDA,
+                "the reverse direction: without it `ran`, `went` and `eaten` do not arrive, "
+                "and reverse coverage of the top 1,000 drops 8.6 points (97.0 % vs 89.8 %)"),
+            "--etimologia-hasta": (
+                PROHIBIDA,
+                "a translation pack carries no origin (its vocabulary is already an empty "
+                "set), so the flag decides nothing and saying so stops it looking useful"),
+        },
+
         "kind": "bilingual",
         # ⚠️ **A bilingual pack declares it TOO, and forgetting that was a real regression.** Since
         # D-183 the app asks for this key and not for `kind`, so without it the pack whose entire
@@ -424,6 +456,16 @@ PACKS = {
     },
     "en": {
         "pack_id": "en-def-wikt",
+        "restricciones": {
+            "--tesauro": (REQUERIDA, "+30,423 entries with synonyms"),
+            "--etimologia-hasta": (
+                PROHIBIDA,
+                "limiting the origin to `main`'s vocabulary reached 120,247 of the 471,648 "
+                "words the dump defines; unlimited costs 8.11 MB of compressed payload on "
+                "312 MB (+2.60 %), measured by recompressing the 362,921 affected entries "
+                "against the pack's own dictionary (d-a2f271-94e801)"),
+        },
+
         "kind": "monolingual",
         "name": "English",
         "description": (
@@ -604,12 +646,68 @@ def _pegar_ejemplo(record, ejemplos):
         record.senses[0]["examples"] = list(traidos)
 
 
+def verificar_restricciones(clave, argv, salida=sys.stderr):
+    """Refuses a build that breaks what the pack declares. Returns the deviations stated.
+
+    ⚠️ **It exists because prose did not hold.** The flags that change a pack lived in
+    `tools/CLAUDE.md` §*the flags that are not optional*, and on 2026-10-01 a decision written into
+    that table --English stops passing `--etimologia-hasta`-- was **not applied to the pipeline**,
+    which went on passing it from another file. Nothing failed: a pack built without its flags is
+    well formed and passes `verify_pack.py`. That is the whole reason this is a check and not a
+    paragraph.
+
+    ⚠️ **A pilot is exempt from the REQUIRED ones and never from the forbidden ones.** `--sample`
+    exists to look at content before spending the full build, and demanding a thesaurus for a
+    1-in-200 pack would teach the habit of reaching for the escape hatch, which is how a check
+    stops being read.
+
+    ⚠️ **`--a-proposito <bandera>` states a deviation instead of silencing it**, and it prints.
+    `--diccionario` is the case that needs it: omitting it is right **on purpose** when the payload
+    changes shape. A deviation that leaves no line in the log is indistinguishable from a mistake.
+    `--a-proposito todas` waives every required one at once and still prints them one by one --
+    a fixture build needs it, having no thesaurus to feed. **Neither form ever waives a forbidden
+    flag**, which is why there is one escape hatch here and not two.
+    """
+    a_proposito = {argv[i + 1] for i, x in enumerate(argv)
+                   if x == "--a-proposito" and i + 1 < len(argv)}
+    # ⚠️ **The escape hatch's ARGUMENT is not an occurrence of the flag**, and the test that
+    # demanded this line is the reason it exists: `--a-proposito --tesauro` put `--tesauro` in
+    # `argv`, the required check read it as present, and the build went through in silence --
+    # the exact failure this function was written to stop, reintroduced by its own escape.
+    efectivos = [x for i, x in enumerate(argv)
+                 if not (i and argv[i - 1] == "--a-proposito")]
+    es_piloto = "--sample" in efectivos
+    desviaciones = []
+    for bandera, (estado, razon) in sorted(PACKS[clave].get("restricciones", {}).items()):
+        presente = bandera in efectivos
+        if estado == REQUERIDA and presente:
+            continue
+        if estado == PROHIBIDA and not presente:
+            continue
+        if estado == REQUERIDA and es_piloto:
+            continue
+        queja = "%s: %s es %s para `%s` -- %s" % (
+            "MISSING" if estado == REQUERIDA else "UNEXPECTED",
+            bandera, estado, clave, razon)
+        # `todas` waives every REQUIRED one at once, which a fixture build needs: those tests
+        # build a pack to check something else and have no thesaurus to feed it. It still prints a
+        # line per flag, and it still never waives a forbidden one.
+        if bandera in a_proposito or (estado == REQUERIDA and "todas" in a_proposito):
+            desviaciones.append(queja)
+            salida.write("DELIBERATE DEVIATION -- %s\n" % queja)
+            continue
+        raise SystemExit(
+            "%s\n   if that is deliberate, say so: --a-proposito %s" % (queja, bandera))
+    return desviaciones
+
+
 def main(argv):
     if len(argv) < 4 or argv[1] not in PACKS:
         sys.stderr.write(__doc__)
         sys.stderr.write("\nIdiomas: %s\n" % ", ".join(sorted(PACKS)))
         return 2
     lang, source, output = argv[1], argv[2], argv[3]
+    verificar_restricciones(lang, argv)
     sample = 1
     if "--sample" in argv:
         sample = int(argv[argv.index("--sample") + 1])
@@ -645,6 +743,17 @@ def main(argv):
         sumar = (argv[i + 1], argv[i + 2])
 
     metadata = dict(PACKS[lang])
+    # ⚠️ **`PACKS` says two different things and only one of them is the artifact's.** What the
+    # pack DECLARES about itself goes into `meta`; how it is BUILT does not. `restricciones` is a
+    # dict, so leaving it in produced `sqlite3.InterfaceError: Error binding parameter 1` from
+    # `_write_metadata` -- an error with no field name in it, three layers from the cause. The
+    # check below is what turns the next key added here into a sentence instead of that.
+    metadata.pop("restricciones", None)
+    for clave, valor in metadata.items():
+        if not isinstance(valor, str):
+            raise SystemExit(
+                "meta.%s is a %s and not text: a PACKS key that describes the BUILD rather "
+                "than the pack does not belong in the artifact" % (clave, type(valor).__name__))
     # The manifest is assembled before anything else: the base source first, so it sits at the top
     # of the list, and each option adds its own where it mixes its content in.
     _declarar(metadata, metadata.pop("fuente_base"))

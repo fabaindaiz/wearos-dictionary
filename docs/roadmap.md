@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **639 tests**) están completos y en el gate, junto con los **492 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1304 tests en total**. Los **52
+pipeline de packs (`tools/`, **647 tests**) están completos y en el gate, junto con los **492 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1312 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -246,9 +246,11 @@ here turned out wrong.
   `dist`, **63,307 norms left and 20,346 entered**. It is churn, not drift. Retracted there.
 
 **What was done instead of patching the ratchet: the limit is gone for English.** It reached
-**120,247** of the **471,648** words the dump has an origin for. Unlimited costs **14.5 MB
-compressed** on 312 MB, measured by re-compressing real payloads against the pack's own
-dictionary — origin text only reaches **1.98×**, so the shared dictionary barely helps.
+**120,247** of the **471,648** words the dump has an origin for. Unlimited costs **8.11 MB
+compressed** on 312 MB (**+2.60 %**), measured exactly by re-compressing the **362,921** entries
+that gain one against the pack's own dictionary. ⚠️ **Two figures were retracted to get there**: a
+first estimate of 14.5 MB extrapolated from an unrepresentative 2,584-entry sample, and the
+pipeline's own comment claiming *"without the flag `en-full` grows +179 MB"* — wrong by 22×.
 
 ⚠️ **`en-main` pays in lemmas and not in size**, because `--rango-mb` measures the file: 26,747 of
 its entries gain an origin (+2.42 MB of payload) and **13,245 lemmas (7.4 %)** fall out, at

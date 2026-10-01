@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 639 tests
+hatch run test              # the 647 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -263,15 +263,21 @@ guarantees nothing (D-220).
 ## ⚠️ Rebuilding a pack: the flags that are not optional
 
 **A pack built without its flags comes out well-formed, passes `verify_pack.py`, and is quietly
-worse.** There is no error to notice, so they are listed here rather than only in
-`build_pack.py --help`:
+worse.** There is no error to notice.
+
+⚠️ **This table is the explanation; the RULE lives in `build_pack.PACKS[…]["restricciones"]`**
+(d-a2f271-c64f91). `build_pack` refuses a build that breaks one and `RestriccionesDeclaradasTest`
+checks the pipeline's plan against the same declaration. That split exists because this table once
+held the rule alone: the day English stopped passing `--etimologia-hasta` was written here,
+`build_packs.py` went on passing it from another file, and nothing failed. **Change the
+declaration, not this table** — and then say here what it buys.
 
 | pack | worse without | what is lost |
 |---|---|---|
 | `es` | `--frases` · `--tesauro` · `--sumar es-wd` | examples, WordNet synonyms, 5,283 lemmas |
 | **`es-en`** | **`--flexiones en-def-wikt.db`** | **the reverse direction**: without it `ran`, `went` and `eaten` do not arrive. ⚠️ **Since D-196 the inflections go to the ENGLISH ENTRY's `form`** --`went` is an inflection of `go`, and `go` is already a lemma-- instead of expanding inside `trans`, which in a bidirectional pack is empty. Skipping the flag cost **8.6 points** of reverse coverage in the top 1,000, measured over the built pack: 97.0 % with it, 89.8 % without it |
 | `en` | `--tesauro` | +30,423 entries with synonyms |
-| **`en`** | ⚠️ **worse WITH `--etimologia-hasta`** — it is the one flag here that must be **omitted** | Limiting the origin to `main`'s vocabulary carried it for **120,247** of the **471,648** words the dump has one for. Unlimited costs **14.5 MB compressed**, measured against this pack's own dictionary, on 312 MB. ⚠️ **`en-main` pays for it in lemmas and not in size**, because `--rango-mb` measures the file and corrects: **13,245 fewer lemmas (7.4 %)** at **0.000 points** of corpus coverage, since the ones that fall are the tail with no frequency signal. Spanish never passed it, so this also makes the two languages the same (d-a2f271-94e801) |
+| **`en`** | ⚠️ **worse WITH `--etimologia-hasta`** — it is the one flag here that must be **omitted** | Limiting the origin to `main`'s vocabulary carried it for **120,247** of the **471,648** words the dump has one for. Unlimited costs **8.11 MB compressed** on 312 MB (+2.60 %), measured exactly over the **362,921** entries that gain one. ⚠️ **`en-main` pays for it in lemmas and not in size**, because `--rango-mb` measures the file and corrects: **13,245 fewer lemmas (7.4 %)** at **0.000 points** of corpus coverage, since the ones that fall are the tail with no frequency signal. Spanish never passed it, so this also makes the two languages the same (d-a2f271-94e801) |
 | **any** | **`--diccionario <pack.db>`** | **block-level reuse between builds.** Without it the compression dictionary is retrained, every page that holds payload changes, and a delta update saves **1.4 %** on the bilingual pack and **0 %** on the derived tiers. Pinning costs 0.47–2.07 % of payload (d-a2f271-dab1de). ⚠️ Omit it **on purpose** when the payload changes shape — a new channel — which is the case worth retraining for |
 
 ⚠️ **And the bilingual one is built AFTER English, not in any order**: `--flexiones` reads an

@@ -125,25 +125,21 @@ def plan(raiz, solo=None, tamanos=None):
     # ⚠️ **El ingles va PRIMERO**, y no es alfabetico: el bilingue lo necesita construido para
     # `--flexiones`.
     if solo in (None, "en"):
-        # ⚠️ **`--etimologia-hasta` reads the PREVIOUS build's `en-main`, and that is not a
-        # shortcut.** The rule is that `full` carries the origin up to `main`'s vocabulary, and
-        # `main` is defined by a byte budget: it does not exist until this same run derives it,
-        # after this step. The previous one is the only exact statement of that vocabulary
-        # available here, and between rebuilds it moves by a handful of rare words -- what those
-        # few lose is one line, not their entry. Without the flag `en-full` grows +179 MB.
+        # ⚠️ **Which flags each pack needs is DECLARED, in `build_pack.PACKS` ->
+        # `restricciones`, with the measurement beside each one.** It is not repeated here, and
+        # `RestriccionesDeclaradasTest` checks this plan against that declaration -- the two used
+        # to be prose in `tools/CLAUDE.md` plus literals here, and they diverged the same day the
+        # first one was written.
         #
-        # ⚠️ **Spanish gets NO flag on purpose.** `es-full` IS the Spanish `main` (D-220: it falls
-        # below that tier's range and no `es-main` is built), so it carries the origin for all of
-        # its own vocabulary. Passing it a filter would take the datum away from words its own
-        # reader can look up.
-        vocabulario = _ruta(raiz, DIST, "en-main.db")
+        # ⚠️ **`--etimologia-hasta` is gone, and the figure that justified it was wrong by 22x.**
+        # This said *"without the flag `en-full` grows +179 MB"*. Measured on 2026-10-01 by
+        # recompressing the 362,921 affected entries against the pack's own dictionary, it grows
+        # **8.11 MB**, 2.60 % of 312 MB, and buys the origin for 351,401 words that had none.
         comando = [sys.executable, BUILD_PACK, "en",
                    _ruta(raiz, DUMPS, "en.jsonl"),
                    _ruta(raiz, DIST, "en-full.db"),
                    "--tesauro", _ruta(raiz, DUMPS, "oewn-2024.xml.gz"),
                    "--frecuencias", _ruta(raiz, DUMPS, "freq-en-opensubs.txt")]
-        if os.path.exists(vocabulario):
-            comando += ["--etimologia-hasta", vocabulario]
         pasos.append({
             "nombre": "en-full",
             "salida": _ruta(raiz, DIST, "en-full.db"),
