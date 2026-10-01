@@ -239,6 +239,18 @@ internal fun ListRow(
      * the saved words, because a stored row carries its own since D-265.
      */
     lang: String? = null,
+    /**
+     * The start of the definition, on a SECOND line under the headword.
+     *
+     * ⚠️ **It makes the row taller and that was the price agreed, not an accident.** `ListRow` is
+     * 48 dp and one line because at 52 dp *"four rows did not fit"*; with a preview a screen holds
+     * **three results instead of four**. What it buys is that the list stops being four rows
+     * reading `verbo`, each of which has to be opened to find out which one was wanted.
+     *
+     * `null` keeps the one-line row exactly as it was, which is what the history, the saved list
+     * and the action rows use.
+     */
+    preview: String? = null,
     // Last, so the trailing lambda keeps working: every call site writes
     // `ListRow(headword, detail) { abrir() }`.
     onClick: () -> Unit,
@@ -268,7 +280,32 @@ internal fun ListRow(
             Modifier.semantics { stateDescription = aviso }
         },
     ) {
-        WordBubbleContent(headword, detail, colors, lang, isLabel)
+        if (preview == null) {
+            WordBubbleContent(headword, detail, colors, lang, isLabel)
+        } else {
+            // ⚠️ **A Column inside the Row and not a taller Row**: `WordBubble` already grows
+            // --its height is a `heightIn(min = ...)`-- so the second line costs no change to the
+            // bubble itself, and the first line keeps the exact layout every other list uses.
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    WordBubbleContent(headword, detail, colors, lang, isLabel)
+                }
+                Text(
+                    text = preview,
+                    style = WordBubbleDefaults.detailStyle,
+                    color = colors.detail,
+                    // Two lines and not one: at 234 dp a single line of this size holds about six
+                    // words, which is not a definition. Three would make the row taller than two
+                    // results.
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 

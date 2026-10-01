@@ -60,6 +60,7 @@
 
     <!-- Entrada -->
     <string name="entry_gone">Esa entrada ya no está en el diccionario.</string>
+    <string name="row_no_definition">sin definición</string>
     <string name="entry_no_definition">Este diccionario no tiene una definición para esta palabra.</string>
     <string name="entry_show_more">Ver más (%1$d)</string>
     <string name="entry_options">Opciones</string>

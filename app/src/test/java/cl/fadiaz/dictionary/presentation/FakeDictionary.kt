@@ -8,6 +8,9 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.PackKind
+import cl.fadiaz.dictionary.core.PayloadCodec
+import cl.fadiaz.dictionary.core.rowPreview
+import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.Sense
@@ -120,6 +123,28 @@ class FakeDictionary(
     var summaries: Map<Long, EntrySummary> = emptyMap()
 
     override suspend fun summary(entryId: Long): EntrySummary? = summaries[entryId]
+
+    /**
+     * What a row would preview, by entryId. Unset = derived from this fake's own `entry`.
+     *
+     * ⚠️ **It derives rather than returning empty**, and that is the point of it being here. A
+     * double that answers *"nothing to preview"* for every row makes a screen test pass against a
+     * fixture that cannot exhibit the behaviour -- the shape of fake this repo has been burnt by
+     * more than once.
+     */
+    var previews: Map<Long, RowPreview>? = null
+
+    override suspend fun previews(entryIds: List<Long>): Map<Long, RowPreview> =
+        previews?.filterKeys { it in entryIds }
+            ?: entryIds.associateWith { id ->
+                rowPreview(
+                    PayloadCodec.Body(
+                        partOfSpeech = "noun",
+                        senses = entry(id)?.senses.orEmpty(),
+                    ),
+                    kind,
+                )
+            }
 
     /** What this fake can resolve: the words named by `knownHeadwords`. */
     var knownHeadwords: Map<String, Long> = emptyMap()

@@ -73,5 +73,9 @@ private class EmptySource(override val metadata: PackMetadata) : DictionarySourc
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
+    // No payload behind this double, so there is nothing to preview.
+    override suspend fun previews(entryIds: List<Long>):
+        Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()
+
     override fun close() = Unit
 }

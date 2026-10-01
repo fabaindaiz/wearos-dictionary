@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import cl.fadiaz.dictionary.core.LanguageScope
 import cl.fadiaz.dictionary.core.DictionarySource
 import cl.fadiaz.dictionary.core.Entry
+import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.SearchRepository
@@ -62,6 +63,20 @@ data class SearchState(
      */
     val submitted: String = "",
     val results: List<Suggestion> = emptyList(),
+    /**
+     * What each result row can say under its headword, by `(packId, entryId)`.
+     *
+     * ⚠️ **Keyed by the PAIR and not by `entryId`**, because the id is a rowid local to its pack
+     * (`Entry.uid`'s KDoc says so) and the result list merges several: two packs both have an
+     * entry 1, and keying by the id alone would show one pack's definition under the other's word
+     * -- content that is wrong and looks right, which D-122 rates worse than a missing word.
+     *
+     * ⚠️ **It travels apart from [results] on purpose.** The list is published the instant the
+     * query resolves; the previews need a read per row and arrive after. Putting them inside
+     * `Suggestion` would hold the whole list back for them, which trades the thing the search is
+     * judged on --how fast the words appear-- for a subtitle.
+     */
+    val previews: Map<Pair<String, Long>, RowPreview> = emptyMap(),
     val status: Status = Status.Loading,
     /** The pack being searched. Its `attribution` and `license` are the ones shown. */
     val active: PackMetadata? = null,
@@ -411,10 +426,15 @@ class SearchViewModel(
                             it.copy(
                                 submitted = text,
                                 results = results,
+                                // Cleared with the results: a preview left over from the previous
+                                // query would sit under another word for a frame, which is the
+                                // same defect the hints line above guards against.
+                                previews = emptyMap(),
                                 hints = SearchState.EmptyHints(),
                             )
                         }
                         if (text.isNotBlank() && results.isEmpty()) sondearVacio(text)
+                        cargarPreviews(text, results)
                     }
                 }
                 .collect {}
@@ -831,6 +851,42 @@ class SearchViewModel(
      * would need a second coroutine to save a few tenths of a millisecond on a state nobody is
      * looking at yet.
      */
+    /**
+     * Reads what each visible row can preview, after the list is already on screen.
+     *
+     * ⚠️ **It runs AFTER publishing the results and never before.** The search is judged on how
+     * fast the words appear; a read per row is cheap --0.124 ms for 10 rows, measured on the
+     * desktop against `es-full`-- but it is not free, and holding the list back for a subtitle
+     * trades the thing that matters for the thing that helps.
+     *
+     * ⚠️ **It checks the query again before publishing**, like the results do. Previews for the
+     * query before last landing under the current words is exactly the defect `submitted` exists
+     * to stop, and the list is a different shape by then.
+     *
+     * ⚠️ **One failure does not take the list down.** A pack that cannot be read loses its
+     * previews and keeps its rows: the subtitle is an improvement to a list that worked without
+     * it, and it has no business breaking it.
+     */
+    private fun cargarPreviews(text: String, results: List<Suggestion>) {
+        if (results.isEmpty()) return
+        viewModelScope.launch {
+            val porPack = results.groupBy { it.packId }
+            val salida = mutableMapOf<Pair<String, Long>, RowPreview>()
+            for ((packId, filas) in porPack) {
+                val fuente = opened.firstOrNull { it.metadata.packId == packId } ?: continue
+                val leidas = runCatching { fuente.previews(filas.map { it.entryId }) }
+                    .getOrElse {
+                        DictLog.d { "previews de $packId no se pudieron leer: $it" }
+                        continue
+                    }
+                for ((id, preview) in leidas) salida[packId to id] = preview
+            }
+            if (text == queries.value && _state.value.mode == SearchState.Mode.NORMAL) {
+                _state.update { it.copy(previews = salida) }
+            }
+        }
+    }
+
     private fun sondearVacio(text: String) {
         sonda?.cancel()
         val repo = searcher.value ?: return

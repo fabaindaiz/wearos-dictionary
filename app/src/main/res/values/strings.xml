@@ -67,6 +67,9 @@
     <!-- Shown on a card whose source gives no definition at all. ⚠️ It names the DICTIONARY and
          not the app: the word exists and its forms resolve, what is missing is upstream, and
          "no definition available" reads like the app failed to load one. -->
+    <!-- The SAME fact as entry_no_definition, in a result row: there it is a sentence under
+         the word being read, here it is a subtitle competing with the headword for 234 dp. -->
+    <string name="row_no_definition">sin definición</string>
     <string name="entry_no_definition">This dictionary has no definition for this word.</string>
     <string name="entry_show_more">Show more (%1$d)</string>
     <string name="entry_options">Options</string>

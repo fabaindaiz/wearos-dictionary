@@ -55,6 +55,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import cl.fadiaz.dictionary.core.PackKind
 import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.EntrySummary
+import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.Suggestion
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.givesWordOfTheDay
@@ -498,8 +499,9 @@ fun SearchScreen(
                             "r:${s.packId}:${s.entryId}"
                         },
                     ) { index ->
-                        ResultRow(state.results[index], etiqueta) {
-                            onOpenEntry(state.results[index])
+                        val s = state.results[index]
+                        ResultRow(s, etiqueta, state.previews[s.packId to s.entryId]) {
+                            onOpenEntry(s)
                         }
                     }
 
@@ -575,6 +577,8 @@ private fun ResultRow(
      * somewhere nobody checked -- the same failure family as D-080.
      */
     etiqueta: String?,
+    /** What this row can say under its headword. `null` leaves it one line, as it was. */
+    preview: RowPreview?,
     onClick: () -> Unit,
 ) {
     // A single slot on the right and not two: in a 234 dp row the lemma already competes for the
@@ -600,9 +604,40 @@ private fun ResultRow(
         // visible row is in the active one -- which is the same reason the whole list carries a
         // single tag.
         lang = etiqueta?.lowercase(),
+        preview = previewText(preview),
         onClick = onClick,
     )
 }
+
+/**
+ * The second line's text, or `null` to leave the row on one line.
+ *
+ * ⚠️ **`TranslationOnly` shows the equivalents and not the word "translation"**, which is the
+ * whole reason the preview carries them: `perro, can` IS what somebody searching `dog` wanted, and
+ * a row reading *"translation"* makes them open it to find out what the translation was.
+ *
+ * ⚠️ **`None` is not the same as `NoDefinition`.** The first means nobody could tell --the pack's
+ * kind was unknown-- and the row stays as it was; the second is a fact about the word. Collapsing
+ * them would have an unreadable pack assert that its words have no definition.
+ */
+@Composable
+private fun previewText(preview: RowPreview?): String? = when (preview) {
+    is RowPreview.Definition -> preview.text
+    is RowPreview.TranslationOnly ->
+        preview.equivalents.take(ROW_EQUIVALENTS).joinToString(", ").ifEmpty { null }
+    RowPreview.NoDefinition -> stringResource(R.string.row_no_definition)
+    RowPreview.None, null -> null
+}
+
+/**
+ * How many equivalents a translation row shows.
+ *
+ * ⚠️ **Fewer than the card's eight**, and for the reason that cap already names: at 234 dp a longer
+ * list stops being read and starts pushing. Here it shares the row with the headword, so the
+ * budget is smaller still. The equivalents arrive ordered by `rank`, so the ones kept are the
+ * common ones.
+ */
+private const val ROW_EQUIVALENTS = 3
 
 
 /**

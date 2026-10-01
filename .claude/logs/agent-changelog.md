@@ -306,6 +306,22 @@ trade rather than a wiring task: `ListRow` is **48 dp and one line**, chosen bec
 — **four rows per screen become three**. That is an emulator decision
 (`la-ui-se-decide-viendo-el-reloj`) and the owner's.
 
+✅ **And it reaches the screen** (`d-a2f271-0e93af`), with the owner choosing the two-line row and
+its price: **three results per screen instead of four**. Seen on the emulator, both requests in one
+list — `cas` previews *"Abbreviation of casual."* and `case` shows *"caso, caja, expediente"*.
+**9 mutations, 9 bite.**
+
+⚠️ **The previews travel apart from the results and arrive after them.** The search is judged on
+how fast the words appear; putting them inside `Suggestion` would hold the whole list back for a
+subtitle. They are keyed by `(packId, entryId)` and **not** by the id, which is a rowid local to
+its pack: keying by id alone shows one pack's definition under another's word, which D-122 rates
+worse than a missing word.
+
+⚠️ **`previews` has no default implementation, deliberately**, so all five doubles had to answer
+it. An `emptyMap()` default would make a test double say *"nothing to preview"* for every row while
+the real one answers — the fake that cannot exhibit the behaviour, which this repo has been burnt
+by. `FakeDictionary` derives its previews from its own entries rather than returning empty.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

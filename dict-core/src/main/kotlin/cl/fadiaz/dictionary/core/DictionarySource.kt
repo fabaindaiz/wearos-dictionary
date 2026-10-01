@@ -83,6 +83,29 @@ interface DictionarySource {
      */
     suspend fun summary(entryId: Long): EntrySummary?
 
+    /**
+     * What each of these entries can say under its headword in a result list.
+     *
+     * ⚠️ **A batch and not one call per row**, because this runs on every keystroke over the whole
+     * result list: 30 rows by default. Measured against `es-full` on the desktop, reading and
+     * inflating **10 rows is 0.124 ms and 40 is 0.637 ms**, which is what made the feature
+     * affordable at all -- the list is otherwise served from a covering index
+     * (`norm, rank, headword, pos, lang`) that never touches the table.
+     *
+     * ⚠️ **It returns [RowPreview] and not the body**, because deciding what a row says needs the
+     * pack's `kind` and only the pack has it: an entry with no senses is a reverse entry doing its
+     * job in a bidirectional pack (D-196) and a lemma the source could not define in a monolingual
+     * one. A caller that got the body would have to re-derive that, in every surface.
+     *
+     * ⚠️ **No default implementation, deliberately.** An `emptyMap()` default makes a test double
+     * answer *"nothing to preview"* for every row while the real one answers, which is the shape
+     * of fake this repo has already been burnt by: the test passes against a fixture that cannot
+     * exhibit the behaviour.
+     *
+     * Ids with no entry are simply absent from the map.
+     */
+    suspend fun previews(entryIds: List<Long>): Map<Long, RowPreview>
+
     /** Closes the underlying connection. The pack becomes unusable. */
     fun close()
 }

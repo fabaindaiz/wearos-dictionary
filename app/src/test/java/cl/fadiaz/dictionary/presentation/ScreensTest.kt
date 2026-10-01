@@ -48,6 +48,7 @@ import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.Visit
 import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
+import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.Suggestion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -181,6 +182,51 @@ class ScreensTest {
     }
 
     // --- The results list ---------------------------------------------------------------------
+
+    @Test
+    fun aResultPreviewsItsDefinitionOnASecondLine() {
+        // ⚠️ **The list is where a word gets CHOSEN**, and four rows reading `sust.` are four rows
+        // that all have to be opened. The price was named when it was asked for: the row grows to
+        // two lines, so a screen holds three results instead of four.
+        val s = suggestion("casa")
+        val estado = readyState().copy(
+            results = listOf(s),
+            previews = mapOf(
+                (s.packId to s.entryId) to RowPreview.Definition("Edificio para habitar."),
+            ),
+        )
+        showSearch(estado)
+        compose.onNodeWithText("Edificio para habitar.").assertExists()
+    }
+
+    @Test
+    fun aTranslationRowShowsITSEQUIVALENTSandNotTheWordTranslation() {
+        // ⚠️ **`perro, can` IS what somebody searching `dog` wanted.** A row reading
+        // *"translation"* would make them open it to find out what the translation was, which is
+        // the trip this whole second line exists to save.
+        val s = suggestion("dog")
+        val estado = readyState().copy(
+            results = listOf(s),
+            previews = mapOf(
+                (s.packId to s.entryId) to RowPreview.TranslationOnly(listOf("perro", "can")),
+            ),
+        )
+        showSearch(estado)
+        compose.onNodeWithText("perro, can").assertExists()
+    }
+
+    @Test
+    fun withNoPreviewTheRowStaysOnOneLineAsItWas() {
+        // `None` means nobody could tell --the pack's kind was unknown-- and is NOT the same as
+        // `NoDefinition`, which is a fact about the word.
+        val s = suggestion("casa")
+        val estado = readyState().copy(
+            results = listOf(s),
+            previews = mapOf((s.packId to s.entryId) to RowPreview.None),
+        )
+        showSearch(estado)
+        compose.onNodeWithText("sin definición").assertDoesNotExist()
+    }
 
     @Test
     fun aResultSaysWhatTheWordIsAndNeverWhyItMatched() {
@@ -3052,5 +3098,9 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
+    // No payload behind this double, so there is nothing to preview.
+    override suspend fun previews(entryIds: List<Long>):
+        Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()
+
     override fun close() = Unit
 }
