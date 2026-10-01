@@ -267,6 +267,41 @@ soltado` and a separate `status` confirmed the lock released with both settings 
 now says **2 of 3**, and the sentence it ended on is gone: the failure is not deterministic, so a
 fix for it cannot be validated by one good run.
 
+✅ **A lemma with no gloss in the source now enters the pack** (`d-a2f271-e0e67e`), which closes
+`i-a2f271-753e34`. `es-full` had no `introducir`, no `detectar` and no `divorcio`: the dump gives
+them one sense tagged `no-gloss`, the record was dropped whole, and **every form page pointing at
+it fell with it**. 4,503 lemmas and 207,256 forms, lost in silence with every invariant holding --
+the entry was never written, so nothing could be found inconsistent about it. **6 mutations,
+6 bite.**
+
+⚠️ **The first rule I built was the wrong one, and only rendering real entries showed it.**
+"Keep the ones that carry content" is the obvious rule and it keeps **616** lemmas -- which contain
+just **25** of the **105** that appear in the corpus. `detectar`, `rescatar`, `divorciar` and
+`sonreír` stayed lost because **their translations are to Dutch** and the pack declares `en`. Every
+count said they were covered, because the field is non-empty; the preview showed their card as
+pronunciation and conjugation only. The measurement that mattered was not a number but an entry.
+
+⚠️ **And a second thing the fields hid**: with no senses, `derived`, `related` and the examples
+**cannot render at all** -- they hang off a sense. Three of my first rule's four branches were
+measuring something that would never reach the card.
+
+⚠️ **The widened rule was priced and asked, not assumed**, because it changes what the user
+sees: 105 of 105 recovered for ~5.5 MB on an 80.2 MB pack, against 3,887 cards showing the word,
+its IPA and its conjugation with no definition. Chosen deliberately. English is barely touched --
+578 lemmas, 124 forms on 956,150 entries.
+
+⚠️ **One mutation survived and measuring is what settled it.** Dropping the pronunciation branch
+changed nothing the suite could see, which usually means dead code. Over the two real dumps it is
+what rescues **23 Spanish and 42 English** records on its own, so it earned a test rather than a
+deletion.
+
+⚠️ **And I proposed re-measuring something the roadmap already recorded.** I recommended fixing
+this item before the loose-translations one "because it would shrink it"; the item already says the
+empty glosses explain only **1,850 (3.3 %)** of the bilingual's Spanish orphans. They are separate,
+and the recommendation was retracted in the same message.
+
+⚠️ **It reaches nothing until `es-full` is rebuilt** -- 7 min 31 s, measured.
+
 **What was left undone.** The three content items from yesterday: the `Spain`/`etc`/`Colombia`
 keys that come from a comma-split description, the 0.27 % residual dangling references, and
 `en-main`'s shrunken etymology vocabulary. All three need a rebuild to reach anything. Plus the

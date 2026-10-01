@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **627 tests**) están completos y en el gate, junto con los **492 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1292 tests en total**. Los **52
+pipeline de packs (`tools/`, **632 tests**) están completos y en el gate, junto con los **492 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1297 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -1111,7 +1111,7 @@ comma split makes `Abiertas` a one-word key. Same root as cause 3, in the other 
 
 ### Una glosa vacía en la fuente se lleva el lema y todas sus formas · i-a2f271-753e34
 
-**Estado.** **Medido el 2026-09-30, sin construir.** Found while chasing the item above, and it is
+**Estado.** ✅ **CONSTRUIDO el 2026-09-30** (`d-a2f271-e0e67e`). Falta **un rebuild de `es-full`** para que llegue a algún lado — 7 min 31 s, medidos. Found while chasing the item above, and it is
 bigger than it: it is not about the bilingual pack at all.
 
 **`es-full` has no `divorcio` and no `divorciar`.** The dump has both — `divorcio` as a form page
@@ -1137,10 +1137,42 @@ is visibly broken, and each of them drags its ~33 conjugated forms with it.
 **What it is not.** It explains only **1,850 (3.3 %)** of the bilingual's Spanish orphans, so
 fixing it does **not** answer the item above. They are separate.
 
-**What would close it**, and none of it is decided: whether a lemma with an empty gloss should be
-kept as an entry with no definition (so its forms resolve and the word is at least *findable*), or
-filled from another source, or left out with the loss written down. ⚠️ **It needs a rebuild of
-`es-full` either way** — 7 min 31 s, measured.
+**How it was closed, and the first answer was the wrong one.** The three ways out were: keep the
+lemma as an entry with no definition, fill it from another source, or accept the loss. They were
+priced rather than argued.
+
+⚠️ **Another source does not answer it.** DBnary extracts the same Wiktionary by an independent
+path and defines only **404 (9 %)** of the 4,503. `introducir` is a `LexicalEntry` there with no
+sense attached, exactly as kaikki reports `no-gloss`. **The definition is missing upstream**, so
+this was never an extraction defect of ours.
+
+⚠️ **And the obvious rule — keep the ones that carry content — fails on the words that matter.**
+Requiring etymology or a translation into the pack's declared language keeps **616** lemmas, and
+those contain just **25** of the **105** that appear in the OpenSubtitles corpus at all.
+`detectar`, `rescatar`, `divorciar` and `sonreír` all stay lost, because **their translations are
+to Dutch** and `translations_to` is `en`. That was only visible by **rendering real entries**: the
+field is non-empty, so every count said they were covered.
+
+⚠️ **With no senses, only four fields can render.** `derived`, `related` and the examples all hang
+off a sense, so a senseless record shows **none** of them however full those fields look. What is
+left is etymology, pronunciation, forms and word-level translations.
+
+**What was chosen, with its price:**
+
+| | lemmas | forms | of the corpus' 105 | cost |
+|---|---|---|---|---|
+| Content only | 616 | 21,343 | 25 | ~0.6 MB |
+| ✅ **Anything that renders** | **4,503** | **207,256** | **105** | **~5.5 MB** on 80.2 MB |
+| Nothing, as before | 0 | 0 | 0 | 0 |
+
+The cost is **3,887** cards that show the word, its IPA and its conjugation with no definition. A
+card that conjugates the verb is not an empty card, and the alternative is a Spanish dictionary
+with no `detectar`.
+
+⚠️ **English is barely touched**: **578 lemmas and 124 form pages** on 956,150 entries, and the
+sample is proper nouns and rarities (`Amazon Basin`, `Sneetch`) that D-116 filters anyway.
+
+⚠️ **It reaches nothing until `es-full` is rebuilt** — 7 min 31 s, measured.
 
 ### Composición entre packs
 

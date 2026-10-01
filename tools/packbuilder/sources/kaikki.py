@@ -1047,6 +1047,50 @@ class Opciones:
         return self.frequencies.get(_frequency.key(headword))
 
 
+def _ensena_algo_sin_acepciones(raw, translations_to):
+    """Whether a record with no usable sense still puts anything on the card.
+
+    ⚠️ **The dump says `no-gloss` for words a dictionary cannot be missing.** `introducir`,
+    `detectar`, `contemplar` and `casualidad` arrive with a single sense tagged `no-gloss` and no
+    gloss text. Dropping the record took the word **and every form page pointing at it**, so
+    `introduje` resolved to nothing. Measured over the 2026-09-17 Spanish dump: **4,503 lemmas**
+    and **207,256 form pages**, in silence, with every pack invariant still holding -- the entry
+    was never written, so nothing could be found inconsistent about it.
+
+    ⚠️ **"The rendered body is non-empty" cannot be the test**, and that is why this function is a
+    list and not a `return True`. `payload.render` always emits the part-of-speech line, so that
+    test would admit a record whose card reads `verbo` and nothing else. What is asked here is
+    whether anything renders ABOVE that line.
+
+    ⚠️ **With no senses, only four things can render**, and knowing which took reading the output
+    rather than the fields: `derived`, `related` and the examples all hang off a sense, so a
+    senseless record renders **none** of them however full those fields look. What is left is the
+    etymology, the pronunciation, the forms, and the word-level translations -- and those last are
+    asked for through [_word_translations] **in the language the pack declares**, because
+    `detectar`'s three translations are to Dutch and would have counted as content while rendering
+    nothing.
+
+    **The decision this encodes, taken 2026-09-30 after pricing it**: the inflection table counts.
+    Of the 4,503, only **616** carry etymology or an English translation, and those 616 contain
+    just **25** of the **105** that appear in the OpenSubtitles corpus at all -- so a rule built on
+    content alone leaves `detectar`, `rescatar`, `divorciar` and `sonreir` lost, which is the
+    visible brokenness this came to fix. Admitting pronunciation and forms recovers **105 of 105**
+    for **~5.5 MB** on a pack of 80.2 MB, and the cost is **3,887** cards that show the word, its
+    IPA and its conjugation with no definition. A card that conjugates the verb is not an empty
+    card, and the alternative is a Spanish dictionary with no `detectar`.
+
+    ⚠️ **Another source does not answer this.** DBnary extracts the same Wiktionary independently
+    and defines only **404 (9 %)** of them; `introducir` is an entry with no sense there too. The
+    definition is missing upstream, not lost in our extraction.
+    """
+    return bool(
+        _etymology(raw)
+        or raw.get("sounds")
+        or raw.get("forms")
+        or _word_translations(raw, raw.get("word") or "", translations_to, set())
+    )
+
+
 def _emit(group, inbound, opciones):
     """Turns a group of records of the same `word` into Records."""
     perfil, politica = opciones.perfil, opciones.politica
@@ -1055,7 +1099,7 @@ def _emit(group, inbound, opciones):
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             continue
         senses = _senses(raw, opciones.translations_to, perfil)
-        if not senses:
+        if not senses and not _ensena_algo_sin_acepciones(raw, opciones.translations_to):
             continue
         prepared.append((raw, senses))
 

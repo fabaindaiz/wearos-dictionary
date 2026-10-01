@@ -5,7 +5,8 @@ kaikki.org record is what we want and **nothing more**. The three things no pack
 
   - an entry that is really an inflected form ("amigo" as the present of "amigar") is not an
     entry: it is a form that has to lead to its lemma;
-  - an empty gloss is not a sense, and a record with no usable senses is not an entry;
+  - an empty gloss is not a sense, and a record with no usable senses is an entry only when
+    something still renders above the part-of-speech line;
   - two homographs sharing word AND pos AND pos_title genuinely exist (leonino) and without a
     sense_key they make the build fail.
 
@@ -232,9 +233,93 @@ class PodaTest(unittest.TestCase):
         ]))
         self.assertEqual([s["gloss"] for s in got[0].senses], ["Edificio para habitar."])
 
-    def test_un_registro_sin_acepciones_usables_no_se_emite(self):
+    def test_un_registro_sin_acepciones_usables_NI_NADA_MAS_no_se_emite(self):
         got = self.records(_raw("casa", "noun", [_sense("")]))
         self.assertEqual(got, [])
+
+    def test_las_formas_propias_SI_rescatan_un_lema_sin_glosa(self):
+        """⚠️ **The decision this pins, and it was taken against the first implementation.**
+
+        Requiring content --etymology or a translation into the pack's declared language-- keeps
+        only **616** of the 4,503, and those contain just **25** of the **105** that appear in the
+        corpus: `detectar`'s translations are to Dutch, so it stayed lost. Admitting the
+        conjugation recovers **105 of 105** for ~5.5 MB on an 80.2 MB pack, at the cost of 3,887
+        cards with no definition. A card that conjugates the verb is not empty, and the
+        alternative is a Spanish dictionary with no `detectar`.
+        """
+        got = self.records(_raw(
+            "detectar", "verb", [_sense("", tags=["no-gloss"])],
+            forms=[{"form": "detecto"}, {"form": "detectas"}],
+        ))
+        self.assertEqual(["detectar"], [r.headword for r in got])
+        self.assertEqual([], got[0].senses)
+
+    def test_un_lema_sin_glosa_pero_CON_traducciones_entra_sin_acepciones(self):
+        """⚠️ **The dump says `no-gloss` for words a dictionary cannot be missing.**
+
+        `introducir`, `detectar` and `contemplar` arrive with a single sense tagged `no-gloss` and
+        no gloss text, so the record was dropped whole -- and with it the form pages that point at
+        it, which is how `introduje` stopped resolving. Measured over the 2026-09-17 dump:
+        **4,503 Spanish lemmas** and **207,256 form pages** fall this way, in silence, with every
+        pack invariant still holding.
+
+        The record still carries what the Wiktionary page did have. Keeping it makes the word
+        findable and its forms resolve; the card shows the translations instead of a definition.
+        """
+        path = _jsonl(_raw(
+            "introducir", "verb", [_sense("", tags=["no-gloss"])],
+            translations=[{"word": "to introduce", "code": "en"}],
+        ))
+        self.paths.append(path)
+        # `translations_to="en"` is what the real `es` pack declares: without it the card would be
+        # rescued empty, which is the opposite of the point.
+        got = list(kaikki.records(path, lang="es", translations_to="en"))
+        self.assertEqual(["introducir"], [r.headword for r in got])
+        self.assertEqual([], got[0].senses, "no hay acepciones que inventar")
+        self.assertEqual(["to introduce"], list(got[0].word_translations))
+
+    def test_la_pronunciacion_SOLA_tambien_rescata_y_la_rama_no_sobra(self):
+        """⚠️ **It survived the mutation probe until this test existed, and measuring said why.**
+
+        Dropping the pronunciation branch changed nothing the suite could see, which usually means
+        dead code. It is not: over the two real dumps **23 Spanish and 42 English** records are
+        rescued by their pronunciation alone --`michirones`, `day after tomorrow`, `surrounding`--
+        with no etymology, no forms and no translation into the pack's language. Their card is the
+        word and its IPA, which is the same bargain the conjugation-only cards take.
+        """
+        got = self.records(_raw(
+            "michirones", "noun", [_sense("", tags=["no-gloss"])],
+            sounds=[{"ipa": "mitʃiˈɾones"}],
+        ))
+        self.assertEqual(["michirones"], [r.headword for r in got])
+
+    def test_un_lema_sin_glosa_pero_CON_etimologia_entra(self):
+        """`casualidad` is the commonest of them --11,421 occurrences in OpenSubtitles-- and what
+        it carries is the etymology, not translations. Measured over the dump, of the 105 lost
+        lemmas that appear in the corpus at all, **92 (87.6 %)** carry something; the rest of the
+        4,503 are words like `chacarruscar` that nobody searches.
+        """
+        got = self.records(_raw(
+            "casualidad", "noun", [_sense("", tags=["no-gloss"])],
+            etymology_texts=["Del latín casualitas."],
+        ))
+        self.assertEqual(["casualidad"], [r.headword for r in got])
+        self.assertEqual("Del latín casualitas.", got[0].etymology)
+
+    def test_una_forma_resuelve_al_lema_rescatado(self):
+        """The point of rescuing it: `introduje` has to find `introducir` again."""
+        path = _jsonl(
+            _raw("introducir", "verb", [_sense("", tags=["no-gloss"])],
+                 translations=[{"word": "to introduce", "code": "en"}]),
+            _raw("introduje", "verb", [
+                {"glosses": ["Primera persona del pretérito de introducir."],
+                 "form_of": [{"word": "introducir"}], "sense_index": "1"},
+            ], pos_title="Forma verbal"),
+        )
+        self.paths.append(path)
+        got = list(kaikki.records(path, lang="es", translations_to="en"))
+        self.assertEqual(["introducir"], [r.headword for r in got])
+        self.assertIn("introduje", got[0].forms)
 
     def test_las_formas_se_deduplican_y_excluyen_al_lema(self):
         got = self.records(_raw(
