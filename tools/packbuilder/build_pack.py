@@ -511,9 +511,15 @@ def vocabulario_de_etimologia(ruta):
     ⚠️ **A pack and not a number of words**, because the rule is *`full` carries etymology up to
     `main`'s vocabulary* and `main` is defined by a byte budget, not by a count: it is derived
     from the full pack afterwards, so the only exact statement of "main's vocabulary" is a main
-    pack. The one from the PREVIOUS build is the right input -- vocabulary moves by a handful of
-    rare words between rebuilds, and what it decides here is only whether those few carry one
-    extra line.
+    pack.
+
+    ⚠️ **RETRACTED 2026-10-01: this used to say the previous build's pack is the right input
+    because "vocabulary moves by a handful of rare words between rebuilds".** Measured across the
+    two builds in `dist.prev` and `dist`, **63,307 norms left and 20,346 entered** -- the budget
+    search converges on a different round and reshuffles the tail. The effect on origins is small
+    (**1,754 entries, 1.05 %**, would lose theirs) but it is churn, not a handful, and the English
+    packs no longer pass this flag at all (d-a2f271-94e801). What is left here serves a pack that
+    wants a deliberate, stated reach.
 
     ⚠️ **What it does NOT do is re-normalize a pack's keys.** `entry.norm` was written by the same
     `norm()` at the same `NORM_VERSION`, and running it again over the spelling would silently

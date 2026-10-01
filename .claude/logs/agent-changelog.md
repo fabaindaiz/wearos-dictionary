@@ -58,6 +58,34 @@ not get one"*. This is that measurement.
   exactly changed nothing the suite could see; `aguafuerte` translates to **`etching`** and
   `aguafortista` to **`etcher`**, so the prefix version destroys three real keys.
 
+✅ **And the third item of the group: the English packs stop limiting their etymology**
+(`d-a2f271-94e801`), which closes the `en-main` half of `i-a2f271-92cf8f`. Both halves of the worry
+recorded there were wrong. The alarm was too loud — the real loss per rebuild is **1,754 entries,
+1.05 %** and not ~17 %, because the norms that churn mostly have no origin to lose. And the flag's
+own justification was false in the other direction: it said the vocabulary *"moves by a handful of
+rare words between rebuilds"*, and between `dist.prev` and `dist` **63,307 left and 20,346
+entered**. Retracted in its KDoc.
+
+Rather than patch the churn, the limit went: it reached **120,247** of the **471,648** words the
+dump has an origin for. **14.5 MB compressed** on 312 MB, and `en-main` pays in lemmas rather than
+size — **13,245 fewer (7.4 %)** at **0.000 points** of corpus coverage.
+
+⚠️ **Three of my own measurements were wrong before they were right, and each failed loudly only
+because it was checked.**
+- The first decompressed payloads with `zlib` directly instead of `payload.decompress`, missing the
+  `wbits`; a bare `except` turned that into **"0 entries have an etymology"**, which reads like an
+  answer. Removing the `except` and asserting the payload count is what exposed it.
+- The second measured the churn against the wrong set and reported **39,529** entries at risk; the
+  right question — *of the origins the pack has today, how many survive* — gives **1,754**.
+- The third reimplemented `en-main`'s selection **by `rank`** and concluded the change costs
+  **32.5 points** of corpus coverage. The real function puts frequency-signal words first, which is
+  D-142's whole point; using the repo's ordering gives **0.000**. A replica of a rule measures a
+  different rule.
+
+⚠️ **And it carries no enforcer.** The flag still exists and must simply not be passed for `en`.
+It is recorded in `tools/CLAUDE.md` §*the flags that are not optional*, as the only row there that
+says to leave one out — which is prose holding a rule, the shape this repo distrusts.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description

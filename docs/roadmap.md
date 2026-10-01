@@ -232,8 +232,31 @@ forms out of 266 tagged**.
 **96.63 %, identical**, and `en-core`'s is 96.44 % against 96.43 %. The budget search converged on
 a different round and dropped rare lemmas, not words anybody looks up — 10.9 MiB lighter for the
 same reach. ⚠️ **But it IS the etymology vocabulary** (`--etimologia-hasta en-main.db`, which reads
-the *previous* build's), so the next rebuild will carry the datum for 181,935 words instead of
-218,339. Noticed, not acted on.
+the *previous* build's).
+
+✅ **MEASURED AND CLOSED on 2026-10-01** (`d-a2f271-94e801`), and both halves of the worry written
+here turned out wrong.
+
+- **The alarm was too loud.** The real loss per rebuild is **1,754 entries, 1.05 %**
+  (`handsomeness`, `handsaw`, `hanja`), not the ~17 % the word counts suggested: the norms that
+  churn mostly have no origin to lose. The reach stated in each artifact is 186,543 then 181,935,
+  so the step is **2,585 words**, not 36,404.
+- **And the justification was false in the other direction.** The flag's own KDoc said the
+  vocabulary *"moves by a handful of rare words between rebuilds"*; between `dist.prev` and
+  `dist`, **63,307 norms left and 20,346 entered**. It is churn, not drift. Retracted there.
+
+**What was done instead of patching the ratchet: the limit is gone for English.** It reached
+**120,247** of the **471,648** words the dump has an origin for. Unlimited costs **14.5 MB
+compressed** on 312 MB, measured by re-compressing real payloads against the pack's own
+dictionary — origin text only reaches **1.98×**, so the shared dictionary barely helps.
+
+⚠️ **`en-main` pays in lemmas and not in size**, because `--rango-mb` measures the file: 26,747 of
+its entries gain an origin (+2.42 MB of payload) and **13,245 lemmas (7.4 %)** fall out, at
+**0.000 points** of corpus coverage — the tail that falls is the one with no frequency signal.
+
+⚠️ **It has no enforcer**: the flag still exists and the rebuilder must not pass it for `en`. It is
+recorded in `tools/CLAUDE.md` §*the flags that are not optional*, as the only row there that says
+to leave a flag out.
 
 **What the rebuild landed, read off the artifacts and not predicted:**
 
