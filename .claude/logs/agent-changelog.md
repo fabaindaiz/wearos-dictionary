@@ -16,6 +16,57 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-01 · s-a2f271-82db2b — The full rebuild, and the one thing it proved
+**What.** All six packs rebuilt from the already-downloaded dumps, verified, indexed, and an APK
+built on top. The session's five content changes reach an artifact for the first time.
+
+**Areas.** `wearos-dictionary-data/dist/`, `tools/packbuilder/build_core.py`, `gradle.properties`.
+
+**Why.** Asked for: a full rebuild of the packs and the app, without re-downloading the dumps.
+Five content changes built over two days had reached no artifact, and three of them cannot be seen
+at all until one exists.
+
+**Architecture.** ✅ Complies.
+
+**Measured — prediction against artifact, which is the only verification that counts here.**
+
+| | predicted | came out |
+|---|---|---|
+| `en-full` growth from unlimited etymology | **8.11 MB** | **+7.9 MB** (327.5 → 335.4) |
+| `es-full` lemmas rescued | **4,503** | **+4,709** entries (152,281 → 156,990) |
+| Etymology reach in `en-full` | 12.6 % → much more | **57.5 %** of the sample |
+
+✅ **And the words are there.** `introducir`, `detectar`, `casualidad`, `divorciar`, `contemplar`,
+`rescatar` and `sonreír` all go **0 → 1**, and their forms resolve: `divorcio → divorciar`,
+`introduje → introducir`, `detecte → detectar`. That is the defect this session opened with,
+closed on the artifact rather than in a test.
+
+✅ **The garbage keys are gone from the real bilingual pack**: `of the`, `etc` and `forms nouns`
+all **1 → 0**.
+
+**What went wrong.**
+- ⚠️ **The pipeline stopped at step 6 of 6** and was right to: `es-core` came out **0.4 MiB under
+  its 30 MiB floor** and `--rango-mb` refused to publish an out-of-range tier (D-220). The search
+  was what was broken, not the refusal. The window it missed is **20 MB wide** — budgets 36, 37
+  and 38 give 33.0, 37.5 and 41.7 MB — and its multiplicative step jumped from ~35 straight to a
+  budget whose file is 52.5, four times. It bisects now (`d-a2f271-51bf83`) and lands at 30.6 MiB
+  in 3 rounds. ⚠️ **The hazard was already written in that file** --*"the file/budget ratio is NOT
+  monotonic"*-- as a warning that named it without fixing it.
+- ⚠️ **`Spain` is residue and my published reason for keeping it was wrong.** I wrote that it
+  survives *"because `España` really does translate to it"*. The rebuilt pack has **one** `Spain`
+  entry, tagged **`adj`**, listing `gualdinegro`, `rojiblanco`, `verdiblanco` — and `España` is
+  `pos=name` and produces no `Spain` entry at all. The two templates I removed did go (`canario`
+  and `nazareno` are no longer among its sources); a third shape remains and now has a name.
+  Retracted in `decisions.md` and the roadmap.
+- ⚠️ **My own monitoring lied for twenty minutes.** `pgrep -f build_packs.py` matched **my waiting
+  shells**, whose command line contains that string, so the pipeline read as still running long
+  after it had failed.
+
+**What was left undone.** The APK is built but **not yet uploaded**, and nothing has been seen on
+a screen: the *"no definition"* notice finally has entries that can show it, and that is the first
+emulator check. `es-main` is correctly not built — `es-full` is 87.9 MiB, under the main tier's
+100 MiB floor.
+
 ## 2026-10-01 · s-a2f271-2198bf — Two defects the packs carried, and the rules that were measured and thrown away
 **What.** The bilingual pack's `Spain`, `Mexico` and `etc` stop being English entries pointing at
 nonsense (`d-a2f271-3098e4`). Three whole-gloss judgements replace a guard that only ever looked at

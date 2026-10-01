@@ -361,7 +361,7 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
 #: How many times it re-derives searching for the range. Each round is a whole pack written, so the
 #: cap exists: it converges in two or three because the real factor stabilizes as soon as it is
 #: measured once, and going on trying costs more than it refines.
-MAX_VUELTAS = 4
+MAX_VUELTAS = 8
 
 #: Where in the range it aims: **the middle**.
 #:
@@ -382,6 +382,33 @@ MAX_VUELTAS = 4
 #: going back**, which is what [derivar_en_rango] does. Aiming at the middle is what leaves it room
 #: for error in both directions.
 OBJETIVO_DEL_RANGO = 0.5
+
+
+def siguiente_presupuesto(presupuesto, mb, objetivo_mb, bajo=None, alto=None):
+    """The budget to try next, given what the last one produced.
+
+    ⚠️ **It bisects as soon as it has a point on each side, and the multiplicative step alone is
+    what failed.** `presupuesto *= objetivo / mb` assumes the file grows roughly in step with the
+    budget; measured over the 2026-10-01 Spanish pack it does not, in exactly the region that
+    matters:
+
+        budget  26 -> 16.9 MB      budget  36 -> 33.0 MB
+        budget  30 -> 20.7 MB      budget  37 -> 37.5 MB
+        budget  34 -> 27.6 MB      budget  40 -> 52.5 MB
+
+    The window [30, 50] is **wide** and the search still missed it: from ~35 (29.6 MB) the
+    correction jumped straight past 38 to a budget whose file is 52.5. Four rounds of that is four
+    jumps over the same gap, which is why the failure read *"did not converge"* rather than *"no
+    budget fits"* -- and those two deserve different answers.
+
+    `bajo` is the largest budget known to come out UNDER the minimum, `alto` the smallest known to
+    come out OVER the maximum. With both, the answer is between them and nothing else is a guess.
+    """
+    if bajo is not None and alto is not None and alto > bajo:
+        return (bajo + alto) / 2.0
+    if not mb:
+        return presupuesto * 2.0
+    return presupuesto * (objetivo_mb / mb)
 
 
 def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecuencias=None):
@@ -408,6 +435,9 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
     """
     objetivo_mb = minimo_mb + (maximo_mb - minimo_mb) * OBJETIVO_DEL_RANGO
     presupuesto = objetivo_mb
+    # The bracket, for [siguiente_presupuesto]: the budget known to fall short and the one known to
+    # overshoot. Until both exist there is nothing to bisect between.
+    bajo = alto = None
     informe = {"en_rango": False, "mb": 0.0, "vueltas": 0, "motivo": ""}
     for vuelta in range(1, MAX_VUELTAS + 1):
         vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
@@ -433,9 +463,13 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
             informe["motivo"] = ("todo el pack entra y pesa %.1f MB, por debajo del minimo de "
                                  "%.1f MB" % (mb, minimo_mb))
             return informe
+        if mb < minimo_mb:
+            bajo = presupuesto if bajo is None else max(bajo, presupuesto)
+        else:
+            alto = presupuesto if alto is None else min(alto, presupuesto)
         # The real factor is measured from the file that has just come out. It is the only way to
         # know it.
-        presupuesto *= objetivo_mb / mb if mb else 2.0
+        presupuesto = siguiente_presupuesto(presupuesto, mb, objetivo_mb, bajo, alto)
     informe["motivo"] = "no convergio en %d vueltas (ultimo: %.1f MB)" % (MAX_VUELTAS, informe["mb"])
     return informe
 

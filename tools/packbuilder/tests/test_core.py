@@ -77,6 +77,37 @@ class NombreConNivelTest(unittest.TestCase):
         )
 
 
+class SiguientePresupuestoTest(unittest.TestCase):
+    """How the range search picks its next budget.
+
+    ⚠️ **The multiplicative step alone missed a window 20 MB wide**, which is what this exists to
+    stop. Measured over the 2026-10-01 Spanish pack, budget 34 gives a 27.6 MB file and budget 40
+    gives 52.5: from ~35 the correction jumps straight over 36, 37 and 38 --which give 33.0, 37.5
+    and 41.7-- and four rounds of that is four jumps over the same gap. The pipeline stopped with
+    *"did not converge"*, and the artifact it refused to publish was 0.4 MiB short of the floor.
+    """
+
+    def test_sin_horquilla_usa_el_paso_multiplicativo(self):
+        # Half the file the target wants: ask for roughly twice the budget.
+        self.assertAlmostEqual(
+            70.0, build_core.siguiente_presupuesto(35.0, 20.0, 40.0), places=5)
+
+    def test_con_un_punto_a_cada_lado_BISECA(self):
+        # 35 fell short, 40 overshot: the answer is between them and nothing else is a guess.
+        self.assertAlmostEqual(
+            37.5, build_core.siguiente_presupuesto(40.0, 52.5, 40.0, bajo=35.0, alto=40.0))
+
+    def test_un_archivo_de_cero_no_divide_por_cero(self):
+        self.assertAlmostEqual(70.0, build_core.siguiente_presupuesto(35.0, 0.0, 40.0))
+
+    def test_una_horquilla_invertida_no_bisecta(self):
+        # `alto <= bajo` means the two sides contradict each other, which bisection cannot fix;
+        # falling back to the step keeps the search moving instead of returning a midpoint that
+        # means nothing.
+        self.assertAlmostEqual(
+            70.0, build_core.siguiente_presupuesto(35.0, 20.0, 40.0, bajo=40.0, alto=35.0))
+
+
 class MetaQueNoSeHeredaTest(unittest.TestCase):
     """What a derived tier must NOT copy from the pack it came from.
 

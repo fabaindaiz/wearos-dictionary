@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **143 tests**) y el
-pipeline de packs (`tools/`, **658 tests**) están completos y en el gate, junto con los **501 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1342 tests en total**. Los **52
+pipeline de packs (`tools/`, **662 tests**) están completos y en el gate, junto con los **501 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1346 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -348,9 +348,13 @@ disproved.
    2,804 and takes `reply` out of `contestación`, `loads` out of `multitud` and `thump, thwack,
    whack, bash` out of `cabronazo`.
 
-   ⚠️ **`Spain` is down to 171 and does NOT go to zero, deliberately.** `España` translates to it,
-   and the remaining sources are `pos=name` gazetteer entries — `Abanto`, `Catoira`, `Tinto`. That
-   is the D-116 proper-noun class and it has its own item; this one does not claim it.
+   ⚠️ **RETRACTED 2026-10-01 by reading the rebuilt pack.** This said `Spain` stays *"deliberately,
+   because `España` translates to it"*. The artifact has **one** `Spain` entry, tagged **`adj`**,
+   listing `gualdinegro`, `rojiblanco`, `verdiblanco` — club and regional demonyms — and `España`
+   is `pos=name` and yields no `Spain` entry at all. So what survives is **residue, not the
+   legitimate link**: the two templates this fixed did go (`canario` and `nazareno` are gone from
+   its sources), and a third shape remains uncharacterised. **It is the open half of this item and
+   it now has a name.**
 
    ⚠️ **It reaches nothing until the bilingual pack is rebuilt.**
 
