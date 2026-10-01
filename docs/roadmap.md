@@ -70,8 +70,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **133 tests**) y el
-pipeline de packs (`tools/`, **632 tests**) están completos y en el gate, junto con los **492 JVM
-de `:app`** y **40 checks** de auditoría estructural — **1297 tests en total**. Los **52
+pipeline de packs (`tools/`, **639 tests**) están completos y en el gate, junto con los **492 JVM
+de `:app`** y **40 checks** de auditoría estructural — **1304 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -302,9 +302,32 @@ disproved.
    eight displayed words do not move.
 
    **The real shape**: `translation_keys` accepts any 1–2 word fragment of a comma-split gloss, and
-   `_DESCRIBES` only guards the fragment's *first* word. Fixing it means deciding when a gloss is a
-   description rather than a list — the prose heuristic `kaikki.py` point 4 warns about — so it
-   needs a measurement before any code, and it did not get one.
+   `_DESCRIBES` only guards the fragment's *first* word.
+
+   ✅ **MEASURED AND BUILT on 2026-10-01** (`d-a2f271-3098e4`), and the measurement is what picked
+   the rule out of four candidates. Three whole-gloss judgements: a gloss opening with a bare `of`
+   that goes on (1,397 glosses, 1,352 of them demonyms), its noun twin `native or inhabitant of …`
+   (623 keys from 464 glosses), and `etc` as a term. Net **−2,782 keys (1.68 %)**.
+
+   | key | before | after |
+   |---|---|---|
+   | `of` | 1,390 | **5** |
+   | `etc` | 90 | **0** |
+   | `Mexico` | 172 | 69 |
+   | `Spain` | 320 | **171** |
+   | `of course` · `dog` · `house` | 14 · 7 · 19 | unchanged |
+
+   ⚠️ **Two wider rules were measured and rejected, and recording that is the point.** *"Any
+   over-long fragment makes the gloss prose"* removes 12,330 keys and takes `CIA`, `NAFTA`, `FBI`
+   and `hue` with them. *"If the first fragment is a description, the whole gloss is"* removes
+   2,804 and takes `reply` out of `contestación`, `loads` out of `multitud` and `thump, thwack,
+   whack, bash` out of `cabronazo`.
+
+   ⚠️ **`Spain` is down to 171 and does NOT go to zero, deliberately.** `España` translates to it,
+   and the remaining sources are `pos=name` gazetteer entries — `Abanto`, `Catoira`, `Tinto`. That
+   is the D-116 proper-noun class and it has its own item; this one does not claim it.
+
+   ⚠️ **It reaches nothing until the bilingual pack is rebuilt.**
 
 ---
 

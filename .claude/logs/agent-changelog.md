@@ -16,6 +16,56 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-01 · s-a2f271-2198bf — Two defects the packs carried, and the rules that were measured and thrown away
+**What.** The bilingual pack's `Spain`, `Mexico` and `etc` stop being English entries pointing at
+nonsense (`d-a2f271-3098e4`). Three whole-gloss judgements replace a guard that only ever looked at
+a fragment's first word.
+
+**Areas.** `tools/packbuilder/sources/bilingual.py` and its tests.
+
+**Why.** `i-a2f271-92cf8f` point 2 had said it *"needs a measurement before any code, and it did
+not get one"*. This is that measurement.
+
+**Architecture.** ✅ Complies.
+
+**Measured.**
+- Net **−2,782 keys (1.68 %)**: `of` 1,390→5, `etc` 90→0, `Mexico` 172→69, `Spain` 320→171, with
+  `of course` (14), `dog` (7) and `house` (19) untouched.
+- The opening-`of` template: **1,397 glosses, 1,352 of them demonyms**. Its noun twin
+  `native or inhabitant of …`: **623 keys from 464 glosses**, and the 14 read at random are place
+  names without exception.
+- Full gate **exit 0**, 639 tests. **7 mutations, 7 bite.**
+
+**What went wrong.**
+- ⚠️ **The first rule I wrote would have deleted the translation of `de` and `desde`.** `from`,
+  `relating to` and `pertaining to` were in the set with `of`, on the reasoning that they open the
+  same template. The comparison said **zero good keys lost** — because the list of good keys was
+  **written by hand** and did not contain `from`. Printing **which headwords** each opener hits is
+  what found it: they open 8, 6 and 2 glosses in the whole dump, and those are `de`, `desde`,
+  `de parte de`, `a partir de`, `atinente` and `para con`, where the phrase being thrown away **is**
+  the translation. A hand-built oracle measures the cases you already thought of.
+- ⚠️ **Two wider rules looked right and had to be killed by reading their output.** *"Any
+  over-long fragment makes the gloss prose"* removes 12,330 keys and takes `CIA`, `NAFTA`, `FBI`
+  and `hue`. *"If the first fragment is a description, the whole gloss is"* removes 2,804 and takes
+  `reply` out of `contestación`, `loads` out of `multitud`, `thump, thwack, whack, bash` out of
+  `cabronazo`. Both are recorded in `docs/decisions.md` so they are not proposed again.
+- ⚠️ **One of my tests was vacuous and one over-asserted.** The `pertaining to` case already
+  returned nothing for a different reason (every fragment too long), so it proved nothing once the
+  set narrowed; and the `etc` test asserted `["tour"]` where the answer is `["tour", "museum"]` —
+  `museum` is the comma-split description class, which stays open. The test now says so in a
+  comment rather than implying a fix that is not there.
+- ⚠️ **A mutation survived until the dump answered it.** Matching `etc` by prefix instead of
+  exactly changed nothing the suite could see; `aguafuerte` translates to **`etching`** and
+  `aguafortista` to **`etcher`**, so the prefix version destroys three real keys.
+
+**What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
+translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
+`Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description
+class (`museum`, `Compositae`) stays open with both of its candidate rules now disproved. And the
+third item of the group — `en-main`'s shrunken etymology vocabulary — was not started.
+
+⚠️ **None of this reaches anything until the packs are rebuilt.**
+
 ## 2026-09-30 · s-a2f271-d66548 — The verifier stopped crashing, and the watch got yesterday's work
 **What.** Two things. `_verify_search_paths` decompressed the top-ranked entry with no guard, so a
 pack whose payloads are corrupt ended `verify_pack.py` in a `zlib.error` traceback instead of a

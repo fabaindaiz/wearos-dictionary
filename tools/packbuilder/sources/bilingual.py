@@ -53,6 +53,49 @@ _BORDES = " \t.,;:\"'()[]\u201c\u201d\u2018\u2019"
 # dump both appear as alternatives of the same idea.
 _SEPARATORS = re.compile(r"[,;]")
 
+# The demonym template: a gloss that OPENS with a bare `of` and goes on is defining an origin, not
+# listing translations -- "of, from or relating to the Canary Islands, Spain".
+#
+# ⚠️ **This is the only whole-gloss judgement here, and the defect needed one.** `_DESCRIBES`
+# guards a fragment's first word, so it discarded the fragment it matched and let the rest of the
+# same sentence through: `canario`'s gloss has **no parenthesis at all**, `of` is one word starting
+# with no describing word, `Spain` is one word too, and both became keys. The bilingual pack had an
+# English entry `Spain` pointing at `canario`.
+#
+# **Measured over the dump**: `of` opens **1,397** glosses and **1,352** of the headwords are
+# demonyms -- `abulense`, `accitano`, `ahuachapaneco`. Reading 20 at random, every one is this
+# template.
+#
+# ⚠️ **`from`, `relating to` and `pertaining to` were in this set and came OUT after reading which
+# words they hit.** They open 8, 6 and 2 glosses, and those are `de`, `desde`, `de parte de`,
+# `a partir de`, `atinente` and `para con` -- Spanish prepositions whose translation **is** the
+# word being thrown away. The counting said 0 good keys lost because the list of good keys was
+# written by hand; reading the headwords is what found it.
+#
+# ⚠️ **`of` stays out of `_DESCRIBES`** even so, and the pair is the point: *"of course"* is a good
+# translation of `por supuesto`, and `_DESCRIBES` matches a prefix while this matches a whole
+# fragment.
+_ABRE_UN_ORIGEN = "of"
+
+# The same template in noun form, which the rule above cannot reach: "native or inhabitant of the
+# city of Banfield, Buenos Aires Province, Argentina". Its first comma-fragment is eight words
+# long, so nothing in it is bare, and only the trailing place names survive the length cap.
+#
+# **Measured over the dump**: **623 keys from 464 glosses, 165 distinct**, and the 14 read at
+# random are place names without exception -- `Spain` 72 times, `Mexico` 49, `Argentina` 29.
+#
+# ⚠️ **It names the whole phrase and not the word, for the reason `from` taught.** `native` alone
+# glosses 5 senses and `native american` 3; matching the single word would delete the translation
+# of `nativo`.
+_GENTILICIO_SUSTANTIVO = re.compile(
+    r"^(an?\s+)?(native|inhabitant)s?\s+(or|and)\s+(native|inhabitant)s?\s+of\b",
+    re.IGNORECASE,
+)
+
+# ⚠️ **`etc` was an English entry of the bilingual pack.** 90 senses gloss as a list that trails
+# off --`tanto`: *"so much, long, hard, often, etc."*-- and `_BORDES` strips the full stop, leaving
+# a term nobody means. It marks a list as unfinished; nothing is translated as `etc` either way.
+_NUNCA_UN_TERMINO = frozenset(("etc", "etcetera", "et cetera"))
 
 def translation_keys(gloss, for_search=True):
     """The English terms of a gloss. Empty if the gloss describes rather than translates.
@@ -67,6 +110,17 @@ def translation_keys(gloss, for_search=True):
     dictionary form.
     """
     if not gloss or not gloss.strip():
+        return []
+
+    piezas = [" ".join(b.split()).strip(_BORDES)
+              for b in _SEPARATORS.split(_PARENTHETICAL.sub(" ", gloss))]
+    utiles = [p for p in piezas if p]
+    # ⚠️ **More than one piece, and that guard is not decoration**: `de` is glossed `from (...)` and
+    # `of (...)`, which collapse to a SINGLE piece once the parenthetical goes. There the relational
+    # word is the whole gloss and therefore the translation.
+    if len(utiles) > 1 and utiles[0].lower() == _ABRE_UN_ORIGEN:
+        return []
+    if _GENTILICIO_SUSTANTIVO.match(gloss.strip()):
         return []
 
     salida = []
@@ -84,6 +138,8 @@ def translation_keys(gloss, for_search=True):
         # A leftover bracket means the gloss had an unbalanced one and what is left is a fragment
         # of a description, not a term.
         if not termino or "(" in termino or _DESCRIBES.match(termino):
+            continue
+        if termino.lower() in _NUNCA_UN_TERMINO:
             continue
         palabras = termino.split()
         if not palabras or len(palabras) > MAX_WORDS_PER_TERM:

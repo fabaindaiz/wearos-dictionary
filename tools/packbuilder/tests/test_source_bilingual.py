@@ -38,6 +38,100 @@ class TranslationKeysTest(unittest.TestCase):
     is worse than not finding anything -- the same reasoning as D-126 for synonyms.
     """
 
+    def test_a_demonym_gloss_yields_NOTHING_not_its_country(self):
+        """⚠️ **`Spain`, `Mexico` and `etc` were English entries pointing at nonsense.**
+
+        `canario` reads *"of, from or relating to the Canary Islands, Spain"* -- no parenthesis
+        anywhere, which is why the explanation given before the 2026-09-25 rebuild was wrong. Split
+        on commas, `of` is one word and does not start with a describing word, and `Spain` is one
+        word too, so both became translation keys. Searching `Spain` in the bilingual pack
+        returned `canario`.
+
+        **The fix is a whole-gloss judgement, and it had to be: `_DESCRIBES` only ever guarded a
+        fragment's first word**, so it threw away the fragment it matched and let the rest of the
+        same sentence through.
+        """
+        self.assertEqual(
+            [], bilingual.translation_keys("of, from or relating to the Canary Islands, Spain"))
+        self.assertEqual(
+            [], bilingual.translation_keys("of, from or relating to the state of Chiapas, Mexico"))
+
+    def test_the_NOUN_demonym_template_yields_nothing_either(self):
+        """The adjective template has a twin that the `of` rule cannot reach.
+
+        `banfileño` reads *"native or inhabitant of the city of Banfield, Buenos Aires Province,
+        Argentina"*: the first comma-fragment is eight words long, so nothing about it is bare and
+        the opening-`of` rule never fires -- yet `Argentina` still becomes a key. Measured over the
+        dump this template produces **623 keys from 464 glosses**, and the 14 read at random are
+        place names without exception.
+        """
+        self.assertEqual([], bilingual.translation_keys(
+            "native or inhabitant of the city of Banfield, Buenos Aires Province, Argentina"))
+        self.assertEqual([], bilingual.translation_keys(
+            "native or inhabitant of the province of Álava, Basque Country, Spain"))
+
+    def test_native_on_its_own_is_still_a_translation(self):
+        """⚠️ **The same trap as `from`, and it is why the pattern names the whole phrase.**
+        `native` alone glosses 5 senses and `native american` 3; matching the single word would
+        delete the translation of `nativo`.
+        """
+        self.assertEqual(["native"], bilingual.translation_keys("native"))
+        self.assertEqual(["native", "indigenous"],
+                         bilingual.translation_keys("native; indigenous"))
+
+    def test_etc_closes_a_list_and_is_never_a_term(self):
+        """⚠️ **`etc` was an English entry of the bilingual pack**, reached from `tanto`, `caber`,
+        `pala` and 87 other senses whose gloss ends *"..., etc."*. It is what marks a list as
+        unfinished; nothing is ever translated as `etc`, in either direction.
+        """
+        self.assertEqual(["so much", "long", "hard", "often"],
+                         bilingual.translation_keys("so much, long, hard, often, etc."))
+        # ⚠️ What this does NOT fix, said here so nobody reads the test as wider than it is:
+        # `museum` still comes through, a fragment of "guided visit to a country, museum". That is
+        # the comma-split description class, and the whole-gloss rule for it was measured and
+        # rejected -- it takes `reply` out of `contestacion`.
+        self.assertNotIn("etc", bilingual.translation_keys(
+            "tour, guided visit to a country, museum, etc."))
+        # ⚠️ **Exact match and not a prefix**, which a mutation probe demanded and the dump
+        # settles: `aguafuerte` translates to `etching` and `aguafortista` to `etcher`.
+        self.assertEqual(["etching"], bilingual.translation_keys("etching"))
+        self.assertEqual(["etcher"], bilingual.translation_keys("etcher"))
+
+    def test_a_preposition_whose_translation_IS_the_relational_word_keeps_it(self):
+        """⚠️ **The rule nearly shipped deleting the translation of `de` and `desde`.**
+
+        `from`, `relating to` and `pertaining to` were in the set, on the reasoning that they open
+        the same template. Reading which headwords they hit showed they open 8, 6 and 2 glosses in
+        the whole dump, and those are `de`, `desde`, `de parte de`, `a partir de`, `atinente` and
+        `para con` -- words whose translation **is** the phrase being thrown away. The count had
+        said zero good keys lost, because the list of good keys was written by hand.
+
+        `of` survives alone, and even then only when the gloss goes on: `de` is glossed
+        *"of (possession)"*, which is a single piece once the parenthetical is gone.
+        """
+        self.assertEqual(["from"], bilingual.translation_keys("from (a location)"))
+        self.assertEqual(["from"], bilingual.translation_keys("from, on behalf of"))
+        self.assertEqual(["relating to"], bilingual.translation_keys("relating to"))
+        self.assertEqual(["of"], bilingual.translation_keys("of (possession)"))
+
+    def test_a_list_that_merely_starts_with_an_article_keeps_its_terms(self):
+        """⚠️ **The wider rule was measured and REJECTED, and this test is what holds the line.**
+
+        *"If the first fragment is a description, the whole gloss is"* looks like the same idea and
+        is not. Measured over the dump it removes 2,804 keys, and reading them shows it takes
+        `reply` out of `contestacion` --*"an answer, reply"*-- `loads` out of `multitud`, and
+        `thump, thwack, whack, bash` out of `cabronazo`. An article in front of the first
+        alternative does not make the rest prose.
+        """
+        self.assertEqual(["reply"], bilingual.translation_keys("an answer, reply"))
+        self.assertEqual(["loads"], bilingual.translation_keys("a lot, loads"))
+
+    def test_of_course_still_survives_because_the_fragment_is_not_bare(self):
+        """`of` is excluded from `_DESCRIBES` on purpose: *"of course"* translates `por supuesto`.
+        What this rule rejects is `of` **alone** as the opening fragment, which is never a term.
+        """
+        self.assertEqual(["of course"], bilingual.translation_keys("of course"))
+
     def test_a_bare_term_is_a_translation(self):
         self.assertEqual(["dog"], bilingual.translation_keys("dog"))
 
