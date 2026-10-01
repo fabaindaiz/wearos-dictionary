@@ -77,6 +77,24 @@ _SEPARATORS = re.compile(r"[,;]")
 # fragment.
 _ABRE_UN_ORIGEN = "of"
 
+# A fragment that says what the WORD DOES rather than what it means: `a-` glosses as "forms words,
+# especially verbs, that denote entering a state", and the split handed `forms words` to the index
+# as the English for `a-`. 31 keys over the dump, 51 occurrences.
+#
+# ⚠️ **It names the verb AND demands a second word, and both halves were earned by measuring.**
+# Matching the verb alone deletes `mean` -- `ruin` and `cruel` translate to it across 37 senses --
+# and `mark`, which is `marca`. The description is always two words; the translation is one.
+_DESCRIBE_LA_FUNCION = re.compile(
+    r"^(forms|indicates|expresses|denotes|marks|introduces|refers)\s+\S+$", re.IGNORECASE)
+
+# `of the`, `from that`, `of those`: the tail of a description the separator cut. 12 keys.
+#
+# ⚠️ **Both lists are closed, and that is what keeps `to be` and `to you`.** A rule over "two
+# function words" deletes `estar` -> `to be` across 15 senses and `te` -> `to you`, which are
+# right: `be` is not a determiner and neither is `you`.
+_PREPOSICION = frozenset(("of", "from", "to", "for", "in", "on", "at", "by", "with", "about"))
+_DETERMINANTE = frozenset(("the", "that", "this", "these", "those", "a", "an"))
+
 # The same template in noun form, which the rule above cannot reach: "native or inhabitant of the
 # city of Banfield, Buenos Aires Province, Argentina". Its first comma-fragment is eight words
 # long, so nothing in it is bare, and only the trailing place names survive the length cap.
@@ -143,6 +161,11 @@ def translation_keys(gloss, for_search=True):
             continue
         palabras = termino.split()
         if not palabras or len(palabras) > MAX_WORDS_PER_TERM:
+            continue
+        if _DESCRIBE_LA_FUNCION.match(termino):
+            continue
+        if (len(palabras) == 2 and palabras[0].lower() in _PREPOSICION
+                and palabras[1].lower() in _DETERMINANTE):
             continue
         # "to run" is how the dump writes an infinitive; somebody looking up the translation types
         # "run". Both are indexed, and the bare form goes in as its own key.

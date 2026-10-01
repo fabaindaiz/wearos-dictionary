@@ -97,6 +97,45 @@ class TranslationKeysTest(unittest.TestCase):
         self.assertEqual(["etching"], bilingual.translation_keys("etching"))
         self.assertEqual(["etcher"], bilingual.translation_keys("etcher"))
 
+    def test_a_fragment_that_describes_what_the_WORD_DOES_is_not_a_term(self):
+        """`a-` glosses as *"forms words, especially verbs, that denote entering a state"*, and the
+        comma-split handed `forms words` to the index as the English for `a-`. 31 keys over the
+        dump: `forms nouns`, `expresses surprise`, `indicates reason`.
+
+        ⚠️ **It names the verb AND requires a second word, and both halves were earned.** Matching
+        the verb alone deletes `mean` --`ruin` and `cruel` translate to it, 37 senses-- and `mark`,
+        which is `marca`. The description is always two words; the translation is one.
+        """
+        self.assertEqual([], bilingual.translation_keys("forms nouns"))
+        self.assertEqual([], bilingual.translation_keys("expresses surprise"))
+        self.assertEqual(["mean"], bilingual.translation_keys("mean"))
+        self.assertEqual(["mean", "stingy"], bilingual.translation_keys("mean, stingy"))
+        self.assertEqual(["mark"], bilingual.translation_keys("mark"))
+        # ⚠️ **A bare verb from the list survives, and this case is synthetic ON PURPOSE.** None of
+        # the seven appears alone as a key in today's dump --measured, zero-- so a mutation that
+        # drops the second-word requirement changes nothing real and would have survived. The
+        # guard stays because `formas` glossing as `forms` is a plausible next dump, and here the
+        # test IS the specification rather than a sample of the data.
+        self.assertEqual(["forms"], bilingual.translation_keys("forms"))
+        self.assertEqual(["expresses"], bilingual.translation_keys("expresses"))
+
+    def test_a_preposition_and_a_determiner_are_not_a_translation(self):
+        """`of the`, `from that`, `of those`: 12 keys that no word is ever translated as. They are
+        the tail of a description the separator cut.
+
+        ⚠️ **Both lists are closed, and that is what keeps `to be` and `to you`.** A rule over
+        "two function words" deletes `estar` -> `to be` (15 senses) and `te` -> `to you`, which are
+        right. `be` is not a determiner and `you` is not one either.
+        """
+        self.assertEqual([], bilingual.translation_keys("of the"))
+        self.assertEqual([], bilingual.translation_keys("from those"))
+        # `be` and `you` come along because the search channel indexes the bare form of an
+        # infinitive too; what matters here is that the PHRASE survives.
+        self.assertEqual(["to be", "be"], bilingual.translation_keys("to be"))
+        self.assertEqual(["to you", "you", "for you"],
+                         bilingual.translation_keys("to you, for you"))
+        self.assertEqual(["so that"], bilingual.translation_keys("so that"))
+
     def test_a_preposition_whose_translation_IS_the_relational_word_keeps_it(self):
         """⚠️ **The rule nearly shipped deleting the translation of `de` and `desde`.**
 

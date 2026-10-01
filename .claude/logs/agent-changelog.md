@@ -120,6 +120,41 @@ grows +179 MB"*, wrong by **22×** and unexplained. Both corrected in `decisions
 comment — where the ceiling is **0**. Each was caught by the audit and rewritten, never by me
 noticing while typing.
 
+✅ **And the line between cleaning and shrinking is written down** (`d-a2f271-4f0311`), after I
+blurred it. I offered removing the **5,225** `to X` reverse entries --6.0 % of the bilingual's
+English side-- in the same list as genuine garbage, as if both were cleanup. `to annoy` is correct
+English and a correct index key, and `trans` is emptied in that pack so **the entry IS the index**:
+typing `to run` would find nothing. Under D-207, which retired the pack-size budget because it
+*"never changed a decision in nine citations"*, there is no budget to weigh that against. The
+proposal had no argument and was withdrawn.
+
+**The three categories, and only the first may be done because somebody noticed it:**
+- **Garbage** — a row **our extraction** produced that the source never said. Removed on
+  correctness alone, **no size argument**, and it gets a check that goes red.
+- **Duplication** — a true row another already answers. The test is *does any query lose its
+  answer*; if one does, it is not duplication.
+- **Shrinking** — a true row nothing else answers. **No justification available.**
+
+⚠️ **The criterion was already half-written and I had not connected it**: `d-a2f271-c226a1` says
+*how much origin a pack carries is a property of the SOURCE, but a rendered template inside it is a
+property of OUR extraction*. What is new is naming it and extending it past that one check — what
+it protects against is **drift by attention**, the pack losing whatever got measured that day.
+
+✅ **Two more garbage classes then went** (`d-a2f271-ad9d44`): `forms nouns` / `expresses surprise`
+and `of the` / `from those`. 43 keys, **0.054 %** — and by the criterion the size is not the
+argument. **4 mutations, 4 bite.**
+
+⚠️ **Both rules are narrow because the wide ones destroy translations, and I measured that three
+times today.** Matching the verb alone deletes `mean`, which `ruin` and `cruel` translate to across
+**37** senses, and `mark`, which is `marca`. A rule over *"two function words"* deletes `estar` →
+`to be` (15) and `te` → `to you`. Reading which **headwords** a rule hits, rather than counting
+what it removes, is what caught all three.
+
+⚠️ **And one guard is pinned by a synthetic test, said out loud.** None of the seven verbs
+appears alone as a key in today's dump --zero-- so dropping the second-word requirement changes
+nothing real and the mutation survived. The guard stays because `formas` glossing as `forms` is a
+plausible next dump; there the test is the specification and not a sample.
+
 **What was left undone.** `Spain` stops at **171** and not at zero, deliberately: `España`
 translates to it, and the remaining sources are `pos=name` gazetteer entries (`Abanto`, `Catoira`,
 `Tinto`) — the D-116 proper-noun class, which is a different item. The comma-split description
