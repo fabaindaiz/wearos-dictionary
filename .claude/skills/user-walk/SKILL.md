@@ -1,8 +1,9 @@
 ---
 # Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
 name: user-walk
-description: Recorre cómo una persona usaría una función o la app — primero el flujo ideal, después cada demora, interrupción, retroceso, falla y mal uso que va a encontrar —, le pone precio a cada uno y convierte los que se quedan en tests que fallan antes del código; también responde una tanda de observaciones de uso real, cada una reproducida, arreglada con el test primero y barrida por su clase. Usar cuando se pida "piensa cómo lo usaría alguien", "qué pasa si se corta el wifi o se cierra la app a la mitad", "prueba todas las formas de cierre", "casos borde", o cuando el dueño trae observaciones de usar la app en el reloj ("la app se instaló pero tiene algunas observaciones"). No para revisar decisiones (decision-review), y no reemplaza probar con personas reales.
+description: Two jobs on a user-facing feature - answers a batch of observations from the human's own use of the app, each reproduced, fixed test-first and swept for its class; and, before building, walks how a person would use it - the ideal flow, then every delay, interruption, setback, failure and misuse, priced, the kept ones as failing tests. Use when the human lists what they saw using the app, asks for a usability pass, to think like a user or walk the flow, what happens if the app is closed or the connection drops halfway, edge cases or unhappy paths. Not for one failure with an error or trace (debug it), a list of new feature ideas (brainstorm), reviewing decisions (decision-review), or testing with real people.
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+when_to_use: Usar cuando se pida "piensa cómo lo usaría alguien", "qué pasa si se corta el wifi o se cierra la app a la mitad", "prueba todas las formas de cierre", "casos borde", o cuando el dueño trae observaciones de usar la app en el reloj ("la app se instaló pero tiene algunas observaciones"). No para revisar decisiones (decision-review), y no reemplaza probar con personas reales.
 ---
 
 # User walk

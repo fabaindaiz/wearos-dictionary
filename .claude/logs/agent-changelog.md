@@ -16,6 +16,32 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-05 · s-a2f271-0b8120 — agent-guides 0.0.28 lands: the user's phrases move to when_to_use
+**What.** The bundle moves to **0.0.28**, a follow-up that fixes tool defects a review of 0.0.27
+found and rewords the three method skills' descriptions. `install-skills` reinstalled `close`,
+`decision-review` and `user-walk`. Their `LOCAL.md` files no longer replace the base's
+`description`: the owner's Spanish phrases moved, as they were, to `when_to_use`, which the host
+appends to the base's description, so later fixes to the base's wording reach this repo. The Spanish
+paraphrase of each base description was dropped with the key. The `knowledge-reviewer` copy was
+already current.
+
+**Areas.** `.agents/` (spliced), `.claude/skills/{close,decision-review,user-walk}/`,
+`.agents/carrier.toml` (`adapted`), `tools/audit_dictionary.py` (one docstring).
+
+**Why.** Asked for by the owner, after 0.0.27 the same day.
+
+**Architecture.** ✅ Complies.
+
+**Measured.** `bundle.py verify` → *0.0.28 verified*; `check-local .` → *only their own files
+changed*; audit **41 checks, 0 failures**.
+
+**What went wrong.** Nothing in this session. One judgement, named: `close` no longer lists the bare
+"upload it" phrase among its triggers, because 0.0.28 made a bare push stop being one.
+
+**What was left undone.** `check_commit_trailers` keeps its explicit range (`@{u}..HEAD`, or
+`origin/main..HEAD`): since 0.0.28 the tool's own fallback reads only unpublished commits, so the
+range is now redundant with it and kept because it states the window. Its docstring says so.
+
 ## 2026-10-05 · s-a2f271-a441e5 — agent-guides 0.0.27 lands: the received proposals pruned, two skills installed in Spanish, and attribution made a setting with a gate behind it
 **What.** The bundle moves from 0.0.26 to **0.0.27**, spliced by the bundle's home into this branch.
 Then what the release asks a carrier to do:

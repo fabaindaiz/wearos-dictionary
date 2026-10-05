@@ -1949,9 +1949,10 @@ def check_commit_trailers(report):
     upstream, and `origin/main..HEAD` when it has none (a fresh branch, or a detached worktree that
     verifies one commit).
 
-    ⚠️ **Why not the tool's own fallback.** With no upstream it reads the last 20 commits, and the
-    published history of 2026-09-30 and 2026-10-01 carries the trailer. That history is not rewritten
-    here, so the window is the branch point, not a count.
+    ⚠️ **Why an explicit range.** Until agent-guides 0.0.28 the tool's no-upstream fallback read the
+    last 20 commits, and the published history of 2026-09-30 and 2026-10-01 carries the trailer; that
+    history is not rewritten here. Since 0.0.28 the fallback reads only commits on no remote, so the
+    explicit range is now redundant with it, and kept because it states the window.
     """
     tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
     def git(*args):

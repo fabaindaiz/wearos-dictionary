@@ -19,7 +19,7 @@ own tool, never by this one.
                                                                 and added lines: what a push publishes
     python3 .agents/tools/bundle.py trailers [RANGE] [--repo R] no commit message in the range credits an assistant
                                                                 (an attribution trailer, a "Generated with" line);
-                                                                default @{u}..HEAD, or the last 20 commits
+                                                                default @{u}..HEAD, else the commits on no remote
     python3 .agents/tools/bundle.py carrier-id [REPO] [--mint]  the carrier's stored random id; --mint writes one
     python3 .agents/tools/bundle.py id d|i|s TEXT... [--repo R] a record id: decision, roadmap item, session
     python3 .agents/tools/bundle.py ids [--carrier REPO] FILE... record ids in files: malformed, defined twice,
@@ -37,7 +37,7 @@ own tool, never by this one.
                                                                 carrier's LOCAL.md, into .claude/skills/
     python3 .agents/tools/bundle.py new entry TITLE... [--write] a changelog entry skeleton with its minted id
     python3 .agents/tools/bundle.py count SYMPTOM [FILE...]     how many entries mention a friction, by search:
-                                                                entries, not incidents; a copied line counts once
+                                                                entries, not incidents; a repeated line is flagged
     python3 .agents/tools/bundle.py memory-diff                 the local memories the repository does not hold
     python3 .agents/tools/bundle.py turns [--since DATE] [PROJECT_DIR...]
                                                                 what the human said in this repository's local
@@ -808,8 +808,8 @@ def commit_targets(repo: Path, rev_range: str, scratch: Path) -> tuple[list[Targ
     """Each commit of a range as privacy targets: its message, and every file it adds lines to, written
     into `scratch` at its own path (so its scope reads as in the tree) with only the added lines read.
 
-    A merge's message is read but not its diff: what it brings in is in the commits it merges, or was
-    pushed before. A binary file, or one with no added line, is not read."""
+    A merge's message is read, and of its diff only the lines it writes itself (`_commit_files`). A binary file, or one with no added line, is not read. A git failure is a refusal of
+    one line, never a traceback: the pre-push hook would block the push on it with nothing to act on."""
     try:
         shas = git(repo, "rev-list", "--reverse", *rev_range.split()).split()
     except subprocess.CalledProcessError as error:
@@ -818,50 +818,82 @@ def commit_targets(repo: Path, rev_range: str, scratch: Path) -> tuple[list[Targ
     targets = []
     for sha in shas:
         short = sha[:10]
-        message = scratch / short / "COMMIT_MESSAGE"
-        message.parent.mkdir(parents=True, exist_ok=True)
-        message.write_text(git(repo, "log", "-1", "--format=%B", sha), encoding="utf-8")
-        targets.append(Target(message, message.name, f"{short} message", None, repo))
-        if len(git(repo, "rev-list", "--parents", "-n", "1", sha).split()) > 2:
-            continue
-        patch = git(repo, "-c", "core.quotePath=false", "diff-tree", "-r", "--root", "--no-commit-id", "-p", "-U0",
-                    "--no-color", "--no-ext-diff", "-M", "--diff-filter=AMRC", sha)
-        for rel, lines in added_lines(patch).items():
-            content = git(repo, "show", f"{sha}:{rel}", binary=True)
-            if not lines or b"\0" in content:
-                continue
-            copy = scratch / short / rel
-            copy.parent.mkdir(parents=True, exist_ok=True)
-            copy.write_bytes(content)
-            targets.append(Target(copy, _bundle_rel(copy), f"{short}:{rel}", frozenset(lines), repo))
+        try:
+            message = scratch / short / "COMMIT_MESSAGE"
+            message.parent.mkdir(parents=True, exist_ok=True)
+            message.write_text(git(repo, "log", "-1", "--format=%B", sha), encoding="utf-8", errors="surrogateescape")
+            targets.append(Target(message, message.name, f"{short} message", None, repo))
+            for rel, lines in _commit_files(repo, sha):
+                if not lines:
+                    continue
+                if git(repo, "cat-file", "-t", f"{sha}:{rel}").strip() != "blob":
+                    continue  # a submodule's pointer: the commit it names is that repository's to check
+                content = git(repo, "cat-file", "blob", f"{sha}:{rel}", binary=True)
+                if b"\0" in content:
+                    continue
+                copy = scratch / short / rel.encode("utf-8", "surrogateescape").decode("utf-8", "replace")
+                copy.parent.mkdir(parents=True, exist_ok=True)
+                copy.write_bytes(content)
+                targets.append(Target(copy, _bundle_rel(copy), f"{short}:{rel}", frozenset(lines), repo))
+        except subprocess.CalledProcessError as error:
+            said = error.stderr.decode("utf-8", "replace") if isinstance(error.stderr, bytes) else (error.stderr or "")
+            said = said.strip().splitlines()
+            raise RefusedError(f"--commits {rev_range}: git could not read commit {short}"
+                               + (f" ({said[-1]})" if said else "")) from None
     return targets, len(shas)
 
 
-HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+def _commit_files(repo: Path, sha: str) -> list[tuple[str, set[int]]]:
+    """(path, the line numbers of the commit's version of it that the commit adds), for each file a commit
+    adds or changes.
+
+    The paths are read NUL-separated, never from a patch header, where git ends a path holding a space with
+    a tab and C-quotes one holding a quote or a backslash. Each file's patch is then read on its own, its
+    old path included so a rename still reads as one, and only its hunks are parsed.
+
+    A merge is read as a combined diff: only the files it leaves different from every parent, and in them
+    only the lines no parent holds, which the merge wrote itself (a conflict resolved by hand, or an evil
+    merge). What it brings in from a parent is in that parent's commits, or was pushed before."""
+    if len(git(repo, "rev-list", "--parents", "-n", "1", sha).split()) > 2:
+        paths = [p for p in git(repo, "diff-tree", "-z", "-r", "--no-commit-id", "--cc", "--name-only", sha).split("\0") if p]
+        return [(path, hunk_added(git(repo, "diff-tree", "-r", "--no-commit-id", "--cc", "-U0", "--no-color",
+                                      "--no-ext-diff", sha, "--", f":(literal){path}"))) for path in paths]
+    fields = git(repo, "diff-tree", "-z", "-r", "--root", "--no-commit-id", "--name-status", "-M",
+                 "--diff-filter=AMRCT", sha).split("\0")
+    files, i = [], 0
+    while i < len(fields) and fields[i]:
+        paths = fields[i + 1 : i + (3 if fields[i][0] in "RC" else 2)]
+        i += 1 + len(paths)
+        patch = git(repo, "diff-tree", "-r", "--root", "--no-commit-id", "-p", "-U0", "--no-color", "--no-ext-diff",
+                    "-M", sha, "--", *(f":(literal){p}" for p in paths))
+        files.append((paths[-1], hunk_added(patch)))
+    return files
 
 
-def added_lines(patch: str) -> dict[str, set[int]]:
-    """{path: the line numbers, in the new file, that a zero-context patch adds}. Hunk bodies are consumed by
-    their counts, so an added line that itself starts with `+++ ` is not read as a header."""
-    added: dict[str, set[int]] = {}
-    current, old_left, new_left, at = None, 0, 0, 0
+HUNK = re.compile(r"^(@{2,}) (?:-\d+(?:,\d+)? )+\+(\d+)(?:,\d+)? @{2,}")
+
+
+def hunk_added(patch: str) -> set[int]:
+    """The line numbers, in the result, that a zero-context patch of one file adds: a plain patch's `+`
+    lines, or a combined (merge) patch's lines that are `+` against every parent.
+
+    No header is read as a path. A hunk's body is every line after its `@@` header that starts with one
+    prefix column per parent, each a space, `+` or `-`; a header line (`diff`, `@@`) starts otherwise."""
+    added: set[int] = set()
+    width, at = 0, 0
     for line in patch.split("\n"):
-        if old_left or new_left:
-            if line.startswith("-"):
-                old_left -= 1
-            elif line.startswith("+"):
-                if current is not None:
-                    added[current].add(at)
-                at, new_left = at + 1, new_left - 1
+        if m := HUNK.match(line):
+            width, at = len(m.group(1)) - 1, int(m.group(2))
             continue
-        if line.startswith("+++ "):
-            name = line[4:]
-            current = None if name == "/dev/null" else name.removeprefix("b/")
-            if current is not None:
-                added.setdefault(current, set())
-        elif m := HUNK.match(line):
-            old_left = int(m.group(1)) if m.group(1) is not None else 1
-            at, new_left = int(m.group(2)), int(m.group(3)) if m.group(3) is not None else 1
+        if not width or line.startswith("\\"):  # "\ No newline at end of file"
+            continue
+        prefix = line[:width]
+        if len(prefix) < width or set(prefix) - set(" +-"):
+            width = 0
+        elif "-" not in prefix:  # a line the result holds
+            if set(prefix) == {"+"}:
+                added.add(at)
+            at += 1
     return added
 
 
@@ -1134,7 +1166,8 @@ CARRIER_ID = re.compile(r"^r-[0-9a-f]{6}$")
 
 
 def git(repo: Path, *args: str, binary: bool = False) -> str | bytes:
-    result = subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=not binary)
+    result = subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=not binary,
+                            **({} if binary else {"encoding": "utf-8", "errors": "surrogateescape"}))
     return result.stdout
 
 
@@ -2461,21 +2494,41 @@ def check_local_all(repos: list[Path]) -> list[tuple[str, list[str]]]:
 # Who an attribution line names when it credits an assistant rather than a person. A person's trailer
 # passes: the rule this enforces is that the user is the sole author, and a tool adds these lines by default.
 ASSISTANT_NAME = r"\b(?:claude|anthropic|copilot|chatgpt|openai|gpt|codex|gemini|cursor|devin|aider|windsurf|codeium|tabnine|codewhisperer)\b"
-ATTRIBUTION = (re.compile(r"^\s*co-authored-by:.*" + ASSISTANT_NAME, re.IGNORECASE),
-               re.compile(r"^\W*generated (?:with|by)\b.*" + ASSISTANT_NAME, re.IGNORECASE))
-TRAILER_DEFAULT = 20  # commits read when the branch has no upstream
+# - any `Key-by: value` trailer at a line's start whose value names one (Co-authored-by, Assisted-by,
+#   Generated-by, Co-developed-by, ...): a `-by:` key at a line's start is never prose;
+# - a "Generated with" line naming one anywhere after it (the tools' default footer);
+# - a "Generated by" line only when the name follows at once: "Generated by release.py; refreshes the gpt
+#   notes" is a sentence about a file, not a credit.
+ATTRIBUTION = (re.compile(r"^\s*[A-Za-z][\w-]*-by:.*" + ASSISTANT_NAME, re.IGNORECASE),
+               re.compile(r"^\W*generated with\b.*" + ASSISTANT_NAME, re.IGNORECASE),
+               re.compile(r"^\W*generated by:?\s+[\[\"'`@]?" + ASSISTANT_NAME, re.IGNORECASE))
+
+
+def attribution_lines(message: str) -> list[str]:
+    """The lines of a commit or tag message that credit an assistant (`ATTRIBUTION`), stripped."""
+    return [line.strip() for line in message.split("\n") if any(rule.search(line) for rule in ATTRIBUTION)]
+TRAILER_DEFAULT = 20  # commits read when the repository has no remote at all
 
 
 def trailer_problems(repo: Path, rev_range: str | None = None) -> tuple[list[str], str, int]:
     """(problems, the range as read, commits read): each commit message line in the range that credits an
-    assistant, as `SHA SUBJECT: LINE`. With no range, `@{u}..HEAD`, or the last `TRAILER_DEFAULT` commits of
-    HEAD when the branch has no upstream."""
+    assistant, as `SHA SUBJECT: LINE`. With no range, `@{u}..HEAD`; with no upstream, the commits of HEAD on
+    no remote (`HEAD --not --remotes`), so a new branch is not charged with what was published before it;
+    only in a repository with no remote at all, the last `TRAILER_DEFAULT` commits, and the range says so."""
     if rev_range is None:
+        try:
+            git(repo, "rev-parse", "--verify", "--quiet", "HEAD")
+        except subprocess.CalledProcessError:
+            return [], "no commit yet", 0
         try:
             git(repo, "rev-parse", "--verify", "--quiet", "@{u}")
             rev_range, args = "@{u}..HEAD", ["@{u}..HEAD"]
         except subprocess.CalledProcessError:
-            rev_range, args = f"no upstream: the last {TRAILER_DEFAULT} commits", ["-n", str(TRAILER_DEFAULT), "HEAD"]
+            if git(repo, "remote").strip():
+                rev_range, args = "no upstream: the commits on no remote", ["HEAD", "--not", "--remotes"]
+            else:
+                rev_range, args = (f"no upstream and no remote: a fixed window, the last {TRAILER_DEFAULT} commits, "
+                                   "pushed or not", ["-n", str(TRAILER_DEFAULT), "HEAD"])
     else:
         args = rev_range.split()
     try:
@@ -2487,9 +2540,18 @@ def trailer_problems(repo: Path, rev_range: str | None = None) -> tuple[list[str
     problems = []
     for sha, message in commits:
         subject = message.strip().split("\n", 1)[0]
-        problems += [f"{sha[:10]} {subject}: {line.strip()}" for line in message.split("\n")
-                     if any(rule.search(line) for rule in ATTRIBUTION)]
+        problems += [f"{sha[:10]} {subject}: {line}" for line in attribution_lines(message)]
     return problems, rev_range, len(commits)
+
+
+def published_on(repo: Path, sha: str) -> list[str]:
+    """The remote-tracking branches that already hold a commit: where it is published, as far as this clone
+    knows (its last fetch)."""
+    try:
+        refs = git(repo, "for-each-ref", "--contains", sha, "--format=%(refname:short)", "refs/remotes").split()
+    except subprocess.CalledProcessError:
+        return []
+    return [ref for ref in refs if not ref.endswith("/HEAD")]
 
 
 # --- the user's own assistant settings ---------------------------------------------------------------
@@ -2502,7 +2564,8 @@ def trailer_problems(repo: Path, rev_range: str | None = None) -> tuple[list[str
 # - File rules are `Read(path)` and `Edit(path)`, gitignore syntax: `//p` is absolute, `~/p` is under the
 #   home folder, `/p` is relative to the settings file's own folder (for user settings, `~/.claude/p`), and
 #   `p` or `./p` is relative to the session's working directory, taken here to be the repository root. A
-#   pattern without a slash, or a single directory and `/**` in a deny rule, matches at any depth. A Read
+#   bare pattern without a slash, or a single directory and `/**` in a deny rule, matches at any depth; one
+#   written `./p` names that path at the root and is not floated (`./.env` is not `sub/.env`). A Read
 #   deny also blocks Edit and Write on that path. A `Write(path)` rule is accepted but never consulted.
 # - They block the assistant's file tools and the file commands it runs in a shell, not a script that
 #   opens files itself: a gate or hook still writes the file, while the session cannot edit it by hand.
@@ -2558,8 +2621,10 @@ def deny_covers(rule_path: str, files: list[str], repo: Path, settings_dir: Path
         anchor, pattern = Path.home(), rule_path[2:]
     elif rule_path.startswith("/"):
         anchor, pattern = settings_dir, rule_path[1:]
+    elif rule_path.startswith("./"):
+        anchor, pattern = repo, rule_path[2:]  # a path the rule spells from the root: anchored there, never floated
     else:
-        anchor, pattern, relative = repo, rule_path.removeprefix("./"), True
+        anchor, pattern, relative = repo, rule_path, True
     pattern = pattern.rstrip("/")
     if not pattern:
         return []
@@ -2579,7 +2644,8 @@ def deny_covers(rule_path: str, files: list[str], repo: Path, settings_dir: Path
 
 
 def user_deny_warnings(repo: Path) -> list[str]:
-    """Deny rules in the user's own settings that cover files committed in this repository.
+    """Deny rules in the user's own settings that cover files committed in this repository: every committed
+    file a rule matches, broader than the files a gate or hook writes, which the tool cannot tell apart.
 
     A warning, never a failure: the repository's gate and hooks may write those files, and a session here
     cannot lift a user deny (see the assumptions above). Empty when the repository is not a git work tree
@@ -2609,9 +2675,11 @@ def user_deny_warnings(repo: Path) -> list[str]:
         inert = " (the host never consults a `Write(path)` rule; `Edit(path)` is the one that blocks)" \
             if m.group(1) == "Write" and m.group(2) is not None else ""
         warnings.append(f"user deny `{rule}` in {shown} covers {len(covered)} committed file{'s' if len(covered) > 1 else ''} "
-                        f"here ({examples}): user and project denies merge, and a deny at any level wins over every allow, "
-                        f"so no setting in this repository lifts it and a session here cannot edit what its gate or hooks "
-                        f"write there; narrow the rule (anchor it with `//` or `~/`) if that is not meant{inert}")
+                        f"here ({examples}; every committed file the rule matches is reported, not only those a gate or "
+                        f"hook writes): user and project denies merge, and a deny at any level wins over every allow, "
+                        f"so no setting in this repository lifts it and a session here cannot edit those files, nor what "
+                        f"its gate or hooks write among them; narrow the rule (anchor it with `//` or `~/`) if that is "
+                        f"not meant{inert}")
     return warnings
 
 
@@ -2867,13 +2935,13 @@ def _mention_text(line: str) -> str:
 
 
 def count_report(symptom: str, files: list[Path]) -> tuple[list[Mention], list[Mention]]:
-    """(counted, folded): the entries that mention a symptom, and the ones that only repeat a line already counted.
+    """(counted, repeats): every entry that mentions a symptom, and those of them whose every mentioning line
+    repeats, word for word, a line of an earlier entry.
 
     Case-insensitive; once per entry of a log (a level-2 heading), once per line of a file with no entries.
-    An entry whose every mentioning line is, as text, a line of an entry counted before it is one event
-    copied into several entries (a summary, a carried-over item), and is folded instead of counted. What is
-    counted is entries that mention the symptom, not incidents: one incident told in different words in two
-    entries still counts twice."""
+    A repeat is counted, never subtracted: it may be one event copied into a later entry (a summary, a
+    carried-over item) or the same friction recorded again in the same words, and only a reader can tell.
+    What is counted is entries that mention the symptom, not incidents."""
     needle = symptom.lower()
     entries: list[tuple[Mention, list[str]]] = []
     for path in files:
@@ -2888,11 +2956,12 @@ def count_report(symptom: str, files: list[Path]) -> tuple[list[Mention], list[M
                     at[where] = len(entries)
                     entries.append((Mention(str(path), number, where), []))
                 entries[at[where]][1].append(_mention_text(line))
-    counted, folded, seen = [], [], set()
+    repeats, seen = [], set()
     for mention, texts in entries:
-        (folded if all(t in seen for t in texts) else counted).append(mention)
+        if all(t in seen for t in texts):
+            repeats.append(mention)
         seen.update(texts)
-    return counted, folded
+    return [mention for mention, _ in entries], repeats
 
 
 def count_mentions(symptom: str, files: list[Path]) -> list[Mention]:
@@ -2924,7 +2993,12 @@ since some still such than that their them then there these they thing this thos
 very want were what when where whether which while will with within without would your yours
 """.split())
 MEMORY_HELD = 0.6  # the share of a rule's words one passage must hold for the repository to hold the rule
-MEMORY_MIN_WORDS = 3  # below this, words cannot tell a rule from a coincidence
+# Below this, words cannot tell a rule from a coincidence: a short rule ("run the lint and test gate before
+# any commit") shares three words with any file that names the scripts, so a passage must hold four.
+MEMORY_MIN_WORDS = 4
+# Files that are not prose: a manifest, a lockfile or a configuration names scripts and keys, never states a
+# rule, so a rule's words are not matched in them (a code span the memory names still is).
+NON_PROSE_SUFFIXES = frozenset({".json", ".jsonc", ".lock", ".toml", ".yaml", ".yml", ".ini", ".cfg", ".sum"})
 
 
 def _stems(text: str) -> set[str]:
@@ -2962,7 +3036,9 @@ def memory_dir(repo: Path, home: Path | None = None) -> Path:
 def memory_report(memory: Path, repo: Path) -> list[Memory]:
     """Each local memory, and the tracked files of the repository that hold its rule.
 
-    A file holds the rule when one of its passages holds most of the rule's words (`MEMORY_HELD`); a file
+    A file holds the rule when one of its passages holds most of the rule's words (`MEMORY_HELD`), and at
+    least `MEMORY_MIN_WORDS` of them; a manifest, lockfile or configuration (`NON_PROSE_SUFFIXES`) never
+    does. A file
     that shares only a code span the memory names (a command, a script) holds it partly, and the span is
     reported, because a rule that merely mentions the gate is not recorded wherever the gate is. None
     found means it lives only on this machine: another machine, or another assistant, never sees it. A
@@ -2978,7 +3054,7 @@ def memory_report(memory: Path, repo: Path) -> list[Memory]:
             texts[rel] = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        passages[rel] = _passages(texts[rel])
+        passages[rel] = [] if path.suffix.lower() in NON_PROSE_SUFFIXES else _passages(texts[rel])
     found = []
     for path in sorted(memory.glob("*.md")):
         if path.name == "MEMORY.md":
@@ -3171,9 +3247,13 @@ def _parser() -> argparse.ArgumentParser:
                    "(`@{u}..HEAD`; words separated by spaces, as `git rev-list` takes them): what a push publishes")
     p.add_argument("--repo", default=str(OWN_REPO), help="with --commits: the repository (default: this tool's)")
     p = sub.add_parser("trailers", help="no commit message in a range credits an assistant (exit 1)")
-    p.add_argument("range", nargs="?", metavar="RANGE", help="a git range, words separated by spaces "
-                   f"(default: @{{u}}..HEAD, or the last {TRAILER_DEFAULT} commits with no upstream)")
+    p.add_argument("range", nargs="*", metavar="RANGE", help="a git range, as `git log` takes it, options included "
+                   "(`--all`, `main..feature`, `HEAD --not --remotes`), in one argument or several "
+                   f"(default: @{{u}}..HEAD; with no upstream, the commits on no remote; with no remote at all, "
+                   f"the last {TRAILER_DEFAULT} commits)")
     p.add_argument("--repo", default=str(OWN_REPO))
+    p.add_argument("--message", metavar="FILE", help="read one message from a file instead of a range: an annotated "
+                   "tag's, which a push publishes too")
     p = sub.add_parser("report", help="files, bytes and estimated tokens per folder and per session type")
     p.add_argument("tree", nargs="?", default=str(OWN_BUNDLE))
     p.add_argument("--json", action="store_true", help="the report as JSON instead of markdown tables")
@@ -3219,7 +3299,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--bundle", default=str(OWN_BUNDLE), help="the bundle whose method's entry format is read")
     p.add_argument("--write", action="store_true", help="insert it above the newest entry instead of printing it")
     p.add_argument("--date", default="", help="YYYY-MM-DD (default: today)")
-    p = sub.add_parser("count", help="entries mentioning a symptom, not incidents; a copied line counts once")
+    p = sub.add_parser("count", help="entries mentioning a symptom, not incidents; a line repeated word for word is flagged, never subtracted")
     p.add_argument("symptom")
     p.add_argument("files", nargs="*", metavar="FILE", help="default: this repository's .claude/logs/agent-changelog.md")
     p = sub.add_parser("memory-diff", help="each local assistant memory, and whether the repository holds what it names")
@@ -3234,8 +3314,27 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _trailers_argv(argv: list[str]) -> list[str]:
+    """`trailers` arguments with every word but `--repo R`, `--message FILE` (and help) taken as the range, in
+    order, so a rev-list option (`--all`, `--not`, `--remotes=origin`) is part of it instead of refused."""
+    if not argv or argv[0] != "trailers" or {"-h", "--help"} & set(argv):
+        return argv
+    rest, own, i = [], [], 1
+    while i < len(argv):
+        word = argv[i]
+        if word in ("--repo", "--message") and i + 1 < len(argv):
+            own, i = [*own, word, argv[i + 1]], i + 2
+            continue
+        if word.startswith(("--repo=", "--message=")):
+            own += word.split("=", 1)
+        elif word != "--":
+            rest.append(word)
+        i += 1
+    return ["trailers", *own, *(["--", *rest] if rest else [])]
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    args = _parser().parse_args(_trailers_argv(list(sys.argv[1:] if argv is None else argv)))
     try:
         return _run(args)
     except REFUSALS as refusal:
@@ -3304,12 +3403,33 @@ def _run(args: argparse.Namespace) -> int:  # noqa: C901, PLR0911, PLR0912 -- on
         print(result.summary())
         return 1 if result.failures else 0
     if args.command == "trailers":
-        problems, read, count = trailer_problems(Path(args.repo), args.range)
+        if args.message:
+            if args.range:
+                raise RefusedError("trailers: --message reads one message, not a range; give one or the other")
+            found = attribution_lines(Path(args.message).read_text(encoding="utf-8", errors="replace"))
+            for line in found:
+                print(f"  x {args.message}: {line}")
+            print(f"trailers over the message in {args.message}: " + (
+                f"{len(found)} attribution lines; the user is the sole author, so remove them" if found else "no attribution line"))
+            return 1 if found else 0
+        repo = Path(args.repo)
+        problems, read, count = trailer_problems(repo, " ".join(args.range) or None)
+        published = 0
         for problem in problems:
-            print("  x " + problem)
-        print(f"trailers over {count} commits ({read}): " + (f"{len(problems)} attribution lines; the user is the sole author, "
-                                                            "so remove them (`git commit --amend`, or a rebase) before pushing"
-                                                            if problems else "no attribution line"))
+            refs = published_on(repo, problem.split(" ", 1)[0])
+            published += bool(refs)
+            print("  x " + problem + (f"  (published: on {', '.join(refs[:3])})" if refs else ""))
+        advice = []
+        if len(problems) > published:
+            advice.append("in a commit not yet pushed, remove them (`git commit --amend`, or a rebase)")
+        if published:
+            advice.append(f"{published} already published (marked): rewriting published history is the owner's decision, "
+                          "so no amend or rebase is advised for it")
+        else:
+            advice.append("a commit already published is never rewritten on this tool's word")
+        print(f"trailers over {count} commits ({read}): " + (
+            f"{len(problems)} attribution lines; the user is the sole author. " + "; ".join(advice)
+            if problems else "no attribution line"))
         return 1 if problems else 0
     if args.command == "report":
         tree = Path(args.tree)
@@ -3396,13 +3516,13 @@ def _run(args: argparse.Namespace) -> int:  # noqa: C901, PLR0911, PLR0912 -- on
         return 0
     if args.command == "count":
         files = [Path(f) for f in args.files] or [OWN_REPO / ".claude/logs/agent-changelog.md"]
-        hits, folded = count_report(args.symptom, files)
+        hits, repeats = count_report(args.symptom, files)
         for hit in hits:
-            print(f"  {hit.file}:{hit.line}  {hit.where}")
-        for hit in folded:
-            print(f"  = {hit.file}:{hit.line}  {hit.where}: folded, it only repeats a line counted above")
-        print(f"{len(hits)} entries or lines in {len(files)} files mention {args.symptom!r}, {len(folded)} folded as copies; "
-              "entries that mention it, not incidents")
+            print(f"  {'=' if hit in repeats else ' '} {hit.file}:{hit.line}  {hit.where}"
+                  + (": repeats an earlier line word for word" if hit in repeats else ""))
+        print(f"{len(hits)} entries or lines in {len(files)} files mention {args.symptom!r}; entries that mention it, not incidents"
+              + (f". {len(repeats)} of them repeat an earlier line word for word (marked =): read them, each is a copy "
+                 "or a recurrence" if repeats else ""))
         return 0
     if args.command == "memory-diff":
         repo = Path(args.repo).resolve()

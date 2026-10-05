@@ -9,6 +9,42 @@ version it holds with `bundle.py changelog --since <its version>`.
 
 ## [Unreleased]
 
+## [0.0.28] - 2026-10-05
+
+Fixes from a fresh-context review of 0.0.27 before it was published, and the first results of the research the
+same session ran on what was left open. A carrier that took 0.0.27 takes this one the same way.
+
+### Fixed
+
+- **`privacy --commits` crashed on a path with a space, a quote or a backslash** (a traceback that blocked the push
+  hook); paths are read NUL-separated, and any git failure is a one-line refusal. It now also reads the lines a merge
+  commit writes itself.
+- **`trailers` with no upstream read published commits and advised rewriting them**; it now reads only commits on no
+  remote, accepts rev-list options as its range (`trailers --all`), names a flagged commit that is already published
+  and leaves rewriting it to the owner, and catches any `…-by:` trailer naming an assistant without flagging prose.
+- **`count` folded a recurrence recorded in the same words as a copy**; it counts every entry and marks word-for-word
+  repeats for the reader to judge (the close skill says how).
+- **The home's pre-push hook** checks a new ref against the remote being pushed to, and reads annotated tags.
+- **The user-deny warning** anchors a `./` rule at the repository root and says it reports every committed file the
+  rule matches.
+- **`memory-diff`** no longer takes a manifest, a lockfile or three shared words as holding a rule.
+- **A second review of these fixes** found four more, fixed here: `privacy --commits` read a file or a path that is
+  not UTF-8 with a traceback, refused a commit that moves a submodule's pointer, and never read a file whose type
+  changed; `trailers` in a repository with no commit was refused instead of reading nothing. The home's pre-push
+  hook resolves a push by URL to its configured remote, or reads every commit it sends, and strips only a real
+  signature from a tag's message.
+- **Step 2 and the working invocation** said to ask "all at once", against principle 15's decision review; they say
+  together, or one per turn in a decision review.
+
+### Changed
+
+- **The three skills' descriptions lead with their trigger and name the neighbour that wins today**; a carrier adds
+  the human's phrases as `when_to_use` in `LOCAL.md` rather than replacing `description` (`method/skills/README.md`).
+  A bare push is not a trigger of `close`; the close is offered once before a push that ends a plan.
+- **`a-decoder-that-degrades-to-plausible-output-needs-an-out-of-band-check`** cites the wrapper format whose check its
+  first occurrence left out, with a synthetic run that confirms it; seven experiments are queued for the five new notes
+  that had none, and one for a gate's timing under load.
+
 ## [0.0.27] - 2026-10-05
 
 How the maintainer actually decides becomes part of the method: questions run in named modes, every

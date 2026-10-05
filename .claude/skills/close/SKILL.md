@@ -1,8 +1,9 @@
 ---
 # Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
 name: close
-description: Cierra una sesión de código para que la siguiente, en otra máquina y sin memoria de esta, pueda seguir — cada parte del pedido rendida, los documentos verdaderos otra vez, la entrada del changelog, las fricciones contadas, la memoria local pasada al repo, el traspaso, y después el gate y los commits. Usar cuando se pida "cierra la sesión", "cierra la sesión de código con la documentación y los commits", "documenta todo y prepara los commits", "deja todo listo para seguir desde otro agente", "cerremos por hoy" o "súbelo". No cuando se pida pausar.
+description: Closes a working session so the next one, on another machine with no memory of this one, can continue. Use when asked to close or wrap up the session, end a phase, document what is pending and learned, or leave everything ready for another agent or machine, usually with commits and a push at the end. Runs every step - each part of the request accounted for, documents true again, the changelog entry, counted frictions, local memory moved into the repository, the hand-off, then gate, commits, remote. Not for pausing with no commits, a bare commit or push, closing a device or debug session, an app or a dialog, or finishing selected items. Before a push that ends a plan with no close yet, ask once whether to close first.
 allowed-tools: Bash, Read, Edit, Write, Grep
+when_to_use: Usar cuando se pida "cierra la sesión", "cierra la sesión de código con la documentación y los commits", "documenta todo y prepara los commits", "deja todo listo para seguir desde otro agente" o "cerremos por hoy". No cuando se pida pausar, ni por un push solo.
 ---
 
 # Close
@@ -55,7 +56,8 @@ states none). Replace each comment, and beyond the format:
 
 - **Frictions:** for each one hit, `python3 .agents/tools/bundle.py count "<symptom>" <log>
   <ledgers>`, under several spellings of the symptom. It counts entries, not incidents: read each
-  hit, count once an event copied into a later entry, and write the incidents found. An entry records
+  hit, read the entries it marks as word-for-word repeats (a copy counts once, a recurrence in the
+  same words counts again), and write the incidents found. An entry records
   only what happened in its own span. The second incident goes to the roadmap's process section,
   priced.
 - **Procedures done by hand:** the same search. The second occurrence is a proposed skill or script,

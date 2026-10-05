@@ -1,8 +1,9 @@
 ---
 # Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
 name: decision-review
-description: Revisa un spec, un diseño o un plan antes de construir nada — lista todas sus decisiones, y cada una que es del dueño se la pone en su propio turno, con la recomendación primero, cada opción mostrada con un caso concreto y su precio en las unidades de este repo (MB, ms, filas, líneas por pantalla) y lo que cierra — hasta que no quede ninguna, y registra las respuestas. Usar cuando se pida "revisemos las decisiones", "hazme todas las preguntas", "explícame las cosas sin decidir y ayúdame a decidirlas", "¿qué falta por decidir?", "consúltamelo antes de tomarlo", "define bien las tareas y sus consecuencias", o antes de planear algo cuyas decisiones no están cerradas. No para las preguntas de arranque de una tarea, y no mientras se ejecuta un plan.
+description: Walks the human through the decisions of an existing spec, design or plan before anything is built - lists every decision, decides the minor ones, then asks the human's one per turn, recommendation first, each option shown by a concrete example and priced, and records the answers. Use when asked to review a spec or design, go through the decisions or open questions one at a time, say what is left to decide, help decide before planning, or ask the questions a plan needs. Not for a new idea with nothing written yet (brainstorm first), approving or executing a plan, one quick question, or the few facts and permissions a run needs at its start (the pre-flight).
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+when_to_use: Usar cuando se pida "revisemos las decisiones", "hazme todas las preguntas", "explícame las cosas sin decidir y ayúdame a decidirlas", "¿qué falta por decidir?", "consúltamelo antes de tomarlo", "define bien las tareas y sus consecuencias", o antes de planear algo cuyas decisiones no están cerradas. No para las preguntas de arranque de una tarea, y no mientras se ejecuta un plan.
 ---
 
 # Decision review

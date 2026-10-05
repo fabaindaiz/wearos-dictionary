@@ -14,7 +14,7 @@ adapted = [
   "discarded and open decisions are their own sections of docs/decisions.md, with a three-column shape, rather than inline marks on the rows; the enforcer-count excludes them (D-224)",
   "a rule that leaves CLAUDE.md for a skill keeps a one-line invariant plus a pointer there, and no skill is left unnamed by any document (D-222)",
   "the root file's knowledge, privacy and procedures-win lines are one paragraph of CLAUDE.md §How a session runs, inside its 220-line budget (0.0.26)",
-  "the close skill's description is in Spanish, in the user's own phrases, and its opening maps the session log, the gate and the commit skill, through .claude/skills/close/LOCAL.md (0.0.26)",
+  "the close, decision-review and user-walk skills carry the user's own Spanish phrases as `when_to_use` (0.0.28; they replaced `description` in 0.0.26 and 0.0.27), and their opening maps the session log, the gate and the commit skill, through .claude/skills/close/LOCAL.md (0.0.26)",
   "the gate runs bundle.py verify from tools/audit_dictionary.py check_bundle_digests, inside ./gradlew check (0.0.26)",
 ]
 declined = [

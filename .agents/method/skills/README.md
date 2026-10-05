@@ -19,8 +19,9 @@ skills are installed again.
 **The carrier's own procedure wins**, in `.claude/skills/<name>/LOCAL.md`, which the carrier owns and
 commits:
 
-- its frontmatter replaces the base's key by key (a `description` in the human's own words and
-  phrases, so the skill fires on what they actually say);
+- its frontmatter replaces the base's key by key. **Add the human's own phrases as `when_to_use`**, which the
+  host appends to the base's `description`, rather than replacing `description`: a replaced description
+  shadows every later fix to the base's wording. Replace `description` only with a stated reason;
 - text before its first `##` heading follows the base's opening;
 - a `##` section replaces the base section with the same heading; an empty one removes it; a new one
   is appended.

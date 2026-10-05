@@ -1,5 +1,5 @@
 ---
-description: Cierra una sesión de código para que la siguiente, en otra máquina y sin memoria de esta, pueda seguir — cada parte del pedido rendida, los documentos verdaderos otra vez, la entrada del changelog, las fricciones contadas, la memoria local pasada al repo, el traspaso, y después el gate y los commits. Usar cuando se pida "cierra la sesión", "cierra la sesión de código con la documentación y los commits", "documenta todo y prepara los commits", "deja todo listo para seguir desde otro agente", "cerremos por hoy" o "súbelo". No cuando se pida pausar.
+when_to_use: Usar cuando se pida "cierra la sesión", "cierra la sesión de código con la documentación y los commits", "documenta todo y prepara los commits", "deja todo listo para seguir desde otro agente" o "cerremos por hoy". No cuando se pida pausar, ni por un push solo.
 ---
 
 In this repository the session log is `.claude/logs/agent-changelog.md` (its format is at its end),

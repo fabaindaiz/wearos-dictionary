@@ -495,7 +495,7 @@ the session.
 > than the limit already allows**: interface for a problem that does not exist
 > yet, and saying so with the count stops it being picked up again next month.
 
-### 2. Ask the few decisions, all at once, before writing
+### 2. Ask the few decisions before writing: together, or one per turn in a review
 
 Principle 15 has the protocol. Before a design decision on a change that touches
 state, a contract, data, security or verification, **look the change up in
@@ -1004,7 +1004,8 @@ today's repo; conventions come from that repo and nowhere else.
 Then survey what is available on the roadmap and rank it by what it
 costs the core invariant and whether this repo can verify it. Tell me what you
 would **not** take and why. Then ask me — before writing anything — only the
-decisions that are genuinely mine, all at once, each option priced in this
+decisions that are genuinely mine, together (one per turn in a decision review
+when they are more than one message holds), each option priced in this
 repo's own units, with your recommendation first.
 
 When the change touches state, a contract, data, security or verification, look
