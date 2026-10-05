@@ -31,6 +31,22 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-10-05.* The paragraphs below, dated 2026-09-22, are kept as history and several of
+their figures are stale; the session log is the current record.
+
+- **On the device since 2026-10-01**: APK `versionCode` 14, build `dedbcd0`, and the six packs of
+  the full rebuild that day (identity read back from the device, 5 packs open, 0 rejected).
+- **Not yet seen on a screen**: the *no definition* notice, and the result row's definition preview
+  against the rebuilt packs. Both are emulator checks by this repo's rule.
+- ⚠️ **An owner request still open** (2026-09-29, `i-a2f271-55ddfc`): R8 was believed to be running
+  on the device, and if not, the next upload should be an R8 build to be used for a week. Every
+  upload since was a plain debug build. **Recommendation, not decided**: the next upload is
+  `assembleDebug -PdebugR8` (it shrinks without optimising, see `app/build.gradle.kts`), and the
+  owner says whether a week of daily use on it is what he wants.
+- The owner also reported no scroll or off-screen problems in daily use (2026-09-29).
+- Two short sessions after the last log entry (2026-10-01 evening, 2026-10-02) left no commit and no
+  entry; the tree was clean afterwards.
+
 *Actualizado: 2026-09-22.*
 
 ✅ **The instruction system is on agent-guides 0.0.26** (converted 2026-10-05 from the old v20
@@ -6597,6 +6613,63 @@ the whole output and returns its real exit code would remove the incentive. It i
 it puts the cheap path back on the correct side.
 
 ⚠️ **Not built**: process improvements are proposed, not executed (`CLAUDE.md`).
+
+### A path-list commit leaves a new file out, and the working tree's gate cannot see it · i-a2f271-25ed3c
+
+**Proposed, not built.** 2026-10-01: `git commit --only -- <dirs>` took a changed `Model.kt` and
+**not** the new test file beside it, so a function shipped with no coverage while the gate stayed
+green — the file was on disk here. `git status` caught it two commits later; a clean worktree of the
+commit would have reported four fewer tests, and it was the step skipped that time. The trap is
+written only in the session log and in local memory, not in the `commit` skill. **What would close
+it:** one line in the skill (read the `??` lines of `git status --short` before committing, and add
+a new file by name), and the worktree run the skill already asks for.
+
+### The rule to write what would invalidate a measurement lives only in memory and the log · i-a2f271-57e3d2
+
+**Proposed, not built.** Write the condition that would invalidate a number before reading it, and
+print why each discarded window was discarded: it caught a bad rule on 2026-09-25, and its absence
+let a sample biased by row order publish wrong figures on 2026-09-24. It also covers the monitors
+that matched the agent's own commands (`pgrep -f` reading a failed pipeline as running for twenty
+minutes on 2026-10-01; a log grep matching the agent's own adb calls). It lives in local memory, the
+session log and `docs/bateria.md`, not in the `verify` skill that owns *how a measurement is
+written*. **What would close it:** a short section in that skill.
+
+### The verify skill states test counts nobody checks · i-a2f271-a58967
+
+**Proposed, not built.** Its gate section still says 77 / 233 / 250 tests and 28 checks (the builder
+alone is at 662 and the audit at 40). `check_test_counts` watches `README.md`, the area `CLAUDE.md`
+files and the roadmap, **not the skills**, so the document that teaches how to verify carries the
+unverified numbers. Found 2026-09-25 and still true. Either the count check reads the skills too, or
+the skill names where the numbers live instead of copying them.
+
+### Build files are outside the prose-language ceiling · i-a2f271-363c4c
+
+**Proposed, not built.** `gradle/` and the root `.kts` files are not under `TECHO_ESPANOL`, and
+`app/build.gradle.kts` holds long Spanish KDoc, so the rule that Spanish only goes down does not reach
+them. Found 2026-09-25.
+
+### The full gate in a clean worktree costs about twenty minutes, and the light selection is not written down · i-a2f271-accdb6
+
+**Proposed, not built.** Verifying each commit in a fresh `git worktree` ran **21 min 37 s** on
+2026-10-01 (no shared build cache). The owner has asked for the *light gate* — the builder's tests
+plus `tools/audit_dictionary.py` — for commits that touch no Kotlin, and sessions use it, but no
+document says when it is enough. **What would close it:** one row in the `verify` skill naming the
+selection by what the commit touches.
+
+### The audit walks .claude/worktrees and reports a stale copy's state as failures · i-a2f271-a3b903
+
+**Proposed, not built.** 2026-09-25: the first audit after a merge reported 46 failures, all from a
+worktree copy left under `.claude/worktrees/` at an older state; `git worktree remove` cleared them.
+Recorded once then as a first hit; it fires for any session that leaves a worktree there, and the
+failures read as real ones. **What would close it:** skip that folder in the audit's walk.
+
+### Reconnecting to the device: a restarted bridge daemon, a stale advertised port, a suspended device · i-a2f271-42b6bd
+
+**Proposed, not built.** Three ways the wireless session is lost that are known only from the log:
+the adb daemon restarting drops the pairing (2026-10-01); mDNS can advertise an old port
+(2026-09-21); a suspended device answers *host is down* with the port open, and the second attempt
+works (2026-09-25). `watchsession.py` handles the new-port case; the other two are a line each in its
+usage text or in `app/CLAUDE.md`.
 
 ## Cerrado por medición
 
