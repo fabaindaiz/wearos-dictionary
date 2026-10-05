@@ -28,7 +28,7 @@ The consumer needs a **stable identity for the logical operation**, chosen by wh
 
 Two sharper boundaries, from a second repository:
 
-- **Catch only the error that proves the effect did not happen.** A refusal the provider answered is safe to treat as "not applied"; a transport error is not — its outcome is unknown, and handling both the same way converts an unknown into a false negative.
+- **Catch only the error that proves the effect did not happen.** A refusal the provider answered is safe to treat as "not applied"; a transport error is not — its outcome is unknown, and handling both the same way converts an unknown into a false negative. Two more forms of the same mistake: a client that decodes a body from every response turns a bodyless success (`204 No Content`) into an error, and a retry over any exception sends the write again, so the effect happens twice and the caller is told it never happened; and a handler that fails the request because the bookkeeping write *after* the effect failed turns a possible duplicate into a certain one, because the caller's retry finds no marker. Read success from the status, treat an empty body as no data, and never report a failure after the effect as if the effect had not happened.
 - **Deterministic task ids deduplicate the wrong fork.** A queue that refuses a retry because its id already exists fails towards a retry nobody notices was refused. Bound retries by a budget re-read before every attempt, with one owner, rather than by id collisions.
 
 ## What it costs

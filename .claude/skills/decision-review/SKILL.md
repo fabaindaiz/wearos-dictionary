@@ -1,0 +1,77 @@
+---
+# Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
+name: decision-review
+description: Revisa un spec, un diseño o un plan antes de construir nada — lista todas sus decisiones, y cada una que es del dueño se la pone en su propio turno, con la recomendación primero, cada opción mostrada con un caso concreto y su precio en las unidades de este repo (MB, ms, filas, líneas por pantalla) y lo que cierra — hasta que no quede ninguna, y registra las respuestas. Usar cuando se pida "revisemos las decisiones", "hazme todas las preguntas", "explícame las cosas sin decidir y ayúdame a decidirlas", "¿qué falta por decidir?", "consúltamelo antes de tomarlo", "define bien las tareas y sus consecuencias", o antes de planear algo cuyas decisiones no están cerradas. No para las preguntas de arranque de una tarea, y no mientras se ejecuta un plan.
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+---
+
+# Decision review
+
+The human decides best one decision at a time, each shown by example, and decides worst after the
+plan has run: rulings walked after a plan was executed were mostly changed, and the plan grew an
+addendum; walked before it, none was needed. So this runs **before** the plan. The rules for every
+question are `prompt-context.md` §15; this is its decision-review mode.
+
+In this repository a decision taken is a row in `docs/decisions.md` with an id from
+`bundle.py id d` and its *Enforced in* column filled; a question left open goes to the roadmap item
+it blocks. An option the owner picks against the recommendation is carried out whole and its cost
+recorded as ⚠️ Desviación, not re-argued. Where a step below names something this repository defines
+differently, this repository's wins.
+
+## 1. Read first
+
+Read the spec, the code it touches, the decisions log and the roadmap. Anything they answer, or that a
+probe, an emulator or a throwaway spike can answer in minutes, is not a question: answer it, and say
+how. A long look-up goes to a subagent while the inventory is written.
+
+## 2. The inventory, in one message
+
+List **every** decision the spec implies, each as a question with its options, in dependency order:
+one that others depend on comes first. Tag each:
+
+- **Theirs**: different answers give materially different work; or it is what the user sees, the
+  stack, or content the human authored.
+- **Yours**: a convention, already answered, or reversible in minutes and invisible to the user.
+  Decide it now, one line each.
+
+Show the inventory whole, with how many are theirs, and ask whether to proceed or re-tag. The human
+may say "decide the minor ones"; they become yours, listed.
+
+## 3. The walk: one decision per turn
+
+Each turn has the same shape (a theme of up to four related decisions only if the human asks for
+themes):
+
+- the decision, in one sentence, in the human's language and plain words;
+- two or three options, a middle ground only when it is real, each with **a concrete case at the same
+  fidelity** (a sample, a sketch, a before and after, a Given/When/Then, a draft with its length), its
+  price in the repository's units, and what it forecloses;
+- the recommendation first, with its reason, and a reason for every other option;
+- "or tell me otherwise": a free-text answer overrides the options, read literally.
+
+A question about how something looks or feels gets a mockup or a throwaway prototype first. Use the
+assistant's question tool when there is one, with previews for visual options.
+
+## 4. After every answer
+
+- Say what the answer settled, reopened or created further down the inventory.
+- An answer that contradicts an earlier one is named once, with both.
+- After a long run of accepted recommendations, name the riskiest of them for a second look.
+- Change a recommendation only for a new fact, and name the fact; never because of the human's mood.
+
+## 5. Stop, and record
+
+Stop when the inventory is empty — each decision settled, deferred with what reopens it, or recorded as
+not a decision — or when the human says stop. More than about fifteen of the human's decisions means the
+scope is too big: propose splitting it. Then:
+
+1. one screen: **decided by you** (the human), **decided for you** (by the agent), **open**;
+2. wait for the human to confirm it;
+3. write each decision to the decisions log, the deferred ones to the roadmap, and the amendments to
+   the spec, **before** any plan is written.
+
+## Hands off to
+
+A plan (the repository's format, or a planning skill if one is installed); `user-walk` when a decision
+is about a flow a user goes through; a throwaway prototype for what talk cannot settle. A new idea with
+no spec yet goes through a brainstorming step first, then comes here.

@@ -153,7 +153,8 @@ uncommitted diff is their work.
    **Then read what was said and never recorded**, privacy-filtered as it is read: the human's
    messages in the period's session transcripts, where the host keeps them — the typed turns, the
    messages sent mid-turn (queued while the assistant worked), and the answers to question tools,
-   whose free text overrides the options it came with — and the assistant's local memory and any
+   whose free text overrides the options it came with (`bundle.py turns --since <harvested_through>`
+   prints them where the host is Claude Code) — and the assistant's local memory and any
    ledger present but ignored by version control. Corrections often live only there. From all of it,
    extract at least: what the human asked to research, what they corrected, what they stressed,
    the requests that recur, and the errors that recur. A fact found only there is first routed to

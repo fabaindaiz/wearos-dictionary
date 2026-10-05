@@ -1,0 +1,84 @@
+---
+# Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
+name: user-walk
+description: Recorre cómo una persona usaría una función o la app — primero el flujo ideal, después cada demora, interrupción, retroceso, falla y mal uso que va a encontrar —, le pone precio a cada uno y convierte los que se quedan en tests que fallan antes del código; también responde una tanda de observaciones de uso real, cada una reproducida, arreglada con el test primero y barrida por su clase. Usar cuando se pida "piensa cómo lo usaría alguien", "qué pasa si se corta el wifi o se cierra la app a la mitad", "prueba todas las formas de cierre", "casos borde", o cuando el dueño trae observaciones de usar la app en el reloj ("la app se instaló pero tiene algunas observaciones"). No para revisar decisiones (decision-review), y no reemplaza probar con personas reales.
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+---
+
+# User walk
+
+Imagined flows find dead ends and missing states early, but an agent walking alone walks the ideal
+path; the delays and setbacks came from the human's own use. So the walk lists every way a flow goes
+wrong **before** handling any, and what it produces are tests and hypotheses, never evidence about
+real users.
+
+In this repository a walk that needs a screen runs on the emulator that reproduces the device's
+geometry (`tools/avd_como_el_reloj.py`; its startup log must say it is the device's), never with taps
+or screenshots on the real device, whose probe is install, launch and read the log. A behaviour the
+gate cannot see (colour, animation, where a line breaks) is measured on that emulator and said so in
+the test. Where a step below names something this repository defines differently, this repository's
+wins.
+
+## 1. Actors and goals
+
+Who uses it (from the repository's personas or data where they exist; say so when they are assumed),
+what each wants, and who would misuse it.
+
+## 2. The ideal flows
+
+For each goal, the main success scenario in three to nine steps, each an action and what the user sees.
+With a user interface, ask at each step: is it the user's goal now, is the action visible, does it read
+as the way to that goal, and does the user see progress after it?
+
+## 3. Every way it goes wrong, listed before any is handled
+
+For each step:
+
+- **delays**: a slow answer, a long operation, a wait with no end, a timeout;
+- **interruptions**: the app closed or sent to the background, the network lost, the device locked or
+  restarted, the session expired, a second instance, a call in the middle;
+- **setbacks**: a wrong input, a change of mind, back or undo, a double submit, a half-finished task,
+  coming back days later;
+- **failures**: a dependency down, a partial write, a full disk or quota, a stale cache, a conflicting
+  edit, a clock that is wrong;
+- **misuse**: what the unwelcome user tries.
+
+Then a **premortem**: it shipped and users lost work or gave up — why? Written apart from the list,
+then merged. The knowledge cards on failure behaviour (`.agents/knowledge/INDEX.md`) name what this kind
+of system usually gets wrong.
+
+## 4. Merge, price, decide
+
+Merge the duplicates. Price each case: how likely, and what it costs the user unhandled (lost work, a
+wrong result, a wait, confusion), in the repository's units where it has them. For each one kept, say
+where it ends: back in the flow, another success, or a failure the user can see and recover from. A
+handling choice that is the human's goes to `decision-review`. The rest are recorded as not handled,
+with why.
+
+## 5. Tests first
+
+Each case kept becomes one Given/When/Then and then a test that fails before the code (principle 18),
+named after the behaviour, with the clock and the boundaries injected. More than about twenty kept for
+one flow: split the feature.
+
+## 6. Widen once, and say what it is
+
+Optionally, a fresh subagent walks the same flow without seeing the list; merge what is new (two
+walkers find largely different problems). Report the walk as hypotheses, and name the cheapest real
+check when the stakes call for one: the human using the build, a few users thinking aloud, telemetry.
+
+## When the human reports from real use
+
+Each observation in the batch is answered by name in the report, none skipped:
+
+1. reproduce it on the closest stand-in for the human's device (the same screen geometry, the same
+   build), with a capture; tests on the human's real device read data only and change nothing;
+2. fix it with a test that fails first;
+3. sweep its class: every other place the same cause can show, not only the one reported;
+4. add the case to the walk above, so the next feature is walked against it.
+
+## Hands off to
+
+Test-first implementation (a test-driven skill if one is installed, or principle 18), in the order the
+cases were kept; a plan, whose per-task tests are these; `decision-review` for the handling choices
+that are the human's.

@@ -16,6 +16,49 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-05 · s-a2f271-a441e5 — agent-guides 0.0.27 lands: the received proposals pruned, two skills installed in Spanish, and attribution made a setting with a gate behind it
+**What.** The bundle moves from 0.0.26 to **0.0.27**, spliced by the bundle's home into this branch.
+Then what the release asks a carrier to do:
+- `bundle.py proposals --prune` removed **all 40** proposals of this repo: the home received every
+  one (queued, merged into a note as another occurrence, logged as a run, or recorded as refused).
+  Three candidates this repo had offered new occurrences of are notes of this release:
+  `refusal-must-not-read-like-an-answer`, `readout-per-silent-outcome` and
+  `a-surviving-guard-mutation-means-a-missing-input`.
+- `bundle.py install-skills` installed two new method skills, `decision-review` and `user-walk`, and
+  refreshed `close`. Each new one has a `LOCAL.md` with a Spanish description in the owner's own
+  phrases, like `close`, and an opening that maps it to this repo: a decision is a row in
+  `docs/decisions.md`; a walk that needs a screen runs on the emulator with the device's geometry,
+  never with taps on the real device. `CLAUDE.md`'s map names both.
+- The `knowledge-reviewer` copy in `.claude/agents/` refreshed from the release.
+- **Attribution is a setting**: `.claude/settings.json` carries `attribution` with empty commit and
+  PR lines and no session URL, and the audit gains `check_commit_trailers`, which runs
+  `bundle.py trailers` over the commits not yet pushed.
+- The counts the release moved: `CLAUDE.md`'s notes (43 → 50) and the roadmap's audit and test
+  totals, by `audit_dictionary.py --fix`.
+
+**Areas.** `.agents/` (spliced), `.agents/proposals/` (pruned), `.claude/settings.json`,
+`.claude/skills/{close,decision-review,user-walk}/`, `.claude/agents/knowledge-reviewer.md`,
+`tools/audit_dictionary.py`, `CLAUDE.md`, `docs/roadmap.md`.
+
+**Why.** Asked for by the owner, after the harvest of the same day.
+
+**Architecture.** ✅ Complies. The new check extends the audit and runs the bundle's tool rather than
+a copy of its pattern.
+
+**Measured.** `bundle.py verify` → *0.0.27 verified*; `check-local .` → *only their own files
+changed*; audit **41 checks, 0 failures**. The new check was seen red: fed a range of published
+commits it failed and named three of them; over this branch's unpushed commits it passes.
+
+**What went wrong.** ⚠️ **Published history carries the trailer.** With no upstream the tool reads
+the last 20 commits, and 17 of them, pushed on 2026-09-30 and 2026-10-01, credit the assistant: the
+rewrite of 2026-09-28 removed it from the history then, and the sessions after it added it again.
+That history is not rewritten here, so the check reads `@{u}..HEAD`, or `origin/main..HEAD` when a
+branch has no upstream. Whether to rewrite the published commits is the owner's call, and it waits
+for him.
+
+**What was left undone.** No dead pointer found: the release removed no file, and every section this
+repo cites by name still exists.
+
 ## 2026-10-05 · s-a2f271-cfce26 — The harvest: thirty-nine proposals, the records closed, and an owner request found unanswered
 **What.** The local step of the bundle (`prompt-harvest.md`) over everything recorded since the last
 harvest (2026-09-23): this log from 2026-09-24 on, the roadmap, the decisions it cites, `git log`,

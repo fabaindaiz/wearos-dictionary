@@ -1939,6 +1939,46 @@ def check_bundle_privacy_and_ids(report):
             report.failure(rule, "; ".join(lines[:5]) or result.stdout.strip()[-400:])
 
 
+def check_commit_trailers(report):
+    """Rule: the owner is the sole author; no commit message credits an assistant. (agent-guides artifact 4)
+
+    The setting that stops the assistant writing the line is `attribution` in the committed
+    `.claude/settings.json`; this is the enforcer behind it, because a rule kept in one machine's
+    memory reverts in silence on another. It runs the bundle's own `bundle.py trailers` rather than a
+    copy of its pattern, over the commits **not yet pushed** only: `@{u}..HEAD` when the branch has an
+    upstream, and `origin/main..HEAD` when it has none (a fresh branch, or a detached worktree that
+    verifies one commit).
+
+    ⚠️ **Why not the tool's own fallback.** With no upstream it reads the last 20 commits, and the
+    published history of 2026-09-30 and 2026-10-01 carries the trailer. That history is not rewritten
+    here, so the window is the branch point, not a count.
+    """
+    tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
+    def git(*args):
+        return subprocess.run(["git", "-C", ROOT] + list(args), capture_output=True, text=True)
+    if git("rev-parse", "--verify", "-q", "@{u}").returncode == 0:
+        rango = "@{u}..HEAD"
+    elif git("rev-parse", "--verify", "-q", "origin/main").returncode == 0:
+        rango = "origin/main..HEAD"
+    else:
+        report.advisory(
+            "trailers sin rango",
+            "no upstream and no origin/main, so the unpushed commits cannot be told apart; "
+            "run `bundle.py trailers <range>` by hand before pushing",
+        )
+        return
+    result = subprocess.run([sys.executable, tool, "trailers", "--repo", ROOT, rango],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        lines = [l.strip() for l in (result.stdout + result.stderr).splitlines()
+                 if l.strip().startswith("x ")]
+        report.failure(
+            "un commit sin pushear acredita a un asistente",
+            "%s. The owner is the sole author: amend the message before pushing"
+            % ("; ".join(lines[:5]) or result.stdout.strip()[-400:]),
+        )
+
+
 def check_bundle_digests(report):
     """Regla: el bundle de agentes no se edita en el lugar; cambiarlo es forkear. (D-059, D-221)
 
@@ -2194,6 +2234,7 @@ CHECKS = [
     check_no_hardcoded_translations,
     check_root_budget,
     check_bundle_digests,
+    check_commit_trailers,
     check_changelog_is_newest_first,
     check_record_ids_are_minted,
     check_bundle_privacy_and_ids,

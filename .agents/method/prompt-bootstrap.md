@@ -130,9 +130,10 @@ them as proposed.
    probably know this in one sentence, and it decides what has to be checked
    before shipping rather than after. If there is none, say so.
 
-3. Language. I will write this repository's own documents in the language you
-   are writing to me in, keeping identifiers, commands and paths exactly as they
-   are. The method documents themselves stay in English.
+3. Language. I will write this repository's own documents in the language its
+   readers use: the one its documents already state, or yours if none does.
+   Identifiers, commands, paths, and the headings and keywords a tool parses,
+   stay exactly as the tool expects them. The method documents stay in English.
 
 4. Off limits. I will not touch anything you name here, and I will not run
    installs, migrations, or anything that reaches the network. I will run the
@@ -263,6 +264,12 @@ Rules for this phase:
   gets checked against its documentation. State which claims you verified and
   which are from memory, and mark the second kind **ASSUMPTION**.
 - **Cite the source you actually used.** Not a plausible URL.
+- **A reference that resolves is not thereby the right one.** A finding becomes
+  a decision's reason only after the cited text has been read, and the tool run
+  where the claim is behavioural. A fetch tool that answers through a model
+  returns a summary even at the primary address: download a machine-readable
+  source (a specification, a schema) whole, and read the fact from it with a
+  parser.
 - **A recipe written for a different environment is the most dangerous kind of
   correct.** Say which environment a recommendation assumes.
 - **Cap it.** Five to fifteen sources that changed something beats fifty that
@@ -328,6 +335,11 @@ newer. Add
 the schema if there is structured data. Add hooks for what must not be left to judgement. Add
 `permissions.deny` for the files that should not be hand-edited.
 
+**Commit attribution is set in the repository, not left to prose**: off in the
+committed settings, with a hook or gate step that fails on an attribution
+trailer (`prompt-context.md`, artifact 4, *Attribution is a setting, not a
+sentence*). A repository that wants attribution records that in `declined`.
+
 **Expect failures on the first run and fix them** — they are real violations,
 not tooling noise. Report how many of the documented rules were already being
 broken. That number is the best available argument for the whole exercise.
@@ -376,14 +388,12 @@ Bootstrapping is not the end; the system rots without a ritual. Add a
 ## The session loop
 
 The nine phases happen once. **This is what every session after them looks
-like**, and it is where the artifacts either earn their keep or sit unread. A
-repository can be perfectly bootstrapped and still be worked on badly.
+like**: where the artifacts earn their keep or sit unread.
 
-**Two bookends and seven steps.** Step 0 and step 8 are the bookends, and they
-are what make the loop compound instead of just repeat: one loads the state of
-the world before deciding anything, the other returns what the session learned
-to the repository. Of the seven in between, steps 1, 2, 6 and 7 are the ones
-agents skip, and they are the ones that cost the most when skipped.
+**Two bookends and seven steps.** Step 0 loads the state of the world before
+anything is decided; step 8 returns what the session learned to the repository;
+together they make the loop compound instead of repeat. Steps 1, 2, 6 and 7 are
+the ones agents skip, and cost the most when skipped.
 
 **Three phases, and what each one loads.** Steps 0 to 2 plan, from the
 repository's own records and, on a change that touches state, a contract, data,
@@ -391,10 +401,10 @@ security or verification, the cards the knowledge index links (one lookup, one
 small file each). Step 3 builds, with the repository in view and no knowledge
 note. Step 4 verifies, and runs the checks of the cards the change relied on.
 Steps 5 to 8 close. Whatever enters the author's context is paid again at every
-later turn, which is why a card is read and not an area index or a note. A
-review in a fresh context (step 4) is run on request, not by default: measured,
-it cost several times a session without it and made no task pass that the
-cards alone did not.
+later turn, which is why a card is read and not an area index or a note. The
+card review in a fresh context (step 4) runs on request: measured, it cost
+several times a session without it and made no task pass that the cards alone
+did not. A whole-branch review is offered when a multi-task plan is done.
 
 ### 0. The opening brief — load the world before you touch the request
 
@@ -407,8 +417,10 @@ Gather, in this order, stopping as soon as a source has nothing to add:
 - **What is in motion.** The roadmap's *Where we are*, and the last handful of
   changelog entries. What is half-finished, and what did the last session say it
   left undone?
-- **What is in the tree.** Uncommitted and staged changes. Some of it may be
-  another session's work, and none of it is yours to fold in.
+- **What is in the tree.** Uncommitted and staged changes, here and in every
+  worktree (one inside the repository doubles every scan, runs the main
+  checkout's hooks and hides its work from the next session). Some may be another
+  session's, and none of it is yours to fold in.
 - **What constrains today.** The decisions and measurements that bear on the
   area the request touches, from the repository's own records (the cards come
   at step 2). Read the *why*, not just the rule — you will be tempted to re-open it in
@@ -429,7 +441,7 @@ Gather, in this order, stopping as soon as a source has nothing to add:
 Workspace      <only with more than one repo open — see context's Workspaces>
 Today's repo   <the one this work is in; conventions come from HERE>
 In motion      <what is half-finished, from the roadmap and the changelog>
-In the tree    <uncommitted work, on which branch, and whose it is>
+In the tree    <uncommitted work, on which branch or worktree, and whose>
 Constrains     <the decisions and numbers that bear on what you asked>
 Stale          <what must be re-checked before it is trusted>
 Changes it     <how the above alters your request — one sentence>
@@ -439,26 +451,25 @@ Friction       <process items still open that this work will touch>
 The first two lines are dropped entirely when a single repository is open. The
 other six are never dropped.
 
-Four rules for the brief, all of which exist because the alternative has been
-seen:
+Four rules for the brief, each learned from its opposite:
 
 - **A line with nothing in it says `nothing`.** An omitted line is ambiguous
-  between *checked and clean* and *did not check*, and the reader cannot tell
-  which. This single rule is most of the brief's value.
+  between *checked and clean* and *did not check*. This single rule is most of
+  the brief's value.
 - **`Changes it` is the point of the whole exercise.** If the state of the repo
-  does not alter the request, say so plainly — but say it, because "nothing here
-  changes what you asked" is information the human paid for.
+  does not alter the request, say so: "nothing here changes what you asked" is
+  information the human paid for.
 - **Written for someone who has not been here since last week**, because that is
   usually true. Name things, do not allude to them.
 - **Six lines, not six paragraphs.** Anything longer gets skimmed, and a skimmed
   brief is worse than none: it has been paid for and not read.
 
-> **Example.** A session opened on "keep adding roadmap items". The brief that
-> mattered was three lines: a cosmetic change to the task-runner config was
-> **staged by another session** and was not to be touched; the last few entries
-> showed the deploy path had just been fixed twice, so anything touching the
-> build was hot; and the only roadmap item that cost the core invariant nothing
-> was the one the human had not named. That last line changed what got built.
+> **Example.** A session opened on "keep adding roadmap items". Three lines of
+> the brief mattered: a task-runner change **staged by another session**, not to
+> be touched; the deploy path fixed twice in the last few entries, so anything
+> touching the build was hot; and the only roadmap item that cost the core
+> invariant nothing was one the human had not named. That last line changed what
+> got built.
 
 ### 1. Pick from the roadmap, and price it before you touch anything
 
@@ -476,15 +487,13 @@ Sort every candidate into one of three buckets, and say which:
 - **Blocked outside.** Upstream, hardware, licensing, someone else's roadmap.
   Say what would reopen it and move on.
 
-**Also name what you would not take, and why.** That is not padding; it is the
-most reusable part of the survey, because the reason usually outlives the
-session.
+**Also name what you would not take, and why**: the reason usually outlives
+the session.
 
-> **Example.** "Any variant on demand" looked ready — the limit on variants is
-> an interface constant, not a platform one. Checking the data definitions
-> showed **that none of them declares more variants than the limit already
-> allows**. It was not ready; it was interface for a problem that does not exist yet, and saying so
-> with the count is what stops it being picked up again next month.
+> **Example.** "Any variant on demand" looked ready: the limit is an interface
+> constant, not a platform one. But **no data definition declares more variants
+> than the limit already allows**: interface for a problem that does not exist
+> yet, and saying so with the count stops it being picked up again next month.
 
 ### 2. Ask the few decisions, all at once, before writing
 
@@ -500,8 +509,7 @@ evaluating, and it has a shape worth following:
 
 **How to evaluate a trade-off**
 
-1. **Name the axis in the repo's own units.** Not "heavier" — *"a row of tabs
-   costs half of one visible list item"*, *"this adds
+1. **Name the axis in the repo's own units.** Not "heavier" — *"this adds
    40 ms at p99"*, *"this is the first native dependency in a repo that is
    currently script and data"*. An option priced in adjectives cannot be
    compared with anything.
@@ -513,8 +521,7 @@ evaluating, and it has a shape worth following:
    becomes the new rule.
 4. **Name the cheap reversible option**, and say so plainly when it is the one
    you recommend. Reversibility is worth a lot of elegance.
-5. **Keep "do nothing" on the table.** It wins more often than it is offered,
-   and a survey that never recommends it is not being honest about cost.
+5. **Keep "do nothing" on the table.** It wins more often than it is offered.
 6. **Say what would change your answer.** A trade-off you cannot falsify is a
    preference. *"If the target ever reports dropped frames, this measurement gets
    redone and the conclusion may flip"* is an analysis; *"this should be fine"*
@@ -551,19 +558,20 @@ Two habits that carry the reasoning forward:
 Before claiming done, run the check of every card this change relied on (its
 *Check* line, in `.agents/knowledge/cards/`), and say in the report which ran.
 
-**A document that tells an agent what to run is verified by running it.** When
-the change alters what a procedure, a runbook, an invocation or a checklist tells
-its reader to run, follow it
-command by command in a scratch copy, as its reader would, before calling it
-done: reading it again finds what the author meant, running it finds what it
-says. An instruction that cannot be followed as written is a defect of the
-change.
+**A document that tells a reader what to run is verified by running it.** When
+the change alters what a procedure, a runbook, an invocation, a checklist or a
+worked example tells its reader to run or copy, follow it command by command in
+a scratch copy, as its reader would, examples assembled as written and put
+through the gate: reading it again finds what the author meant, running it finds
+what it says. Where no disposable copy of the target exists, the guide carries
+a tested undo section, is run once for real with approval, and each expected
+output it states is replaced by the observed one. An instruction that cannot be
+followed as written is a defect of the change.
 
 #### The review, in a fresh context
 
-**On request only.** When the user asks for a review in a fresh context or names
-the reviewer, the
-last thing before claiming done is a review by the reviewer subagent, installed
+**The card review, on request only.** When the user asks for a review in a
+fresh context or names the reviewer, the last thing before claiming done is a review by the reviewer subagent, installed
 from `.agents/agents/knowledge-reviewer.md` (in Claude Code,
 `.claude/agents/knowledge-reviewer.md`). Give it the diff and one line of intent,
 nothing else, and wait for its answer. It reads the cards, cites evidence from
@@ -573,35 +581,40 @@ findings; its reading never enters your context. When a change deletes or
 rewrites stored data, moves money or touches authentication and no review was
 asked for, the report offers one, in one line; it does not run it.
 
+**The whole branch, offered when a multi-task plan is done.** Before the close,
+ask in one question whether a fresh agent should review the whole branch, given
+the plan and its decisions as intent, and give the cost: in five repositories
+each took four to twenty minutes (about a hundred thousand tokens where
+counted), and nearly every one found a defect that the green gate, and any
+per-task review, had passed. Not for one small commit.
+
 - **Fix the findings and nothing else**, then send only what changed for a
   second review. **At most two re-reviews**: what is still open after them goes
   to the user as a decision, not into a third round. The re-reviews belong to
-  the review that was asked for; none runs without one.
+  a review asked for or accepted; none runs without one.
 - A finding you reject is reported with the evidence that rejects it.
 - Where no subagent can run (another assistant, a restricted session), do the
   same here, in order: the card, the evidence, the check; and say in the report
   that the review was not isolated.
 
-The gate is the floor. The core invariant's own test — the seek comparison, the
-replay, the round trip, the wheel installed clean — is cheap relative to a
-wrong claim, and the rule that keeps reports honest is simple: **if the report
-will say the invariant holds, run the thing that proves it**, even when you are
-confident nothing you touched could have moved it. Confidence is not a
-measurement, and the sentence in the log is a claim either way.
+The gate is the floor. The core invariant's own test — the replay, the round
+trip, the wheel installed clean — is cheap relative to a wrong claim: **if the
+report will say the invariant holds, run the thing that proves it**, even when
+you are confident nothing you touched could have moved it. Confidence is not a
+measurement.
 
 **Verification is a step, not a reflex.** Run it once per finished unit of work,
 not between two edits of the same change. Scope it by the measured cost of each
-test area — in one repository a single directory was most of the suite's time
-and everything else together a small fraction of it, so a run scoped to the
-layer touched is the same answer sooner — and run the whole suite for changes that cross layers.
+test area (in one repository a single directory was most of the suite's time),
+and run the whole suite for changes that cross layers.
 **Report exactly which selection ran**; a scoped run presented as the suite is a
 false claim. A collection error is reported, never routed around with a skip.
 
 **Before calling a red check yours or pre-existing, measure the untouched base**
 in the same environment — a clean export of `HEAD` (`git archive HEAD | tar -x
 -C <scratch>`) or a separate worktree — without touching the working tree. One
-repository found its gate had been failing on `main` all along (one error past
-its recorded baseline) only by doing this; another proved a rising count came
+repository found its gate had been failing on `main` all along only by doing
+this; another proved a rising count came
 from concurrent edits in the same tree, not from the change.
 
 **A change meant to change nothing is proved by what it must preserve, compared
@@ -650,30 +663,30 @@ message first, and any sent mid-turn: every part is done or named as not done
 
 Commits are split by *what changed and why*, and only the ones that pass the
 repo's stated bar are offered. A commit that needs an "and" in its subject is
-two commits. The report lists what was offered and what still waits.
+two commits; that is a floor, not one commit per line: group by context, files
+and kind of change, and a grouping the human asked for wins. The report lists
+what was offered and what still waits.
 
-**Offer each commit when its piece passes the bar, not at the close.** A tree
-that accumulates finished pieces must be split afterwards, and once two pieces
-touch the same lines no hunk-level tool separates them — one repository rebuilt
-a series of commits by script that way, their intermediate trees ones that never existed. If you must
-split after the fact: an agent cannot use interactive staging, so write a map of
+**Offer each commit when its piece passes the bar, not at the close**: once two
+finished pieces touch the same lines, no hunk-level tool separates them. If you
+must split after the fact: an agent cannot use interactive staging, so write a map of
 hunks to commits and keep the tool that applies it; build every intermediate
 tree from the commit you started on, never from the moving `HEAD`; prove before
 writing that taking nothing gives `HEAD` and taking everything gives the current
 tree; back up what it rewrites and check equality at the end — the one way a
 tool may rewrite the working tree, because it makes the copy the rule below says
-does not exist, and proves the restore; and **run the gate on every
+does not exist; and **run the gate on every
 intermediate tree**, since none of them existed while you worked.
 
 **What to show the user**
 
 **Never hide or soften the technical content.** There is no "simplified version"
 that drops a constraint, a cost or a caveat — a human who is given a summary
-without the constraint will make a decision the constraint would have changed,
-and they will be right to be angry about it. What varies is **order and
+without the constraint will make a decision the constraint would have changed.
+What varies is **order and
 emphasis**, never inclusion.
 
-The order that works, and it is the same order every time:
+The order, the same every time:
 
 1. **What is true now** — what was built, and whether it works. One or two lines.
 2. **What it cost, and what it forecloses.** In the repo's own units.
@@ -689,20 +702,20 @@ Three rules underneath it:
 
 - **Technical names stay in their own language.** Identifiers, commands, types,
   file paths and error strings are quoted exactly, in English, whatever language
-  the prose around them is in. A translated command is a command that does not
+  the prose around them is in; the headings and keywords a tool parses (a plan
+  skill's task heading) follow the tool. A translated command is a command that does not
   run, and a translated symbol cannot be searched for.
-- **Write the prose in the language the human is using.** The method documents
-  are English (`prompt-context.md` §*The set*); a session's conversation is not
-  the method.
+- **Talk to the human in their language; write documents in the
+  repository's.** The method documents are English (`prompt-context.md`
+  §*The set*).
 - **A number always brings its method.** "Faster" is worthless; "63 → 41 ms at
   p99, measured over 200 runs with the cache warm" can be checked, argued with,
   and reused.
 
 ### 8. The closing review — return what the session learned
 
-Commits and documents are step 6 and step 7. **This is the step after them, and
-it is what makes a hundred sessions add up to something rather than just
-happen.** It has three parts and takes a few minutes.
+**The step after the documents and the commits, and what makes a hundred
+sessions add up rather than just happen.** Three parts, a few minutes.
 
 **A. Re-run what this change invalidated.** Work does not only add; it ages
 things. Walk the list:
@@ -730,7 +743,7 @@ that dies with the context window.
 | A trap that will be hit again | root `CLAUDE.md` if it is always relevant, the area file if it is local |
 | A procedure done by hand that an earlier session also did | a skill, proposed with its cost |
 | Friction, hit for the second time | the roadmap's process area, with the arithmetic |
-| A fact only in your local memory, an ignored ledger or a scratch file | the repository document that owns it |
+| A fact or rule only in this machine's memory or user-level file, an ignored ledger or a scratch file | the repository document that owns it; a rule also into a hook or the gate where checkable, or other machines silently revert it |
 | A plan whose conditions changed | that roadmap entry's state |
 | Something true only of this change | the changelog entry — and that is a complete answer, not a failure |
 | Something about building software or about the method that holds with none of this repository's nouns | the changelog entry, marked as such; the harvest (`prompt-harvest.md`) writes it as a proposal in `.agents/proposals/`, for the next release. Never an edit to a note or a method document here |
@@ -740,26 +753,25 @@ Principle 17 has the discipline. List them with the arithmetic, say which is the
 one-line reversible one you already took, and leave the rest for the human to
 schedule.
 
-**Capture is unconditional; proposing is throttled.** These are two different
-things and conflating them is why process work is either absent or exhausting:
+**Capture is unconditional; proposing is throttled.** Conflating the two makes
+process work either absent or exhausting:
 
 - **Always capture, every session, without being asked and without judging
   whether it matters.** A learning or a friction that is not written down when
-  it happens is gone, and no later session can recover it. This costs seconds
-  and it is never skipped. Not every session is a session about improving the
-  process — but **no session is allowed to lose what it learned.**
+  it happens is gone, and no later session can recover it. It costs seconds:
+  **no session is allowed to lose what it learned.**
 - **Surface a proposal only when it has earned it**: the friction has been hit a
   second time, or the human asked, or the recurring review is running. Otherwise
   it stays recorded and silent. **Count by searching**, never from memory: the
-  log and any ledger, for the symptom of each friction and for each procedure
-  done by hand; write the count found.
+  log and any ledger, for each friction's symptom under several spellings and
+  for each procedure done by hand. A hit is an entry, not an incident: read
+  each, count an event copied into later entries once, and write the incidents.
 - **In the report, the whole thing is one line.** `Captured: 3 learnings, 1
   friction (2nd hit — see roadmap). Nothing needs you.` Expand only if asked.
   The changelog entry's *Learned* carries the same line.
 
-That last line is the whole discipline in practice: the human who wants to ship
-a feature is not interrupted, and the human who wants to improve the process
-finds a year of honest observations waiting when they go looking.
+The human shipping a feature is not interrupted; the one improving the process
+finds a year of honest observations waiting.
 
 **The closing question, asked plainly:** *if the next session is a different
 agent, on another machine, with no memory of this one, what would it have to
@@ -774,7 +786,7 @@ next two minutes, and will never close as cheaply again.
 
 ### Working safely in a tree you do not own
 
-Five hazards, all of which have cost real time:
+Six hazards, all of which have cost real time:
 
 - **The uncommitted diff is the work, and it has no copy.** Never revert the
   working tree: no `git checkout` or `git restore` of a path, no `git stash`, no
@@ -790,8 +802,7 @@ Five hazards, all of which have cost real time:
 - **A formatter that can lose data never runs on a dirty tree.** When the gate
   demands formatting and the tree has unsaved work, do not run it in place:
   **copy the file to a scratch directory, format the copy, diff it, and apply
-  the diff by hand.** Thirty seconds, and it cannot destroy anything. That is
-  the fallback. When it recurs, make it one command: format copies of the
+  the diff by hand.** It cannot destroy anything. That is the fallback. When it recurs, make it one command: format copies of the
   flagged files that are in the change, write a copy back only if every comment survived and the
   non-layout tokens are identical and the original did not change meanwhile,
   and name every file it refused. Prefer the `--check` variant everywhere else —
@@ -805,6 +816,10 @@ Five hazards, all of which have cost real time:
   — only files *your* change regenerated, by writing `HEAD`'s content over them
   (`git show HEAD:<path> > <path>`), never with the commands above: a diff nobody
   can read is a diff nobody reads, and the real change hides in it.
+- **A scripted edit across files checks every anchor before it writes any.**
+  Each anchor must match exactly once, in every file it targets; present is not
+  enough, since an anchor found twice edits the wrong place. Check them all, then
+  write: a run that stops halfway leaves files half-edited (two repositories).
 - **When the gate's own limits block your change**, take the moves in this
   order. (a) **Relocate** — is there code in this file that belonged somewhere
   else anyway? This is usually available and usually an improvement. (b)
@@ -818,14 +833,9 @@ Five hazards, all of which have cost real time:
 
 When an item comes off the roadmap for implementation, **re-check the outside
 for that item specifically.** The upstream issue that blocked it may have
-shipped; the platform's recommendation may have changed; the version you are
-pinned to may have grown the API you worked around. This is a five-minute check
-and it is the only thing that keeps a *blocked outside* entry from being blocked
-forever out of habit.
-
-The same rule as Phase 2 applies: nothing enters the register unless it changed
-or confirmed a decision, and a recommendation written for a different
-environment is the most dangerous kind of correct. A delegated agent that
+shipped, or the pinned version grown the API you worked around. This five-minute
+check is the only thing that keeps a *blocked outside* entry from being blocked
+forever out of habit. Phase 2's rules apply. A delegated agent that
 downloads or writes is given its own scratch directory outside the
 repository; otherwise it writes where you stand. A destructive step there
 first checks that its target resolves inside that directory.
@@ -863,8 +873,9 @@ first checks that its target resolves inside that directory.
       measurement, and the cost-to-the-invariant table.
 - [ ] A ship-blocking check for the class of bug this repo cannot see.
 - [ ] The audit script runs in the gate, and the first run's failures are fixed.
-- [ ] `.claude/settings.json`: permissions, and hooks for what must not be left
-      to judgement.
+- [ ] `.claude/settings.json`: permissions, hooks for what must not be left to
+      judgement, and commit attribution off, with a check that fails on an
+      attribution trailer.
 - [ ] `.claude/logs/agent-changelog.md` with the format and the obligation.
 - [ ] `.editorconfig` aligned to the linter, one block per language.
 - [ ] `docs/` audited against the code; no pointer to a file that does not exist.
@@ -906,6 +917,8 @@ The short one. Run it before you report, every time.
       ran on the diff, with at most two re-reviews; and none asked for, a change
       that deletes or rewrites stored data, moves money or touches
       authentication offered one in its report.
+- [ ] A multi-task plan that ended offered a whole-branch review in a fresh
+      context, in one question with its cost.
 - [ ] Any structural decision you declined to take is stated plainly in the
       report, where the human cannot miss it.
 - [ ] Nothing of somebody else's was swept into your change.
@@ -1000,7 +1013,8 @@ links; run their checks before claiming done. The reviewer subagent runs only
 when I ask for a review in a fresh context or name it (*The review, in a fresh
 context*, step 4); when a change deletes or rewrites stored data, moves money or
 touches authentication and I did not ask, offer one in the report, in one line.
-When this
+When a plan of several tasks is done, offer a review of the whole branch in a
+fresh context, in one question with its cost. When this
 repository states an invariant that contradicts a note, follow the repository and
 say in the report which note gave way. A typo, a text or a local rename consults
 nothing.

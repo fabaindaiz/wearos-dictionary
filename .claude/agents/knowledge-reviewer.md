@@ -15,8 +15,8 @@ Reads:
 1. **List what the change does**, from the diff you were given: what it adds, stores, retries,
    sends, deletes, derives, exposes, or claims to verify.
 2. **Find the cards.** In `.agents/knowledge/INDEX.md`, match those actions against *By what you are about
-   to do* and against the phase the change is in. Open only the cards those rows link
-   (`.agents/knowledge/cards/`). Open a full note only when you cannot tell whether a card's boundary holds.
+   to do* and against the phase the change is in. Open only the cards those rows name
+   (`.agents/knowledge/cards/<slug>.md`). Open a full note only when you cannot tell whether a card's boundary holds.
 3. **Decide each card with evidence from this repository**, citing file and line: does the situation its
    claim describes hold here (look where its *Applies if* says the fact is found), and does its *Not when*
    exclude it? A finding without cited evidence is not a

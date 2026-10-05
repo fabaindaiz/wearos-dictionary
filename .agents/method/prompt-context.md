@@ -141,6 +141,13 @@ in the always-loaded root file. The first was fixed by a template copied by a
 command; the second was raised to a safe command beside the unsafe one, which
 still runs unguarded — half a raise, and the half left is where it will recur.
 
+**A rule acts only in the output the action already reads at the moment it
+applies.** A rule or a readout placed in a step nobody runs before the risky
+action does not act, however loaded it is: a closing step skipped when a push
+ends the session, a commit offer read and not followed, a sentence that existed
+and did not stop the harm it named. Put it where the action looks — the push,
+the end of a turn, a startup log — or it is rung 1 wherever it is written.
+
 The arc of a mature rule usually runs 1 → 3 → 4, and the jumps are worth naming
 in the decisions log when they happen. Examples of the same rule at different
 rungs:
@@ -198,8 +205,10 @@ the rule is *more* trusted than an honest `—` would make it.
 > checks themselves**, which is how fast this happens.
 
 Make it checkable: have the audit verify that **every enforcer cited in the
-documents exists** in the script that is supposed to define it. That catches the
-first kind mechanically and is perhaps ten lines. The second kind — a real name
+documents exists** in the script that is supposed to define it, and is a check
+that runs and can fail — a file that only holds the value, or a name cited,
+enforces nothing. That catches the first kind mechanically and is perhaps ten
+lines. The second kind — a real name
 cited for the wrong rule — survives it, and stays human review; say so where you
 write the rule rather than implying coverage you do not have. **`—` is a better
 answer than a wrong one**, because `—` is read as "this can break silently" and
@@ -234,8 +243,9 @@ Structural rules worth a script in almost any repo:
   Not only the map: every repository path any instruction document names — area
   files and skills included — resolved and checked, with exemptions *listed*
   (ignored paths, patterns, a history table with a reason per entry), never
-  inferred. A manual sweep kept missing a dead pointer until one repository
-  made this a check.
+  inferred, and keyed on content (the document and the path it names), never on
+  a line number, which every append to a log shifts. A manual sweep kept
+  missing a dead pointer until one repository made this a check.
   A dead pointer is worse than no pointer.
 - **Anything the packaging step can drop**: files not in `MANIFEST.in` /
   `files` / `include`, assets outside the bundler's graph.
@@ -312,7 +322,8 @@ all legitimate, and a check that cries wolf twenty times for one real hit gets
 switched off. That is a decision, and without the number someone will propose it again
 every quarter.
 
-**A number carries its date and its environment, not only its method.** The same
+**A number carries its date, its environment and the state it was taken at, not
+only its method.** The same
 commands on the same commit give different answers in two environments — a stale
 virtualenv earlier on `PATH`, a CI runner on another interpreter, an unpinned
 stub package — and a number written without saying where it came from becomes
@@ -321,7 +332,16 @@ document come from the environment the repository declares; a figure is either
 re-measured or left with its old date, and **a date is never bumped without
 re-running**; and when a measurement disagrees with the written one, first
 establish *which binary produced each* — that one check has turned three
-separately recorded "anomalies" into one fact.
+separately recorded "anomalies" into one fact. An edit to what a number measures
+turns it back into a claim: re-take it, or cite it with its commit.
+
+**A cost or a constraint that justifies a decision is measured before the
+decision pays for it**, on the composed result rather than on the part, and the
+correcting measurement is checked like any other: the first correction in one
+repository timed only the fast half. **Write what would invalidate a measurement
+before reading the number** — which runs are discarded and why, what readout
+answers the question — and print why each discarded run was discarded; decided
+after the number is seen, the criteria fit the number.
 
 **A retraction is written everywhere the claim was.** When a finding turns out
 false, correct it in every place it was stated — the docstring, the exported
@@ -562,21 +582,47 @@ charged them for the privilege. The line is not subtle:
   foreclosed.
 - **Yours** when there is a conventional default, when the repo already answered
   it somewhere, or when the choice is reversible in ten minutes. Pick, say which
-  you picked in one line, and keep going.
+  you picked in one line, and keep going. **Reversibility is not the only test:**
+  what the user sees, the stack and its languages, and content the owner
+  authored stay theirs even when cheap to undo. Every pick you made goes in the
+  report under *decided for you*, and a lasting one in the decisions log.
+- **Not a question at all** when reading, or trying something reversible, answers
+  it: an emulator, a probe or a spike counts as trying.
 
-The protocol:
+**Say which of four modes is running**, because each has its own shape:
 
-- **Ask before writing, and ask them together.** A question that arrives in the
-  middle of the work has already been answered by the code.
-- **Every option states its cost in the repo's own units.** Vertical units of a
-  screen, lines of a budgeted file, p99 milliseconds, bundle kilobytes, draw
-  calls, rows scanned. Never "more complex".
-- **Lead with a recommendation.** Four options and no opinion is not neutrality;
-  it is the work, undone.
-- **Say what each option forecloses**, because that is the part the human cannot
-  reconstruct from the code later.
-- **Cap it at three.** If you have seven questions you have not finished
-  thinking. Answer four of them yourself.
+| Mode | When | Shape |
+|---|---|---|
+| **Pre-flight** | before reading or writing, once | one message (§*The pre-flight*); at most five questions, aim for three, each with the default you will take; `defaults` accepts them all; one line on what you are not asking |
+| **Decision review** | the human asks for it, or more of the human's decisions remain after reading than one message holds | the `decision-review` skill: the inventory of every decision goes together, then the human's decisions go **one per turn** (a theme of up to four if asked), until none is left; recorded before any plan |
+| **Fact interview** | facts only the human holds | your reading stated, for them to confirm or correct; no recommendation, since the fact is theirs; one fact per question, since a two-part question gets an answer that fits either part; a reason they did not give is never recorded |
+| **Parked** | while working alone, or mid-work with no channel opened | decide what is yours; write the rest to the roadmap as questions with a recommendation; raise them all at the next report |
+
+Batch before writing, before an expensive or irreversible step, and before the
+human leaves you to work alone: a question that arrives in the middle of the work
+has usually been answered by the code. It has not when a measurement overturned
+the premise; then ask at once. A question is never buried inside a long report,
+and is asked in the human's language and plain words.
+
+**Every option is shown by example**, since that is how a human decides fast:
+
+- **A concrete case per option, at the same fidelity**: a sample, a sketch of the
+  screen, a before and after, a Given/When/Then, a draft with its length. A vivid
+  case for one option only is a nudge.
+- **Its cost in the repo's own units.** Vertical units of a screen, lines of a
+  budgeted file, p99 milliseconds, bundle kilobytes, draw calls, rows scanned.
+  Never "more complex". Pricing does not change what is chosen as much as it
+  removes the follow-up questions.
+- **What it forecloses**, because that is the part the human cannot reconstruct
+  from the code later.
+- **Two or three options, the recommendation first, with a reason for each.**
+  Four options and no opinion is not neutrality; it is the work, undone. A
+  recommendation listed first acts as a default, so every option says why it
+  exists, and a recommendation changes only for a new fact, never for a mood.
+- **A middle ground between two absolutes** when it is a real option, priced like
+  the others; humans often compose one from two offered options, so offer it.
+- **A mockup or a throwaway prototype only for a question about how it looks or
+  feels**; a scenario walked through each option for an irreversible one.
 
 > **Example.** Adding user-made lists to a small fixed-height screen came down to
 > three questions: whose the lists are, where the selector goes, and how one is
@@ -717,14 +763,21 @@ dies:
 
 Note the last row: that is the one legitimate test-after, and it is legitimate
 precisely because its job is to record what the code does rather than what it
-should. Label those; never let them be mistaken for specifications.
+should. Label those; never let them be mistaken for specifications. A defect
+found at adoption is recorded as a check that must fail — a golden, a
+known-failing spec or audit — under a strict mark that turns the gate red when
+it passes, so the mark and its roadmap entry move together.
 
 **When the red step could not be watched — a bug fix found after the code, a test
 added in review — prove the test bites by mutation.** Break the implementation
 in the one place the test is about and confirm that exactly that test fails,
-then restore it. Make the mutation assert that its target text exists before
-changing it: a formatter that rewrote the line turns the mutation into a no-op,
-and a no-op mutation "survives" for the wrong reason. This is cheap, it is the
+then restore it; then break its call site — the argument replaced by a null, the
+call deleted, the assignment made a no-op — and where that survives, extract the
+transport into a pure function with its own test. Before reading the test,
+check that the replacement happened exactly once and that the mutant builds: a
+formatter that rewrote the line turns the mutation into a no-op that "survives",
+and a mutant that does not build fails every test, each for the wrong reason.
+This is cheap, it is the
 same evidence the red step would have given, and it catches the stub that is
 never consulted and the test that asserts the absence of the behaviour it is
 named for. Where the tree may not be stashed or reverted (`prompt-bootstrap.md`,
@@ -738,7 +791,9 @@ the same item is still reported — by another check, for another reason — and
 assertion passes. Pin the sentence the check produces, or whatever distinguishes
 one reason from another. Measured in one repository: of a set of planted
 mutations, all but one were caught, and that one survived exactly this way until
-its test asserted the reason instead of the path.
+its test asserted the reason instead of the path. The same holds for an
+expected-failure mark: it names the exception it expects, or an import error or
+a missing fixture counts as the known defect and the test checks nothing.
 
 And **when the code, its test and its comment disagree, none of them is the
 specification.** Prose written from code in progress records the bug as intent;
@@ -787,11 +842,13 @@ Two consequences that are easy to miss. **When the host's plan or spec template
 wins, map the card lookup into it explicitly** — one line in its header — or the
 step has no slot in what sessions actually write, and stops without anything
 saying it did. **A host workflow that already reviews by default** (a
-whole-branch review at the end of a plan) **is left in place**, though the
-method's own review runs on request: that default was measured for the
-knowledge reviewer on one task's diff, not for a whole-branch review, and not
-against what a missed defect costs. Its findings go in the changelog's *Review*,
-where the harvest reads them.
+whole-branch review at the end of a plan) **is left in place.** The method's
+card-driven reviewer runs on request, as measured on one task's diff; a
+whole-branch review in a fresh context is **offered** in one question, with its
+cost, at the end of every multi-task plan — in several repositories nearly every
+one found a defect the green suite missed, at minutes and about 1e5 tokens each,
+though none was compared with a card-driven run or with what a missed defect
+costs. Its findings go in the changelog's *Review*, where the harvest reads them.
 
 And the direction that is easy to forget: **the host repo usually knows
 something the method does not.** A convention you would not have chosen, which
@@ -812,8 +869,8 @@ whatever enters it is public for good, and no later edit recalls it.
 
 The leak is rarely a name. It is a combination: an exact threshold, a quoted
 comment, a field name and a domain noun, each harmless alone, together enough to
-find the one codebase they came from — re-identification works from
-combinations of ordinary attributes. So the lesson is kept and the fingerprint is removed:
+find the one codebase they came from. So the lesson is kept and the fingerprint
+is removed:
 
 | What | Becomes |
 |---|---|
@@ -822,7 +879,7 @@ combinations of ordinary attributes. So the lesson is kept and the fingerprint i
 | a verbatim quote from a private carrier's code, commits or documents | a paraphrase — a quote is exactly what code search finds |
 | a private carrier's identifiers, schema fields, endpoints, files, config keys, library versions, platform calls | the role it plays — "a projection field misspelled by one letter", "a platform clock call" |
 | product and domain nouns that narrow a private carrier | a neutral kind — "a transactional service", "an interactive renderer", "a hardware-bound service" |
-| personal context — time zones, countries, the languages of maintainers or users, habits, schedules, who can reach which device | removed, or made neutral — "a runtime the developers cannot observe" |
+| personal context — time zones, countries, the languages of maintainers or users, habits, schedules, who can reach which device, a gender nobody gave | removed, or made neutral — "a runtime the developers cannot observe", "they"; no term list sees a pronoun, so read a delegated draft for it |
 
 A generic domain word in a method table that describes a *kind of software* (a
 "Payments / ledger" row) is not a leak; the same word in an example that came
@@ -844,9 +901,9 @@ scrub, and the release that does it says so. A deletion is recorded generically 
 "carrier-specific detail removed for privacy" and the date — never by restating
 what was removed.
 
-**It holds whether or not you remember loading it.** An agent writing into the
-`proposals/`, `carrier.toml`, a note, a method document or any other file
-that travels applies the rule even when this section is not in its context — and
+**It holds whether or not you remember loading it.** An agent writing any file
+that travels — a proposal, `carrier.toml`, a note, a method document — applies
+the rule even when this section is not in its context — and
 does not trust itself to have applied it. The carrier-owned files are checked like
 the released ones. `bundle.py privacy` checks the tree against generic
 patterns (addresses, home paths, forge URLs, currency amounts, time-zone
@@ -1138,7 +1195,8 @@ actually lives** (`prompt-bootstrap.md`, Phase 1, item 7) — often not the git 
   "permissions": {
     "allow": ["Bash(<read-only repo commands>)"],
     "deny": ["Edit(**/*.<generated>)", "Read(./<secrets>)", "Edit(./<vendored>/**)"]
-  }
+  },
+  "attribution": { "commit": "", "pr": "", "sessionUrl": false }
 }
 ```
 
@@ -1151,8 +1209,23 @@ lifecycle rules that must run deterministically.
 path rule written for `Write`, `NotebookEdit` or `Glob` is accepted, **never
 consulted**, and warned about at startup — so a `deny` written that way protects
 nothing while looking like it does. Use `Edit(path)` where you mean "do not
-change this file" and `Read(path)` where you mean "do not even look at it". This
-is the exact shape of a rule that reads as rung 3 and behaves as rung 0.
+change this file" and `Read(path)` where you mean "do not read it through the
+agent's tools". This is the exact shape of a rule that reads as rung 3 and
+behaves as rung 0.
+
+**A deny stops the agent's typed spelling, not the effect.** Path rules reach the
+agent's file tools, the file commands the host recognises in a shell and their
+redirections; not a script the agent runs that opens the file itself, nor a
+process that already holds it; and a command rule does not match the same
+program called by its path or inside `sh -c`. Where the effect itself must not
+happen, enforce it in the repository's tools or a sandbox, and search those tools
+for it. A deny also reaches more than meant: an edit deny on a generated folder
+refuses shell writes into it too (route them through the build), and permission
+lists merge across user, project and local settings with a deny at any scope
+winning — a user-level deny on secrets refused the committed template a gate
+required to change while the project's file showed no conflict. Read the scopes
+together, and at adoption test each deny against every file the workflow must
+write.
 
 **Deny per destructive subcommand, and know what a deny refuses.** A prefix rule
 catches every form of its subcommand, the read-only ones too: a deny on a stash
@@ -1164,6 +1237,14 @@ rule against them, and where the layer cannot express them, say the rule is a
 reminder, not a barrier. And a command with one denied part is refused whole, so
 an edit chained to it silently never lands: never chain an edit with anything a
 deny may catch, and read the tree's status after an edit before running tests.
+
+**Attribution is a setting, not a sentence.** The host adds an attribution
+trailer to commits by default, and a rule against it held only in prose, or in
+one machine's user-level file, loses wherever it is not loaded. Set
+`attribution` as above in the committed file (empty strings, which older host
+versions also read), and back it with a check that
+fails on an attribution trailer: a `commit-msg` hook, or the gate over
+`git log --format=%B <base>..HEAD`.
 
 Commit this file; keep `settings.local.json` out of git. The `.claude/`
 directory is how the repo explains itself — it belongs to the team.
@@ -1288,7 +1369,7 @@ where each one will collide, written now while it is clear.
 The honest current state of the thing that is in motion. Updated every time it moves.
 
 ## <Area>
-### i-<repo6>-<content6> · <Idea>
+### <Idea> · i-<repo6>-<content6>
 What it is, in two lines.
 **What it collides with.** The rule, by its id, and why the collision is real.
 **What is already in its favour.** The mechanisms that exist.
@@ -1301,7 +1382,8 @@ Ideas retired by a number, with the number, so they stay retired.
 | Idea | Does it break <the core invariant>? |
 ```
 
-Each item's `i-` id is minted once with `bundle.py id i "<idea>"` when the item is
+Each item's `i-` id goes after the middle dot, where `bundle.py ids` reads a
+heading's id. It is minted once with `bundle.py id i "<idea>"` when the item is
 written, and it does not change when the item's state or wording does.
 
 **The roadmap is a ledger, not a wish list, and that means it is written to when
@@ -1336,7 +1418,7 @@ areas. This is where friction goes once it has been hit twice (principle 17),
 and each entry takes the same shape as any other, plus the arithmetic:
 
 ```markdown
-### i-<repo6>-<content6> · <The friction, named as what it costs>
+### <The friction, named as what it costs> · i-<repo6>-<content6>
 **What happens now.** The manual steps, counted.
 **Cost.** <seconds or steps> × <how often> × <how many sessions>.
 **The fix.** One line if it is one line.
@@ -1587,6 +1669,9 @@ work you have not done yet.
   decided for them and can object.
 - **Ask conditionally.** A question that only matters in a monorepo is not asked
   in a repository with one package. Detect first, then ask what remains.
+- **It is one of four question modes** (§15). When the decisions that remain
+  after reading are more than this block holds, they are not squeezed into it:
+  say so, and propose a decision review.
 
 ### What the pre-flight is not
 

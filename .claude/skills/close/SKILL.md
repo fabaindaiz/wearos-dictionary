@@ -22,6 +22,11 @@ defines differently, this repository's wins.
 step was skipped, until the human says to resume. **A close never skips a review**, and never merges
 work a review has not read: if one is pending, say so and stop there.
 
+**A push or a deploy is not a close either.** When one is about to end a plan and no close has run in
+this session, offer the close in one question first: the counts, the deferred findings, the device
+questions and the hand-off happen nowhere else. Push after the answer, whatever it is. (A rule acts
+only where the action reads it: `prompt-context.md` §*The enforcement ladder*.)
+
 ## 1. Every part of what was asked
 
 Re-read every message the human sent in the session: typed turns, messages sent mid-turn, and the
@@ -49,8 +54,10 @@ states none). Replace each comment, and beyond the format:
 ## 4. Count, never remember
 
 - **Frictions:** for each one hit, `python3 .agents/tools/bundle.py count "<symptom>" <log>
-  <ledgers>`, and write the count it prints. The second occurrence goes to the roadmap's process
-  section, priced.
+  <ledgers>`, under several spellings of the symptom. It counts entries, not incidents: read each
+  hit, count once an event copied into a later entry, and write the incidents found. An entry records
+  only what happened in its own span. The second incident goes to the roadmap's process section,
+  priced.
 - **Procedures done by hand:** the same search. The second occurrence is a proposed skill or script,
   with its cost.
 
@@ -59,6 +66,13 @@ states none). Replace each comment, and beyond the format:
 `python3 .agents/tools/bundle.py memory-diff` lists the assistant's local memories for this
 repository, and which of them the repository holds nowhere. Compare those, and any scratch file, with
 the repository. Anything another machine would need goes into the document that owns it.
+
+**A rule that lives only in one machine's memory or user-level file** (the assistant's global
+instructions) is silently reverted on every other machine, and loses to the host's defaults even on
+this one: a commit trailer the human forbade is the usual case. Move it into the repository's root
+instruction file, and where it can be checked, into a hook or the gate (for that case, attribution off
+in the committed project settings and a check that fails on an attribution trailer:
+`prompt-context.md`, artifact 4, *Attribution is a setting, not a sentence*).
 
 ## 6. Devices and production
 
@@ -81,6 +95,9 @@ plan tool says: it holds the rulings and the task results the changelog summaris
 - The repository's gate, chained to the commit (`<gate> && git commit …`), split by dependency. The
   commit runs on the gate's own exit status: never through a filter (`<gate> | tail`), or only under
   `set -o pipefail`.
+- A delegate's change to a check (a filter on its output, a red run skipped, an exemption, a baseline
+  or an expectation moved) is a finding the controller reviews before the commit, with the unfiltered
+  red and green runs; never a fix taken on the delegate's word.
 - The human's own uncommitted changes go in only when the human says so, in a commit of their own,
   as left.
 - Push, or merge into the main branch, only when the human asks.

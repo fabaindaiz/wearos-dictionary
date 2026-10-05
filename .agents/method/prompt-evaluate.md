@@ -108,7 +108,9 @@ proposed.
    build, or anything that touches the network** unless you say so, because I
    cannot tell from here what they cost or what they write.
 3. **Report.** I will write it to `.agents/evaluation-<today>-<content6>.md`, in the
-   language you are writing to me in, and change nothing else.
+   language this repository's documents are written in (the one you are writing
+   to me in, if they do not say), with headings and keywords a tool parses left
+   in the tool's language, and change nothing else.
 4. **Off limits.** I will read everything the repository's own ignore rules do
    not exclude. Tell me if any path must not be read.
 5. **Agents.** I will check the instruction surfaces of Claude Code, Cursor and
