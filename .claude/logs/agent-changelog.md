@@ -16,6 +16,47 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-05 · s-a2f271-cf5ef6 — agent-guides 0.0.26 lands: the old layout converted, the gate runs verify, and the close skill installed
+**What.** The bundle moves from the old v20 layout (method v24, knowledge v11) to **agent-guides
+0.0.26**, written by the bundle home's `release.py splice` on the branch it opened for this harvest.
+This repo's own fields left `.agents/README.md` for `.agents/carrier.toml`; thirteen files left the
+bundle (`tracking/` ×5, `layout.md`, `references.md`, `roadmap.md`, `method/changelog.md`,
+`prompt-merge.md`, `prompt-sync.md`, two retired notes); the one row this repo had added to
+`tracking/experiments.md` (2026-09-30) became its first proposal. Then the host adaptation the update
+prompt asks for:
+- `check_bundle_digests` runs **`bundle.py verify`** instead of the deprecated `digest --check`.
+- `CLAUDE.md`'s heuristics paragraph says it as the bootstrap's Phase 4 words it: cards before the
+  design decision, the reviewer only on request, the privacy line, and the line that this repo's
+  procedures win over the method's.
+- The `knowledge-reviewer` subagent copied into `.claude/agents/`; `bundle.py install-skills`
+  installed the method's `close` skill, adapted through `.claude/skills/close/LOCAL.md` (a Spanish
+  description in the user's phrases, and this repo's log, gate and commit skill). No skill of ours
+  shares its name, so nothing was overwritten.
+- The live links to the removed files repointed: the `state-review` routing table (no merge or sync
+  for a carrier; a harvest writes proposals), `docs/architecture.md`, the roadmap's status paragraph,
+  and D-245 marked superseded in place. Older changelog entries and closed roadmap items keep what
+  they said.
+
+**Areas.** `.agents/` (spliced), `CLAUDE.md`, `tools/audit_dictionary.py`, `.claude/agents/`,
+`.claude/skills/close/`, `.claude/skills/state-review/SKILL.md`, `docs/architecture.md`,
+`docs/decisions.md` (D-245), `docs/roadmap.md`, `.agents/carrier.toml` (`adapted`, three rows).
+
+**Why.** Asked for by the owner: harvest this repo into the bundle's next release, which needs the
+carrier on the current layout first.
+
+**Architecture.** ✅ Complies. The carrier still never edits a released file; `carrier.toml`,
+`proposals/` and `LOCAL.md` are the parts it owns.
+
+**Measured.** Structural audit **40 checks, 0 failures, 3 advisories**; `bundle.py verify` →
+*0.0.26 verified*; `bundle.py check-local .` → *only their own files changed*. `CLAUDE.md` 216 of 220
+lines. The roadmap's Spanish ceiling lowered 2302 → 2296, since the rewritten paragraph is English.
+
+**What went wrong.** The first rewrite of the heuristics paragraph broke the phrase the audit counts
+(`phase guide over N notes`) across two lines, and the audit caught it.
+
+**What was left undone.** Nothing of the conversion. The gate selection used is the light one this
+repo documents (the builder's tests plus the structural audit); the Kotlin modules were not touched.
+
 ## 2026-10-01 · s-a2f271-82db2b — The full rebuild, and the one thing it proved
 **What.** All six packs rebuilt from the already-downloaded dumps, verified, indexed, and an APK
 built on top. The session's five content changes reach an artifact for the first time.

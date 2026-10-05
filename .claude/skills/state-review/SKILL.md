@@ -1,6 +1,6 @@
 ---
 name: state-review
-description: Estado del sistema de instrucciones y **qué prompt del método corresponde correr**. Usar SIEMPRE antes de configurar, actualizar o ejecutar cualquier prompt de `.agents/method/` —update, bootstrap, evaluate, harvest, merge, sync— y cuando se pida "revisá el estado del repo", "¿está actualizada la documentación?", "state review", "actualizá el método", "aplicá el bundle", "¿queda algo por aplicar?", o al empezar a trabajar después de un tiempo sin tocar el proyecto.
+description: Estado del sistema de instrucciones y **qué prompt del método corresponde correr**. Usar SIEMPRE antes de configurar, actualizar o ejecutar cualquier prompt de `.agents/method/` —update, bootstrap, evaluate, harvest— y cuando se pida "revisá el estado del repo", "¿está actualizada la documentación?", "state review", "actualizá el método", "aplicá el bundle", "¿queda algo por aplicar?", o al empezar a trabajar después de un tiempo sin tocar el proyecto.
 allowed-tools: Bash, Read, Grep
 ---
 
@@ -19,10 +19,10 @@ the state is established first, and then the routing table decides — never the
 copy looks newer.
 
 ```bash
-grep -h '^version:\|^digest:\|^adopted:\|^lineage:' .agents/method/prompt-update.md
-sed -n '/^adapted:/,/^---$/p' .agents/README.md | head -20      # empty = the record is not kept
-ls .agents/incoming/                                            # only README.md = no triage pending
-python3 tools/audit_dictionary.py | grep -E 'digest|bundle'     # silence = the three check out
+python3 .agents/tools/bundle.py verify     # checksums, links, privacy, proposals, incoming; names the version
+cat .agents/carrier.toml                   # adopted, harvested_through, adapted, declined: this repo's fields
+ls .agents/incoming/                       # only README.md = no update pending
+python3 .agents/tools/bundle.py proposals  # what this repo offered, and what the home says it received
 ```
 
 Then answer, in one line each, and **report before doing anything**:
@@ -30,23 +30,23 @@ Then answer, in one line each, and **report before doing anything**:
 | What you found | What it means | Run |
 |---|---|---|
 | `incoming/` holds more than its own `README.md` | the last triage never finished, and that is this session's first finding | finish it: `prompt-update.md` |
-| a digest does not match its content | the header is a claim, not a fact | stop; compare content directly and tell the lineage owner |
-| our `version` < the incoming one, ancestry a prefix | one side is ahead | `prompt-update.md` |
-| ancestries share a prefix and then diverge | both moved; neither is newer | `prompt-merge.md` |
-| same version, and this repo learned something | the repo is ahead of the method | `prompt-harvest.md` — and it may write **only** `.agents/tracking/` |
+| `verify` fails on a checksum | the copy was edited in place or is partial | stop; compare content directly and tell the bundle's home |
+| `incoming/` holds a newer release | this copy is behind | `prompt-update.md` |
+| same version, and this repo learned something | the repo is ahead of the method | `prompt-harvest.md` — it writes **only** proposals (`bundle.py propose`) and `harvested_through` |
 | header present, artifacts it names missing | the files were copied without the work | `prompt-bootstrap.md`, repair mode |
 | nothing above, and the ask was "update the method" | there is nothing to update; say so | sections 1–8 below |
 
-**And say what is still pending from the last one.** An update is finished when: the three
-repository fields are carried, every accepted delta is a real edit, the prune ran, `incoming/` is
+**And say what is still pending from the last one.** An update is finished when: `.agents/carrier.toml` keeps
+this repo's fields, every accepted delta is a real edit, the prune ran, `incoming/` is
 empty, a decisions row exists for anything now settled, and there is one changelog entry. Anything
 on that list not done is what the user probably meant, whatever they asked for.
 
 ⚠️ **A carrier may not add or edit a method document.** `prompt-harvest.md` §*What the local step
 must never do* is explicit: not a note, not an index row, **not a method document**, not a header,
-not a version, not a digest. What this repo finds missing in the method goes as one line in
-`.agents/tracking/candidates.md`, and the release decides. Editing the method here **is forking**
-(D-059), with a new opaque lineage id and a recomputed digest.
+not a version, not a digest. What this repo finds missing in the method goes as one proposal in
+`.agents/proposals/`, written by `bundle.py propose`, and the release decides. Editing the method
+here **is forking** (D-059): `bundle.py verify` fails on the checksum. Bringing several repositories
+onto one release is the bundle home's meta-session, never this repository's.
 
 ## 1. Does every document on the map exist, and is it still true?
 

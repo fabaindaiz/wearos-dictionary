@@ -1513,7 +1513,7 @@ TECHO_ESPANOL = (
     # Translated whole on 2026-09-23: the first module of stage 3, smallest first. The row
     # stays at 0 rather than being deleted -- a removed row is a ceiling nobody watches.
     ("dict-data/src/main/", 0),
-    ("docs/roadmap.md", 2302),
+    ("docs/roadmap.md", 2296),
     ("docs/decisions.md", 258),
     (".claude/logs/", 4180),
 )
@@ -1942,24 +1942,26 @@ def check_bundle_privacy_and_ids(report):
 def check_bundle_digests(report):
     """Regla: el bundle de agentes no se edita en el lugar; cambiarlo es forkear. (D-059, D-221)
 
-    Three headers declare a digest over their own content --the method, the knowledge base and the
-    bundle as a whole-- and if the content does not give that number, somebody edited the bundle
-    without forking or recomputing, and the next comparison between two copies concludes
-    *identical* while discarding one side in silence.
+    The release ships a `SHA256SUMS` over every file it carries, and if a file does not give its
+    checksum, somebody edited the bundle in place, and the next update cannot tell which of two
+    sentences to keep.
 
-    ⚠️ **It runs the bundle's own `digest --check` rather than a copy of the recipe** (d-a2f271-969225).
+    ⚠️ **It runs the bundle's own `verify` rather than a copy of the recipe** (d-a2f271-969225).
+    Since agent-guides 0.0.26 that is `bundle.py verify`; the older `digest --check` it ran until
+    then is a deprecated alias of it.
     This function used to reimplement it: sha256 over the bodies in name order, frontmatter
     stripped, cut to 12 hex. **It had already drifted once** -- the method's recipe narrowed to
     `prompt-*.md` and a session had to patch the copy -- which is the failure
     `check_bundle_privacy_and_ids` names in its own docstring, one screen above.
 
-    ⚠️ **And one recipe buys five more checks.** `--check` adds provenance (every travelling file
-    carries its header), links, **note reachability**, session reads and privacy. The reachability
+    ⚠️ **And one recipe buys more checks.** `verify` adds links, **note reachability**, session
+    reads, privacy, invisible characters, this repo's proposals, `incoming/`, and that the
+    installed skills match their bases. The reachability
     half had been written here by hand as a separate check the day before; it was a second recipe
     for something the tool already did, and it is retired in the same change.
 
     ⚠️ **What this costs, named.** The gate now depends on `.agents/tools/bundle.py` running, so
-    an absent or broken tool loses six checks at once instead of one. That is why the tool missing
+    an absent or broken tool loses all of them at once instead of one. That is why the tool missing
     is a **failure and not a skip**: the old version returned silently when the folder was gone,
     and that is exactly the class of bug this repo cannot see.
     """
@@ -1973,14 +1975,14 @@ def check_bundle_digests(report):
     if not os.path.isfile(tool):
         report.failure(
             "falta la herramienta que comprueba el bundle",
-            "%s no esta, y es la receta unica de los tres digests mas provenance, enlaces, "
-            "alcanzabilidad de notas, lecturas de sesion y privacidad. Sin ella se pierden seis "
-            "chequeos de golpe, asi que esto falla en vez de saltarse" % os.path.relpath(tool, ROOT),
+            "%s is missing, and it is the one recipe for the checksums plus links, note "
+            "reachability, session reads, privacy, proposals and skills. Without it all of them "
+            "go at once, so this fails instead of skipping" % os.path.relpath(tool, ROOT),
         )
         return
 
     result = subprocess.run(
-        [sys.executable, tool, "digest", os.path.join(ROOT, BUNDLE), "--check"],
+        [sys.executable, tool, "verify", os.path.join(ROOT, BUNDLE)],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -1988,8 +1990,8 @@ def check_bundle_digests(report):
                  if l.strip().startswith("x ")]
         report.failure(
             "el bundle no corresponde a lo que declara",
-            "%s. Editar el bundle es forkear (D-059): nueva id opaca en ancestry, forked_at, y "
-            "recalcular el digest" % ("; ".join(lines[:5]) or result.stdout.strip()[-400:]),
+            "%s. Editing the bundle is forking (D-059): what it lacks goes as a proposal "
+            "(bundle.py propose), never as an edit" % ("; ".join(lines[:5]) or result.stdout.strip()[-400:]),
         )
 
 

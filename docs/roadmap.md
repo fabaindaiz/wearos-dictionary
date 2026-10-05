@@ -33,14 +33,14 @@ rise.
 
 *Actualizado: 2026-09-22.*
 
-✅ **El sistema de instrucciones está en bundle v20 —método v24— y el triage llega hasta ahí**
-(2026-09-24). El método vive en `.agents/` como bundle —7 prompts, las notas de conocimiento,
-`tracking/`, `bundle.py`— y `docs/agents/` se retiró (D-221). **Antes de configurar, actualizar o
-correr cualquier prompt de `.agents/method/`, se corre la skill `state-review` §0**, que dice cuál
-corresponde —o si falta terminar el anterior—. **Este repo no puede editar el método**: lo que le
-falta va como una línea en `.agents/tracking/candidates.md`. Y sus heurísticas son parte del
-trabajo: `CLAUDE.md` manda a `.agents/knowledge/INDEX.md` antes de decidir y antes de cerrar
-(D-268).
+✅ **The instruction system is on agent-guides 0.0.26** (converted 2026-10-05 from the old v20
+layout by the bundle home's splice). The method lives in `.agents/` —prompts, knowledge notes and
+cards, the method's skills, `bundle.py`— and this repo's own fields are in `.agents/carrier.toml`;
+`docs/agents/` was retired (D-221). **Before configuring, updating or running any prompt in
+`.agents/method/`, run the `state-review` skill §0**, which says which one applies. **This repo
+cannot edit the method**: what it lacks goes as a proposal in `.agents/proposals/`, written with
+`bundle.py propose`. Its heuristics are part of the work: `CLAUDE.md` sends a change to
+`.agents/knowledge/INDEX.md` and its cards before the design decision (D-268).
 
 ✅ **Los packs se reconstruyeron el 2026-09-22 y ya lo reflejan todo.** Lo que el rebuild trajo,
 medido sobre los packs reales:

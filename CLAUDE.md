@@ -136,12 +136,18 @@ the code a year later. Anything reversible in ten minutes is decided alone, in o
 that what it was told was right. Here that means opening the pack and **reading real entries**,
 not counting rows. See the `pack-workflow` skill.
 
-**The heuristics are not in this repo and they are not optional.** Before a design decision and
-before claiming something is done, `.agents/knowledge/INDEX.md` — a phase guide over 43 notes, each
-with the case where the default answer is wrong and a *Verify by* check. On closing, **run the
-check of every note the work relied on and say which ran**: a heuristic read and not checked is an
-opinion that happened to be nearby. Evidence against a note goes to `.agents/tracking/`, never
-around it.
+**The heuristics are not in this repo and they are not optional.** When a change touches state, a
+contract, data, security or verification, look it up **before the design decision** in
+`.agents/knowledge/INDEX.md`, a phase guide over 43 notes, and open only the cards it links: decide
+each from its *Applies if* and *Not when*, run its check before claiming done and say which ran,
+and open a full note only when a card's boundary is unclear here. Where an invariant above contradicts a
+note, this repo wins and says so. A review in a fresh context goes to the `knowledge-reviewer`
+subagent only when the user asks for one or names it; a change that deletes or rewrites stored data
+offers one, in one line. Evidence against a note is a proposal (`bundle.py propose`), never an edit.
+**Nothing written into `.agents/` or any file that leaves this repo may identify a private
+repository, its people or its users** — `bundle.py privacy .agents` checks it. **A procedure in
+`.agents/method/` never overrides this repo's own**: where it names a file, format, step or commit
+rule defined differently here, this repo's wins, and `.agents/carrier.toml` `adapted` maps it.
 
 **Close by giving back what the session learned.** Capturing is unconditional; proposing has a
 threshold: a friction goes into the changelog the first time and **up to the roadmap §Proceso y
@@ -205,6 +211,6 @@ its own format, and why, at its end.
 | What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
 | What is this project? (for an outsider) | `README.md` |
 | How is this repo worked with an agent? Where do these rules come from? | `.agents/method/prompt-context.md` |
-| Which prompt do I run —evaluate, update, harvest, merge, sync? | `.agents/method/prompt-context.md` §*Which document to run* |
+| Which prompt do I run —evaluate, update, harvest? How is a session closed? | `.agents/method/prompt-context.md` §*Which document to run*; the `close` skill |
 | Is there a written heuristic for this? What do I check before saying it is done? | `.agents/knowledge/INDEX.md` |
 | Is the instruction system healthy? Is the bundle stale? | `.agents/method/prompt-evaluate.md`, the `state-review` skill |
