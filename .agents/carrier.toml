@@ -2,7 +2,7 @@
 carrier = "r-a2f271"
 adopted = "2026-09-17"
 upstream = ""
-harvested_through = "2026-09-30"
+harvested_through = "2026-10-05"
 adapted = [
   "Spanish in the conversation, English in the repo; technical terms stay untranslated either way (gate, covering index, payload, rung), and the UI strings belong to the localization. ~3,000 lines of existing prose are still Spanish: measured 2026-09-21, staged in docs/roadmap.md §Proceso y herramientas",
   "decisions log is docs/decisions.md, with an `Enforced in` column",

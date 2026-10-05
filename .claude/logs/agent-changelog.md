@@ -16,6 +16,58 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-05 · s-a2f271-cfce26 — The harvest: thirty-nine proposals, the records closed, and an owner request found unanswered
+**What.** The local step of the bundle (`prompt-harvest.md`) over everything recorded since the last
+harvest (2026-09-23): this log from 2026-09-24 on, the roadmap, the decisions it cites, `git log`,
+the local memory, and the owner's turns of every session. Two commits:
+- **Records closed** (`06552c7`). The roadmap's *Dónde estamos* had not moved since 2026-09-22; it now
+  opens with the state on 2026-10-05. Seven frictions that lived only here or in local memory joined
+  §*Proceso y herramientas* with minted ids (`i-a2f271-25ed3c`, `-57e3d2`, `-a58967`, `-363c4c`,
+  `-accdb6`, `-a3b903`, `-42b6bd`).
+- **The harvest** (this commit): **39 proposals** in `.agents/proposals/`, written by
+  `bundle.py propose` — 20 learnings (14 knowledge, 6 method), 2 experiments
+  (`detect-by-observation-not-build-flag` and `derived-copy-goes-stale-silently`, both *confirms*),
+  and 17 refusals written as such so no harvest offers them again. `harvested_through` is
+  2026-10-05. The 2026-09-30 census of the validator's checks was already a proposal from the
+  conversion (`p-f4dea4b6c6`) and was not written twice.
+
+**Areas.** `.agents/proposals/`, `.agents/carrier.toml` (`harvested_through`), `docs/roadmap.md`,
+this file.
+
+**Why.** Asked for by the owner: harvest this repo into the bundle's next release, closing open
+sessions by records only.
+
+**Architecture.** ✅ Complies. Nothing released was edited; proposals and `carrier.toml` are the
+carrier's own.
+
+**Measured.** `bundle.py privacy .agents`: 0 FAIL, 1 WARN — an exact count inside the converted
+proposal, which the bundle's home generalises. `bundle.py verify`: *0.0.26 verified*.
+`bundle.py check-local .`: *only their own files changed*. Light gate: builder tests OK, audit
+40 checks, 0 failures.
+
+**Found and recorded, never written before.**
+- ⚠️ **An owner request was never acted on.** On 2026-09-29 the owner said R8 was believed to be on
+  the device and, if not, the next upload should be an R8 build to use for a week. Every upload since
+  was a plain debug build. Recorded in the roadmap as open (`i-a2f271-55ddfc`) with a recommendation,
+  **not decided**.
+- The owner also reported no scroll or off-screen problems in daily use (same day).
+- Two short sessions after the 2026-10-01 entry (that evening, and 2026-10-02) left no entry and no
+  commit; the tree was clean afterwards. Whether anything was attempted is not known from the record.
+
+**What the harvest found, in one line each** (the full claims are in the proposals): the call site of
+a newly tested function is the untested part (five occurrences in two days); the input a surviving
+guard needs is usually in the real data; a CLI's error printed to stdout reads as a value; a
+measurement needs its invalidating condition written before it is read; a reimplemented rule
+measures a different rule; a removal rule's coverage is the list of what it removes; a counter that
+writes only the buckets that fired cannot show a rule that stopped.
+
+**What went wrong.** The first run of the proposal script passed relative paths to a tool run from
+another directory and wrote nothing; rerun with absolute paths. One draft quoted a phrase and the
+privacy check warned; it was paraphrased before anything was written.
+
+**What was left undone.** The seven new roadmap items are proposed, not built. The R8 question waits
+for the owner.
+
 ## 2026-10-05 · s-a2f271-cf5ef6 — agent-guides 0.0.26 lands: the old layout converted, the gate runs verify, and the close skill installed
 **What.** The bundle moves from the old v20 layout (method v24, knowledge v11) to **agent-guides
 0.0.26**, written by the bundle home's `release.py splice` on the branch it opened for this harvest.
