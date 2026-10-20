@@ -1,6 +1,6 @@
 """Checks the repository against the rules it writes about itself.
 
-Every rule here is written in CLAUDE.md, in an <area>/CLAUDE.md or in docs/decisions.md. If a rule
+Every rule here is written in AGENTS.md, in an <area>/AGENTS.md or in docs/decisions.md. If a rule
 changes there, change it here too; if a check here has no written rule, it should not be breaking
 the build.
 
@@ -1180,13 +1180,13 @@ def check_test_counts(report):
     esperados = {
         ("README.md", r"el gate: compila, lint, (\d+) tests"): gate,
         ("README.md", r"connectedDebugAndroidTest\s+# los (\d+) tests"): datos,
-        ("app/CLAUDE.md", r"testDebugUnitTest\s+# (\d+) JVM tests"): app_jvm,
-        ("dict-data/CLAUDE.md", r"connectedDebugAndroidTest # the (\d+) tests"): datos,
-        ("tools/CLAUDE.md", r"hatch run test\s+# the (\d+) tests"): python,
+        ("app/AGENTS.md", r"testDebugUnitTest\s+# (\d+) JVM tests"): app_jvm,
+        ("dict-data/AGENTS.md", r"connectedDebugAndroidTest # the (\d+) tests"): datos,
+        ("tools/AGENTS.md", r"hatch run test\s+# the (\d+) tests"): python,
         ("docs/roadmap.md", r"`:dict-core`, \*\*(\d+) tests\*\*"): nucleo,
         ("docs/roadmap.md", r"`tools/`, \*\*(\d+) tests\*\*"): python,
         ("docs/roadmap.md", r"\*\*(\d+) JVM\n?de `:app`\*\*"): app_jvm,
-        ("CLAUDE.md", r"phase guide over (\d+) notes"): notas,
+        ("AGENTS.md", r"phase guide over (\d+) notes"): notas,
         ("docs/roadmap.md", r"\*\*(\d+) checks\*\* de auditor"): checks,
         ("docs/roadmap.md", r"\*\*(\d+) tests en total\*\*"): gate + checks,
         ("docs/roadmap.md", r"Los \*\*(\d+)\n?instrumentados\*\*"): datos + app_disp,
@@ -1332,7 +1332,7 @@ def check_manifest_hygiene(report):
     if "INTERNET" in permisos:
         promesas = {
             "README.md": "descargar un diccionario es lo unico",
-            "CLAUDE.md": "downloading one is the only thing that uses the internet",
+            "AGENTS.md": "downloading one is the only thing that uses the internet",
         }
         for documento, frase in promesas.items():
             ruta = os.path.join(ROOT, documento)
@@ -1659,7 +1659,7 @@ PRESUPUESTO_RAIZ = 220
 
 
 def _secciones(texto):
-    """`CLAUDE.md`'s `##` sections and how many lines each one holds, in file order."""
+    """`AGENTS.md`'s `##` sections and how many lines each one holds, in file order."""
     secciones, actual = [], ("(cabecera)", 0)
     for linea in texto.splitlines():
         if linea.startswith("## "):
@@ -1672,12 +1672,12 @@ def _secciones(texto):
 
 
 def _claude_md_previo():
-    """`CLAUDE.md` as the last commit has it, or None when git cannot answer.
+    """`AGENTS.md` as the last commit has it, or None when git cannot answer.
 
     None and not an exception: a tarball without `.git` has to keep passing the audit, which is
     the same reason `BUILD_COMMIT` degrades to `"unknown"` (D-238).
     """
-    result = subprocess.run(["git", "show", "HEAD:CLAUDE.md"], cwd=ROOT,
+    result = subprocess.run(["git", "show", "HEAD:AGENTS.md"], cwd=ROOT,
                             capture_output=True, text=True, check=False)
     return result.stdout if result.returncode == 0 and result.stdout else None
 
@@ -1691,7 +1691,7 @@ def _por_que_crecio():
     Growth beats size: a section that is merely long may be long on purpose, while one that grew
     is the one that just became a document.
     """
-    ahora = _secciones(read("CLAUDE.md"))
+    ahora = _secciones(read("AGENTS.md"))
     previo = _claude_md_previo()
     if previo is not None:
         antes = dict(_secciones(previo))
@@ -1704,35 +1704,72 @@ def _por_que_crecio():
     return "las mas largas: " + ", ".join("%s (%d lineas)" % (t, n) for t, n in mayores)
 
 
+def check_agents_bridges(report):
+    """Rule: AGENTS.md is the one source, and each CLAUDE.md only imports it. (agent-guides artifact 1)
+
+    Claude Code reads `AGENTS.md` only where there is no `CLAUDE.md`, so every directory that has
+    instructions keeps both: `AGENTS.md` with the rules, which any assistant reads, and a `CLAUDE.md`
+    whose first line is `@AGENTS.md`. A bridge that grows rules of its own is a second source that
+    only one assistant sees, and a `CLAUDE.md` with no `AGENTS.md` beside it is a rule no other
+    assistant reads.
+    """
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in ("build", "node_modules")]
+        rel = os.path.relpath(dirpath, ROOT)
+        donde = "" if rel == "." else rel + "/"
+        if "CLAUDE.md" in filenames and "AGENTS.md" not in filenames:
+            report.failure(
+                "un CLAUDE.md sin AGENTS.md",
+                "%sCLAUDE.md holds rules no other assistant reads: move them to %sAGENTS.md and leave "
+                "`@AGENTS.md` as the bridge" % (donde, donde),
+            )
+        if "AGENTS.md" in filenames:
+            puente = os.path.join(dirpath, "CLAUDE.md")
+            lineas = [l for l in open(puente, encoding="utf-8").read().splitlines() if l.strip()] \
+                if os.path.isfile(puente) else []
+            if not lineas or lineas[0].strip() != "@AGENTS.md":
+                report.failure(
+                    "un AGENTS.md sin su puente",
+                    "%sCLAUDE.md must exist and begin with `@AGENTS.md`, or Claude Code never reads "
+                    "%sAGENTS.md" % (donde, donde),
+                )
+            elif len(lineas) > 1:
+                report.failure(
+                    "un puente con reglas propias",
+                    "%sCLAUDE.md has %d lines besides `@AGENTS.md`: only Claude Code reads them. Move "
+                    "them to %sAGENTS.md" % (donde, len(lineas) - 1, donde),
+                )
+
+
 def check_root_budget(report):
-    """Rule: CLAUDE.md is paid for on every request and stays inside its budget. (CLAUDE.md)"""
-    lines = len(read("CLAUDE.md").splitlines())
+    """Rule: AGENTS.md is paid for on every request and stays inside its budget. (AGENTS.md)"""
+    lines = len(read("AGENTS.md").splitlines())
     if lines >= PRESUPUESTO_RAIZ:
         report.failure(
-            "CLAUDE.md paso su presupuesto",
+            "AGENTS.md paso su presupuesto",
             "%d lineas contra %d. Una seccion que crece se volvio un documento; %s"
             % (lines, PRESUPUESTO_RAIZ, _por_que_crecio()),
         )
     elif lines > PRESUPUESTO_RAIZ - 25:
         report.advisory(
-            "CLAUDE.md cerca del limite",
+            "AGENTS.md cerca del limite",
             "%d de %d lineas. La proxima regla que entre conviene que NOMBRE que desaloja; %s"
             % (lines, PRESUPUESTO_RAIZ, _por_que_crecio()),
         )
 
 
 def check_skills_reachable(report):
-    """Rule: a rule that leaves CLAUDE.md stays reachable. (D-222)
+    """Rule: a rule that leaves AGENTS.md stays reachable. (D-222)
 
-    CLAUDE.md is paid for on every request and lives inside a line budget, so the less specific rules
+    AGENTS.md is paid for on every request and lives inside a line budget, so the less specific rules
     move to a skill. The problem is that a skill **does not load on its own**: it loads when its
     `description` matches what the user said. So moving a rule and leaving the pointer is not
     enough -- the rule stops being read exactly in the situation it governs.
 
     Two halves:
 
-    1. **Every skill CLAUDE.md names exists.** A broken pointer is a lost rule.
-    2. **Every existing skill is named** in CLAUDE.md or in another skill. A skill nobody points at
+    1. **Every skill AGENTS.md names exists.** A broken pointer is a lost rule.
+    2. **Every existing skill is named** in AGENTS.md or in another skill. A skill nobody points at
        is content taken out of sight that nobody will read again.
 
     It does not check that the `description` fires --that is not decidable-- which is why the
@@ -1746,13 +1783,13 @@ def check_skills_reachable(report):
         if os.path.isfile(os.path.join(folder, n, "SKILL.md"))
     }
 
-    raiz = read("CLAUDE.md")
+    raiz = read("AGENTS.md")
     nombradas_en_raiz = {n for n in existentes if "`%s`" % n in raiz}
 
     faltan = sorted(n for n in re.findall(r"`([a-z][a-z0-9-]+)` skill", raiz) if n not in existentes)
     if faltan:
         report.failure(
-            "CLAUDE.md apunta a una skill que no existe",
+            "AGENTS.md apunta a una skill que no existe",
             "%s. El puntero es lo unico que queda de la regla que se mudo" % ", ".join(faltan),
         )
 
@@ -1765,7 +1802,7 @@ def check_skills_reachable(report):
     if huerfanas:
         report.failure(
             "una skill no esta nombrada en ningun lado",
-            "%s. Nadie la va a encontrar: o se nombra en CLAUDE.md o su contenido vuelve"
+            "%s. Nadie la va a encontrar: o se nombra en AGENTS.md o su contenido vuelve"
             % ", ".join(huerfanas),
         )
 
@@ -2278,6 +2315,7 @@ CHECKS = [
     check_required_meta_keys,
     check_no_hardcoded_translations,
     check_root_budget,
+    check_agents_bridges,
     check_bundle_digests,
     check_commit_trailers,
     check_changelog_is_newest_first,

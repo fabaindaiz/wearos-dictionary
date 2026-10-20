@@ -28,7 +28,7 @@ build-backend = "hatchling.build"
 name = "wearos-dictionary-tools"
 version = "0.1.0"
 description = "Pipeline que construye los packs de diccionario que consume la app Wear OS"
-readme = "tools/CLAUDE.md"
+readme = "tools/AGENTS.md"
 license = { file = "LICENSE" }
 
 # 3.9 es el piso REAL y no una precaucion: tools/unicode/gen_repertoire.py exige exactamente

@@ -82,10 +82,10 @@ missing.
 By being built, or **by measurement**. The second is the valuable one: if a number retired an
 idea, it goes to *Cerrado por medición* with the number, so it stays retired.
 
-## 5. Did `CLAUDE.md` blow its budget?
+## 5. Did `AGENTS.md` blow its budget?
 
 ```bash
-wc -l CLAUDE.md    # has to stay under 200
+wc -l AGENTS.md    # has to stay under 220 (D-262); CLAUDE.md is only the `@AGENTS.md` bridge
 ```
 
 If it grew, **which section grew** is the question. A section that grows is the sign that it

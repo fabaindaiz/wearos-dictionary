@@ -67,7 +67,7 @@ worktree**, where only that commit's code exists, and stage its result into the 
 touching the main tree:
 
 ```bash
-git --work-tree=/tmp/wt-<ref> add -- README.md app/CLAUDE.md docs/roadmap.md tools/CLAUDE.md
+git --work-tree=/tmp/wt-<ref> add -- README.md app/AGENTS.md docs/roadmap.md tools/AGENTS.md
 git commit --amend --no-edit
 ```
 
@@ -85,6 +85,6 @@ killed a belief, that is the most valuable content in the commit.
 - The changelog entry is written: `.claude/logs/agent-changelog.md`.
 - If a new decision was taken, it has its row in `docs/decisions.md` with the *Enforced in* column
   filled — even if it says `—`.
-- Nothing generated enters the repo: see the list in `CLAUDE.md`.
+- Nothing generated enters the repo: see the list in `AGENTS.md`.
 
 **Never commit on your own initiative mid-task.** It is offered when the work is finished.

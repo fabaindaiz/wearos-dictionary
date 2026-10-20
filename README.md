@@ -48,7 +48,7 @@ hatch run matrix:test    # los mismos, bajo cada versión de Python soportada
 hatch run lint:check     # ruff
 ```
 
-Está documentado en [tools/CLAUDE.md](tools/CLAUDE.md).
+Está documentado en [tools/AGENTS.md](tools/AGENTS.md).
 
 ## Trabajar desde Android Studio
 
@@ -76,7 +76,7 @@ Android; correr en una sola no prueba lo que el test intenta probar.
 Esos tests son los únicos que cierran las asunciones sobre Android — que el SQLite empacado
 traiga FTS5, que el prefijo use el covering index en ese dispositivo, y que `norm()` dé lo mismo
 en el reloj que en el builder. Hasta que corran, todo lo que este repo afirma sobre Android es
-una suposición. Detalle en [dict-data/CLAUDE.md](dict-data/CLAUDE.md).
+una suposición. Detalle en [dict-data/AGENTS.md](dict-data/AGENTS.md).
 
 ## Estructura
 
@@ -98,7 +98,7 @@ docs/         formato de pack, decisiones, contratos, roadmap
 | **Tocar la normalización o el formato del pack** | [docs/contratos-cruzados.md](docs/contratos-cruzados.md) primero |
 | Ver qué sigue y con qué choca | [docs/roadmap.md](docs/roadmap.md) |
 
-Si vas a trabajar con Claude Code, [CLAUDE.md](CLAUDE.md) es el punto de entrada.
+Si vas a trabajar con un agente, [AGENTS.md](AGENTS.md) es el punto de entrada; `CLAUDE.md` sólo lo importa para Claude Code.
 
 ## Licencia
 

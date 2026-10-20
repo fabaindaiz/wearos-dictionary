@@ -78,6 +78,18 @@ accepted + 18 rescued + 1 new); none of the 18 lacked an enforcer.
 escape of `\|`: D-198's `core`\|`full` came out as a sixth column, which the check then failed.
 Restored by hand; it was the log's only escaped pipe.
 
+**The root becomes `AGENTS.md` (reopening declined v7, the owner's call: root and areas).**
+`git mv` of the root and the four area files (`app`, `dict-core`, `dict-data`, `tools`), each left
+with a one-line `CLAUDE.md` bridge, `@AGENTS.md`. The audit reads `AGENTS.md` for the budget, the
+sections, the notes count, the offline line and the skills map, and the area patterns of the test
+counts; `check_agents_bridges` is new (d-a2f271-4afa62), probed twice: a rule added to a bridge
+fails it, a deleted bridge fails it, the restored tree passes. The root gains the Phase 4 fourth and
+fifth lines (parallel tool calls; decisions by example, `decision-review` past one message): 218 of
+220 lines. Living pointers moved (README, architecture, three skills, the settings hook message,
+`pyproject.toml`'s readme); records that cite `CLAUDE.md` stay, since the bridge loads the same
+text. **Seen on the host**: after the bridge was written, this session's harness loaded
+`tools/AGENTS.md` through it.
+
 **What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
 a single occurrence.
 

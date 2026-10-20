@@ -46,12 +46,12 @@ emulator.
 |---|---|---|
 | Knows nothing of Android, SQLite, network or paths | `dict-core/` | If it touches a JVM API, it goes in `PlatformJvm.kt` or it does not go |
 | Opens packs or runs SQL | `dict-data/` | Its tests are **instrumented**: they are the only ones that close assumptions about Android |
-| Is a screen, a Tile or a Complication | `app/` | Read `app/CLAUDE.md` first: there are three known traps |
+| Is a screen, a Tile or a Complication | `app/` | Read `app/AGENTS.md` first: there are three known traps |
 | Builds or validates packs | `tools/packbuilder/` | Python stdlib only. A new source goes in `sources/` |
 | Generates data both languages consume | `tools/unicode/` | It has to emit **both** copies and tie them together by sha256 |
 | Talks to the device over `adb` | `tools/` | Its pure logic enters the gate; running `adb` does not. See `devpack.py` |
 | Instructs an agent, and is **portable** — a rule about reviewing, verifying, documenting; a claim about retries, defaults or data shape | `.agents/` | It is the bundle, and it travels. Editing it **is forking** (D-059): what this repo finds missing goes as one proposal in `.agents/proposals/`, written by `bundle.py propose` |
-| Instructs an agent **about this repo** | `.claude/skills/<name>/SKILL.md`, or `CLAUDE.md` if every session needs it | A skill does not load itself: its `description` has to match what the user says, and some document has to name it (D-222) |
+| Instructs an agent **about this repo** | `.claude/skills/<name>/SKILL.md`, or `AGENTS.md` if every session needs it | A skill does not load itself: its `description` has to match what the user says, and some document has to name it (D-222) |
 | Is a fact about this repo a **person** reads | `docs/` | The test is whether you can state it without a project noun. If you can, it belongs in `.agents/`, not here |
 
 ## The life of a pack
@@ -109,7 +109,7 @@ documentation?"*, it is **"is there any sentence in the repo that my change just
 | A rule, or the answer to a closed question | `docs/decisions.md`: a new row, **with the Enforced in column filled** |
 | A number some document asserts | the document that **owns** that number, with the new measurement next to it |
 | A module, a layer, a public name | `docs/architecture.md` and every map that names it |
-| A rule that moves out of `CLAUDE.md` for budget | the skill that receives it **and its `description`**, plus the one-line invariant and the pointer that stay (D-222) |
-| A command or a Gradle task | `CLAUDE.md` §Commands, the `<area>/CLAUDE.md` that cites it, and the skills — it is what goes stale fastest |
+| A rule that moves out of `AGENTS.md` for budget | the skill that receives it **and its `description`**, plus the one-line invariant and the pointer that stay (D-222) |
+| A command or a Gradle task | `AGENTS.md` §Commands, the `<area>/AGENTS.md` that cites it, and the skills — it is what goes stale fastest |
 | Something the roadmap planned | the **status** of that entry, and what is still missing |
 | Anything at all | the changelog, including what went wrong along the way |

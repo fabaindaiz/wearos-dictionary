@@ -1,0 +1,218 @@
+# AGENTS.md
+
+A dictionary for Wear OS where **every search runs with no network, ever**. Languages install as
+*packs* of read-only SQLite; downloading one is the only thing that uses the internet. The unusual
+keys are computed twice, in two languages, and have to produce the same string** — the Python
+builder writes them into the pack, the watch recomputes them in Kotlin over what the user types.
+
+## The central invariant
+
+> `norm(x)` computed by the builder == `norm(x)` computed by the app, for every `x`, on every
+> platform and forever.
+
+If it breaks there is no exception and no log: **a word is missing from the results**, and the
+report arrives months later with nothing in the stack trace. Everything else —the BINARY
+collation, the covering index, the pinned repertoire, `NORM_VERSION`— exists to hold it up.
+
+Enforcer: `vectors/normalization-vectors.tsv`, run by the tests of **both** languages.
+
+## Non-negotiable constraints
+
+Decisions taken, not preferences. Do not propose alternatives unless asked to review them. Each
+one has its row in `docs/decisions.md`.
+
+**Normalization and keys**
+- Code point classification comes from `UnicodeRepertoire` / `repertoire.py`, **never** from
+  `Character.getType` or `unicodedata.category` — every platform ships its own Unicode version and
+  14,773 code points differed. Enforcer: `ArchitectureTest` compares both sha256. (D-003)
+- NFD and `lowercase()` **are** delegated to the platform: 0 differences over the 133,730 code
+  points of the pinned repertoire. (D-004)
+- A change to `norm()` or `fuzzy()` touches both languages in the same commit and bumps
+  `NORM_VERSION`. Enforcer: `tools/audit_dictionary.py` compares the constants. (D-005, D-006)
+
+**Pack format**
+- The pack is immutable and opened read-only. There are no migrations: a different
+  `schema_version` is rejected and downloaded again. (D-001)
+- `fts_def` is contentless and its `rowid` **is** `entry.id`. If they drift apart, free-text
+  search points at the wrong entries. Enforcer: `verify_pack.py`. (D-011)
+- `meta.payload_dict_sha256` is verified on open. deflate does **not** detect a wrong preloaded
+  dictionary: it decompresses without error and returns corrupt text. (D-008)
+- Packs are built with `tools/packbuilder`. The app never parses raw sources. (D-015)
+
+**`:dict-core` portability**
+- Every JVM API lives in `PlatformJvm.kt`. No other file in the module imports `java.*` or uses
+  `Character.`, `.codePoints()` or `.format()`. Enforcer: `ArchitectureTest`. (D-017)
+- KMP was evaluated and **is not adopted**: Wear Compose is Android only. (D-018)
+
+**Wear OS surface**
+- Tiles and widgets accept no text input: the search lives inside the app. The glanceable
+  surface is for word of the day, recent searches or a shortcut. (D-026)
+- **Never** `androidx.glance:glance-wear-tiles` — deprecated, and the naming confuses: it is not
+  the Wear Widgets library (D-025), which is postponed and not discarded — alpha, Wear OS 7 only
+  (D-024).
+- Downloads wait for **unmetered Wi-Fi**; the charger is required only for a **queued** one,
+  never for one somebody asked for by hand. (D-029, D-263)
+
+## Guardrails that do not get relaxed
+
+- **The shared vectors.** They look like one more test; they are the only mechanism that detects
+  that the two implementations of `norm()` drifted apart.
+- **The payload dict hash.** It looks redundant because "deflate already fails if something is
+  wrong". It does not fail: it is measured to return corrupt text in silence.
+- **`verify_pack.py` before publishing a pack.** A half-built pack opens without error and returns
+  fewer results than it holds.
+- **The on-device check.** It does not exist yet and it is the class of bug this repo cannot see:
+  see `docs/contratos-cruzados.md`.
+
+**A pre-ship check is half of it; the other half is observing after shipping.** Every silent
+failure needs a **readout** (`DictLog`, D-212); every build **states its identity** —commit, time,
+dirty, *generated and never typed*— or *"the fix did not work"* and *"the watch runs yesterday's
+APK"* are one report; and what only a watch answers lives in `docs/preguntas-del-reloj.md`.
+
+**And what promotes a rule: an instruction the agent had loaded and broke anyway is the signal to
+raise its rung**, not to repeat it louder. Prose that was in context and did not hold is evidence
+that prose is the wrong mechanism for it.
+
+## Files that are never edited by hand
+
+Generated. Editing them creates two sources of truth that diverge in silence.
+
+- `dict-core/src/main/kotlin/cl/fadiaz/dictionary/core/UnicodeRepertoire.kt`
+- `tools/unicode/repertoire.txt`
+- `tools/packbuilder/vectors/payload-fixture.tsv`
+- `local.properties`
+
+Backed by `.claude/settings.json` → `permissions.deny`.
+
+## Commands
+
+```sh
+./gradlew check                                                 # THE GATE. Compile, lint and :dict-core:test
+./gradlew :dict-core:test                                       # the core only (fast, no emulator)
+cd tools/packbuilder && python3 -m unittest discover -s tests    # the builder
+python3 tools/packbuilder/build_toy.py                          # regenerate the toy pack
+python3 tools/packbuilder/verify_pack.py [--como-la-app] <pack.db>  # invariants; the flag = what the APP checks
+python3 tools/unicode/gen_{repertoire,casefold}.py              # regenerate the pinned Unicode tables (a deliberate act)
+python3 tools/packbuilder/gen_payload_fixture.py                # regenerate the codec fixture
+./gradlew :dict-data:devicePrecheck                             # is there an emulator or a watch? says what is missing
+./gradlew :dict-data:connectedDebugAndroidTest                  # THE ON-DEVICE TESTS (see below)
+```
+
+The Hatch environment for the Python pipeline is optional and **the gate does not need it**
+(D-046): it lives in `tools/AGENTS.md`, which is the document that owns it.
+
+## Verification
+
+`./gradlew check` is the gate, read **by its exit code**. What it cannot enforce — a number carries
+its date and environment; a retraction goes everywhere the claim was; the test comes first, and one
+green first time proves it bites by mutation; **a change that must change nothing is proved by its
+invariant, compared mechanically**; the uncommitted diff is not yours to discard; emulator and
+watch measure **different things** (D-043); `:dict-data`'s tests stay outside; and two commands
+fail in silence (`set -- $x` in fish, `--` in an XML comment) — all in the `verify` skill.
+
+## How a session runs
+
+**Open with the brief**, before answering or planning. A line with nothing says `nada`: omitting
+it does not distinguish *I looked and it is clean* from *I did not look*. It stays in Spanish
+because it is **spoken to the user**, not written into the repo.
+
+```
+En movimiento   qué quedó a medias, según el roadmap y el changelog
+En el árbol     trabajo sin commitear, en qué branch, y de quién es
+Restringe       las decisiones y los números que pesan sobre lo que se pidió
+Obsoleto        qué hay que re-chequear antes de creerle
+Lo cambia       cómo lo de arriba altera el pedido — una frase
+Fricción        items de proceso abiertos que este trabajo va a tocar
+```
+
+**Uncommitted work is not yours.** Name it in the report and do not drag it into your own.
+
+**Questions go together and before writing**, capped at three, with a recommendation up front.
+Every option is priced **in this repo's units** —MB per million entries, ms at p99, bytes per
+row— never in "more complex", and says **what it closes**: that is what nobody reconstructs from
+the code a year later. Anything reversible in ten minutes is decided alone, in one line. Each
+option is shown by example; when more decisions remain than one message holds, run
+`decision-review`, one per turn. Make independent tool calls in one message, in parallel.
+
+**Look at the output, not just the numbers.** A green gate says the code did what it was told, not
+that what it was told was right. Here that means opening the pack and **reading real entries**,
+not counting rows. See the `pack-workflow` skill.
+
+**The heuristics are not in this repo and they are not optional.** When a change touches state, a
+contract, data, security or verification, look it up **before the design decision** in
+`.agents/knowledge/INDEX.md`, a phase guide over 52 notes, and open only the cards it links: decide
+each from its *Applies if* and *Not when*, run its check before claiming done and say which ran,
+and open a full note only when a card's boundary is unclear here. Where an invariant above contradicts a
+note, this repo wins and says so. A review in a fresh context goes to the `knowledge-reviewer`
+subagent only when the user asks for one or names it; a change that deletes or rewrites stored data
+offers one, in one line. Evidence against a note is a proposal (`bundle.py propose`), never an edit.
+**Nothing written into `.agents/` or any file that leaves this repo may identify a private
+repository, its people or its users** — `bundle.py privacy .agents` checks it. **A procedure in
+`.agents/method/` never overrides this repo's own**: where it names a file, format, step or commit
+rule defined differently here, this repo's wins, and `.agents/carrier.toml` `adapted` maps it.
+
+**Close by giving back what the session learned.** Capturing is unconditional; proposing has a
+threshold: a friction goes into the changelog the first time and **up to the roadmap §Proceso y
+herramientas the second**, with the arithmetic. Process improvements **are proposed, not executed**
+—except the one-line reversible kind— and **never ride inside a feature**, which a revert takes
+with it. The closing question: *if the next session is another agent with no memory of this one,
+what would it have to re-derive?*
+
+## Commits
+
+**Each commit is offered when ITS piece passes**, not when the whole task ends — the `commit`
+skill, which also owns how a series is split after the fact. Split **by dependency, not by size**:
+every commit green on its own, so the history is bisectable, and **proved in a `git worktree`**
+before that is claimed.
+
+The message says **why**, not which files changed — the diff already says that.
+
+## Logging obligation
+
+Every session writes its entry at the top of `.claude/logs/agent-changelog.md`, **including what
+went wrong and what was left undone** — a log of successes is bookkeeping — **and a claim it could
+not verify says so, its question joining the standing brief in the same change**. The file explains
+its own format, and why, at its end.
+
+## Working style
+
+- **Spanish in the conversation, English in the repo.** Identifiers, comments, documents and
+  commit messages are English; technical terms stay untranslated either way (gate, covering index,
+  payload, rung). The UI strings the user reads are the exception: they belong to the
+  localization, not to a translation pass.
+- **Trade-offs and concepts before code dumps.** Explain what is gained and what is lost.
+- **Clarifying questions before detailed solutions.** A wrong assumption costs more than a
+  question.
+- **Primary sources.** Official documentation or the artifact repository, not a summary. Mark
+  **ASSUMPTION** anything that comes from memory or from a summary.
+- **Extend before creating.** A second file doing the job of one that already exists is how a
+  codebase forgets what it decided.
+- **A comment describes the code, never the change.** *"Now uses X"* is dead the next commit and
+  the diff already said it. And **a durable document never cites a session artifact** — a branch,
+  a scratch path, a task id: it outlives them and starts lying.
+- **Content the owner wrote is not yours to complete.** An empty slot in their prose is a choice
+  until they say otherwise; fill the ones you created.
+- **Architectural integrity wins over the request.** If something breaks a constraint from here,
+  say the cost and propose the right path; deviate only with explicit confirmation, and record
+  it as ⚠️ Desviación.
+
+## The documents, and which one answers what
+
+| Question | Document |
+|---|---|
+| Why is this decided this way? Can I change it? | `docs/decisions.md` |
+| A word is missing / duplicates show up / the pack will not open | the `troubleshoot-diccionario` skill, `docs/contratos-cruzados.md` |
+| What does the `.db` look like inside? Which query do I use? | `docs/formato-pack.md` |
+| Why is this word first? What decides the order? | `docs/orden-de-resultados.md` |
+| Where does a new file go? What are the layers? | `docs/architecture.md` |
+| What is next? What does what I want to do collide with? | `docs/roadmap.md` |
+| How do I measure this? Is it slow? What does it cost in battery? | the `benchmark` skill, `docs/bateria.md`, `docs/roadmap.md` §Optimización |
+| What can only be answered with a watch on a wrist? What is still unverified? | `docs/preguntas-del-reloj.md` |
+| Which source should the next pack be built from? Is it worth it? | `docs/fuentes.md` |
+| Did we already research this? What does the official source say? | `docs/references.md` |
+| What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
+| What is this project? (for an outsider) | `README.md` |
+| How is this repo worked with an agent? Where do these rules come from? | `.agents/method/prompt-context.md` |
+| Which prompt do I run —evaluate, update, harvest? What next? How are decisions reviewed, a flow walked, a session closed? | `.agents/method/prompt-context.md` §*Which document to run*; the `next`, `decision-review`, `user-walk` and `close` skills |
+| Is there a written heuristic for this? What do I check before saying it is done? | `.agents/knowledge/INDEX.md` |
+| Is the instruction system healthy? Is the bundle stale? | `.agents/method/prompt-evaluate.md`, the `state-review` skill |

@@ -63,7 +63,7 @@ changelog entry rather than editing the old one. A finding corrected in one of t
 still being believed in the other two.
 
 **And the same holds for a rule and for a decision, where the stale copy does worse than being
-believed: it is followed, and copied forward.** Correct a rule **where it is loaded** —`CLAUDE.md`,
+believed: it is followed, and copied forward.** Correct a rule **where it is loaded** —`AGENTS.md`,
 the skill, the document an agent actually opens— and not only where the mistake was found. When a
 decision is reversed, **the reversed row says so in place**, with a pointer to what replaced it,
 and keeps its measurement: a new row citing the old one is not enough, because readers arrive at
@@ -129,7 +129,7 @@ changelog entry.
 ## Two things that fail without saying so
 
 Neither is about the gate; both are about the commands you run beside it, and each has bitten
-more than once. They live here because `CLAUDE.md` is at its line budget and this skill already
+more than once. They live here because `AGENTS.md` is at its line budget and this skill already
 owns *how you check something is true*.
 
 **`set -- $x` does not split fields in fish, and it fails silently.** The shell these sessions run
