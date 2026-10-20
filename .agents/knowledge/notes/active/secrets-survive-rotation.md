@@ -6,6 +6,7 @@ claim: "Anything persisted that depends on a secret must survive the secret's ro
 confidence: "reasoned"
 check: "rotate the secret in a test environment: nothing stored stops verifying, no cache keeps serving"
 boundary: "Tokens meant to expire with the key, such as sessions and short-lived capabilities, and caches meant to be invalidated by rotation, where invalidation is intended"
+cues: ["rotate secret", "secret key", "jwt", "signing key", "api key", "token cache", "hmac", "credential", "fingerprint", "key rotation", "stored token", "session token", "verify signature", "env secret", "cache key"]
 ---
 
 # Persisted state survives secret rotation

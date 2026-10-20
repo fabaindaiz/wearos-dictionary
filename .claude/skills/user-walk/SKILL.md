@@ -1,7 +1,7 @@
 ---
 # Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
 name: user-walk
-description: Two jobs on a user-facing feature - answers a batch of observations from the human's own use of the app, each reproduced, fixed test-first and swept for its class; and, before building, walks how a person would use it - the ideal flow, then every delay, interruption, setback, failure and misuse, priced, the kept ones as failing tests. Use when the human lists what they saw using the app, asks for a usability pass, to think like a user or walk the flow, what happens if the app is closed or the connection drops halfway, edge cases or unhappy paths. Not for one failure with an error or trace (debug it), a list of new feature ideas (brainstorm), reviewing decisions (decision-review), or testing with real people.
+description: "Two jobs on how people use an app: answers the human's observations from using it (something not working, jumping, hidden or slow), each reproduced and fixed test-first; and walks a flow, the ideal path then every delay, interruption, failure and misuse, the kept ones as failing tests. Use it whenever a request is about what a person does or meets in the app: something seen while using it, a usability or interaction change (controls, keys, menus, animations), a flow to design around the user, or what someone meets when a step is slow or cut off. Not for an error message or trace alone (debug it), testing with real people, or reviewing decisions."
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 when_to_use: Usar cuando se pida "piensa cómo lo usaría alguien", "qué pasa si se corta el wifi o se cierra la app a la mitad", "prueba todas las formas de cierre", "casos borde", o cuando el dueño trae observaciones de usar la app en el reloj ("la app se instaló pero tiene algunas observaciones"). No para revisar decisiones (decision-review), y no reemplaza probar con personas reales.
 ---
@@ -19,6 +19,16 @@ or screenshots on the real device, whose probe is install, launch and read the l
 gate cannot see (colour, animation, where a line breaks) is measured on that emulator and said so in
 the test. Where a step below names something this repository defines differently, this repository's
 wins.
+
+## Before it starts: the pre-review
+
+This process is long. Before its first step, one message: the important questions still open for it, at most four,
+each with a recommendation, found by cheap reads only (`git status`, the hand-off, a review pending, `proposed`
+decision rows), such as which of its two jobs (the human's observations, or a walk of one flow), which flow, whether
+a fix may ship before the walk ends; and, unless the human asked for this process by name or command, whether to run
+it in full. Asked for by name and nothing open: start. Each answer is written where it belongs (a decision row, the
+roadmap, the plan) even when the human declines the process, and goes in with the session's next commit
+(`d-5ed7e8-d7c0b7`).
 
 ## 1. Actors and goals
 

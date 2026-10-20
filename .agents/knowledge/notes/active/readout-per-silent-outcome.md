@@ -6,6 +6,7 @@ claim: "Where the runtime cannot be watched by those who must fix it, every outc
 confidence: "reasoned"
 check: "the startup output names every silent outcome with its state before anything happens; the commit and its modified flag are read back from the target; every open question for the remote tester names its readout"
 boundary: "A runtime the developers can watch · Outcomes that announce themselves · As a threshold, where a deliberate policy removes a known share"
+cues: ["startup log", "build id", "git sha", "version readout", "remote tester", "device build", "handler refused", "empty store", "dropped input", "debug overlay", "log state", "not wired", "build identity", "diagnostics screen", "dirty flag"]
 ---
 
 # A readout per silent outcome

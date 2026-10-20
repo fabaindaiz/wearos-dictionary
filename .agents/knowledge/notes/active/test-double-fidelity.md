@@ -6,6 +6,7 @@ claim: "A test double that accepts more than the real dependency makes the test 
 confidence: "reasoned"
 check: "a contract test runs the fake and the real dependency on the same cases; tests cannot open sockets"
 boundary: "Pure-function tests with no double · doubles generated from the real implementation, or contract-tested against it on the same cases"
+cues: ["mock", "stub", "fake", "monkeypatch", "patch", "magicmock", "responses", "vcr", "contract test", "network access", "socket", "test fixture", "httpx mock", "return_value", "side_effect"]
 ---
 
 # Test double fidelity

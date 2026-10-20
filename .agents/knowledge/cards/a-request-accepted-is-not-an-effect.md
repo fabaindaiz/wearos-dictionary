@@ -5,6 +5,6 @@
 
 **Not when.** Acceptance means completion by contract · Every request creates new state by construction
 
-**Check.** the resulting state (what runs, the route taken, the value loaded) is read back after each event that re-runs the policy, and the read-back was seen red on a planted diversion
+**Check.** the **effect** is read back after each event that re-runs the policy — what is heard, served or delivered, and not only the state that stands for it (what runs, the route taken, the value loaded), because one occurrence read back as applied while the effect was wrong; and the read-back was seen red on a planted diversion
 
 *reasoned.* Open the full note only when you cannot tell whether its boundary holds here: [a-request-accepted-is-not-an-effect](../notes/active/a-request-accepted-is-not-an-effect.md).

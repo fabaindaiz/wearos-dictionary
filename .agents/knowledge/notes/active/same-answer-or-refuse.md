@@ -6,6 +6,7 @@ claim: "A second path to an answer — another source, a cache, a faster reducti
 confidence: "measured"
 check: "an equivalence test on the full serialized output of both paths; no reader exists that only first-party content, or only the checker, uses, and the validator runs against the shipped artefact"
 boundary: "When tolerance is part of the contract · As a proof of correctness · When the two paths are not meant to answer the same question · Removing a path, when the sources genuinely need different trust · Removing a path, when the shared one is too expensive for a hot loop · Diagnostic-only forms"
+cues: ["cache", "fast path", "second source", "optimization", "preview", "validator", "reimplement", "equivalence test", "tolerance", "approx", "fallback source", "duplicate logic", "separate loader", "shipped artefact", "measure script"]
 ---
 
 # Same answer, or refuse

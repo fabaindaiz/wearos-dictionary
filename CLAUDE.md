@@ -138,7 +138,7 @@ not counting rows. See the `pack-workflow` skill.
 
 **The heuristics are not in this repo and they are not optional.** When a change touches state, a
 contract, data, security or verification, look it up **before the design decision** in
-`.agents/knowledge/INDEX.md`, a phase guide over 50 notes, and open only the cards it links: decide
+`.agents/knowledge/INDEX.md`, a phase guide over 52 notes, and open only the cards it links: decide
 each from its *Applies if* and *Not when*, run its check before claiming done and say which ran,
 and open a full note only when a card's boundary is unclear here. Where an invariant above contradicts a
 note, this repo wins and says so. A review in a fresh context goes to the `knowledge-reviewer`
@@ -211,6 +211,6 @@ its own format, and why, at its end.
 | What changed and why, in the last few sessions? | `.claude/logs/agent-changelog.md` |
 | What is this project? (for an outsider) | `README.md` |
 | How is this repo worked with an agent? Where do these rules come from? | `.agents/method/prompt-context.md` |
-| Which prompt do I run —evaluate, update, harvest? How are decisions reviewed, a flow walked, a session closed? | `.agents/method/prompt-context.md` §*Which document to run*; the `decision-review`, `user-walk` and `close` skills |
+| Which prompt do I run —evaluate, update, harvest? What next? How are decisions reviewed, a flow walked, a session closed? | `.agents/method/prompt-context.md` §*Which document to run*; the `next`, `decision-review`, `user-walk` and `close` skills |
 | Is there a written heuristic for this? What do I check before saying it is done? | `.agents/knowledge/INDEX.md` |
 | Is the instruction system healthy? Is the bundle stale? | `.agents/method/prompt-evaluate.md`, the `state-review` skill |

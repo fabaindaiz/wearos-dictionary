@@ -26,6 +26,11 @@ commits:
 - a `##` section replaces the base section with the same heading; an empty one removes it; a new one
   is appended.
 
+**Every path of this repository belongs here, not in a base.** A base that named a carrier's own
+directory would go stale the day it moved, and the carrier could not fix it: the installed file is
+generated and its edits are asked for. So a base step says to read the paths from `LOCAL.md`, with
+finding the files as its fallback, and `LOCAL.md` is where they live.
+
 The installed `SKILL.md` is generated: edit `LOCAL.md` and install again. A `SKILL.md` the carrier
 wrote itself is never overwritten; move its rules into `LOCAL.md` (every line kept, or its removal
 named), then install with `--force`.
@@ -33,6 +38,7 @@ named), then install with `--force`.
 | Skill | When |
 |---|---|
 | `close` | closing a session, a phase, or a hand-off to another machine; offered in one question before a push or deploy that ends a plan |
+| `next` | the user asks what to do now or next, or which process fits: what was read, three actions with cost and why now, one question; the processes and how to start each are in `../guide.md` |
 | `decision-review` | before planning: every decision of a spec or design listed, then the human's walked one per turn, each shown by example (`prompt-context.md` §15) |
 | `user-walk` | before building a user-facing flow: the ideal path, then every delay, interruption, setback, failure and misuse, as failing tests; and a batch of observations from real use |
 
@@ -53,3 +59,27 @@ written in a language the tool cannot track):
 | each piece of code | a test-first skill, or principle 18 |
 | the plan's last task is done | a fresh-context review of the whole branch, offered in one question with its cost (`prompt-bootstrap.md` step 4), then `close`; merging or pushing only when the human asks |
 | a push or deploy is about to end the plan, and no close has run | `close`, offered in one question first: a rule acts only where the action reads it (`prompt-context.md` §*The enforcement ladder*) |
+| a failure whose cause is unknown | a systematic-debugging skill, before any fix |
+| the work splits into independent parts | a parallel-dispatch skill; unlike a plan-executing skill, the parts share no state |
+| claiming the work is done | a verification skill, or `prompt-bootstrap.md` step 4 |
+| work that must not touch the checkout | an isolated-worktree skill, with a check run from its own environment |
+| a review of the diff is wanted | a code-review request; the bootstrap's fresh-context review is the one for a whole branch at its end |
+| the branch is ready to merge | a branch-finishing skill, after `close`, which records the session; finishing only integrates |
+
+**When a task is complex, route it by its signals.** The signals: several decisions open; more than one area or
+repository; more than about three steps, each committable alone; a failure whose cause is unknown; work that splits
+into independent parts. **One signal goes straight to its row** above. **Two or more**, or a plan being written, or the
+work past its third committable step: read this table and offer at most three skills, one line each with why it fits,
+the skipped ones named in one line; ask only when the choice is not reversible, otherwise say which and proceed. The
+method's order wins over a skill's description that asks to run first.
+
+**Which of these a carrier has** is written in its `.agents/carrier.toml`, as a table from the role to the installed
+name (`[skills]`, `debugging = "systematic-debugging"`), so this table never claims a skill the machine lacks;
+`bundle.py verify` fails when a name it lists is not under the repository's `.claude/skills/` (a plugin's or a user's
+skill, `plugin:name` or `user:name`, is listed and not checked).
+
+**Trim the skill listing.** The host lists every installed skill's description on every turn, within a share of the
+context, and past it drops the descriptions of the skills used least, which puts the method's own at risk. Turn off,
+or show by name only, the skills that do not fit this repository, toward a couple of dozen with no near twins. A
+measurement on one machine found a trimmed listing lowered no skill's firing
+(`meta/reviews/2026-10-07-trigger-eval-adversarial.md` in the home).

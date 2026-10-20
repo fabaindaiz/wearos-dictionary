@@ -6,7 +6,7 @@
 
 Every note in `notes/active/` and `notes/review/` is reachable from here and every listed note exists — checked by the build, because a dead pointer in an index is worse than an index nobody wrote.
 
-This file is the entry point: the phase guide for every note, and a link to each note's card, which holds its check; the area indexes repeat the checks per topic, for browsing. There is no cap on notes; what is bounded is attention.
+This file is the entry point: the phase guide for every note, and a link to each note's card, which holds its check and links the note. There is no cap on notes; what is bounded is attention.
 
 **A note marked ⚠ review** sits in `notes/review/`: its evidence or its admission is disputed and a verdict is pending. Use it, and say in the report that it is under review. The folder a note sits in is its state — `README.md`, *The state of a note*.
 
@@ -14,7 +14,7 @@ This file is the entry point: the phase guide for every note, and a link to each
 
 0. **Only when the change touches state, a contract, data, security or verification.** A typo, a text or a local rename consults nothing: the index costs a session only when it can change a decision.
 1. **At the start**, find the phase you are in under *By phase of work*: it names, by slug, the notes that may apply, for browsing; a note's card is `cards/<slug>.md`. The lookup that opens cards is step 2.
-2. **Before a design decision**, look up the action under *By what you are about to do*, below. The third column is the case where the default answer is wrong. If it matches, open the card it links: one small file with the claim, *Not when* (where it stops applying) and the check. **Open the full note only when you cannot tell whether its boundary holds here.** The area indexes are for browsing, not for this lookup.
+2. **Before a design decision**, look up the action under *By what you are about to do*, below. The third column is the case where the default answer is wrong. If it matches, open the card it links: one small file with the claim, *Not when* (where it stops applying) and the check. **Open the full note only when you cannot tell whether its boundary holds here.**
 3. **When this repository states an invariant that contradicts a note, the repository wins.** Follow it, and say in the report which note gave way and why: that is evidence the note's boundary is incomplete.
 4. **Before claiming the work is done**, run the check of every card you relied on, and say in the report which ones ran and what they showed. A heuristic that was read but not checked is an opinion that happened to be nearby.
 5. **When the work contradicts a note** — a measurement, a test, an incident — do not quietly work around it. Say so in the changelog entry; the harvest writes it as a proposal from this repository, and the home reviews the note, revising or retiring it, never ignoring it.
@@ -23,13 +23,13 @@ This file is the entry point: the phase guide for every note, and a link to each
 
 | Phase | The question to ask | Notes |
 |---|---|---|
-| **Plan and design** | What will this touch that already depends on it, and what happens under retries, a second instance, a crash, an abuser? | `in-process-guarantees` · `order-writes-by-failure-residue` · `retry-over-irreversible-effect` · `a-default-scope-is-the-widest-one` · `detect-by-observation-not-build-flag` · `kill-switch-reaches-every-path` · `one-write-gate-makes-read-only-real` · `a-version-bump-spends-the-forward-compatibility-it-was-protecting` · `copied-instruction-claims-its-origin` · `merge-by-shared-fact-not-shared-shape` · `no-simultaneous-deploy` · `persist-inputs-derive-verdicts` · `derive-state-from-one-clock` · `abuser-controlled-exemption` · `refuse-only-on-unassertable-evidence` · `untrusted-package-is-parsed-never-loaded` · `derived-over-chosen-identifiers` · `secrets-survive-rotation` · `same-answer-or-refuse` |
+| **Plan and design** | What will this touch that already depends on it, and what happens under retries, a second instance, a crash, an abuser? | `in-process-guarantees` · `order-writes-by-failure-residue` · `retry-over-irreversible-effect` · `a-default-scope-is-the-widest-one` · `detect-by-observation-not-build-flag` · `kill-switch-reaches-every-path` · `one-write-gate-makes-read-only-real` · `a-rewrite-cleans-only-what-refs-reach` · `a-version-bump-spends-the-forward-compatibility-it-was-protecting` · `copied-instruction-claims-its-origin` · `merge-by-shared-fact-not-shared-shape` · `no-simultaneous-deploy` · `persist-inputs-derive-verdicts` · `derive-state-from-one-clock` · `abuser-controlled-exemption` · `refuse-only-on-unassertable-evidence` · `untrusted-package-is-parsed-never-loaded` · `derived-over-chosen-identifiers` · `secrets-survive-rotation` · `same-answer-or-refuse` |
 | **Design a dataset, a population or a model** | Could any row, filter or feature know something that did not exist yet at its instant? | `absolute-level-is-a-time-index` · `censoring-is-information` · `population-by-outcome` · `read-a-snapshot-at-its-own-end` · `same-answer-or-refuse` · `truncate-the-world-to-test-as-of` |
 | **Implement** | What does this code do when a value is missing, a clause is lost, a side call fails, a nested object is sent? | `a-default-scope-is-the-widest-one` · `absence-is-a-third-value` · `absent-constraint-widens` · `best-effort-side-channels` · `cleanup-belongs-to-the-supervisor` · `derived-copy-goes-stale-silently` · `fail-closed-defaults` · `nested-partial-update-replaces` · `refusal-must-not-read-like-an-answer` · `sanitised-value-must-replace-the-raw` · `close-the-loop-in-the-actuators-frame` · `derive-state-from-one-clock` · `readout-per-silent-outcome` · `validate-each-transformation-run` |
 | **Write tests** | Would this test fail if the code were wrong, against the real dependency? | `refusal-must-not-read-like-an-answer` · `same-answer-or-refuse` · `truncate-the-world-to-test-as-of` · `a-check-must-be-seen-to-fail` · `a-surviving-guard-mutation-means-a-missing-input` · `coverage-measures-execution` · `sweep-the-rendered-extremes` · `test-double-fidelity` · `unrunnable-system-moves-the-gate` |
-| **Review** | Which constraint, switch or cap could this diff have removed without any test noticing? | `a-default-scope-is-the-widest-one` · `absent-constraint-widens` · `fail-closed-defaults` · `kill-switch-reaches-every-path` · `refusal-must-not-read-like-an-answer` · `sanitised-value-must-replace-the-raw` · `copied-instruction-claims-its-origin` · `documented-defaults-drift-from-code` · `merge-by-shared-fact-not-shared-shape` · `abuser-controlled-exemption` · `untrusted-package-is-parsed-never-loaded` · `same-answer-or-refuse` · `sweep-the-rendered-extremes` |
+| **Review** | Which constraint, switch or cap could this diff have removed without any test noticing? | `a-default-scope-is-the-widest-one` · `absent-constraint-widens` · `fail-closed-defaults` · `kill-switch-reaches-every-path` · `refusal-must-not-read-like-an-answer` · `sanitised-value-must-replace-the-raw` · `a-rewrite-cleans-only-what-refs-reach` · `copied-instruction-claims-its-origin` · `documented-defaults-drift-from-code` · `merge-by-shared-fact-not-shared-shape` · `abuser-controlled-exemption` · `untrusted-package-is-parsed-never-loaded` · `same-answer-or-refuse` · `sweep-the-rendered-extremes` |
 | **Verify and report** | Does the number mean what the sentence says, measured where it is claimed? | `a-request-accepted-is-not-an-effect` · `metric-against-trivial-predictor` · `readout-per-silent-outcome` · `report-coverage-before-findings` · `a-check-must-be-seen-to-fail` · `a-decoder-that-degrades-to-plausible-output-needs-an-out-of-band-check` · `ratchet-in-a-pinned-environment` · `reproduce-the-checkout-not-only-the-environment` · `sweep-the-rendered-extremes` · `unrunnable-system-moves-the-gate` · `validate-each-transformation-run` |
-| **Debug or investigate** | Is the discrepancy in the world, in the join, in the clock or in the environment? | `derived-copy-goes-stale-silently` · `detect-by-observation-not-build-flag` · `nested-partial-update-replaces` · `refusal-must-not-read-like-an-answer` · `close-the-loop-in-the-actuators-frame` · `derive-state-from-one-clock` · `read-a-snapshot-at-its-own-end` · `count-both-sides-and-use-a-control-window` · `readout-per-silent-outcome` · `report-coverage-before-findings` · `ratchet-in-a-pinned-environment` · `reproduce-the-checkout-not-only-the-environment` |
+| **Debug or investigate** | Is the discrepancy in the world, in the join, in the clock or in the environment? | `derived-copy-goes-stale-silently` · `detect-by-observation-not-build-flag` · `nested-partial-update-replaces` · `refusal-must-not-read-like-an-answer` · `close-the-loop-in-the-actuators-frame` · `derive-state-from-one-clock` · `read-a-snapshot-at-its-own-end` · `a-workaround-that-writes-the-subject-destroys-the-measurement` · `count-both-sides-and-use-a-control-window` · `readout-per-silent-outcome` · `report-coverage-before-findings` · `ratchet-in-a-pinned-environment` · `reproduce-the-checkout-not-only-the-environment` |
 
 ## By what you are about to do
 
@@ -54,6 +54,7 @@ This file is the entry point: the phase guide for every note, and a link to each
 | Call a command-line tool or a remote client from glue code and read its output | [refusal-must-not-read-like-an-answer](cards/refusal-must-not-read-like-an-answer.md) | its error text arrives on standard output, or its exit status is dropped, so a failure is parsed as data |
 | Take a median, a vote or any consensus over several sources | [refusal-must-not-read-like-an-answer](cards/refusal-must-not-read-like-an-answer.md) | sources with no signal are counted, and outvote the ones that answered once they are half or more |
 | Clamp, default or validate a value into a new name | [sanitised-value-must-replace-the-raw](cards/sanitised-value-must-replace-the-raw.md) | the file now contains a visible guard, which is what a reviewer checks for — not whether its result is the one used |
+| Remove an attribution line, or any other line, from commits already pushed | [a-rewrite-cleans-only-what-refs-reach](cards/a-rewrite-cleans-only-what-refs-reach.md) | the old commits are assumed gone once the branch is rewritten, or another machine still holds unpushed work and merges the old history back |
 | Bump a format version, or add a field to a shipped record | [a-version-bump-spends-the-forward-compatibility-it-was-protecting](cards/a-version-bump-spends-the-forward-compatibility-it-was-protecting.md) | readers compare the version for equality, or a writer reads unreadable as absent |
 | Copy an instruction, rule, config file or script from another repository, or derive an artefact from another | [copied-instruction-claims-its-origin](cards/copied-instruction-claims-its-origin.md) | the copy is made for its shape and read later for its content, and nothing marks which facts were about the origin |
 | Document a setting, a key table or a default | [documented-defaults-drift-from-code](cards/documented-defaults-drift-from-code.md) | the reference is written apart from the reader, or only required keys are checked |
@@ -77,6 +78,8 @@ This file is the entry point: the phase guide for every note, and a link to each
 | Add a way to load your own content, a preview, or a validator beside the product's reader | [same-answer-or-refuse](cards/same-answer-or-refuse.md) | the second path is exercised by nobody, so its drift is found in the field |
 | Measure or verify a product rule from a script or a check | [same-answer-or-refuse](cards/same-answer-or-refuse.md) | the script reimplements the rule instead of calling the product's own function, or the check runs a path the product does not |
 | Add a feature to a point-in-time dataset | [truncate-the-world-to-test-as-of](cards/truncate-the-world-to-test-as-of.md) | the feature reads state without history, or its knowable-at timestamp is not its event timestamp |
+| Diagnose a live system whose state keeps going wrong | [a-workaround-that-writes-the-subject-destroys-the-measurement](cards/a-workaround-that-writes-the-subject-destroys-the-measurement.md) | the quickest way to get a reading is to set the suspect value, restart the service or install a missing tool — each of which is the candidate fix |
+| Write a probe that reads a value through a control interface | [a-workaround-that-writes-the-subject-destroys-the-measurement](cards/a-workaround-that-writes-the-subject-destroys-the-measurement.md) | the probe writes as a side effect, or its intended target does not exist and the write falls through to the subject |
 | Investigate a discrepancy with a join, especially around an incident | [count-both-sides-and-use-a-control-window](cards/count-both-sides-and-use-a-control-window.md) | one side gained the join key later, so the gap is in the key and not in the world |
 | Report or compare a model metric, or add a new label | [metric-against-trivial-predictor](cards/metric-against-trivial-predictor.md) | the label is rare or zero-inflated, and a constant scores almost as well |
 | Ship to a device, a user's machine or a host you cannot observe | [readout-per-silent-outcome](cards/readout-per-silent-outcome.md) | a handler was refused, a store loaded empty or an input was dropped, and nothing on the target says so |
@@ -94,14 +97,14 @@ This file is the entry point: the phase guide for every note, and a link to each
 | Verify a change in a system that cannot be booted where you write it | [unrunnable-system-moves-the-gate](cards/unrunnable-system-moves-the-gate.md) | more tests of what already runs does not touch composition, which is the class that bites at startup |
 | Run a formatter, generator, translator or bulk refactor over files | [validate-each-transformation-run](cards/validate-each-transformation-run.md) | the tool is trusted because it usually works, and the run that loses a comment or a number is never looked at |
 
-## The areas, for browsing
+## The topics
 
-Each note is under exactly one topic, and each topic in one area. The area index holds the topic tables with each card's claim, boundary and check, the *about to do* rows, and how well founded each note is.
+Each note is under exactly one topic, and each topic in one area; a note's card names it.
 
-| Area | Index | Topics |
-|---|---|---|
-| What the system does | [areas/behaviour.md](areas/behaviour.md) | `distributed-correctness` · `failure-behaviour` · `evolving-contracts` · `time-and-control` · `adversarial-controls` · `identity-and-naming` |
-| What the data and the checks tell you | [areas/evidence.md](areas/evidence.md) | `data-correctness` · `measurement` · `verification` |
+| Area | Topics |
+|---|---|
+| What the system does | `distributed-correctness` · `failure-behaviour` · `evolving-contracts` · `time-and-control` · `adversarial-controls` · `identity-and-naming` |
+| What the data and the checks tell you | `data-correctness` · `measurement` · `verification` |
 
 ## How well founded is any of this
 
@@ -112,11 +115,11 @@ Each note is under exactly one topic, and each topic in one area. The area index
 | **The claim** | how well the general principle is established — usually by the literature each note cites |
 | **Our application** | whether *we* demonstrated it here — usually not |
 
-Each area index lists every note's two answers. A note is `measured` only when a number came from running the method in a repository and was written down at the time — which is the only way a note earns it; its `confidence` field says which it is. The rest are honest `reasoned` notes; each one's full note, in the home repository, names the experiment that would settle it, and `OPEN.md` lists those still waiting to be run.
+Each note states both answers, and its card states the second. A note is `measured` only when a number came from running the method in a repository and was written down at the time — which is the only way a note earns it; its `confidence` field says which it is. The rest are honest `reasoned` notes; each one's full note, in the home repository, names the experiment that would settle it, and `OPEN.md` lists those still waiting to be run.
 
 ## Keeping it usable
 
-What is bounded is attention, not the number of notes: every note is reachable (under its topic, in at least one phase above, and in at least one *about to do* row of its area), and the build refuses one that is not. A learning not yet admitted goes back as a proposal, one file in `../proposals/` written by `bundle.py propose` (`../proposals/README.md`), never as an edit here; `OPEN.md` lists the ones the home is still waiting on.
+What is bounded is attention, not the number of notes: every note is reachable (under its topic, in at least one phase above, and in at least one *about to do* row), and the build refuses one that is not. A learning not yet admitted goes back as a proposal, one file in `../proposals/` written by `bundle.py propose` (`../proposals/README.md`), never as an edit here; `OPEN.md` lists the ones the home is still waiting on.
 
 ## What is deliberately not here
 

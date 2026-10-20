@@ -6,6 +6,7 @@ claim: "A surviving mutant that removes a guard is not evidence that the guard i
 confidence: "reasoned"
 check: "before a guard is removed: its reaching input searched for in the fixtures and in the real data, an assertion on what it prevents, or a written argument that the mutant is equivalent"
 boundary: "The mutant is shown equivalent · The guarded code is arid"
+cues: ["mutation test", "surviving mutant", "remove guard", "dead code", "unused branch", "if guard", "mutmut", "no test fails", "unreachable", "delete check", "simplify condition", "edge case input", "equivalent mutant"]
 ---
 
 # A surviving guard mutation means a missing input, until shown otherwise

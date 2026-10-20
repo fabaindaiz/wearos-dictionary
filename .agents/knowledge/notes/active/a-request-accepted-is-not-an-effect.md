@@ -4,8 +4,9 @@ slug: "a-request-accepted-is-not-an-effect"
 topic: "distributed-correctness"
 claim: "A request that a subsystem with its own policy accepts without error — a session manager, a daemon that rereads its configuration, an orchestrator bringing a service up — is not its effect: read the resulting state back after the request and after every event that re-runs the policy, and see that read-back fail on a planted diversion."
 confidence: "reasoned"
-check: "the resulting state (what runs, the route taken, the value loaded) is read back after each event that re-runs the policy, and the read-back was seen red on a planted diversion"
+check: "the **effect** is read back after each event that re-runs the policy — what is heard, served or delivered, and not only the state that stands for it (what runs, the route taken, the value loaded), because one occurrence read back as applied while the effect was wrong; and the read-back was seen red on a planted diversion"
 boundary: "Acceptance means completion by contract · Every request creates new state by construction"
+cues: ["returns 200", "reload config", "sighup", "systemctl", "docker compose up", "read back", "session manager", "daemon", "orchestrator", "applied config", "restart service", "verify state", "route table", "accepted 202"]
 ---
 
 # A request accepted is not an effect

@@ -1,7 +1,7 @@
 ---
 # Installed by bundle.py install-skills from the bundle's base and the LOCAL.md beside it; edit LOCAL.md, never this file
 name: decision-review
-description: Walks the human through the decisions of an existing spec, design or plan before anything is built - lists every decision, decides the minor ones, then asks the human's one per turn, recommendation first, each option shown by a concrete example and priced, and records the answers. Use when asked to review a spec or design, go through the decisions or open questions one at a time, say what is left to decide, help decide before planning, or ask the questions a plan needs. Not for a new idea with nothing written yet (brainstorm first), approving or executing a plan, one quick question, or the few facts and permissions a run needs at its start (the pre-flight).
+description: "Walks the human through the decisions of an existing spec, design or plan before anything is built: lists every decision, decides the minor ones, asks the human's one per turn with a recommendation, examples and prices, and records the answers. Use it first, before reading the material, when asked to review a spec or design, go through its decisions, proposals or open questions again, reconsider one and its implications, say what is left to decide, or decide before planning. Not for a new idea with nothing written (brainstorm first), executing a plan, or a run's opening questions (the pre-flight)."
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 when_to_use: Usar cuando se pida "revisemos las decisiones", "hazme todas las preguntas", "explícame las cosas sin decidir y ayúdame a decidirlas", "¿qué falta por decidir?", "consúltamelo antes de tomarlo", "define bien las tareas y sus consecuencias", o antes de planear algo cuyas decisiones no están cerradas. No para las preguntas de arranque de una tarea, y no mientras se ejecuta un plan.
 ---
@@ -11,13 +11,22 @@ when_to_use: Usar cuando se pida "revisemos las decisiones", "hazme todas las pr
 The human decides best one decision at a time, each shown by example, and decides worst after the
 plan has run: rulings walked after a plan was executed were mostly changed, and the plan grew an
 addendum; walked before it, none was needed. So this runs **before** the plan. The rules for every
-question are `prompt-context.md` §15; this is its decision-review mode.
+question are `.agents/method/prompt-context.md` §15; this is its decision-review mode.
 
 In this repository a decision taken is a row in `docs/decisions.md` with an id from
 `bundle.py id d` and its *Enforced in* column filled; a question left open goes to the roadmap item
 it blocks. An option the owner picks against the recommendation is carried out whole and its cost
 recorded as ⚠️ Desviación, not re-argued. Where a step below names something this repository defines
 differently, this repository's wins.
+
+## Before it starts: the pre-review
+
+This process is long. Before its first step, one message: the important questions still open for it, at most four,
+each with a recommendation, found by cheap reads only (`git status`, the hand-off, a review pending, `proposed`
+decision rows), such as which material is reviewed, which decisions are minor enough to decide alone, whether to
+stop early; and, unless the human asked for this process by name or command, whether to run it in full. Asked for by
+name and nothing open: start. Each answer is written where it belongs (a decision row, the roadmap, the plan) even
+when the human declines the process, and goes in with the session's next commit (`d-5ed7e8-d7c0b7`).
 
 ## 1. Read first
 
@@ -32,7 +41,7 @@ one that others depend on comes first. Tag each:
 
 - **Theirs**: different answers give materially different work; or it is what the user sees, the
   stack, or content the human authored.
-- **Yours**: a convention, already answered, or reversible in minutes and invisible to the user.
+- **Yours**: a convention, already answered, or reversible in ten minutes and invisible to the user.
   Decide it now, one line each.
 
 Show the inventory whole, with how many are theirs, and ask whether to proceed or re-tag. The human
@@ -49,6 +58,8 @@ themes):
   price in the repository's units, and what it forecloses;
 - the recommendation first, with its reason, and a reason for every other option;
 - "or tell me otherwise": a free-text answer overrides the options, read literally.
+- §15's review turn: three to five short blocks of prose, *review more* as one more answer, the
+  assumptions shown before an irreversible decision, and the check of what will happen after a costly one.
 
 A question about how something looks or feels gets a mockup or a throwaway prototype first. Use the
 assistant's question tool when there is one, with previews for visual options.
@@ -68,8 +79,9 @@ scope is too big: propose splitting it. Then:
 
 1. one screen: **decided by you** (the human), **decided for you** (by the agent), **open**;
 2. wait for the human to confirm it;
-3. write each decision to the decisions log, the deferred ones to the roadmap, and the amendments to
-   the spec, **before** any plan is written.
+3. write each decision to the decisions log — `accepted <date> · <alias>` for the human's, `· agent s-…`
+   for yours, the reason the human gave or `unconfirmed:` — the deferred ones to the roadmap, and the
+   amendments to the spec, **before** any plan is written.
 
 ## Hands off to
 

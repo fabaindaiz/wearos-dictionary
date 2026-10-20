@@ -110,7 +110,7 @@ format-apply = "ruff format tools"
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-extend-exclude = ["tools/unicode/repertoire.txt"]
+extend-exclude = ["tools/unicode/repertoire.txt", ".agents"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]

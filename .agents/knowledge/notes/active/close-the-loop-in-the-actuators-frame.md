@@ -6,6 +6,7 @@ claim: "Measure a feedback loop's error in a frame the actuator moves and the ob
 confidence: "measured"
 check: "a probe holding the input at the threshold counts zero mode changes, and applying a correction twice gives the same result as once"
 boundary: "Open-loop actions · Thresholds crossed once and not revisited · When the observer frame is what the user controls"
+cues: ["control loop", "hysteresis", "pid", "chatter", "follow camera", "steer", "threshold switch", "mode change", "deadband", "setpoint", "feedback", "target position", "error correction", "oscillate"]
 ---
 
 # Close the loop in the actuator's frame

@@ -6,6 +6,7 @@ claim: "In a partial-update API a nested object is usually replaced whole; name 
 confidence: "measured"
 check: "assert on the keys of the emitted update mask, not only on values"
 boundary: "APIs with recursive merge semantics, such as JSON Merge Patch (RFC 7396), a deep-merge flag or a configuration key that says it extends · semantics are per API and per call, read or measured, never assumed"
+cues: ["patch", "update mask", "field mask", "partial update", "nested object", "dotted path", "set merge", "field-set operator", "update_fields", "merge=true", "nested field partial update", "json merge patch", "put vs patch", "emitted update"]
 ---
 
 # A nested partial update replaces

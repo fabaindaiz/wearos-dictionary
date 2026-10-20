@@ -6,6 +6,7 @@ claim: "A fallback value should be the one that refuses to run, not the one that
 confidence: "reasoned"
 check: "start with the variable unset, then with a placeholder: the process refuses at boot each time and names it"
 boundary: "When the process cannot afford to refuse · When absence is genuinely the common case · When the refusal lands on someone who cannot act on it · When failing at boot removes the runtime lever · When the absence is of *evidence*, in an adversarial request path · When the runtime cannot be observed by whoever must fix it · When the refusing condition is a value another system owns · When either default is wrong for half the callers"
+cues: ["os.getenv", "environ.get", "default value", "fallback", "unset variable", "placeholder", "secret key default", "refuse to start", "boot check", "config missing", "production default", "required env", "changeme", "default password"]
 ---
 
 # Fail-closed defaults

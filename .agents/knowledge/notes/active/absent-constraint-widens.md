@@ -6,6 +6,7 @@ claim: "A constraint that is dropped does not raise an error — it returns more
 confidence: "measured"
 check: "delete the clause in a test and watch the suite go red; the bound is tested on every path that produces or reads rows"
 boundary: "When the constraint is structural rather than a clause · When more is harmless · When the caller re-filters anyway"
+cues: ["where clause", "tenant_id", "owner_id", "filter by status", "date range", "query filter", "drop the filter", "simplify query", "remove condition", "scope to user", "superset", "list all rows", "date bound", "queryset filter"]
 ---
 
 # An absent constraint widens

@@ -1,8 +1,8 @@
 # This repository's own fields. Carrier-owned: never listed in SHA256SUMS, never written by a release.
 carrier = "r-a2f271"
 adopted = "2026-09-17"
-upstream = ""
-harvested_through = "2026-10-05"
+upstream = "r-5ed7e8"
+harvested_through = "2026-10-20"
 adapted = [
   "Spanish in the conversation, English in the repo; technical terms stay untranslated either way (gate, covering index, payload, rung), and the UI strings belong to the localization. ~3,000 lines of existing prose are still Spanish: measured 2026-09-21, staged in docs/roadmap.md §Proceso y herramientas",
   "decisions log is docs/decisions.md, with an `Enforced in` column",
@@ -22,3 +22,18 @@ declined = [
   "v3 Workspaces: one repository. Nothing to do until there is a second one; reopen then.",
   "v21 artifact 6, marking rows inline as *decisions, not rules* and *discarded, with the number*: measured, the artifact's spec is byte-identical to v7's, and this repo already meets the guarantee by section rather than by mark. Re-proposing it would be a rename, not a delta",
 ]
+lineage = [
+  "0.0.32 r-5ed7e8 2026-10-20",
+]
+
+[skills]
+close = "close"
+next = "next"
+decision-review = "decision-review"
+user-walk = "user-walk"
+verification = "verify"
+commit = "commit"
+brainstorming = "superpowers:brainstorming"
+debugging = "superpowers:systematic-debugging"
+test-first = "superpowers:test-driven-development"
+planning = "superpowers:writing-plans"

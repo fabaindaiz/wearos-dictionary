@@ -6,6 +6,7 @@ claim: "A file copied from another repository, or metadata copied from the artef
 confidence: "reasoned"
 check: "every command in a copied file is run once and every path resolved, and a derived artefact's metadata is copied by an explicit allowlist; what cannot be verified is removed, not softened"
 boundary: "A bundle designed to travel, its repository-specific fields enumerated and its content free of local nouns · even then, those fields are never taken from upstream"
+cues: ["copied from", "copy config", "template repo", "claude.md", "agents.md", "stale commands", "boilerplate", "metadata copy", "fork", "makefile copied", "readme paths", "cargo cult", "derived artefact", "allowlist fields"]
 ---
 
 # A copied instruction claims its origin

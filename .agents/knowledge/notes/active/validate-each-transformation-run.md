@@ -6,6 +6,7 @@ claim: "When a tool you cannot fully trust rewrites an artefact — a formatter,
 confidence: "reasoned"
 check: "the projection (tokens, comments, numbers, identifiers, pixels) is compared after every run, and a planted loss is rejected"
 boundary: "Transformations meant to change the protected projection · Where the invariant cannot be stated · Tools already verified at the level you need"
+cues: ["formatter", "codegen", "generator", "translate", "bulk refactor", "sed -i", "black", "prettier", "codemod", "lost comment", "diff check", "round trip", "idempotent formatting", "tokens preserved", "regenerate"]
 ---
 
 # Validate each transformation run

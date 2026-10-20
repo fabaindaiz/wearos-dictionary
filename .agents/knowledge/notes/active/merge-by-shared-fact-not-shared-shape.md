@@ -6,6 +6,7 @@ claim: "Merge copies that must agree by contract and whose divergence would be i
 confidence: "reasoned"
 check: "every kept duplicate has a recorded reason; every merged one has a test that fails if a caller diverges; a behaviour switch reads a field set only where that decision is made"
 boundary: "When you cannot yet tell fact from shape · When one copy is generated from the other"
+cues: ["duplicate code", "dedupe", "extract helper", "refactor", "shared function", "copy paste", "reuse style", "reuse constant", "dry", "similar functions", "consolidate", "common util", "tone", "kind field"]
 ---
 
 # Merge by shared fact, not by shared shape

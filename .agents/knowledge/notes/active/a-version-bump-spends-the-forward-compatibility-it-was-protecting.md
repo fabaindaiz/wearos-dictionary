@@ -6,6 +6,7 @@ claim: "Readers that ignore unknown fields let a record format gain fields with 
 confidence: "reasoned"
 check: "an older reader given a new record still reads every kind it knows; a writer that cannot read an existing once-only record refuses to create another"
 boundary: "The change alters what an old reader already understands · Readers apply a substitution rule"
+cues: ["schema_version", "version bump", "format version", "add field", "unknown fields", "ignore unknown", "version equality", "older reader", "record format", "backward compatible", "protocol version", "json field", "unsupported version", "once-only"]
 ---
 
 # A version bump spends the forward compatibility it was protecting

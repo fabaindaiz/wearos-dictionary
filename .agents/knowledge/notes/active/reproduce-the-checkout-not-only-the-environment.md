@@ -6,6 +6,7 @@ claim: "A number from a check is a function of the commit, the environment and t
 confidence: "measured"
 check: "the number a gate is quoted for was taken from a clean export of the commit, in the declared environment, with the interpreter path and the collation recorded"
 boundary: "A hermetic build system already does this · When the artefact under test is the working tree · When the input is committed, or fetched by a pinned digest · When the untracked file is the point"
+cues: ["ci passes locally", "works on my machine", "clean checkout", "git archive", "untracked files", "docker image", "python version", "locale", "collation", "lockfile", "gitignored", "env differs", "flaky ci", "git stash", "reproduce failure"]
 ---
 
 # Reproduce the checkout, not only the environment

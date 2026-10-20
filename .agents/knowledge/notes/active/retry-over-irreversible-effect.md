@@ -6,6 +6,7 @@ claim: "Any transport that retries will eventually re-execute an irreversible ef
 confidence: "reasoned"
 check: "every irreversible call has a caller-chosen key stored with the effect; a replay test returns the first outcome"
 boundary: "Naturally idempotent effects · When the state machine already carries the identity · When the effect is cheap to duplicate and expensive to deduplicate · Catch only the error that proves the effect did not happen · Deterministic task ids deduplicate the wrong fork"
+cues: ["retry", "idempotency_key", "idempotent", "backoff", "webhook handler", "send the email once", "charge", "payment", "duplicate", "at least once", "replay", "max_retries", "dedupe key", "consumer", "tenacity"]
 ---
 
 # Retry over an irreversible effect

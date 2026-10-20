@@ -6,6 +6,7 @@ claim: "Make time-dependent state a pure function of one authoritative clock, ne
 confidence: "measured"
 check: "reach the same instant from the start and from the end and compare the output byte for byte; every reported interval has a clamp and every inferred intent its own call"
 boundary: "Path-dependent simulation · Genuinely interactive state · When evaluating at an arbitrary instant is too expensive · Values whose semantics you control and have verified on the target · The viewport is an input to drawing, not to state"
+cues: ["delta time", "dt", "tick", "requestanimationframe", "timestamp", "animation", "scheduler", "elapsed", "clock", "timer", "setinterval", "duration clamp", "monotonic", "frame time", "simulation step"]
 ---
 
 # Derive state from one clock

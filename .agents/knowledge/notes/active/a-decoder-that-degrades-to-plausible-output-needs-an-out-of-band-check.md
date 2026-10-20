@@ -6,6 +6,7 @@ claim: "A component whose wrong answer is well formed — a decoder given the wr
 confidence: "measured"
 check: "a planted wrong parameter, or an input whose answer is known, is caught by the out-of-band check, not by the component's own success, stability or reliability flag"
 boundary: "The format already carries the check, and it is switched on · The output is checked against an independent truth downstream anyway"
+cues: ["decode", "decoder", "encoding param", "charset", "wrong key", "estimator", "confidence flag", "checksum", "fingerprint", "calibration", "quality score", "sample rate", "stability flag", "known answer"]
 ---
 
 # A decoder that degrades to plausible output needs an out-of-band check

@@ -6,6 +6,7 @@ claim: "When a system cannot be booted in the environment it is written in — i
 confidence: "reasoned"
 check: "the gate names what it can and cannot see; composition is traced by reading before a change is called done"
 boundary: "When the system can be run and the obstacle is effort · When the environment can be simulated"
+cues: ["hardware", "needs device", "cannot run locally", "no credentials", "startup wiring", "composition", "dependency injection", "unit tests pass", "boot error", "embedded", "production only", "wiring", "integration", "can't boot"]
 ---
 
 # An unrunnable system moves the gate

@@ -4,8 +4,9 @@ slug: "a-check-must-be-seen-to-fail"
 topic: "verification"
 claim: "A gate, audit, filter or count earns trust only after it has been seen to go red on a planted violation; a check that reads the wrong stream or dies before its main step reports green forever."
 confidence: "measured"
-check: "each new check was seen red once on a plant of the defect it exists for, in the real artefact, and that is recorded; its count of examined subjects matches the subjects known to exist"
+check: "each new check was seen red once on a plant of the defect it exists for, in the real artefact, placed where the property it violates is observable, and seen to change the checked quantity; that is recorded, and its count of examined subjects matches the subjects known to exist"
 boundary: "Checks whose detection an external conformance suite already proves · even then, the local wiring that runs them still owes one plant-and-watch"
+cues: ["ci step", "add a gate", "lint rule", "audit check", "grep in script", "exit code", "always green", "pre-commit hook", "check script", "planted violation", "assert count", "workflow yaml", "set -e", "stderr redirect"]
 ---
 
 # A check must be seen to fail

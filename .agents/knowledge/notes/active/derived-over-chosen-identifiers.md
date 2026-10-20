@@ -6,6 +6,7 @@ claim: "An identifier that must be unique across boundaries is derived from some
 confidence: "measured"
 check: "a check fails when a derived identifier drifts from its source"
 boundary: "When humans type it · When the source of derivation is not stable · When the source of derivation is content that will be edited · When the source is private, guessable, and the identifier travels in public · When the namespace is genuinely closed and small"
+cues: ["unique id", "uuid", "slug", "namespace", "name collision", "derive id", "hash of", "package name", "bucket name", "global identifier", "id format", "naming scheme", "client_id", "prefix"]
 ---
 
 # Derived over chosen identifiers

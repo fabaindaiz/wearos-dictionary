@@ -6,6 +6,7 @@ claim: "A function given an input it cannot answer for refuses out of band — a
 confidence: "reasoned"
 check: "for each kind of input outside the domain — empty, unknown name, unreachable target, no signal — a test or the gate sees the call refuse, never return a plausible value"
 boundary: "A default for an unknown input that is the documented contract and visible as such · A runtime nobody can watch, where a refusal would only make the feature disappear"
+cues: ["return default", "return none", "return 0", "raise error", "exit status", "subprocess.run", "stderr", "stdout parse", "median", "vote", "lookup not found", "empty list", "first item", "hash of empty", "check=true"]
 ---
 
 # A refusal must not read like an answer

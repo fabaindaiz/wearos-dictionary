@@ -16,6 +16,41 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-20 · s-a2f271-4226cf — agent-guides 0.0.32 lands, four releases in one
+**What.** The bundle moves from **0.0.28 to 0.0.32** (0.0.29, 0.0.30, 0.0.31 and 0.0.32 at once),
+taken from the home's own copy with `export`, replaced with the incoming tool's `export --replace`,
+which removed the two area pages 0.0.30 stopped shipping (`knowledge/areas/{behaviour,evidence}.md`;
+nothing outside `.agents/` linked them). `install-skills` reinstalled `close`, `decision-review` and
+`user-walk` and installed `next`; both agents were copied, the reviewer refreshed and the
+`researcher` new, its hook failing closed (host 2.1.304 reads `onFailure`, which it documents from
+2.1.295). `carrier.toml` gains `upstream`, `lineage`, a `[skills]` table and a harvest frontier of
+today. ruff excludes `.agents/` (step 3b'), though it is not part of the gate (D-046).
+
+**Areas.** `.agents/` (replaced), `.claude/agents/`, `.claude/skills/{close,decision-review,user-walk,next}/`,
+`.agents/carrier.toml`, `pyproject.toml`.
+
+**Why.** Asked for by the owner. Every open choice of the update was asked one per turn, at the
+owner's request, instead of the pre-flight's single message.
+
+**Architecture.** ✅ Complies.
+
+**Measured.** The live 0.0.28 tool reported **52 problems** on the incoming copy, all of one kind
+(*an active note that no index links to*): 0.0.30 removed the area pages through which the old tool
+reached a note. The incoming tool under `python3 -I` reported *0.0.32 verified*. After the replace,
+`bundle.py verify` → *0.0.32 verified*; `check-local .` → *only their own files changed*.
+
+**What went wrong.** To price the decisions-log migration in the pre-flight, the incoming tool ran
+`decisions --migrate` without `--write`: a read, but the procedure allows the incoming tool only for
+`export --replace`. The procedure gives no sanctioned way to price an update step before the
+replace. First occurrence, so it stays here and is not proposed. The first gate after the replace
+was red on two expected consequences: `CLAUDE.md` said 50 notes where the release has 52
+(`audit --fix`), and the new `next` skill was named by no document (D-222), now named in the
+documents table beside the other method skills. The background run's own notice said exit 0: that
+was the `echo` after the gate; the gate's exit, written to its output, was 1.
+
+**What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
+a single occurrence.
+
 ## 2026-10-05 · s-a2f271-0b8120 — agent-guides 0.0.28 lands: the user's phrases move to when_to_use
 **What.** The bundle moves to **0.0.28**, a follow-up that fixes tool defects a review of 0.0.27
 found and rewords the three method skills' descriptions. `install-skills` reinstalled `close`,

@@ -6,6 +6,7 @@ claim: "Keep \"absent\" distinct from false, from empty and from unreadable, and
 confidence: "reasoned"
 check: "count records missing the field; every reader (query, worker, view) gives them the same meaning, and a malformed value refuses instead of reading as absent"
 boundary: "Fields the schema requires at write time, where making absence impossible is the fix"
+cues: ["is none", "is null", "missing field", "optional field", "default false", "get with default", "null vs empty", "isnull", "coalesce", "key missing", "undefined", "not set", "schemaless", "exists clause"]
 ---
 
 # Absence is a third value

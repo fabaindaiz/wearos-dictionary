@@ -6,6 +6,7 @@ claim: "Zero findings and zero coverage read identically and mean opposite thing
 confidence: "measured"
 check: "the report's first line is \"evaluated N of M\"; a check whose subjects are found rather than listed fails on zero of them"
 boundary: "Reports whose input schema is enforced upstream, so every row is evaluable by construction"
+cues: ["scan report", "audit report", "no findings", "zero results", "evaluated n of m", "reconciliation", "data quality", "empty filter", "misspelled field", "summary line", "checked count", "validator", "items examined", "report header"]
 ---
 
 # Report coverage before findings

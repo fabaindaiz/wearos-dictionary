@@ -6,6 +6,7 @@ claim: "Check a visual or layout invariant on the rendered output across the who
 confidence: "measured"
 check: "a gate renders the whole matrix; an over-long string planted in one language fails it and names the control"
 boundary: "Layout guaranteed by construction · A matrix too large to enumerate · Deliberate overflow"
+cues: ["layout", "font size", "overflow", "long string", "translation", "i18n", "locale", "aspect ratio", "screenshot test", "css", "text truncation", "accessibility", "dark mode", "responsive", "viewport"]
 ---
 
 # Sweep the rendered extremes

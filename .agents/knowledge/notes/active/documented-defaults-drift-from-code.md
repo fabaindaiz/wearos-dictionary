@@ -6,6 +6,7 @@ claim: "A reference that lists settings, keys or defaults drifts from the code t
 confidence: "measured"
 check: "a gate check compares each documented key table with the keys the reader reads, both directions and defaults included, and was seen red on a renamed key"
 boundary: "Readers that compute their key names · Examples that are not executable"
+cues: ["config reference", "default value", "env var table", "readme settings", "config keys", "document option", "settings.py", "yaml config", "renamed key", "docs table", "optional keys", "config schema", "defaults documented", "os.environ.get"]
 ---
 
 # Documented defaults drift from code

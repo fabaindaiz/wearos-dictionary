@@ -6,6 +6,7 @@ claim: "When a derived artefact can be served or read in place of its source, de
 confidence: "measured"
 check: "edit the source with an older timestamp, and again keeping its size and time: every derived copy is rebuilt or refused, whichever path consumes it"
 boundary: "Content-addressed copies · Copies that are never read in place of the source · When rebuilding on every write is too expensive"
+cues: ["cache", "mtime", "timestamp", "precompressed", ".gz", "build artifact", "stale cache", "invalidate", "make target", "etag", "if modified", "baked", "generated file", "cache key", "newer than"]
 ---
 
 # A derived copy goes stale silently
