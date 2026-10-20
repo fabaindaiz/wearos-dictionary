@@ -42,7 +42,8 @@ reached a note. The incoming tool under `python3 -I` reported *0.0.32 verified*.
 **What went wrong.** To price the decisions-log migration in the pre-flight, the incoming tool ran
 `decisions --migrate` without `--write`: a read, but the procedure allows the incoming tool only for
 `export --replace`. The procedure gives no sanctioned way to price an update step before the
-replace. First occurrence, so it stays here and is not proposed. The first gate after the replace
+replace. First occurrence, so it stays here and is not proposed. The knowledge index was not read
+before the design decisions, which the root file asks for; it was read at the close. The first gate after the replace
 was red on two expected consequences: `CLAUDE.md` said 50 notes where the release has 52
 (`audit --fix`), and the new `next` skill was named by no document (D-222), now named in the
 documents table beside the other method skills. The background run's own notice said exit 0: that
@@ -96,8 +97,37 @@ than restating it: the root is at **219 of 220** lines, and the budget check fai
 `declined` in `carrier.toml` is now empty: v3 and v7 were adopted and v21 superseded by the Status
 column. No neighbouring repository is named in the row, since this repository is public.
 
-**What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
-a single occurrence.
+**Review.** None in a fresh context. The decisions migration rewrote stored records, which the root
+file says earns a one-line offer of the `knowledge-reviewer`; **it was not offered**, and that is
+named under what went wrong.
+
+**Cards relied on, and the checks that ran.** Looked up at the close with `bundle.py lookup --diff`,
+not before the design, which the root file asks for. `a-check-must-be-seen-to-fail`: each of the
+three new checks was seen red on a planted defect and green restored (identity by author and by
+committer; bridge by an added rule and by a deleted bridge; decisions by a misspelt Status), and
+the decisions check examined 313 rows, the count the tool reports. `reproduce-the-checkout-not-only-the-environment`:
+every commit of the series passed `./gradlew check` from a clean worktree of itself, with
+`ANDROID_HOME` set, not only in the working tree.
+
+**Rulings.** Taken on the owner's behalf, each reversible in ten minutes: the `[skills]` table's
+role names; who may author is read from the published history rather than written as a name; the
+moved rows' thematic sections; `h1` defined in the log's header instead of a private folder;
+historical records citing `CLAUDE.md` left as written. Every other choice was the owner's, asked one
+per turn at the owner's request.
+
+**Measured, the series.** `a7d952a`, `79e070e`, `c7a7c58`, `3c4b2e4`, `3ea26a9`: each `./gradlew
+check` exit 0 in its own clean worktree. No commit in `origin/main..HEAD` carries a trailer or an
+identity other than the owner's.
+
+**Learned.** General, sent up: `--migrate` drops the escape of `\|` (proposal `p-c9742cb69b`).
+Local: the exit-status friction has its fourth incident and a new form, now in the roadmap item
+`i-a2f271-e2d90a`; and a filter by position (a heading) on a log rows can be appended past is the
+same defect as a check whose subject went elsewhere, closed here by filtering on the Status.
+
+**What was left undone.** `docs/architecture.md` §The constraints that rule still cited D-028's
+50 MB as live; corrected at the close, together with the one memory that lived only on this
+machine (the interface-freedom criterion), now a row of that table. The nine `proposed` rows are the
+old open questions, unchanged, and wait on the owner as before.
 
 ## 2026-10-05 · s-a2f271-0b8120 — agent-guides 0.0.28 lands: the user's phrases move to when_to_use
 **What.** The bundle moves to **0.0.28**, a follow-up that fixes tool defects a review of 0.0.27

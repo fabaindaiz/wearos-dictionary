@@ -4,7 +4,8 @@
 
 | Constraint | Design consequence |
 |---|---|
-| The watch's disk is scarce | One pack per language, compressed payloads, a soft budget of 50 MB (D-028) |
+| The watch's disk is scarce | One pack per language and compressed payloads; no per-pack byte budget: what is watched is the cold start and what the APK carries, which is paid without being asked for (D-207, which retired D-028's 50 MB; D-228 deviates on the APK figure) |
+| The interface is decided last, on the wrist | Inside, efficient and fast; but a format or query choice is priced twice, in bytes and ms **and** in which interaction it enables or closes. A cheaper option that removes a UI possibility says so instead of winning on the number, and what can be ignored until needed (a column with no index) beats what must be decided up front |
 | ~1.2" screen, search while typing | Covering index: the list comes out of the index without touching the table (D-012) |
 | Input by voice or a tiny keyboard | The search tolerates errors instead of demanding exactness (D-027) |
 | Limited RAM and battery | Nothing is loaded into memory; read-only SQLite with mmap |

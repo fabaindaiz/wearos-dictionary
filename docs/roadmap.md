@@ -31,6 +31,12 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-10-20.* **The instruction system is on agent-guides 0.0.32**, and the root file is
+`AGENTS.md` (each `CLAUDE.md` is a one-line `@AGENTS.md` bridge, d-a2f271-4afa62). The decisions log
+has a Status column: the old discarded and open sections are now `declined` and
+`proposed · decides: h1` rows of their tables, nine proposed (d-a2f271-b24881). Nothing of the app
+or the packs changed in that session; the device lines below still hold.
+
 *Updated 2026-10-05.* The paragraphs below, dated 2026-09-22, are kept as history and several of
 their figures are stale; the session log is the current record.
 
@@ -49,7 +55,7 @@ their figures are stale; the session log is the current record.
 
 *Actualizado: 2026-09-22.*
 
-✅ **The instruction system is on agent-guides 0.0.26** (converted 2026-10-05 from the old v20
+✅ **The instruction system was put on agent-guides 0.0.26** (converted 2026-10-05; 0.0.32 since 2026-10-20 from the old v20
 layout by the bundle home's splice). The method lives in `.agents/` —prompts, knowledge notes and
 cards, the method's skills, `bundle.py`— and this repo's own fields are in `.agents/carrier.toml`;
 `docs/agents/` was retired (D-221). **Before configuring, updating or running any prompt in
@@ -6612,7 +6618,16 @@ so the pipe wins. A wrapper --- `tools/gate.sh`, or a Gradle task --- that runs 
 the whole output and returns its real exit code would remove the incentive. It is a few lines, and
 it puts the cheap path back on the correct side.
 
-⚠️ **Not built**: process improvements are proposed, not executed (`CLAUDE.md`).
+**2026-10-20, a third form, and the count by search.** A gate run in the background as
+`./gradlew check > log; echo "exit=$?"` came back from the harness as *completed (exit code 0)*:
+the status of the `echo`. The gate's own exit, written into the output, was 1. Counted with
+`bundle.py count` over the log: the entries of 2026-09-20, 2026-09-22 and 2026-09-23 each record a
+gate read through `| tail`, so with this one the class has **four incidents in four sessions**, by
+a pipe or by a command after the gate. The wrapper above closes both forms: it returns the gate's
+own status and nothing runs after it. Every commit of that session was then chained as
+`gate && git commit`, which cannot be fooled this way.
+
+⚠️ **Not built**: process improvements are proposed, not executed (`AGENTS.md`).
 
 ### A path-list commit leaves a new file out, and the working tree's gate cannot see it · i-a2f271-25ed3c
 
