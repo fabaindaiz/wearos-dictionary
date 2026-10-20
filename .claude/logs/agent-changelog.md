@@ -90,6 +90,12 @@ fifth lines (parallel tool calls; decisions by example, `decision-review` past o
 text. **Seen on the host**: after the bridge was written, this session's harness loaded
 `tools/AGENTS.md` through it.
 
+**Workspaces (reopening declined v3, the owner's call).** The brief gains a first row, `Workspace`,
+only when another repository is open in the session, pointing at the method's §Workspaces rather
+than restating it: the root is at **219 of 220** lines, and the budget check fails at 220.
+`declined` in `carrier.toml` is now empty: v3 and v7 were adopted and v21 superseded by the Status
+column. No neighbouring repository is named in the row, since this repository is public.
+
 **What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
 a single occurrence.
 

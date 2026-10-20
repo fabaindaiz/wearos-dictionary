@@ -117,6 +117,7 @@ it does not distinguish *I looked and it is clean* from *I did not look*. It sta
 because it is **spoken to the user**, not written into the repo.
 
 ```
+Workspace       sólo con otro repo abierto: repo@branch de cada uno y cuál es el de hoy (método §Workspaces)
 En movimiento   qué quedó a medias, según el roadmap y el changelog
 En el árbol     trabajo sin commitear, en qué branch, y de quién es
 Restringe       las decisiones y los números que pesan sobre lo que se pidió

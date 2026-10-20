@@ -16,10 +16,10 @@ adapted = [
   "the root file's knowledge, privacy and procedures-win lines are one paragraph of AGENTS.md §How a session runs, inside its 220-line budget (0.0.26); its fourth and fifth lines (parallel tool calls, decisions shown by example with decision-review past one message) close the questions paragraph (0.0.32)",
   "the root and the four area instruction files are AGENTS.md, each with a one-line CLAUDE.md bridge (`@AGENTS.md`) and no rules of its own; tools/audit_dictionary.py check_agents_bridges fails a bridge that grows rules or a CLAUDE.md with no AGENTS.md beside it. Records written before 2026-10-20 that cite CLAUDE.md stay as written: the bridge still loads the same rules (0.0.32, reopening declined v7)",
   "the close, decision-review and user-walk skills carry the user's own Spanish phrases as `when_to_use` (0.0.28; they replaced `description` in 0.0.26 and 0.0.27), and their opening maps the session log, the gate and the commit skill, through .claude/skills/close/LOCAL.md (0.0.26)",
+  "workspaces: the brief's first row, `Workspace`, appears only when another repository is open in the session, and points at prompt-context.md §Workspaces for the rules rather than restating them inside the root budget; the brief keeps its Spanish rows (0.0.32, reopening declined v3)",
   "the gate runs bundle.py verify from tools/audit_dictionary.py check_bundle_digests, inside ./gradlew check (0.0.26)",
 ]
 declined = [
-  "v3 Workspaces: one repository. Nothing to do until there is a second one; reopen then.",
 ]
 lineage = [
   "0.0.32 r-5ed7e8 2026-10-20",
