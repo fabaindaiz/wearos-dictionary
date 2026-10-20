@@ -1953,6 +1953,14 @@ def check_commit_trailers(report):
     last 20 commits, and the published history of 2026-09-30 and 2026-10-01 carries the trailer; that
     history is not rewritten here. Since 0.0.28 the fallback reads only commits on no remote, so the
     explicit range is now redundant with it, and kept because it states the window.
+
+    ⚠️ **The identity is a second channel the setting does not reach** (agent-guides 0.0.32). In a
+    fresh environment the assistant can be the configured git user, and its commits carry it as
+    author with no trailer at all, so the trailer check passes them. So the author and committer of
+    the same range are read too, against **the identities the published history already has**:
+    who may author is whoever already did, which names nobody here and fails a new identity.
+    Verified by a probe: an empty commit authored as the assistant passed the audit before this,
+    and fails it after.
     """
     tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
     def git(*args):
@@ -1977,6 +1985,22 @@ def check_commit_trailers(report):
             "un commit sin pushear acredita a un asistente",
             "%s. The owner is the sole author: amend the message before pushing"
             % ("; ".join(lines[:5]) or result.stdout.strip()[-400:]),
+        )
+    base = rango.split("..")[0]
+    publicadas = set(git("log", "--format=%ae%n%ce", base).stdout.split())
+    ajenas = sorted({
+        "%s %s" % (sha[:7], ident)
+        for sha, *idents in (l.split("|") for l in
+                             git("log", "--format=%H|%an <%ae>|%cn <%ce>", rango).stdout.splitlines())
+        for ident in idents
+        if ident[ident.rfind("<") + 1:-1] not in publicadas
+    })
+    if publicadas and ajenas:
+        report.failure(
+            "un commit sin pushear lleva una identidad que la historia publicada no tiene",
+            "%s. Who may author is whoever already authored %s: an assistant configured as the git "
+            "user writes no trailer, so the trailer check alone passes it. Set user.email and "
+            "amend the author before pushing" % ("; ".join(ajenas[:5]), base),
         )
 
 

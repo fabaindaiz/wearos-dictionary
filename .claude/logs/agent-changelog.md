@@ -48,6 +48,14 @@ was red on two expected consequences: `CLAUDE.md` said 50 notes where the releas
 documents table beside the other method skills. The background run's own notice said exit 0: that
 was the `echo` after the gate; the gate's exit, written to its output, was 1.
 
+**The identity check (0.0.32's one gate edit).** `check_commit_trailers` also reads the author and
+committer of the unpushed range, against the identities `origin/main` (or the upstream) already
+has: who may author is whoever already did, so the audit names nobody in this public repository
+(d-a2f271-9ae41c, a row the sole-author rule never had). Test first, by probe in a scratch
+worktree: an empty commit authored as the assistant **passed** the audit before the edit (exit 0)
+and **fails** it after (exit 1); one only *committed* as the assistant fails too; the same tree
+without the probe commit passes.
+
 **What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
 a single occurrence.
 
