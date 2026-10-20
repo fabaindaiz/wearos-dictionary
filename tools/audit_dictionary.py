@@ -596,9 +596,8 @@ def check_catalog_pins(report):
                 "critico del producto (D-032)" % (catalogo, clave, valor),
             )
 
-    decisiones = read("docs/decisions.md").split("## Decisiones descartadas")[0]
     filas = re.findall(
-        r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \|.*\|([^|]*)\|\s*$", decisiones, re.M)
+        r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \|.*\|([^|]*)\|\s*$", read("docs/decisions.md"), re.M)
     for identificador, enforcer in filas:
         if catalogo in enforcer and "check_catalog_pins" not in enforcer:
             report.failure(
@@ -1777,19 +1776,20 @@ def check_rules_without_enforcer(report):
     Es aviso y no falla porque una decision sin enforcer esta permitida: lo que no esta
     permitido es que sea invisible. Que este numero suba es la senal.
 
-    ⚠️ **Las descartadas NO cuentan, y por eso la seccion se excluye.** Esa tabla tiene tres
-    columnas --numero, que se descarto, por que-- asi que la "ultima columna" que ve el regex es
-    el POR QUE, que nunca empieza con raya: las 7 filas se contaban como reglas CON enforcer y
-    engordaban el denominador (19 de 221 donde son 19 de 214). Una alternativa descartada no es
-    una regla y no tiene nada que hacer cumplir.
+    ⚠️ **Only `accepted` rows count, read from the Status cell** (d-a2f271-b24881). A declined,
+    proposed, deprecated or superseded row is not a rule and has nothing to enforce. This used to
+    be done by cutting the log at the discarded heading, and a cut by position is outrun by a row
+    written in the wrong place: 18 accepted decisions appended below that heading were counted by
+    nothing for three weeks.
 
     Since method v23 a new row's id is `d-<repo6>-<content6>`, minted by `bundle.py id d`, so two
     parallel sessions cannot take the same next number. The `D-###` rows keep their ids, so both
     shapes are counted: a pattern that knew only `D-\\d+` would stop counting every new row, and
     this number would drift down while the log grows.
     """
-    texto = read("docs/decisions.md").split("## Decisiones descartadas")[0]
-    rows = re.findall(r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \|.*\|([^|]*)\|\s*$", texto, re.M)
+    rows = re.findall(r"^\| (D-\d+|d-[0-9a-f]{6}-[0-9a-f]{6}) \| ([^|]*) \|.*\|([^|]*)\|\s*$",
+                      read("docs/decisions.md"), re.M)
+    rows = [(d, enforcer) for d, status, enforcer in rows if status.startswith("accepted")]
     without = [d for d, enforcer in rows if enforcer.strip().startswith("—")]
     report.advisory(
         "decisiones sin enforcer",
@@ -2001,6 +2001,26 @@ def check_commit_trailers(report):
             "%s. Who may author is whoever already authored %s: an assistant configured as the git "
             "user writes no trailer, so the trailer check alone passes it. Set user.email and "
             "amend the author before pushing" % ("; ".join(ajenas[:5]), base),
+        )
+
+
+def check_decisions_log(report):
+    """Rule: every decision row carries a Status a tool can read. (agent-guides artifact 6, d-a2f271-b24881)
+
+    It runs the bundle's own `bundle.py decisions` rather than a copy of its grammar: a Status that
+    does not parse, a row that is not five columns, a supersession not written both ways, and an
+    agent's acceptance over a decision the owner took all fail here. Its warnings (proposed rows,
+    an Enforced-in path that names no file) are the tool's to print and do not fail.
+    """
+    tool = os.path.join(ROOT, BUNDLE, "tools", "bundle.py")
+    result = subprocess.run([sys.executable, tool, "decisions", os.path.join(ROOT, "docs", "decisions.md")],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        lines = [l.strip() for l in (result.stdout + result.stderr).splitlines()
+                 if l.strip().startswith("x ")]
+        report.failure(
+            "una fila de docs/decisions.md no se lee",
+            "%s" % ("; ".join(lines[:5]) or (result.stdout + result.stderr).strip()[-400:]),
         )
 
 
@@ -2264,6 +2284,7 @@ CHECKS = [
     check_record_ids_are_minted,
     check_bundle_privacy_and_ids,
     check_rules_without_enforcer,
+    check_decisions_log,
     check_skills_reachable,
 ]
 

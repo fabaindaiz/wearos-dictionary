@@ -56,6 +56,28 @@ worktree: an empty commit authored as the assistant **passed** the audit before 
 and **fails** it after (exit 1); one only *committed* as the assistant fails too; the same tree
 without the probe commit passes.
 
+**The decisions log gains its Status column (0.0.29), and its two side sections fold in.**
+`bundle.py decisions --migrate --write` gave 213 rows `accepted recorded <date>`. By hand, at the
+owner's choice (*all to Status*, which reopened declined v21): the 9 discarded rows became
+`declined` rows of their thematic tables, the 9 open questions `proposed · decides: h1` rows with
+minted ids, and the open R8 row left, since D-163 closed it and its device check is P-3 of
+`docs/preguntas-del-reloj.md`. D-028 and D-267 read `superseded by` (D-207 and d-a2f271-969225 now
+say `supersedes`), D-245 `deprecated`, and D-224 is superseded by d-a2f271-b24881. The header defines
+`h1` as the owner, so no private folder holds the alias. The audit runs `bundle.py decisions`
+(`check_decisions_log`, probed: a misspelt Status fails it, the restored tree passes) and counts
+only `accepted` rows instead of cutting the log at a heading.
+
+**Found on the way, and the most useful line of this entry.** **18 accepted decisions**
+(d-a2f271-9f78e2 to d-a2f271-51bf83, written since 2026-09-28) had been appended **below the
+discarded table**, so the audit's cut at that heading had counted none of them as rules and checked
+none for catalog pins, for three weeks, with the gate green. They are rows of their sections now.
+Measured: decisions without enforcer **21 of 274** before, **21 of 289** after (274 − 4 no longer
+accepted + 18 rescued + 1 new); none of the 18 lacked an enforcer.
+
+**A tool defect, measured.** `--migrate` rebuilds each row from its parsed cells and drops the
+escape of `\|`: D-198's `core`\|`full` came out as a sixth column, which the check then failed.
+Restored by hand; it was the log's only escaped pipe.
+
 **What was left undone.** The harvest of this update proposed nothing: its one candidate (above) has
 a single occurrence.
 

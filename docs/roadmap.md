@@ -87,7 +87,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **143 tests**) y el
 pipeline de packs (`tools/`, **662 tests**) están completos y en el gate, junto con los **501 JVM
-de `:app`** y **41 checks** de auditoría estructural — **1347 tests en total**. Los **52
+de `:app`** y **42 checks** de auditoría estructural — **1348 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -2099,7 +2099,7 @@ así que la capa de resultados distingue el origen.
   documento.
 - Construir un pack auxiliar de verdad, con `uid` como PK, y medir el join en el reloj.
 - Decidir la **granularidad**: hoy `uid` es por entrada, y un sinónimo es de una acepción. Está
-  en la tabla de decisiones abiertas.
+  en `docs/decisions.md` como `proposed` (d-a2f271-337e30).
 - El vocabulario de `pos` tiene que normalizarse igual en el base y en los auxiliares.
 
 

@@ -11,7 +11,7 @@ adapted = [
   "structural audit script is tools/audit_dictionary.py",
   "skills are named and written in Spanish, with trigger-shaped descriptions",
   "pack format reference lives in docs/formato-pack.md, owned by the packbuilder",
-  "discarded and open decisions are their own sections of docs/decisions.md, with a three-column shape, rather than inline marks on the rows; the enforcer-count excludes them (D-224)",
+  "decisions log: discarded and open decisions are rows of the thematic tables with a Status (declined; proposed · decides: h1), and `h1` is defined in the log's own header as the owner, so no private folder holds the alias; the audit runs `bundle.py decisions` (check_decisions_log) and counts only accepted rows (0.0.32, d-a2f271-b24881)",
   "a rule that leaves CLAUDE.md for a skill keeps a one-line invariant plus a pointer there, and no skill is left unnamed by any document (D-222)",
   "the root file's knowledge, privacy and procedures-win lines are one paragraph of CLAUDE.md §How a session runs, inside its 220-line budget (0.0.26)",
   "the close, decision-review and user-walk skills carry the user's own Spanish phrases as `when_to_use` (0.0.28; they replaced `description` in 0.0.26 and 0.0.27), and their opening maps the session log, the gate and the commit skill, through .claude/skills/close/LOCAL.md (0.0.26)",
@@ -20,7 +20,6 @@ adapted = [
 declined = [
   "v7 Three agents, one source: this repo is single-agent on purpose — no .cursor/, no .github/copilot-instructions.md, no AGENTS.md. Its asymmetry is already the policy here: the core invariant is held by a hook, the shared vectors and the gate, not by prose in an agent's file. Reopen the day a second agent's rule file appears in the tree.",
   "v3 Workspaces: one repository. Nothing to do until there is a second one; reopen then.",
-  "v21 artifact 6, marking rows inline as *decisions, not rules* and *discarded, with the number*: measured, the artifact's spec is byte-identical to v7's, and this repo already meets the guarantee by section rather than by mark. Re-proposing it would be a rename, not a delta",
 ]
 lineage = [
   "0.0.32 r-5ed7e8 2026-10-20",

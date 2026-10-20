@@ -67,11 +67,12 @@ believed: it is followed, and copied forward.** Correct a rule **where it is loa
 the skill, the document an agent actually opens— and not only where the mistake was found. When a
 decision is reversed, **the reversed row says so in place**, with a pointer to what replaced it,
 and keeps its measurement: a new row citing the old one is not enough, because readers arrive at
-the old row **from the index** and it still reads as live. D-224's by-section guarantee does not
-cover this case — §*Decisiones descartadas* holds ideas that were rejected, not decisions that were
-taken and later undone.
+the old row **from the index** and it still reads as live. Its Status says `superseded by <id>`, and
+`bundle.py decisions` fails unless the successor's Why says `supersedes <id>` (d-a2f271-b24881); a
+`declined` row is an idea that was rejected, not a decision that was taken and later undone.
 
-⚠️ **There is no enforcer for this and that is a decision, not an omission.** The signal is a
+⚠️ **A Status once written is checked; that it gets written when a decision is reversed has no
+enforcer, and that is a decision, not an omission.** The signal is a
 phrase in prose —*"withdrew"*, *"retiró la mitad de"*, *"supersedes"*— and a check whose subject is
 prose goes vacuous on the first legitimate rewording: `docs/roadmap.md` §*A check whose subject is
 prose goes vacuous* records four hits of exactly that. So this one is rung 2, held by this
