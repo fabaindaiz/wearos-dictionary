@@ -16,6 +16,64 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-22 · s-a2f271-ac7f92 — See more words: a discover table in the packs and a screen to draw from it
+**What.** Below the words of the day, *see more words* opens twenty random words per language,
+reloadable, filtered by rarity (common, rare, curious) and, separately, by part of speech. The
+tier is decided by the builder over each Wiktionary record (`sources/discover.py`) and stored in an
+additive `discover` table (d-a2f271-a3033f), copied by `build_core`, absent from the bilingual
+pack, checked by `verify_pack`; the app draws from it with a pure policy in `:dict-core` and a
+model of its own in `:app`. Plan and ledger in `docs/roadmap.md` i-a2f271-ec624b.
+
+**Areas.** `tools/packbuilder/` (`sources/discover.py`, `build.py`, `build_core.py`,
+`verify_pack.py`, `sources/{kaikki,bilingual,toy}.py`), `dict-core` (`Discover.kt`,
+`DictionarySource`), `dict-data` (`SqlitePackSource`), `app` (`DiscoverModel`, `DiscoverScreen`,
+`SearchScreen`, `MainActivity`, strings), and the docs: roadmap, references, the pack format,
+the decisions and the watch questions.
+
+**Why.** Asked for by the owner, who answered the open choices before the build: the builder's
+table (option A, "evalúalo bien"), rare meaning recherché, curious as its own tier, a heuristic good
+for 10 to 15 of 20, no repeat within the session, a regionalism always curious, everything seen on
+the emulator, each green step committed.
+
+**Architecture.** ✅ Complies. The table is the additive path of `docs/formato-pack.md`, with no
+`schema_version` bump; the draw is pure Kotlin in the gate; `:app`'s model imports no `android.*`.
+
+**Cards relied on, and the checks that ran.** `refusal-must-not-read-like-an-answer` (rank ≥ 500 is
+absence, not rarity; `discoverPools()` returns null, not an empty map, for a pack without the
+table: tested); `absent-constraint-widens` (a lost tier or part-of-speech clause fails a test, seen
+by mutation); `persist-inputs-derive-verdicts` (**gave way, on purpose**: the pack stores the
+verdict, because its inputs are in the dump and not in the pack; `discover_version` stamps the
+policy); `derived-copy-goes-stale-silently` (the core copies the table and never recomputes it).
+
+**Measured.** Probe over the dumps joined to the packs, judged by the agent on 60 words per tier
+and language: common ~18 and ~17 of 20, rare ~10 and ~9, curious ~13 and ~11 (es, en) -- a
+judgement, not a labelled measurement. Table cost +0.12 MB `es-full`, +0.23 MB `en-full` gzipped.
+Rebuild in a scratch root: 23 min 43 s. Draw on the emulator: 185–1,048 ms (not performance,
+D-043). Every rule and every wiring line was seen to fail a test by mutation before it was trusted.
+
+**What went wrong.** Two defects reached the emulator with the gate green, both in wiring the unit
+tests did not cover: the model was handed the *offered* packs, so `offerable()` hid the bundled
+cores that carry the table and the row never showed; and *Other words* left the view below the new
+list. Both fixed test-first (cbe33a6). The rebuild's plan was read before running it and showed the
+bilingual pack would have received tiers through `kaikki.records` (fixed, 7ed6892) -- found by
+reading, not by a test. The rebuild ended with exit 1 on `es-main`: a fresh root defeats
+`build_packs.py`'s guard (roadmap item, not fixed here). Fast `adb shell input swipe` calls landed
+as taps twice and opened a word, which first read as the app navigating on its own; slower swipes
+(600 ms) are what works. The research agent reached only part of the literature, and the
+prevalence license stays unclear.
+
+**What was left undone.** The packs with the table exist only in the scratch root: nothing is
+published and the real `dist/` is untouched. The screen's shape is a proposal for the owner to judge
+on the emulator. Not merged, not pushed. Prevalence data not used.
+
+**Not verified.** The draw's time on the watch: `docs/preguntas-del-reloj.md` P-17, added in this
+change.
+
+**Learned.** General: a policy tested in isolation passed while the call site fed it the wrong
+list -- the call site needs its own test with the input the product actually builds (here,
+`offerable()`'s output). Local: a "rare word" is not a frequency band; it is low frequency **and**
+notability, and the residue is what people know despite saying it rarely.
+
 ## 2026-10-20 · s-a2f271-4226cf — agent-guides 0.0.32 lands, four releases in one
 **What.** The bundle moves from **0.0.28 to 0.0.32** (0.0.29, 0.0.30, 0.0.31 and 0.0.32 at once),
 taken from the home's own copy with `export`, replaced with the incoming tool's `export --replace`,

@@ -5273,7 +5273,7 @@ distance**, two quantities under one name.
    coverage, and whether `rank` across two packs from different dumps is comparable at all — the
    ordering's own comment says it is not, and nothing acts on that.
 
-### Discover more words: a random list by rarity and part of speech — RESEARCHED and option A EVALUATED 2026-10-21, **not designed, not built** · i-a2f271-ec624b
+### Discover more words: a random list by rarity and part of speech — ✅ **BUILT 2026-10-22 and seen on the emulator**, not on the watch, not published · i-a2f271-ec624b
 
 Asked for: below the word-of-the-day list, a *see more words* entry opening **20 random words per
 language**, reloadable for a new draw, filtered by **rarity** (*common*, *rare*, *curious*) and,
@@ -5441,9 +5441,36 @@ test-first and green on its own:
 | 6 | `:dict-core`: `DictionarySource` gains the pools and the read; the draw policy (weighted, distinct, session-seen, reset on exhaustion) is pure and in the gate | done | d34ebba |
 | 7 | `:dict-data`: the SQL, the table detected at open | done, its instrumented test runs at step 10 | d34ebba |
 | 8 | `:app`: the state and the reload, per language | done | b7109be |
-| 9 | `:app`: the home row and the screen, both locales | done, the route seen at step 10 | (this one) |
-| 10 | Rebuild the packs locally, `verify_pack`, see it on `wear_sm_l715f`, read the draw time from the log | pending | |
+| 9 | `:app`: the home row and the screen, both locales | done | 6859f0d |
+| 10 | Rebuild the packs locally, `verify_pack`, see it on `wear_sm_l715f`, read the draw time from the log | done, two defects fixed | cbe33a6 |
 
+
+#### What step 10 found — 2026-10-22, emulator `wear_sm_l715f`, packs rebuilt in a scratch root
+
+- **The real tables**, rows per tier (noun · verb · adj): `es-full` common 4,650 · 1,211 · 1,304,
+  rare 2,705 · 1,093 · 887, curious 1,747 · 801 · 417; `en-full` common 4,986 · 896 · 1,088, rare
+  9,363 · 1,699 · 2,871, curious 2,718 · 610 · 572. `en-core`'s curious adjectives are **28**: a
+  bucket that exhausts on its second reload, which the draw already answers. The bilingual pack has
+  no table, as decided. The 46 instrumented tests of `:dict-data` pass on the emulator.
+- **Two defects the gate could not see, both fixed test-first** (cbe33a6): the home row did not
+  show, because the model was handed the *offered* packs and `offerable()` hides a bundled core
+  behind an older full one without the table; and *Other words* left the view on its own row with
+  the forty new words above it.
+- **Draw time on the emulator: 185–1,048 ms**, the first one cold. Not a performance number
+  (D-043); the watch's is `docs/preguntas-del-reloj.md` P-17.
+- **What still reads wrong in a draw**: frequency from subtitles puts *abba* in English *common*;
+  Spanish *rare* has reflexive verbs (*desatarse*) and plain words (*archipiélago*) -- the residue
+  prevalence data would fix.
+- ⚠️ **`build_packs.py` into a fresh root builds `es-main` and fails it** (88.2 MB under the
+  100 MB floor, exit 1, every other pack built and verified): the guard that skips `main` reads
+  the full pack's size **when the plan is made**, before the full exists. The data root never shows
+  it because its full is already there. The same trap §*Cómo se contesta* names for `--dry-run`,
+  biting a real run.
+
+**Still open:** the screen's shape is a first proposal and the owner decides it seeing it --
+stepping rows rather than chips, the language headers, the label row on the home; the packs are
+rebuilt only in a scratch root, so nothing on the watch or the server has the table until a rebuild
+is published; prevalence data waits on its license.
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
