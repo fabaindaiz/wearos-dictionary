@@ -58,6 +58,9 @@ class SearchRepositoryTest {
         // This file tests the MERGE, which never previews. Empty here is honest: there is no
         // payload behind these fakes to preview.
         override suspend fun previews(entryIds: List<Long>) = emptyMap<Long, RowPreview>()
+        // The merge never discovers either: a pack with no table is what these fakes are.
+        override suspend fun discoverPools(): Map<DiscoverBucket, Int>? = null
+        override suspend fun discoverEntries(picks: List<DiscoverPick>) = emptyList<EntrySummary>()
         override fun close() = Unit
         override fun toString() = id
     }

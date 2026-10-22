@@ -296,6 +296,10 @@ private class SoloMetadata(override val metadata: PackMetadata) :
     // No payload behind this double, so there is nothing to preview.
     override suspend fun previews(entryIds: List<Long>):
         Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()
+    override suspend fun discoverPools():
+        Map<cl.fadiaz.dictionary.core.DiscoverBucket, Int>? = null
+    override suspend fun discoverEntries(picks: List<cl.fadiaz.dictionary.core.DiscoverPick>) =
+        emptyList<cl.fadiaz.dictionary.core.EntrySummary>()
 
     override fun close() = Unit
 }

@@ -1,6 +1,10 @@
 package cl.fadiaz.dictionary.data
 
 import androidx.test.platform.app.InstrumentationRegistry
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPick
+import cl.fadiaz.dictionary.core.DiscoverPos
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.MatchKind
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -383,5 +387,34 @@ class SqlitePackSourceTest {
         val entrada = requireNotNull(source.entry(id))
         assertEquals(null, entrada.pronunciation)
         assertEquals(null, entrada.etymology)
+    }
+
+    // --- `discover` (d-a2f271-a3033f): the toy declares its tiers by hand in `sources/toy.py`.
+
+    @Test
+    fun thePoolsAreTheTablesBucketsAndAnEmptyBucketIsAbsent() = runTest {
+        val pools = source.discoverPools()
+        assertNotNull("the toy carries a discover table", pools)
+        val common = DiscoverTier.COMMON
+        assertEquals(
+            mapOf(
+                DiscoverBucket(common, DiscoverPos.NOUN) to 3,
+                DiscoverBucket(common, DiscoverPos.VERB) to 2,
+                DiscoverBucket(DiscoverTier.RARE, DiscoverPos.NOUN) to 2,
+                DiscoverBucket(DiscoverTier.RARE, DiscoverPos.VERB) to 1,
+                DiscoverBucket(DiscoverTier.CURIOUS, DiscoverPos.NOUN) to 3,
+                DiscoverBucket(DiscoverTier.CURIOUS, DiscoverPos.VERB) to 1,
+            ),
+            pools,
+        )
+    }
+
+    @Test
+    fun theRowsComeBackInTheOrderAskedAndAMissingOneIsSkipped() = runTest {
+        val noun = DiscoverBucket(DiscoverTier.COMMON, DiscoverPos.NOUN)
+        val picks = listOf(DiscoverPick(noun, 2), DiscoverPick(noun, 9), DiscoverPick(noun, 0))
+        // `seq` follows entry id, which is `_DATA`'s order: cosa, casa, niño are 0, 1, 2. Asked
+        // 2, 9, 0: the draw's order survives, and seq 9 -- past the bucket -- reads nothing.
+        assertEquals(listOf("niño", "cosa"), source.discoverEntries(picks).map { it.headword })
     }
 }

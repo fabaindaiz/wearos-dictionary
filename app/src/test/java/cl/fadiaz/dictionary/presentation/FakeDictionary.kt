@@ -3,6 +3,8 @@ package cl.fadiaz.dictionary.presentation
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.PackSet
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPick
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.FuzzyProfile
@@ -58,6 +60,12 @@ class FakeDictionary(
      * returns the query verbatim never gets there.
      */
     private val vocabulary: Set<String>? = null,
+    /**
+     * The `discover` buckets it claims, or `null` for a pack with no table -- the default, which
+     * is every pack built before d-a2f271-a3033f. A drawn row reads back as the word
+     * `<tier>-<pos>-<seq>`, so a test can tell which bucket each line came from.
+     */
+    private val discover: Map<DiscoverBucket, Int>? = null,
 ) : DictionarySource {
 
     val queries = mutableListOf<String>()
@@ -133,6 +141,27 @@ class FakeDictionary(
      * more than once.
      */
     var previews: Map<Long, RowPreview>? = null
+
+    /** The picks every `discoverEntries` was asked for, in order. */
+    val discoverReads = mutableListOf<List<DiscoverPick>>()
+
+    override suspend fun discoverPools(): Map<DiscoverBucket, Int>? = discover
+
+    override suspend fun discoverEntries(picks: List<DiscoverPick>): List<EntrySummary> {
+        discoverReads += picks
+        val pools = discover ?: return emptyList()
+        return picks.filter { it.seq < (pools[it.bucket] ?: 0) }.map { pick ->
+            EntrySummary(
+                entryId = 100_000L + pick.bucket.tier.code * 10_000L +
+                    pick.bucket.pos.code * 1_000L + pick.seq,
+                headword = "${pick.bucket.tier.name.lowercase()}-" +
+                    "${pick.bucket.pos.name.lowercase()}-${pick.seq}",
+                partOfSpeech = pick.bucket.pos.partOfSpeech,
+                rank = 200,
+                lang = lang,
+            )
+        }
+    }
 
     override suspend fun previews(entryIds: List<Long>): Map<Long, RowPreview> =
         previews?.filterKeys { it in entryIds }

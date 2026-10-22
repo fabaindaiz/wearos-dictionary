@@ -2,6 +2,10 @@ package cl.fadiaz.dictionary.data
 
 import androidx.sqlite.SQLiteStatement
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPick
+import cl.fadiaz.dictionary.core.DiscoverPos
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EditDistance
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.EntrySummary
@@ -509,6 +513,82 @@ class SqlitePackSource(
                         PayloadCodec.decode(statement.getBlob(0), pack.payloadDictionary)
                     }.getOrNull() ?: continue
                     out[id] = rowPreview(body, metadata.kind)
+                }
+            }
+            out
+        }
+
+    /**
+     * See [DictionarySource.discoverPools]. Nine `max(seq)` lookups, one per bucket, each a single
+     * descent of the table's primary key -- `seq` is dense from 0, so the size is `max + 1` and
+     * no `count(*)` walks a bucket. Computed once: the pack is immutable (D-001).
+     *
+     * ⚠️ **The table is looked for, never assumed.** It is optional and additive
+     * (`docs/formato-pack.md` §*The four surfaces*): a pack built before it, or one whose source
+     * gives no tiers, has none, and querying it would fail at query time -- the one place D-001
+     * exists to keep failures out of.
+     */
+    override suspend fun discoverPools(): Map<DiscoverBucket, Int>? = withContext(dispatcher) {
+        loadPools()
+    }
+
+    private var pools: Map<DiscoverBucket, Int>? = null
+    private var poolsLoaded = false
+
+    /** Only ever called on [dispatcher], which is what makes the two fields safe to cache in. */
+    private fun loadPools(): Map<DiscoverBucket, Int>? {
+        if (poolsLoaded) return pools
+        pools = readPools()
+        poolsLoaded = true
+        return pools
+    }
+
+    private fun readPools(): Map<DiscoverBucket, Int>? {
+        val connection = pack.connection()
+        val hasTable = connection.prepare(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'discover'",
+        ).use { it.step() }
+        if (!hasTable) return null
+        val out = LinkedHashMap<DiscoverBucket, Int>()
+        connection.prepare("SELECT max(seq) FROM discover WHERE tier = ? AND pos = ?").use { st ->
+            for (tier in DiscoverTier.entries) {
+                for (pos in DiscoverPos.entries) {
+                    st.reset()
+                    st.clearBindings()
+                    st.bindLong(1, tier.code.toLong())
+                    st.bindLong(2, pos.code.toLong())
+                    if (st.step() && !st.isNull(0)) out[DiscoverBucket(tier, pos)] = st.getInt(0) + 1
+                }
+            }
+        }
+        return out
+    }
+
+    /** See [DictionarySource.discoverEntries]. One prepared statement, bound once per pick. */
+    override suspend fun discoverEntries(picks: List<DiscoverPick>): List<EntrySummary> =
+        withContext(dispatcher) {
+            if (picks.isEmpty() || loadPools() == null) return@withContext emptyList()
+            val out = ArrayList<EntrySummary>(picks.size)
+            pack.connection().prepare(
+                "SELECT e.id, e.headword, e.pos, e.rank, e.lang FROM discover d" +
+                    " JOIN entry e ON e.id = d.entry_id" +
+                    " WHERE d.tier = ? AND d.pos = ? AND d.seq = ?",
+            ).use { statement ->
+                for (pick in picks) {
+                    currentCoroutineContext().ensureActive()
+                    statement.reset()
+                    statement.clearBindings()
+                    statement.bindLong(1, pick.bucket.tier.code.toLong())
+                    statement.bindLong(2, pick.bucket.pos.code.toLong())
+                    statement.bindLong(3, pick.seq.toLong())
+                    if (!statement.step()) continue
+                    out += EntrySummary(
+                        entryId = statement.getLong(0),
+                        headword = statement.getText(1),
+                        partOfSpeech = statement.getTextOrNull(2),
+                        rank = statement.getInt(3),
+                        lang = statement.getTextOrNull(4),
+                    )
                 }
             }
             out

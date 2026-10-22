@@ -3102,5 +3102,11 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun previews(entryIds: List<Long>):
         Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()
 
+    override suspend fun discoverPools():
+        Map<cl.fadiaz.dictionary.core.DiscoverBucket, Int>? = null
+
+    override suspend fun discoverEntries(picks: List<cl.fadiaz.dictionary.core.DiscoverPick>):
+        List<EntrySummary> = emptyList()
+
     override fun close() = Unit
 }

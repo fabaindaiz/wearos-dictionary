@@ -106,6 +106,26 @@ interface DictionarySource {
      */
     suspend fun previews(entryIds: List<Long>): Map<Long, RowPreview>
 
+    /**
+     * The sizes of the pack's *see more words* buckets, or **null when the pack has no
+     * `discover` table** (d-a2f271-a3033f).
+     *
+     * ⚠️ **Null and not an empty map, on purpose**: an absent table is a pack that cannot answer
+     * -- built before the table existed, a bilingual one, one with no frequency list -- and the
+     * app hides the entry for it. An empty map would read as *"this pack has nothing to discover"*,
+     * a well-formed answer to a question it was never able to ask.
+     *
+     * No default implementation, for [previews]'s reason.
+     */
+    suspend fun discoverPools(): Map<DiscoverBucket, Int>?
+
+    /**
+     * The headers of these rows of the `discover` table, **in the order asked**, skipping a row
+     * that reads nothing. A draw's order is its randomness: sorting here would put every list in
+     * alphabetical order (`seq` follows entry id).
+     */
+    suspend fun discoverEntries(picks: List<DiscoverPick>): List<EntrySummary>
+
     /** Closes the underlying connection. The pack becomes unusable. */
     fun close()
 }
