@@ -5471,9 +5471,10 @@ test-first and green on its own:
 languages that can answer and starting on the active one, instead of one list per language -- a
 draw now reads one pack. Asked whether it should offer *all*: no, the languages only.
 
-**Still open:** the packs are
-rebuilt only in a scratch root, so nothing on the watch or the server has the table until a rebuild
-is published; prevalence data waits on its license.
+**Still open:** the packs
+with the table were promoted to the data root's `dist/` on 2026-10-22 at the owner's request (the
+previous one kept as `dist.2026-10-01`, `es-main` not built), so an ordinary APK build carries the
+cores with the table -- nothing is on the watch until the owner uploads it; prevalence data waits on its license.
 
 #### The word of the day in a chosen tier — PROPOSED 2026-10-22, not built · i-a2f271-96caa4
 

@@ -62,9 +62,12 @@ as taps twice and opened a word, which first read as the app navigating on its o
 (600 ms) are what works. The research agent reached only part of the literature, and the
 prevalence license stays unclear.
 
-**What was left undone.** The packs with the table exist only in the scratch root: nothing is
-published and the real `dist/` is untouched. The screen's shape is a proposal for the owner to judge
-on the emulator. Not merged, not pushed. Prevalence data not used.
+**What was left undone.** Nothing is on the watch: the owner uploads it. The rebuilt packs were
+promoted to the data root's `dist/` at the owner's request (the previous one kept as
+`dist.2026-10-01`, `es-main` not built), and an ordinary APK build now carries the cores with the
+table -- checked by unzipping it. The language became a filter at the owner's request after seeing
+the screen; applying the filters to the word of the day is proposed, not built (i-a2f271-96caa4).
+Prevalence data not used.
 
 **Not verified.** The draw's time on the watch: `docs/preguntas-del-reloj.md` P-17, added in this
 change.
