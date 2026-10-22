@@ -58,6 +58,9 @@ DERIVADAS = {
     # its `meta`, not by a test. The tier states its own cut in `corpus_coverage` and
     # `lemma_coverage`, which is the number that is true of IT.
     "drop_ledger",
+    # The builder writes it when the derived pack carries a `discover` table, which is a fact
+    # about the derived pack and not inherited from the full one.
+    "discover_version",
 }
 
 
@@ -240,6 +243,13 @@ def _agrupar(origen, tabla):
     return salida
 
 
+def _tiers_de(origen):
+    """`entry_id -> tier` of the full pack's `discover` table, empty when it has none."""
+    if origen.execute("SELECT 1 FROM sqlite_master WHERE name = 'discover'").fetchone() is None:
+        return {}
+    return dict(origen.execute("SELECT entry_id, tier FROM discover"))
+
+
 def _tags(texto):
     """The set of payload tag letters the text carries."""
     return {linea[0] for linea in texto.split("\n") if len(linea) >= 2 and linea[1] == "\t"}
@@ -317,10 +327,14 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
     # pack to finish, and it did not.
     formas_por_entrada = _agrupar(origen, "form")
     traducciones_por_entrada = _agrupar(origen, "trans")
+    # ⚠️ **The tiers are COPIED and not recomputed**: the core never reads a dump, so it has none
+    # of the signals a tier is decided from, and the rows follow the word, not the old id.
+    tier_por_entrada = _tiers_de(origen)
 
     escritos = 0
     tags_origen = {}
-    with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura, lemas)) as constructor:
+    with build.PackBuilder(salida, _meta_del_nivel(meta, tier, cobertura, lemas),
+                           discover_as_given=True) as constructor:
         for entry_id, uid, headword, pos, rank, blob in filas:
             # ⚠️ **Everything the payload says ABOUT THE WORD has to be read back and handed
             # over, and forgetting one is invisible.** The entry is rebuilt from its text, so a
@@ -349,6 +363,7 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
                 # ITS homographs, an entry with a twin in the full pack could lose it and end up
                 # with another identity -- which is exactly the failure D-145 found when merging.
                 uid=uid,
+                discover=tier_por_entrada.get(entry_id),
             ))
             escritos += 1
             for tag in _tags(texto):

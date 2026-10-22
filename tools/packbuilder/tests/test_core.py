@@ -578,3 +578,60 @@ class CanalesDeNivelEntradaTest(unittest.TestCase):
         # The control: a guard that always fires is a guard nobody keeps.
         salida = os.path.join(self.dir, "core.db")
         build_core.derive(self.completo, salida, {"casa"})
+
+
+class DiscoverEnElNivelTest(unittest.TestCase):
+    """A derived tier keeps the full pack's `discover` rows for the entries it holds.
+
+    ⚠️ **Copied, never recomputed.** The core never reads a dump, so it has none of the signals a
+    tier is decided from (usage labels, topics, translations); and the rows point at entry ids,
+    which the core renumbers. A core that dropped the table would hide *see more words* on every
+    watch with only a core installed -- with no error, the same shape as a channel lost in a
+    derivation (`_ningun_canal_se_perdio`).
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.completo = os.path.join(self.dir, "completo.db")
+        with build.PackBuilder(self.completo, dict(BASE_META)) as b:
+            b.add(build.Record(headword="agua", senses=[{"gloss": "liquido"}],
+                               part_of_speech="noun", rank=1, discover=0))
+            b.add(build.Record(headword="correr", senses=[{"gloss": "ir rapido"}],
+                               part_of_speech="verb", rank=2, discover=0))
+            b.add(build.Record(headword="fragor", senses=[{"gloss": "ruido intenso"}],
+                               part_of_speech="noun", rank=900, discover=1))
+            b.add(build.Record(headword="trapisonda", senses=[{"gloss": "enredo, embrollo"}],
+                               part_of_speech="noun", rank=950, discover=2))
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _filas(self, path):
+        with sqlite3.connect(path) as db:
+            return db.execute(
+                "SELECT d.tier, d.pos, d.seq, e.headword FROM discover d"
+                " JOIN entry e ON e.id = d.entry_id ORDER BY d.tier, d.pos, d.seq").fetchall()
+
+    def test_the_core_keeps_the_tiers_of_its_entries_remapped(self):
+        core = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, core, {"correr", "trapisonda"})
+        # `trapisonda` was entry 4 in the full pack and is 2 here: the row followed the WORD.
+        self.assertEqual([(0, 1, 0, "correr"), (2, 0, 0, "trapisonda")], self._filas(core))
+
+    def test_the_core_declares_its_own_discover_version(self):
+        core = os.path.join(self.dir, "core.db")
+        build_core.derive(self.completo, core, {"agua"})
+        with sqlite3.connect(core) as db:
+            self.assertEqual(("1",), db.execute(
+                "SELECT value FROM meta WHERE key = 'discover_version'").fetchone())
+
+    def test_a_full_pack_without_the_table_derives_a_core_without_it(self):
+        sin = os.path.join(self.dir, "sin.db")
+        with build.PackBuilder(sin, dict(BASE_META)) as b:
+            b.add(build.Record(headword="agua", senses=[{"gloss": "liquido"}],
+                               part_of_speech="noun", rank=1))
+        core = os.path.join(self.dir, "core.db")
+        build_core.derive(sin, core, {"agua"})
+        with sqlite3.connect(core) as db:
+            self.assertIsNone(db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'discover'").fetchone())
