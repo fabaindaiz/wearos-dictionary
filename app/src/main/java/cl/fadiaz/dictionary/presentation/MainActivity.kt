@@ -557,11 +557,12 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                     // A first list on arriving, and not on every return to the screen: coming
                     // back from a word has to find the same list, not a new one.
                     LaunchedEffect(Unit) {
-                        if (discover.sections.isEmpty()) viewModel.discover.reload()
+                        if (discover.section == null) viewModel.discover.reload()
                     }
                     DiscoverScreen(
                         state = discover,
                         onSelect = viewModel.discover::select,
+                        onSelectLanguage = viewModel.discover::selectLanguage,
                         onReload = viewModel.discover::reload,
                         onOpen = openSummary,
                     )

@@ -38,32 +38,42 @@ class DiscoverScreenTest {
         available = true,
         tier = DiscoverTier.RARE,
         pos = null,
-        sections = listOf(
-            DiscoverSection(
-                "es", "es-full", listOf(word("fragor", 1, "es"), word("galimatías", 2, "es")),
-                previews = mapOf(1L to RowPreview.Definition("Ruido intenso y prolongado.")),
-            ),
-            DiscoverSection("en", "en-full", listOf(word("fanfaronade", 3, "en"))),
+        languages = listOf("es", "en"),
+        lang = "es",
+        section = DiscoverSection(
+            "es", "es-full", listOf(word("fragor", 1, "es"), word("galimatías", 2, "es")),
+            previews = mapOf(1L to RowPreview.Definition("Ruido intenso y prolongado.")),
         ),
     )
 
     private fun show(
         state: DiscoverState = dosIdiomas,
         onSelect: (DiscoverTier, DiscoverPos?) -> Unit = { _, _ -> },
+        onSelectLanguage: (String) -> Unit = {},
         onReload: () -> Unit = {},
         onOpen: (String, EntrySummary) -> Unit = { _, _ -> },
-    ) = compose.setContent { DiscoverScreen(state, onSelect, onReload, onOpen) }
+    ) = compose.setContent { DiscoverScreen(state, onSelect, onSelectLanguage, onReload, onOpen) }
 
     private fun scrollTo(text: String) =
         compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
 
     @Test
-    fun eachLanguageHasItsHeaderAndItsWords() {
+    fun theListIsTheChosenLanguagesWords() {
         show()
-        scrollTo("Español")
         scrollTo("fragor")
-        scrollTo("English")
-        scrollTo("fanfaronade")
+        scrollTo("galimatías")
+    }
+
+    @Test
+    fun theLanguageFilterNamesTheLanguageAndStepsToTheNextAvailable() {
+        // Asked for on 2026-10-22: the language is a filter, through the packs available.
+        var elegido: String? = null
+        show(onSelectLanguage = { elegido = it })
+        scrollTo("Español")
+        compose.onNodeWithText("Español").performClick()
+        assertEquals("en", elegido)
+        assertEquals("es", nextLanguage(listOf("es", "en"), "en"))
+        assertEquals("es", nextLanguage(listOf("es"), "es"))
     }
 
     @Test
@@ -76,9 +86,9 @@ class DiscoverScreenTest {
     fun tappingAWordOpensItInItsOwnPack() {
         var abierta: Pair<String, Long>? = null
         show(onOpen = { pack, w -> abierta = pack to w.entryId })
-        scrollTo("fanfaronade")
-        compose.onNodeWithText("fanfaronade").performClick()
-        assertEquals("en-full" to 3L, abierta)
+        scrollTo("galimatías")
+        compose.onNodeWithText("galimatías").performClick()
+        assertEquals("es-full" to 2L, abierta)
     }
 
     @Test
@@ -109,25 +119,22 @@ class DiscoverScreenTest {
 
     @Test
     fun aLanguageWithNothingInThisFilterSaysSo() {
-        show(dosIdiomas.copy(sections = listOf(DiscoverSection("es", "es-full", emptyList()))))
+        show(dosIdiomas.copy(section = DiscoverSection("es", "es-full", emptyList())))
         scrollTo("No hay palabras con este filtro.")
     }
 
     @Test
     fun otherWordsTakesTheViewBackToTheFirstList() {
         // ⚠️ Seen on the emulator on 2026-10-22: the new words arrived and the view stayed on the
-        // last row, so the forty new ones were all above, off screen.
-        val muchas = DiscoverState(
-            available = true,
-            sections = listOf(
-                DiscoverSection("es", "es-full", (1..20).map { word("palabra$it", it.toLong(), "es") }),
-            ),
+        // last row, so the twenty new ones were all above, off screen.
+        val muchas = dosIdiomas.copy(
+            section = DiscoverSection("es", "es-full", (1..20).map { word("palabra$it", it.toLong(), "es") }),
         )
         show(muchas)
         scrollTo("Otras palabras")
         compose.onNodeWithText("Otras palabras").performClick()
         compose.waitForIdle()
-        compose.onNodeWithText("Español").assertIsDisplayed()
+        compose.onNodeWithText("palabra1").assertIsDisplayed()
     }
 
     @Test

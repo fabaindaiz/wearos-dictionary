@@ -92,8 +92,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **151 tests**) y el
-pipeline de packs (`tools/`, **710 tests**) están completos y en el gate, junto con los **525 JVM
-de `:app`** y **43 checks** de auditoría estructural — **1429 tests en total**. Los **54
+pipeline de packs (`tools/`, **710 tests**) están completos y en el gate, junto con los **528 JVM
+de `:app`** y **43 checks** de auditoría estructural — **1432 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -5467,8 +5467,11 @@ test-first and green on its own:
   it because its full is already there. The same trap §*Cómo se contesta* names for `--dry-run`,
   biting a real run.
 
-**Still open:** the screen's shape is a first proposal and the owner decides it seeing it --
-stepping rows rather than chips, the language headers, the label row on the home; the packs are
+**Changed by the owner on 2026-10-22:** the language is a third filter row, stepping through the
+languages that can answer and starting on the active one, instead of one list per language -- a
+draw now reads one pack. Asked whether it should offer *all*: no, the languages only.
+
+**Still open:** the packs are
 rebuilt only in a scratch root, so nothing on the watch or the server has the table until a rebuild
 is published; prevalence data waits on its license.
 

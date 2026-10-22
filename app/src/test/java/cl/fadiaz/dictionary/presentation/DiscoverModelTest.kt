@@ -41,21 +41,56 @@ class DiscoverModelTest {
     }
 
     @Test
-    fun oneSectionPerLanguageTheActiveOneFirstTwentyWordsEach() = runTest {
+    fun theLanguageIsAFilterThatStartsOnTheActiveOne() = runTest {
+        // Asked for on 2026-10-22: *"el idioma debería ser un filtro, según los packs
+        // disponibles"* -- one list, of the chosen language, and only the languages that can answer.
+        val en = FakeDictionary("en-full", "en", entryCount = 900, discover = pools)
+        val es = FakeDictionary("es-full", "es", entryCount = 100, discover = pools)
+        val model = model()
+        model.setPacks(listOf(en, es, FakeDictionary("de-full", "de")), activeLang = "es")
+        model.reload()
+        advanceUntilIdle()
+        val state = model.state.value
+        assertEquals(listOf("es", "en"), state.languages)
+        assertEquals("es", state.lang)
+        assertEquals("es", state.section?.lang)
+        assertEquals(DiscoverDraw.SIZE, state.section?.words?.size)
+        // Only the language on screen is read: the other one costs nothing.
+        assertTrue(en.discoverReads.isEmpty())
+    }
+
+    @Test
+    fun choosingAnotherLanguageDrawsItsWords() = runTest {
         val model = model()
         model.setPacks(
             listOf(
-                FakeDictionary("en-full", "en", entryCount = 900, discover = pools),
-                FakeDictionary("es-full", "es", entryCount = 100, discover = pools),
+                FakeDictionary("en-full", "en", discover = pools),
+                FakeDictionary("es-full", "es", discover = pools),
             ),
             activeLang = "es",
         )
-        model.reload()
         advanceUntilIdle()
-        val sections = model.state.value.sections
-        assertTrue(model.state.value.available)
-        assertEquals(listOf("es", "en"), sections.map { it.lang })
-        assertTrue(sections.all { it.words.size == DiscoverDraw.SIZE })
+        model.selectLanguage("en")
+        advanceUntilIdle()
+        assertEquals("en", model.state.value.lang)
+        assertEquals("en-full", model.state.value.section?.packId)
+    }
+
+    @Test
+    fun aChosenLanguageSurvivesThePacksReopeningAndFallsBackWhenItGoes() = runTest {
+        val en = FakeDictionary("en-full", "en", discover = pools)
+        val es = FakeDictionary("es-full", "es", discover = pools)
+        val model = model()
+        model.setPacks(listOf(en, es), activeLang = "es")
+        advanceUntilIdle()
+        model.selectLanguage("en")
+        advanceUntilIdle()
+        model.setPacks(listOf(en, es), activeLang = "es")
+        advanceUntilIdle()
+        assertEquals("en", model.state.value.lang)
+        model.setPacks(listOf(es), activeLang = "es")
+        advanceUntilIdle()
+        assertEquals("es", model.state.value.lang)
     }
 
     @Test
@@ -69,11 +104,11 @@ class DiscoverModelTest {
         model.setPacks(listOf(core, oldFull), "es")
         model.reload()
         advanceUntilIdle()
-        assertEquals(listOf("es-core"), model.state.value.sections.map { it.packId })
+        assertEquals(listOf("es-core"), listOfNotNull(model.state.value.section?.packId))
         model.setPacks(listOf(core, oldFull, newFull), "es")
         model.reload()
         advanceUntilIdle()
-        assertEquals(listOf("es-main"), model.state.value.sections.map { it.packId })
+        assertEquals(listOf("es-main"), listOfNotNull(model.state.value.section?.packId))
     }
 
     @Test
@@ -96,7 +131,7 @@ class DiscoverModelTest {
         // Verbs as well as nouns in the tier, so a lost part-of-speech clause would show.
         model.select(DiscoverTier.COMMON, DiscoverPos.VERB)
         advanceUntilIdle()
-        val words = model.state.value.sections.single().words
+        val words = model.state.value.section!!.words
         assertEquals(DiscoverDraw.SIZE, words.size)
         assertTrue(words.all { it.headword.startsWith("common-verb-") }, "${words.map { it.headword }}")
         assertEquals(DiscoverTier.COMMON, model.state.value.tier)
@@ -109,7 +144,7 @@ class DiscoverModelTest {
         model.setPacks(listOf(FakeDictionary("es-full", "es", discover = pools)), "es")
         model.select(DiscoverTier.COMMON, null)
         advanceUntilIdle()
-        val words = model.state.value.sections.single().words.map { it.headword }
+        val words = model.state.value.section!!.words.map { it.headword }
         assertTrue(words.all { it.startsWith("common-") }, "$words")
         assertTrue(words.any { it.startsWith("common-noun-") } && words.any { it.startsWith("common-verb-") })
     }
@@ -120,10 +155,10 @@ class DiscoverModelTest {
         model.setPacks(listOf(FakeDictionary("es-full", "es", discover = pools)), "es")
         model.reload()
         advanceUntilIdle()
-        val first = model.state.value.sections.single().words.map { it.entryId }.toSet()
+        val first = model.state.value.section!!.words.map { it.entryId }.toSet()
         model.reload()
         advanceUntilIdle()
-        val second = model.state.value.sections.single().words.map { it.entryId }.toSet()
+        val second = model.state.value.section!!.words.map { it.entryId }.toSet()
         assertTrue((first intersect second).isEmpty())
     }
 
@@ -137,7 +172,7 @@ class DiscoverModelTest {
         repeat(3) {
             model.reload()
             advanceUntilIdle()
-            assertEquals(DiscoverDraw.SIZE, model.state.value.sections.single().words.size)
+            assertEquals(DiscoverDraw.SIZE, model.state.value.section!!.words.size)
         }
     }
 
@@ -147,7 +182,7 @@ class DiscoverModelTest {
         model.setPacks(listOf(FakeDictionary("es-full", "es", discover = pools)), "es")
         model.select(DiscoverTier.CURIOUS, DiscoverPos.ADJECTIVE)
         advanceUntilIdle()
-        assertEquals(emptyList(), model.state.value.sections.single().words)
+        assertEquals(emptyList(), model.state.value.section!!.words)
     }
 
     @Test
@@ -165,6 +200,6 @@ class DiscoverModelTest {
         advanceUntilIdle()
         assertEquals(reads, pack.discoverReads.size)
         assertFalse(model.state.value.available)
-        assertTrue(model.state.value.sections.isEmpty())
+        assertEquals(null, model.state.value.section)
     }
 }

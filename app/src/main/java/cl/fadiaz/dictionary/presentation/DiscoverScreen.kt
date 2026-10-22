@@ -28,14 +28,14 @@ import cl.fadiaz.dictionary.core.EntrySummary
 import kotlinx.coroutines.launch
 
 /**
- * *See more words* (i-a2f271-ec624b): two filter rows, then one list per language, then a row
- * that draws other words.
+ * *See more words* (i-a2f271-ec624b): three filter rows -- rarity, part of speech, language --
+ * then the chosen language's words, then a row that draws other words.
  *
  * ⚠️ **Each filter is ONE row that steps to the next value, not a row of chips.** On a 234 dp
  * screen three chips for the rarity and four for the type would be ~55 dp each, at the edge of
- * the 48 dp touch target, and would cost two rows before the first word. Stepping costs a tap
- * per value and keeps both filters in two 48 dp rows. It is a first proposal, to be looked at on
- * the emulator: the UI here gets decided by seeing it on the watch's geometry.
+ * the 48 dp touch target. Stepping costs a tap per value and keeps each filter in one 48 dp row.
+ * Seen on the emulator on 2026-10-22 and kept; the owner then asked for the language to be the
+ * third filter instead of one list per language.
  *
  * The rows are [ListRow] with the definition's start on a second line, the same row the results
  * use (d-a2f271-0e93af): a word somebody does not know is chosen by what it means.
@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 fun DiscoverScreen(
     state: DiscoverState,
     onSelect: (DiscoverTier, DiscoverPos?) -> Unit,
+    onSelectLanguage: (String) -> Unit,
     onReload: () -> Unit,
     /** The pack the word lives in, and the word: each language's list is its own pack's. */
     onOpen: (String, EntrySummary) -> Unit,
@@ -78,23 +79,30 @@ fun DiscoverScreen(
                 ) { onSelect(state.tier, nextPos(state.pos)) }
             }
 
-            for (section in state.sections) {
-                item(key = "idioma:${section.lang}") {
-                    ListHeader {
-                        Text(languageName(section.lang) ?: resultTag(section.lang).orEmpty())
-                    }
+            val lang = state.lang
+            if (lang != null) {
+                item(key = "idioma") {
+                    ListRow(
+                        headword = languageName(lang) ?: resultTag(lang).orEmpty(),
+                        detail = stringResource(R.string.discover_language),
+                        isLabel = true,
+                    ) { onSelectLanguage(nextLanguage(state.languages, lang)) }
                 }
-                if (section.words.isEmpty()) {
-                    item(key = "vacio:${section.lang}") {
-                        Text(
-                            text = stringResource(R.string.discover_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        )
-                    }
+            }
+
+            val section = state.section
+            if (section != null && section.words.isEmpty()) {
+                item(key = "vacio") {
+                    Text(
+                        text = stringResource(R.string.discover_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    )
                 }
+            }
+            if (section != null) {
                 items(
                     count = section.words.size,
                     key = { index -> "w:${section.packId}:${section.words[index].entryId}" },
@@ -109,18 +117,18 @@ fun DiscoverScreen(
                 }
             }
 
-            if (state.sections.isNotEmpty()) {
+            if (section != null) {
                 item(key = "otras") {
                     ListRow(
                         headword = stringResource(R.string.discover_reload),
                         detail = null,
                         isLabel = true,
                     ) {
-                        // ⚠️ **Back to the first list, or the new words land off screen.** Seen on
-                        // the emulator: the view stayed on this row and all forty were above it.
-                        // To the first language's header and not to the top -- the filters did not
-                        // change, so scrolling past them saves the reader two rows.
-                        scope.launch { listState.scrollToItem(FIRST_SECTION_ITEM) }
+                        // ⚠️ **Back to the first word, or the new words land off screen.** Seen on
+                        // the emulator: the view stayed on this row and all twenty were above it.
+                        // To the first word and not to the top -- the filters did not change, so
+                        // scrolling past them saves the reader three rows.
+                        scope.launch { listState.scrollToItem(FIRST_WORD_ITEM) }
                         onReload()
                     }
                 }
@@ -129,8 +137,14 @@ fun DiscoverScreen(
     }
 }
 
-/** The heading, the rarity row and the type row come before the first language's header. */
-private const val FIRST_SECTION_ITEM = 3
+/** The heading and the three filter rows come before the first word. */
+private const val FIRST_WORD_ITEM = 4
+
+/** The next language that can answer, and back to the first. One language steps onto itself. */
+internal fun nextLanguage(languages: List<String>, current: String): String {
+    if (languages.isEmpty()) return current
+    return languages[(languages.indexOf(current) + 1) % languages.size]
+}
 
 /** Common, rare, curious, and back. */
 internal fun nextTier(tier: DiscoverTier): DiscoverTier =

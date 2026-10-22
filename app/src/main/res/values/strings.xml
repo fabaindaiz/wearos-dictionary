@@ -53,6 +53,7 @@
     <string name="discover_tier_rare">Rare</string>
     <string name="discover_tier_curious">Curious</string>
     <string name="discover_type">Type</string>
+    <string name="discover_language">Language</string>
     <string name="discover_pos_all">All</string>
     <string name="discover_pos_noun">Nouns</string>
     <string name="discover_pos_verb">Verbs</string>

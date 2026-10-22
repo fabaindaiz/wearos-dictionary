@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** One language's list in *see more words*. */
+/** The list *see more words* shows: twenty words of one language, from the pack that answers it. */
 data class DiscoverSection(
     val lang: String,
     val packId: String,
@@ -36,12 +36,21 @@ data class DiscoverState(
     val tier: DiscoverTier = DiscoverTier.COMMON,
     /** `null` is every part of speech. */
     val pos: DiscoverPos? = null,
-    val sections: List<DiscoverSection> = emptyList(),
+    /** The languages that can answer, the active one first: what the language filter steps through. */
+    val languages: List<String> = emptyList(),
+    /** The chosen language, or null when none can answer. */
+    val lang: String? = null,
+    /** The last draw, or null before the first one and after the packs change. */
+    val section: DiscoverSection? = null,
 )
 
 /**
- * *See more words* (`docs/roadmap.md` i-a2f271-ec624b): random words to learn, per language, by
- * tier and part of speech, reloadable.
+ * *See more words* (`docs/roadmap.md` i-a2f271-ec624b): random words to learn, filtered by tier,
+ * part of speech and language, reloadable.
+ *
+ * ⚠️ **The language is a filter, not one list per language** -- asked for on 2026-10-22: *"el
+ * idioma debería ser un filtro, según los packs disponibles"*. It steps only through the languages
+ * that can answer, starts on the active one, and a draw reads only the chosen language's pack.
  *
  * Kept out of `SearchViewModel` on purpose, which is already the largest file in the app: this
  * owns nothing but its packs' pools and what this session has shown. It imports no `android.*`
@@ -97,7 +106,17 @@ class DiscoverModel(
                     .sortedWith(compareBy({ it.lang != activeLang }, { it.lang }))
                 answering = porIdioma
                 seen.keys.retainAll(porIdioma.map { it.source.metadata.packId }.toSet())
-                _state.update { it.copy(available = porIdioma.isNotEmpty(), sections = emptyList()) }
+                val languages = porIdioma.map { it.lang }
+                _state.update {
+                    it.copy(
+                        available = languages.isNotEmpty(),
+                        languages = languages,
+                        // A choice survives the packs reopening; a language that left gives way
+                        // to the first, which is the active one when it can answer.
+                        lang = it.lang?.takeIf { l -> l in languages } ?: languages.firstOrNull(),
+                        section = null,
+                    )
+                }
             }
         }
     }
@@ -108,21 +127,27 @@ class DiscoverModel(
         reload()
     }
 
-    /** A new list for every language, with no word this session already showed while others remain. */
+    /** Changes the language and draws again. One the packs cannot answer is ignored. */
+    fun selectLanguage(lang: String) {
+        _state.update { if (lang in it.languages) it.copy(lang = lang) else it }
+        reload()
+    }
+
+    /** A new list, with no word this session already showed while others remain. */
     fun reload() {
         reloading = scope.launch {
             lock.withLock {
                 val tier = _state.value.tier
                 val pos = _state.value.pos
+                val pack = answering.firstOrNull { it.lang == _state.value.lang } ?: return@withLock
                 val desde = System.nanoTime()
-                val sections = answering.map { pack -> drawFor(pack, tier, pos) }
-                _state.update { it.copy(sections = sections) }
-                // The readout of the one failure that shows as nothing: a language with zero
-                // words, from an empty bucket or a pack that stopped answering. And the time,
-                // which only a device measures -- twenty random reads across a large file.
+                val section = drawFor(pack, tier, pos)
+                _state.update { it.copy(section = section) }
+                // The readout of the one failure that shows as nothing: a list with zero words,
+                // from an empty bucket or a pack that stopped answering. And the time, which only
+                // a device measures -- twenty random reads across a large file.
                 DictLog.i {
-                    "descubrir: $tier/${pos ?: "todas"} " +
-                        sections.joinToString { "${it.packId}=${it.words.size}" } +
+                    "descubrir: $tier/${pos ?: "todas"} ${section.packId}=${section.words.size}" +
                         " en ${(System.nanoTime() - desde) / 1_000_000} ms"
                 }
             }
