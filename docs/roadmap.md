@@ -31,6 +31,19 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-10-22.* **On the device since 2026-10-22**: APK `versionCode` 15 (`0.8.0`), built from
+`c89250a`, carrying `es-core` and `en-core` of that day's rebuild, both with the `discover` table, so
+*see more words* shows on the watch (i-a2f271-ec624b). The full packs on the watch are still
+October 1's, without the table; the cores answer for both languages. The data root's `dist/` holds
+the 2026-10-22 rebuild (the previous one kept as `dist.2026-10-01`). ⚠️ The open R8 request below was
+**not** honoured: this upload was a plain debug build.
+
+**To continue, from any machine:** the data root (`../wearos-dictionary-data`, outside git) holds
+the dumps and the 2026-10-22 `dist/` with its `index.json`; without it an APK builds with no
+bundled cores (D-175). The first concrete steps, the owner's to pick: read P-17 (the draw's time) on
+the watch; decide i-a2f271-96caa4 (the word of the day by tier) and i-a2f271-059372 (the check for
+new cores under an old `versionCode`); and the R8 build below.
+
 *Updated 2026-10-20.* **The instruction system is on agent-guides 0.0.32**, and the root file is
 `AGENTS.md` (each `CLAUDE.md` is a one-line `@AGENTS.md` bridge, d-a2f271-4afa62). The decisions log
 has a Status column: the old discarded and open sections are now `declined` and
@@ -5273,7 +5286,7 @@ distance**, two quantities under one name.
    coverage, and whether `rank` across two packs from different dumps is comparable at all — the
    ordering's own comment says it is not, and nothing acts on that.
 
-### Discover more words: a random list by rarity and part of speech — ✅ **BUILT 2026-10-22 and seen on the emulator**, not on the watch, not published · i-a2f271-ec624b
+### Discover more words: a random list by rarity and part of speech — ✅ **BUILT 2026-10-22, seen on the emulator, on the watch since 2026-10-22** (versionCode 15) · i-a2f271-ec624b
 
 Asked for: below the word-of-the-day list, a *see more words* entry opening **20 random words per
 language**, reloadable for a new draw, filtered by **rarity** (*common*, *rare*, *curious*) and,
@@ -5474,7 +5487,8 @@ draw now reads one pack. Asked whether it should offer *all*: no, the languages 
 **Still open:** the packs
 with the table were promoted to the data root's `dist/` on 2026-10-22 at the owner's request (the
 previous one kept as `dist.2026-10-01`, `es-main` not built), so an ordinary APK build carries the
-cores with the table -- nothing is on the watch until the owner uploads it; prevalence data waits on its license.
+cores with the table, and that build went to the watch on 2026-10-22 (versionCode 15, the third upload;
+see i-a2f271-059372 for why the first two opened the old cores); prevalence data waits on its license.
 
 #### The word of the day in a chosen tier — PROPOSED 2026-10-22, not built · i-a2f271-96caa4
 
@@ -6680,6 +6694,11 @@ tocando la pantalla. `adb shell input swipe` se sale de la app, `input tap` con 
 calculadas de una captura cae en el botón de al lado, `input keyevent 4` cierra la app si el
 teclado no llegó a abrirse, y **`input text` deja el texto como composing del IME de Wear sin
 confirmarlo al campo**, así que la app recibe la query vacía y parece rota cuando no lo está.
+
+⚠️ **Another incident, 2026-10-22, on the emulator**: a 250 ms `input swipe` landed as a tap and
+opened a word, which read at first as the app navigating on its own; swipes of 600 ms were
+reliable for the rest of the probe. Counted by searching the log, not remembered: the second
+recorded incident of a probe gesture doing something else than asked.
 
 **Costo.** La sesión del 2026-09-18 perdió ~8 intentos —cada uno con install, force-stop, launch,
 sleep y captura— para terminar sin ver la pantalla que quería ver, y encima estuvo a punto de

@@ -38,6 +38,19 @@ the emulator, each green step committed.
 **Architecture.** ✅ Complies. The table is the additive path of `docs/formato-pack.md`, with no
 `schema_version` bump; the draw is pure Kotlin in the gate; `:app`'s model imports no `android.*`.
 
+**Review.** None, isolated or not. ⚠️ **A miss**: the root file asks to offer the
+`knowledge-reviewer` in one line for a change that rewrites stored data, and this one replaced every
+pack in the data root's `dist/`; it was not offered. What stood in for it: every rule and wiring
+line seen to fail by mutation, `verify_pack` on every rebuilt pack, the 46 instrumented tests on the
+emulator, and all 17 commits gated in a clean worktree before the push.
+
+**Rulings (decided without asking, each reversible).** The tier and part-of-speech codes (0, 1, 2);
+`seq` dense per bucket; the toy pack's hand-declared tiers; the model kept out of
+`SearchViewModel`; one filter row that steps rather than chips (seen by the owner, kept);
+`discoverPools()` null for a missing table; the readout line `descubrir:`; `versionName` 0.8.0.
+Everything the user sees was asked: option A, the tiers' meaning, the session memory, the
+regionalisms, the language as a filter without *all*, the promotion of `dist/`, the push.
+
 **Cards relied on, and the checks that ran.** `refusal-must-not-read-like-an-answer` (rank ≥ 500 is
 absence, not rarity; `discoverPools()` returns null, not an empty map, for a pack without the
 table: tested); `absent-constraint-widens` (a lost tier or part-of-speech clause fails a test, seen
@@ -66,7 +79,7 @@ still 14, so the app compared nothing -- the fourth incident of that trap, now a
 (i-a2f271-059372). Fixed by regenerating the index and bumping to 15; the third upload extracted
 both new cores.
 
-**What was left undone.** Nothing is on the watch: the owner uploads it. The rebuilt packs were
+**What was left undone.** The draw's time on the watch was not read (P-17). The rebuilt packs were
 promoted to the data root's `dist/` at the owner's request (the previous one kept as
 `dist.2026-10-01`, `es-main` not built), and an ordinary APK build now carries the cores with the
 table -- checked by unzipping it. The language became a filter at the owner's request after seeing
