@@ -78,6 +78,18 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aBundledCoreWithTheTableAnswersBesideAnOlderFullWithout() = runTest {
+        // ⚠️ Seen on the emulator on 2026-10-22: the row did not show. The core arrives in the APK
+        // and `offerable()` hides it behind the full pack of its language -- which, built before
+        // the table, cannot answer. Shadowed is not closed: the core is open and can.
+        val core = FakeDictionary("es-core", "es", entryCount = 100, discover = discoverPools)
+        val full = FakeDictionary("es-full", "es", entryCount = 9000)
+        val vm = SearchViewModel({ listos(full, core, demos = setOf("es-core")) })
+        advanceUntilIdle()
+        assertTrue(vm.discover.state.value.available)
+    }
+
+    @Test
     fun deletingAPackTakesItOutOfSeeMoreWordsBeforeItIsClosed() = runTest {
         val pack = FakeDictionary("es-full", "es", discover = discoverPools)
         var loads = 0

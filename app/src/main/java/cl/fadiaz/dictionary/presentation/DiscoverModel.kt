@@ -8,6 +8,7 @@ import cl.fadiaz.dictionary.core.DiscoverPos
 import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.RowPreview
+import cl.fadiaz.dictionary.data.DictLog
 import cl.fadiaz.dictionary.data.givesWordOfTheDay
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
@@ -113,8 +114,17 @@ class DiscoverModel(
             lock.withLock {
                 val tier = _state.value.tier
                 val pos = _state.value.pos
+                val desde = System.nanoTime()
                 val sections = answering.map { pack -> drawFor(pack, tier, pos) }
                 _state.update { it.copy(sections = sections) }
+                // The readout of the one failure that shows as nothing: a language with zero
+                // words, from an empty bucket or a pack that stopped answering. And the time,
+                // which only a device measures -- twenty random reads across a large file.
+                DictLog.i {
+                    "descubrir: $tier/${pos ?: "todas"} " +
+                        sections.joinToString { "${it.packId}=${it.words.size}" } +
+                        " en ${(System.nanoTime() - desde) / 1_000_000} ms"
+                }
             }
         }
     }

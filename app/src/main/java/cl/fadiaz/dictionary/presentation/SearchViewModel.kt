@@ -506,8 +506,12 @@ class SearchViewModel(
                     offerable(result.all).filterIsInstance<PackHandle.Open>()
                         .map { it.source },
                 )
+                // ⚠️ **Every OPEN pack, not the offered ones.** `offerable()` hides a bundled core
+                // behind the full pack of its language, and a full built before the `discover`
+                // table cannot answer: the row vanished on the emulator with the core right there,
+                // open and able to. The model picks per language among the packs that can.
                 discover.setPacks(
-                    offerable(result.all).filterIsInstance<PackHandle.Open>().map { it.source },
+                    result.all.filterIsInstance<PackHandle.Open>().map { it.source },
                     _state.value.activeLang,
                 )
                 cacheWeekForTile(chosen.source)

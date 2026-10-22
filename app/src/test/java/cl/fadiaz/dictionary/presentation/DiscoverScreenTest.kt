@@ -1,5 +1,6 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -110,6 +111,23 @@ class DiscoverScreenTest {
     fun aLanguageWithNothingInThisFilterSaysSo() {
         show(dosIdiomas.copy(sections = listOf(DiscoverSection("es", "es-full", emptyList()))))
         scrollTo("No hay palabras con este filtro.")
+    }
+
+    @Test
+    fun otherWordsTakesTheViewBackToTheFirstList() {
+        // ⚠️ Seen on the emulator on 2026-10-22: the new words arrived and the view stayed on the
+        // last row, so the forty new ones were all above, off screen.
+        val muchas = DiscoverState(
+            available = true,
+            sections = listOf(
+                DiscoverSection("es", "es-full", (1..20).map { word("palabra$it", it.toLong(), "es") }),
+            ),
+        )
+        show(muchas)
+        scrollTo("Otras palabras")
+        compose.onNodeWithText("Otras palabras").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Español").assertIsDisplayed()
     }
 
     @Test

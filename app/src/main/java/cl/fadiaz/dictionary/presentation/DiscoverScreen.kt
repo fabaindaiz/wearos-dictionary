@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -24,6 +25,7 @@ import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.core.DiscoverPos
 import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EntrySummary
+import kotlinx.coroutines.launch
 
 /**
  * *See more words* (i-a2f271-ec624b): two filter rows, then one list per language, then a row
@@ -48,6 +50,7 @@ fun DiscoverScreen(
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -112,13 +115,22 @@ fun DiscoverScreen(
                         headword = stringResource(R.string.discover_reload),
                         detail = null,
                         isLabel = true,
-                        onClick = onReload,
-                    )
+                    ) {
+                        // ⚠️ **Back to the first list, or the new words land off screen.** Seen on
+                        // the emulator: the view stayed on this row and all forty were above it.
+                        // To the first language's header and not to the top -- the filters did not
+                        // change, so scrolling past them saves the reader two rows.
+                        scope.launch { listState.scrollToItem(FIRST_SECTION_ITEM) }
+                        onReload()
+                    }
                 }
             }
         }
     }
 }
+
+/** The heading, the rarity row and the type row come before the first language's header. */
+private const val FIRST_SECTION_ITEM = 3
 
 /** Common, rare, curious, and back. */
 internal fun nextTier(tier: DiscoverTier): DiscoverTier =
