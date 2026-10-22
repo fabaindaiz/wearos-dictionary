@@ -5475,6 +5475,27 @@ draw now reads one pack. Asked whether it should offer *all*: no, the languages 
 rebuilt only in a scratch root, so nothing on the watch or the server has the table until a rebuild
 is published; prevalence data waits on its license.
 
+#### The word of the day in a chosen tier — PROPOSED 2026-10-22, not built · i-a2f271-96caa4
+
+Asked as an idea, in the owner's words: *"un botón de aplicar esta configuración a palabra del
+día si es algo que valga la pena"*. Evaluated, not decided:
+
+- **It is cheap where it matters.** The word of the day is deterministic by (date, pack) and draws
+  96 candidates (`WordOfTheDay`); drawing it from a `discover` bucket instead is one seeded `seq`
+  per day and one read -- cheaper than today -- and stays deterministic, so the tile's week ahead
+  (D-097) still works.
+- **What it costs is a stored choice**, and that is the part to get right: the tile caches a week
+  ahead, so changing the tier has to rewrite that cache, and the choice is a setting the user made
+  (`persist-inputs-derive-verdicts`: store that it was chosen, not the tier as a default).
+- **Recommended shape: a setting, not a button on the discover screen.** *Palabra del día:
+  común · rara · curiosa* under Settings, default *común*. A button that copies the screen's filters
+  ties the word of the day to whatever was last browsed, and the language filter has no meaning for
+  it -- there is one word per language already. The part of speech is left out: on one word a day
+  it reads as arbitrary.
+- **What *común* would change**: today's word is the most frequent of 96 candidates above the
+  floor; from the `common` bucket it is a uniform draw of words between Zipf 3 and 5. Measurable
+  before deciding, by simulating 112 days as D-185 did.
+
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
 ## Publicar: qué falta para una build de producción
