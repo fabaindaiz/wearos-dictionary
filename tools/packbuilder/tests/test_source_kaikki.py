@@ -2368,3 +2368,58 @@ class ResiduosQueEncontroElArtefactoTest(unittest.TestCase):
             "From Middle English oon.",
             kaikki._etymology({"word": "one", "etymology_text": crudo}),
         )
+
+
+class DiscoverTierTest(unittest.TestCase):
+    """The source hands each record its *see more words* tier (`sources/discover.py`).
+
+    ⚠️ **Only when the pack ranks by frequency.** The tiers are cut on the Zipf scale -- common is
+    Zipf 3 to 5 -- and without a frequency list `rank` is page richness, where those numbers mean
+    nothing at all: the tier would be drawn at random.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _record(self, raw, frequencies=None, lang="es"):
+        path = _jsonl(raw)
+        self.paths.append(path)
+        return next(iter(kaikki.records(path, lang=lang, frequencies=frequencies)))
+
+    def test_a_frequent_word_is_common_when_the_pack_ranks_by_frequency(self):
+        raw = _raw("tertulia", "noun", [_sense("Reunión de personas que conversan.")])
+        self.assertEqual(0, self._record(raw, frequencies={"tertulia": 4.3}).discover)
+
+    def test_without_a_frequency_list_no_record_has_a_tier(self):
+        # `tráfago` is rare with a frequency list (the test below); without one it gets nothing.
+        raw = _raw("tráfago", "noun",
+                   [_sense("Ocupaciones y negocios que ocupan el tiempo sin descanso.")],
+                   etymology_text="Del catalán tràfec.",
+                   synonyms=[{"word": w} for w in ("ajetreo", "trajín", "bullicio")])
+        self.assertIsNone(self._record(raw).discover)
+
+    def test_the_notability_threshold_is_the_packs_language(self):
+        # Nine translations make a Spanish word notable and an English one not (8 against 20).
+        raw = _raw("fragor", "noun", [_sense("Ruido intenso y prolongado.")],
+                   translations=[{"word": "t%d" % i, "lang_code": "en"} for i in range(9)])
+        self.assertEqual(1, self._record(raw, frequencies={"otra": 4.0}).discover)
+
+    def test_the_tier_reads_the_first_gloss_the_pack_keeps(self):
+        # A derivative is given away by its gloss, and it is the gloss the CARD shows that counts.
+        raw = _raw("achicador", "adj", [_sense("Que achica.")],
+                   translations=[{"word": "t%d" % i, "lang_code": "en"} for i in range(9)])
+        self.assertIsNone(self._record(raw, frequencies={"tertulia": 4.3}).discover)
+
+    def test_an_etymology_with_synonyms_makes_a_word_without_frequency_rare(self):
+        raw = _raw("tráfago", "noun",
+                   [_sense("Ocupaciones y negocios que ocupan el tiempo sin descanso.")],
+                   etymology_text="Del catalán tràfec.",
+                   synonyms=[{"word": w} for w in ("ajetreo", "trajín", "bullicio")])
+        self.assertEqual(1, self._record(raw, frequencies={"otra": 4.0}).discover)
+        sin_origen = dict(raw)
+        del sin_origen["etymology_text"]
+        self.assertIsNone(self._record(sin_origen, frequencies={"otra": 4.0}).discover)

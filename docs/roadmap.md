@@ -92,8 +92,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **143 tests**) y el
-pipeline de packs (`tools/`, **694 tests**) están completos y en el gate, junto con los **501 JVM
-de `:app`** y **43 checks** de auditoría estructural — **1381 tests en total**. Los **52
+pipeline de packs (`tools/`, **699 tests**) están completos y en el gate, junto con los **501 JVM
+de `:app`** y **43 checks** de auditoría estructural — **1386 tests en total**. Los **52
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -5434,8 +5434,8 @@ test-first and green on its own:
 | # | Step | State | Commit |
 |---|---|---|---|
 | 1 | `sources/discover.py`: the tier policy over one raw record, pure and tested | done | 9cb2d54 |
-| 2 | `PackBuilder` writes `discover` (staging column, the pack-level filters, dense `seq`, `meta.discover_version`); the toy pack declares a few tiers so the path has a live fixture | done | (this one) |
-| 3 | `kaikki` computes the tier when the pack ranks by frequency | pending | |
+| 2 | `PackBuilder` writes `discover` (staging column, the pack-level filters, dense `seq`, `meta.discover_version`); the toy pack declares a few tiers so the path has a live fixture | done | 623a860 |
+| 3 | `kaikki` computes the tier when the pack ranks by frequency | done | (this one) |
 | 4 | `build_core` copies the table, remapped, never recomputed | pending | |
 | 5 | `verify_pack` checks the table; `docs/formato-pack.md` documents it; the decision row | pending | |
 | 6 | `:dict-core`: `DictionarySource` gains the pools and the read; the draw policy (weighted, distinct, session-seen, reset on exhaustion) is pure and in the gate | pending | |

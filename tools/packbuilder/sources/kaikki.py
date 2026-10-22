@@ -55,6 +55,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from build import Record  # noqa: E402
+from sources import discover  # noqa: E402
 from sources import frequency as _frequency  # noqa: E402
 
 # How many usage examples are stored per sense.
@@ -1000,10 +1001,10 @@ class Opciones:
     """
 
     __slots__ = ("perfil", "politica", "translations_to", "frequencies",
-                 "lemas_en_minuscula", "bajas")
+                 "lemas_en_minuscula", "bajas", "lang")
 
     def __init__(self, perfil, politica, translations_to=None, frequencies=None,
-                 lemas_en_minuscula=(), bajas=None):
+                 lemas_en_minuscula=(), bajas=None, lang=None):
         #: How many records left, by the NAMED rule that dropped them. See [records].
         self.bajas = bajas if bajas is not None else {}
         for motivo in MOTIVOS_DE_BAJA:
@@ -1013,6 +1014,8 @@ class Opciones:
         self.translations_to = translations_to
         self.frequencies = frequencies
         self.lemas_en_minuscula = frozenset(lemas_en_minuscula)
+        #: The pack's language, which picks `discover`'s notability threshold.
+        self.lang = lang
 
     def zipf(self, headword):
         """A lemma's frequency, or None if there is no signal.
@@ -1161,12 +1164,19 @@ def _emit(group, inbound, opciones):
         forms = _forms(raw, headword, inbound.get(headword, ()))
         por_acepcion = [t for s in senses for t in s["translations"]]
         sueltas = _word_translations(raw, headword, opciones.translations_to, set(por_acepcion))
+        rank = _rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name"),
+                     zipf=opciones.zipf(headword))
         yield Record(
             headword=headword,
             senses=senses,
             part_of_speech=pos,
-            rank=_rank(raw, senses, forms, perfil, es_nombre_propio=(pos == "name"),
-                       zipf=opciones.zipf(headword)),
+            rank=rank,
+            # ⚠️ **Only when the pack ranks by frequency**: the tiers are cut on the Zipf scale,
+            # and on page richness those numbers mean nothing (`sources/discover.py`).
+            discover=(discover.tier(raw, first_gloss=senses[0]["gloss"] if senses else "",
+                                    rank=rank, lang=opciones.lang,
+                                    has_etymology=bool(_etymology(raw)))
+                      if opciones.frequencies is not None else None),
             forms=forms,
             display_forms=_display_forms(raw, headword),
             pronunciation=_pronunciation(raw),
@@ -1506,7 +1516,7 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
     # Pass 1 FIRST: `lemas_en_minuscula`, which `Opciones` needs, comes out of it.
     inbound, lemas_en_minuscula = _inbound_forms(path)
     opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies,
-                        lemas_en_minuscula, bajas)
+                        lemas_en_minuscula, bajas, lang)
     group = []
     current = None
     with open(path, encoding="utf-8") as handle:
