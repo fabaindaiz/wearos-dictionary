@@ -60,7 +60,11 @@ reading, not by a test. The rebuild ended with exit 1 on `es-main`: a fresh root
 `build_packs.py`'s guard (roadmap item, not fixed here). Fast `adb shell input swipe` calls landed
 as taps twice and opened a word, which first read as the app navigating on its own; slower swipes
 (600 ms) are what works. The research agent reached only part of the literature, and the
-prevalence license stays unclear.
+prevalence license stays unclear. The first two uploads to the watch opened October 1's cores: the
+promoted `dist/` had no `index.json`, so the APK declared no core versions, and `versionCode` was
+still 14, so the app compared nothing -- the fourth incident of that trap, now a priced proposal
+(i-a2f271-059372). Fixed by regenerating the index and bumping to 15; the third upload extracted
+both new cores.
 
 **What was left undone.** Nothing is on the watch: the owner uploads it. The rebuilt packs were
 promoted to the data root's `dist/` at the owner's request (the previous one kept as

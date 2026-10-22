@@ -6151,6 +6151,22 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
+### New bundled cores under an unchanged `versionCode`: the watch keeps the old ones — **4 incidents** · i-a2f271-059372
+
+**Proposed, not built.** `PackStore.plan` compares the APK's cores with the ones on disk only when
+`versionCode` changed, so a rebuild that changes the cores' bytes and not the number ships cores
+nobody extracts -- no error, the old ones open. Counted in `gradle.properties`' own comments, not
+remembered: 8→9 (a repaired core), 12→13 (2026-09-29), 13→14 (2026-10-01), and **14→15 on
+2026-10-22**, when *see more words* could not show on the watch until the bump. A second trap rode
+along the same day: promoting packs into `dist/` without regenerating `index.json` builds an APK
+that declares **no** version for its cores, so even a bump would compare nothing.
+
+**The rung to raise it to, priced:** the build already reads `core-index.tsv`. Commit it as
+`app/bundled-cores.lock` (two lines: pack, `data_version`) and have `check_app_version` fail when
+the assets' versions differ from the lock while `versionCode` did not move -- about 30 lines of
+audit, run by the gate whenever the cores are present. And `bundlePacks` should **fail**, not warn,
+when it finds cores and no `index.json` beside them.
+
 ### The gate cannot see colour, animation or where a line breaks · i-a2f271-6b7752
 
 **Proposed, not built.** Three times on 2026-09-28 a green suite meant nothing, always for the same
