@@ -225,6 +225,37 @@ watch. The side effect is that function words ("to", "of") would point at tens o
 entries, so the builder caps at `TRANS_MAX_PER_KEY = 50`, keeping the best-ranked ones. It caps
 instead of dropping the key: searching "to" still returns something useful instead of nothing.
 
+### `discover` — optional, and absent rather than empty
+
+```sql
+CREATE TABLE discover (
+    tier INTEGER NOT NULL, pos INTEGER NOT NULL, seq INTEGER NOT NULL,
+    entry_id INTEGER NOT NULL,
+    PRIMARY KEY (tier, pos, seq)
+) WITHOUT ROWID;
+```
+
+The pool *see more words* draws random words to learn from (`docs/roadmap.md`
+i-a2f271-ec624b). `tier` is 0 common, 1 rare, 2 curious; `pos` is 0 noun, 1 verb, 2 adjective;
+both codes are fixed in `sources/discover.py` and are part of this contract. `meta.discover_version`
+says which version of that policy wrote the table.
+
+- **`seq` is dense from 0 in every `(tier, pos)` bucket**, so a bucket's size is `max(seq) + 1` --
+  one descent of the primary key, no `count(*)` -- and a draw is a random `seq`, then the entry by
+  `id`. A hole would be a draw that reads nothing; `verify_pack` checks it.
+- **No tiers, no table.** A pack whose source gives none -- a bilingual one, or any built without
+  a frequency list -- looks exactly like a pack built before this existed, and the app hides the
+  entry. It is the additive path of *Extending the format* below: no `schema_version` bump.
+- **A tier is a verdict the pack stores**, not an input the app derives: the signals it is decided
+  from (usage labels, topics, translation counts) are in the dump and not in the pack. Changing
+  the policy means rebuilding the packs, and `discover_version` is how a pack says which rules it
+  was built under.
+- **A derived tier copies the rows of the entries it holds**, remapped (`build_core.py`), and
+  never recomputes them.
+
+Measured on the packs of 2026-10-21: 16,481 rows in `es-full` and 27,661 in `en-full`, **13.2
+bytes a row, +0.12 MB and +0.23 MB to the gzip download**.
+
 ### `fts_def`
 
 ```sql

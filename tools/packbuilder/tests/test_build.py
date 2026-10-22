@@ -1826,3 +1826,74 @@ class DiscoverTableTest(BuilderTestCase):
     def test_discover_version_is_the_builders_to_write(self):
         with self.assertRaises(ValueError):
             build.PackBuilder(self.path, dict(BASE_META, discover_version="9"))
+
+
+class DiscoverVerifyTest(BuilderTestCase):
+    """`verify_pack` reads the `discover` table the way the app will draw from it.
+
+    The app hides *see more words* when the table is missing, but a table that is PRESENT and
+    wrong draws nothing or the wrong word with no error: a hole in `seq` is a draw that reads no
+    row, a row pointing at a missing entry is a blank line, and a bucket whose part of speech lies
+    puts a verb under *adjectives*.
+    """
+
+    def _pack(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("casa", part_of_speech="noun", discover=discover.COMMON))
+            builder.add(record("perro", part_of_speech="noun", discover=discover.COMMON))
+            builder.add(record("correr", part_of_speech="verb", discover=discover.RARE))
+
+    def _verify(self, sql=None, args=()):
+        if sql:
+            db = sqlite3.connect(self.path)
+            db.execute(sql, args)
+            db.commit()
+            db.close()
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        return codigo, salida.getvalue()
+
+    def test_a_well_built_table_passes(self):
+        self._pack()
+        codigo, salida = self._verify()
+        self.assertEqual(0, codigo, salida)
+        self.assertIn("[discover]", salida)
+
+    def test_a_hole_in_seq_fails(self):
+        self._pack()
+        codigo, salida = self._verify("UPDATE discover SET seq = 5 WHERE seq = 1")
+        self.assertEqual(1, codigo)
+        self.assertIn("dense", salida)
+
+    def test_a_row_pointing_at_no_entry_fails(self):
+        self._pack()
+        codigo, salida = self._verify("UPDATE discover SET entry_id = 999 WHERE tier = 1")
+        self.assertEqual(1, codigo)
+        self.assertIn("points at an entry", salida)
+
+    def test_a_bucket_whose_part_of_speech_lies_fails(self):
+        self._pack()
+        codigo, salida = self._verify("UPDATE discover SET pos = 2 WHERE tier = 1")
+        self.assertEqual(1, codigo)
+        self.assertIn("part of speech", salida)
+
+    def test_an_unknown_tier_fails(self):
+        self._pack()
+        codigo, salida = self._verify("UPDATE discover SET tier = 7 WHERE tier = 1")
+        self.assertEqual(1, codigo)
+        self.assertIn("known tier", salida)
+
+    def test_the_table_and_its_version_come_together(self):
+        self._pack()
+        codigo, salida = self._verify("DELETE FROM meta WHERE key = 'discover_version'")
+        self.assertEqual(1, codigo)
+        self.assertIn("discover_version", salida)
+
+    def test_a_version_without_a_table_fails(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("casa", part_of_speech="noun"))
+        codigo, salida = self._verify(
+            "INSERT INTO meta (key, value) VALUES ('discover_version', '1')")
+        self.assertEqual(1, codigo)
+        self.assertIn("discover_version", salida)

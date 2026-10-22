@@ -27,6 +27,7 @@ import sys
 
 import normalize
 import payload as payload_codec
+from sources import discover as _discover
 from sources import frequency as _frequency
 
 import build
@@ -660,6 +661,9 @@ def verify(path):
     print("\n[planes de consulta]")
     _verify_query_plans(db, report)
 
+    print("\n[discover]")
+    _verify_discover(db, meta, report)
+
     print("\n[caminos de busqueda]")
     _verify_search_paths(db, report, profile)
 
@@ -894,6 +898,50 @@ def _verify_vocabulary(db, meta, report):
         elif faltan:
             report.note("%s es el idioma DESTINO de un bilingue, asi que esto no reprueba: %s"
                         % (lang, detalle))
+
+
+def _verify_discover(db, meta, report):
+    """The `discover` table, read the way the app draws from it (i-a2f271-ec624b).
+
+    The app hides *see more words* when the table is missing, and that is the only failure that
+    shows. A table that is present and wrong fails in silence: a hole in `seq` is a draw that
+    reads no row -- a bucket's size is `max(seq) + 1` -- a row pointing at a missing entry is a
+    blank line, and a bucket whose part of speech lies puts a verb under *adjectives*.
+    """
+    existe = db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'discover'").fetchone()
+    version = meta.get("discover_version")
+    if not existe:
+        report.check(version is None,
+                     "no discover table, and no discover_version claiming one (%r)" % version)
+        return
+    report.check(version is not None and version.isdigit(),
+                 "the discover table declares meta.discover_version (%r)" % version)
+    codigos = {codigo: pos for pos, codigo in _discover.POS_CODES.items()}
+    tiers = (_discover.COMMON, _discover.RARE, _discover.CURIOUS)
+    desconocidas = db.execute(
+        "SELECT count(*) FROM discover WHERE tier NOT IN (%s) OR pos NOT IN (%s)"
+        % (",".join(map(str, tiers)), ",".join(map(str, codigos)))).fetchone()[0]
+    report.check(desconocidas == 0,
+                 "every row is a known tier and part of speech code (%d are not)" % desconocidas)
+    huerfanas = db.execute(
+        "SELECT count(*) FROM discover d LEFT JOIN entry e ON e.id = d.entry_id"
+        " WHERE e.id IS NULL").fetchone()[0]
+    report.check(huerfanas == 0, "every row points at an entry (%d do not)" % huerfanas)
+    mentidas = sum(
+        1 for codigo, pos in db.execute(
+            "SELECT d.pos, e.pos FROM discover d JOIN entry e ON e.id = d.entry_id")
+        if codigos.get(codigo) != pos)
+    report.check(mentidas == 0,
+                 "every row's bucket is its entry's part of speech (%d are not)" % mentidas)
+    agujeros = []
+    for tier, pos, filas, mayor in db.execute(
+            "SELECT tier, pos, count(*), max(seq) FROM discover GROUP BY tier, pos"):
+        if mayor + 1 != filas:
+            agujeros.append("%d/%d: %d rows, max(seq) %d" % (tier, pos, filas, mayor))
+        report.note("tier %d pos %s: %d words" % (tier, codigos.get(pos, pos), filas))
+    report.check(not agujeros, "seq is dense from 0 in every bucket%s" % (
+        "" if not agujeros else " (%s)" % "; ".join(agujeros)))
 
 
 def _verify_query_plans(db, report):
