@@ -242,6 +242,43 @@ one of those entries is about to hold up a decision, read the source first.
 
   Produced: D-031.
 
+- **Word rarity** -- *(researched 2026-10-21 for `docs/roadmap.md` i-a2f271-ec624b; partial)*
+
+  - **[wordfreq README](https://github.com/rspeer/wordfreq/blob/master/README.md)** -- *(primary
+    source, read)* Zipf is `log10` of occurrences per billion words, so 3 is once per million; the
+    large lists bottom out at Zipf 1.0 and an unknown word returns 0. Data CC BY-SA 4.0, code
+    Apache; a snapshot to about 2021 that is not expected to be updated.
+  - **[SUBTLEX-UK](https://shiny.psychology.nottingham.ac.uk/lpzwjv/SUBTLEX-UK/)**, van Heuven et
+    al. 2014 -- **ASSUMPTION**, from a search snippet: Zipf 1–3 is *low* frequency, 4–7 *high*. Our
+    list stops near 2.3, inside the low band, which is why *rare* cannot be read from `rank`
+    alone. No published numeric threshold for a "rare word" was found.
+  - **Word prevalence** (Brysbaert, Mandera, McCormick & Keuleers 2019, *Behavior Research
+    Methods* 51:467) -- **ASSUMPTION**, snippet only: the share of people who know each of 61,858
+    English words, meant for word difficulty. It would be the direct signal for *recherché*.
+    ⚠️ Third-party data: nothing from it enters without the owner's yes.
+
+    **Its license, researched 2026-10-21 -- unclear, and that is the answer.** The only explicit
+    grant found is a re-publication: [Norare](https://norare.clld.org/contributions/Brysbaert-2019-Prevalence)
+    (Tjuka, Forkel & List, CLDF) states CC BY 4.0 *for its compilation* (read). The original files
+    were reportedly on the Ghent CRR site, which refused the connection, so their terms are
+    unknown; the article's own license was not readable (publisher login), and the Royal Holloway
+    record says all rights reserved -- for the *text*, not demonstrably the data.
+
+    **Spanish:** [SPALEX](https://www.frontiersin.org/articles/10.3389/fpsyg.2018.02156/full)
+    (Aguasvivas et al. 2018) defines prevalence as the share of speakers who know a word, the
+    article is CC BY (read), and the files are on [Figshare](https://figshare.com/projects/SPALEX/29722)
+    -- whose per-item license was **not** checked. **ASSUMPTION** that it is CC BY like most
+    Figshare items.
+
+    What would settle it: the Figshare item's license field for SPALEX, and written permission
+    from the authors or the CRR for the English norms. Until then neither is a candidate.
+  - **Wiktionary usage labels** ([context labels](https://en.wiktionary.org/wiki/Wiktionary:Context_labels))
+    -- archaic, dated and obsolete are distinct labels. Measured on the kaikki dumps instead of
+    trusted: the Spanish one carries `outdated` 3,660, `rare` 1,226, `obsolete` 999, `literary`
+    344, `jocular` 294, and a region on thousands of senses (`Chile` 2,892).
+  - **Not answered:** how Merriam-Webster or any Spanish source picks a word of the day (no stated
+    criteria found), and published heuristics for "learnable lemmas".
+
 ## Lexicographic method
 
 **Why this section exists.** Everything above is about **sources**; this is about **practice** —

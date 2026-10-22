@@ -5273,6 +5273,180 @@ distance**, two quantities under one name.
    coverage, and whether `rank` across two packs from different dumps is comparable at all — the
    ordering's own comment says it is not, and nothing acts on that.
 
+### Discover more words: a random list by rarity and part of speech — RESEARCHED and option A EVALUATED 2026-10-21, **not designed, not built** · i-a2f271-ec624b
+
+Asked for: below the word-of-the-day list, a *see more words* entry opening **20 random words per
+language**, reloadable for a new draw, filtered by **rarity** (*common*, *rare*, *curious*) and,
+separately, by **part of speech** (all, noun, verb, adjective). Only words in use: no inflected
+forms, no translations. *Rare* means **recherché** (*inefable*, *galimatías*, *fanfaronade*), not
+merely less frequent: *telaraña* is too common to count. The bar set: **10 to 15 of 20 useful** is
+good enough; a heuristic beats precision.
+
+**What `rank` can and cannot say, measured on the packs of `dist/` on 2026-10-21.** `rank =
+499 − round(zipf × 70)` for a word the frequency list knows, and page richness from 500 up
+(`rank_signal_boundary`). The list stops near Zipf 2.3 (rank ≈ 335), so:
+
+| | `es-full` (156,990) | `en-full` (956,859) |
+|---|---|---|
+| rank < 150, function words | 1,116 | 2,230 |
+| rank 150–335, with frequency | 27,675 | 49,542 |
+| rank ≥ 500, **no frequency at all** | 128,199 (82 %) | 905,087 (95 %) |
+
+- **Rank ≥ 500 is absence, not rarity.** Read as "very rare" it fills the tier with
+  *hentriacontanoic* and *iDollator*. And the recherché words split across the edge: *inefable*
+  251, *mequetrefe* 293, *galimatías* 307, *sempiterno* 321, and it is the band with no frequency that holds *pusilánime*, *prístino*,
+  *procaz* and *soslayar*. So *rare* needs a signal other than `rank`.
+- **Inflected forms leak, mostly in Spanish.** In the 150–335 band, 3,867 of 7,594 Spanish verbs
+  are forms of another verb (*girando, mintiendo, saqueado*): the pages D-066 keeps as entries. A
+  verb whose key is in `form` pointing to **another verb** catches them; in English the same test
+  flags spelling variants (*tyre, mould*), so it needs the suffix guard below.
+- **Frequency alone misjudges rarity.** The subtitle frequency list rates *airbag, autoayuda, lingüística*
+  as rare (Zipf < 3) -- 7 of 20 recherché in a first draw.
+
+**The heuristic that reached the bar**, probed over the two dumps joined to the packs. Every
+signal comes from the Wiktionary records already in the pack's source (CC BY-SA), nothing new:
+
+- **Learnable lemma:** noun, verb or adjective (adverbs in *-mente*/*-ly* dropped: the same word as
+  the adjective); fewer than half its senses are *form of* / *alt of*; no capital, digit or space;
+  not a verb or adjective in *-ndo, -do, -ing, -ed* whose key is a form of another verb; not
+  tagged vulgar, derogatory, misspelling, abbreviation, slang; not all topics technical
+  (chemistry, medicine, anatomy, taxonomy and 30 more).
+- **Common:** rank 150–289 (Zipf 3.0–5.0), no usage label.
+- **Rare:** rank ≥ 290 (Zipf < 3.0, the *low* band of the SUBTLEX convention) **and notable**:
+  8+ translations in Spanish, 20+ in English, or a literary / formal label, or 3+ synonyms with an
+  etymology; no *non-, un-, re-, over-* prefix and no hyphen.
+- **Curious:** more than half its senses carry a usage label (*outdated, obsolete, archaic, dated,
+  rare, jocular, Lunfardo*) or a region (*Chile, Río de la Plata, Andalusia, Scotland…*), **with a
+  definition of three words or more** -- without that guard the tier filled with old spellings
+  (*asconder*, *callentar*) -- and at least one translation or synonym.
+
+| Tier | es: pool, useful of 20 | en: pool, useful of 20 | Draw |
+|---|---|---|---|
+| Common | 10,956 · ~17 | 15,003 · ~14 | *tertulia, acampada, despliegue* · *wary, bugle, heartache* |
+| Rare | 2,477 · ~12 | 9,198 · ~10–11 | *rielar, himeneo, egagrópila, cohibir* · the English draw has *myrmidon, sylvan, fanfaronade, effete* |
+| Curious | 3,426 · ~12–13 | 4,450 · ~10 | *condumio, alcahuetear, trapisonda, cuatrerismo* · *dayspring, gruntle, transmogrify, atwain* |
+
+"Useful of 20" is the owner's bar judged by eye on two or three draws, **not a measurement**: it
+says the heuristic is in range, and a labelled sample is what would turn it into a number.
+
+⚠️ **What still fails:** English *rare* lets through science that has no topic tag (*zinc,
+deuterium, photosynthesis*) and plain words with many translations (*pistachio, footstep*);
+Spanish *curious* draws Chilean words that are everyday **in Chile** (*sodero, mamadera,
+licuado*) -- a regionalism is curious only to someone outside that region. And the participle
+adjectives (*alarmed, finished*) still reach English *common*.
+
+**Where the tiers are computed — DECIDED 2026-10-21: in the builder, as an additive table (option
+A).** The signals (usage labels, topics, translation counts, the gloss) are in the dump and not in
+the pack, so the app cannot recompute them. Rejected: the app alone over `rank`, `pos` and `form`
+(*rare* falls to ~7 of 20 and *curious* cannot exist), and storing the inputs so Kotlin decides
+(3–4× the bytes, and the rule written in two languages -- the class of contract D-005 exists for).
+
+#### Option A, evaluated on copies of the real packs — 2026-10-21
+
+```sql
+CREATE TABLE discover (tier INTEGER NOT NULL, pos INTEGER NOT NULL, seq INTEGER NOT NULL,
+                       entry_id INTEGER NOT NULL, PRIMARY KEY (tier, pos, seq)) WITHOUT ROWID;
+```
+
+`seq` is dense per `(tier, pos)`, so the size of a bucket is `max(seq) + 1` -- one B-tree descent,
+no `count(*)` -- and a draw is a random `seq`, one primary-key read, then the entry by `id`.
+
+| Measured (desktop, `dist/` of 2026-10-21) | `es-full` | `en-full` |
+|---|---|---|
+| rows | 16,481 | 27,661 |
+| pack growth, raw · gzip (the download) | +0.217 MB · **+0.12 MB** | +0.365 MB · **+0.23 MB** |
+| draw of 20 distinct, 200 draws, p50 · p99 | 0.37 · 0.69 ms | 1.95 · **12.96 ms** |
+| classifying the whole pack in the probe | 0.8 s | 6.1 s |
+
+⚠️ **The p99 is a desktop number on a warm disk**: on the watch twenty random reads across a
+900 MB file are the cost that matters, and only a device measures it (D-043). It is a ceiling to
+check, not a claim.
+
+**Pools per pack** (before the gloss filters below, which remove another 10–40 %), noun · verb · adj:
+
+| | common | rare | curious |
+|---|---|---|---|
+| `es-core` | 6,921 · 1,575 · 2,231 | 623 · 271 · 194 | 361 · 447 · 118 |
+| `es-full` | 6,893 · 1,575 · 2,178 | 1,634 · 285 · 542 | 1,982 · 864 · 528 |
+| `en-core` | 8,266 · 3,710 · 2,362 | 1,013 · 298 · 472 | 271 · 105 · **44** |
+| `en-full` | 8,241 · 3,708 · 2,262 | 5,424 · 1,107 · 2,547 | 2,971 · 582 · 819 |
+
+Every bucket holds 20, but **the smallest exhausts in two reloads** (`en-core`, curious
+adjectives): a draw that avoids repeats has to say what it does when the pool runs out.
+
+**Quality, 60 words per tier and language** -- three draws of 20 with a fixed seed, judged by the
+agent with the first gloss in view. A judgement, not a labelled measurement:
+
+| | common | rare | curious |
+|---|---|---|---|
+| es | ~55/60 (**~18 of 20**) | ~29/60 (**~10 of 20**) | ~40/60 (**~13 of 20**) |
+| en | ~52/60 (~17 of 20) | ~27/60 (**~9 of 20**) | ~32/60 (~11 of 20) |
+
+What the second pass added over the first, each a rule on the gloss or on the pack:
+
+- **Transparent derivatives and variants go** when the first gloss says so: *Que achica*, *Acción
+  o efecto de*, *The state of being swollen*, *Synonym of*, *One who incites*, demonyms and
+  the names of languages and of their speakers (*finlandés*, *nepalés*, *cantonés*).
+- **A frequency belongs to one part of speech**: `rank` comes from the surface form, so the noun
+  *ridículo* (a handbag) inherited the adjective's frequency. Within the band with frequency, only
+  the headword's entry with the most content is kept.
+- **Science named in the gloss goes from *rare* and *curious***: *chemical element*, *isotope*,
+  *genus*, *especie de*, *elemento químico*. Wiktionary's topical categories were tried first and
+  are useless here: in the kaikki dumps they are almost empty.
+
+⚠️ **Rare is at the floor of the owner's bar, and the reason is known.** What still fails is
+**concrete nouns that are infrequent but known by everybody** (*pelícano*, *archipiélago*,
+*mazapán*, *turmeric*, *barnacle*), neologisms (*femonacionalismo*) and residual science
+(*alcaptonuria*, *kaolin*). Frequency measures how often a word is *said*, not whether people
+*know* it: that is what **word prevalence** measures, and it is third-party data whose license was
+not found (`docs/references.md` §*Word rarity*). Curious still draws feminine *-ess* coinages
+(*astronomess*, *robotess*) and, in Spanish, words that are everyday in one region.
+
+#### What option A commits the builder and the app to
+
+- **The builder** computes the tier inside the source pass that already walks every record, and
+  writes `meta.discover_version`. A heuristic change is a pack rebuild (≈ 14 min, the permanent
+  task above), not an app update: the price of keeping the rule in one language.
+- **`build_core.py`** filters the table to the core's entries and remaps `entry_id`, or the core
+  points at entries it does not hold. The bilingual pack gets **no** table: its reverse entries
+  are equivalents, not definitions, which is what was asked to be left out.
+- **`verify_pack.py`**: every `entry_id` exists, its `pos` matches the bucket, `seq` is dense from
+  0, and the tier values are known.
+- **The app** detects the table at open (`sqlite_master`) and **hides** *see more words* when it
+  is missing (`docs/formato-pack.md` §*The four surfaces*). An absent table must not read as an
+  empty pool (`refusal-must-not-read-like-an-answer`). Per language it reads the largest installed
+  pack of that language, which holds a superset of the others' rows by `subset_of`.
+- **Tests the gate can run**: the draw honours the tier and the part of speech, and deleting
+  either clause fails a test (`absent-constraint-widens`); a pack without the table hides the
+  entry; a pool smaller than 20 returns what it has.
+
+**Answered by the owner, 2026-10-21:** a reload does not repeat a word **within the session** (an
+in-memory set, forgotten when the app closes) and starts over silently when a pool runs out; a
+regionalism **always** counts as curious; word prevalence gets its license researched before
+anything is built on it; and the scope is **everything, seen on the emulator** -- builder, core,
+`verify_pack`, data layer and screen, packs rebuilt locally, nothing published, no watch.
+
+#### The plan, and its ledger
+
+Split by dependency, `tools/` first (the Kotlin side reads what the builder writes), each step
+test-first and green on its own:
+
+| # | Step | State | Commit |
+|---|---|---|---|
+| 1 | `sources/discover.py`: the tier policy over one raw record, pure and tested | pending | |
+| 2 | `PackBuilder` writes `discover` (staging column, the pack-level filters, dense `seq`, `meta.discover_version`); the toy pack declares a few tiers so the path has a live fixture | pending | |
+| 3 | `kaikki` computes the tier when the pack ranks by frequency | pending | |
+| 4 | `build_core` copies the table, remapped, never recomputed | pending | |
+| 5 | `verify_pack` checks the table; `docs/formato-pack.md` documents it; the decision row | pending | |
+| 6 | `:dict-core`: `DictionarySource` gains the pools and the read; the draw policy (weighted, distinct, session-seen, reset on exhaustion) is pure and in the gate | pending | |
+| 7 | `:dict-data`: the SQL, the table detected at open | pending | |
+| 8 | `:app`: the state and the reload, per language | pending | |
+| 9 | `:app`: the home row and the screen, both locales | pending | |
+| 10 | Rebuild the packs locally, `verify_pack`, see it on `wear_sm_l715f`, read the draw time from the log | pending | |
+
+
+Research, and how far it got: `docs/references.md` §*Word rarity*.
+
 ## Publicar: qué falta para una build de producción
 
 **Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
