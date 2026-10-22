@@ -92,8 +92,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **151 tests**) y el
-pipeline de packs (`tools/`, **710 tests**) están completos y en el gate, junto con los **501 JVM
-de `:app`** y **43 checks** de auditoría estructural — **1405 tests en total**. Los **54
+pipeline de packs (`tools/`, **710 tests**) están completos y en el gate, junto con los **513 JVM
+de `:app`** y **43 checks** de auditoría estructural — **1417 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -5438,9 +5438,9 @@ test-first and green on its own:
 | 3 | `kaikki` computes the tier when the pack ranks by frequency | done | 4c6b65e |
 | 4 | `build_core` copies the table, remapped, never recomputed | done | b339385 |
 | 5 | `verify_pack` checks the table; `docs/formato-pack.md` documents it; the decision row | done | 67356d4 |
-| 6 | `:dict-core`: `DictionarySource` gains the pools and the read; the draw policy (weighted, distinct, session-seen, reset on exhaustion) is pure and in the gate | done | (this one, with 7) |
-| 7 | `:dict-data`: the SQL, the table detected at open | done, its instrumented test runs at step 10 | (this one, with 6) |
-| 8 | `:app`: the state and the reload, per language | pending | |
+| 6 | `:dict-core`: `DictionarySource` gains the pools and the read; the draw policy (weighted, distinct, session-seen, reset on exhaustion) is pure and in the gate | done | d34ebba |
+| 7 | `:dict-data`: the SQL, the table detected at open | done, its instrumented test runs at step 10 | d34ebba |
+| 8 | `:app`: the state and the reload, per language | done | (this one) |
 | 9 | `:app`: the home row and the screen, both locales | pending | |
 | 10 | Rebuild the packs locally, `verify_pack`, see it on `wear_sm_l715f`, read the draw time from the log | pending | |
 

@@ -369,6 +369,9 @@ class SearchViewModel(
     private val _state = MutableStateFlow(SearchState())
     val state: StateFlow<SearchState> = _state.asStateFlow()
 
+    /** *See more words* (i-a2f271-ec624b). Its own model: this file only tells it the packs. */
+    val discover = DiscoverModel(viewModelScope)
+
     init {
         favoriteVisits = savedFavorites()
         _state.update { it.copy(settings = savedSettings(), favorites = favoriteVisits) }
@@ -502,6 +505,10 @@ class SearchViewModel(
                 refreshWordsOfTheDay(
                     offerable(result.all).filterIsInstance<PackHandle.Open>()
                         .map { it.source },
+                )
+                discover.setPacks(
+                    offerable(result.all).filterIsInstance<PackHandle.Open>().map { it.source },
+                    _state.value.activeLang,
                 )
                 cacheWeekForTile(chosen.source)
             }
@@ -1293,6 +1300,8 @@ class SearchViewModel(
                 )
             }
             source.value = null
+            // Before closing, so a reload in flight never lands on a closed connection (D-104).
+            discover.setPacks(emptyList(), null)
             close()
             deleteFromDisk(archivo)
             loadPacks()

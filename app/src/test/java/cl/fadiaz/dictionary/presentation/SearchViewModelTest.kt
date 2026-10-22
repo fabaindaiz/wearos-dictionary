@@ -9,6 +9,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +61,40 @@ class SearchViewModelTest {
     fun after() = Dispatchers.resetMain()
 
     private fun conPack(source: FakeDictionary) = SearchViewModel({ listos(source) })
+
+    // --- See more words (i-a2f271-ec624b) ----------------------------------------------------
+
+    private val discoverPools = mapOf(
+        cl.fadiaz.dictionary.core.DiscoverBucket(
+            cl.fadiaz.dictionary.core.DiscoverTier.COMMON, cl.fadiaz.dictionary.core.DiscoverPos.NOUN,
+        ) to 100,
+    )
+
+    @Test
+    fun theOpenPacksReachSeeMoreWords() = runTest {
+        val vm = conPack(FakeDictionary("es-full", "es", discover = discoverPools))
+        advanceUntilIdle()
+        assertTrue(vm.discover.state.value.available)
+    }
+
+    @Test
+    fun deletingAPackTakesItOutOfSeeMoreWordsBeforeItIsClosed() = runTest {
+        val pack = FakeDictionary("es-full", "es", discover = discoverPools)
+        var loads = 0
+        val vm = SearchViewModel(
+            { if (loads++ == 0) listos(pack) else PackSet.NoPack },
+            deleteFromDisk = { true },
+        )
+        advanceUntilIdle()
+        vm.discover.reload()
+        advanceUntilIdle()
+        val reads = pack.discoverReads.size
+        vm.deletePack("es-full")
+        vm.discover.reload()
+        advanceUntilIdle()
+        assertFalse(vm.discover.state.value.available)
+        assertEquals(reads, pack.discoverReads.size, "a closed pack was read")
+    }
 
     // --- El catalogo de descarga (D-213) ---------------------------------------------------
 
