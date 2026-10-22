@@ -172,13 +172,16 @@ class ScreensTest {
         onOpenWordOfTheDay: (String, EntrySummary) -> Unit = { _, _ -> },
         onOpenHistory: () -> Unit = {},
         onManagePacks: () -> Unit = {},
+        discoverAvailable: Boolean = false,
+        onOpenDiscover: () -> Unit = {},
     ) = compose.setContent {
         SearchScreen(state, onQueryChange = {}, onLanguageChange = onLanguageChange,
             onSearchDefinitions = onSearchDefinitions, onOpenVisita = onOpenVisita,
             onOpenEntry = onOpenEntry, onOpenAttribution = onOpenAttribution,
             onOpenSettings = onOpenSettings, onOpenFavoritos = onOpenFavoritos,
             onOpenWordOfTheDay = onOpenWordOfTheDay, onOpenHistory = onOpenHistory,
-            onManagePacks = onManagePacks)
+            onManagePacks = onManagePacks, discoverAvailable = discoverAvailable,
+            onOpenDiscover = onOpenDiscover)
     }
 
     // --- The results list ---------------------------------------------------------------------
@@ -1197,6 +1200,38 @@ class ScreensTest {
 
     private val todaysWord =
         EntrySummary(entryId = 42, headword = "permanecer", partOfSpeech = "verb", rank = 883)
+
+    @Test
+    fun seeMoreWordsFollowsTheWordsOfTheDayAndOpens() {
+        // Asked for: *"una sección al final de la lista de palabra del día que diga ver más
+        // palabras"* -- under the words of the day, before the recents.
+        var abrio = 0
+        showSearch(
+            readyState().copy(query = "", submitted = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
+            discoverAvailable = true,
+            onOpenDiscover = { abrio++ },
+        )
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más palabras"))
+        val palabra = compose.onNodeWithText("permanecer").getBoundsInRoot()
+        val fila = compose.onNodeWithText("Ver más palabras").getBoundsInRoot()
+        assertTrue("tiene que ir DEBAJO de la palabra del día", fila.top >= palabra.bottom)
+        compose.onNodeWithText("Ver más palabras").performClick()
+        assertEquals(1, abrio)
+    }
+
+    @Test
+    fun withNoLanguageThatCanAnswerThereIsNoSeeMoreWords() {
+        // A pack built before the table, a bilingual one: a row that opens an empty screen is
+        // worse than no row.
+        showSearch(
+            readyState().copy(query = "", submitted = "", wordsOfTheDay = mapOf("es-def" to todaysWord)),
+            discoverAvailable = false,
+        )
+        val alcanzada = runCatching {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Ver más palabras"))
+        }
+        assertTrue("la fila no debería existir", alcanzada.isFailure)
+    }
 
     @Test
     fun theWordOfTheDayShowsUnderItsHeadingAndOpens() {

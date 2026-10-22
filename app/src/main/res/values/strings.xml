@@ -46,6 +46,19 @@
     <string name="home_type_hint">type…</string>
     <string name="home_say_a_word">Say a word</string>
     <string name="home_word_of_the_day">Word of the day</string>
+    <!-- See more words (i-a2f271-ec624b): random words to learn, by rarity and part of speech. -->
+    <string name="discover_open">See more words</string>
+    <string name="discover_rarity">Rarity</string>
+    <string name="discover_tier_common">Common</string>
+    <string name="discover_tier_rare">Rare</string>
+    <string name="discover_tier_curious">Curious</string>
+    <string name="discover_type">Type</string>
+    <string name="discover_pos_all">All</string>
+    <string name="discover_pos_noun">Nouns</string>
+    <string name="discover_pos_verb">Verbs</string>
+    <string name="discover_pos_adjective">Adjectives</string>
+    <string name="discover_empty">No words with this filter.</string>
+    <string name="discover_reload">Other words</string>
     <string name="home_recent">Recent</string>
     <string name="home_recent_more">See more</string>
     <string name="history_empty">Words you open show up here.</string>

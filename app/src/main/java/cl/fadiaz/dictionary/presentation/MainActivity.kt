@@ -53,6 +53,7 @@ import cl.fadiaz.dictionary.data.DownloadPackWorker
 import kotlinx.coroutines.flow.map
 import cl.fadiaz.dictionary.data.CatalogClient
 import cl.fadiaz.dictionary.data.PackStore
+import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.data.Visit
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -109,6 +110,7 @@ private const val ROUTE_SETTINGS = "ajustes"
 private const val ROUTE_FAVORITES = "favoritos"
 private const val ROUTE_HISTORY = "historial"
 private const val ROUTE_PACKS = "packs"
+private const val ROUTE_DISCOVER = "descubrir"
 
 /**
  * Asks both tiles to redraw themselves.
@@ -256,6 +258,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 },
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
+            val discover by viewModel.discover.state.collectAsStateWithLifecycle()
 
             // The debug intents. `install` returns null in release --the constant is `false` and
             // R8 takes the class away-- so there is nothing to ask here. See [DebugIntents].
@@ -354,6 +357,30 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                 )
             }
 
+            // Opens a word given by its header in ITS dictionary: the words of the day and *see
+            // more words* both hand one over, and two copies of this would drift.
+            val openSummary: (String, EntrySummary) -> Unit = { packOfTheWord, word ->
+                scope.launch {
+                    val visit = Visit(
+                        packId = packOfTheWord,
+                        entryId = word.entryId,
+                        headword = word.headword,
+                        partOfSpeech = word.partOfSpeech,
+                        // The pack answers here: a bidirectional one gives no word of
+                        // the day at all (D-200), so `langOf` is never null in
+                        // practice and says nothing rather than guessing if it is.
+                        lang = viewModel.langOf(packOfTheWord),
+                    )
+                    val target = viewModel.targetOf(visit)
+                    if (target != null) {
+                        viewModel.recordVisit(visit.copy(entryId = target))
+                        navController.navigate(
+                            "$ROUTE_ENTRY/${Uri.encode(packOfTheWord)}/$target",
+                        )
+                    }
+                }
+            }
+
             SwipeDismissableNavHost(
                 navController = navController,
                 startDestination = ROUTE_SEARCH,
@@ -418,27 +445,9 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         // of the day is precomputed a week ahead and cached (D-097), so a rebuild
                         // mid-week leaves those `entryId` values pointing at another word for up
                         // to seven days. It is the most likely case of the D-055 defect.
-                        onOpenWordOfTheDay = { packOfTheWord, word ->
-                            scope.launch {
-                                val visit = Visit(
-                                    packId = packOfTheWord,
-                                    entryId = word.entryId,
-                                    headword = word.headword,
-                                    partOfSpeech = word.partOfSpeech,
-                                    // The pack answers here: a bidirectional one gives no word of
-                                    // the day at all (D-200), so `langOf` is never null in
-                                    // practice and says nothing rather than guessing if it is.
-                                    lang = viewModel.langOf(packOfTheWord),
-                                )
-                                val target = viewModel.targetOf(visit)
-                                if (target != null) {
-                                    viewModel.recordVisit(visit.copy(entryId = target))
-                                    navController.navigate(
-                                        "$ROUTE_ENTRY/${Uri.encode(packOfTheWord)}/$target",
-                                    )
-                                }
-                            }
-                        },
+                        onOpenWordOfTheDay = openSummary,
+                        discoverAvailable = discover.available,
+                        onOpenDiscover = { navController.navigate(ROUTE_DISCOVER) },
                     )
                 }
                 composable(
@@ -542,6 +551,19 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             )
                         },
                         cargar = { id -> viewModel.entry(packId, id) },
+                    )
+                }
+                composable(ROUTE_DISCOVER) {
+                    // A first list on arriving, and not on every return to the screen: coming
+                    // back from a word has to find the same list, not a new one.
+                    LaunchedEffect(Unit) {
+                        if (discover.sections.isEmpty()) viewModel.discover.reload()
+                    }
+                    DiscoverScreen(
+                        state = discover,
+                        onSelect = viewModel.discover::select,
+                        onReload = viewModel.discover::reload,
+                        onOpen = openSummary,
                     )
                 }
                 composable(ROUTE_ATTRIBUTION) {

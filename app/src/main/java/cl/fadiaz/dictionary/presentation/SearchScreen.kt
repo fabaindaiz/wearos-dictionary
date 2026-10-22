@@ -123,6 +123,12 @@ fun SearchScreen(
      * the app is broken rather than like there is nothing to press.
      */
     onManagePacks: () -> Unit,
+    /**
+     * Whether any installed language can answer *see more words* (i-a2f271-ec624b). `false` by
+     * default, and then the row is not drawn: a row that opens an empty screen is worse than none.
+     */
+    discoverAvailable: Boolean = false,
+    onOpenDiscover: () -> Unit = {},
 ) {
     // ⚠️ **One single tag for the whole list, and that follows from two decisions.** The search is
     // strict by language (D-189) and now also filters by `entry.lang` inside a bidirectional pack,
@@ -333,6 +339,19 @@ fun SearchScreen(
                                     tag = resultTag(handle.metadata.langs.singleOrNull()),
                                 ),
                             ) { onOpenWordOfTheDay(handle.packId, word) }
+                        }
+                        // Asked for: *"una sección al final de la lista de palabra del día que
+                        // diga ver más palabras"*. Under the words of the day and with no heading
+                        // of its own: it continues that section.
+                        if (discoverAvailable) {
+                            item(key = "ver-mas-palabras") {
+                                ListRow(
+                                    headword = stringResource(R.string.discover_open),
+                                    detail = null,
+                                    isLabel = true,
+                                    onClick = onOpenDiscover,
+                                )
+                            }
                         }
                     }
 
@@ -621,7 +640,7 @@ private fun ResultRow(
  * them would have an unreadable pack assert that its words have no definition.
  */
 @Composable
-private fun previewText(preview: RowPreview?): String? = when (preview) {
+internal fun previewText(preview: RowPreview?): String? = when (preview) {
     is RowPreview.Definition -> preview.text
     is RowPreview.TranslationOnly ->
         preview.equivalents.take(ROW_EQUIVALENTS).joinToString(", ").ifEmpty { null }

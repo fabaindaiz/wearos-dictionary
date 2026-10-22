@@ -42,6 +42,19 @@
     <string name="home_type_hint">escribir…</string>
     <string name="home_say_a_word">Decir una palabra</string>
     <string name="home_word_of_the_day">Palabra del día</string>
+    <!-- Ver más palabras (i-a2f271-ec624b). -->
+    <string name="discover_open">Ver más palabras</string>
+    <string name="discover_rarity">Rareza</string>
+    <string name="discover_tier_common">Común</string>
+    <string name="discover_tier_rare">Rara</string>
+    <string name="discover_tier_curious">Curiosa</string>
+    <string name="discover_type">Tipo</string>
+    <string name="discover_pos_all">Todas</string>
+    <string name="discover_pos_noun">Sustantivos</string>
+    <string name="discover_pos_verb">Verbos</string>
+    <string name="discover_pos_adjective">Adjetivos</string>
+    <string name="discover_empty">No hay palabras con este filtro.</string>
+    <string name="discover_reload">Otras palabras</string>
     <string name="home_recent">Recientes</string>
     <string name="home_recent_more">Ver más</string>
     <string name="history_empty">Las palabras que abras aparecen acá.</string>
