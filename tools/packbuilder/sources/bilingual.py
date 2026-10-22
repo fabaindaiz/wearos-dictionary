@@ -312,6 +312,10 @@ def _una_direccion(path, lang, politica, frequencies):
     # this line, the one rung with no defence would still be broken.
     for record in kaikki.records(path, lang=lang, politica=politica,
                                  frequencies=frequencies):
+        # ⚠️ **No tier, whatever kaikki decided.** It hands one to every record of a pack ranked
+        # by frequency, and this one is, for the ordering above; but a translation pack's glosses
+        # are equivalents, and *see more words* was asked for with no translations.
+        record.discover = None
         claves = []
         for sense in record.senses:
             propias = translation_keys(sense.get("gloss"), for_search=False)

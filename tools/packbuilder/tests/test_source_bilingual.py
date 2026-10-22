@@ -440,3 +440,27 @@ class ParentesisConComaTest(unittest.TestCase):
         # Both behaviours at once, which is what the order change is really claiming.
         self.assertEqual(["Tuesday", "martes"],
                          bilingual.translation_keys("Tuesday (the day, after Monday), martes"))
+
+
+class SinPalabrasParaDescubrirTest(unittest.TestCase):
+    """A bilingual pack gives no *see more words* tiers (`sources/discover.py`).
+
+    Its entries come out of `kaikki.records`, which hands a tier to every record when the pack
+    ranks by frequency -- and this one does, for the ordering. But a translation pack's glosses
+    are equivalents, not definitions: what was asked for is words in use, **no translations**.
+    """
+
+    def test_a_frequent_word_gets_no_tier_in_a_translation_pack(self):
+        handle = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False)
+        with handle:
+            handle.write(json.dumps({
+                "word": "tertulia", "pos": "noun", "lang_code": "es", "lang": "Spanish",
+                "pos_title": "Noun",
+                "senses": [{"glosses": ["social gathering"], "sense_index": "1"}]}) + "\n")
+        try:
+            got = list(bilingual.records(handle.name, lang="es", frequencies={"tertulia": 4.3}))
+        finally:
+            os.unlink(handle.name)
+        self.assertTrue(got)
+        self.assertEqual([None], [r.discover for r in got if r.headword == "tertulia"])
