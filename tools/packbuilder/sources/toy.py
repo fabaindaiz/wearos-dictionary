@@ -256,7 +256,25 @@ def _propias():
             translations=_con_forma_desnuda(translations + list(word_translations)),
             word_translations=word_translations,
             sense_key=sense_key,
+            discover=_DISCOVER.get((headword, pos)),
         )
+
+
+#: The tiers the toy declares by hand, so the `discover` table has a fixture that runs on a device
+#: (`SqlitePackSourceTest`). The real tiers come from `sources/discover.py` over a dump's record;
+#: what this has to exercise is the table and the draw, not the policy, which has its own tests.
+#:
+#: Nouns and verbs only, and that leaves every adjective bucket EMPTY on purpose: the toy writes
+#: `adjective`, which has no code (`discover.POS_CODES`), and an empty bucket is a case the draw
+#: has to answer -- a fixture where every bucket was full would not show it. `corto` is declared
+#: anyway so that the dropped part of speech is exercised too. English entries carry none: they are
+#: this bilingual pack's reverse half, equivalents and not definitions.
+_DISCOVER = {
+    ("casa", "noun"): 0, ("cosa", "noun"): 0, ("niño", "noun"): 0, ("correr", "verb"): 0,
+    ("cazar", "verb"): 0, ("corto", "adjective"): 0,
+    ("cantera", "noun"): 1, ("cuarzo", "noun"): 1, ("soler", "verb"): 1,
+    ("vela", "noun"): 2, ("zapato", "noun"): 2, ("corregir", "verb"): 2,
+}
 
 
 def _con_forma_desnuda(claves):

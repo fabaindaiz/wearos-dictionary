@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import normalize  # noqa: E402
 import payload
 import verify_pack  # noqa: E402
-from sources import toy  # noqa: E402
+from sources import discover, toy  # noqa: E402
 
 import build  # noqa: E402
 import payload as payload_codec  # noqa: E402
@@ -1728,3 +1728,101 @@ class DiccionarioFijadoTest(BuilderTestCase):
         db.commit(); db.close()
         with self.assertRaises(SystemExit):
             build_pack.diccionario_de_pack(vacio)
+
+
+class DiscoverTableTest(BuilderTestCase):
+    """The `discover` table: the pool *see more words* draws from (i-a2f271-ec624b).
+
+    What the app relies on, and what it cannot check for itself: `seq` dense from 0 in every
+    `(tier, pos)` bucket -- a bucket's size is `max(seq) + 1`, so a hole is a draw that reads
+    nothing -- and the table absent, not empty, in a pack with no tiers, so an old pack and a pack
+    with nothing to discover look the same.
+    """
+
+    def _rows(self, db):
+        return list(db.execute(
+            "SELECT d.tier, d.pos, d.seq, e.headword FROM discover d JOIN entry e ON e.id = d.entry_id "
+            "ORDER BY d.tier, d.pos, d.seq"))
+
+    def test_a_pack_with_no_tiers_has_no_table_and_no_version(self):
+        db = self.build([record("correr", part_of_speech="verb")])
+        tables = {n for (n,) in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        self.assertNotIn("discover", tables)
+        self.assertIsNone(db.execute(
+            "SELECT value FROM meta WHERE key = 'discover_version'").fetchone())
+
+    def test_seq_is_dense_per_bucket_in_entry_order(self):
+        db = self.build([
+            record("casa", part_of_speech="noun", discover=discover.COMMON),
+            record("correr", part_of_speech="verb", discover=discover.COMMON),
+            record("perro", part_of_speech="noun", discover=discover.COMMON),
+            record("fragor", part_of_speech="noun", discover=discover.RARE),
+            record("vetusto", part_of_speech="adj", discover=discover.RARE),
+        ])
+        self.assertEqual([
+            (0, 0, 0, "casa"), (0, 0, 1, "perro"), (0, 1, 0, "correr"),
+            (1, 0, 0, "fragor"), (1, 2, 0, "vetusto"),
+        ], self._rows(db))
+        self.assertEqual(("1",), db.execute(
+            "SELECT value FROM meta WHERE key = 'discover_version'").fetchone())
+
+    def test_a_part_of_speech_without_a_code_is_left_out(self):
+        db = self.build([
+            record("rapidamente", part_of_speech="adv", discover=discover.COMMON),
+            record("casa", part_of_speech="noun", discover=discover.COMMON),
+        ])
+        self.assertEqual([(0, 0, 0, "casa")], self._rows(db))
+
+    def test_a_participle_kept_as_an_entry_is_not_a_word_to_discover(self):
+        # `girando` is a page D-066 keeps as an entry, and a form of another verb in the pack.
+        db = self.build([
+            record("girar", part_of_speech="verb", forms=("girando",)),
+            record("girando", part_of_speech="verb", discover=discover.COMMON),
+            record("mando", part_of_speech="noun", discover=discover.COMMON),
+        ])
+        self.assertEqual([(0, 0, 0, "mando")], self._rows(db))
+
+    def test_a_participle_with_no_verb_behind_it_stays(self):
+        db = self.build([record("girando", part_of_speech="verb", discover=discover.COMMON)])
+        self.assertEqual([(0, 1, 0, "girando")], self._rows(db))
+
+    def test_a_frequency_belongs_to_the_part_of_speech_with_the_most_content(self):
+        # The noun *ridículo* (a handbag) inherited the adjective's frequency: `rank` comes from
+        # the surface form. Only inside the band with frequency -- below it `rank` is the page's.
+        meta = dict(BASE_META, rank_signal_boundary="500")
+        db = self.build([
+            build.Record(headword="ridiculo", part_of_speech="adj", rank=166,
+                         discover=discover.COMMON,
+                         senses=[{"gloss": "que mueve a risa"}, {"gloss": "escaso, corto"}]),
+            build.Record(headword="ridiculo", part_of_speech="noun", rank=166,
+                         discover=discover.COMMON, senses=[{"gloss": "bolsa"}]),
+            build.Record(headword="vetusto", part_of_speech="noun", rank=990,
+                         discover=discover.RARE, senses=[{"gloss": "x"}]),
+            build.Record(headword="vetusto", part_of_speech="adj", rank=990,
+                         discover=discover.RARE, senses=[{"gloss": "muy viejo, antiguo"}]),
+        ], metadata=meta)
+        self.assertEqual([(0, 2, 0, "ridiculo"), (1, 0, 0, "vetusto"), (1, 2, 0, "vetusto")],
+                         self._rows(db))
+
+    def test_without_a_frequency_boundary_no_part_of_speech_is_preferred(self):
+        db = self.build([
+            build.Record(headword="ridiculo", part_of_speech="adj", rank=166,
+                         discover=discover.COMMON,
+                         senses=[{"gloss": "que mueve a risa"}, {"gloss": "escaso, corto"}]),
+            build.Record(headword="ridiculo", part_of_speech="noun", rank=166,
+                         discover=discover.COMMON, senses=[{"gloss": "bolsa"}]),
+        ])
+        self.assertEqual(2, len(self._rows(db)))
+
+    def test_tiers_given_as_final_are_copied_without_the_pack_level_filters(self):
+        # `build_core` copies the full pack's table: refiltering a subset would change the answer,
+        # because the verb behind a participle or the richer homograph may not be in the core.
+        with build.PackBuilder(self.path, dict(BASE_META), discover_as_given=True) as builder:
+            builder.add(record("girar", part_of_speech="verb", forms=("girando",)))
+            builder.add(record("girando", part_of_speech="verb", discover=discover.COMMON))
+        db = sqlite3.connect(self.path)
+        self.assertEqual([(0, 1, 0, "girando")], self._rows(db))
+
+    def test_discover_version_is_the_builders_to_write(self):
+        with self.assertRaises(ValueError):
+            build.PackBuilder(self.path, dict(BASE_META, discover_version="9"))

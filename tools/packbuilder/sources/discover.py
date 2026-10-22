@@ -41,6 +41,11 @@ license is unclear (`docs/references.md` §*Word rarity*).
 
 import re
 
+#: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
+#: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
+#: a pack says which rules it was built under. Bump it with any change to what `tier` returns.
+VERSION = 1
+
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.
 COMMON, RARE, CURIOUS = 0, 1, 2

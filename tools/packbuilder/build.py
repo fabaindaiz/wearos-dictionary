@@ -24,6 +24,7 @@ import unicodedata
 
 import normalize
 import payload as payload_codec
+from sources import discover as discover_policy
 
 SCHEMA_VERSION = 4
 
@@ -156,6 +157,7 @@ class Record:
         "sense_key",
         "uid",
         "lang",
+        "discover",
     )
 
     def __init__(
@@ -173,6 +175,7 @@ class Record:
         sense_key=None,
         uid=None,
         lang=None,
+        discover=None,
     ):
         self.headword = headword
         self.senses = senses
@@ -195,6 +198,9 @@ class Record:
         self.word_translations = word_translations
         self.sense_key = sense_key
         self.uid = uid
+        #: The tier of *see more words* (`sources/discover.py`), or None. A source that cannot
+        #: tell leaves it None, and a pack where every record does has no `discover` table.
+        self.discover = discover
 
 
 #: The tiers a pack can declare. In English and untranslated: it is the tier's identifier and has
@@ -257,7 +263,8 @@ def data_version(ahora=None):
 
 class PackBuilder:
     def __init__(self, path, metadata, fuzzy_profile=None, sentences=None,
-                 thesaurus=None, etymology_vocabulary=None, dictionary=None):
+                 thesaurus=None, etymology_vocabulary=None, dictionary=None,
+                 discover_as_given=False):
         """`metadata` are the meta table keys the source contributes.
 
         The builder adds its own (versions, count, date) and fails if the source tries to declare
@@ -274,6 +281,10 @@ class PackBuilder:
 
         `etymology_vocabulary` is the set of `norm()` keys allowed to carry an etymology, or
         `None` for all of them.
+
+        `discover_as_given` writes each record's `discover` tier as it comes, skipping the two
+        filters that read the whole pack (see `_write_discover`). Only `build_core` passes it: it
+        copies the full pack's table, and refiltering a subset would change the answer.
 
         ⚠️ **It lives here and not at the call sites because this is the only funnel.** Every
         record reaches the pack through `add`, including the ones a second source contributes and
@@ -295,6 +306,9 @@ class PackBuilder:
             # `devpack.py` --and the installer-- read it as "it is the same pack": a better pack
             # did not propagate. What the written value meant is now declared in `source_date`.
             "data_version",
+            # Which version of `sources/discover.py` wrote the table. A tier is a verdict the pack
+            # stores, so a pack built under another policy has to say so.
+            "discover_version",
         }
         conflicts = reserved & set(metadata)
         if conflicts:
@@ -313,6 +327,7 @@ class PackBuilder:
         self.path = path
         self.metadata = dict(metadata)
         self.etymology_vocabulary = etymology_vocabulary
+        self.discover_as_given = discover_as_given
         # One profile per language. `fuzzy_profile=` is still accepted for the single-language
         # case, which is 99 % of the calls and of the tests.
         self.fuzzy_profiles = _parse_profiles(
@@ -346,7 +361,8 @@ class PackBuilder:
                 pos      TEXT,
                 rank     INTEGER NOT NULL,
                 body     TEXT NOT NULL,
-                fts_body TEXT NOT NULL
+                fts_body TEXT NOT NULL,
+                discover INTEGER
             );
             -- The translations go through staging because the per-key cap (TRANS_MAX_PER_KEY)
             -- needs the global counts, which are only known once ingestion has finished.
@@ -400,8 +416,8 @@ class PackBuilder:
         fts_body = _fts_body(record.senses)
 
         cursor = self.connection.execute(
-            "INSERT INTO staging (uid, lang, headword, norm, fuzzy, pos, rank, body, fts_body)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO staging (uid, lang, headword, norm, fuzzy, pos, rank, body, fts_body,"
+            " discover) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 # ⚠️ **An already computed `uid` is COPIED, not recomputed**, and only
                 # `build_core` uses that. Deriving one pack from another has to preserve the
@@ -422,6 +438,7 @@ class PackBuilder:
                 record.rank,
                 body,
                 fts_body,
+                record.discover if record.part_of_speech in discover_policy.POS_CODES else None,
             ),
         )
         entry_id = cursor.lastrowid
@@ -639,7 +656,8 @@ class PackBuilder:
             write.execute("INSERT INTO fts_def (rowid, body) VALUES (?, ?)", (entry_id, fts_body))
 
         dropped = self._materialize_translations()
-        self._write_metadata(dictionary, dropped)
+        discovered = self._write_discover()
+        self._write_metadata(dictionary, dropped, discovered)
 
         self.connection.executescript("DROP TABLE staging; DROP TABLE staging_trans;")
         # The indexes are created now, over the already populated tables.
@@ -700,8 +718,76 @@ class PackBuilder:
         kept = self.connection.execute("SELECT COUNT(*) FROM trans").fetchone()[0]
         return total - kept
 
-    def _write_metadata(self, dictionary, dropped_translations=0):
+    def _write_discover(self):
+        """Writes the `discover` table from the staged tiers, and returns how many rows it holds.
+
+        ⚠️ **No rows, no table.** A pack whose source gave no tiers looks exactly like a pack built
+        before this existed, which is the case the app already has to handle by hiding *see more
+        words*: an empty table would be a second way of saying the same thing.
+
+        Two filters need the whole pack, and that is why they are here and not in the source:
+
+        - **A participle kept as an entry** (D-066): a verb or adjective in *-ndo*, *-do*, *-ing*,
+          *-ed* whose key is a form of ANOTHER verb. Measured, 3,867 of the 7,594 Spanish verbs
+          with frequency were *girando, mintiendo, saqueado*.
+        - **A frequency belongs to one part of speech.** `rank` comes from the surface form, so in
+          the band with frequency the noun *ridículo* (a handbag) inherited the adjective's. Of a
+          headword's entries there, only the one with the most content keeps its tier. Without a
+          declared `rank_signal_boundary` there is no band and nothing is preferred.
+
+        `seq` is dense from 0 per `(tier, pos)`, in entry order: the app reads a bucket's size as
+        `max(seq) + 1` and draws a `seq`, so a hole would be a draw that reads nothing.
+        """
+        filas = self.connection.execute(
+            "SELECT id, headword, norm, pos, rank, discover FROM staging"
+            " WHERE discover IS NOT NULL ORDER BY id").fetchall()
+        if not self.discover_as_given:
+            filas = [f for f in filas if not self._is_kept_participle(f)]
+            frontera = self.metadata.get("rank_signal_boundary")
+            if frontera is not None:
+                mas_rico = self._richest_by_headword()
+                filas = [f for f in filas
+                         if f[4] >= int(frontera) or mas_rico.get(f[1]) == f[0]]
+        if not filas:
+            return 0
+        self.connection.execute(
+            "CREATE TABLE discover (tier INTEGER NOT NULL, pos INTEGER NOT NULL,"
+            " seq INTEGER NOT NULL, entry_id INTEGER NOT NULL,"
+            " PRIMARY KEY (tier, pos, seq)) WITHOUT ROWID")
+        siguiente = {}
+        for entry_id, _headword, _norm, pos, _rank, tier in filas:
+            cubeta = (tier, discover_policy.POS_CODES[pos])
+            seq = siguiente.get(cubeta, 0)
+            siguiente[cubeta] = seq + 1
+            self.connection.execute(
+                "INSERT INTO discover (tier, pos, seq, entry_id) VALUES (?, ?, ?, ?)",
+                cubeta + (seq, entry_id))
+        return len(filas)
+
+    _PARTICIPLE_ENDINGS = ("ndo", "do", "da", "to", "so", "cho", "ing", "ed")
+
+    def _is_kept_participle(self, fila):
+        entry_id, headword, norm_key, pos, _rank, _tier = fila
+        if pos not in ("verb", "adj") or not headword.endswith(self._PARTICIPLE_ENDINGS):
+            return False
+        return self.connection.execute(
+            "SELECT 1 FROM form f JOIN staging s ON s.id = f.entry_id"
+            " WHERE f.norm = ? AND s.id <> ? AND s.pos = 'verb' LIMIT 1",
+            (norm_key, entry_id)).fetchone() is not None
+
+    def _richest_by_headword(self):
+        mejor = {}
+        for entry_id, headword, largo in self.connection.execute(
+                "SELECT id, headword, length(body) FROM staging WHERE pos IN (%s) ORDER BY id"
+                % ",".join("'%s'" % p for p in discover_policy.POS_CODES)):
+            if headword not in mejor or largo > mejor[headword][1]:
+                mejor[headword] = (entry_id, largo)
+        return {h: entry_id for h, (entry_id, _) in mejor.items()}
+
+    def _write_metadata(self, dictionary, dropped_translations=0, discovered=0):
         values = dict(self.metadata)
+        if discovered:
+            values["discover_version"] = str(discover_policy.VERSION)
         values.update(
             {
                 "schema_version": str(SCHEMA_VERSION),
