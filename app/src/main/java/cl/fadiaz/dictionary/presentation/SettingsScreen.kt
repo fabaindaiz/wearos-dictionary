@@ -109,12 +109,17 @@ fun SettingsScreen(
                 )
             }
             // ⚠️ **One row that steps, as the filters of *see more words* do** -- not three radio
-            // buttons: the value is the line that reads, and a tap moves it to the next tier. Under
-            // the dictionaries because it changes which of their words the home and the tile show.
+            // buttons: a tap moves it to the next tier. Under the dictionaries because it changes
+            // which of their words the home and the tile show.
+            //
+            // ⚠️ **The label leads and the value follows, the other way round from those filters.**
+            // Their labels are one short word (*Rareza*, *Tipo*); this one is three, and on the
+            // emulator it read *Palabra del …* beside *Común*. The tier names are short enough for
+            // the detail slot. Robolectric cannot see a truncation, so this was settled by looking.
             item(key = "palabra-del-dia") {
                 ListRow(
-                    headword = stringResource(tierLabel(wordOfTheDayTier)),
-                    detail = stringResource(R.string.settings_word_of_the_day),
+                    headword = stringResource(R.string.settings_word_of_the_day),
+                    detail = stringResource(tierLabel(wordOfTheDayTier)),
                     isLabel = true,
                 ) { onWordOfTheDayTierChange(nextTier(wordOfTheDayTier)) }
             }
