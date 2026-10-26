@@ -5548,14 +5548,12 @@ Seen on the emulator `wear_sm_l715f`: `fome` reads `ˈfome · fo·me · llana` a
 shows the reload above a divider and *Coloquial* draws `ñañear`, `ratonear`, `amarretear`.
 
 **Pending:**
-1. The owner to confirm: *Vulgar* holds derogatory and ethnic slurs (`naco`, `honky`), as
-   Wiktionary labels them; dropping those is one line in `discover._VULGAR`.
-2. **es-core's size moves with the sizing loop, not with the data.** It landed at 49.5 MiB in the
+1. **es-core's size moves with the sizing loop, not with the data.** It landed at 49.5 MiB in the
    morning and 31.4 MiB in the afternoon with the same 78.89 % corpus coverage: `derivar_en_rango`
    accepts the first size inside 30-50 MB, so a small change in the full pack moves the core
    ~7,000 low-frequency lemmas either way (24.9 % -> 20.2 % of lemmas). Worth deciding whether the
    loop should aim at the target instead of accepting the first in-range size.
-3. Merge to main and push only when the owner asks; the watch only if asked.
+2. Merge to main and push only when the owner asks; the watch only if asked.
 
 Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary
 features, how to use frequent and colloquial words in the filters, and whether copyleft sources
