@@ -117,6 +117,10 @@ def _contar_homografos(path, politica):
         lema = _valor(lexema.get("lemmas"))
         if not lema:
             continue
+        # The same rule as the kaikki source: locutions of four words or more stay out of every
+        # pack (i-a2f271-e8eb96). Without it this source brought 20 back into es-full.
+        if len(lema.split()) > kaikki.MAX_PALABRAS_POR_LEMA:
+            continue
         pos = CATEGORIAS.get(lexema.get("lexicalCategory"))
         if pos == "name" and politica != "included":
             continue
@@ -147,6 +151,10 @@ def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
             continue
         lema = _valor(lexema.get("lemmas"))
         if not lema:
+            continue
+        # The same rule as the kaikki source: locutions of four words or more stay out of every
+        # pack (i-a2f271-e8eb96). Without it this source brought 20 back into es-full.
+        if len(lema.split()) > kaikki.MAX_PALABRAS_POR_LEMA:
             continue
         pos = CATEGORIAS.get(lexema.get("lexicalCategory"))
         if pos == "name" and politica != "included":

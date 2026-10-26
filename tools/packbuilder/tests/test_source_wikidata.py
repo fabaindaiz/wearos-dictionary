@@ -57,6 +57,12 @@ class WikidataTest(unittest.TestCase):
         self.paths.append(path)
         return list(wikidata.records(path, **kw))
 
+
+    def test_a_locution_of_four_words_or_more_does_not_enter(self):
+        # The same rule as the kaikki source (i-a2f271-e8eb96): seen in a rebuilt es-full, 20 of
+        # them arrived through this source after kaikki had dropped 1,622.
+        got = self.records(_lex("L1", "de vez en cuando"), _lex("L2", "a menudo"))
+        self.assertEqual(["a menudo"], [r.headword for r in got])
     def test_un_lexema_con_glosa_en_español_es_una_entrada(self):
         got = self.records(_lex("L1", "berilio",
                                 glosas=("elemento químico de número atómico 4",)))
