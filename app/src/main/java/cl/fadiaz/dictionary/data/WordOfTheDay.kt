@@ -1,5 +1,8 @@
 package cl.fadiaz.dictionary.data
 
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPick
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.RankBasis
 
@@ -240,6 +243,60 @@ internal object WordOfTheDay {
         // worse than all four.
         return bestInCategory ?: best ?: bestBelowFloor ?: bestEvenIfProperNoun
     }
+
+    /**
+     * Today's word **in a chosen tier** of the pack's `discover` table (i-a2f271-96caa4), or
+     * [fallback] -- today's [pick] -- when the pack cannot answer it.
+     *
+     * One seeded draw over the tier's buckets and one read, so it stays deterministic by
+     * (date, pack) like [pick] and the tile's week ahead (D-097) still works. [fallback] runs
+     * when the pack has no table (`pools == null`), when the tier holds no word in this pack, and
+     * when the drawn row reads nothing: **a hole on screen is worse than yesterday's policy**.
+     */
+    suspend fun pickInTier(
+        date: String,
+        packId: String,
+        pools: Map<DiscoverBucket, Int>?,
+        tier: DiscoverTier,
+        readDiscover: suspend (DiscoverPick) -> EntrySummary?,
+        fallback: suspend () -> EntrySummary?,
+    ): EntrySummary? {
+        val drawn = discoverPick(date, packId, pools, tier)
+        val word = drawn?.let { readDiscover(it) }
+        return word ?: fallback()
+    }
+
+    /**
+     * Which row of the table is today's in [tier]: every part of speech, **weighted by pool
+     * size** -- a uniform choice of bucket would make verbs a third of the days in a tier that is
+     * 15 % verbs, the same reason `DiscoverDraw` weights. Null when the tier holds nothing.
+     *
+     * ⚠️ **The buckets are sorted by part-of-speech code before walking them.** The pools arrive
+     * as a map built from a query, and an iteration order is not a contract: walked as given,
+     * the same seed could land in another bucket after an update.
+     */
+    fun discoverPick(
+        date: String,
+        packId: String,
+        pools: Map<DiscoverBucket, Int>?,
+        tier: DiscoverTier,
+    ): DiscoverPick? {
+        val buckets = pools.orEmpty()
+            .filter { (bucket, count) -> count > 0 && bucket.tier == tier }
+            .toList()
+            .sortedBy { (bucket, _) -> bucket.pos.code }
+        val total = buckets.sumOf { it.second.toLong() }
+        if (total == 0L) return null
+        var k = positiveModulo(seed(date, packId, DISCOVER_PASS), total)
+        for ((bucket, count) in buckets) {
+            if (k < count) return DiscoverPick(bucket, k.toInt())
+            k -= count
+        }
+        return null
+    }
+
+    /** A pass index of its own, so the tier draw is not the first candidate of [pick]. */
+    private const val DISCOVER_PASS = -2
 
     private fun isExcluded(pos: String?): Boolean = pos != null && pos in EXCLUDED_POS
 

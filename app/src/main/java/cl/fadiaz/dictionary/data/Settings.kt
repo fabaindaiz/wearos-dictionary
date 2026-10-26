@@ -1,5 +1,7 @@
 package cl.fadiaz.dictionary.data
 
+import cl.fadiaz.dictionary.core.DiscoverTier
+
 /**
  * How much the text grows **on top of** the system scale.
  *
@@ -51,14 +53,29 @@ data class Settings(
      * what was typed is a word from inside a definition. See `SearchRepository.searchDefinitions`.
      */
     val crossLanguageFallback: Boolean = false,
-)
+    /**
+     * The tier the word of the day is drawn from (i-a2f271-96caa4), or **null when nobody chose
+     * one**.
+     *
+     * ⚠️ **Null and not `COMMON`, on purpose** (`persist-inputs-derive-verdicts`): what is stored
+     * is that it was chosen. Writing the default for somebody who never touched the row would
+     * freeze today's default into their settings, and a later default could not reach them. Read
+     * it through [effectiveWordOfTheDayTier].
+     */
+    val wordOfTheDayTier: DiscoverTier? = null,
+) {
+    /** The tier in force: the chosen one, or the default for whoever did not choose. */
+    val effectiveWordOfTheDayTier: DiscoverTier get() = wordOfTheDayTier ?: DiscoverTier.COMMON
+}
 
 private const val KEY_SCALE = "escala"
 private const val KEY_FALLBACK = "respaldo"
+private const val KEY_WORD_TIER = "palabra_del_dia"
 
-internal fun serializeSettings(settings: Settings): String = listOf(
+internal fun serializeSettings(settings: Settings): String = listOfNotNull(
     "$KEY_SCALE=${settings.textScale.name}",
     "$KEY_FALLBACK=${settings.crossLanguageFallback}",
+    settings.wordOfTheDayTier?.let { "$KEY_WORD_TIER=${it.name}" },
 ).joinToString("\n")
 
 /**
@@ -82,5 +99,8 @@ internal fun parseSettings(text: String): Settings {
     // "true" to false -- including a corrupt byte, and including a key this version does not yet
     // understand. Unparseable falls back to the factory answer through the same `?:` as the scale.
     val respaldo = values[KEY_FALLBACK]?.toBooleanStrictOrNull() ?: false
-    return Settings(textScale = scale, crossLanguageFallback = respaldo)
+    // By name, like the scale: a renamed or unknown tier reads as not chosen, never as another.
+    val tier = values[KEY_WORD_TIER]
+        ?.let { name -> DiscoverTier.entries.firstOrNull { it.name == name } }
+    return Settings(textScale = scale, crossLanguageFallback = respaldo, wordOfTheDayTier = tier)
 }

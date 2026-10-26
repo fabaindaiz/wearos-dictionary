@@ -1,5 +1,9 @@
 package cl.fadiaz.dictionary.data
 
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPick
+import cl.fadiaz.dictionary.core.DiscoverPos
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.RankBasis
 import kotlinx.coroutines.test.runTest
@@ -282,5 +286,107 @@ class WordOfTheDayTest {
             candidates = 10,
         )
         assertEquals(10, reads)
+    }
+
+    // --- In a chosen tier (i-a2f271-96caa4) ------------------------------------------------------
+
+    private val commonNoun = DiscoverBucket(DiscoverTier.COMMON, DiscoverPos.NOUN)
+    private val commonVerb = DiscoverBucket(DiscoverTier.COMMON, DiscoverPos.VERB)
+    private val rareNoun = DiscoverBucket(DiscoverTier.RARE, DiscoverPos.NOUN)
+    private val curiousAdj = DiscoverBucket(DiscoverTier.CURIOUS, DiscoverPos.ADJECTIVE)
+    private val everyTier =
+        mapOf(commonNoun to 900, commonVerb to 100, rareNoun to 500, curiousAdj to 40)
+
+    /** A row of the table reads back as a word naming its bucket and seq. */
+    private val readRow: suspend (DiscoverPick) -> EntrySummary? = { pick ->
+        EntrySummary(
+            entryId = 10_000L * pick.bucket.tier.code + 1_000L * pick.bucket.pos.code + pick.seq,
+            headword = "${pick.bucket.tier}-${pick.bucket.pos}-${pick.seq}",
+            partOfSpeech = pick.bucket.pos.partOfSpeech,
+            rank = 300,
+        )
+    }
+
+    private val fallbackWord =
+        EntrySummary(entryId = 7, headword = "de-siempre", partOfSpeech = "noun", rank = 300)
+
+    private suspend fun inTier(
+        tier: DiscoverTier,
+        pools: Map<DiscoverBucket, Int>? = everyTier,
+        date: String = "2026-10-26",
+        packId: String = "es-full",
+        read: suspend (DiscoverPick) -> EntrySummary? = readRow,
+    ) = WordOfTheDay.pickInTier(date, packId, pools, tier, read) { fallbackWord }
+
+    @Test
+    fun aTierWordIsTheSameAllDayForTheSamePack() = runTest {
+        val first = inTier(DiscoverTier.RARE)
+        assertNotNull(first)
+        repeat(5) { assertEquals(first, inTier(DiscoverTier.RARE)) }
+        // Another pack on the same day is another draw, as the plain word of the day is.
+        val packs = (1..20).map { inTier(DiscoverTier.COMMON, packId = "pack$it")?.entryId }
+        assertTrue(packs.toSet().size > 15, "el packId no entra en la semilla: $packs")
+    }
+
+    @Test
+    fun aTierWordChangesFromOneDayToTheNext() = runTest {
+        val days = (1..20).map {
+            inTier(DiscoverTier.COMMON, date = "2026-10-%02d".format(it))?.entryId
+        }
+        assertTrue(days.toSet().size > 15, "demasiadas repeticiones entre dias: $days")
+    }
+
+    @Test
+    fun aWordFromAnotherTierNeverComesBack() = runTest {
+        // ⚠️ The tier is a clause, and a lost clause returns MORE words, quietly: a rare word
+        // under *common* passes any test that only asks for a word.
+        for (tier in DiscoverTier.entries) {
+            val picks = (1..200).map {
+                WordOfTheDay.discoverPick("2026-%03d".format(it), "es-full", everyTier, tier)
+            }
+            assertTrue(picks.all { it != null && it.bucket.tier == tier }, "$tier: $picks")
+            assertTrue(picks.filterNotNull().all { it.seq in 0 until everyTier.getValue(it.bucket) })
+        }
+    }
+
+    @Test
+    fun everyPartOfSpeechCountsByThePoolsSize() = runTest {
+        // A uniform choice of BUCKET would give verbs half the days in a tier that is 10 % verbs.
+        val verbs = (1..400).count {
+            WordOfTheDay.discoverPick("d$it", "es-full", everyTier, DiscoverTier.COMMON)
+                ?.bucket == commonVerb
+        }
+        assertTrue(verbs in 15..80, "verbos: $verbs de 400")
+    }
+
+    @Test
+    fun thePickDoesNotDependOnTheOrderTheBucketsArrive() = runTest {
+        // The pools come from a SQL query into a map: an iteration order is not a contract, and
+        // a word of the day that changes with it is not of the day.
+        val reversed = everyTier.entries.reversed().associate { it.key to it.value }
+        for (day in 1..30) {
+            val date = "2026-11-%02d".format(day)
+            assertEquals(
+                WordOfTheDay.discoverPick(date, "es-full", everyTier, DiscoverTier.COMMON),
+                WordOfTheDay.discoverPick(date, "es-full", reversed, DiscoverTier.COMMON),
+            )
+        }
+    }
+
+    @Test
+    fun aPackWithNoTableGetsTheWordOfTheDayAsBefore() = runTest {
+        assertEquals(fallbackWord, inTier(DiscoverTier.RARE, pools = null))
+    }
+
+    @Test
+    fun anEmptyTierGetsTheWordOfTheDayAsBefore() = runTest {
+        // `en-core` holds few curious words; a pack may hold none. Never an empty word of the day.
+        assertEquals(fallbackWord, inTier(DiscoverTier.CURIOUS, pools = mapOf(commonNoun to 50)))
+        assertEquals(fallbackWord, inTier(DiscoverTier.RARE, pools = mapOf(rareNoun to 0)))
+    }
+
+    @Test
+    fun aRowThatReadsNothingGetsTheWordOfTheDayAsBefore() = runTest {
+        assertEquals(fallbackWord, inTier(DiscoverTier.COMMON, read = { null }))
     }
 }
