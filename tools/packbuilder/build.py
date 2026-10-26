@@ -131,6 +131,13 @@ def _parse_profiles(crudo, langs, unico=None):
     return {lang: (unico or "generic") for lang in langs}
 
 
+def _shows_without_etymology(record):
+    """Whether the record puts anything on the card besides its etymology and part of speech."""
+    return bool(any(sense.get("gloss") for sense in record.senses or ()) or record.word_translations
+                or record.display_forms or record.pronunciation or record.syllables
+                or record.stress)
+
+
 class Record:
     """An entry ready to index, as a source delivers it.
 
@@ -401,8 +408,12 @@ class PackBuilder:
         # etymology truncated mid-sentence teaches nothing and costs the same bytes as the part
         # that would have taught something, so what decides is whether this pack's reader can look
         # the word up. A word outside the vocabulary keeps its entry and loses only this line.
+        #
+        # ⚠️ **Unless the line is all the entry has.** A senseless record admitted for its
+        # etymology alone (`bake bread`) would otherwise reach the card as its part of speech.
         etymology = record.etymology
-        if self.etymology_vocabulary is not None and norm_key not in self.etymology_vocabulary:
+        if (self.etymology_vocabulary is not None and norm_key not in self.etymology_vocabulary
+                and _shows_without_etymology(record)):
             etymology = None
 
         body = payload_codec.render(
@@ -412,6 +423,15 @@ class PackBuilder:
         if not body:
             # With no usable sense the entry has nothing to show.
             return
+        # ⚠️ **Nothing but the part of speech fails the build, it is not skipped.** It is a row
+        # that opens onto the word `verbo`; skipping it here would leave its homograph with a uid
+        # computed for two entries. The source decides what is an entry
+        # (`kaikki._ensena_algo_sin_acepciones`); this checks every entry, where `verify_pack`
+        # samples 200 and found 396 of them in en-full by luck (2026-10-26).
+        if not any(line and not line.startswith(payload_codec.TAG_PART_OF_SPEECH + "\t")
+                   for line in body.split("\n")):
+            raise ValueError("%r renders only its part of speech: its source admitted a record "
+                             "with nothing to show" % record.headword)
 
         # THIS entry's language decides its fuzzy profile and goes into its uid. A `Record` that
         # does not declare one belongs to the primary language, which is every monolingual pack's

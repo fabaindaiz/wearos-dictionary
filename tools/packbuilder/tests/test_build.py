@@ -555,6 +555,19 @@ class InvariantesExhaustivasTest(BuilderTestCase):
         self.assertEqual(1, codigo)
         self.assertIn("tag desconocido", salida.getvalue())
 
+    def test_una_entrada_que_solo_dice_su_clase_de_palabra_hace_fallar_el_build(self):
+        # The rebuild of 2026-10-26 stopped on `bake bread` in en-main: 396 entries of en-full
+        # rendered only `P\tverb`, and verify_pack's random sample of 200 found one by luck.
+        # ⚠️ **It fails instead of skipping**: skipping here leaves its homograph with a uid
+        # computed for two entries, which is what the next rebuild stopped on. The source decides
+        # what is an entry (`kaikki._ensena_algo_sin_acepciones`); this only refuses to write one
+        # that shows nothing, on every entry and not on a sample.
+        with self.assertRaises(ValueError) as capturado:
+            with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+                builder.add(build.Record(headword="fathered", part_of_speech="adj", rank=1,
+                                         senses=[]))
+        self.assertIn("fathered", str(capturado.exception))
+
     def test_las_etiquetas_y_las_silabas_son_tags_conocidos(self):
         # d-a2f271-1f80cd and d-a2f271-b4adc7. The rebuild of 2026-10-26 stopped here: the builder
         # wrote `U`, `H` and `K`, and this check still knew only the older tags.
@@ -1383,6 +1396,16 @@ class VocabularioDeEtimologiaTest(BuilderTestCase):
         )
         self.assertEqual({"casa": "Del latín casa.", "cherenga": None},
                          self.etymologies(conexion))
+
+    def test_the_line_stays_when_it_is_all_the_entry_has(self):
+        # `bake bread` in en-full: no sense, admitted for its etymology, and outside main's
+        # vocabulary. Dropping the line left a card that read `verb` and nothing else.
+        conexion = self.build_with_vocabulary(
+            [build.Record(headword="cherenga", part_of_speech="noun", rank=1, senses=[],
+                          etymology="De origen incierto.")],
+            set(),
+        )
+        self.assertEqual({"cherenga": "De origen incierto."}, self.etymologies(conexion))
 
     def test_with_no_vocabulary_every_word_carries_it(self):
         # `core` and `main`, where every word qualifies and the filter is not passed at all.

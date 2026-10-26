@@ -299,7 +299,9 @@ class PodaTest(unittest.TestCase):
         """
         got = self.records(_raw(
             "detectar", "verb", [_sense("", tags=["no-gloss"])],
-            forms=[{"form": "detecto"}, {"form": "detectas"}],
+            # Tagged as the dump tags them: the principal parts are what renders, and untagged
+            # forms render nothing (`LoQueSeDibujaSinAcepcionesTest`).
+            forms=[{"form": "detectando", "tags": ["gerund"]}, {"form": "detecto"}],
         ))
         self.assertEqual(["detectar"], [r.headword for r in got])
         self.assertEqual([], got[0].senses)
@@ -2456,6 +2458,37 @@ class LocucionesLargasTest(unittest.TestCase):
         libro = {}
         self._palabras("conocer como a la palma de la mano", "arma de doble filo", bajas=libro)
         self.assertEqual(2, libro.get(kaikki.MOTIVO_LOCUCION_LARGA))
+
+
+class LoQueSeDibujaSinAcepcionesTest(unittest.TestCase):
+    """A senseless record is an entry only for what RENDERS, not for a field that is merely full.
+
+    `fathered` came in for two raw `forms` that are not principal parts, and an audio-only `sounds`
+    has no IPA: both rendered nothing and left 396 cards in en-full that read `verb` (2026-10-26).
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _entradas(self, **extra):
+        path = _jsonl(_raw("fathered", "adj", [{"tags": ["no-gloss"], "sense_index": "1"}],
+                           **extra))
+        self.paths.append(path)
+        return list(kaikki.records(path, lang="es"))
+
+    def test_formas_que_no_son_partes_principales_no_alcanzan(self):
+        self.assertEqual([], self._entradas(
+            forms=[{"form": "more fathered", "tags": ["comparative"]}]))
+
+    def test_un_sonido_sin_ipa_no_alcanza(self):
+        self.assertEqual([], self._entradas(sounds=[{"audio": "x.ogg"}]))
+
+    def test_un_ipa_si_alcanza(self):
+        self.assertEqual(1, len(self._entradas(sounds=[{"ipa": "/ˈfɑːðəd/"}])))
 
 
 class EtiquetasDeUsoTest(unittest.TestCase):

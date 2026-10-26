@@ -1162,11 +1162,17 @@ def _ensena_algo_sin_acepciones(raw, translations_to):
     # **170** of these; the gate was green and the mutation probes bit the whole time.
     if crudas and all(_is_form_of(sense) for sense in crudas):
         return False
+    # ⚠️ **What renders, not what is full**: an audio-only `sounds` has no IPA and the raw
+    # `forms` may hold no principal part. Asking the fields let 396 cards that read `verb` into
+    # en-full (`fathered`, 2026-10-26).
+    headword = raw.get("word") or ""
     return bool(
         _etymology(raw)
-        or raw.get("sounds")
-        or raw.get("forms")
-        or _word_translations(raw, raw.get("word") or "", translations_to, set())
+        or _pronunciation(raw)
+        or _display_forms(raw, headword)
+        or _silabas(raw)
+        or _acento(raw)
+        or _word_translations(raw, headword, translations_to, set())
     )
 
 
