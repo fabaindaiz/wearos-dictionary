@@ -1113,10 +1113,19 @@ def _ensena_algo_sin_acepciones(raw, translations_to):
 #: that only lists what fired shows nothing when a rule stops firing, which is the failure it was
 #: built to catch. Listing them here also means adding a `continue` without a line in this tuple
 #: is a silent drop again -- so a new reason goes in both places or in neither.
+#: Locutions of four words or more stay out of the pack: the owner's decision of 2026-10-26,
+#: taken against the recommendation and recorded as a deviation. They weigh almost nothing in bytes
+#: and cost rows: `estar` brought 16 of them among its first 30 results. What goes with them is
+#: content -- `arma de doble filo` -- and that was the price named. Roadmap i-a2f271-e8eb96.
+MAX_PALABRAS_POR_LEMA = 3
+
+MOTIVO_LOCUCION_LARGA = "locucion de 4 o mas palabras (i-a2f271-e8eb96)"
+
 MOTIVOS_DE_BAJA = (
     "nombre propio (D-116)",
     "pagina de forma, absorbida en `form`",
     "sin glosa y sin nada que mostrar",
+    MOTIVO_LOCUCION_LARGA,
 )
 
 
@@ -1135,6 +1144,9 @@ def _emit(group, inbound, opciones):
     perfil, politica = opciones.perfil, opciones.politica
     prepared = []
     for raw in group:
+        if len((raw.get("word") or "").split()) > MAX_PALABRAS_POR_LEMA:
+            _anotar_baja(opciones.bajas, MOTIVO_LOCUCION_LARGA)
+            continue
         if raw.get("pos") == "name" and not _entra_el_nombre_propio(raw, perfil, politica):
             _anotar_baja(opciones.bajas, "nombre propio (D-116)")
             continue

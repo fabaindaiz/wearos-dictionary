@@ -105,8 +105,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **154 tests**) y el
-pipeline de packs (`tools/`, **723 tests**) están completos y en el gate, junto con los **530 JVM
-de `:app`** y **44 checks** de auditoría estructural — **1451 tests en total**. Los **54
+pipeline de packs (`tools/`, **730 tests**) están completos y en el gate, junto con los **530 JVM
+de `:app`** y **44 checks** de auditoría estructural — **1458 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -864,7 +864,7 @@ inglés, así que ahí lo único que dice que una frase fue citada de un texto e
 Costo esperado: el pack español tiene ejemplo en el **11,4 %** de sus entradas contra el 33,3 %
 del inglés, así que el +2,52 % medido en inglés debería quedar muy por debajo. **Sin medir.**
 
-### Do very long multi-word locutions belong in the pack? — ASKED 2026-09-28, measured, **not decided** · i-a2f271-e8eb96
+### Do very long multi-word locutions belong in the pack? — ✅ **DECIDED 2026-10-26: no, four words or more stay out** (⚠️ Desviación, see d-a2f271-7ac555's successor) · i-a2f271-e8eb96
 
 **Status.** **Open, and not to be resolved alone.** It came from seeing
 `conocer como a la palma de la mano` truncate in a tile row: *«¿tiene sentido incluir locuciones

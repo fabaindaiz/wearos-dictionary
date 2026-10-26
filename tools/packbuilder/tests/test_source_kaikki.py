@@ -2424,3 +2424,35 @@ class DiscoverTierTest(unittest.TestCase):
         sin_origen = dict(raw)
         del sin_origen["etymology_text"]
         self.assertIsNone(self._record(sin_origen, frequencies={"otra": 4.0}).discover)
+
+
+class LocucionesLargasTest(unittest.TestCase):
+    """Locutions of four words or more do not enter the pack (owner's decision, 2026-10-26).
+
+    Decided against the recommendation, and recorded as a deviation: they weigh nothing in bytes
+    (1,637 entries in Spanish, 14,663 in English) and the measured cost is content --
+    `arma de doble filo` goes too, and `poner`'s list goes from 51 rows to 34. What it buys is a
+    list that is single words and short phrases. Roadmap i-a2f271-e8eb96.
+    """
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _palabras(self, *headwords, bajas=None):
+        path = _jsonl(*[_raw(h, "phrase", [_sense("Una definición cualquiera.")])
+                        for h in headwords])
+        self.paths.append(path)
+        return [r.headword for r in kaikki.records(path, lang="es", bajas=bajas)]
+
+    def test_three_words_stay_and_four_go(self):
+        self.assertEqual(["estar de pie"],
+                         self._palabras("arma de doble filo", "estar de pie"))
+
+    def test_the_ledger_counts_them_by_name(self):
+        libro = {}
+        self._palabras("conocer como a la palma de la mano", "arma de doble filo", bajas=libro)
+        self.assertEqual(2, libro.get(kaikki.MOTIVO_LOCUCION_LARGA))

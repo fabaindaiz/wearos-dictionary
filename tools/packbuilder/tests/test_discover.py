@@ -246,3 +246,50 @@ class PartOfSpeechCodeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TechnicalWithoutPrevalenceTest(unittest.TestCase):
+    """English *rare* without prevalence: the jargon a learned etymology lets in.
+
+    Measured on 2026-10-26 over the English rare tier (13,859 words): by eye, 21 of 60 were
+    technical (*juliform*, *lymphangion*, *anecic*); the four signals below cut that to 15 of 60
+    with none of 14 literary control words lost, at the price of about 500 literary words
+    (*diapason*, *cicatrix*). Prevalence cannot judge this: it does not tell jargon from literature.
+    """
+
+    def _en(self, word, gloss, topics=None, pos="noun"):
+        sense = {"glosses": [gloss]}
+        if topics:
+            sense["topics"] = topics
+        return _tier(_raw(word, pos=pos, senses=[sense]), NO_FREQUENCY, lang="en",
+                     etymology="From Latin.")
+
+    def test_a_first_sense_in_a_field_is_jargon(self):
+        self.assertIsNone(self._en("taffrail", "The upper part of the stern of a ship.",
+                                   topics=["nautical"]))
+        # The humanities are not a field to drop: history, literature, religion stay.
+        self.assertEqual(discover.RARE, self._en("aedile", "An elected magistrate of ancient Rome.",
+                                                 topics=["history"]))
+
+    def test_science_vocabulary_in_the_gloss_is_jargon(self):
+        self.assertIsNone(self._en("anecic", "Of an earthworm: that burrows deep into the soil.",
+                                   pos="adj"))
+
+    def test_a_scientific_affix_on_the_headword_is_jargon(self):
+        self.assertIsNone(self._en("lymphangion", "A vessel that carries lymph.",
+                                   topics=None))
+        self.assertIsNone(self._en("juliform", "Shaped like a catkin.", pos="adj"))
+        # The affix alone, with a gloss no other rule reads as science.
+        self.assertIsNone(self._en("glycolatry", "Excessive fondness for sweet things."))
+
+    def test_a_taxon_in_the_gloss_is_jargon(self):
+        self.assertIsNone(self._en("bonassus", "Any of several large wild oxen."))
+
+    def test_the_literary_controls_stay(self):
+        for word, gloss, pos in (("adroit", "Skillful, dexterous; clever.", "adj"),
+                                 ("despond", "To give up hope; to become despondent.", "verb"),
+                                 ("jactance", "Boasting; bragging.", "noun"),
+                                 ("investiture", "The act of investing someone with an office.",
+                                  "noun")):
+            with self.subTest(word=word):
+                self.assertEqual(discover.RARE, self._en(word, gloss, pos=pos))

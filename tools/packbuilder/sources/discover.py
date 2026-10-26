@@ -173,6 +173,37 @@ _TRADE = re.compile(
     r"dealer|manufacturer) of)")
 
 
+#: The jargon a learned etymology lets into *rare* where no prevalence judges it: measured on
+#: 2026-10-26 over the English rare tier, these cut the technical share of a by-eye sample from
+#: 21 of 60 to 15 of 60 with none of 14 literary control words lost. Prevalence cannot do this
+#: itself: jargon and literature are equally unknown.
+_JARGON_AFFIX = re.compile(
+    r"^(lymph|cyto|histo|haemat|hemat|neuro|osteo|chondr|gastr|hepat|nephr|pneumo|bronch|phyto|"
+    r"bacter|myco|chloro|sulf|sulph|phospho|nitro|sacchar|glyco|nucleo|homeo|electro|magneto|"
+    r"spectro|thermo)|(itis|osis|oma|aemia|emia|algia|ectomy|otomy|ostomy|plasty|scopy|ase|phyte|"
+    r"cyte|blast|morph|iform|genic|philia|phobia|lith|ptych|ometer|ometry|idae|aceae|oid)$")
+_JARGON_GLOSS = re.compile(
+    r"(?i)\b(cells?|tissues?|organism|species|compounds?|acids?|crystal\w*|minerals?|"
+    r"chromosomes?|genes?|enzymes?|molecul\w*|atoms?|atomic|ions?|proteins?|bacteri\w*|"
+    r"fung(i|us|al)|larva\w*|insects?|spiders?|worms?|earthworms?|plants?|stamens?|catkins?|"
+    r"fossil\w*|glands?|nerves?|muscles?|arter\w*|lymph\w*|membranes?|secretion|diseases?|"
+    r"symptoms?|inflammation|tumou?rs?|infection|anatom\w*|physiolog\w*|chemi\w*|botan\w*|"
+    r"zoolog\w*|geolog\w*|mathemat\w*|equations?|matrix|vectors?|electr\w*|magnet\w*|"
+    r"isomer\w*|resins?|alkaloids?|burrows?|embryo\w*|spores?|pollen|strata|igneous|"
+    r"sediment\w*|silicate|sulfate|oxide|reptiles?|mammals?|crustaceans?|beetles?|moths?|"
+    r"antennae?|organs?|parasit\w*|algae|antibiotics?|pigments?|toxins?|hormones?|"
+    r"diacritics?|grammatical|syllables?|phonem\w*|vowels?|syndrome|feces|genital\w*)\b")
+#: Topics of the first sense that do not make a word jargon: the humanities are where literary
+#: words live. Only the first sense is read: a later technical sense does not unmake a word.
+_HUMANITIES = frozenset({
+    "sciences", "human-sciences", "literature", "poetry", "mythology", "philosophy", "religion",
+    "Christianity", "theology", "history", "lifestyle", "entertainment", "media", "arts", "art",
+    "writing", "communications", "journalism", "publishing", "mysticism", "ethics",
+    "metaphysics", "rhetoric", "folklore", "occult", "fantasy", "fiction", "drama", "theater",
+    "science-fiction", "emotions", "human-behaviour",
+})
+
+
 def _gloss_text(sense):
     return " ".join(sense.get("glosses") or [])
 
@@ -209,11 +240,14 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
 
     glossed = forms = labelled = literary = 0
     tags, topics = set(), set()
+    first_topics = None
     for sense in raw.get("senses") or []:
         gloss = _gloss_text(sense)
         if not gloss:
             continue
         glossed += 1
+        if first_topics is None:
+            first_topics = set(sense.get("topics") or [])
         sense_tags = set(sense.get("tags") or [])
         tags |= sense_tags
         topics |= set(sense.get("topics") or [])
@@ -271,7 +305,9 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     # ⚠️ **Without prevalence, a learned origin carries it alone**, and only below the translation
     # count that marks a well-known word. Measured against English prevalence: 38 % of these land in
     # the recherché band against 26 % for version 1's notability, which a synonym let anything pass.
-    if (learned and translations < WELL_KNOWN_TRANSLATIONS and not coined
+    jargon = (bool((first_topics or set()) - _HUMANITIES) or bool(_JARGON_GLOSS.search(gloss))
+              or bool(_JARGON_AFFIX.search(word)))
+    if (learned and translations < WELL_KNOWN_TRANSLATIONS and not coined and not jargon
             and labelled * 2 <= glossed and not science and not field):
         return RARE
     return None
