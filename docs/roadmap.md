@@ -5528,25 +5528,34 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
-### A register filter, and what else the packs could carry — **1, 2 and 3 BUILT 2026-10-26, not yet seen on the emulator** · i-a2f271-9a16c4
+### A register filter, and what else the packs could carry — **1, 2 and 3 BUILT 2026-10-26, seen on the emulator** (versionCode 17) · i-a2f271-9a16c4
 
 **Chosen by the owner: 1, 2 and 3**, with the shapes in d-a2f271-136e08 (*Coloquial* and *Vulgar*
 as values of *Rareza*), d-a2f271-1f80cd (register and region labels per sense), d-a2f271-b4adc7
-(syllables and stress on the IPA line) and d-a2f271-315c50 (the reload up with the filters). The
-code is on branch `research/sources-register`, not merged. **Pending, in order:**
+(syllables and stress on the IPA line) and d-a2f271-315c50 (the reload up with the filters).
+Branch `research/sources-register`, not merged.
 
-1. Finish the pack rebuild (`tools/build_packs.py`; the previous `dist/` is kept as
-   `dist.2026-10-26`) and read real Spanish entries in `es-full` **and** `es-core`: labels,
-   syllables, stress. `en-full` was read: 413 of 3,000 sampled entries carry a label.
-2. Measure each pack's growth against `dist.2026-10-26`, above all `es-core`, which ships in
-   the APK.
-3. Bump `versionCode` (the cores change; `bundlePacks` checks `app/bundled-cores.lock`, so run
-   `audit_dictionary.py --fix`), build, and look on the emulator `wear_sm_l715f`: the card with
-   labels, the pronunciation line on 234 dp, *see more words* with the reload up and the divider,
-   and both new tiers drawing words. Screenshots to the owner.
-4. Confirm with the owner: *Vulgar* holds derogatory and ethnic slurs (`naco`, `honky`), as
+**Measured on the packs of the 2026-10-26 afternoon rebuild** (against the morning's):
+
+| pack | MB before -> after | entries with a label | with syllables | Coloquial / Vulgar words |
+|---|---|---|---|---|
+| es-full | 91.6 -> 93.5 (+2.1 %) | 12.4 % | 90.0 % | 2,279 / 851 |
+| es-core | 51.9 -> 33.0 (see below) | 19.5 % | 95.0 % | 589 / 224 |
+| en-full | 328.5 -> 330.3 (+0.6 %) | 13.8 % (sample of 3,000) | 2.4 % (sample) | — |
+
+Seen on the emulator `wear_sm_l715f`: `fome` reads `ˈfome · fo·me · llana` and `1. coloq. · Chile`;
+`electroencefalograma`'s pronunciation line wraps to two lines and stays legible; *see more words*
+shows the reload above a divider and *Coloquial* draws `ñañear`, `ratonear`, `amarretear`.
+
+**Pending:**
+1. The owner to confirm: *Vulgar* holds derogatory and ethnic slurs (`naco`, `honky`), as
    Wiktionary labels them; dropping those is one line in `discover._VULGAR`.
-5. Merge to main and push only when the owner asks; the watch only if asked.
+2. **es-core's size moves with the sizing loop, not with the data.** It landed at 49.5 MiB in the
+   morning and 31.4 MiB in the afternoon with the same 78.89 % corpus coverage: `derivar_en_rango`
+   accepts the first size inside 30-50 MB, so a small change in the full pack moves the core
+   ~7,000 low-frequency lemmas either way (24.9 % -> 20.2 % of lemmas). Worth deciding whether the
+   loop should aim at the target instead of accepting the first in-range size.
+3. Merge to main and push only when the owner asks; the watch only if asked.
 
 Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary
 features, how to use frequent and colloquial words in the filters, and whether copyleft sources
