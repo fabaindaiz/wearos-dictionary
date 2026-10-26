@@ -16,6 +16,74 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-26 · s-a2f271-202442 — Rare words measured against who knows them, translations apart, and the open decisions settled
+**What.** Published lists of rare and curious words were gathered and set against the packs, and
+word prevalence became the yardstick: version 1's *rare* was known by 86 % (es) and 92 % (en) of
+people. Discover v2 cuts Spanish *rare* by SPALEX (CC BY 4.0, now in the Spanish packs) and English
+*rare* by a learned origin with fewer than 20 translations and no jargon. Locutions of four words or
+more leave every pack (the owner's call, a deviation). Search lists the definitions first and a
+translation pack's rows apart under *Translations*. The word of the day can follow a tier
+(Settings). New bundled cores can no longer ship under the old `versionCode`. Eight of nine
+`proposed` decisions were settled, five of them after a measurement. Packs rebuilt and promoted,
+`versionCode` 16, an R8 build verified on the emulator.
+
+**Areas.** `tools/packbuilder` (`sources/discover.py` v2, `sources/prevalence.py`, `kaikki.py`,
+`wikidata.py`, `build_pack.py`), `tools/build_packs.py`, `tools/audit_dictionary.py`,
+`dict-core` (`SearchRepository`), `app` (search screen, settings, word of the day, `bundlePacks`,
+`bundled-cores.lock`), and the docs: decisions, references, roadmap.
+
+**Why.** Asked for by the owner: research curious and rare words and the criteria to find them in
+our data, continue every pending item, fix English definitions showing up while searching in Spanish,
+and parallelise.
+
+**Architecture.** ✅ Complies. SPALEX entered with the owner's yes and its attribution in
+`meta.sources`; Brysbaert's English norms are CC BY-NC-SA and were only used to measure, locally.
+
+**Review.** None in a fresh context. Four delegated agents (word-of-the-day feature in its own
+worktree, R8 probe, English jargon measurement, two format measurements); the feature's diff was
+read before it was cherry-picked, and every agent claim with a number was used as reported, not
+re-measured, except where noted.
+
+**Rulings (decided without asking, each reversible).** The prevalence band 10-75 % and the
+curious ceiling 90 %; implementing four of the five jargon signals (the category list was left out);
+the Settings row leading with its label after the emulator showed it truncated.
+
+**Cards relied on, and the checks that ran.** `same-answer-or-refuse` (the probes called the
+product's own `kaikki.records` → `discover.tier`, never a copy of the rule);
+`refusal-must-not-read-like-an-answer` (a missing prevalence reading is skipped, never read as 0 %
+known: `test_source_prevalence`); `absent-constraint-widens` (the merge's partition and the tier
+clauses each failed a test by mutation).
+
+**Measured.** Spanish *rare* in the 10-75 % known band: 38 % → 100 % where SPALEX covers it.
+English: 26 % → 57 % against Brysbaert; technical words in a by-eye sample of 60: 21 → 15. In the
+real packs 52,580 Spanish lemmas were shared with the translation pack, 18,989 tied on rank.
+`detail=none` -25 MB (en) but no relevance order; payload blocks 3.8-7.2 % saved at 20-40x slower
+opens. Rebuild 33 min under load.
+
+**What went wrong.** Two of my tests passed before the code existed (the merge partition) and were
+rewritten until they failed: one depended on the coverage band, the other on pack order. The
+rebuild was started before two decisions that changed it and had to be killed; then es-full still
+held 20 four-word locutions from the Wikidata source, found by checking the built pack, and Spanish
+was rebuilt again. With agent worktrees under `.claude/worktrees/` the audit read them as this repo
+and reported 120 failures (fixed, and ignored by git). The agent's worktree started from `main`,
+not from this branch: its four commits were cherry-picked with conflicts in the test counts, and a
+first resolution loop failed silently because zsh does not split an unquoted variable into words.
+The host (8 GB) ran to a load of 115 with four agents and an emulator; the emulator's system server
+was killed three times and one install failed, both transient. A first series script was gone,
+deleted by the previous close's cleanup, and its chain failed before writing a log.
+
+**What was left undone.** The startup-profile decision stays open until O-1. The R8 build is ready
+and not yet on the watch; P-17 (the draw's time on the watch) is still unread. The jargon rule's
+category list was not implemented.
+
+**Not verified.** Anything on the watch for this build; the four agent-built commits individually
+before the worktree series that is running as this is written.
+
+**Learned.** General: a frequency of use is not who knows a word, and a dictionary's translation
+count marks the best-known words, not the notable ones; prevalence norms are the right yardstick
+even where they cannot ship. Local: a delegated worktree starts from `main` unless told otherwise --
+its first incident, so it stays here; a second goes to the roadmap's process section.
+
 ## 2026-10-22 · s-a2f271-ac7f92 — See more words: a discover table in the packs and a screen to draw from it
 **What.** Below the words of the day, *see more words* opens twenty random words per language,
 reloadable, filtered by rarity (common, rare, curious) and, separately, by part of speech. The
