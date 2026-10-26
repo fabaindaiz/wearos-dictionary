@@ -5528,6 +5528,41 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
+### A register filter, and what else the packs could carry — **PROPOSED 2026-10-26, nothing built** · i-a2f271-9a16c4
+
+Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary
+features, how to use frequent and colloquial words in the filters, and whether copyleft sources
+open up for a GPL app with separately downloaded packs. The research and every number are in
+`docs/fuentes.md` §*Sweep of 2026-10-26*. **Waiting for the owner's choice**; ordered by value
+over cost, with my recommendation first.
+
+1. **A *Registro* axis in *see more words*: Coloquial · Vulgar · Anticuado.** The data is already
+   in the dump, per sense. A word counts only when at least half of its senses carry the tag:
+   4,780 colloquial Spanish words and 33,369 English ones. It is a builder change plus one filter
+   row, like the part-of-speech axis. ⚠️ *Vulgar* must be opt-in: it is 1,303 Spanish words.
+   *Formal* is too thin in Spanish (345) to stand alone.
+2. **Register chips on each sense** (`coloq.`, `vulg.`, `desus.`, `Chile`). The tags are
+   per sense, so this is where they are exact. Cost: a few bytes per tagged sense; 42,958 Spanish
+   senses carry a tag. It needs a new payload tag, additive, so no `CODEC_ID` bump (D-119).
+3. **Syllables and stress for Spanish**: `ja·po·nés · aguda · 3 sílabas`. They are in
+   `hyphenations` for 90.4 % of entries and in `sounds[].other` for nearly all. A short line on
+   the card.
+4. **Rhymes**, from `sounds[].rhymes` in Spanish and the IPA tail in English. This is a lookup, so
+   it needs an index. It is a new screen, so it is the owner's call whether a watch wants it.
+5. **Set phrases under the entry** (`idioms`, 8.3 % of Spanish entries). Check first against the
+   rule that dropped four-word locutions (d-a2f271-b58e91).
+
+**Not proposed, and why** (see the sweep for sources):
+- The RAE: all rights reserved.
+- FreeDict `eng-spa`: it is Wiktionary again.
+- Apertium: GPL-2.0-only.
+- Recorded audio: each Commons file carries its own license, and it costs megabytes.
+- A separate frequency source: frequency already orders results and feeds *Común*.
+
+**If a GPL source is ever wanted** (GCIDE's 1913 English definitions are the only one that
+adds real content), it goes in **its own pack** so the CC BY-SA packs keep their license. The
+reasoning is in the sweep.
+
 ## Publicar: qué falta para una build de producción
 
 **Estado.** **Medido el 2026-09-20 corriendo `assembleRelease`.** Sale, pero sale
