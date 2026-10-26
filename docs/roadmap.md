@@ -31,6 +31,15 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-10-26.* **On the device since 2026-10-26**: APK `versionCode` 16 (`0.9.0`), built
+**with R8** (`assembleDebug -PdebugR8`) from `7e9c605` -- the owner's R8 request below is now being
+honoured, for a week of use. Its bundled cores (`es-core` 202610260540, `en-core` 202610260522)
+carry discover v2 (SPALEX for Spanish *rare*) and no four-word locutions; the first launch
+extracted them and was ready to search in 5,026 ms. ⚠️ **The full packs on the watch are still
+October 1's**: their four-word locutions still show in search, and *see more words* is answered by
+the cores. Pushing the rebuilt `es-full`, `en-full` and bilingual (`tools/devpack.py`, ~88 + 313 +
+63 MB) is what brings the rest. Open: P-17 (the draw's time) and O-1 (startup on a release build).
+
 *Updated 2026-10-22.* **On the device since 2026-10-22**: APK `versionCode` 15 (`0.8.0`), built from
 `c89250a`, carrying `es-core` and `en-core` of that day's rebuild, both with the `discover` table, so
 *see more words* shows on the watch (i-a2f271-ec624b). The full packs on the watch are still
