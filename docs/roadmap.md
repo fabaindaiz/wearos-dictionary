@@ -1401,7 +1401,9 @@ en los packs monolingües, y las flexiones del idioma destino cierran la direcci
 
 ✅ **Construido el 2026-09-22.** `dist/es-en.db` es el pack con todo eso adentro.
 
-### ⚠️ La traducción glosada no produce entrada inversa — ABIERTO, medido el 2026-09-22
+### ✅ ~~La traducción glosada no produce entrada inversa~~ — resolved, checked 2026-10-26
+
+**Status, checked 2026-10-26 against the pack, not remembered:** `Tuesday` is an entry of the bilingual pack built that day (`es-en.db`, next to `martes`). The record below is kept as the history of the gap.
 
 Lo encontró la lista de cobertura durante el rebuild: **`Tuesday` no es entrada del pack
 bilingüe**, y `Monday` y `Wednesday` sí. No es una regla que se lleve los días: es que la fuente
@@ -4184,7 +4186,9 @@ en que el publicador corrió el validador. Eso hace de `verify_pack.py` antes de
 
 ---
 
-### El tap sobre una palabra de la glosa acierta en la de al lado — EVALUADO 2026-09-23, sin construir
+### ✅ El tap sobre una palabra de la glosa acierta en la de al lado — BUILT (D-243)
+
+**Status, checked 2026-10-26 in the code:** built as D-243, a tap resolved by proximity with a radius (`GlossTap.linkAt` in `app/src/main/java/cl/fadiaz/dictionary/presentation/GlossTap.kt`). The evaluation below is kept as the record of the options.
 
 **Estado.** **Planificado**, con cinco opciones costeadas y una recomendación. Pedido explícito:
 *«no hagas ningún cambio en esto y sólo evalúa opciones»*.
@@ -4991,6 +4995,8 @@ repaired; what it extracted *into* it cannot.** The cause of the second defect w
 builder itself (D-257), so the next rebuild does not reintroduce it.
 
 ### Funcionalidades de diccionario que faltan — REVISADO contra la literatura 2026-09-23
+
+**Status, 2026-10-26:** items 2 and 4 below are built (IPA and etymology, d-a2f271-13da99 and d-a2f271-bc2a3b), and so are usage labels, syllables and stress (i-a2f271-9a16c4). The open candidates now live in i-a2f271-9a16c4 (rhymes, set phrases) and the features list researched that day (offline pronunciation, a review of saved words).
 
 **Estado.** **Planificado.** Comparado con OneLook, Fora Dictionary, WordWeb y LookUp.
 
@@ -6562,7 +6568,9 @@ agente los modifica, no los recrea—, pero crear uno de cero desde vacío no lo
 contra las cuatro rutas y salga **2**. Son ~10 líneas y el repo ya tiene el patrón: el hook
 `PostToolUse` de los vectores. ⚠️ **No se construyó**: las mejoras de proceso se proponen.
 
-### El `--` dentro de un comentario XML rompe el build — ⚠️ **REABIERTO el 2026-09-25: cuarta vez**
+### ✅ El `--` dentro de un comentario XML rompe el build — ENFORCED on every tracked XML, 2026-10-26
+
+**Status, 2026-10-26:** `check_xml_comments` in the audit now reads **every XML the repository tracks** (`git ls-files '*.xml'`), not only `app/src/main/`: the scope widening this item proposed. Probed by planting `--` in a comment of `app/src/debug/AndroidManifest.xml`, which the old scope did not read: the gate failed naming it. The module of the fourth incident has left the repository (d-a2f271-ab8cd7).
 
 ⚠️ **Called closed on 2026-09-23 and it happened again on 2026-09-25**, in
 `watch-keepalive/src/main/AndroidManifest.xml`, with the rule loaded from `CLAUDE.md`

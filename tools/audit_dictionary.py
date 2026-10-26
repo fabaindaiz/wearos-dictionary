@@ -2258,12 +2258,12 @@ def check_xml_comments(report):
     to work out. Here it costs seconds. The alternative --remembering to write `—`-- has already
     failed three times.
     """
-    objetivos = []
-    base = os.path.join(ROOT, "app", "src", "main")
-    for carpeta, _, archivos in os.walk(base):
-        for nombre in archivos:
-            if nombre.endswith(".xml"):
-                objetivos.append(os.path.join(carpeta, nombre))
+    # ⚠️ **Every XML the repository tracks, not one folder.** The fourth incident was in another
+    # module's manifest, outside `app/src/main/`, and `app/lint.xml` and the debug manifest sat
+    # outside it too (2026-10-26).
+    rastreados = subprocess.run(["git", "-C", ROOT, "ls-files", "*.xml"], capture_output=True,
+                                text=True).stdout.split()
+    objetivos = [os.path.join(ROOT, r) for r in rastreados]
     for ruta in sorted(objetivos):
         try:
             texto = open(ruta, encoding="utf-8").read()
