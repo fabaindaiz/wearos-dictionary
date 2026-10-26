@@ -676,6 +676,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                         },
                         onClearHistory = viewModel::clearHistory,
                         hasHistory = state.history.isNotEmpty(),
+                        wordOfTheDayTier = state.settings.effectiveWordOfTheDayTier,
+                        onWordOfTheDayTierChange = viewModel::onWordOfTheDayTierChange,
                     )
                 }
             }

@@ -128,6 +128,7 @@
     <!-- Settings -->
     <string name="settings_dictionaries">Dictionaries</string>
     <string name="settings_manage">Manage</string>
+    <string name="settings_word_of_the_day">Word of the day</string>
     <string name="settings_search">Search</string>
     <string name="settings_cross_language">Also search the other language</string>
     <string name="settings_cross_language_note">Only when the active language finds nothing close. Off, a search stays in one language.</string>

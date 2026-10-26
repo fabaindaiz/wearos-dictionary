@@ -27,6 +27,7 @@ import androidx.wear.compose.material3.RadioButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SwitchButton
 import androidx.wear.compose.material3.Text
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.data.TextScale
 import cl.fadiaz.dictionary.data.PackHandle
 import cl.fadiaz.dictionary.data.UiLanguage
@@ -73,6 +74,10 @@ fun SettingsScreen(
     onUiLanguageChange: (String?) -> Unit,
     onClearHistory: () -> Unit,
     hasHistory: Boolean,
+    /** The tier in force for the word of the day (i-a2f271-96caa4): the chosen one or the default. */
+    wordOfTheDayTier: DiscoverTier,
+    /** No default, for [onCrossLanguageFallbackChange]'s reason. */
+    onWordOfTheDayTierChange: (DiscoverTier) -> Unit,
 ) {
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
@@ -102,6 +107,16 @@ fun SettingsScreen(
                     isLabel = true,
                     onClick = onManagePacks,
                 )
+            }
+            // ⚠️ **One row that steps, as the filters of *see more words* do** -- not three radio
+            // buttons: the value is the line that reads, and a tap moves it to the next tier. Under
+            // the dictionaries because it changes which of their words the home and the tile show.
+            item(key = "palabra-del-dia") {
+                ListRow(
+                    headword = stringResource(tierLabel(wordOfTheDayTier)),
+                    detail = stringResource(R.string.settings_word_of_the_day),
+                    isLabel = true,
+                ) { onWordOfTheDayTierChange(nextTier(wordOfTheDayTier)) }
             }
 
             item(key = "cabecera-idioma-app") {

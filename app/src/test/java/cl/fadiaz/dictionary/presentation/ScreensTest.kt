@@ -3033,9 +3033,14 @@ class ScreensTest {
         hasHistory: Boolean = true,
         crossLanguageFallback: Boolean = false,
         onCrossLanguageFallbackChange: (Boolean) -> Unit = {},
+        wordOfTheDayTier: cl.fadiaz.dictionary.core.DiscoverTier =
+            cl.fadiaz.dictionary.core.DiscoverTier.COMMON,
+        onWordOfTheDayTierChange: (cl.fadiaz.dictionary.core.DiscoverTier) -> Unit = {},
     ) {
         compose.setContent {
             SettingsScreen(
+                wordOfTheDayTier = wordOfTheDayTier,
+                onWordOfTheDayTierChange = onWordOfTheDayTierChange,
                 packs = packs,
                 scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
                 appVersion = "9.9.9",
@@ -3056,6 +3061,46 @@ class ScreensTest {
                 hasHistory = hasHistory,
             )
         }
+    }
+
+    @Test
+    @Config(qualifiers = "+w234dp-h1600dp")
+    fun theWordOfTheDayRowNamesTheTierAndStepsCommonRareCuriousAndBack() {
+        // i-a2f271-96caa4: one row that steps to the next value on tap, as the filters of *see
+        // more words* do -- not three radio buttons on a 234 dp screen.
+        val pasos = listOf(
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.COMMON, "Común", cl.fadiaz.dictionary.core.DiscoverTier.RARE),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.RARE, "Rara", cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS, "Curiosa", cl.fadiaz.dictionary.core.DiscoverTier.COMMON),
+        )
+        var tier by mutableStateOf(pasos.first().first)
+        val elegidos = mutableListOf<cl.fadiaz.dictionary.core.DiscoverTier>()
+        compose.setContent {
+            SettingsScreen(
+                packs = emptyList(),
+                scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
+                appVersion = "9.9.9",
+                buildCommit = "abc1234567",
+                buildLocalTime = "2026-10-26 12:00 -03",
+                uiLanguage = null,
+                onUiLanguageChange = {},
+                onManagePacks = {},
+                onScaleChange = {},
+                onCrossLanguageFallbackChange = {},
+                onClearHistory = {},
+                hasHistory = false,
+                wordOfTheDayTier = tier,
+                onWordOfTheDayTierChange = { elegidos += it; tier = it },
+            )
+        }
+        compose.onNodeWithText("Palabra del día").assertExists()
+        for ((actual, texto, siguiente) in pasos) {
+            assertEquals(actual, tier)
+            compose.onNodeWithText(texto).performClick()
+            compose.waitForIdle()
+            assertEquals("desde $texto", siguiente, elegidos.last())
+        }
+        assertEquals(3, elegidos.size)
     }
 
     @Test

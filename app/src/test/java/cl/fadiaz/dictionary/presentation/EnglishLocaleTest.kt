@@ -103,6 +103,31 @@ class EnglishLocaleTest {
     }
 
     @Test
+    @Config(qualifiers = "en-w234dp-h1600dp")
+    fun theWordOfTheDayTierRowIsDrawnInEnglish() {
+        compose.setContent {
+            SettingsScreen(
+                packs = emptyList(),
+                scale = cl.fadiaz.dictionary.data.TextScale.NORMAL,
+                uiLanguage = null,
+                appVersion = "9.9.9",
+                buildCommit = "abc1234567",
+                buildLocalTime = "2026-10-26 12:00 -03",
+                onManagePacks = {},
+                onScaleChange = {},
+                onCrossLanguageFallbackChange = {},
+                onUiLanguageChange = {},
+                onClearHistory = {},
+                hasHistory = false,
+                wordOfTheDayTier = cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS,
+                onWordOfTheDayTierChange = {},
+            )
+        }
+        compose.onNodeWithText("Word of the day").assertExists()
+        compose.onNodeWithText("Curious").assertExists()
+    }
+
+    @Test
     fun laAtribucionSeDibujaEnIngles() {
         // La pantalla que existe por la licencia (D-031): si sale en el idioma equivocado sigue
         // cumpliendo, pero es la que más texto tiene y la que menos se mira.

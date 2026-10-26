@@ -157,7 +157,8 @@ internal fun nextPos(pos: DiscoverPos?): DiscoverPos? = when (pos) {
     else -> DiscoverPos.entries[pos.ordinal + 1]
 }
 
-private fun tierLabel(tier: DiscoverTier): Int = when (tier) {
+/** A tier's name. Settings' word-of-the-day row reads it too, so both say the same word. */
+internal fun tierLabel(tier: DiscoverTier): Int = when (tier) {
     DiscoverTier.COMMON -> R.string.discover_tier_common
     DiscoverTier.RARE -> R.string.discover_tier_rare
     DiscoverTier.CURIOUS -> R.string.discover_tier_curious
