@@ -5490,7 +5490,13 @@ previous one kept as `dist.2026-10-01`, `es-main` not built), so an ordinary APK
 cores with the table, and that build went to the watch on 2026-10-22 (versionCode 15, the third upload;
 see i-a2f271-059372 for why the first two opened the old cores); prevalence data waits on its license.
 
-#### The word of the day in a chosen tier — PROPOSED 2026-10-22, not built · i-a2f271-96caa4
+#### The word of the day in a chosen tier — BUILT 2026-10-26 · i-a2f271-96caa4
+
+✅ **Built as the recommended setting** (d-a2f271-d9ed0a): Settings has a row *Palabra del día:
+Común · Rara · Curiosa* under the dictionaries, stepping on tap; the home and the tile's week both
+draw from the chosen tier, and a pack without the table keeps today's pick. ⚠️ **Not yet seen on
+the emulator or the watch**, and the 112-day simulation of what *común* changes against today's
+pick was not run. The evaluation below is kept as history.
 
 Asked as an idea, in the owner's words: *"un botón de aplicar esta configuración a palabra del
 día si es algo que valga la pena"*. Evaluated, not decided:
