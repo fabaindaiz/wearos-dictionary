@@ -44,6 +44,7 @@
     <string name="home_word_of_the_day">Palabra del día</string>
     <!-- Ver más palabras (i-a2f271-ec624b). -->
     <string name="discover_open">Ver más palabras</string>
+    <string name="results_translations">Traducciones</string>
     <string name="discover_rarity">Rareza</string>
     <string name="discover_tier_common">Común</string>
     <string name="discover_tier_rare">Rara</string>

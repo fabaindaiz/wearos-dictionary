@@ -170,11 +170,39 @@ class SearchRepository(
         ordenar(recolectar(packs) { it.searchDefinitions(query, limit, lang) }, limit, query = null)
             .also { reportar(query, it, respaldo = false) }
 
-    private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> =
-        todas
-            .sortedWith(orderFor(query, activos, porFrecuencia))
+    /**
+     * The packs that translate rather than define. See [ordenar].
+     */
+    private val traductores: Set<String> =
+        (packs + otherLanguages)
+            .filter { it.metadata.kind == PackKind.BILINGUAL }
+            .map { it.metadata.packId }
+            .toSet()
+
+    /**
+     * The merged list: **the definitions first, then what only a translation pack has.**
+     *
+     * ⚠️ **Two lists and not one ordering, and the reason was seen on the emulator** (2026-10-26):
+     * with Spanish active, `casar` showed *"to marry, wed someone to..."* although the Spanish
+     * dictionary defines it. Both packs answered and the translation pack placed it higher in its
+     * own list; one ordering across both then kept whichever row came first. Measured on the real
+     * packs, the two share 52,580 Spanish lemmas, 18,989 tie on `rank` and 2,863 rank better in the
+     * translation pack. Partitioning first makes the definition win by construction, and a word
+     * only the translation pack has (69,979, mostly without frequency) is still found -- below,
+     * where the screen heads it as a translation.
+     *
+     * With no definitions pack installed the translation rows are simply the list.
+     */
+    private fun ordenar(todas: List<Suggestion>, limit: Int, query: String?): List<Suggestion> {
+        val orden = orderFor(query, activos, porFrecuencia)
+        val (traducciones, definiciones) = todas.partition { it.packId in traductores }
+        val primero = definiciones.sortedWith(orden).distinctBy { it.headword to it.partOfSpeech }
+        val vistas = primero.map { it.headword to it.partOfSpeech }.toSet()
+        val despues = traducciones.sortedWith(orden)
             .distinctBy { it.headword to it.partOfSpeech }
-            .take(limit)
+            .filterNot { (it.headword to it.partOfSpeech) in vistas }
+        return (primero + despues).take(limit)
+    }
 
     private suspend fun recolectar(
         fuentes: List<DictionarySource>,

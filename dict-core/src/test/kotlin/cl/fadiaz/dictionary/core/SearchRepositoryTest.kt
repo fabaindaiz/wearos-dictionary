@@ -33,14 +33,21 @@ class SearchRepositoryTest {
         private val lang: String = "es",
         /** Como calculo su `rank` este pack. Ver [PackMetadata.rankBasis]. */
         private val rankBasis: RankBasis = RankBasis.PAGE_RICHNESS,
+        /** `BILINGUAL` for a translation pack, whose rows go after the definitions. */
+        private val kind: PackKind = PackKind.MONOLINGUAL,
     ) : DictionarySource {
         /** Cuantas veces se consulto. El respaldo se mide por lo que NO pregunta. */
         var consultas = 0
             private set
         override val metadata = PackMetadata(
-            packId = id, schemaVersion = 3, normVersion = 2, kind = PackKind.MONOLINGUAL,
-            name = id, description = null, langs = listOf(lang),
-            fuzzyProfiles = listOf(FuzzyProfile.SPANISH), entryCount = rows.size, dataVersion = 1,
+            packId = id, schemaVersion = 3, normVersion = 2, kind = kind,
+            name = id, description = null,
+            langs = if (kind == PackKind.BILINGUAL) listOf(lang, "en") else listOf(lang),
+            fuzzyProfiles = if (kind == PackKind.BILINGUAL) {
+                listOf(FuzzyProfile.SPANISH, FuzzyProfile.SPANISH)
+            } else {
+                listOf(FuzzyProfile.SPANISH)
+            }, entryCount = rows.size, dataVersion = 1,
             license = "CC-BY-SA-4.0", attribution = id, rankBasis = rankBasis,
         )
         override suspend fun suggest(query: String, limit: Int, lang: String?): List<Suggestion> {
@@ -576,4 +583,54 @@ class SearchRepositoryTest {
         )
     }
 
+
+    // --- Definitions first, translations apart (2026-10-26) ------------------------------------
+
+    // Seen on the emulator: with Spanish active, `casar` showed "to marry, wed someone to..."
+    // although the Spanish dictionary defines it. Both packs answered; they tied on rank, and the
+    // merge kept whichever row it met first. Measured on the real packs: 18,989 shared lemmas tie
+    // and 2,863 rank better in the translation pack.
+
+    @Test
+    fun `una definicion le gana a la traduccion de la misma palabra aunque empaten`() = runTest {
+        // In BOTH orders: which pack answers first must not decide which row survives.
+        val traduccion = { FakePack("es-tr", listOf(row("es-tr", "casar", pos = "verb", score = 0)),
+                                    kind = PackKind.BILINGUAL) }
+        // The translation pack places it higher in ITS list, which is what happened with `casar`.
+        val definicion = { FakePack("es-def", listOf(row("es-def", "casar", pos = "verb", score = 3))) }
+        for (orden in listOf(listOf(traduccion(), definicion()), listOf(definicion(), traduccion()))) {
+            assertEquals(listOf("es-def"), SearchRepository(orden).suggest("casar").map { it.packId })
+        }
+    }
+
+    @Test
+    fun `lo que solo esta en el pack de traduccion va DESPUES de todas las definiciones`() =
+        runTest {
+            // `casaca` is an EXACT match for what was typed, and still goes below: the list is
+            // the active language's definitions first, then what only a translation pack has.
+            val repo = SearchRepository(
+                listOf(
+                    FakePack("es-tr", listOf(row("es-tr", "casaca", score = 0)),
+                             kind = PackKind.BILINGUAL),
+                    FakePack(
+                        "es-def",
+                        listOf(row("es-def", "casacón", score = 5),
+                               row("es-def", "casacas", pos = "verb", score = 6)),
+                    ),
+                ),
+            )
+            assertEquals(
+                listOf("es-def", "es-def", "es-tr"),
+                repo.suggest("casaca").map { it.packId },
+            )
+        }
+
+    @Test
+    fun `sin un diccionario con definiciones el pack de traduccion responde igual`() = runTest {
+        // The only Spanish pack installed is the translation one: the list must not go empty.
+        val repo = SearchRepository(
+            listOf(FakePack("es-tr", listOf(row("es-tr", "casa")), kind = PackKind.BILINGUAL)),
+        )
+        assertEquals(listOf("casa"), repo.suggest("casa").map { it.headword })
+    }
 }

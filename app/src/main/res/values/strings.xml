@@ -48,6 +48,8 @@
     <string name="home_word_of_the_day">Word of the day</string>
     <!-- See more words (i-a2f271-ec624b): random words to learn, by rarity and part of speech. -->
     <string name="discover_open">See more words</string>
+    <!-- The heading over the rows that come from a translation pack, below the definitions. -->
+    <string name="results_translations">Translations</string>
     <string name="discover_rarity">Rarity</string>
     <string name="discover_tier_common">Common</string>
     <string name="discover_tier_rare">Rare</string>

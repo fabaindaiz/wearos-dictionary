@@ -1202,6 +1202,36 @@ class ScreensTest {
         EntrySummary(entryId = 42, headword = "permanecer", partOfSpeech = "verb", rank = 883)
 
     @Test
+    fun translationsGoBelowTheDefinitionsUnderTheirOwnHeading() {
+        // Asked for on 2026-10-26: *"algunas definiciones están en inglés aun consultando en
+        // español"*. They came from the translation pack, mixed into the definitions. The
+        // repository now puts its rows last (SearchRepositoryTest); this is the heading that says
+        // what they are.
+        val traduccion = meta(packId = "es-tr", name = "Español ↔ English", langs = listOf("es", "en"))
+        showSearch(
+            readyState().copy(
+                results = listOf(suggestion("casa"), suggestion("casaca", packId = "es-tr")),
+                available = listOf(handle(meta()), handle(traduccion)),
+            ),
+        )
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Traducciones"))
+        val definicion = compose.onNodeWithText("casa").getBoundsInRoot()
+        val encabezado = compose.onNodeWithText("Traducciones").getBoundsInRoot()
+        val fila = compose.onNodeWithText("casaca").getBoundsInRoot()
+        assertTrue("el encabezado va DEBAJO de las definiciones", encabezado.top >= definicion.bottom)
+        assertTrue("y ENCIMA de las traducciones", fila.top >= encabezado.bottom)
+    }
+
+    @Test
+    fun withNoTranslationRowsThereIsNoTranslationsHeading() {
+        showSearch(readyState("casa", "casar"))
+        val alcanzado = runCatching {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText("Traducciones"))
+        }
+        assertTrue("sin filas de traducción no hay encabezado", alcanzado.isFailure)
+    }
+
+    @Test
     fun seeMoreWordsFollowsTheWordsOfTheDayAndOpens() {
         // Asked for: *"una sección al final de la lista de palabra del día que diga ver más
         // palabras"* -- under the words of the day, before the recents.

@@ -136,6 +136,13 @@ fun SearchScreen(
     // which with a two-language pack no longer sufficed: the same pack would have had to return
     // `ES` for some rows and `EN` for others.
     val etiqueta = resultTag(state.activeLang)
+    // The packs that translate rather than define: their rows go under their own heading.
+    val traductores = remember(state.available) {
+        state.available.filterIsInstance<PackHandle.Open>()
+            .filter { it.metadata.kind == PackKind.BILINGUAL }
+            .map { it.packId }
+            .toSet()
+    }
     // The same cap the probe counted with. A pill drawing `9+` against a different cap from the
     // one that stopped the count would be stating a number nobody measured.
     val topeSonda = LocalTuning.current.emptyProbeCap
@@ -511,16 +518,35 @@ fun SearchScreen(
                         }
                     }
 
-                    items(
-                        count = state.results.size,
-                        key = { index ->
-                            val s = state.results[index]
-                            "r:${s.packId}:${s.entryId}"
-                        },
-                    ) { index ->
-                        val s = state.results[index]
-                        ResultRow(s, etiqueta, state.previews[s.packId to s.entryId]) {
-                            onOpenEntry(s)
+                    // ⚠️ **The rows of a translation pack come last and under their own heading.**
+                    // Asked for on 2026-10-26: definitions in English showed up while searching in
+                    // Spanish, mixed with the Spanish ones. `SearchRepository` puts them after
+                    // every definition; this says what they are where they start. No heading when
+                    // the whole list is translations: there is nothing to tell them apart from.
+                    val inicioTraducciones = state.results.indexOfFirst { it.packId in traductores }
+                        .takeIf { it > 0 } ?: state.results.size
+                    for ((desde, hasta) in listOf(0 to inicioTraducciones,
+                                                  inicioTraducciones to state.results.size)) {
+                        if (desde == inicioTraducciones && desde < hasta) {
+                            item(key = "titulo-traducciones") {
+                                ListHeader(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .transformedHeight(this, spec),
+                                    transformation = SurfaceTransformation(spec),
+                                ) { Text(stringResource(R.string.results_translations)) }
+                            }
+                        }
+                        items(
+                            count = hasta - desde,
+                            key = { index ->
+                                val s = state.results[desde + index]
+                                "r:${s.packId}:${s.entryId}"
+                            },
+                        ) { index ->
+                            val s = state.results[desde + index]
+                            ResultRow(s, etiqueta, state.previews[s.packId to s.entryId]) {
+                                onOpenEntry(s)
+                            }
                         }
                     }
 
