@@ -30,8 +30,10 @@ REPO_DIRS = ("dict-core/", "tools/", "app/", "docs/", ".claude/", "gradle/", "di
              ".agents/")
 
 MARKDOWN = []
+# `worktrees`: an agent's isolated checkout lives in `.claude/worktrees/`, a whole second copy of
+# the repo the audit would otherwise read as this one's documents and code.
 for base, dirs, files in os.walk(ROOT):
-    dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__")]
+    dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__", "worktrees")]
     for name in files:
         if name.endswith(".md"):
             MARKDOWN.append(os.path.join(base, name))
@@ -41,7 +43,7 @@ for base, dirs, files in os.walk(ROOT):
 #: that EXPLAINS what a probe is, is not a probe, and this very file names them.
 FUENTES = []
 for base, dirs, files in os.walk(ROOT):
-    dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__")]
+    dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", ".idea", "__pycache__", "worktrees")]
     for name in files:
         if name.endswith((".kt", ".kts", ".py", ".java")):
             FUENTES.append(os.path.relpath(os.path.join(base, name), ROOT))
@@ -104,7 +106,7 @@ def check_mirror_declarations(report):
     )
     found = 0
     for base, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__")]
+        dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__", "worktrees")]
         for name in files:
             if not name.endswith((".kt", ".py")):
                 continue
@@ -375,7 +377,7 @@ def check_forbidden_dependency(report):
     Tile with Glance, and it is the wrong one.
     """
     for base, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__", "docs")]
+        dirs[:] = [d for d in dirs if d not in (".git", "build", ".gradle", "__pycache__", "docs", "worktrees")]
         for name in files:
             if not name.endswith((".kts", ".toml", ".gradle")):
                 continue
