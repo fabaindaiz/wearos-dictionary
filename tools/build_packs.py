@@ -44,6 +44,7 @@ as a downloadable pack. A single-source dictionary is exactly the model that was
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -52,6 +53,9 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 BUILD_PACK = os.path.join(AQUI, "packbuilder", "build_pack.py")
 BUILD_CORE = os.path.join(AQUI, "packbuilder", "build_core.py")
 VERIFY = os.path.join(AQUI, "packbuilder", "verify_pack.py")
+
+sys.path.insert(0, AQUI)
+from packserver import build_catalog  # noqa: E402
 
 DUMPS, BUILD, DIST = "dumps", "build", "dist"
 
@@ -249,8 +253,25 @@ def main(argv=None):
         if paso["verifica"] and subprocess.call([sys.executable, VERIFY, paso["salida"]]) != 0:
             print("  %s no paso verify_pack; se para aqui" % paso["nombre"], file=sys.stderr)
             return 1
+    escribir_indice(_ruta(raiz, DIST))
     print("\nlisto. Lo publicable esta en %s" % _ruta(raiz, DIST))
     return 0
+
+
+def escribir_indice(dist):
+    """`dist/index.json`, written only after every pack passed (i-a2f271-2690f9).
+
+    ⚠️ **It used to be a step done by hand, and twice it was not done.** `bundlePacks` reads the
+    cores' versions from this file: without it an APK declared no core versions (2026-10-22), and
+    with a stale one the gate stayed red while `dist/` held new cores (2026-10-26). Written through
+    a temporary file, so a reader never sees half an index.
+    """
+    catalogo = build_catalog(dist)
+    temporal = os.path.join(dist, "index.json.part")
+    with open(temporal, "w", encoding="utf-8") as f:
+        f.write(json.dumps(catalogo, ensure_ascii=False, indent=1) + "\n")
+    os.replace(temporal, os.path.join(dist, "index.json"))
+    print("  index.json: %d packs" % len(catalogo.get("packs", [])), flush=True)
 
 
 if __name__ == "__main__":

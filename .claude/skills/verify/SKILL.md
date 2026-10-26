@@ -121,6 +121,11 @@ a number gets believed that was never about the watch.
   `benchmark` skill.
 - **And a debug APK is a ceiling, not a number**: `debuggable = true` means ART never compiles it
   AOT. Measure on `benchmark`.
+- **No emulator check while the host is loaded** (i-a2f271-2f7c0e): not during a pack rebuild, a
+  large `devpack` push or parallel agents. On this 8 GB host the emulator's `system_server` was
+  killed three times one morning and the emulator itself died that afternoon, both under load.
+  And `adb -s emulator-5554 get-state` before reading a screenshot: a dead emulator makes a check
+  wait or answer about nothing.
 
 The questions that need a wrist live in `docs/preguntas-del-reloj.md`, each with the readout that
 answers it. **A claim this session could not verify goes there**, in the same change as its
