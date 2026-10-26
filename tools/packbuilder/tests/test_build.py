@@ -555,6 +555,20 @@ class InvariantesExhaustivasTest(BuilderTestCase):
         self.assertEqual(1, codigo)
         self.assertIn("tag desconocido", salida.getvalue())
 
+    def test_las_etiquetas_y_las_silabas_son_tags_conocidos(self):
+        # d-a2f271-1f80cd and d-a2f271-b4adc7. The rebuild of 2026-10-26 stopped here: the builder
+        # wrote `U`, `H` and `K`, and this check still knew only the older tags.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(build.Record(
+                headword="fome", part_of_speech="adj", rank=1, syllables="fo·me",
+                stress="paroxytone",
+                senses=[{"gloss": "Aburrido, sin gracia.", "labels": ["colloquial", "chile"]}]))
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            codigo = verify_pack.verify(self.path)
+        self.assertNotIn("tag desconocido", salida.getvalue())
+        self.assertEqual(0, codigo, salida.getvalue())
+
     def test_una_clave_de_form_que_no_es_norm_valida_hace_fallar(self):
         """⚠️ The `form` table is 1.5 million rows NOBODY was looking at.
 
