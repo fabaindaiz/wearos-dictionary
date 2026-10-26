@@ -469,6 +469,13 @@ data class Sense(
      * "camelido" expecting "guanaco", and result ordering is already open debt (D-067).
      */
     val related: List<String> = emptyList(),
+    /**
+     * The sense's usage labels as KEYS -- `colloquial`, `chile` -- in the order the builder chose:
+     * register first, then region, at most three (d-a2f271-1f80cd). The app writes each in the
+     * reader's language and skips a key it has no string for, which is how a pack built with a
+     * newer vocabulary still opens.
+     */
+    val labels: List<String> = emptyList(),
 )
 
 /** An entry's full body, as it comes out of the decompressed payload. */
@@ -565,4 +572,8 @@ data class Entry(
      * pack says which vocabulary that is in `meta.etymology_vocabulary`.
      */
     val etymology: String? = null,
+    /** The syllables, `ja·po·nés`, or null. See [PayloadCodec.Body.syllables]. */
+    val syllables: String? = null,
+    /** The stress type as a key, or null. See [PayloadCodec.Body.stress]. */
+    val stress: String? = null,
 )

@@ -67,6 +67,12 @@ object PayloadCodec {
     private const val TAG_RELATED = 'R'
 
     /**
+     * A usage label of the sense above it, as a key (d-a2f271-1f80cd). Mirrors
+     * `payload.TAG_LABEL`. Additive like [TAG_RELATED], so **it does not bump [CODEC_ID]**.
+     */
+    private const val TAG_LABEL = 'U'
+
+    /**
      * Where the example above it was quoted from. Additive like [TAG_ANTONYM] and [TAG_RELATED],
      * so it **does not bump [CODEC_ID]** either.
      *
@@ -139,6 +145,15 @@ object PayloadCodec {
      */
     private const val TAG_ETYMOLOGY = 'M'
 
+    /**
+     * The word's syllables joined by a middle dot, one per entry (d-a2f271-b4adc7). Mirrors
+     * `payload.TAG_SYLLABLES`; additive, so no [CODEC_ID] bump.
+     */
+    private const val TAG_SYLLABLES = 'H'
+
+    /** The word's stress type as a key the app translates. Mirrors `payload.TAG_STRESS`. */
+    private const val TAG_STRESS = 'K'
+
     /** The decoded body, without the data that already comes in `entry`'s columns. */
     data class Body(
         val partOfSpeech: String?,
@@ -170,6 +185,10 @@ object PayloadCodec {
          * words a pack's own tier can look up get one.
          */
         val etymology: String? = null,
+        /** The word's syllables, `ja·po·nés`, or null. See [TAG_SYLLABLES]. */
+        val syllables: String? = null,
+        /** The stress type as a key (`oxytone`), or null. See [TAG_STRESS]. */
+        val stress: String? = null,
     )
 
     /**
@@ -292,6 +311,8 @@ object PayloadCodec {
         val forms = mutableListOf<InflectedForm>()
         var pronunciation: String? = null
         var etymology: String? = null
+        var syllables: String? = null
+        var stress: String? = null
 
         // The sense whose LAST example can still receive a citation, or null. An `E` sets it and
         // any other line clears it: a `C` that does not come right after its `E` is discarded
@@ -326,6 +347,7 @@ object PayloadCodec {
                 TAG_SYNONYM -> senses.lastOrNull()?.synonyms?.add(value)
                 TAG_ANTONYM -> senses.lastOrNull()?.antonyms?.add(value)
                 TAG_RELATED -> senses.lastOrNull()?.related?.add(value)
+                TAG_LABEL -> senses.lastOrNull()?.labels?.add(value)
                 // No `senses` guard: it belongs to the ENTRY, so its position in the text decides
                 // nothing. If it did, a misplaced `W` would become a sense translation -- the
                 // invented attribution this channel exists to prevent.
@@ -335,6 +357,8 @@ object PayloadCodec {
                 // leniency as `P`.
                 TAG_PRONUNCIATION -> if (pronunciation == null) pronunciation = value
                 TAG_ETYMOLOGY -> if (etymology == null) etymology = value
+                TAG_SYLLABLES -> if (syllables == null) syllables = value
+                TAG_STRESS -> if (stress == null) stress = value
                 // No `senses` guard, for the same reason as `W`: it describes the ENTRY.
                 TAG_FORM -> {
                     val cut = value.indexOf(FORM_SEPARATOR)
@@ -356,6 +380,8 @@ object PayloadCodec {
             forms = forms.toList(),
             pronunciation = pronunciation,
             etymology = etymology,
+            syllables = syllables,
+            stress = stress,
             senses = senses.map {
                 Sense(
                     it.gloss,
@@ -364,6 +390,7 @@ object PayloadCodec {
                     it.synonyms.toList(),
                     it.antonyms.toList(),
                     it.related.toList(),
+                    it.labels.toList(),
                 )
             },
         )
@@ -389,9 +416,14 @@ object PayloadCodec {
         // tests -- packs are written by the builder -- so the gap costs nothing today, and it is
         // written down rather than widened in silence.
         body.pronunciation?.let { out.append(TAG_PRONUNCIATION).append('\t').append(it).append('\n') }
+        body.syllables?.let { out.append(TAG_SYLLABLES).append('\t').append(it).append('\n') }
+        body.stress?.let { out.append(TAG_STRESS).append('\t').append(it).append('\n') }
         body.etymology?.let { out.append(TAG_ETYMOLOGY).append('\t').append(it).append('\n') }
         for (sense in body.senses) {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')
+            for (label in sense.labels) {
+                out.append(TAG_LABEL).append('\t').append(label).append('\n')
+            }
             for (example in sense.examples) {
                 out.append(TAG_EXAMPLE).append('\t').append(example.text).append('\n')
                 // Right after its example, which is what [parse] requires to accept it.
@@ -421,6 +453,7 @@ object PayloadCodec {
         val synonyms = mutableListOf<String>()
         val antonyms = mutableListOf<String>()
         val related = mutableListOf<String>()
+        val labels = mutableListOf<String>()
     }
 
 }

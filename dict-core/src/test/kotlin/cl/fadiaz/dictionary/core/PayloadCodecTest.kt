@@ -154,6 +154,42 @@ class PayloadCodecTest {
     }
 
     @Test
+    fun `las etiquetas van a su acepcion y no a la siguiente`() {
+        // d-a2f271-1f80cd: the key the builder wrote, which the app turns into `coloq.`.
+        val body = PayloadCodec.parse("U\tsuelta\nS\tAburrido.\nU\tcolloquial\nU\tchile\nS\tDebil.\nU\toutdated\n")
+        assertEquals(listOf("colloquial", "chile"), body.senses[0].labels)
+        assertEquals(listOf("outdated"), body.senses[1].labels)
+    }
+
+    @Test
+    fun `silabas y acento describen la palabra`() {
+        val body = PayloadCodec.parse("I\txapoˈnes\nH\tja·po·nés\nK\toxytone\nS\tDe Japón.\n")
+        assertEquals("ja·po·nés", body.syllables)
+        assertEquals("oxytone", body.stress)
+    }
+
+    @Test
+    fun `el fixture trae silabas y acento`() {
+        val fixture = loadFixture()
+        val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
+        assertTrue(
+            bodies.any { it.syllables == "a·bu·rri·do" && it.stress == "paroxytone" },
+            "el fixture no trae silabas; regenerar con gen_payload_fixture.py",
+        )
+    }
+
+    @Test
+    fun `el fixture trae un caso con etiquetas`() {
+        // The Python-Kotlin mirror of tag U, against bytes zlib compressed.
+        val fixture = loadFixture()
+        val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
+        assertTrue(
+            bodies.flatMap { it.senses }.any { it.labels == listOf("colloquial", "chile") },
+            "el fixture no trae una acepcion con etiquetas; regenerar con gen_payload_fixture.py",
+        )
+    }
+
+    @Test
     fun `el fixture trae un caso con relacionadas`() {
         // Sin esto el espejo Python-Kotlin del tag R no queda verificado contra bytes reales:
         // los dos tests de arriba solo prueban el parser de este lado.

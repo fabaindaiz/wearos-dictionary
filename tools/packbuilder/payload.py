@@ -138,6 +138,22 @@ TAG_ETYMOLOGY = "M"
 #: ~1.7 MB over 152,281 entries against the 150.6 MB `entry` already weighs.
 TAG_PRONUNCIATION = "I"
 
+#: A usage label of the sense above it: register or region, as a KEY (`colloquial`, `chile`) that
+#: the app writes in the reader's language -- the pack carries no word of the interface. One line
+#: per label, at most three, right after their `S` (d-a2f271-1f80cd).
+#:
+#: Additive like [TAG_PRONUNCIATION], so it does not bump the codec id: an older reader skips it.
+#: The vocabulary is `sources/kaikki.ETIQUETAS`, and a test holds the app to a string for each key.
+TAG_LABEL = "U"
+
+#: The word's syllables, `ja·po·nés`, joined by a middle dot. One per entry, from the source's first
+#: hyphenation; a single part is not stored (d-a2f271-b4adc7). Additive: no codec id bump.
+TAG_SYLLABLES = "H"
+
+#: The word's stress type as a KEY the app translates: `oxytone`, `paroxytone`, `proparoxytone`,
+#: `superproparoxytone`, `monosyllable`. One per entry; the source's names are in `kaikki.ACENTOS`.
+TAG_STRESS = "K"
+
 #: Separates the key from the form inside a [TAG_FORM]. A colon and not a tab: `sanitize` strips
 #: tabs because they would split the line, and this value has to survive it.
 FORM_SEPARATOR = ":"
@@ -332,7 +348,7 @@ def example_text(item):
 
 
 # A sense's fields that are lists, in the order they are written.
-_LISTAS = ("examples", "translations", "synonyms", "antonyms", "related")
+_LISTAS = ("examples", "translations", "synonyms", "antonyms", "related", "labels")
 
 
 def merge_duplicate_senses(senses):
@@ -406,7 +422,7 @@ def _sin_repetir(valores):
 
 
 def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation=None,
-           etymology=None):
+           etymology=None, syllables=None, stress=None):
     """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
     The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
@@ -431,6 +447,11 @@ def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation
     ipa = sanitize(pronunciation or "")
     if ipa:
         lines.append(TAG_PRONUNCIATION + "\t" + ipa)
+    # Right after `I`: the card draws the three on one line (d-a2f271-b4adc7).
+    for tag, valor in ((TAG_SYLLABLES, syllables), (TAG_STRESS, stress)):
+        valor = sanitize(valor or "")
+        if valor:
+            lines.append(tag + "\t" + valor)
     # Before the senses, like `I`: it describes the WORD, not one of its senses.
     origen = sanitize(etymology or "")
     if origen:
@@ -447,6 +468,10 @@ def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation
             # A sense with no gloss contributes nothing and would unhook its examples.
             continue
         lines.append(TAG_SENSE + "\t" + gloss)
+        for label in _sin_repetir(sense.get("labels", ())):
+            value = sanitize(label)
+            if value:
+                lines.append(TAG_LABEL + "\t" + value)
         for example in _sin_repetir(sense.get("examples", ())):
             texto, cita = _example_parts(example)
             value = sanitize(texto)
@@ -505,6 +530,36 @@ def parse_etymology(text):
         if len(line) >= 3 and line[0] == TAG_ETYMOLOGY and line[1] == "\t":
             return line[2:]
     return None
+
+
+def parse_syllables(text):
+    """`(syllables, stress)`, each None when absent. The first of each wins, as in [parse_pronunciation]."""
+    silabas = acento = None
+    for line in text.split("\n"):
+        if len(line) < 3 or line[1] != "\t":
+            continue
+        if line[0] == TAG_SYLLABLES and silabas is None:
+            silabas = line[2:]
+        elif line[0] == TAG_STRESS and acento is None:
+            acento = line[2:]
+    return silabas, acento
+
+
+def parse_labels(text):
+    """Each sense's labels, in order: `[["colloquial", "chile"], [], ...]`, one list per `S`.
+
+    Separate from [parse] for the reason [parse_forms] is. A label before the first sense has no
+    sense to belong to and is dropped, as an example there is.
+    """
+    salida = []
+    for line in text.split("\n"):
+        if len(line) < 3 or line[1] != "\t":
+            continue
+        if line[0] == TAG_SENSE:
+            salida.append([])
+        elif line[0] == TAG_LABEL and salida:
+            salida[-1].append(line[2:])
+    return salida
 
 
 def parse_pronunciation(text):

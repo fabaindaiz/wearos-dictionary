@@ -2456,3 +2456,70 @@ class LocucionesLargasTest(unittest.TestCase):
         libro = {}
         self._palabras("conocer como a la palma de la mano", "arma de doble filo", bajas=libro)
         self.assertEqual(2, libro.get(kaikki.MOTIVO_LOCUCION_LARGA))
+
+
+class EtiquetasDeUsoTest(unittest.TestCase):
+    """Each sense's register and region labels, as keys the app translates (d-a2f271-1f80cd)."""
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _labels(self, *senses):
+        path = _jsonl(_raw("fome", "adj", list(senses)))
+        self.paths.append(path)
+        return [s.get("labels") for s in next(iter(kaikki.records(path, lang="es"))).senses]
+
+    def test_registro_primero_y_region_despues(self):
+        self.assertEqual([["colloquial", "chile"]], self._labels(
+            _sense("Aburrido, sin gracia.", tags=["Chile", "colloquial", "transitive"])))
+
+    def test_dos_marcas_que_dicen_lo_mismo_son_una(self):
+        self.assertEqual([["colloquial"]], self._labels(
+            _sense("Tonto.", tags=["informal", "colloquial"])))
+
+    def test_lo_gramatical_no_es_una_etiqueta(self):
+        self.assertEqual([[]], self._labels(
+            _sense("Persona tonta.", tags=["transitive", "masculine", "figurative"])))
+
+    def test_tres_como_mucho(self):
+        got = self._labels(_sense("Algo.", tags=["vulgar", "derogatory", "outdated", "Chile",
+                                                 "Argentina"]))
+        self.assertEqual(["vulgar", "derogatory", "outdated"], got[0])
+
+
+class SilabasYAcentoTest(unittest.TestCase):
+    """The first hyphenation and the stress type the Spanish dump carries (d-a2f271-b4adc7)."""
+
+    def setUp(self):
+        self.paths = []
+
+    def tearDown(self):
+        for path in self.paths:
+            os.unlink(path)
+
+    def _record(self, **extra):
+        path = _jsonl(_raw("japonés", "adj", [_sense("Originario de Japón.")], **extra))
+        self.paths.append(path)
+        return next(iter(kaikki.records(path, lang="es")))
+
+    def test_silabas_y_acento(self):
+        got = self._record(
+            hyphenations=[{"parts": ["ja", "po", "nés"]}],
+            sounds=[{"ipa": "[xapoˈnes]"}, {"raw_tags": ["acentuación"], "other": "aguda"},
+                    {"raw_tags": ["longitud silábica"], "other": "trisílaba"}])
+        self.assertEqual("ja·po·nés", got.syllables)
+        self.assertEqual("oxytone", got.stress)
+
+    def test_un_acento_ambiguo_o_desconocido_no_se_guarda(self):
+        got = self._record(sounds=[{"raw_tags": ["acentuación"], "other": "aguda, llana"}])
+        self.assertIsNone(got.stress)
+        self.assertIsNone(got.syllables)
+
+    def test_una_sola_silaba_no_es_division(self):
+        # `sol` split into one part says nothing the word does not.
+        got = self._record(hyphenations=[{"parts": ["sol"]}])
+        self.assertIsNone(got.syllables)

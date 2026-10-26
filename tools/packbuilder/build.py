@@ -152,6 +152,8 @@ class Record:
         "display_forms",
         "etymology",
         "pronunciation",
+        "syllables",
+        "stress",
         "translations",
         "word_translations",
         "sense_key",
@@ -170,6 +172,8 @@ class Record:
         display_forms=(),
         etymology=None,
         pronunciation=None,
+        syllables=None,
+        stress=None,
         translations=(),
         word_translations=(),
         sense_key=None,
@@ -192,6 +196,9 @@ class Record:
         self.etymology = etymology
         #: The word's IPA, or None when the source carried none. See `kaikki._pronunciation`.
         self.pronunciation = pronunciation
+        #: `ja·po·nés` and `oxytone`, or None. See `kaikki._silabas` and `kaikki._acento`.
+        self.syllables = syllables
+        self.stress = stress
         self.translations = translations
         # Translations of the WORD, with no sense. They go to the payload (tag `W`) and NOT to
         # `trans` on their own: `translations` is the search channel and carries the union of both.
@@ -400,7 +407,8 @@ class PackBuilder:
 
         body = payload_codec.render(
             record.part_of_speech, record.senses, record.word_translations,
-            record.display_forms, record.pronunciation, etymology)
+            record.display_forms, record.pronunciation, etymology,
+            syllables=record.syllables, stress=record.stress)
         if not body:
             # With no usable sense the entry has nothing to show.
             return

@@ -862,3 +862,63 @@ class EtymologyTest(unittest.TestCase):
         texto = payload.render("noun", [{"gloss": "g"}], etymology="Del\tlatín")
         self.assertEqual("Del latín", payload.parse_etymology(texto))
         self.assertEqual(1, texto.count("M\t"))
+
+
+class EtiquetasTest(unittest.TestCase):
+    """The usage labels of a sense, tag `U` (d-a2f271-1f80cd): `coloq.`, `vulg.`, `Chile`.
+
+    The pack stores a KEY and the app writes it in the reader's language, so the payload never
+    carries a word of the interface.
+    """
+
+    def _senses(self):
+        return [{"gloss": "Aburrido, sin gracia.", "labels": ["colloquial", "chile"]},
+                {"gloss": "Débil, flojo.", "labels": ["outdated"]},
+                {"gloss": "Sin marca."}]
+
+    def test_van_debajo_de_su_acepcion_y_en_orden(self):
+        texto = payload.render("adj", self._senses())
+        self.assertIn("S\tAburrido, sin gracia.\nU\tcolloquial\nU\tchile\n", texto)
+        self.assertEqual([["colloquial", "chile"], ["outdated"], []], payload.parse_labels(texto))
+
+    def test_una_etiqueta_antes_de_la_primera_acepcion_se_ignora(self):
+        self.assertEqual([[]], payload.parse_labels("U\tcolloquial\nS\tglosa\n"))
+
+    def test_parse_no_cambia_de_forma(self):
+        # `verify_pack.py` and every test compare `parse`'s dicts: the labels have their own reader.
+        _, senses, _ = payload.parse(payload.render("adj", self._senses()))
+        self.assertNotIn("labels", senses[0])
+
+    def test_dos_acepciones_iguales_juntan_sus_etiquetas(self):
+        fusionadas = payload.merge_duplicate_senses([
+            {"gloss": "Tonto.", "labels": ["colloquial"]},
+            {"gloss": "Tonto.", "labels": ["colloquial", "chile"]}])
+        self.assertEqual(["colloquial", "chile"], fusionadas[0]["labels"])
+
+    def test_cada_clave_tiene_su_texto_en_la_app_en_los_dos_idiomas(self):
+        # ⚠️ **The contract crosses the language boundary, so the test does too.** A key the app
+        # has no string for is a label that silently never shows.
+        from sources import kaikki
+        raiz = os.path.join(os.path.dirname(__file__), "..", "..", "..", "app", "src", "main", "res")
+        for carpeta in ("values", "values-es"):
+            with open(os.path.join(raiz, carpeta, "strings.xml"), encoding="utf-8") as handle:
+                strings = handle.read()
+            for clave in sorted(set(kaikki.ETIQUETAS.values())):
+                with self.subTest(carpeta=carpeta, clave=clave):
+                    self.assertIn('name="label_%s"' % clave, strings)
+
+
+class SilabasTest(unittest.TestCase):
+    """Syllables and stress, tags `H` and `K` (d-a2f271-b4adc7): `ja·po·nés · aguda`."""
+
+    def test_van_antes_de_las_acepciones_y_vuelven(self):
+        texto = payload.render("adj", [{"gloss": "De Japón."}], pronunciation="xapoˈnes",
+                               syllables="ja·po·nés", stress="oxytone")
+        self.assertIn("H\tja·po·nés\nK\toxytone\n", texto)
+        self.assertLess(texto.index("H\t"), texto.index("S\t"))
+        self.assertEqual(("ja·po·nés", "oxytone"), payload.parse_syllables(texto))
+
+    def test_sin_dato_no_hay_linea(self):
+        texto = payload.render("adj", [{"gloss": "De Japón."}])
+        self.assertNotIn("H\t", texto)
+        self.assertEqual((None, None), payload.parse_syllables(texto))

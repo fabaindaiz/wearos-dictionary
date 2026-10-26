@@ -324,7 +324,12 @@ fun EntryScreen(
                     // competes for width with nothing, and it is where it actually gets read.
                     WordTitle(
                         headword = current?.headword ?: "…",
-                        pronunciation = current?.pronunciation,
+                        // IPA, syllables and stress share the line (d-a2f271-b4adc7).
+                        pronunciation = soundLine(
+                            current?.pronunciation,
+                            current?.syllables,
+                            current?.stress?.let { stressLabel(it) }?.let { stringResource(it) },
+                        ),
                         detail = wordDetail(
                             partOfSpeech = current?.partOfSpeech?.let { posLabelFull(it) },
                             tag = current?.lang?.uppercase(),
@@ -679,7 +684,17 @@ private fun SenseBlock(
     onOpenWord: (WordLink) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        val glosa = annotatedGloss("$number. ", sense.gloss, links)
+        // The usage labels go on the number's line, above the gloss (d-a2f271-1f80cd), so a
+        // regional or vulgar sense is marked before it is read.
+        val etiquetas = sense.labels.mapNotNull { usageLabel(it) }.map { stringResource(it) }
+        if (etiquetas.isNotEmpty()) {
+            Text(
+                text = "$number. " + etiquetas.joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val glosa = annotatedGloss(if (etiquetas.isEmpty()) "$number. " else "", sense.gloss, links)
         LinkedText(
             text = glosa.text,
             targets = glosa.targets,

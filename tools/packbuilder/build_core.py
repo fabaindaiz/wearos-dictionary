@@ -343,6 +343,10 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
             # `es-full` carried `W` in 21.9 % of a sample and the `es-core` derived from it in 0 %.
             texto = payload_codec.decompress(blob, diccionario)
             _pos_payload, senses, traducciones_de_palabra = payload_codec.parse(texto)
+            # `parse` keeps its shape for `verify_pack.py`; the labels come from their own reader.
+            for sense, etiquetas in zip(senses, payload_codec.parse_labels(texto)):
+                sense["labels"] = etiquetas
+            silabas, acento = payload_codec.parse_syllables(texto)
             formas = formas_por_entrada.get(entry_id, ())
             traducciones = traducciones_por_entrada.get(entry_id, ())
             constructor.add(build.Record(
@@ -355,6 +359,8 @@ def derive(completo, salida, vocabulario, tier="core", cobertura=None, lemas=Non
                 word_translations=traducciones_de_palabra,
                 display_forms=payload_codec.parse_forms(texto),
                 pronunciation=payload_codec.parse_pronunciation(texto),
+                syllables=silabas,
+                stress=acento,
                 # The tier filter needs no reapplying: this pack's vocabulary is a subset of the
                 # full one's, which already carries the origin only where it should.
                 etymology=payload_codec.parse_etymology(texto),

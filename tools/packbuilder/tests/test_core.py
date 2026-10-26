@@ -523,10 +523,12 @@ class CanalesDeNivelEntradaTest(unittest.TestCase):
         with build.PackBuilder(self.completo, dict(BASE_META)) as b:
             b.add(build.Record(
                 headword="casa",
-                senses=[{"gloss": "edificio para habitar"}],
+                senses=[{"gloss": "edificio para habitar", "labels": ["colloquial", "chile"]}],
                 part_of_speech="noun",
                 rank=1,
                 forms=["casas"],
+                syllables="ca·sa",
+                stress="paroxytone",
                 word_translations=("house", "home"),
                 display_forms=(("pl", "casas"),),
                 pronunciation="ˈkasa",
@@ -553,6 +555,8 @@ class CanalesDeNivelEntradaTest(unittest.TestCase):
         self.assertEqual([("pl", "casas")], codec.parse_forms(texto))
         self.assertEqual("ˈkasa", codec.parse_pronunciation(texto))
         self.assertEqual("Del latín casa.", codec.parse_etymology(texto))
+        self.assertEqual(("ca·sa", "paroxytone"), codec.parse_syllables(texto))
+        self.assertEqual([["colloquial", "chile"]], codec.parse_labels(texto))
 
     def test_el_pack_completo_los_trae_para_que_la_comparacion_valga(self):
         # The control: without it, a derivation that loses everything and a source that never had

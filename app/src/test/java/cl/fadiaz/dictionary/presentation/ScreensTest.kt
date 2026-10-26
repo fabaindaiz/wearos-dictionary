@@ -447,6 +447,29 @@ class ScreensTest {
     }
 
     @Test
+    fun theSyllablesAndStressShareThePronunciationLine() {
+        // d-a2f271-b4adc7: one line under the word, the stress written in the reader's language.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Originario de Japón.").copy(
+                    pronunciation = "xapo\u02c8nes", syllables = "ja·po·nés", stress = "oxytone",
+                )
+            }
+        }
+        compose.onNodeWithText("xapo\u02c8nes · ja·po·nés · aguda").assertIsDisplayed()
+    }
+
+    @Test
+    fun syllablesWithoutPronunciationStillShowAndAnUnknownStressIsLeftOut() {
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry("Mamífero.").copy(syllables = "pe·rro", stress = "zz_nuevo")
+            }
+        }
+        compose.onNodeWithText("pe·rro").assertIsDisplayed()
+    }
+
+    @Test
     fun aPackWithNoPronunciationDrawsNoRowForIt() {
         // The degradation, which is every pack built today: null draws nothing rather than an
         // empty line. It also covers a word whose source carried none -- the card cannot tell
@@ -753,6 +776,26 @@ class ScreensTest {
             0,
             compose.onAllNodesWithText("—", substring = true).fetchSemanticsNodes().size,
         )
+    }
+
+    @Test
+    fun theSenseShowsItsUsageLabelsWithItsNumberAndSkipsAnUnknownKey() {
+        // d-a2f271-1f80cd: the pack carries keys, the card writes them in the reader's language.
+        // A key this app has no string for is from a newer pack and is left out, not shown raw.
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(
+                    senses = listOf(
+                        Sense("Aburrido, sin gracia.", labels = listOf("colloquial", "zz_nueva", "chile")),
+                        Sense("Débil, flojo."),
+                    ),
+                )
+            }
+        }
+        compose.onNodeWithText("1. coloq. · Chile").assertExists()
+        compose.onNodeWithText("Aburrido, sin gracia.", substring = true).assertExists()
+        compose.onNodeWithText("2. Débil, flojo.", substring = true).assertExists()
+        assertEquals(0, compose.onAllNodesWithText("zz_nueva", substring = true).fetchSemanticsNodes().size)
     }
 
     @Test

@@ -69,6 +69,13 @@ CASES = [
          "antonyms": [],
          "related": ["camélido", "vicuña", "llama"]},
     ]),
+    # Usage labels (d-a2f271-1f80cd): two on one sense and one on the next, so a parser that
+    # hangs a label off the wrong sense is seen.
+    # With syllables and stress (d-a2f271-b4adc7), the sixth and seventh elements.
+    ("etiquetas de uso", "adj", [
+        {"gloss": "aburrido, sin gracia", "labels": ["colloquial", "chile"]},
+        {"gloss": "débil, flojo", "labels": ["outdated"]},
+    ], "abuˈɾiðo", None, "a·bu·rri·do", "paroxytone"),
     ("sinonimos por acepcion", "noun", [
         {"gloss": "paga semanal que recibe un menor",
          "synonyms": ["mesada", "paga"]},
@@ -132,6 +139,8 @@ def main():
         text = payload_codec.render(
             part_of_speech, senses, pronunciation=case[3] if len(case) > 3 else None,
             etymology=case[4] if len(case) > 4 else None,
+            syllables=case[5] if len(case) > 5 else None,
+            stress=case[6] if len(case) > 6 else None,
         )
         blob = payload_codec.compress(text, dictionary)
         # A check of its own before writing: if Python cannot read what it wrote, the fixture is

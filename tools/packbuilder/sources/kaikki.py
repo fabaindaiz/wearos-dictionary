@@ -64,6 +64,57 @@ from sources import frequency as _frequency  # noqa: E402
 # disambiguate a sense on a watch screen; the second is no longer visible without scrolling.
 MAX_EXAMPLES_PER_SENSE = 1
 
+#: The usage labels a sense shows, source tag -> key (d-a2f271-1f80cd). The key is what the pack
+#: stores and the app translates (`label_<key>` in `strings.xml`, held by a test), so two source
+#: tags that say the same thing are one key: `informal` and `colloquial` both read *coloq.*
+#:
+#: ⚠️ **Register and region only.** Grammar (`transitive`, `masculine`) is already the part of
+#: speech or the forms, and the domain topics would turn the line into a list. Region was chosen
+#: by the owner over register alone: it is the largest family of Spanish labels (Chile marks
+#: 3,540 senses).
+ETIQUETAS_DE_REGISTRO = {
+    "colloquial": "colloquial",
+    "informal": "colloquial",
+    "familiar": "colloquial",
+    "slang": "slang",
+    "vulgar": "vulgar",
+    "offensive": "vulgar",
+    "derogatory": "derogatory",
+    "pejorative": "derogatory",
+    "slur": "derogatory",
+    "ethnic": "derogatory",
+    "outdated": "outdated",
+    "obsolete": "outdated",
+    "archaic": "outdated",
+    "dated": "outdated",
+    "formal": "formal",
+    "learned": "formal",
+    "cultism": "formal",
+    "literary": "literary",
+    "poetic": "literary",
+    "jocular": "jocular",
+    "humorous": "jocular",
+    "childish": "childish",
+    "baby-talk": "childish",
+}
+ETIQUETAS_DE_REGION = {
+    "Chile": "chile", "Argentina": "argentina", "Mexico": "mexico", "Venezuela": "venezuela",
+    "Colombia": "colombia", "Spain": "spain", "Peru": "peru", "Río-de-la-Plata": "rio_de_la_plata",
+    "Uruguay": "uruguay", "Honduras": "honduras", "Bolivia": "bolivia", "Cuba": "cuba",
+    "El-Salvador": "el_salvador", "Ecuador": "ecuador", "Nicaragua": "nicaragua",
+    "America": "america", "Puerto-Rico": "puerto_rico", "Costa-Rica": "costa_rica",
+    "Guatemala": "guatemala", "Paraguay": "paraguay", "Dominican-Republic": "dominican_republic",
+    "Andalusia": "andalusia", "Panama": "panama", "Central-America": "central_america",
+    "Canary-Islands": "canary_islands", "US": "us", "UK": "uk", "Australia": "australia",
+    "Scotland": "scotland", "Canada": "canada", "Ireland": "ireland", "India": "india",
+    "New-Zealand": "new_zealand", "South-Africa": "south_africa", "Philippines": "philippines",
+}
+
+ETIQUETAS = {**ETIQUETAS_DE_REGISTRO, **ETIQUETAS_DE_REGION}
+
+#: How many labels a sense keeps: register first, then region, each in the source's order.
+MAX_ETIQUETAS = 3
+
 # How many synonyms are stored per sense. Four fit on a watch screen on a single line; the fifth
 # already forces scrolling to read something that is a help, not the definition.
 MAX_SYNONYMS_PER_SENSE = 4
@@ -620,6 +671,18 @@ def _word_translations(raw, headword, idioma, ya_en_acepciones):
     return tuple(salida[:MAX_TRADUCCIONES_POR_ACEPCION])
 
 
+def _etiquetas(sense):
+    """The sense's label keys: register first, then region, without repeats, at most three."""
+    tags = list(sense.get("tags") or ()) + list(sense.get("raw_tags") or ())
+    salida = []
+    for tabla in (ETIQUETAS_DE_REGISTRO, ETIQUETAS_DE_REGION):
+        for tag in tags:
+            clave = tabla.get(tag)
+            if clave and clave not in salida:
+                salida.append(clave)
+    return salida[:MAX_ETIQUETAS]
+
+
 def _senses(raw, translations_to=None, perfil=None):
     """The senses that survive the pruning. Empty if the record is not an entry."""
     headword = raw.get("word", "")
@@ -654,6 +717,7 @@ def _senses(raw, translations_to=None, perfil=None):
         out.append({
             "gloss": gloss,
             "examples": examples,
+            "labels": _etiquetas(sense),
             # ⚠️ **What carries no index does NOT get in**, which is D-117's rule and the reason
             # the list mode exists: hanging it off sense 1 gets it right sometimes and wrong other
             # times with no trace. Measured, 37.7 % of the dump's translations carry no index --
@@ -1192,6 +1256,8 @@ def _emit(group, inbound, opciones):
             forms=forms,
             display_forms=_display_forms(raw, headword),
             pronunciation=_pronunciation(raw),
+            syllables=_silabas(raw),
+            stress=_acento(raw),
             etymology=_etymology(raw),
             # ⚠️ **The SEARCH channel carries both**, attributed and loose: to find `casa` by
             # typing `house` it makes no difference whether the source knew which sense it belongs
@@ -1407,6 +1473,29 @@ def _etymology(raw):
     texto = raw.get("etymology_text")
     if isinstance(texto, str) and texto.strip():
         return _limpiar_origen(texto.strip(), palabra)
+    return None
+
+
+#: The Spanish dump's stress types, as the keys the app translates (d-a2f271-b4adc7). Measured
+#: 2026-10-26 over 854,460 records, the four largest values were seen 571,283, 179,057, 91,081 and
+#: 1,821 times. The value `doble` (1,604) and the combined ones say two things and are left out.
+ACENTOS = {"aguda": "oxytone", "llana": "paroxytone", "esdrújula": "proparoxytone",
+           "sobreesdrújula": "superproparoxytone", "monosílaba": "monosyllable"}
+
+
+def _silabas(raw):
+    """The first hyphenation joined by middle dots, or None. One part divides nothing."""
+    for item in raw.get("hyphenations") or ():
+        partes = [p.strip() for p in item.get("parts") or () if p and p.strip()]
+        return "·".join(partes) if len(partes) > 1 else None
+    return None
+
+
+def _acento(raw):
+    """The stress type the Spanish dump declares in `sounds`, as a key, or None."""
+    for sound in raw.get("sounds") or ():
+        if "acentuación" in (sound.get("raw_tags") or ()):
+            return ACENTOS.get((sound.get("other") or "").strip())
     return None
 
 
