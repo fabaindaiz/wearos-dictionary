@@ -893,6 +893,74 @@ def check_debug_surface_stays_out_of_release(report):
         )
 
 
+#: The bundled cores a versionCode ships. See [check_bundled_cores].
+BUNDLED_CORES_LOCK = "app/bundled-cores.lock"
+
+
+def _read_lock(texto):
+    lock = {}
+    for linea in texto.splitlines():
+        linea = linea.strip()
+        if linea and not linea.startswith("#") and "=" in linea:
+            clave, valor = linea.split("=", 1)
+            lock[clave.strip()] = valor.strip()
+    return lock
+
+
+def check_bundled_cores(report):
+    """Rule: new bundled cores ship under a new versionCode. (i-a2f271-059372)
+
+    The app compares the cores inside the APK with the ones on disk **only when versionCode
+    changed** (`PackStore.plan`), so a rebuild that changes the cores and not the number ships
+    cores nobody extracts. Four times, counted in gradle.properties: the last on 2026-10-22, when
+    *see more words* could not show on the watch until the bump.
+
+    Two places, because a rule acts where the action reads it: `bundlePacks` fails the BUILD when
+    the cores differ from `app/bundled-cores.lock` under the same versionCode, and this check fails
+    the GATE when versionCode moved and the lock did not follow -- which is what makes the lock
+    describe the build that shipped. `--fix` rewrites the lock only after a bump, from the
+    core-index the last build wrote; it never moves versionCode.
+    """
+    props = read("gradle.properties")
+    code = re.search(r"^dictionary\.versionCode\s*=\s*(\d+)\s*$", props, re.M)
+    if code is None:
+        return
+    if not os.path.isfile(os.path.join(ROOT, BUNDLED_CORES_LOCK)):
+        report.failure("falta %s" % BUNDLED_CORES_LOCK,
+                       "sin el, unos cores nuevos bajo el mismo versionCode no se detectan")
+        return
+    lock = _read_lock(read(BUNDLED_CORES_LOCK))
+    indice = os.path.join(ROOT, "app/src/main/assets/core-index.tsv")
+    declarados = {}
+    if os.path.isfile(indice):
+        for linea in read("app/src/main/assets/core-index.tsv").splitlines():
+            partes = linea.split("\t")
+            if len(partes) == 2:
+                declarados[partes[0]] = partes[1]
+    en_lock = {k: v for k, v in lock.items() if k.endswith(".db")}
+    if lock.get("versionCode") == code.group(1):
+        if declarados and declarados != en_lock:
+            report.failure(
+                "cores nuevos bajo el mismo versionCode %s" % code.group(1),
+                "el APK lleva %s y %s dice %s: sube dictionary.versionCode, o el dispositivo "
+                "sigue abriendo los cores viejos sin decir nada"
+                % (declarados, BUNDLED_CORES_LOCK, en_lock))
+        return
+    if ARREGLAR:
+        filas = [l for l in read(BUNDLED_CORES_LOCK).splitlines() if l.startswith("#")]
+        filas.append("versionCode=%s" % code.group(1))
+        filas += ["%s=%s" % kv for kv in sorted((declarados or en_lock).items())]
+        with open(os.path.join(ROOT, BUNDLED_CORES_LOCK), "w", encoding="utf-8") as f:
+            f.write("\n".join(filas) + "\n")
+        report.advisory("%s actualizado" % BUNDLED_CORES_LOCK,
+                        "versionCode %s -> %s" % (lock.get("versionCode"), code.group(1)))
+        return
+    report.failure(
+        "%s no siguio al versionCode" % BUNDLED_CORES_LOCK,
+        "gradle.properties dice %s y el lock %s: corre el audit con --fix despues de construir"
+        % (code.group(1), lock.get("versionCode")))
+
+
 def check_app_version(report):
     """Rule: the APK that goes to the watch is distinguishable from the previous one. (D-095)
 
@@ -2306,6 +2374,7 @@ CHECKS = [
     check_release_signing,
     check_debug_surface_stays_out_of_release,
     check_app_version,
+    check_bundled_cores,
     check_locale_parity,
     check_ui_language_picker,
     check_test_counts,

@@ -1,0 +1,10 @@
+# The bundled cores this versionCode ships, as `bundlePacks` declares them in core-index.tsv.
+#
+# It exists because a new core under an unchanged versionCode is never extracted on a device: the
+# app compares its bundled cores with the ones on disk only when versionCode changed. That shipped
+# stale cores four times (gradle.properties keeps the count). `bundlePacks` fails a build whose
+# cores differ from this file while versionCode is still the one written here, and the audit
+# (check_bundled_cores) fails when versionCode moved and this file did not follow.
+versionCode=15
+en-core.db=202610220257
+es-core.db=202610220301

@@ -106,7 +106,7 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **151 tests**) y el
 pipeline de packs (`tools/`, **712 tests**) están completos y en el gate, junto con los **528 JVM
-de `:app`** y **43 checks** de auditoría estructural — **1434 tests en total**. Los **54
+de `:app`** y **44 checks** de auditoría estructural — **1435 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -6165,7 +6165,13 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### New bundled cores under an unchanged `versionCode`: the watch keeps the old ones — **4 incidents** · i-a2f271-059372
+### ✅ New bundled cores under an unchanged `versionCode`: the watch keeps the old ones — **4 incidents, ENFORCED 2026-10-26** · i-a2f271-059372
+
+**Built 2026-10-26 at the owner's request**, both halves: `bundlePacks` fails the build when a
+bundled core has no declared version or the cores differ from `app/bundled-cores.lock` under the
+same `versionCode`, and `check_bundled_cores` fails the gate when `versionCode` moved and the lock
+did not follow (`--fix` makes it follow). Each was seen to fail by probe. What follows is the
+proposal as it was written.
 
 **Proposed, not built.** `PackStore.plan` compares the APK's cores with the ones on disk only when
 `versionCode` changed, so a rebuild that changes the cores' bytes and not the number ships cores

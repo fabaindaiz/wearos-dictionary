@@ -621,7 +621,44 @@ val bundlePacks = tasks.register("bundlePacks") {
     // Resuelto en CONFIGURACION, como todo lo demas que el `doLast` necesita: leer una `val` del
     // script desde la accion captura el objeto del script y el configuration cache lo rechaza.
     val salidaDeApks = layout.buildDirectory.dir("outputs/apk").get().asFile
+    // The lock of what this versionCode ships (`app/bundled-cores.lock`, check_bundled_cores in the
+    // audit). Read in CONFIGURATION, for the same configuration-cache reason as the index above.
+    val archivoDelLock = layout.projectDirectory.file("bundled-cores.lock").asFile
+    inputs.files(archivoDelLock)
+    val lock = if (archivoDelLock.isFile) {
+        archivoDelLock.readLines().map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") && "=" in it }
+            .associate { it.substringBefore("=").trim() to it.substringAfter("=").trim() }
+    } else {
+        emptyMap()
+    }
+    val versionCodeActual = providers.gradleProperty("dictionary.versionCode").getOrElse("2")
     doLast {
+        // ⚠️ **Fails, and does not warn, when a bundled core has no declared version.** Without
+        // one the app keeps the core on disk whatever the APK carries: on 2026-10-22 a `dist/`
+        // promoted without its `index.json` built an APK the watch opened with October 1's cores,
+        // and the warning that used to be here scrolled by unread.
+        val sinVersion = aCopiar.map { it.name }.filter { it !in versiones }
+        if (sinVersion.isNotEmpty()) {
+            throw GradleException(
+                "bundlePacks: $sinVersion sin version declarada en $indice.\n" +
+                    "  regeneralo: python3 tools/packserver.py $dondeSeBusco --index-only > $indice",
+            )
+        }
+        // ⚠️ **New cores under the versionCode that shipped the old ones are never extracted**:
+        // the app compares bundled and disk cores only when versionCode changed. Four times, the
+        // last on 2026-10-22 (i-a2f271-059372).
+        val delLock = lock.filterKeys { it.endsWith(".db") }
+        val ahoraDeclarados = versiones.mapValues { it.value.toString() }
+        if (aCopiar.isNotEmpty() && lock["versionCode"] == versionCodeActual &&
+            delLock != ahoraDeclarados
+        ) {
+            throw GradleException(
+                "bundlePacks: los nucleos cambiaron ($delLock -> $ahoraDeclarados) bajo el mismo " +
+                    "versionCode $versionCodeActual.\n  sube dictionary.versionCode en " +
+                    "gradle.properties; el dispositivo no extrae cores nuevos sin eso.",
+            )
+        }
         // ⚠️ **Avisa fuerte cuando no hay nucleos, y eso NO es cosmetica.** Que la lista venga
         // vacia es un caso soportado --un clone limpio no tiene los packs, que pesan 372 MB y
         // viven fuera del repo (D-175, D-086: un clone limpio tiene que seguir compilando)-- asi
@@ -671,17 +708,8 @@ val bundlePacks = tasks.register("bundlePacks") {
         // nucleo del APK es mas nuevo que el que el usuario bajo, y lo deja como esta.
         val manifiesto = File(destino, nombreDelIndice)
         if (versiones.isEmpty()) {
+            // Only reachable with no cores at all: a core without a version failed above.
             manifiesto.delete()
-            if (aCopiar.isNotEmpty()) {
-                logger.warn(
-                    "bundlePacks: hay nucleos pero NINGUNA version declarada.\n" +
-                        "  la app no va a poder actualizarlos al instalar una version nueva:\n" +
-                        "  se queda con el que el usuario tenga (ver D-226).\n" +
-                        "  regeneralo con:\n" +
-                        "    python3 tools/packserver.py $dondeSeBusco --index-only \\\n" +
-                        "      > $indice",
-                )
-            }
         } else {
             // TSV y no JSON: son dos lineas y el parser vive en el reloj. Un formato que se
             // parsea con `split('\t')` no puede tirar una excepcion que nadie espera.
@@ -690,9 +718,6 @@ val bundlePacks = tasks.register("bundlePacks") {
                     .joinToString("\n") { (nombre, v) -> "$nombre\t$v" } + "\n",
             )
             logger.lifecycle("bundlePacks: ${versiones.size} nucleo(s) con version declarada")
-            aCopiar.filterNot { it.name in versiones }.forEach {
-                logger.warn("bundlePacks: ${it.name} viaja SIN version declarada (indice ausente o desactualizado)")
-            }
         }
     }
 }
