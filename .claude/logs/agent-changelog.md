@@ -16,6 +16,90 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-26 · s-a2f271-e6bb46 — Register filters and labels from the dump, a copyleft sweep, Wikipedia piloted, and two old defects the rebuild exposed
+**What.** A sweep of alternative sources (the RAE, English sources, copyleft ones for a GPL-3.0
+app) and of the fields our own dumps carry unread, written into `docs/fuentes.md` §*Sweep of
+2026-10-26*. The owner picked three uses of what was already in the dump, all built and seen on the
+emulator: *Coloquial* and *Vulgar* as values of *Rareza* (d-a2f271-136e08), register and region
+labels per sense (`U`, d-a2f271-1f80cd), syllables and stress on the IPA line (`H`/`K`,
+d-a2f271-b4adc7), and the reload with the filters above a divider (d-a2f271-315c50). Rebuilding
+the packs exposed two old defects, both fixed: `verify_pack` did not know the new tags, and en-full
+carried 396 cards that showed only a part of speech. `versionCode` 17 and every pack went to the
+watch. A Wikipedia summaries pack was researched and piloted on its own branch, kept out of main by
+the owner. The session keep-alive gained a *Detener sesión* button and a visible notification.
+
+**Areas.** `tools/packbuilder` (`sources/discover.py` v3, `sources/kaikki.py`, `payload.py`,
+`build.py`, `build_core.py`, `verify_pack.py`, `gen_payload_fixture.py` and the fixture),
+`dict-core` (`PayloadCodec`, `Model`, `Discover`), `dict-data` (`SqlitePackSource`), `app`
+(discover screen, entry card, `UsageLabels.kt`, strings), `watch-keepalive`, `tools/watchsession.py`,
+and the docs: fuentes, decisions, roadmap.
+
+**Why.** Asked for by the owner: explore alternative sources including the RAE and English and
+Spanish dictionaries, what extra the packs could carry, usual dictionary features; then which words
+are frequent or colloquial, for the filters, from data the current sources already have; then
+whether copyleft sources open up for a GPL app whose data ships separately; then a wiki-type pack;
+then upload everything; then a stop button for the debug session.
+
+**Architecture.** ✅ Complies. All three payload tags are additive (D-119, no codec bump) and
+mirrored in both languages with a shared fixture case; the label vocabulary is a key set whose
+strings the app owns, held across the language boundary by a test that reads `strings.xml`. Nothing
+third-party entered: wordfreq, FreeDict and Apertium were probed in scratch only.
+
+**Review.** None in a fresh context. Five delegated agents: three researchers (Spanish sources,
+English sources, copyleft licenses at the primary page), one measurement (FreeDict and Apertium
+coverage, in scratch), and the Wikipedia research and pilot in its own worktree. Their numbers were
+used as reported; the Wikipedia diff was read for privacy before its commit, not re-measured.
+
+**Rulings (decided without asking, each reversible).** A register tier needs its **first** sense
+labelled too (`cacatúa` drew a parrot under *Vulgar*) and drops diminutives and clippings; label
+order is register then region, three at most; syllables show wherever the source has them, English
+included; the empty-entry fix lives in the source and the builder fails loudly rather than skipping;
+a lone etymology survives the vocabulary filter; `versionName` 0.10.0; the keep-alive's channel is
+`IMPORTANCE_LOW` under a new id.
+
+**Cards relied on, and the checks that ran.** `same-answer-or-refuse` (the tier probes called
+`discover.tier` over the real dumps); `absent-constraint-widens` (the divider order and the core
+derivation's label channel each failed a test by mutation); the tag-letter guard in `build_core`
+and the 100 % scan for empty payloads over every built pack, not `verify_pack`'s sample.
+
+**Measured.** Spanish words colloquial by majority of senses 4,780, vulgar 1,303, formal 345;
+English 33,369 / 9,097 / 1,907 (dumps). After the first-sense rule: es-full holds 2,279 colloquial
+and 851 vulgar tier words. Labels on 12.4 % of es-full entries and 19.5 % of es-core, syllables on
+90.0 % / 95.0 %; en-full ~14 % / ~2 % (sample of 3,000). Pack sizes against the morning's:
+es-full +2.1 %, en-full +0.6 %, en-main +2.1 %, es-core 51.9 -> 33.0 MB (the sizing loop, same
+78.89 % corpus coverage). FreeDict `eng-spa` is CC BY-SA 3.0 from Wiktionary and adds 353
+headwords; Apertium is GPL-2.0-only. Wikipedia pilot: 560 B per article with the summary
+paragraph. Watch: ready to search in 3,179 ms with all five packs of the day.
+
+**What went wrong.** The first rebuild stopped on `verify_pack`: the three tags were added to the
+codec and not to its known list, a check only real packs reach. The second exposed 396 empty en-full
+cards that earlier builds had shipped because `verify_pack` samples 200 payloads; my first fix
+skipped them in the builder and broke the next rebuild on `uid`s computed for homographs that no
+longer existed, so the rule moved to the source. A command chained `gate && commit && build &`
+backgrounded the gate and the commit, which then failed out of sight; the gate was also red while
+`dist/` was half rebuilt (stale `index.json`), and once more until the lock was refreshed in the
+right order (`bundlePacks` first, then `audit --fix`). The language check flagged two comments that
+quoted the dump's Spanish values. The first watch push looked for the bilingual under its `pack_id`
+instead of its file name (`es-en.db`) and skipped en-full. The emulator process died once under
+load. A "tap the notification to stop" change was built and reverted: on Wear OS the first tap
+always expands a notification.
+
+**What was left undone.** Nothing merged or pushed: `research/sources-register` (13 commits) and
+`research/wikipedia-pack` are local. The keep-alive button was seen on the emulator; on the watch it
+is installed with a session running and not yet confirmed. es-core's sizing loop is a pending
+decision. The one-tap stop needs a dependency the owner has not approved.
+
+**Not verified.** The keep-alive on the watch; the app's labels and syllables on the watch itself
+(only the startup log was read, by the rule); the Wikipedia pilot's extrapolation to ranks
+50k-500k; how the RAE's legal page words its prohibition (it answered 403).
+
+**Learned.** General: a check that samples (200 payloads) lets a 0.04 % defect ship for weeks; a
+property the builder can enforce on every row belongs in the builder. Local: two frictions reached
+their second incident and went to §*Proceso y herramientas*, priced: `index.json` regenerated by
+hand (i-a2f271-2690f9) and the emulator dying under host load (i-a2f271-2f7c0e). First incidents,
+kept here: backgrounding a chained `gate && commit`; a script naming packs by `pack_id` where
+`dist/` names them by file.
+
 ## 2026-10-26 · s-a2f271-202442 — Rare words measured against who knows them, translations apart, and the open decisions settled
 **What.** Published lists of rare and curious words were gathered and set against the packs, and
 word prevalence became the yardstick: version 1's *rare* was known by 86 % (es) and 92 % (en) of
