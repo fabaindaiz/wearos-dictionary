@@ -5769,7 +5769,7 @@ the same report.
 **The upload is now one command**, which also closes the session when something fails -- see
 §*Proceso y herramientas*. Since 2026-10-26 the tool lives in its own repository
 (d-a2f271-ab8cd7): `python3 ../wearos-debug-tool/watchsession.py deploy <apk> --actividad
-cl.fadiaz.dictionary/.presentation.MainActivity --tag Dict`.
+cl.fadiaz.dictionary/.presentation.MainActivity --tag Dict --listo arranque`: without `--listo` it reads the whole wait and no longer checks this app's geometry line.
 
 ⚠️ **What the watch still cannot be said to have answered.** **P-11**, and whether the quieter
 orphan red reads on a wrist. Both need the watch **being used**, not a log, and the probe is
