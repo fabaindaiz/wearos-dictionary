@@ -6313,6 +6313,18 @@ device that is not there. **The rung, priced:** a line in the `verify` skill and
 `adb -s emulator-5554 get-state` before reading any screenshot. Zero code; a probe in
 `watchsession.py`'s style (warn when `vm_stat` free pages fall under a threshold) would be ~30 lines.
 
+### The audit's counts land in the next commit of a series — **a loaded rule broken again, proposed 2026-10-26** · i-a2f271-e61126
+
+**Proposed, not built.** The `commit` skill says to run `audit --fix` inside each intermediate tree,
+because the document counts follow the working tree. On 2026-10-26 a two-commit series was made
+from the full tree with that rule loaded, and the first commit was red on its own (four counts in
+`README.md`, `tools/AGENTS.md` and the roadmap), found only by proving it in a worktree and rebuilt
+by hand; a local memory records the same trap from an earlier session. Prose that was in context
+and did not hold is the signal to raise the rung. **The rung, priced:** a script that commits a
+series by checking each commit in a throwaway worktree (`gate` there, refuse on red), ~40 lines,
+or a `pre-commit` hook that runs the audit's count check against the **staged** tree instead of
+the working tree, ~20 lines plus the cost of running the audit (~10 s) on every commit.
+
 ### The gate cannot see colour, animation or where a line breaks · i-a2f271-6b7752
 
 **Proposed, not built.** Three times on 2026-09-28 a green suite meant nothing, always for the same
