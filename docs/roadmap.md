@@ -43,7 +43,7 @@ for the owner to test that button. The data root's `dist/` holds this rebuild; t
 as `dist.2026-10-26`. A Wikipedia summaries pack was researched and piloted on branch
 `research/wikipedia-pack` only (i-a2f271-b19c3f there), kept out of main by the owner.
 
-**To continue, from any machine:** the two branches above are local, not pushed; pushing them (or
+**To continue, from any machine:** the session tool now lives in its own repository, cloned beside this one as `../wearos-debug-tool` (d-a2f271-ab8cd7); without it the session hooks do nothing. Three branches are local, not pushed: the two above and `chore/extract-debug-tool`, on top of `research/sources-register`; pushing them (or
 merging `research/sources-register` into main) is the owner's call. The data root
 (`../wearos-dictionary-data`, outside git) holds the dumps and the rebuilt `dist/` with its
 `index.json`. The first concrete steps, the owner's to pick: confirm the keep-alive's stop button on

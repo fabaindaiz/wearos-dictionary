@@ -16,6 +16,36 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-26 · s-a2f271-721a7a — The watch debug-session tool moves to its own repository
+**What.** The keep-alive app and `watchsession.py` left this repository for their own,
+`wearos-debug-tool` (a sibling folder, public on the owner's word), with their eight commits of
+history rewritten to hold only their paths and no assistant trailer. Here the `:watch-keepalive`
+module and the script are gone; the session hooks call `../wearos-debug-tool/watchsession.py` and
+stay silent without it; d-a2f271-8ac8d5 is superseded by d-a2f271-ab8cd7. The new repository was
+then bootstrapped for coding agents (its own log has that session), and its `deploy` now takes the
+activity, the tag and `--listo arranque` from this app.
+
+**Areas.** `settings.gradle.kts`, `.claude/settings.json`, `docs/decisions.md`, `docs/roadmap.md`;
+`watch-keepalive/` and `tools/watchsession.py` removed.
+
+**Why.** Asked for by the owner: extract the debug-session app into its own project, with its
+history, to a GitHub repository they created.
+
+**Architecture.** ✅ Complies. The only coupling, the adb helpers imported from `devpack.py`, became
+the tool's own `adbdevice.py`; `devpack.py` keeps its copy here.
+
+**Rulings.** `deploy` lost its defaults to this app (required arguments); the hooks resolve the
+sibling path; the package `cl.fadiaz.watchkeepalive` stays, by the owner's word.
+
+**What went wrong.** A "tap the notification to stop" change was built and reverted: Wear OS expands
+a notification on its first tap. The extracted history carried a `Co-Authored-By` trailer
+from a September commit (it is still in this repository's history), found by scanning the
+extraction before merging it and stripped in the rewrite. The emulator died once under load during the keep-alive test.
+
+**What was left undone.** Nothing merged or pushed here: `research/sources-register`,
+`research/wikipedia-pack` and `chore/extract-debug-tool` (on top of the first) are local. The
+*Detener sesión* action is installed on the watch and not yet confirmed there.
+
 ## 2026-10-26 · s-a2f271-e6bb46 — Register filters and labels from the dump, a copyleft sweep, Wikipedia piloted, and two old defects the rebuild exposed
 **What.** A sweep of alternative sources (the RAE, English sources, copyleft ones for a GPL-3.0
 app) and of the fields our own dumps carry unread, written into `docs/fuentes.md` §*Sweep of
