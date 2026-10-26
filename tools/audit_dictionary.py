@@ -2350,7 +2350,51 @@ def check_no_probes_left_behind(report):
                 )
 
 
+def exportar_lo_staged(repo, destino):
+    """Writes the index -- what the next commit will hold -- into `destino`, files only.
+
+    `git checkout-index` reads `GIT_INDEX_FILE` when set, which is how `git commit --only` hands a
+    pre-commit hook its temporary index: the snapshot is that commit's, not the working tree's.
+    """
+    subprocess.run(["git", "-C", repo, "checkout-index", "-a", "-f",
+                    "--prefix=%s/" % os.path.abspath(destino)], check=True)
+
+
+#: Where the versioned hooks live; `core.hooksPath` points git at it (a per-clone setting).
+DIR_HOOKS = ".githooks"
+
+
+def hook_de_commit_instalado(repo):
+    salida = subprocess.run(["git", "-C", repo, "config", "--get", "core.hooksPath"],
+                            capture_output=True, text=True)
+    return salida.stdout.strip() == DIR_HOOKS
+
+
+def instalar_hook_de_commit(repo):
+    subprocess.run(["git", "-C", repo, "config", "core.hooksPath", DIR_HOOKS], check=True)
+
+
+def check_commit_hook(report):
+    """Rule: every clone runs the staged audit before a commit (i-a2f271-e61126).
+
+    ⚠️ **A rule broken with its prose loaded, so it became a mechanism.** The `commit` skill said to
+    run `--fix` inside each intermediate tree; on 2026-10-26 a two-commit series was made from the
+    full tree anyway and the first commit was red on its own. The hook audits the STAGED snapshot,
+    so a commit whose documents count another commit's tests is refused before it exists. The hook
+    path is a per-clone setting, which is why the gate checks it; `--fix` sets it.
+    """
+    if os.path.exists(os.path.join(ROOT, ".git")) and not hook_de_commit_instalado(ROOT):
+        if ARREGLAR:
+            instalar_hook_de_commit(ROOT)
+            report.advisory("hook de commit instalado", "core.hooksPath = %s" % DIR_HOOKS)
+        else:
+            report.failure("falta el hook de commit",
+                           "corre `python3 tools/audit_dictionary.py --fix` una vez en este clon: "
+                           "pone core.hooksPath = %s" % DIR_HOOKS)
+
+
 CHECKS = [
+    check_commit_hook,
     check_no_probes_left_behind,
     check_decision_rows_stay_an_index,
     check_changelog_entries_are_complete,
@@ -2397,12 +2441,34 @@ CHECKS = [
     check_skills_reachable,
 ]
 
+CHECKS_STAGED = [check_test_counts]
+
 
 def main(argv=()):
     global ARREGLAR
     ARREGLAR = "--fix" in argv
+    if "--staged" in argv:
+        # ⚠️ **The snapshot's OWN audit runs, not this one.** The counts include the number of
+        # checks this file declares, and the commit holds the staged version of it.
+        import shutil
+        import tempfile
+        temporal = tempfile.mkdtemp(prefix="audit-staged-")
+        try:
+            exportar_lo_staged(ROOT, temporal)
+            codigo = subprocess.run(
+                [sys.executable, os.path.join(temporal, "tools", "audit_dictionary.py"),
+                 "--conteos"]).returncode
+        finally:
+            shutil.rmtree(temporal, ignore_errors=True)
+        if codigo:
+            print("El commit queda rechazado: lo staged no pasa. Corre --fix sobre ESTE arbol "
+                  "(no el completo) o agrega los documentos que faltan.")
+        return codigo
+    # `--conteos`: only the checks whose truth depends on which files a commit holds together;
+    # the rest need the working tree (built assets, the bundle's digests) and stay in the gate.
+    checks = CHECKS_STAGED if "--conteos" in argv else CHECKS
     report = Report()
-    for check in CHECKS:
+    for check in checks:
         try:
             check(report)
         except Exception as error:  # noqa: BLE001 - un check roto es una falla, no un crash
@@ -2415,8 +2481,9 @@ def main(argv=()):
 
     print("")
     print(
-        "%d checks, %d fallas, %d avisos"
-        % (len(CHECKS), len(report.failures), len(report.advisories))
+        "%d checks%s, %d fallas, %d avisos"
+        % (len(checks), " sobre lo staged" if "--conteos" in argv else "",
+           len(report.failures), len(report.advisories))
     )
     return 1 if report.failures else 0
 

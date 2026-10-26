@@ -136,8 +136,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **158 tests**) y el
-pipeline de packs (`tools/`, **773 tests**) están completos y en el gate, junto con los **557 JVM
-de `:app`** y **44 checks** de auditoría estructural — **1532 tests en total**. Los **54
+pipeline de packs (`tools/`, **777 tests**) están completos y en el gate, junto con los **557 JVM
+de `:app`** y **45 checks** de auditoría estructural — **1537 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -6313,7 +6313,9 @@ device that is not there. **The rung, priced:** a line in the `verify` skill and
 `adb -s emulator-5554 get-state` before reading any screenshot. Zero code; a probe in
 `watchsession.py`'s style (warn when `vm_stat` free pages fall under a threshold) would be ~30 lines.
 
-### The audit's counts land in the next commit of a series — **a loaded rule broken again, proposed 2026-10-26** · i-a2f271-e61126
+### ✅ The audit's counts land in the next commit of a series — **BUILT 2026-10-26** · i-a2f271-e61126
+
+**Built at the owner's request** as the `pre-commit` hook in `.githooks/`: it exports the staged snapshot and runs **that snapshot's own** audit over it (`--staged`, then `--conteos`), so a commit whose documents count another commit's tests is refused before it exists. `check_commit_hook` fails the gate on a clone without `core.hooksPath`; `--fix` sets it. Probed by staging a test without its counts: refused, four counts named. The proposal as it was written:
 
 **Proposed, not built.** The `commit` skill says to run `audit --fix` inside each intermediate tree,
 because the document counts follow the working tree. On 2026-10-26 a two-commit series was made

@@ -1,0 +1,3 @@
+#!/bin/sh
+# The audit over what this commit will hold, not over the working tree (i-a2f271-e61126).
+exec python3 tools/audit_dictionary.py --staged
