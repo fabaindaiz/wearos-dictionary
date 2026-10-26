@@ -5580,8 +5580,11 @@ shows the reload above a divider and *Coloquial* draws `ñañear`, `ratonear`, `
    2026-10-26** (d-a2f271-488cbe): the loop now aims at the range's target within 10 % of its
    width (40 ± 2 MB for core). Measured on the day's full packs: es-core 41.2 MB in 4 rounds,
    en-core 40.9 MB in 2, the corpus coverage unchanged (78.89 % es). The cores on the watch are
-   still the 31.4 MB build until the next rebuild and `versionCode` bump.
-2. Merge to main and push only when the owner asks; the watch only if asked.
+   still the 31.4 MB build until the next rebuild and `versionCode` bump. **Shipped 2026-10-26 in
+   `versionCode` 18**, with the tail ordered by use and prevalence (d-a2f271-b05bcf).
+2. *See more words* could use prevalence too (*Común* = known by 90 % of speakers, Spanish). The
+   tier is written into the full pack, so it waits for a full rebuild.
+3. Merge to main and push only when the owner asks; the watch only if asked.
 
 Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary
 features, how to use frequent and colloquial words in the filters, and whether copyleft sources

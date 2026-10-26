@@ -16,6 +16,42 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-10-26 · s-a2f271-28e1c8 — Derived tiers sized at their target and ordered by real use, and a hook that audits what a commit holds
+**What.** Three tasks the owner picked from the pending list, and a fourth that came out of
+reading the cores. A derived tier now aims at its range's target, 40 ± 2 MB for core
+(d-a2f271-488cbe), and orders its tail by the full FrequencyWords list down to Zipf 2, then by the
+words most Spanish speakers know (SPALEX ≥ 50 %), with page richness last (d-a2f271-b05bcf).
+`build_packs.py` writes `index.json` itself (i-a2f271-2690f9). The verify skill says no emulator
+checks under load (i-a2f271-2f7c0e). A pre-commit hook runs the staged snapshot's own audit
+(i-a2f271-e61126). The XML comment check reads every tracked XML. Four stale roadmap items are
+marked closed, each checked against the code or the pack. The derived packs were rebuilt into
+`dist/` and shipped with `versionCode` 18.
+
+**Areas.** `tools/packbuilder/build_core.py`, `tools/build_packs.py`, `tools/audit_dictionary.py`,
+`.githooks/`, their tests, the verify skill, `tools/AGENTS.md`, decisions, roadmap.
+
+**Why.** Asked for by the owner: the pending items, then reconsider the filters with the new
+frequency and rarity data before rebuilding, rebuilding only the derived packs.
+
+**Architecture.** ✅ Complies. The full frequency list is the same source and license as the 50k
+one (CC BY-SA 4.0, read in the project's README) and only orders entries; the 50k list stays the
+coverage metric `verify_pack` recomputes.
+
+**Measured.** es-core at the same 41.8 MB: 32,018 -> 54,010 words, lemma coverage 22.7 % -> 38.2 %,
+corpus coverage unchanged at 78.89 %, 0 of 21,620 words known by 80 % of speakers missing (1,955 of
+those known by 95 % were missing before). en-core 41.0 MB, en-main 129.9 MB (2026-10-26, macOS).
+
+**What went wrong.** A two-commit series was split from the full tree with the commit skill's
+rule loaded, and the first commit was red on its own; found only by proving it in a worktree. A
+first version of the new order pushed `fome`, a required word, out of es-core behind words known by
+12 %; `verify_pack` caught it and the 50 % floor fixed it. Splitting the next series, an unquoted
+file list in zsh saved no copies and a `git checkout` then discarded the uncommitted audit change,
+rebuilt from the conversation and re-probed. The staged audit first counted the working tree's
+checks, not the snapshot's, and was changed to run the snapshot's own audit.
+
+**What was left undone.** The *see more words* tiers could use prevalence too (Común = known by
+90 %), which needs a full rebuild. The one-tap stop and CI for the tool stay proposed.
+
 ## 2026-10-26 · s-a2f271-721a7a — The watch debug-session tool moves to its own repository
 **What.** The keep-alive app and `watchsession.py` left this repository for their own,
 `wearos-debug-tool` (a sibling folder, public on the owner's word), with their eight commits of
