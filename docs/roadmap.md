@@ -5528,7 +5528,25 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
-### A register filter, and what else the packs could carry — **PROPOSED 2026-10-26, nothing built** · i-a2f271-9a16c4
+### A register filter, and what else the packs could carry — **1, 2 and 3 BUILT 2026-10-26, not yet seen on the emulator** · i-a2f271-9a16c4
+
+**Chosen by the owner: 1, 2 and 3**, with the shapes in d-a2f271-136e08 (*Coloquial* and *Vulgar*
+as values of *Rareza*), d-a2f271-1f80cd (register and region labels per sense), d-a2f271-b4adc7
+(syllables and stress on the IPA line) and d-a2f271-315c50 (the reload up with the filters). The
+code is on branch `research/sources-register`, not merged. **Pending, in order:**
+
+1. Finish the pack rebuild (`tools/build_packs.py`; the previous `dist/` is kept as
+   `dist.2026-10-26`) and read real Spanish entries in `es-full` **and** `es-core`: labels,
+   syllables, stress. `en-full` was read: 413 of 3,000 sampled entries carry a label.
+2. Measure each pack's growth against `dist.2026-10-26`, above all `es-core`, which ships in
+   the APK.
+3. Bump `versionCode` (the cores change; `bundlePacks` checks `app/bundled-cores.lock`, so run
+   `audit_dictionary.py --fix`), build, and look on the emulator `wear_sm_l715f`: the card with
+   labels, the pronunciation line on 234 dp, *see more words* with the reload up and the divider,
+   and both new tiers drawing words. Screenshots to the owner.
+4. Confirm with the owner: *Vulgar* holds derogatory and ethnic slurs (`naco`, `honky`), as
+   Wiktionary labels them; dropping those is one line in `discover._VULGAR`.
+5. Merge to main and push only when the owner asks; the watch only if asked.
 
 Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary
 features, how to use frequent and colloquial words in the filters, and whether copyleft sources
