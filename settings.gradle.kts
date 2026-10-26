@@ -27,7 +27,3 @@ include(":app")
 include(":dict-core")
 include(":dict-data")
 include(":tools")
-
-// Herramienta de desarrollo, no parte del producto: nadie la declara como dependencia y por eso
-// no toca el APK que se mide. Ver watch-keepalive/build.gradle.kts.
-include(":watch-keepalive")

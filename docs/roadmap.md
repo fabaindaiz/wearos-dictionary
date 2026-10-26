@@ -5766,8 +5766,10 @@ the same day (d-a2f271-d83740) and this is what proves the build on the wrist is
 it. Before that line existed, *«the fix did not work»* and *«the watch runs yesterday's APK»* were
 the same report.
 
-**The upload is now one command** (`tools/watchsession.py deploy <apk>`), which also closes the
-session when something fails -- see §*Proceso y herramientas*.
+**The upload is now one command**, which also closes the session when something fails -- see
+§*Proceso y herramientas*. Since 2026-10-26 the tool lives in its own repository
+(d-a2f271-ab8cd7): `python3 ../wearos-debug-tool/watchsession.py deploy <apk> --actividad
+cl.fadiaz.dictionary/.presentation.MainActivity --tag Dict`.
 
 ⚠️ **What the watch still cannot be said to have answered.** **P-11**, and whether the quieter
 orphan red reads on a wrist. Both need the watch **being used**, not a log, and the probe is
@@ -6341,6 +6343,9 @@ gate should **refuse** an assertion it cannot distinguish -- a width comparison 
 survived its mutation and was deleted, and nothing would have caught it but running the mutation.
 
 ### `watchsession.py` has no tests, and every fix in it was hand-verified · i-a2f271-a4725e
+
+⚠️ **Moved with the tool to its own repository on 2026-10-26** (d-a2f271-ab8cd7): it is that
+repository's item now, kept here as the record of why.
 
 **Proposed, not built.** Four defects were found in it on 2026-09-28 **by using it**, and each was
 verified by running it against the watch and the emulator: a reconnect that skipped the two cases

@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 tools/watchsession.py --opcional start || true",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 ../wearos-debug-tool/watchsession.py --opcional start 2>/dev/null || true",
             "timeout": 30,
             "statusMessage": "Manteniendo despierto el reloj..."
           }
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 tools/watchsession.py --opcional stop || true",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" && python3 ../wearos-debug-tool/watchsession.py --opcional stop 2>/dev/null || true",
             "timeout": 30,
             "statusMessage": "Soltando el wake lock del reloj..."
           }
