@@ -430,6 +430,10 @@ def cmd_install(args):
     # the permission was already there, so it is done once at install rather than diagnosed later
     # from a session that died for no visible reason.
     _adb(serial, "shell", "appops", "set", PAQUETE, "WRITE_SETTINGS", "allow", silencioso=True)
+    # Without it, Android 13+ hides the foreground service's notification, and with it the
+    # *Detener sesión* button that ends a session left running by hand.
+    _adb(serial, "shell", "pm", "grant", PAQUETE, "android.permission.POST_NOTIFICATIONS",
+         silencioso=True)
 
     # Samsung's own power manager overrides the Android contract. **Measured 2026-09-25**: with
     # the foreground service running and all three locks held, the LCD went off and the log said

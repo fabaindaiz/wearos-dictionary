@@ -3,6 +3,7 @@ package cl.fadiaz.watchkeepalive
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -10,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.database.ContentObserver
+import android.graphics.drawable.Icon
 import android.provider.Settings
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -26,6 +28,9 @@ import android.util.Log
  *
  *     adb shell am start-foreground-service -n cl.fadiaz.watchkeepalive/.KeepAliveService
  *     adb shell am stopservice              -n cl.fadiaz.watchkeepalive/.KeepAliveService
+ *
+ * Or by hand, from the ongoing notification's *Detener sesión* button, for a session left
+ * running when the laptop that started it is gone.
  *
  * A partial wake lock keeps the CPU running with the screen off, which is the one thing that
  * settings could not buy: the screen is not the lever, because Wear OS dozes on a wrist drop or a
@@ -55,6 +60,11 @@ class KeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DETENER) {
+            Log.i(TAG, "Detenida a mano desde la notificacion")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // A null intent is START_STICKY redelivering after a kill, and it carries no extras, so
         // the default has to stand on its own. The override exists so the expiry can be tested
         // without waiting an hour, and it is useful on its own for a session known to be short.
@@ -230,16 +240,29 @@ class KeepAliveService : Service() {
 
     private fun notificacion(): Notification {
         val manager = getSystemService(NotificationManager::class.java)
-        // IMPORTANCE_MIN: Android demands a notification for a foreground service, so the only
-        // choice left is how loud it is. This one is as quiet as the platform allows.
+        // IMPORTANCE_LOW: silent, but listed. MIN was quieter and hid the notification, and with
+        // it the only way to end a session by hand. A new channel id because a channel's
+        // importance cannot be raised once the device has created it.
         manager.createNotificationChannel(
-            NotificationChannel(CANAL, "Depuracion", NotificationManager.IMPORTANCE_MIN)
+            NotificationChannel(CANAL, "Depuracion", NotificationManager.IMPORTANCE_LOW)
+        )
+        val detener = PendingIntent.getService(
+            this, 0,
+            Intent(this, KeepAliveService::class.java).setAction(ACTION_DETENER),
+            PendingIntent.FLAG_IMMUTABLE,
         )
         return Notification.Builder(this, CANAL)
             .setContentTitle("Depuracion activa")
             .setContentText("El reloj no se suspende mientras dure la sesion")
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setOngoing(true)
+            .addAction(
+                Notification.Action.Builder(
+                    Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+                    "Detener sesión",
+                    detener,
+                ).build()
+            )
             .build()
     }
 
@@ -256,7 +279,10 @@ class KeepAliveService : Service() {
          * the hidden API list. Verified on the device with `settings get global adb_wifi_enabled`.
          */
         const val AJUSTE_ADB_WIFI = "adb_wifi_enabled"
-        const val CANAL = "keepalive"
+        const val CANAL = "sesion"
+
+        /** The notification button's intent: release everything and stop, as `stopservice` does. */
+        const val ACTION_DETENER = "cl.fadiaz.watchkeepalive.DETENER"
         const val ID_NOTIFICACION = 1
         const val LIMITE_MS = 60L * 60L * 1000L
 
