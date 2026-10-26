@@ -76,3 +76,6 @@ app/src/main/assets/core-index.tsv
 # guarda solo su ruta. Esto es el segundo cinturon.
 *.jks
 *.keystore
+
+# An agent's isolated checkout (the harness creates it); never part of the repo.
+.claude/worktrees/
