@@ -105,8 +105,27 @@ def _niveles(raiz, idioma, tamano_full_mb):
                         "--rango-mb", str(minimo), str(maximo), "--tier", nivel,
                         "--frecuencias", _ruta(raiz, DUMPS, LISTAS_DE_FRECUENCIA[idioma])],
             "verifica": True,
+            # Re-read when the step RUNS: in a fresh root the full does not exist yet when the
+            # plan is made. See [debe_saltarse].
+            "salta_si_full_hasta_mb": maximo if nivel == "main" else None,
+            "full": full,
         })
     return pasos
+
+
+def debe_saltarse(paso):
+    """Whether a `main` step has to be skipped because its `full` already fits `main`'s range.
+
+    ⚠️ **Decided when the step runs, not only when the plan is made.** Building into a fresh root
+    on 2026-10-22, the plan saw no `full` and kept `es-main`; the full Spanish came out at 88 MB,
+    under the 100 MB floor, and `build_core` failed it -- exit 1 after every other pack was built.
+    The plan-time check in [_niveles] stays: it is what a dry run can say.
+    """
+    tope = paso.get("salta_si_full_hasta_mb")
+    if tope is None:
+        return False
+    mb = tamano_mb(paso["full"])
+    return mb is not None and mb <= tope
 
 
 def plan(raiz, solo=None, tamanos=None):
@@ -216,6 +235,10 @@ def main(argv=None):
 
     for i, paso in enumerate(pasos, 1):
         print("\n[%d/%d] %s" % (i, len(pasos), paso["nombre"]), flush=True)
+        if debe_saltarse(paso):
+            print("  se salta: el full ya cabe en el rango de main (%.1f MB)"
+                  % tamano_mb(paso["full"]), flush=True)
+            continue
         if subprocess.call(paso["comando"]) != 0:
             print("  fallo %s; se para aqui" % paso["nombre"], file=sys.stderr)
             return 1

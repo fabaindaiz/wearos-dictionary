@@ -5,6 +5,7 @@ the pipeline needs 4.4 GB of dumps and an hour, and that does not enter the gate
 and is what matters, is **the order** -- because skipping it raises no error.
 """
 
+import contextlib
 import io
 import os
 import shutil
@@ -417,3 +418,55 @@ class FiltroDeEtimologiaTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MainEnUnaRaizNuevaTest(unittest.TestCase):
+    """⚠️ **The `main` guard decides when the step RUNS, not only when the plan is made.**
+
+    Seen on 2026-10-22, building into a fresh root: the plan was made before any `full` existed,
+    so it kept `es-main`; the full Spanish came out at 88 MB, under `main`'s 100 MB floor, and
+    `build_core` failed it -- exit 1 after every other pack had been built. The data root never
+    showed it, because its `full` from the previous build was already there when the plan read it.
+    """
+
+    def setUp(self):
+        self.raiz = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.raiz, ignore_errors=True)
+
+    def _full(self, mb):
+        ruta = os.path.join(self.raiz, DIST, "es-full.db")
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+        with open(ruta, "wb") as f:
+            f.truncate(int(mb * 1048576))
+        return ruta
+
+    def test_a_full_that_fits_main_skips_it_when_the_step_comes(self):
+        paso = next(p for p in build_packs.plan(self.raiz, solo="es") if p["nombre"] == "es-main")
+        self._full(88)
+        self.assertTrue(build_packs.debe_saltarse(paso))
+        self._full(200)
+        self.assertFalse(build_packs.debe_saltarse(paso))
+
+    def test_main_reads_the_full_built_in_this_same_run(self):
+        corridos = []
+
+        def falso(comando):
+            corridos.append(os.path.basename(comando[3]) if len(comando) > 3 else "")
+            # The full is BUILT by the first step: it does not exist when the plan is made.
+            if comando[1].endswith("build_pack.py") and comando[2] == "es":
+                self._full(88)
+            return 0
+
+        original = build_packs.subprocess.call
+        build_packs.subprocess.call = falso
+        try:
+            salida = io.StringIO()
+            with contextlib.redirect_stdout(salida):
+                codigo = build_packs.main([self.raiz, "--solo", "es"])
+        finally:
+            build_packs.subprocess.call = original
+        self.assertEqual(0, codigo)
+        self.assertIn("es-main", salida.getvalue())
+        self.assertNotIn("es-main.db", " ".join(corridos))
