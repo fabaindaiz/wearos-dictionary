@@ -1,5 +1,8 @@
 package cl.fadiaz.dictionary.presentation
 
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverPos
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.PackRejection
 import cl.fadiaz.dictionary.core.PackTier
 import cl.fadiaz.dictionary.core.PackKind
@@ -910,6 +913,137 @@ class SearchViewModelTest {
         )
         advanceUntilIdle()
         assertEquals(0, vecesGuardadas)
+    }
+
+    // --- The word of the day in a chosen tier (i-a2f271-96caa4) ------------------------------
+
+    private val everyTier = DiscoverTier.entries.associate {
+        DiscoverBucket(it, DiscoverPos.NOUN) to 300
+    }
+
+    /** A pack with a `discover` table: a tier's word reads `<tier>-noun-<seq>`, a plain one `p<id>`. */
+    private fun withTable(packId: String = "es-def") =
+        FakeDictionary(packId = packId, entryCount = 500, discover = everyTier).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+
+    @Test
+    fun theStoredTierDecidesTheWordOfTheDay() = runTest {
+        val vm = SearchViewModel(
+            { listos(withTable()) },
+            todayDate = { "2026-10-26" },
+            savedSettings = { Settings(wordOfTheDayTier = DiscoverTier.CURIOUS) },
+        )
+        advanceUntilIdle()
+        val word = vm.state.value.wordsOfTheDay.getValue("es-def").headword
+        assertTrue(word.startsWith("curious-"), "salio $word")
+    }
+
+    @Test
+    fun nobodyChoseSoTheWordComesFromTheCommonTier() = runTest {
+        val vm = SearchViewModel({ listos(withTable()) }, todayDate = { "2026-10-26" })
+        advanceUntilIdle()
+        val word = vm.state.value.wordsOfTheDay.getValue("es-def").headword
+        assertTrue(word.startsWith("common-"), "salio $word")
+    }
+
+    @Test
+    fun aPackWithNoTableKeepsTodaysWordWhateverTheTier() = runTest {
+        val plain = FakeDictionary(packId = "es-def", entryCount = 500).apply {
+            summaries = (1L..500L).associateWith { EntrySummary(it, "p$it", "noun", 900) }
+        }
+        val vm = SearchViewModel(
+            { listos(plain) },
+            todayDate = { "2026-10-26" },
+            savedSettings = { Settings(wordOfTheDayTier = DiscoverTier.RARE) },
+        )
+        advanceUntilIdle()
+        val word = vm.state.value.wordsOfTheDay["es-def"]
+        assertTrue(word != null && word.headword.startsWith("p"), "salio $word")
+    }
+
+    @Test
+    fun changingTheTierChangesTheWordOfTheDayAndStoresTheChoice() = runTest {
+        var stored: Settings? = null
+        val vm = SearchViewModel(
+            { listos(withTable()) },
+            todayDate = { "2026-10-26" },
+            saveSettings = { stored = it },
+        )
+        advanceUntilIdle()
+        vm.onWordOfTheDayTierChange(DiscoverTier.RARE)
+        advanceUntilIdle()
+
+        val word = vm.state.value.wordsOfTheDay.getValue("es-def").headword
+        assertTrue(word.startsWith("rare-"), "salio $word")
+        assertEquals(DiscoverTier.RARE, stored?.wordOfTheDayTier)
+        assertEquals(DiscoverTier.RARE, vm.state.value.settings.wordOfTheDayTier)
+    }
+
+    @Test
+    fun changingTheTierRewritesTheTilesWeekAndSaysWhichTierItIs() = runTest {
+        // ⚠️ The week is a derived copy keyed on (date, packs) -- and now the tier. Without the
+        // rewrite the tile keeps the old tier until midnight, on the surface nobody opens on
+        // purpose (`derived-copy-goes-stale-silently`).
+        //
+        // The store is STATEFUL, as `PackStore` is: a fake that always answers "nothing cached"
+        // makes every call rebuild and cannot show a guard keeping a stale week.
+        var since: String? = null
+        var week: List<Visit> = emptyList()
+        var weekTier: DiscoverTier? = null
+        var notified = 0
+        val vm = SearchViewModel(
+            { listos(withTable()) },
+            todayDate = { "2026-10-26" },
+            savedWeekWords = { since to week },
+            saveWeekWords = { from, words -> since = from; week = words },
+            savedWeekTier = { weekTier },
+            saveWeekTier = { weekTier = it },
+            notifyTiles = { notified++ },
+        )
+        advanceUntilIdle()
+        assertTrue(week.all { it.headword.startsWith("common-") }, "$week")
+        val before = notified
+
+        vm.onWordOfTheDayTierChange(DiscoverTier.CURIOUS)
+        advanceUntilIdle()
+
+        assertEquals(TileContents.CACHED_DAYS, week.size)
+        assertTrue(week.all { it.headword.startsWith("curious-") }, "$week")
+        assertEquals(DiscoverTier.CURIOUS, weekTier)
+        assertTrue(notified > before, "el tile no se entero")
+    }
+
+    @Test
+    fun aWeekCachedUnderAnotherTierIsRebuiltOnLaunch() = runTest {
+        // The rewrite above runs in a coroutine; a process killed before it lands leaves today's
+        // week from the old tier. The marker is what the next launch reads to notice.
+        var veces = 0
+        val vm = SearchViewModel(
+            { listos(withTable()) },
+            todayDate = { "2026-10-26" },
+            savedSettings = { Settings(wordOfTheDayTier = DiscoverTier.RARE) },
+            savedWeekWords = { "2026-10-26" to listOf(Visit("es-def", 1, "common-noun-1", "noun")) },
+            savedWeekTier = { DiscoverTier.COMMON },
+            saveWeekWords = { _, _ -> veces++ },
+        )
+        advanceUntilIdle()
+        assertEquals(1, veces, "conservo una semana de otro nivel")
+    }
+
+    @Test
+    fun aWeekCachedUnderTheSameTierIsKept() = runTest {
+        var veces = 0
+        val vm = SearchViewModel(
+            { listos(withTable()) },
+            todayDate = { "2026-10-26" },
+            savedSettings = { Settings(wordOfTheDayTier = DiscoverTier.RARE) },
+            savedWeekWords = { "2026-10-26" to listOf(Visit("es-def", 1, "rare-noun-1", "noun")) },
+            savedWeekTier = { DiscoverTier.RARE },
+            saveWeekWords = { _, _ -> veces++ },
+        )
+        advanceUntilIdle()
+        assertEquals(0, veces, "recalculo una semana que ya era de este nivel")
     }
 
     // --- Notifying the tiles ------------------------------------------------------------------

@@ -207,6 +207,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             saveWeekWords = { since, words ->
                                 PackStore.rememberWeekWords(context, since, words)
                             },
+                            savedWeekTier = { PackStore.weekTier(context) },
+                            saveWeekTier = { PackStore.rememberWeekTier(context, it) },
                             // The tiles have no scheduled refresh: if the app does not push
                             // them, they keep whatever they had.
                             notifyTiles = { notifyTiles(context) },

@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cl.fadiaz.dictionary.core.LanguageScope
 import cl.fadiaz.dictionary.core.DictionarySource
+import cl.fadiaz.dictionary.core.DiscoverBucket
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.Entry
 import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.Suggestion
@@ -284,6 +286,22 @@ class SearchViewModel(
         { null to emptyList() },
     private val saveWeekWords: (since: String, words: List<Visit>) -> Unit =
         { _, _ -> },
+    /**
+     * The tier the cached week was drawn in (i-a2f271-96caa4), or null when the week carries no
+     * marker.
+     *
+     * ⚠️ **The week is a copy derived from (date, packs, tier)**, so the tier is part of its key
+     * (`derived-copy-goes-stale-silently`). The setting rewrites it on change, but in a coroutine:
+     * a process killed before that lands leaves today's week from the old tier, and only this
+     * marker lets the next launch see it.
+     *
+     * **No marker reads as `COMMON`**, and that is safe for one reason: every week written before
+     * the marker existed was written by an older `versionCode`, which `PackStore.weekWords`
+     * already discards on read.
+     */
+    private val savedWeekTier: () -> DiscoverTier? = { null },
+    /** Written AFTER the week: a crash between the two leaves a mismatch, which rebuilds. */
+    private val saveWeekTier: (DiscoverTier) -> Unit = {},
     /**
      * Tells the tiles that what they show has changed.
      *
@@ -1131,6 +1149,7 @@ class SearchViewModel(
      */
     private fun cacheWeekForTile(activo: DictionarySource) {
         val today = todayDate() ?: return
+        val tier = state.value.settings.effectiveWordOfTheDayTier
         // ⚠️ **D-200's rule holds here too, and the tile is the worst place for it to fail.** A
         // translation pack generates no word of the day, but the ACTIVE pack may be one --it is
         // the largest, so `chooseActive` prefers it-- and this method received the active one flat
@@ -1156,9 +1175,16 @@ class SearchViewModel(
         // would keep yesterday's single-language cache after a second dictionary is installed,
         // and the second word would not appear until the next day -- on the surface nobody opens
         // on purpose, so nobody would connect the two.
-        if (since == today && cacheadas.map { it.packId }.distinct() == ids) return
+        // ...and the tier, for the same reason: the week is derived from all three.
+        val sameTier = (savedWeekTier() ?: DiscoverTier.COMMON) == tier
+        if (since == today && cacheadas.map { it.packId }.distinct() == ids && sameTier) {
+            return
+        }
 
         viewModelScope.launch {
+            val pools = packs.associate { pack ->
+                pack.metadata.packId to runCatching { pack.discoverPools() }.getOrNull()
+            }
             // Stored **day-major**: `día0-es, día0-en, día1-es, …`. The tile derives how many a
             // day holds from the length, so a cache written by an older build --one per day--
             // reads with no migration. See `TileContents.wordOfTheDay`.
@@ -1168,13 +1194,7 @@ class SearchViewModel(
                 for (pack in packs) {
                     val packId = pack.metadata.packId
                     val picked = runCatching {
-                        WordOfTheDay.pick(
-                            date = fecha,
-                            packId = packId,
-                            entryCount = pack.metadata.entryCount,
-                            read = { id -> pack.summary(id) },
-                            rankBasis = pack.metadata.rankBasis,
-                        )
+                        wordOfTheDayFor(pack, fecha, tier, pools[packId])
                     }.getOrNull() ?: return@launch
                     // ⚠️ **The gloss is read HERE and not in the tile**, and that is half the
                     // design: opening an entry decompresses its payload, and `onTileRequest` is
@@ -1201,7 +1221,11 @@ class SearchViewModel(
                     )
                 }
             }
+            // A week drawn under a tier the user has since left is not written: the change that
+            // moved it already launched the week that is.
+            if (state.value.settings.effectiveWordOfTheDayTier != tier) return@launch
             saveWeekWords(today, week)
+            saveWeekTier(tier)
             notifyTiles()
             DictLog.i {
                 "semana del tile: ${packs.size} idioma(s) (${ids.joinToString(",")}), " +
@@ -1242,19 +1266,43 @@ class SearchViewModel(
             .maxByOrNull { it.metadata.entryCount }
     }
 
+    /**
+     * One pack's word for [date]: from [tier] of its `discover` table when it has one, and
+     * today's [WordOfTheDay.pick] otherwise -- the policy and its fallback are
+     * [WordOfTheDay.pickInTier]'s. [pools] is passed in so a week reads the table's sizes once.
+     */
+    private suspend fun wordOfTheDayFor(
+        pack: DictionarySource,
+        date: String,
+        tier: DiscoverTier,
+        pools: Map<DiscoverBucket, Int>?,
+    ): EntrySummary? = WordOfTheDay.pickInTier(
+        date = date,
+        packId = pack.metadata.packId,
+        pools = pools,
+        tier = tier,
+        readDiscover = { pick -> pack.discoverEntries(listOf(pick)).firstOrNull() },
+    ) {
+        WordOfTheDay.pick(
+            date = date,
+            packId = pack.metadata.packId,
+            entryCount = pack.metadata.entryCount,
+            read = { id -> pack.summary(id) },
+            rankBasis = pack.metadata.rankBasis,
+        )
+    }
+
     private fun refreshWordsOfTheDay(packs: List<DictionarySource>) {
         val date = todayDate() ?: return
+        val tier = state.value.settings.effectiveWordOfTheDayTier
         for (pack in packs.filter { givesWordOfTheDay(it.metadata) }) {
             viewModelScope.launch {
                 val picked = runCatching {
-                    WordOfTheDay.pick(
-                        date = date,
-                        packId = pack.metadata.packId,
-                        entryCount = pack.metadata.entryCount,
-                        read = { id -> pack.summary(id) },
-                        rankBasis = pack.metadata.rankBasis,
-                    )
+                    val pools = runCatching { pack.discoverPools() }.getOrNull()
+                    wordOfTheDayFor(pack, date, tier, pools)
                 }.getOrNull() ?: return@launch
+                // Same rule as the week: a word from a tier already left is not published.
+                if (state.value.settings.effectiveWordOfTheDayTier != tier) return@launch
                 _state.update {
                     it.copy(wordsOfTheDay = it.wordsOfTheDay + (pack.metadata.packId to picked))
                 }
@@ -1334,6 +1382,25 @@ class SearchViewModel(
         saveFavorites(favoriteVisits)
         _state.update { it.copy(favorites = favoriteVisits) }
         notifyTiles()
+    }
+
+    /**
+     * Changes the tier the word of the day is drawn from (i-a2f271-96caa4), stores **that it was
+     * chosen**, and redraws both surfaces: the home's words and the tile's cached week.
+     *
+     * ⚠️ **The week is rewritten because its guard compares the tier too**: today and the same
+     * packs is exactly what it was, and only the tier moved. Without the tier in that guard the
+     * tile would show the old tier until midnight, on the surface nobody opens on purpose.
+     */
+    fun onWordOfTheDayTierChange(tier: DiscoverTier) {
+        val fresh = state.value.settings.copy(wordOfTheDayTier = tier)
+        saveSettings(fresh)
+        _state.update { it.copy(settings = fresh) }
+        refreshWordsOfTheDay(
+            state.value.available.filterIsInstance<PackHandle.Open>().map { it.source },
+        )
+        val activo = source.value ?: return
+        cacheWeekForTile(activo)
     }
 
     /** Changes the text scale and stores it. */

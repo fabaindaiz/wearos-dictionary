@@ -10,6 +10,7 @@ import cl.fadiaz.dictionary.R
 import cl.fadiaz.dictionary.presentation.packRejectionLabelRes
 import cl.fadiaz.dictionary.core.PayloadCodec
 import cl.fadiaz.dictionary.core.PackRejection
+import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.PackMetadata
 import cl.fadiaz.dictionary.core.TextNormalizer
 import java.io.File
@@ -457,6 +458,21 @@ object PackStore {
         }
     }
 
+    /**
+     * The tier the cached week was drawn in (i-a2f271-96caa4), or null with no marker -- and,
+     * like the week itself, null when another build wrote it. By name, so an unknown one is null.
+     */
+    fun weekTier(context: Context): DiscoverTier? {
+        val prefs = prefs(context)
+        if (prefs.getInt(KEY_WEEK_BY, 0) != versionCode(context)) return null
+        val name = prefs.getString(KEY_WEEK_TIER, null) ?: return null
+        return DiscoverTier.entries.firstOrNull { it.name == name }
+    }
+
+    fun rememberWeekTier(context: Context, tier: DiscoverTier) {
+        prefs(context).edit { putString(KEY_WEEK_TIER, tier.name) }
+    }
+
     /** The settings. Same as the history: the policy lives above, here it is only serialised. */
     fun settings(context: Context): Settings =
         parseSettings(prefs(context).getString(KEY_SETTINGS, null).orEmpty())
@@ -486,6 +502,8 @@ object PackStore {
     private const val KEY_FAVORITES = "favoritos"
     private const val KEY_WEEK_WORDS = "palabras_semana"
     private const val KEY_WEEK_SINCE = "palabras_desde"
+    /** The tier the week was drawn in. See [weekTier]. */
+    private const val KEY_WEEK_TIER = "palabras_nivel"
 
     /** The `versionCode` that wrote the week. See [weekWords] for why it expires the cache. */
     private const val KEY_WEEK_BY = "palabras_por"

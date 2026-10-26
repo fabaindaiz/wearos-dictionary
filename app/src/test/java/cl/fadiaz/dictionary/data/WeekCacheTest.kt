@@ -2,6 +2,7 @@ package cl.fadiaz.dictionary.data
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import cl.fadiaz.dictionary.core.DiscoverTier
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -58,6 +59,21 @@ class WeekCacheTest {
         val (since, palabras) = PackStore.weekWords(context)
         assertEquals(null, since, "una semana de otro build no se lee")
         assertTrue(palabras.isEmpty())
+    }
+
+    @Test
+    fun `the tier the week was drawn in is read back, and expires with the build`() {
+        // i-a2f271-96caa4. The marker is the third half of the week's key, so it lives and dies
+        // with the week: one from another build is not trusted any more than its words.
+        assertEquals(null, PackStore.weekTier(context), "sin marca no hay nivel")
+        PackStore.rememberWeekWords(context, "2026-10-26", listOf(visit("lunes")))
+        PackStore.rememberWeekTier(context, DiscoverTier.CURIOUS)
+        assertEquals(DiscoverTier.CURIOUS, PackStore.weekTier(context))
+
+        Shadows.shadowOf(context.packageManager)
+            .getInternalMutablePackageInfo(context.packageName)
+            .longVersionCode = 999L
+        assertEquals(null, PackStore.weekTier(context), "una marca de otro build no se lee")
     }
 
     @Test
