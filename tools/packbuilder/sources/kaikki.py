@@ -1001,10 +1001,10 @@ class Opciones:
     """
 
     __slots__ = ("perfil", "politica", "translations_to", "frequencies",
-                 "lemas_en_minuscula", "bajas", "lang")
+                 "lemas_en_minuscula", "bajas", "prevalence")
 
     def __init__(self, perfil, politica, translations_to=None, frequencies=None,
-                 lemas_en_minuscula=(), bajas=None, lang=None):
+                 lemas_en_minuscula=(), bajas=None, prevalence=None):
         #: How many records left, by the NAMED rule that dropped them. See [records].
         self.bajas = bajas if bajas is not None else {}
         for motivo in MOTIVOS_DE_BAJA:
@@ -1014,8 +1014,8 @@ class Opciones:
         self.translations_to = translations_to
         self.frequencies = frequencies
         self.lemas_en_minuscula = frozenset(lemas_en_minuscula)
-        #: The pack's language, which picks `discover`'s notability threshold.
-        self.lang = lang
+        #: `{word: percent known}` (`sources/prevalence.py`), or None where no norm exists.
+        self.prevalence = prevalence
 
     def zipf(self, headword):
         """A lemma's frequency, or None if there is no signal.
@@ -1174,8 +1174,8 @@ def _emit(group, inbound, opciones):
             # ⚠️ **Only when the pack ranks by frequency**: the tiers are cut on the Zipf scale,
             # and on page richness those numbers mean nothing (`sources/discover.py`).
             discover=(discover.tier(raw, first_gloss=senses[0]["gloss"] if senses else "",
-                                    rank=rank, lang=opciones.lang,
-                                    has_etymology=bool(_etymology(raw)))
+                                    rank=rank, etymology=_etymology(raw),
+                                    known=(opciones.prevalence or {}).get(headword.lower()))
                       if opciones.frequencies is not None else None),
             forms=forms,
             display_forms=_display_forms(raw, headword),
@@ -1490,7 +1490,7 @@ def _inbound_forms(path):
 
 
 def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None,
-            frequencies=None, bajas=None):
+            frequencies=None, bajas=None, prevalence=None):
     """Iterates the JSONL and yields Records. Those of the same `word` are grouped for homographs.
 
     **Proper nouns do NOT come out by default** (`pos = "name"`: surnames, toponyms, given names).
@@ -1516,7 +1516,7 @@ def records(path, lang="es", politica=POLITICA_POR_DEFECTO, translations_to=None
     # Pass 1 FIRST: `lemas_en_minuscula`, which `Opciones` needs, comes out of it.
     inbound, lemas_en_minuscula = _inbound_forms(path)
     opciones = Opciones(PERFILES[lang], politica, translations_to, frequencies,
-                        lemas_en_minuscula, bajas, lang)
+                        lemas_en_minuscula, bajas, prevalence)
     group = []
     current = None
     with open(path, encoding="utf-8") as handle:

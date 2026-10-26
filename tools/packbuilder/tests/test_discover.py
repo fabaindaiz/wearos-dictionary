@@ -25,9 +25,11 @@ def _raw(word="fragor", pos="noun", senses=None, translations=0, synonyms=0, **e
     return record
 
 
-def _tier(raw, rank, lang="es", etymology=False, gloss=None):
+def _tier(raw, rank, lang="es", etymology=None, gloss=None, known=None):
     first = gloss if gloss is not None else (raw["senses"][0].get("glosses") or [""])[0]
-    return discover.tier(raw, first_gloss=first, rank=rank, lang=lang, has_etymology=etymology)
+    # `True` stands for an etymology that names no learned origin; a string is the text itself.
+    texto = "Del catalán." if etymology is True else etymology or None
+    return discover.tier(raw, first_gloss=first, rank=rank, etymology=texto, known=known)
 
 
 class TierTest(unittest.TestCase):
@@ -44,34 +46,41 @@ class TierTest(unittest.TestCase):
         # `a, de, el`: the word of the day's floor, for the same reason (RANK_FLOOR = 150).
         self.assertIsNone(_tier(_raw("de"), 20))
 
-    def test_rare_needs_a_low_frequency_and_notability(self):
-        # `fragor`: Zipf < 3 and translated widely. `airbag` is Zipf < 3 too, and nobody would
-        # call it recherché -- what separates them is that the dictionary says more about one.
-        self.assertEqual(discover.RARE, _tier(_raw("fragor", translations=9), LOW_RANK))
-        self.assertIsNone(_tier(_raw("airbag", translations=2), LOW_RANK))
+    def test_rare_needs_a_low_frequency_and_a_learned_origin(self):
+        # `fragor`: Zipf < 3 and from Latin. `airbag` is Zipf < 3 too, and nobody would call it
+        # recherché -- what separates them is where the word comes from.
+        self.assertEqual(discover.RARE, _tier(_raw("fragor", translations=9), LOW_RANK,
+                                              etymology="Del latín fragor."))
+        self.assertIsNone(_tier(_raw("airbag", translations=2), LOW_RANK,
+                                etymology="Del inglés airbag."))
 
     def test_rare_reaches_into_the_band_with_no_frequency(self):
         # `pusilánime` has no frequency at all, and it is the archetype of the tier.
         raw = _raw("pusilánime", pos="adj", translations=10,
                    senses=[{"glosses": ["Falto de ánimo y valor para tolerar las desgracias."]}])
-        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY))
+        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY,
+                                              etymology="Del latín pusillanĭmis."))
 
-    def test_rare_notability_threshold_is_per_language(self):
-        # English Wiktionary translates far more: 9 translations is notable in Spanish only.
-        raw = _raw("pistachio", translations=9, senses=[{"glosses": ["A tree of the cashew family."]}])
-        self.assertIsNone(_tier(raw, NO_FREQUENCY, lang="en"))
-        raw = _raw("fanfaronade", translations=25, senses=[{"glosses": ["Empty boasting; bluster."]}])
-        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, lang="en"))
+    def test_many_translations_mark_a_well_known_word_not_a_rare_one(self):
+        # Version 1 read them as notability. Against English prevalence they are the opposite.
+        raw = _raw("ingest", pos="verb", translations=25,
+                   senses=[{"glosses": ["To take food or drink into the body."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, lang="en", etymology="From Latin ingestus."))
+        raw = _raw("jactance", translations=2, senses=[{"glosses": ["Boasting; bragging."]}])
+        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, lang="en",
+                                              etymology="From Latin iactantia."))
 
-    def test_a_literary_label_is_notability_on_its_own(self):
+    def test_a_literary_label_is_a_learned_origin_on_its_own(self):
         raw = _raw("tenebrous", pos="adj", senses=[
             {"glosses": ["Dark and gloomy; obscure."], "tags": ["literary"]}])
         self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, lang="en"))
 
-    def test_synonyms_and_an_etymology_are_notability(self):
+    def test_without_prevalence_a_synonym_is_not_enough(self):
+        # `tráfago` comes from Catalan: with synonyms but no learned origin it gets no tier unless
+        # prevalence covers it -- and SPALEX does, which is where a word like it gets its chance.
         raw = _raw("tráfago", synonyms=3)
-        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, etymology=True))
-        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology=False))
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology=True))
+        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, etymology=True, known=40.0))
 
     def test_curious_is_a_majority_of_labelled_senses_with_a_real_definition(self):
         raw = _raw("trasmañanar", pos="verb", translations=1, senses=[
@@ -115,6 +124,62 @@ class TierTest(unittest.TestCase):
             {"glosses": ["Cantidad de objetos que caben en el hueco de las manos."],
              "tags": ["Chile"]}])
         self.assertIsNone(_tier(raw, NO_FREQUENCY))
+
+
+class PrevalenceTest(unittest.TestCase):
+    """Version 2: where the share of people who know a word is known, *rare* is that share.
+
+    Measured on 2026-10-26 with SPALEX (Spanish, CC BY 4.0): our version-1 *rare* had a median of
+    **86 % of people knowing the word**, while the published lists of recherché words sit at
+    35-63 %. Frequency cannot tell *pelícano* (infrequent, known by all) from *oclocracia*;
+    prevalence can. `docs/roadmap.md` i-a2f271-ec624b.
+    """
+
+    def test_a_word_known_by_few_is_rare_even_with_a_frequency(self):
+        # `inefable`: frequent enough to be *common* by Zipf, known by 63 %.
+        raw = _raw("inefable", pos="adj", synonyms=2,
+                   senses=[{"glosses": ["Que no se puede explicar con palabras."]}])
+        self.assertEqual(discover.RARE, _tier(raw, 251, known=63.0))
+
+    def test_a_word_everybody_knows_is_not_rare_however_infrequent(self):
+        raw = _raw("archipiélago", translations=40, synonyms=1,
+                   senses=[{"glosses": ["Conjunto de islas cercanas entre sí."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del griego.", known=98.0))
+
+    def test_a_word_almost_nobody_knows_is_not_rare_either(self):
+        raw = _raw("acrotera", synonyms=1, senses=[{"glosses": ["Pedestal sobre un frontón."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del griego.", known=6.0))
+        # Nor common when it happens to be frequent: frequency there is a homograph or a name.
+        self.assertIsNone(_tier(raw, COMMON_RANK, etymology="Del griego.", known=6.0))
+
+    def test_a_rare_word_still_needs_a_learned_origin_a_label_or_a_synonym(self):
+        raw = _raw("pizarrero", senses=[{"glosses": ["Persona que trabaja la pizarra."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology=True, known=60.0))
+
+    def test_species_and_trades_are_not_rare_words(self):
+        for gloss in ("Planta herbácea de flores amarillas.", "Ave rapaz de gran tamaño.",
+                      "Persona que fabrica o vende sombreros."):
+            with self.subTest(gloss=gloss):
+                raw = _raw("x", synonyms=2, senses=[{"glosses": [gloss]}])
+                self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del latín.", known=40.0))
+
+    def test_a_curious_word_everybody_knows_is_not_curious(self):
+        raw = _raw("lesera", synonyms=1, senses=[
+            {"glosses": ["Cosa sin importancia, tontería."], "tags": ["Chile"]}])
+        self.assertEqual(discover.CURIOUS, _tier(raw, NO_FREQUENCY, known=60.0))
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, known=96.0))
+
+    def test_without_prevalence_rare_needs_a_learned_origin(self):
+        # English has no open prevalence norms: there the Wiktionary signals carry it, and a
+        # learned origin is the strongest of them -- x7 in the published lists, measured.
+        raw = _raw("vilipend", pos="verb", translations=3,
+                   senses=[{"glosses": ["To treat with contempt; to belittle."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, lang="en", etymology="From Old French."))
+        self.assertEqual(discover.RARE, _tier(raw, NO_FREQUENCY, lang="en",
+                                              etymology="From Latin vilipendere."))
+
+    def test_the_version_moved(self):
+        self.assertEqual(2, discover.VERSION)
 
 
 class LemmaFilterTest(unittest.TestCase):

@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import build  # noqa: E402
 import build_core  # noqa: E402
+from sources import discover  # noqa: E402
 
 BASE_META = {
     "pack_id": "es-def-wikc",
@@ -622,7 +623,7 @@ class DiscoverEnElNivelTest(unittest.TestCase):
         core = os.path.join(self.dir, "core.db")
         build_core.derive(self.completo, core, {"agua"})
         with sqlite3.connect(core) as db:
-            self.assertEqual(("1",), db.execute(
+            self.assertEqual((str(discover.VERSION),), db.execute(
                 "SELECT value FROM meta WHERE key = 'discover_version'").fetchone())
 
     def test_a_full_pack_without_the_table_derives_a_core_without_it(self):

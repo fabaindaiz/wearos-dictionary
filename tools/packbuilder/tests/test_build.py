@@ -1763,7 +1763,7 @@ class DiscoverTableTest(BuilderTestCase):
             (0, 0, 0, "casa"), (0, 0, 1, "perro"), (0, 1, 0, "correr"),
             (1, 0, 0, "fragor"), (1, 2, 0, "vetusto"),
         ], self._rows(db))
-        self.assertEqual(("1",), db.execute(
+        self.assertEqual((str(discover.VERSION),), db.execute(
             "SELECT value FROM meta WHERE key = 'discover_version'").fetchone())
 
     def test_a_part_of_speech_without_a_code_is_left_out(self):

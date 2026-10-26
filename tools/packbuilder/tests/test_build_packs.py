@@ -266,6 +266,8 @@ class PlanTest(unittest.TestCase):
         "--frases": ["tatoeba-spa.tsv"],
         # frequency: lista `palabra<espacio>cuenta`.
         "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
+        # prevalence: SPALEX's `word_info.csv`, Spanish only.
+        "--prevalencia": ["spalex-word_info.csv"],
         # build_core lee un pack ya construido, no un dump.
         "--flexiones": ["en-full.db"],
         # The tier filter reads a built pack too, and it has to be `main`'s: the rule is that

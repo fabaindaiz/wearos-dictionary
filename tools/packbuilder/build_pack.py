@@ -5,6 +5,7 @@
                           [--tesauro <wordnet>] [--sumar <pack> <dump>]
                           [--flexiones <target-language-pack.db>]
                           [--frecuencias <opensubtitles-list.txt>]
+                          [--prevalencia <spalex-word_info.csv>]
                           [--etimologia-hasta <main-pack.db|word-list.txt>]
                           [--diccionario <pack.db>]
 
@@ -139,6 +140,19 @@ FUENTES = {
                   "(en.wiktionary.org), Spanish section, CC BY-SA 4.0.",
                   "Definiciones en inglés de palabras españolas, del Wiktionary en inglés "
                   "(en.wiktionary.org), sección Spanish, licencia CC BY-SA 4.0."),
+    },
+    "spalex": {
+        "codigo": "spx",
+        "rol": "prevalence",
+        "nombre": "SPALEX (Aguasvivas et al. 2018)",
+        "url": "https://doi.org/10.6084/m9.figshare.5924794",
+        "licencia": "CC BY 4.0",
+        "licencia_url": "https://creativecommons.org/licenses/by/4.0/",
+        "prosa": ("Word prevalence from SPALEX (Aguasvivas, Carreiras, Brysbaert, Mandera, "
+                  "Keuleers & Duñabeitia, 2018), CC BY 4.0: which words count as rare.",
+                  "Prevalencia de palabras de SPALEX (Aguasvivas, Carreiras, Brysbaert, Mandera, "
+                  "Keuleers y Duñabeitia, 2018), licencia CC BY 4.0: qué palabras cuentan como "
+                  "raras."),
     },
     "opensubs": {
         "codigo": "freq",
@@ -352,6 +366,10 @@ PACKS = {
             "--frases": (REQUERIDA, "the Tatoeba examples"),
             "--tesauro": (REQUERIDA, "the WordNet synonyms"),
             "--sumar": (REQUERIDA, "5,283 lemmas the Wiktionary does not have (D-146)"),
+            "--prevalencia": (
+                REQUERIDA,
+                "the rare tier of see more words: without it rare is cut by frequency, and its "
+                "median word is known by 86 % of speakers instead of 35-63 % (2026-10-26)"),
             "--etimologia-hasta": (
                 PROHIBIDA,
                 "es-full IS the Spanish main (D-220), so a filter would take the origin away "
@@ -725,6 +743,9 @@ def main(argv):
     lista_frecuencias = None
     if "--frecuencias" in argv:
         lista_frecuencias = argv[argv.index("--frecuencias") + 1]
+    lista_prevalencia = None
+    if "--prevalencia" in argv:
+        lista_prevalencia = argv[argv.index("--prevalencia") + 1]
     vocabulario_etimologia = None
     if "--etimologia-hasta" in argv:
         vocabulario_etimologia = argv[argv.index("--etimologia-hasta") + 1]
@@ -808,6 +829,13 @@ def main(argv):
         # D-138 does not distinguish.
         metadata["pack_id"] += "-" + _declarar(metadata, "opensubs")["codigo"]
         _describir(metadata, "frecuencia")
+    prevalencia = None
+    if lista_prevalencia:
+        # The credit travels with the content: no text of SPALEX enters the pack, but it decides
+        # which words *see more words* calls rare, and that is content too (D-138).
+        from sources import prevalence as _prevalence
+        prevalencia = _prevalence.load(lista_prevalencia)
+        metadata["pack_id"] += "-" + _declarar(metadata, "spalex")["codigo"]
     tesauro = None
     if dump_tesauro:
         # The format is decided by the pack's LANGUAGE, not by one more option: English has its own
@@ -941,7 +969,7 @@ def main(argv):
         # hidden.** `bilingual` calls it two layers down and its own drops are a different
         # question --a gloss that is not a translation is not a lost lemma-- so threading it there
         # would put two unlike numbers under one name.
-        extra_kw = {"bajas": bajas} if reader is kaikki else {}
+        extra_kw = {"bajas": bajas, "prevalence": prevalencia} if reader is kaikki else {}
         for record in reader.records(*argumentos, **extra_kw):
             if not _keep(record.headword, sample):
                 continue

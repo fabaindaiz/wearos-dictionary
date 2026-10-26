@@ -180,6 +180,8 @@ def plan(raiz, solo=None, tamanos=None):
                         "--frases", _ruta(raiz, DUMPS, "tatoeba-spa.tsv"),
                         "--tesauro", _ruta(raiz, DUMPS, "wn-data-spa.tab"),
                         "--frecuencias", _ruta(raiz, DUMPS, "freq-es-opensubs.txt"),
+                        # Who knows each word, which decides *rare* (sources/prevalence.py).
+                        "--prevalencia", _ruta(raiz, DUMPS, "spalex-word_info.csv"),
                         # ⚠️ **`--sumar <pack> <dump>` reads the DUMP, not a built pack.** The name
                         # `es-wd` selects the reader and the attribution (D-146); the path is the
                         # dump that reader parses.

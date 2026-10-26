@@ -31,12 +31,21 @@ Two rules need the whole pack and live in `PackBuilder` instead: a verb or adjec
 D-066), and which part of speech a frequency belongs to (the noun *ridículo*, a handbag, inherited
 the adjective's frequency).
 
-## The bar, and what it is not
+## Version 2: who knows the word, where that is known (2026-10-26)
 
-The owner's bar is 10 to 15 useful words of 20. Judged by the agent over 60 words per tier and
-language: common ~18 and ~17, rare ~10 and ~9, curious ~13 and ~11 (es, en). A judgement, not a
-labelled measurement; *rare* sits at the floor, and what would lift it is prevalence data, whose
-license is unclear (`docs/references.md` §*Word rarity*).
+Version 1 cut *rare* by frequency and notability, and measured against word prevalence -- the share
+of people who know a word -- its median *rare* word was known by **86 %** in Spanish and **92 %**
+in English, while the published lists of recherché words sit at 16-63 %. Two corrections:
+
+- **Spanish carries SPALEX** (`sources/prevalence.py`, CC BY 4.0): where it covers a word, *rare* is
+  being known by 10-75 % of speakers, with a learned origin, a literary label or a synonym, and not a
+  species or a trade. It covers about a third of the pack's nouns, verbs and adjectives.
+- **Elsewhere a learned origin carries it**, below the translation count that marks a well-known
+  word: version 1 read many translations as notability and against English prevalence they are the
+  opposite. English has no prevalence norm with an open license, and its *rare* stays the weaker of
+  the two -- measured, not guessed: `docs/roadmap.md` i-a2f271-ec624b.
+
+Common was right in version 1 and is unchanged: its median word is known by 99 %.
 """
 
 import re
@@ -44,7 +53,7 @@ import re
 #: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
 #: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
 #: a pack says which rules it was built under. Bump it with any change to what `tier` returns.
-VERSION = 1
+VERSION = 2
 
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.
@@ -65,9 +74,11 @@ RARE_FROM = 290
 #: A curious word is uncommon too. 250 is Zipf 3.56: *mu* and *rafe* still pass, *chulo* does not.
 CURIOUS_FROM = 250
 
-#: Translations that make a word notable. English Wiktionary translates far more, so one number
-#: would let *pistachio* into English *rare* or keep *fragor* out of Spanish.
-NOTABLE_TRANSLATIONS = {"es": 8, "en": 20}
+#: Translations past which a word is too well known to be rare. Version 1 read many translations
+#: as *notable* and it is the opposite: measured against English prevalence on 2026-10-26, words
+#: with 20 or more translations are known by over 90 % of people 64-71 % of the time, words with
+#: none 41 %. A recherché word is one the dictionaries have not bothered to translate much.
+WELL_KNOWN_TRANSLATIONS = 20
 
 #: Senses with any of these and two senses or fewer: the page is about the label.
 _DROP = frozenset({
@@ -135,6 +146,33 @@ _SCIENCE = re.compile(
     r"in (geometry|chemistry|physics|anatomy|biology|zoology|botany|mathematics))")
 
 
+#: The share of people who know a word, in percent, that makes it *rare* when it is known. The
+#: published lists of recherché Spanish words sit at a median of 35-63 % (SPALEX, 2026-10-26),
+#: and above 75 % a word is one most readers already have; below 10 % it is one nobody does.
+KNOWN_RARE = (10.0, 75.0)
+
+#: Above this, a labelled word is known by nearly everyone, and *curious* would promise an oddity
+#: the reader already uses. A quarter of version 1's *curious* sat here.
+KNOWN_CURIOUS_MAX = 90.0
+
+#: An etymology through Latin or Greek: the strongest Wiktionary signal of a recherché word,
+#: x3 to x7 more frequent in the published lists than in a random sample of the pack.
+_LEARNED = re.compile(r"(?i)\b(lat[ií]n|latin|griego|greek)")
+
+#: A species or a trade, named by the first gloss. Infrequent and unknown to many, so prevalence
+#: alone lets them in -- *aligustre*, *alcaraván*, *pizarrero* -- but they are vocabulary of a
+#: field, not words to learn.
+_TAXON = re.compile(
+    r"(?i)^\s*(\(.*?\)\s*)?(planta|árbol|arbusto|hierba|ave|pájaro|pez|insecto|mamífero|molusco|"
+    r"reptil|hongo|fruto|semilla|variedad de|especie de|nombre común de|cualquiera de|any of|"
+    r"a (species|genus) of|an? (small |large )?(plant|tree|shrub|herb|bird|fish|insect|mammal|"
+    r"moth|beetle|snake|fungus|mollusc|mollusk)\b)")
+_TRADE = re.compile(
+    r"(?i)^\s*(persona |el |la )?(que (fabrica|vende|hace|trabaja|repara|elabora|transporta|"
+    r"se dedica)|oficio de|operario|one who (makes|sells|deals|repairs)|an? (maker|seller|"
+    r"dealer|manufacturer) of)")
+
+
 def _gloss_text(sense):
     return " ".join(sense.get("glosses") or [])
 
@@ -151,11 +189,13 @@ def _count(raw, key):
     return total
 
 
-def tier(raw, first_gloss, rank, lang, has_etymology):
+def tier(raw, first_gloss, rank, etymology=None, known=None):
     """The tier of this record, or None when it is not a word to learn.
 
     `first_gloss` is the first gloss the pack keeps, which is what the card shows first; `rank`
-    is the one the pack writes; `lang` picks the notability threshold.
+    is the one the pack writes; `etymology` is the text
+    the pack keeps, or None; `known` is the share of people who know the word, in percent, when
+    a prevalence norm covers it (SPALEX for Spanish), or None.
     """
     word = raw.get("word") or ""
     pos = raw.get("pos")
@@ -198,17 +238,40 @@ def tier(raw, first_gloss, rank, lang, has_etymology):
 
     translations = _count(raw, "translations")
     synonyms = _count(raw, "synonyms")
-    science = bool(_SCIENCE.search(first_gloss or ""))
+    gloss = first_gloss or ""
+    science = bool(_SCIENCE.search(gloss))
+    field = bool(_TAXON.search(gloss) or _TRADE.search(gloss))
+    learned = bool(_LEARNED.search(etymology or "")) or literary > 0
+    # Version 2: a recherché word has a learned origin, a literary label or a synonym to be
+    # explained by; without any of them it is vocabulary of a trade or a region.
+    explained = learned or synonyms >= 1
+    coined = word.startswith(_COINAGE_PREFIXES) or "-" in word
 
     if (labelled * 2 > glossed and rank >= CURIOUS_FROM and translations + synonyms >= 1
             and "-" not in word and len(word) <= 12):
-        return None if science else CURIOUS
+        if science or (known is not None and known > KNOWN_CURIOUS_MAX):
+            return None
+        return CURIOUS
+    if known is not None:
+        # ⚠️ **Where prevalence is known it decides, over frequency.** *inefable* is frequent
+        # enough to be common by Zipf and known by 63 %; *archipiélago* is infrequent and known by
+        # 98 %. Neither verdict can come from frequency.
+        if KNOWN_RARE[0] <= known <= KNOWN_RARE[1]:
+            if (explained and labelled * 2 <= glossed and not science and not field
+                    and not coined):
+                return RARE
+            return None
+        if known < KNOWN_RARE[0]:
+            return None
     if rank < RARE_FROM:
         return COMMON if labelled == 0 else None
+    if known is not None:
+        return None
 
-    notable = ((translations >= NOTABLE_TRANSLATIONS.get(lang, NOTABLE_TRANSLATIONS["en"])
-                or literary > 0 or (synonyms >= 3 and has_etymology))
-               and not word.startswith(_COINAGE_PREFIXES) and "-" not in word)
-    if notable and labelled * 2 <= glossed and not science:
+    # ⚠️ **Without prevalence, a learned origin carries it alone**, and only below the translation
+    # count that marks a well-known word. Measured against English prevalence: 38 % of these land in
+    # the recherché band against 26 % for version 1's notability, which a synonym let anything pass.
+    if (learned and translations < WELL_KNOWN_TRANSLATIONS and not coined
+            and labelled * 2 <= glossed and not science and not field):
         return RARE
     return None

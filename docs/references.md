@@ -270,8 +270,37 @@ one of those entries is about to hold up a decision, read the source first.
     -- whose per-item license was **not** checked. **ASSUMPTION** that it is CC BY like most
     Figshare items.
 
-    What would settle it: the Figshare item's license field for SPALEX, and written permission
-    from the authors or the CRR for the English norms. Until then neither is a candidate.
+    **Settled 2026-10-26, read at the source.** SPALEX's
+    [Word information](https://figshare.com/articles/dataset/Word_information/5924794) item is
+    **CC BY 4.0** (its Figshare license field): `word_info.csv`, ~45,000 words, `percent_total`
+    known across Spain and Latin America. **It is in the Spanish packs since that day, with the
+    owner's yes**, attributed in `meta.sources` (`sources/prevalence.py`). The English norms are
+    **CC BY-NC-SA 4.0** at their source ([OSF g4xrt](https://osf.io/g4xrt/), `license.txt`);
+    Norare's CC BY covers its database, not this file. Share-alike non-commercial cannot mix with
+    the packs' CC BY-SA, so it is used **only to measure the English rules locally** and never
+    enters a pack.
+
+  - **Published lists of "rare", "curious", "endangered" words** -- *(found 2026-10-26)*. None
+    carries an open license, so **none is stored here or in a pack**: they were used once, locally,
+    as an evaluation set. Spanish: a blog's A-Z of *palabras raras*
+    ([lamenteesmaravillosa.com](https://lamenteesmaravillosa.com/las-palabras-mas-raras-en-espanol/)),
+    old insults ([Matador](https://matadornetwork.com/es/11-insultos-del-espanol-antiguo-que-deberiamos-volver-usar/)),
+    the 2007 *Apadrina una palabra* campaign ([Consumer](https://www.consumer.es/?p=201734)), and
+    *Palabras moribundas* (García Mouton & Grijelmo) through
+    [El Colombiano](https://www.elcolombiano.com/historico/16_palabras_del_espanol_que_estan_en_peligro_de_extincion-MAEC_274945).
+    English: Phrontistery's *Lost Words* ([phrontistery.info](https://www.phrontistery.info/clw1.html),
+    with attestation dates), Collins' 24 words to be dropped
+    ([vocabulary.com](https://www.vocabulary.com/articles/wordroutes/collins-dont-exuviate-that-word/)),
+    Oxford's *Save the Words* (2009). No source states a method for *curious*; the *beautiful word*
+    polls (Día E) favour common emotive words and are no evidence for either tier.
+
+    **What the lists showed against our packs** (lift = share in the list / share in a random
+    sample of the pack's nouns, verbs and adjectives): a **literary label x22 to x52**, an
+    **etymology through Latin or Greek x3 to x7**, an Arabic one x12 in the *desuso* lists, two or
+    more synonyms x2 to x3.5; and version 1 of our tiers gave **no tier at all to 57-79 %** of the
+    listed words the packs hold (*pusilánime*, *galimatías*, *ataraxia*, *gaznápiro*). The rules
+    built from this are in `sources/discover.py` (version 2) and the measurement in
+    `docs/roadmap.md` i-a2f271-ec624b.
   - **Wiktionary usage labels** ([context labels](https://en.wiktionary.org/wiki/Wiktionary:Context_labels))
     -- archaic, dated and obsolete are distinct labels. Measured on the kaikki dumps instead of
     trusted: the Spanish one carries `outdated` 3,660, `rare` 1,226, `obsolete` 999, `literary`

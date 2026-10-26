@@ -2395,16 +2395,17 @@ class DiscoverTierTest(unittest.TestCase):
         self.assertEqual(0, self._record(raw, frequencies={"tertulia": 4.3}).discover)
 
     def test_without_a_frequency_list_no_record_has_a_tier(self):
-        # `tráfago` is rare with a frequency list (the test below); without one it gets nothing.
-        raw = _raw("tráfago", "noun",
-                   [_sense("Ocupaciones y negocios que ocupan el tiempo sin descanso.")],
-                   etymology_text="Del catalán tràfec.",
-                   synonyms=[{"word": w} for w in ("ajetreo", "trajín", "bullicio")])
+        # `fragor` is rare with a frequency list (the test below); without one it gets nothing,
+        # because the tiers are cut on a Zipf scale page richness does not have.
+        raw = _raw("fragor", "noun", [_sense("Ruido intenso y prolongado.")],
+                   etymology_text="Del latín fragor.")
+        self.assertEqual(1, self._record(raw, frequencies={"otra": 4.0}).discover)
         self.assertIsNone(self._record(raw).discover)
 
-    def test_the_notability_threshold_is_the_packs_language(self):
+    def test_a_learned_origin_makes_a_word_without_frequency_rare(self):
         # Nine translations make a Spanish word notable and an English one not (8 against 20).
         raw = _raw("fragor", "noun", [_sense("Ruido intenso y prolongado.")],
+                   etymology_text="Del latín fragor.",
                    translations=[{"word": "t%d" % i, "lang_code": "en"} for i in range(9)])
         self.assertEqual(1, self._record(raw, frequencies={"otra": 4.0}).discover)
 
@@ -2417,7 +2418,7 @@ class DiscoverTierTest(unittest.TestCase):
     def test_an_etymology_with_synonyms_makes_a_word_without_frequency_rare(self):
         raw = _raw("tráfago", "noun",
                    [_sense("Ocupaciones y negocios que ocupan el tiempo sin descanso.")],
-                   etymology_text="Del catalán tràfec.",
+                   etymology_text="Del latín vulgar *trafficare.",
                    synonyms=[{"word": w} for w in ("ajetreo", "trajín", "bullicio")])
         self.assertEqual(1, self._record(raw, frequencies={"otra": 4.0}).discover)
         sin_origen = dict(raw)
