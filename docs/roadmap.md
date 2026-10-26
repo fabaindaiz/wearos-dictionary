@@ -31,6 +31,17 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
+(`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their
+target and ordered by use and prevalence (es-core 202610261847, 54,010 words in 41.8 MB; en-core
+202610261843); the full packs on the watch are the afternoon's (es-full 202610261521, en-full
+202610261511, bilingual 202610261523). First launch: 5 packs open, 0 rejected, ready in 8,582 ms
+including the cores' extraction. ⚠️ **Open, the owner's to answer:** the stored history read
+`historial=1` (one word, `abarraz`) where it read 25 at 12:53; if the owner did not clear it, it is
+a data loss to investigate first. The session tool lives in `../wearos-debug-tool` (its stop button
+confirmed on the watch, P-16 there). **Next session:** remove the *Vulgar* tier
+(i-a2f271-54fbf1). `research/wikipedia-pack` stays local and out of `main`.
+
 *Updated 2026-10-26 (afternoon).* **On the device since 2026-10-26 12:53**: APK `versionCode` 17
 (`0.10.0`), R8 (`assembleDebug -PdebugR8`), built from `1f8257e` on branch
 `research/sources-register` -- **not merged into main**. Its cores (`es-core` 202610261527,
@@ -5556,6 +5567,24 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
+### Remove the *Vulgar* tier from *see more words* — **asked for 2026-10-26, for the next session** · i-a2f271-54fbf1
+
+**Asked for by the owner, in their words:** *«quiero eliminar el filtro vulgar, no quiero algo que
+solo muestre palabras vulgares, pero tampoco las quites del diccionario»* (the quote stays as said). So:
+
+- *Rareza* goes back to four values: Común · Rara · Curiosa · Coloquial. This supersedes the
+  *Vulgar* half of d-a2f271-136e08, so it needs a decision row of its own.
+- **The words stay in every pack**, with their `vulg.` / `despect.` labels on the card
+  (d-a2f271-1f80cd). Nothing is pruned.
+- **Open, to ask before building:** where a mostly-vulgar word goes in *see more words*. The
+  recommendation is out of every tier, as it was before 2026-10-26 (`_DROP`), because putting it in
+  *Coloquial* would make that tier the vulgar list under another name.
+- **Cost:** `discover.py` (drop `VULGAR`, keep `_VULGAR` for the drop), the Kotlin enum and its
+  strings, `verify_pack`'s known codes, the tests that enumerate five tiers, and a settings value
+  stored as `VULGAR` that must read back as `COMMON`. ⚠️ The tier code is written into the full
+  packs, so the change ships with the next **full** rebuild; until then an app without `VULGAR`
+  must ignore code 4 in an older pack's `discover` table rather than fail.
+
 ### A register filter, and what else the packs could carry — **1, 2 and 3 BUILT 2026-10-26, seen on the emulator** (versionCode 17) · i-a2f271-9a16c4
 
 **Chosen by the owner: 1, 2 and 3**, with the shapes in d-a2f271-136e08 (*Coloquial* and *Vulgar*
@@ -6335,6 +6364,17 @@ and did not hold is the signal to raise the rung. **The rung, priced:** a script
 series by checking each commit in a throwaway worktree (`gate` there, refuse on red), ~40 lines,
 or a `pre-commit` hook that runs the audit's count check against the **staged** tree instead of
 the working tree, ~20 lines plus the cost of running the audit (~10 s) on every commit.
+
+### A file list in a zsh variable is one word — **3 incidents, rule rewritten 2026-10-26** · i-a2f271-0f302a
+
+Counted in the changelog: 2026-09-19, the morning of 2026-10-26 (a resolution loop failed silently)
+and that afternoon, when copies saved with `for f in $FILES` were never written and a `git checkout`
+then discarded uncommitted audit code. The `verify` skill described the trap for fish, the terminal's
+shell, while the agent's commands run in zsh; it now says so, with `${=FILES}` and "list the saved
+copies before discarding". **The rung above prose, priced and not built:** a `PreToolUse` hook that
+refuses a Bash command containing `git checkout --`, `git restore` or `git reset --hard` while the
+tree has uncommitted changes the command would touch, ~30 lines; it would also have stopped the
+discard itself, which no shell rule can.
 
 ### The gate cannot see colour, animation or where a line breaks · i-a2f271-6b7752
 

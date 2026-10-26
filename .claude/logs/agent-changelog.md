@@ -49,8 +49,18 @@ file list in zsh saved no copies and a `git checkout` then discarded the uncommi
 rebuilt from the conversation and re-probed. The staged audit first counted the working tree's
 checks, not the snapshot's, and was changed to run the snapshot's own audit.
 
+**Shipped.** `versionCode` 18 on the watch (installed in 22 s, cores extracted, 5 packs open, ready
+in 8,582 ms on the first launch); `main` fast-forwarded to it and pushed, the merged branches
+deleted; `wearos-debug-tool` pushed with its new tests and P-16 answered: the owner tapped
+*Detener sesión* and the watch logged everything released 57 ms later.
+
+**Not verified.** Why the stored history read 1 visit where it read 25 at 12:53: the owner may have
+cleared it; otherwise it is a data loss, and it is the first question of the next session.
+
 **What was left undone.** The *see more words* tiers could use prevalence too (Común = known by
-90 %), which needs a full rebuild. The one-tap stop and CI for the tool stay proposed.
+90 %), which needs a full rebuild. The one-tap stop and CI for the tool stay proposed. The owner
+asked to remove the *Vulgar* tier next session (i-a2f271-54fbf1). A third zsh word-splitting
+incident reached the roadmap with a priced hook.
 
 ## 2026-10-26 · s-a2f271-721a7a — The watch debug-session tool moves to its own repository
 **What.** The keep-alive app and `watchsession.py` left this repository for their own,

@@ -150,6 +150,12 @@ for x in $pairs; set -l a (string split ' ' $x); ...; end
 
 Or write the loop in Python. **What never works is the bash reflex.**
 
+**And the agent's own commands run in zsh, where an unquoted `$FILES` is ONE word.** The terminal
+is fish, but the Bash tool runs zsh, which does not split an unquoted variable into fields. Three
+incidents, the last on 2026-10-26: a `for f in $FILES` saving copies before a `git checkout` saved
+nothing, and the checkout discarded uncommitted work. In zsh write `for f in ${=FILES}`, or an
+array, or the loop in Python; and **before discarding anything, list the saved copies first.**
+
 **A `--` inside an XML comment breaks the build, and it has three times.** It closes the comment
 delimiter, so AGP refuses the whole resource merge:
 
