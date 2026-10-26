@@ -138,7 +138,7 @@ class ApuntarAlObjetivoTest(unittest.TestCase):
             ultimo["mb"] = self._mb(vocabulario[0])
 
         with mock.patch.object(build_core, "vocabulario_por_presupuesto",
-                               side_effect=lambda c, p, f=None: [p]), \
+                               side_effect=lambda c, p, f=None, o=None: [p]), \
                 mock.patch.object(build_core, "derive", side_effect=derive), \
                 mock.patch.object(build_core, "_fraccion_de_lemas", return_value=0.0), \
                 mock.patch.object(build_core, "_es_el_pack_entero", return_value=False), \
@@ -157,6 +157,54 @@ class ApuntarAlObjetivoTest(unittest.TestCase):
         # The first budget, 40, gives ~49 MB: inside [30, 50] and 9 MB off the target.
         self.assertGreater(abs(self._mb(40) - 40), 2)
         self.assertLess(abs(self._derivar(30, 50)["mb"] - 40), abs(self._mb(40) - 40))
+
+
+class OrdenDeLaColaTest(unittest.TestCase):
+    """Which lemmas a derived tier takes once the 50k list runs out (d-a2f271-b05bcf).
+
+    The tail used to be ordered by page richness: 43 % of es-core (13,930 words) got in that way,
+    `engurrumirse` and `agramilar` among them, while 1,955 words known by 95 % of speakers stayed
+    out (`suavizante`, `paleontólogo`).
+    """
+
+    # A corpus of 1e9 tokens, so a count IS occurrences per billion and Zipf 2 is a count of 100.
+    TOTAL = 10 ** 9
+
+    def _orden(self, frecuencias, prevalencia, rank):
+        normas = list(rank)
+        return build_core.orden_de_entrada(normas, frecuencias, self.TOTAL, prevalencia, rank)
+
+    def test_frequency_above_zipf_two_comes_first(self):
+        orden = self._orden({"casa": 50000, "mesa": 200}, {"mesa": 99.0}, {"casa": 9, "mesa": 1})
+        self.assertEqual(["casa", "mesa"], orden)
+
+    def test_below_zipf_two_who_knows_the_word_decides(self):
+        # `paleontologo` is rare in subtitles and known by 98 %; a form seen three times is noise.
+        orden = self._orden(
+            {"paleontologo": 40, "engurrumirse": 3},
+            {"paleontologo": 98.0, "engurrumirse": 12.0},
+            {"paleontologo": 900, "engurrumirse": 1})
+        self.assertEqual(["paleontologo", "engurrumirse"], orden)
+
+    def test_a_known_word_with_no_count_beats_a_counted_unknown_one(self):
+        orden = self._orden({"agramilar": 5}, {"suavizante": 97.0}, {"suavizante": 900, "agramilar": 1})
+        self.assertEqual(["suavizante", "agramilar"], orden)
+
+    def test_a_regional_word_no_norm_measured_beats_one_most_people_do_not_know(self):
+        # `fome` (Chile) has no SPALEX reading; a word known by 12 % is not "who knows it" deciding,
+        # it is a norm saying few do. es-core dropped `fome`, a required word, until this held.
+        orden = self._orden({"fome": 40, "aciemar": 3}, {"aciemar": 12.0},
+                            {"fome": 900, "aciemar": 1})
+        self.assertEqual(["fome", "aciemar"], orden)
+
+    def test_without_prevalence_the_low_counts_still_order_before_page_richness(self):
+        # English: no prevalence norm with an open license.
+        orden = self._orden({"petrichor": 40}, None, {"petrichor": 900, "hentriacontane": 1})
+        self.assertEqual(["petrichor", "hentriacontane"], orden)
+
+    def test_with_no_signal_at_all_page_richness_is_the_last_word(self):
+        orden = self._orden({}, {}, {"b": 2, "a": 1})
+        self.assertEqual(["a", "b"], orden)
 
 
 class MetaQueNoSeHeredaTest(unittest.TestCase):

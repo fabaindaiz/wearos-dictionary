@@ -84,6 +84,14 @@ RANGO = {"core": (30, 50), "main": (100, 150)}
 #: same one matters: a tier's cut and the pack's `rank` have to speak about the same corpus.
 LISTAS_DE_FRECUENCIA = {"en": "freq-en-opensubs.txt", "es": "freq-es-opensubs.txt"}
 
+#: The same corpus, uncut (~1.2M Spanish and ~1.7M English forms): it ORDERS a derived tier's tail,
+#: while the 50k list above stays its coverage metric (d-a2f271-b05bcf). Same source and license.
+LISTAS_COMPLETAS = {"en": "freq-en-opensubs-full.txt", "es": "freq-es-opensubs-full.txt"}
+
+#: The prevalence norm that orders the Spanish tail below Zipf 2. English has none with an open
+#: license.
+PREVALENCIA = {"es": "spalex-word_info.csv"}
+
 
 def _ruta(raiz, *partes):
     return os.path.join(raiz, *partes)
@@ -107,7 +115,10 @@ def _niveles(raiz, idioma, tamano_full_mb):
             "comando": [sys.executable, BUILD_CORE, full,
                         _ruta(raiz, DIST, "%s-%s.db" % (idioma, nivel)),
                         "--rango-mb", str(minimo), str(maximo), "--tier", nivel,
-                        "--frecuencias", _ruta(raiz, DUMPS, LISTAS_DE_FRECUENCIA[idioma])],
+                        "--frecuencias", _ruta(raiz, DUMPS, LISTAS_DE_FRECUENCIA[idioma]),
+                        "--orden", _ruta(raiz, DUMPS, LISTAS_COMPLETAS[idioma])]
+                       + (["--prevalencia", _ruta(raiz, DUMPS, PREVALENCIA[idioma])]
+                          if idioma in PREVALENCIA else []),
             "verifica": True,
             # Re-read when the step RUNS: in a fresh root the full does not exist yet when the
             # plan is made. See [debe_saltarse].

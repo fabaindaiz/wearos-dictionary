@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build  # noqa: E402
 import normalize  # noqa: E402
 from sources import frequency as _frequency  # noqa: E402
+from sources import prevalence as _prevalence  # noqa: E402
 import payload as payload_codec  # noqa: E402
 
 # How many words get in by default.
@@ -85,7 +86,58 @@ def frecuencias_por_norm(lista):
     return _frequency.por_norm(_frequency.load(lista), normalize.norm)
 
 
-def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
+#: Where a frequency stops deciding: Zipf 2, 100 occurrences per billion tokens, about where the
+#: 50k list ended. Below it the full list is mostly forms seen a handful of times, and in Spanish the
+#: share of speakers who know the word is the better signal (d-a2f271-b05bcf).
+ZIPF_DONDE_DECIDE_LA_FRECUENCIA = 2.0
+
+#: The share of speakers above which the prevalence norm PROMOTES a word. Below it the norm is not
+#: saying "people know this", it is saying few do, and the word goes back to its count -- next to
+#: words the norm never measured. SPALEX lists few American words: `fome` (Chile, 10 occurrences)
+#: fell out of es-core behind words known by 12 % until this held.
+CONOCIDA_POR_LA_MAYORIA = 50.0
+
+
+def orden_de_entrada(normas, frecuencias, total, prevalencia, mejor_rank):
+    """The order lemmas enter a derived tier (d-a2f271-b05bcf), most deserving first.
+
+    1. A frequency at or above Zipf 2, the most used first.
+    2. Below it, a word most speakers know (SPALEX, Spanish, at least `CONOCIDA_POR_LA_MAYORIA`):
+       by that share, the low count only breaking ties. *paleontólogo* -- known by 98 %, rare in
+       subtitles -- beats a form seen three times.
+    3. Any count left, the most used first: English has no open prevalence norm.
+    4. Nothing at all: page richness (`rank`), which is what used to fill 43 % of es-core.
+
+    `frecuencias` and `prevalencia` are keyed by `norm`; `total` is the list's token count, so a
+    count converts to occurrences per billion.
+    """
+    umbral = total * (10 ** ZIPF_DONDE_DECIDE_LA_FRECUENCIA) / 1e9 if total else 0
+    prevalencia = prevalencia or {}
+
+    def clave(n):
+        cuenta = frecuencias.get(n, 0)
+        if cuenta and cuenta >= umbral:
+            return (0, -cuenta, n)
+        if prevalencia.get(n, 0.0) >= CONOCIDA_POR_LA_MAYORIA:
+            return (1, -prevalencia[n], -cuenta, n)
+        if cuenta:
+            return (2, -cuenta, n)
+        return (3, mejor_rank[n], n)
+
+    return sorted(normas, key=clave)
+
+
+def prevalencia_por_norm(ruta):
+    """SPALEX's share of speakers who know each word, keyed by `norm`; the highest wins a collision."""
+    salida = {}
+    for palabra, porcentaje in _prevalence.load(ruta).items():
+        n = normalize.norm(palabra)
+        if n and porcentaje > salida.get(n, -1.0):
+            salida[n] = porcentaje
+    return salida
+
+
+def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None, orden=None):
     """The lemmas that fit in `presupuesto_mb`, **the most used first**.
 
     ## Which metric decides, and why that one
@@ -168,10 +220,17 @@ def vocabulario_por_presupuesto(completo, presupuesto_mb, frecuencias=None):
             coste[norm] = coste.get(norm, 0) + plen
             if norm not in mejor_rank or rank < mejor_rank[norm]:
                 mejor_rank[norm] = rank
-        orden = sorted(
-            coste,
-            key=lambda n: (0, -frecuencias[n], n) if n in frecuencias else (1, mejor_rank[n], n),
-        )
+        # `orden` carries the lists that ORDER the tail (the full frequency list, SPALEX); the
+        # 50k list in `frecuencias` stays the coverage metric, so the number stays comparable.
+        if orden:
+            lista = orden.get("frecuencias") or frecuencias
+            orden = orden_de_entrada(list(coste), lista, sum(lista.values()),
+                                     orden.get("prevalencia"), mejor_rank)
+        else:
+            orden = sorted(
+                coste,
+                key=lambda n: (0, -frecuencias[n], n) if n in frecuencias else (1, mejor_rank[n], n),
+            )
         vocabulario = set()
         acumulado = 0
         for norm in orden:
@@ -442,7 +501,8 @@ def siguiente_presupuesto(presupuesto, mb, objetivo_mb, bajo=None, alto=None):
     return presupuesto * (objetivo_mb / mb)
 
 
-def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecuencias=None):
+def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecuencias=None,
+                     orden=None):
     """Derives a tier whose FILE falls within `[minimo_mb, maximo_mb]`.
 
     ## Why it converges instead of estimating once
@@ -475,7 +535,7 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
     mejor = None
     informe = {"en_rango": False, "mb": 0.0, "vueltas": 0, "motivo": ""}
     for vuelta in range(1, MAX_VUELTAS + 1):
-        vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
+        vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias, orden)
         cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
         lemas = _fraccion_de_lemas(completo, vocabulario)
         derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
@@ -513,7 +573,7 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
     if mejor is not None:
         # In range, just not within the tolerance: the closest one is derived again and kept,
         # which is what every build did before the target existed, at worst.
-        vocabulario = vocabulario_por_presupuesto(completo, mejor[0], frecuencias)
+        vocabulario = vocabulario_por_presupuesto(completo, mejor[0], frecuencias, orden)
         cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
         lemas = _fraccion_de_lemas(completo, vocabulario)
         derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
@@ -571,6 +631,16 @@ def _frecuencias_de(argv):
     return None
 
 
+def _orden_de(argv):
+    """The lists that order a tier's tail: `--orden <full list>` and `--prevalencia <csv>`."""
+    orden = {}
+    if "--orden" in argv:
+        orden["frecuencias"] = frecuencias_por_norm(argv[argv.index("--orden") + 1])
+    if "--prevalencia" in argv:
+        orden["prevalencia"] = prevalencia_por_norm(argv[argv.index("--prevalencia") + 1])
+    return orden or None
+
+
 def main(argv):
     """Three modes, and the RANGE one is what D-215's tiers use.
 
@@ -593,7 +663,7 @@ def main(argv):
         i = argv.index("--rango-mb")
         minimo, maximo = float(argv[i + 1]), float(argv[i + 2])
         informe = derivar_en_rango(completo, salida, minimo, maximo, tier=tier,
-                                   frecuencias=_frecuencias_de(argv))
+                                   frecuencias=_frecuencias_de(argv), orden=_orden_de(argv))
         print("%s: %d palabras, %.1f MB (rango %g-%g MB, nivel %s, %d vuelta%s)%s"
               % (os.path.basename(salida), informe["palabras"], informe["mb"], minimo, maximo,
                  tier, informe["vueltas"], "" if informe["vueltas"] == 1 else "s",

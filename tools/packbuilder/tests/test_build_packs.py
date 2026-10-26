@@ -267,6 +267,8 @@ class PlanTest(unittest.TestCase):
         "--frases": ["tatoeba-spa.tsv"],
         # frequency: lista `palabra<espacio>cuenta`.
         "--frecuencias": ["freq-en-opensubs.txt", "freq-es-opensubs.txt"],
+        # The same list uncut, read the same way: it orders a derived tier's tail.
+        "--orden": ["freq-en-opensubs-full.txt", "freq-es-opensubs-full.txt"],
         # prevalence: SPALEX's `word_info.csv`, Spanish only.
         "--prevalencia": ["spalex-word_info.csv"],
         # build_core lee un pack ya construido, no un dump.
@@ -507,3 +509,28 @@ class IndiceAlTerminarTest(unittest.TestCase):
         # The index describes what passed; a half-built dist/ keeps the last one that did.
         self.assertEqual(1, self._correr(1))
         self.assertFalse(os.path.exists(os.path.join(self.raiz, DIST, "index.json")))
+
+
+class OrdenDeLosNivelesTest(unittest.TestCase):
+    """The derived tiers get the lists that order their tail (d-a2f271-b05bcf)."""
+
+    def _comando(self, nombre):
+        paso = next(p for p in _pasos(tamanos={"es": 90.0, "en": 330.0}) if p["nombre"] == nombre)
+        return paso["comando"]
+
+    def test_every_tier_is_ordered_by_the_full_frequency_list(self):
+        for nombre, lista in (("es-core", "freq-es-opensubs-full.txt"),
+                              ("en-core", "freq-en-opensubs-full.txt"),
+                              ("en-main", "freq-en-opensubs-full.txt")):
+            with self.subTest(nombre=nombre):
+                comando = self._comando(nombre)
+                self.assertEqual(lista, os.path.basename(comando[comando.index("--orden") + 1]))
+
+    def test_the_50k_list_stays_the_coverage_metric(self):
+        comando = self._comando("es-core")
+        self.assertEqual("freq-es-opensubs.txt",
+                         os.path.basename(comando[comando.index("--frecuencias") + 1]))
+
+    def test_only_spanish_has_a_prevalence_norm(self):
+        self.assertIn("--prevalencia", self._comando("es-core"))
+        self.assertNotIn("--prevalencia", self._comando("en-core"))
