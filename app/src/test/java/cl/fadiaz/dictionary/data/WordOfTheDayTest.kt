@@ -295,7 +295,11 @@ class WordOfTheDayTest {
     private val rareNoun = DiscoverBucket(DiscoverTier.RARE, DiscoverPos.NOUN)
     private val curiousAdj = DiscoverBucket(DiscoverTier.CURIOUS, DiscoverPos.ADJECTIVE)
     private val everyTier =
-        mapOf(commonNoun to 900, commonVerb to 100, rareNoun to 500, curiousAdj to 40)
+        mapOf(
+            commonNoun to 900, commonVerb to 100, rareNoun to 500, curiousAdj to 40,
+            DiscoverBucket(DiscoverTier.COLLOQUIAL, DiscoverPos.NOUN) to 60,
+            DiscoverBucket(DiscoverTier.VULGAR, DiscoverPos.ADJECTIVE) to 20,
+        )
 
     /** A row of the table reads back as a word naming its bucket and seq. */
     private val readRow: suspend (DiscoverPick) -> EntrySummary? = { pick ->

@@ -13,6 +13,8 @@ enum class DiscoverTier(val code: Int) {
     COMMON(0),
     RARE(1),
     CURIOUS(2),
+    COLLOQUIAL(3),
+    VULGAR(4),
     ;
 
     companion object {

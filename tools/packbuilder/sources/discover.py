@@ -53,11 +53,11 @@ import re
 #: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
 #: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
 #: a pack says which rules it was built under. Bump it with any change to what `tier` returns.
-VERSION = 2
+VERSION = 3
 
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.
-COMMON, RARE, CURIOUS = 0, 1, 2
+COMMON, RARE, CURIOUS, COLLOQUIAL, VULGAR = 0, 1, 2, 3, 4
 
 #: The parts of speech a tier holds, with the code the table stores. Adverbs stay out: in both
 #: languages most are the adjective plus *-mente* / *-ly*, the same word to learn twice.
@@ -86,6 +86,16 @@ _DROP = frozenset({
     "abbreviation", "initialism", "acronym", "alternative", "nonstandard", "proscribed",
     "pronunciation-spelling", "eye-dialect", "Internet", "slang",
 })
+
+#: The register labels of *Coloquial* and *Vulgar* (d-a2f271-136e08). Two of them are in `_DROP` too:
+#: a word mostly so labelled gets this tier, and a word labelled so in a minority of its senses is
+#: still kept out of the others.
+_COLLOQUIAL = frozenset({"colloquial", "informal", "familiar", "slang"})
+_VULGAR = frozenset({"vulgar", "offensive", "derogatory", "slur", "ethnic", "pejorative"})
+
+#: A first gloss that makes the word another word's diminutive or clipping: *caquis*, *cole*. The
+#: register tiers take words that are usually short and plainly glossed, so this noise shows there.
+_CLIPPING = re.compile(r"(?i)^(diminutivo|aumentativo|apócope|acortamiento|despectivo) de")
 
 #: The usage labels that make a word curious. `outdated` is how the Spanish dump says *desusado*.
 _CURIOUS = frozenset({
@@ -238,9 +248,10 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     if rank < RANK_FLOOR:
         return None
 
-    glossed = forms = labelled = literary = 0
+    glossed = forms = labelled = literary = colloquial = vulgar = 0
     tags, topics = set(), set()
     first_topics = None
+    first_register = False
     for sense in raw.get("senses") or []:
         gloss = _gloss_text(sense)
         if not gloss:
@@ -248,6 +259,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
         glossed += 1
         if first_topics is None:
             first_topics = set(sense.get("topics") or [])
+            first_register = bool(set(sense.get("tags") or []) & (_VULGAR | _COLLOQUIAL))
         sense_tags = set(sense.get("tags") or [])
         tags |= sense_tags
         topics |= set(sense.get("topics") or [])
@@ -260,9 +272,24 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
             labelled += 1
         if sense_tags & _LITERARY:
             literary += 1
+        if sense_tags & _VULGAR:
+            vulgar += 1
+        elif sense_tags & _COLLOQUIAL:
+            colloquial += 1
 
     if glossed == 0 or forms * 2 >= glossed:
         return None
+    # ⚠️ **The register by the majority of the senses, as the curious label is counted.** One
+    # colloquial sense of *amigo* does not make *amigo* colloquial. Measured 2026-10-26: 4,780
+    # Spanish and 33,369 English words are colloquial by majority (`docs/fuentes.md`).
+    #
+    # ⚠️ **And the first sense must carry it**: the card opens on that sense, and *cacatúa*, half
+    # of whose senses are derogatory, would show a parrot under *Vulgar*.
+    if (vulgar + colloquial) * 2 >= glossed and first_register:
+        if (tags & (_DROP - _VULGAR - _COLLOQUIAL) or _DERIVATIVE.search(first_gloss or "")
+                or _CLIPPING.match(first_gloss or "")):
+            return None
+        return VULGAR if vulgar * 2 >= glossed else COLLOQUIAL
     if tags & _DROP and glossed <= 2:
         return None
     if topics and topics <= _TECHNICAL:

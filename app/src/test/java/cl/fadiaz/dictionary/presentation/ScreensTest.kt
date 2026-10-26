@@ -3065,13 +3065,15 @@ class ScreensTest {
 
     @Test
     @Config(qualifiers = "+w234dp-h1600dp")
-    fun theWordOfTheDayRowNamesTheTierAndStepsCommonRareCuriousAndBack() {
+    fun theWordOfTheDayRowNamesTheTierAndStepsThroughEveryTierAndBack() {
         // i-a2f271-96caa4: one row that steps to the next value on tap, as the filters of *see
         // more words* do -- not three radio buttons on a 234 dp screen.
         val pasos = listOf(
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.COMMON, "Común", cl.fadiaz.dictionary.core.DiscoverTier.RARE),
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.RARE, "Rara", cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS),
-            Triple(cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS, "Curiosa", cl.fadiaz.dictionary.core.DiscoverTier.COMMON),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS, "Curiosa", cl.fadiaz.dictionary.core.DiscoverTier.COLLOQUIAL),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.COLLOQUIAL, "Coloquial", cl.fadiaz.dictionary.core.DiscoverTier.VULGAR),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.VULGAR, "Vulgar", cl.fadiaz.dictionary.core.DiscoverTier.COMMON),
         )
         var tier by mutableStateOf(pasos.first().first)
         val elegidos = mutableListOf<cl.fadiaz.dictionary.core.DiscoverTier>()
@@ -3100,7 +3102,7 @@ class ScreensTest {
             compose.waitForIdle()
             assertEquals("desde $texto", siguiente, elegidos.last())
         }
-        assertEquals(3, elegidos.size)
+        assertEquals(5, elegidos.size)
     }
 
     @Test

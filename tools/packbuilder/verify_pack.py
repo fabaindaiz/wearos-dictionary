@@ -918,7 +918,8 @@ def _verify_discover(db, meta, report):
     report.check(version is not None and version.isdigit(),
                  "the discover table declares meta.discover_version (%r)" % version)
     codigos = {codigo: pos for pos, codigo in _discover.POS_CODES.items()}
-    tiers = (_discover.COMMON, _discover.RARE, _discover.CURIOUS)
+    tiers = (_discover.COMMON, _discover.RARE, _discover.CURIOUS, _discover.COLLOQUIAL,
+             _discover.VULGAR)
     desconocidas = db.execute(
         "SELECT count(*) FROM discover WHERE tier NOT IN (%s) OR pos NOT IN (%s)"
         % (",".join(map(str, tiers)), ",".join(map(str, codigos)))).fetchone()[0]

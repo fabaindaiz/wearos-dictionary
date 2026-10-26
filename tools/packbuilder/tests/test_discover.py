@@ -179,7 +179,7 @@ class PrevalenceTest(unittest.TestCase):
                                               etymology="From Latin vilipendere."))
 
     def test_the_version_moved(self):
-        self.assertEqual(2, discover.VERSION)
+        self.assertEqual(3, discover.VERSION)
 
 
 class LemmaFilterTest(unittest.TestCase):
@@ -200,13 +200,14 @@ class LemmaFilterTest(unittest.TestCase):
             with self.subTest(word=word):
                 self.assertIsNone(_tier(_raw(word), COMMON_RANK))
 
-    def test_vulgar_and_misspelt_pages_are_out(self):
+    def test_misspelt_pages_are_out_and_vulgar_ones_have_their_own_tier(self):
         raw = _raw("certainity", senses=[{"glosses": ["Misspelling of certainty."],
                                            "tags": ["misspelling"]}])
         self.assertIsNone(_tier(raw, NO_FREQUENCY, lang="en"))
+        # Out of every other tier, as before d-a2f271-136e08; that decision gave them *Vulgar*.
         raw = _raw("cojudo", pos="adj", senses=[{"glosses": ["Persona tonta o de pocas luces."],
                                                   "tags": ["vulgar"]}])
-        self.assertIsNone(_tier(raw, COMMON_RANK))
+        self.assertEqual(discover.VULGAR, _tier(raw, COMMON_RANK))
 
     def test_a_page_whose_every_topic_is_technical_is_out(self):
         raw = _raw("adyacencia", translations=12, senses=[
@@ -241,7 +242,8 @@ class PartOfSpeechCodeTest(unittest.TestCase):
 
     def test_codes_are_fixed(self):
         self.assertEqual({"noun": 0, "verb": 1, "adj": 2}, discover.POS_CODES)
-        self.assertEqual((0, 1, 2), (discover.COMMON, discover.RARE, discover.CURIOUS))
+        self.assertEqual((0, 1, 2, 3, 4), (discover.COMMON, discover.RARE, discover.CURIOUS,
+                                            discover.COLLOQUIAL, discover.VULGAR))
 
 
 if __name__ == "__main__":
@@ -293,3 +295,71 @@ class TechnicalWithoutPrevalenceTest(unittest.TestCase):
                                   "noun")):
             with self.subTest(word=word):
                 self.assertEqual(discover.RARE, self._en(word, gloss, pos=pos))
+
+
+class RegisterTest(unittest.TestCase):
+    """*Coloquial* and *Vulgar* (d-a2f271-136e08): a word whose senses are MOSTLY so labelled.
+
+    Wiktionary labels one sense of *amigo* colloquial; a tier read from any sense would hold the
+    whole language. The cases are words the measurement of 2026-10-26 drew.
+    """
+
+    def _senses(self, *tagged):
+        return [{"glosses": [gloss], "tags": list(tags)} for gloss, tags in tagged]
+
+    def test_a_word_mostly_colloquial_is_colloquial(self):
+        raw = _raw("fome", pos="adj", senses=self._senses(
+            ("Aburrido, sin gracia.", ["colloquial", "Chile"])))
+        self.assertEqual(discover.COLLOQUIAL, _tier(raw, LOW_RANK))
+
+    def test_one_colloquial_sense_among_many_is_not(self):
+        raw = _raw("amigo", senses=self._senses(
+            ("Persona con quien se tiene amistad.", []),
+            ("Persona que gusta mucho de algo.", []),
+            ("Tratamiento afectuoso entre desconocidos.", ["colloquial"])))
+        self.assertNotEqual(discover.COLLOQUIAL, _tier(raw, COMMON_RANK))
+
+    def test_half_the_senses_is_a_majority(self):
+        raw = _raw("pololo", senses=self._senses(
+            ("Novio, enamorado.", ["colloquial", "Chile"]),
+            ("Insecto coleóptero de Chile.", [])))
+        self.assertEqual(discover.COLLOQUIAL, _tier(raw, LOW_RANK))
+
+    def test_vulgar_wins_over_colloquial_and_is_no_longer_dropped(self):
+        # Before this tier `_DROP` threw these away; now they have a tier of their own, and
+        # nowhere else.
+        raw = _raw("boludo", pos="adj", senses=self._senses(
+            ("Tonto, estúpido.", ["vulgar", "colloquial", "Argentina"])))
+        self.assertEqual(discover.VULGAR, _tier(raw, COMMON_RANK))
+
+    def test_slang_is_colloquial_not_dropped(self):
+        raw = _raw("bae", senses=self._senses(("Darling, sweetheart.", ["slang"])))
+        self.assertEqual(discover.COLLOQUIAL, _tier(raw, LOW_RANK))
+
+    def test_the_other_drop_labels_still_drop(self):
+        # A colloquial abbreviation (`cel`) is still not a word to learn.
+        raw = _raw("cel", senses=self._senses(
+            ("Teléfono celular.", ["colloquial", "abbreviation"])))
+        self.assertIsNone(_tier(raw, LOW_RANK))
+
+    def test_the_lemma_filters_still_apply(self):
+        # A phrase, a name, a function word: the same doors as every other tier.
+        phrase = _raw("la chancha y los veinte", senses=self._senses(
+            ("Pedir demasiado.", ["colloquial"])))
+        self.assertIsNone(_tier(phrase, LOW_RANK))
+        frequent = _raw("tío", senses=self._senses(("Persona, tipo.", ["colloquial"])))
+        self.assertIsNone(_tier(frequent, 100))
+
+    def test_the_first_sense_must_carry_the_register(self):
+        # `cacatúa`: half its senses are derogatory, and the card opens on the bird. Drawn under
+        # *Vulgar*, the list would show a parrot.
+        raw = _raw("cacatúa", senses=self._senses(
+            ("Ave trepadora de Oceanía de plumaje blanco.", []),
+            ("Mujer fea y extravagante.", ["derogatory"])))
+        self.assertNotIn(_tier(raw, LOW_RANK), (discover.VULGAR, discover.COLLOQUIAL))
+
+    def test_a_diminutive_or_a_clipping_is_not_a_word_to_learn(self):
+        for word, gloss in (("caquis", "Diminutivo de caca."), ("cole", "Apócope de colegio.")):
+            with self.subTest(word=word):
+                raw = _raw(word, senses=self._senses((gloss, ["colloquial"])))
+                self.assertIsNone(_tier(raw, LOW_RANK))

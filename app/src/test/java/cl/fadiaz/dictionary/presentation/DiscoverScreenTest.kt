@@ -3,6 +3,7 @@ package cl.fadiaz.dictionary.presentation
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -13,6 +14,7 @@ import cl.fadiaz.dictionary.core.DiscoverTier
 import cl.fadiaz.dictionary.core.EntrySummary
 import cl.fadiaz.dictionary.core.RowPreview
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -114,7 +116,9 @@ class DiscoverScreenTest {
         assertEquals(DiscoverPos.ADJECTIVE, nextPos(DiscoverPos.VERB))
         assertEquals(null, nextPos(DiscoverPos.ADJECTIVE))
         assertEquals(DiscoverTier.RARE, nextTier(DiscoverTier.COMMON))
-        assertEquals(DiscoverTier.COMMON, nextTier(DiscoverTier.CURIOUS))
+        assertEquals(DiscoverTier.COLLOQUIAL, nextTier(DiscoverTier.CURIOUS))
+        assertEquals(DiscoverTier.VULGAR, nextTier(DiscoverTier.COLLOQUIAL))
+        assertEquals(DiscoverTier.COMMON, nextTier(DiscoverTier.VULGAR))
     }
 
     @Test
@@ -138,12 +142,36 @@ class DiscoverScreenTest {
     }
 
     @Test
-    fun theLastRowDrawsOtherWords() {
+    fun otherWordsDrawsAgain() {
         var recargas = 0
         show(onReload = { recargas++ })
         scrollTo("Otras palabras")
         compose.onNodeWithText("Otras palabras").performClick()
         assertEquals(1, recargas)
+    }
+
+    @Test
+    fun otherWordsSitsWithTheFiltersAboveADividerAndTheWords() {
+        // Asked for on 2026-10-26: the reload up top, with a bar between the filters and the list.
+        show()
+        scrollTo("fragor")
+        val reload = compose.onNodeWithText("Otras palabras").fetchSemanticsNode().boundsInRoot
+        val divider = compose.onNodeWithTag(DISCOVER_DIVIDER_TAG).fetchSemanticsNode().boundsInRoot
+        val first = compose.onNodeWithText("fragor").fetchSemanticsNode().boundsInRoot
+        assertTrue(reload.bottom <= divider.top)
+        assertTrue(divider.bottom <= first.top)
+    }
+
+    @Test
+    fun colloquialHasItsName() {
+        show(dosIdiomas.copy(tier = DiscoverTier.COLLOQUIAL))
+        compose.onNodeWithText("Coloquial").assertExists()
+    }
+
+    @Test
+    fun vulgarHasItsName() {
+        show(dosIdiomas.copy(tier = DiscoverTier.VULGAR))
+        compose.onNodeWithText("Vulgar").assertExists()
     }
 
 }

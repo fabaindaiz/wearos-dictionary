@@ -1,7 +1,10 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -9,6 +12,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,7 +33,9 @@ import kotlinx.coroutines.launch
 
 /**
  * *See more words* (i-a2f271-ec624b): three filter rows -- rarity, part of speech, language --
- * then the chosen language's words, then a row that draws other words.
+ * and the row that draws other words, then a divider, then the chosen language's words. The
+ * reload sits with the filters and the bar separates them from the list: asked for on 2026-10-26
+ * (d-a2f271-315c50).
  *
  * ⚠️ **Each filter is ONE row that steps to the next value, not a row of chips.** On a 234 dp
  * screen three chips for the rarity and four for the type would be ~55 dp each, at the edge of
@@ -52,6 +58,9 @@ fun DiscoverScreen(
     val listState = rememberTransformingLazyColumnState()
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
+    // The heading, the rarity and type rows, the language row when there is one, the reload and
+    // the divider come before the first word.
+    val firstWordItem = if (state.lang != null) 6 else 5
 
     ScreenScaffold(scrollState = listState) { contentPadding ->
         TransformingLazyColumn(
@@ -91,6 +100,29 @@ fun DiscoverScreen(
             }
 
             val section = state.section
+            if (section != null) {
+                item(key = "otras") {
+                    ListRow(
+                        headword = stringResource(R.string.discover_reload),
+                        detail = null,
+                        isLabel = true,
+                    ) {
+                        // ⚠️ **To the first word, or the new words may land off screen.** Seen on
+                        // the emulator when the row was last: the view stayed on it and all twenty
+                        // were above it. From up here the list can be scrolled down just the same.
+                        scope.launch { listState.scrollToItem(firstWordItem) }
+                        onReload()
+                    }
+                }
+                item(key = "divisor") {
+                    Box(
+                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)
+                            .height(1.dp).background(MaterialTheme.colorScheme.outlineVariant)
+                            .testTag(DISCOVER_DIVIDER_TAG),
+                    )
+                }
+            }
+
             if (section != null && section.words.isEmpty()) {
                 item(key = "vacio") {
                     Text(
@@ -117,28 +149,12 @@ fun DiscoverScreen(
                 }
             }
 
-            if (section != null) {
-                item(key = "otras") {
-                    ListRow(
-                        headword = stringResource(R.string.discover_reload),
-                        detail = null,
-                        isLabel = true,
-                    ) {
-                        // ⚠️ **Back to the first word, or the new words land off screen.** Seen on
-                        // the emulator: the view stayed on this row and all twenty were above it.
-                        // To the first word and not to the top -- the filters did not change, so
-                        // scrolling past them saves the reader three rows.
-                        scope.launch { listState.scrollToItem(FIRST_WORD_ITEM) }
-                        onReload()
-                    }
-                }
-            }
         }
     }
 }
 
-/** The heading and the three filter rows come before the first word. */
-private const val FIRST_WORD_ITEM = 4
+/** The tag of the bar between the filters and the words, for the tests. */
+internal const val DISCOVER_DIVIDER_TAG = "discover-divider"
 
 /** The next language that can answer, and back to the first. One language steps onto itself. */
 internal fun nextLanguage(languages: List<String>, current: String): String {
@@ -146,7 +162,7 @@ internal fun nextLanguage(languages: List<String>, current: String): String {
     return languages[(languages.indexOf(current) + 1) % languages.size]
 }
 
-/** Common, rare, curious, and back. */
+/** Common, rare, curious, colloquial, vulgar, and back. */
 internal fun nextTier(tier: DiscoverTier): DiscoverTier =
     DiscoverTier.entries[(tier.ordinal + 1) % DiscoverTier.entries.size]
 
@@ -162,6 +178,8 @@ internal fun tierLabel(tier: DiscoverTier): Int = when (tier) {
     DiscoverTier.COMMON -> R.string.discover_tier_common
     DiscoverTier.RARE -> R.string.discover_tier_rare
     DiscoverTier.CURIOUS -> R.string.discover_tier_curious
+    DiscoverTier.COLLOQUIAL -> R.string.discover_tier_colloquial
+    DiscoverTier.VULGAR -> R.string.discover_tier_vulgar
 }
 
 private fun filterPosLabel(pos: DiscoverPos?): Int = when (pos) {
