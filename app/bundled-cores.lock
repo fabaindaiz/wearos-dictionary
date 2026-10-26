@@ -5,6 +5,6 @@
 # stale cores four times (gradle.properties keeps the count). `bundlePacks` fails a build whose
 # cores differ from this file while versionCode is still the one written here, and the audit
 # (check_bundled_cores) fails when versionCode moved and this file did not follow.
-versionCode=16
-en-core.db=202610260522
-es-core.db=202610260540
+versionCode=17
+en-core.db=202610261524
+es-core.db=202610261527
