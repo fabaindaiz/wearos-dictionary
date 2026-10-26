@@ -404,6 +404,16 @@ MAX_VUELTAS = 8
 #: for error in both directions.
 OBJETIVO_DEL_RANGO = 0.5
 
+#: How close to the target is close enough, as a fraction of the range's width: 2 MB for core's
+#: 30-50 (d-a2f271-488cbe).
+#:
+#: ⚠️ **Any size inside the range used to be accepted, and the tier moved with the data's noise.**
+#: es-core came out at 49.5 MB one morning and 31.4 MB that afternoon (2026-10-26), with the same
+#: 78.89 % corpus coverage: ~7,000 low-frequency lemmas and ~18 MB of APK decided by which budget
+#: the search happened to try first. The range stays the requirement; the target is what a build
+#: aims at, so two builds of nearly the same data give nearly the same tier.
+TOLERANCIA_DEL_OBJETIVO = 0.1
+
 
 def siguiente_presupuesto(presupuesto, mb, objetivo_mb, bajo=None, alto=None):
     """The budget to try next, given what the last one produced.
@@ -459,6 +469,10 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
     # The bracket, for [siguiente_presupuesto]: the budget known to fall short and the one known to
     # overshoot. Until both exist there is nothing to bisect between.
     bajo = alto = None
+    tolerancia = (maximo_mb - minimo_mb) * TOLERANCIA_DEL_OBJETIVO
+    # The budget whose file came out inside the range and closest to the target, with its size:
+    # what is kept if the rounds run out before the tolerance is met.
+    mejor = None
     informe = {"en_rango": False, "mb": 0.0, "vueltas": 0, "motivo": ""}
     for vuelta in range(1, MAX_VUELTAS + 1):
         vocabulario = vocabulario_por_presupuesto(completo, presupuesto, frecuencias)
@@ -477,20 +491,37 @@ def derivar_en_rango(completo, salida, minimo_mb, maximo_mb, tier="core", frecue
                        # a session to leave it written as unexplained.
                        palabras=len(vocabulario))
         if minimo_mb <= mb <= maximo_mb:
-            informe["en_rango"] = True
-            return informe
+            if abs(mb - objetivo_mb) <= tolerancia:
+                informe["en_rango"] = True
+                return informe
+            if mejor is None or abs(mb - objetivo_mb) < abs(mejor[1] - objetivo_mb):
+                mejor = (presupuesto, mb)
         if mb < minimo_mb and _es_el_pack_entero(completo, vocabulario):
             # There is no more vocabulary to put in: the `full` does not reach this tier's minimum.
             informe["motivo"] = ("todo el pack entra y pesa %.1f MB, por debajo del minimo de "
                                  "%.1f MB" % (mb, minimo_mb))
             return informe
-        if mb < minimo_mb:
+        # Bracketed on the TARGET, not on the range's edges: a file inside the range but short of
+        # the target is a budget known to fall short.
+        if mb < objetivo_mb:
             bajo = presupuesto if bajo is None else max(bajo, presupuesto)
         else:
             alto = presupuesto if alto is None else min(alto, presupuesto)
         # The real factor is measured from the file that has just come out. It is the only way to
         # know it.
         presupuesto = siguiente_presupuesto(presupuesto, mb, objetivo_mb, bajo, alto)
+    if mejor is not None:
+        # In range, just not within the tolerance: the closest one is derived again and kept,
+        # which is what every build did before the target existed, at worst.
+        vocabulario = vocabulario_por_presupuesto(completo, mejor[0], frecuencias)
+        cobertura = _frequency.cobertura(vocabulario, frecuencias) if frecuencias else None
+        lemas = _fraccion_de_lemas(completo, vocabulario)
+        derive(completo, salida, vocabulario, tier=tier, cobertura=cobertura, lemas=lemas)
+        informe.update(mb=os.path.getsize(salida) / 1048576, en_rango=True, cobertura=cobertura,
+                       lemas=lemas, palabras=len(vocabulario),
+                       motivo="sin llegar a +-%.1f MB del objetivo en %d vueltas"
+                       % (tolerancia, MAX_VUELTAS))
+        return informe
     informe["motivo"] = "no convergio en %d vueltas (ultimo: %.1f MB)" % (MAX_VUELTAS, informe["mb"])
     return informe
 

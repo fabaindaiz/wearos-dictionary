@@ -8,6 +8,7 @@ import sys
 import tempfile
 import shutil
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -107,6 +108,55 @@ class SiguientePresupuestoTest(unittest.TestCase):
         # means nothing.
         self.assertAlmostEqual(
             70.0, build_core.siguiente_presupuesto(35.0, 20.0, 40.0, bajo=40.0, alto=35.0))
+
+
+class ApuntarAlObjetivoTest(unittest.TestCase):
+    """The tier lands near the range's target, not anywhere inside it (d-a2f271-488cbe).
+
+    Accepting the first size in [30, 50] made es-core 49.5 MB one morning and 31.4 MB that
+    afternoon with the same corpus coverage: ~7,000 lemmas and ~18 MB of APK moved with no change
+    in the data. The file is simulated by the curve measured over the Spanish pack, which is not
+    monotonic (see `OBJETIVO_DEL_RANGO`): the case that made the loop jump the gap.
+    """
+
+    # budget -> file MB, measured (build_core.OBJETIVO_DEL_RANGO's table), interpolated between.
+    CURVA = [(10, 6.0), (20, 13.4), (30, 27.4), (37.5, 47.3), (45, 51.2), (60, 60.4)]
+
+    def _mb(self, presupuesto):
+        puntos = self.CURVA
+        if presupuesto <= puntos[0][0]:
+            return puntos[0][1] * presupuesto / puntos[0][0]
+        for (x0, y0), (x1, y1) in zip(puntos, puntos[1:]):
+            if presupuesto <= x1:
+                return y0 + (y1 - y0) * (presupuesto - x0) / (x1 - x0)
+        return puntos[-1][1]
+
+    def _derivar(self, minimo, maximo):
+        ultimo = {}
+
+        def derive(completo, salida, vocabulario, **kw):
+            ultimo["mb"] = self._mb(vocabulario[0])
+
+        with mock.patch.object(build_core, "vocabulario_por_presupuesto",
+                               side_effect=lambda c, p, f=None: [p]), \
+                mock.patch.object(build_core, "derive", side_effect=derive), \
+                mock.patch.object(build_core, "_fraccion_de_lemas", return_value=0.0), \
+                mock.patch.object(build_core, "_es_el_pack_entero", return_value=False), \
+                mock.patch.object(build_core.os.path, "getsize",
+                                  side_effect=lambda _: ultimo["mb"] * 1048576):
+            return build_core.derivar_en_rango("full.db", "core.db", minimo, maximo)
+
+    def test_it_lands_within_the_tolerance_of_the_target(self):
+        informe = self._derivar(30, 50)
+        self.assertTrue(informe["en_rango"], informe)
+        objetivo = 30 + (50 - 30) * build_core.OBJETIVO_DEL_RANGO
+        self.assertLessEqual(abs(informe["mb"] - objetivo),
+                             (50 - 30) * build_core.TOLERANCIA_DEL_OBJETIVO, informe)
+
+    def test_a_first_size_inside_the_range_is_not_enough(self):
+        # The first budget, 40, gives ~49 MB: inside [30, 50] and 9 MB off the target.
+        self.assertGreater(abs(self._mb(40) - 40), 2)
+        self.assertLess(abs(self._derivar(30, 50)["mb"] - 40), abs(self._mb(40) - 40))
 
 
 class MetaQueNoSeHeredaTest(unittest.TestCase):
