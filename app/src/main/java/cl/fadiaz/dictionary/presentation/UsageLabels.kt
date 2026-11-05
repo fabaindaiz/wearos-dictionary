@@ -61,24 +61,9 @@ private val LABELS: Map<String, Int> = mapOf(
 internal fun usageLabel(key: String): Int? = LABELS[key]
 
 /**
- * A word's stress type, key -> string (d-a2f271-b4adc7): `oxytone` is *aguda* in Spanish. Same
- * rule as [usageLabel]: a key this app does not know is left out.
- */
-private val STRESS: Map<String, Int> = mapOf(
-    "oxytone" to R.string.stress_oxytone,
-    "paroxytone" to R.string.stress_paroxytone,
-    "proparoxytone" to R.string.stress_proparoxytone,
-    "superproparoxytone" to R.string.stress_superproparoxytone,
-    "monosyllable" to R.string.stress_monosyllable,
-)
-
-/** The string of a stress key, or null for a key this app does not know. */
-internal fun stressLabel(key: String): Int? = STRESS[key]
-
-/**
- * The line under the word: IPA, syllables and stress, those present, joined by ` · `
+ * The line under the word: IPA and syllables, those present, joined by ` · `
  * (d-a2f271-b4adc7). Null when none is, so the card draws no empty row.
  */
-internal fun soundLine(pronunciation: String?, syllables: String?, stress: String?): String? =
-    listOfNotNull(pronunciation, syllables, stress).filter { it.isNotBlank() }
+internal fun soundLine(pronunciation: String?, syllables: String?): String? =
+    listOfNotNull(pronunciation, syllables).filter { it.isNotBlank() }
         .joinToString(" · ").ifEmpty { null }

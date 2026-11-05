@@ -2524,8 +2524,8 @@ class EtiquetasDeUsoTest(unittest.TestCase):
         self.assertEqual(["vulgar", "derogatory", "outdated"], got[0])
 
 
-class SilabasYAcentoTest(unittest.TestCase):
-    """The first hyphenation and the stress type the Spanish dump carries (d-a2f271-b4adc7)."""
+class SilabasTest(unittest.TestCase):
+    """The first hyphenation the Spanish dump carries (d-a2f271-b4adc7)."""
 
     def setUp(self):
         self.paths = []
@@ -2539,18 +2539,13 @@ class SilabasYAcentoTest(unittest.TestCase):
         self.paths.append(path)
         return next(iter(kaikki.records(path, lang="es")))
 
-    def test_silabas_y_acento(self):
+    def test_silabas_sin_el_tipo_de_acento(self):
         got = self._record(
             hyphenations=[{"parts": ["ja", "po", "nés"]}],
             sounds=[{"ipa": "[xapoˈnes]"}, {"raw_tags": ["acentuación"], "other": "aguda"},
                     {"raw_tags": ["longitud silábica"], "other": "trisílaba"}])
         self.assertEqual("ja·po·nés", got.syllables)
-        self.assertEqual("oxytone", got.stress)
-
-    def test_un_acento_ambiguo_o_desconocido_no_se_guarda(self):
-        got = self._record(sounds=[{"raw_tags": ["acentuación"], "other": "aguda, llana"}])
-        self.assertIsNone(got.stress)
-        self.assertIsNone(got.syllables)
+        self.assertFalse(hasattr(got, "stress"))
 
     def test_una_sola_silaba_no_es_division(self):
         # `sol` split into one part says nothing the word does not.

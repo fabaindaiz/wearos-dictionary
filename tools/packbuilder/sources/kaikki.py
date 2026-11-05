@@ -1171,7 +1171,6 @@ def _ensena_algo_sin_acepciones(raw, translations_to):
         or _pronunciation(raw)
         or _display_forms(raw, headword)
         or _silabas(raw)
-        or _acento(raw)
         or _word_translations(raw, headword, translations_to, set())
     )
 
@@ -1263,7 +1262,6 @@ def _emit(group, inbound, opciones):
             display_forms=_display_forms(raw, headword),
             pronunciation=_pronunciation(raw),
             syllables=_silabas(raw),
-            stress=_acento(raw),
             etymology=_etymology(raw),
             # ⚠️ **The SEARCH channel carries both**, attributed and loose: to find `casa` by
             # typing `house` it makes no difference whether the source knew which sense it belongs
@@ -1482,26 +1480,11 @@ def _etymology(raw):
     return None
 
 
-#: The Spanish dump's stress types, as the keys the app translates (d-a2f271-b4adc7). Measured
-#: 2026-10-26 over 854,460 records, the four largest values were seen 571,283, 179,057, 91,081 and
-#: 1,821 times. The value `doble` (1,604) and the combined ones say two things and are left out.
-ACENTOS = {"aguda": "oxytone", "llana": "paroxytone", "esdrújula": "proparoxytone",
-           "sobreesdrújula": "superproparoxytone", "monosílaba": "monosyllable"}
-
-
 def _silabas(raw):
     """The first hyphenation joined by middle dots, or None. One part divides nothing."""
     for item in raw.get("hyphenations") or ():
         partes = [p.strip() for p in item.get("parts") or () if p and p.strip()]
         return "·".join(partes) if len(partes) > 1 else None
-    return None
-
-
-def _acento(raw):
-    """The stress type the Spanish dump declares in `sounds`, as a key, or None."""
-    for sound in raw.get("sounds") or ():
-        if "acentuación" in (sound.get("raw_tags") or ()):
-            return ACENTOS.get((sound.get("other") or "").strip())
     return None
 
 

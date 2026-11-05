@@ -258,10 +258,4 @@
     <string name="label_new_zealand">N. Zel.</string>
     <string name="label_south_africa">Sudáfr.</string>
     <string name="label_philippines">Filip.</string>
-    <!-- A word's stress type: the key comes from the pack (tools/packbuilder/sources/kaikki.py ACENTOS). -->
-    <string name="stress_oxytone">aguda</string>
-    <string name="stress_paroxytone">llana</string>
-    <string name="stress_proparoxytone">esdrújula</string>
-    <string name="stress_superproparoxytone">sobreesdrújula</string>
-    <string name="stress_monosyllable">monosílaba</string>
 </resources>

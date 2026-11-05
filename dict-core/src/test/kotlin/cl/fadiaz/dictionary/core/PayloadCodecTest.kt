@@ -162,18 +162,24 @@ class PayloadCodecTest {
     }
 
     @Test
-    fun `silabas y acento describen la palabra`() {
-        val body = PayloadCodec.parse("I\txapoˈnes\nH\tja·po·nés\nK\toxytone\nS\tDe Japón.\n")
+    fun `las silabas describen la palabra`() {
+        val body = PayloadCodec.parse("I\txapoˈnes\nH\tja·po·nés\nS\tDe Japón.\n")
         assertEquals("ja·po·nés", body.syllables)
-        assertEquals("oxytone", body.stress)
     }
 
     @Test
-    fun `el fixture trae silabas y acento`() {
+    fun `el acento de un pack ya instalado no cambia nada`() {
+        // Packs built before d-a2f271-b4adc7 was reversed carry `K`; they stay installed.
+        val sinAcento = PayloadCodec.parse("H\tja·po·nés\nS\tDe Japón.\n")
+        assertEquals(sinAcento, PayloadCodec.parse("H\tja·po·nés\nK\toxytone\nS\tDe Japón.\n"))
+    }
+
+    @Test
+    fun `el fixture trae silabas`() {
         val fixture = loadFixture()
         val bodies = fixture.cases.map { PayloadCodec.decode(it.compressed, fixture.dictionary) }
         assertTrue(
-            bodies.any { it.syllables == "a·bu·rri·do" && it.stress == "paroxytone" },
+            bodies.any { it.syllables == "a·bu·rri·do" },
             "el fixture no trae silabas; regenerar con gen_payload_fixture.py",
         )
     }

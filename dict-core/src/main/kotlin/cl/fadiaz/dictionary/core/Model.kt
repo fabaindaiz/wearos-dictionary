@@ -574,6 +574,4 @@ data class Entry(
     val etymology: String? = null,
     /** The syllables, `ja·po·nés`, or null. See [PayloadCodec.Body.syllables]. */
     val syllables: String? = null,
-    /** The stress type as a key, or null. See [PayloadCodec.Body.stress]. */
-    val stress: String? = null,
 )

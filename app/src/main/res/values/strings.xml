@@ -277,10 +277,4 @@
     <string name="label_new_zealand">NZ</string>
     <string name="label_south_africa">S. Afr.</string>
     <string name="label_philippines">Phil.</string>
-    <!-- A word's stress type: the key comes from the pack (tools/packbuilder/sources/kaikki.py ACENTOS). -->
-    <string name="stress_oxytone">oxytone</string>
-    <string name="stress_paroxytone">paroxytone</string>
-    <string name="stress_proparoxytone">proparoxytone</string>
-    <string name="stress_superproparoxytone">superproparoxytone</string>
-    <string name="stress_monosyllable">monosyllable</string>
 </resources>

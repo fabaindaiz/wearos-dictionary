@@ -447,23 +447,22 @@ class ScreensTest {
     }
 
     @Test
-    fun theSyllablesAndStressShareThePronunciationLine() {
-        // d-a2f271-b4adc7: one line under the word, the stress written in the reader's language.
+    fun theSyllablesShareThePronunciationLine() {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
                 entry("Originario de Japón.").copy(
-                    pronunciation = "xapo\u02c8nes", syllables = "ja·po·nés", stress = "oxytone",
+                    pronunciation = "xapo\u02c8nes", syllables = "ja·po·nés",
                 )
             }
         }
-        compose.onNodeWithText("xapo\u02c8nes · ja·po·nés · aguda").assertIsDisplayed()
+        compose.onNodeWithText("xapo\u02c8nes · ja·po·nés").assertIsDisplayed()
     }
 
     @Test
-    fun syllablesWithoutPronunciationStillShowAndAnUnknownStressIsLeftOut() {
+    fun syllablesWithoutPronunciationStillShow() {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}) {
-                entry("Mamífero.").copy(syllables = "pe·rro", stress = "zz_nuevo")
+                entry("Mamífero.").copy(syllables = "pe·rro")
             }
         }
         compose.onNodeWithText("pe·rro").assertIsDisplayed()
@@ -3145,7 +3144,7 @@ class ScreensTest {
             compose.waitForIdle()
             assertEquals("desde $texto", siguiente, elegidos.last())
         }
-        assertEquals(5, elegidos.size)
+        assertEquals(pasos.size, elegidos.size)
     }
 
     @Test

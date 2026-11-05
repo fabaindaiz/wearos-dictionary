@@ -146,8 +146,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - El pack inglés y el bilingüe también traducen; el bilingüe llena por fin su canal de lectura.
 - Las flexiones del idioma destino cierran la dirección inversa.
 
-**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **158 tests**) y el
-pipeline de packs (`tools/`, **777 tests**) están completos y en el gate, junto con los **557 JVM
+**Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **159 tests**) y el
+pipeline de packs (`tools/`, **776 tests**) están completos y en el gate, junto con los **557 JVM
 de `:app`** y **45 checks** de auditoría estructural — **1537 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las

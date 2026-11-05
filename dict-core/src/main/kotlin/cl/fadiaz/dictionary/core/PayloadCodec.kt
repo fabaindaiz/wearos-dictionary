@@ -151,9 +151,6 @@ object PayloadCodec {
      */
     private const val TAG_SYLLABLES = 'H'
 
-    /** The word's stress type as a key the app translates. Mirrors `payload.TAG_STRESS`. */
-    private const val TAG_STRESS = 'K'
-
     /** The decoded body, without the data that already comes in `entry`'s columns. */
     data class Body(
         val partOfSpeech: String?,
@@ -187,8 +184,6 @@ object PayloadCodec {
         val etymology: String? = null,
         /** The word's syllables, `ja·po·nés`, or null. See [TAG_SYLLABLES]. */
         val syllables: String? = null,
-        /** The stress type as a key (`oxytone`), or null. See [TAG_STRESS]. */
-        val stress: String? = null,
     )
 
     /**
@@ -312,7 +307,6 @@ object PayloadCodec {
         var pronunciation: String? = null
         var etymology: String? = null
         var syllables: String? = null
-        var stress: String? = null
 
         // The sense whose LAST example can still receive a citation, or null. An `E` sets it and
         // any other line clears it: a `C` that does not come right after its `E` is discarded
@@ -358,7 +352,6 @@ object PayloadCodec {
                 TAG_PRONUNCIATION -> if (pronunciation == null) pronunciation = value
                 TAG_ETYMOLOGY -> if (etymology == null) etymology = value
                 TAG_SYLLABLES -> if (syllables == null) syllables = value
-                TAG_STRESS -> if (stress == null) stress = value
                 // No `senses` guard, for the same reason as `W`: it describes the ENTRY.
                 TAG_FORM -> {
                     val cut = value.indexOf(FORM_SEPARATOR)
@@ -381,7 +374,6 @@ object PayloadCodec {
             pronunciation = pronunciation,
             etymology = etymology,
             syllables = syllables,
-            stress = stress,
             senses = senses.map {
                 Sense(
                     it.gloss,
@@ -417,7 +409,6 @@ object PayloadCodec {
         // written down rather than widened in silence.
         body.pronunciation?.let { out.append(TAG_PRONUNCIATION).append('\t').append(it).append('\n') }
         body.syllables?.let { out.append(TAG_SYLLABLES).append('\t').append(it).append('\n') }
-        body.stress?.let { out.append(TAG_STRESS).append('\t').append(it).append('\n') }
         body.etymology?.let { out.append(TAG_ETYMOLOGY).append('\t').append(it).append('\n') }
         for (sense in body.senses) {
             out.append(TAG_SENSE).append('\t').append(sense.gloss).append('\n')

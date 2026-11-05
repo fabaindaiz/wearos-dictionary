@@ -162,7 +162,6 @@ TAGS_CONOCIDOS = frozenset((
     payload_codec.TAG_ANTONYM,
     payload_codec.TAG_LABEL,
     payload_codec.TAG_SYLLABLES,
-    payload_codec.TAG_STRESS,
     payload_codec.TAG_RELATED,
     payload_codec.TAG_WORD_TRANSLATION,
     payload_codec.TAG_PRONUNCIATION,

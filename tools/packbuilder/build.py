@@ -134,8 +134,7 @@ def _parse_profiles(crudo, langs, unico=None):
 def _shows_without_etymology(record):
     """Whether the record puts anything on the card besides its etymology and part of speech."""
     return bool(any(sense.get("gloss") for sense in record.senses or ()) or record.word_translations
-                or record.display_forms or record.pronunciation or record.syllables
-                or record.stress)
+                or record.display_forms or record.pronunciation or record.syllables)
 
 
 class Record:
@@ -160,7 +159,6 @@ class Record:
         "etymology",
         "pronunciation",
         "syllables",
-        "stress",
         "translations",
         "word_translations",
         "sense_key",
@@ -180,7 +178,6 @@ class Record:
         etymology=None,
         pronunciation=None,
         syllables=None,
-        stress=None,
         translations=(),
         word_translations=(),
         sense_key=None,
@@ -203,9 +200,8 @@ class Record:
         self.etymology = etymology
         #: The word's IPA, or None when the source carried none. See `kaikki._pronunciation`.
         self.pronunciation = pronunciation
-        #: `ja·po·nés` and `oxytone`, or None. See `kaikki._silabas` and `kaikki._acento`.
+        #: The syllables joined by middle dots, or None. See `kaikki._silabas`.
         self.syllables = syllables
-        self.stress = stress
         self.translations = translations
         # Translations of the WORD, with no sense. They go to the payload (tag `W`) and NOT to
         # `trans` on their own: `translations` is the search channel and carries the union of both.
@@ -419,7 +415,7 @@ class PackBuilder:
         body = payload_codec.render(
             record.part_of_speech, record.senses, record.word_translations,
             record.display_forms, record.pronunciation, etymology,
-            syllables=record.syllables, stress=record.stress)
+            syllables=record.syllables)
         if not body:
             # With no usable sense the entry has nothing to show.
             return

@@ -373,7 +373,6 @@ class SqlitePackSource(
                 pronunciation = body.pronunciation,
                 etymology = body.etymology,
                 syllables = body.syllables,
-                stress = body.stress,
             )
         }
     }

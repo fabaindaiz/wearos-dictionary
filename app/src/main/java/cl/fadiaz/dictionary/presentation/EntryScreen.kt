@@ -324,12 +324,8 @@ fun EntryScreen(
                     // competes for width with nothing, and it is where it actually gets read.
                     WordTitle(
                         headword = current?.headword ?: "…",
-                        // IPA, syllables and stress share the line (d-a2f271-b4adc7).
-                        pronunciation = soundLine(
-                            current?.pronunciation,
-                            current?.syllables,
-                            current?.stress?.let { stressLabel(it) }?.let { stringResource(it) },
-                        ),
+                        // IPA and syllables share the line (d-a2f271-b4adc7).
+                        pronunciation = soundLine(current?.pronunciation, current?.syllables),
                         detail = wordDetail(
                             partOfSpeech = current?.partOfSpeech?.let { posLabelFull(it) },
                             tag = current?.lang?.uppercase(),

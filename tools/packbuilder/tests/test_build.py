@@ -570,11 +570,10 @@ class InvariantesExhaustivasTest(BuilderTestCase):
 
     def test_las_etiquetas_y_las_silabas_son_tags_conocidos(self):
         # d-a2f271-1f80cd and d-a2f271-b4adc7. The rebuild of 2026-10-26 stopped here: the builder
-        # wrote `U`, `H` and `K`, and this check still knew only the older tags.
+        # wrote `U` and `H`, and this check still knew only the older tags.
         with build.PackBuilder(self.path, dict(BASE_META)) as builder:
             builder.add(build.Record(
                 headword="fome", part_of_speech="adj", rank=1, syllables="fo·me",
-                stress="paroxytone",
                 senses=[{"gloss": "Aburrido, sin gracia.", "labels": ["colloquial", "chile"]}]))
         salida = io.StringIO()
         with contextlib.redirect_stdout(salida):

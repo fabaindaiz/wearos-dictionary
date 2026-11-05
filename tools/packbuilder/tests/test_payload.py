@@ -909,16 +909,17 @@ class EtiquetasTest(unittest.TestCase):
 
 
 class SilabasTest(unittest.TestCase):
-    """Syllables and stress, tags `H` and `K` (d-a2f271-b4adc7): `ja·po·nés · aguda`."""
+    """Syllables, tag `H` (d-a2f271-b4adc7), joined by middle dots."""
 
     def test_van_antes_de_las_acepciones_y_vuelven(self):
         texto = payload.render("adj", [{"gloss": "De Japón."}], pronunciation="xapoˈnes",
-                               syllables="ja·po·nés", stress="oxytone")
-        self.assertIn("H\tja·po·nés\nK\toxytone\n", texto)
+                               syllables="ja·po·nés")
+        self.assertIn("H\tja·po·nés\n", texto)
         self.assertLess(texto.index("H\t"), texto.index("S\t"))
-        self.assertEqual(("ja·po·nés", "oxytone"), payload.parse_syllables(texto))
+        self.assertEqual("ja·po·nés", payload.parse_syllables(texto))
 
     def test_sin_dato_no_hay_linea(self):
         texto = payload.render("adj", [{"gloss": "De Japón."}])
         self.assertNotIn("H\t", texto)
-        self.assertEqual((None, None), payload.parse_syllables(texto))
+        self.assertIsNone(payload.parse_syllables(texto))
+        self.assertNotIn("K\t", payload.render("adj", [{"gloss": "De Japón."}], syllables="ja·pón"))

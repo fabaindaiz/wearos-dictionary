@@ -150,10 +150,6 @@ TAG_LABEL = "U"
 #: hyphenation; a single part is not stored (d-a2f271-b4adc7). Additive: no codec id bump.
 TAG_SYLLABLES = "H"
 
-#: The word's stress type as a KEY the app translates: `oxytone`, `paroxytone`, `proparoxytone`,
-#: `superproparoxytone`, `monosyllable`. One per entry; the source's names are in `kaikki.ACENTOS`.
-TAG_STRESS = "K"
-
 #: Separates the key from the form inside a [TAG_FORM]. A colon and not a tab: `sanitize` strips
 #: tabs because they would split the line, and this value has to survive it.
 FORM_SEPARATOR = ":"
@@ -422,7 +418,7 @@ def _sin_repetir(valores):
 
 
 def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation=None,
-           etymology=None, syllables=None, stress=None):
+           etymology=None, syllables=None):
     """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
     The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
@@ -447,11 +443,10 @@ def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation
     ipa = sanitize(pronunciation or "")
     if ipa:
         lines.append(TAG_PRONUNCIATION + "\t" + ipa)
-    # Right after `I`: the card draws the three on one line (d-a2f271-b4adc7).
-    for tag, valor in ((TAG_SYLLABLES, syllables), (TAG_STRESS, stress)):
-        valor = sanitize(valor or "")
-        if valor:
-            lines.append(tag + "\t" + valor)
+    # Right after `I`: the card draws both on one line (d-a2f271-b4adc7).
+    silabas = sanitize(syllables or "")
+    if silabas:
+        lines.append(TAG_SYLLABLES + "\t" + silabas)
     # Before the senses, like `I`: it describes the WORD, not one of its senses.
     origen = sanitize(etymology or "")
     if origen:
@@ -533,16 +528,11 @@ def parse_etymology(text):
 
 
 def parse_syllables(text):
-    """`(syllables, stress)`, each None when absent. The first of each wins, as in [parse_pronunciation]."""
-    silabas = acento = None
+    """The syllables, or None when absent. The first wins, as in [parse_pronunciation]."""
     for line in text.split("\n"):
-        if len(line) < 3 or line[1] != "\t":
-            continue
-        if line[0] == TAG_SYLLABLES and silabas is None:
-            silabas = line[2:]
-        elif line[0] == TAG_STRESS and acento is None:
-            acento = line[2:]
-    return silabas, acento
+        if len(line) >= 3 and line[0] == TAG_SYLLABLES and line[1] == "\t":
+            return line[2:]
+    return None
 
 
 def parse_labels(text):
