@@ -3113,7 +3113,8 @@ class ScreensTest {
         val pasos = listOf(
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.COMMON, "Común", cl.fadiaz.dictionary.core.DiscoverTier.RARE),
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.RARE, "Rara", cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS),
-            Triple(cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS, "Curiosa", cl.fadiaz.dictionary.core.DiscoverTier.COLLOQUIAL),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.CURIOUS, "Curiosa", cl.fadiaz.dictionary.core.DiscoverTier.LOCAL),
+            Triple(cl.fadiaz.dictionary.core.DiscoverTier.LOCAL, "Local", cl.fadiaz.dictionary.core.DiscoverTier.COLLOQUIAL),
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.COLLOQUIAL, "Coloquial", cl.fadiaz.dictionary.core.DiscoverTier.VULGAR),
             Triple(cl.fadiaz.dictionary.core.DiscoverTier.VULGAR, "Vulgar", cl.fadiaz.dictionary.core.DiscoverTier.COMMON),
         )

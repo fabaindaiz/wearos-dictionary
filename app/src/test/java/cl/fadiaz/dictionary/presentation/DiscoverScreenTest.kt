@@ -116,7 +116,8 @@ class DiscoverScreenTest {
         assertEquals(DiscoverPos.ADJECTIVE, nextPos(DiscoverPos.VERB))
         assertEquals(null, nextPos(DiscoverPos.ADJECTIVE))
         assertEquals(DiscoverTier.RARE, nextTier(DiscoverTier.COMMON))
-        assertEquals(DiscoverTier.COLLOQUIAL, nextTier(DiscoverTier.CURIOUS))
+        assertEquals(DiscoverTier.LOCAL, nextTier(DiscoverTier.CURIOUS))
+        assertEquals(DiscoverTier.COLLOQUIAL, nextTier(DiscoverTier.LOCAL))
         assertEquals(DiscoverTier.VULGAR, nextTier(DiscoverTier.COLLOQUIAL))
         assertEquals(DiscoverTier.COMMON, nextTier(DiscoverTier.VULGAR))
     }
@@ -160,6 +161,12 @@ class DiscoverScreenTest {
         val first = compose.onNodeWithText("fragor").fetchSemanticsNode().boundsInRoot
         assertTrue(reload.bottom <= divider.top)
         assertTrue(divider.bottom <= first.top)
+    }
+
+    @Test
+    fun localHasItsName() {
+        show(dosIdiomas.copy(tier = DiscoverTier.LOCAL))
+        compose.onNodeWithText("Local").assertExists()
     }
 
     @Test

@@ -299,6 +299,7 @@ class WordOfTheDayTest {
             commonNoun to 900, commonVerb to 100, rareNoun to 500, curiousAdj to 40,
             DiscoverBucket(DiscoverTier.COLLOQUIAL, DiscoverPos.NOUN) to 60,
             DiscoverBucket(DiscoverTier.VULGAR, DiscoverPos.ADJECTIVE) to 20,
+            DiscoverBucket(DiscoverTier.LOCAL, DiscoverPos.NOUN) to 30,
         )
 
     /** A row of the table reads back as a word naming its bucket and seq. */

@@ -49,6 +49,7 @@
     <string name="discover_tier_common">Común</string>
     <string name="discover_tier_rare">Rara</string>
     <string name="discover_tier_curious">Curiosa</string>
+    <string name="discover_tier_local">Local</string>
     <string name="discover_tier_colloquial">Coloquial</string>
     <string name="discover_tier_vulgar">Vulgar</string>
     <string name="discover_type">Tipo</string>

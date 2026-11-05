@@ -53,11 +53,11 @@ import re
 #: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
 #: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
 #: a pack says which rules it was built under. Bump it with any change to what `tier` returns.
-VERSION = 3
+VERSION = 4
 
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.
-COMMON, RARE, CURIOUS, COLLOQUIAL, VULGAR = 0, 1, 2, 3, 4
+COMMON, RARE, CURIOUS, COLLOQUIAL, VULGAR, LOCAL = 0, 1, 2, 3, 4, 5
 
 #: The parts of speech a tier holds, with the code the table stores. Adverbs stay out: in both
 #: languages most are the adjective plus *-mente* / *-ly*, the same word to learn twice.
@@ -103,8 +103,8 @@ _CURIOUS = frozenset({
     "poetic", "Lunfardo", "Germanía", "historical",
 })
 
-#: The regions that make a word curious. Always, even for somebody who lives there: asked for by
-#: the owner on 2026-10-21, *sodero* shows to a reader in Chile too.
+#: The regions that make a word a candidate for the labelled tiers. Always, even for somebody who
+#: lives there: asked for by the owner on 2026-10-21, *sodero* shows to a reader in Chile too.
 _REGION = frozenset({
     "Chile", "Argentina", "Mexico", "Venezuela", "Colombia", "Peru", "Uruguay", "Río-de-la-Plata",
     "Cuba", "Bolivia", "Honduras", "El-Salvador", "Ecuador", "Nicaragua", "Costa-Rica",
@@ -112,6 +112,33 @@ _REGION = frozenset({
     "Central-America", "Aragon", "Chiloé", "Canary-Islands", "Scotland", "Australia", "Ireland",
     "Northern-England", "Southern-US", "dialectal", "regional", "Cockney", "Geordie",
     "New-Zealand", "South-Africa", "India",
+})
+
+#: What ties a word to one place: a candidate with any of these in any sense is *Local* and never
+#: *Curious* (d-a2f271-3e777c). Wider than [_REGION] on purpose, which decides who is a candidate and
+#: stays as it was: a plain word labelled only *Spain* keeps its tier. Every tag seen naming a place
+#: in the 2026-11-05 dumps (`tags` and `raw_tags`); *Lunfardo* is the speech of the Río de la Plata.
+_GEOGRAPHIC = _REGION | frozenset({
+    "Spain", "America", "US", "UK", "Canada", "Philippines", "Lunfardo", "lunfardismo", "in UK",
+    "Salamanca", "South-America", "Canaries", "Asturias", "South-Cone", "León", "Caribbean",
+    "Murcia", "Cantabria", "Navarra", "Álava", "Extremadura", "Southern-Chile", "Galicia",
+    "Yucatán", "Castile", "Basque Country", "Zamora", "Burgos", "Hidalgo", "Mexico-City",
+    "Palencia", "Catalonia", "La Rioja", "La Rioja (Argentina)", "Valencia", "Cádiz", "Michoacán",
+    "Córdoba", "Equatorial-Guinea", "Grenada", "Rioja", "Seville", "Ceuta", "Chiapas",
+    "Guadalajara", "Veracruz", "Puebla", "Northern-Argentina", "Sinaloa", "Campeche",
+    "Northern-Chile", "Brazil", "Morocco", "Soria", "Nuevo-León", "Chihuahua", "Almería", "Huelva",
+    "San-Luis-Potosí", "Oaxaca", "Sonora", "Balearic-Islands", "New-Mexico", "Guanajuato",
+    "Jalisco", "Vizcaya", "Zulia", "Central-Chile", "Chubut", "Querétaro", "Central-Mexico",
+    "Lower-California", "Antioquia", "Zacatecas", "Tlaxcala", "Portugal", "Ribera-Navarra",
+    "Britain", "British", "Wales", "England", "Yorkshire", "Northern-US", "Southern-England",
+    "Midwestern-US", "Commonwealth", "Malaysia", "Singlish", "South-Asia", "Cornwall", "Manglish",
+    "West-Country", "Africa", "Canadian", "Hawaii", "Indonesia", "Irish", "Australian",
+    "Northumbria", "Pennsylvania", "Kenya", "Midlands", "China", "Shetland", "Cumbria",
+    "Bangladesh", "Trinidad-and-Tobago", "Quebec", "Japan", "New-York", "New-York-City", "Devon",
+    "Zimbabwe", "West-Midlands", "Maine", "Myanmar", "Guyana", "East-Anglia", "Thailand", "Orkney",
+    "Philippine", "Appalachia", "New-England", "Jamaica", "Singapore", "Hong-Kong", "Nigeria",
+    "Pakistan", "Louisiana", "Texas", "California", "Ulster", "Northern-Ireland", "Tyneside",
+    "Newfoundland", "Liverpool", "London",
 })
 
 #: A literary or learned label is notability on its own.
@@ -251,7 +278,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     glossed = forms = labelled = literary = colloquial = vulgar = 0
     tags, topics = set(), set()
     first_topics = None
-    first_register = False
+    first_register = regional = False
     for sense in raw.get("senses") or []:
         gloss = _gloss_text(sense)
         if not gloss:
@@ -261,6 +288,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
             first_topics = set(sense.get("topics") or [])
             first_register = bool(set(sense.get("tags") or []) & (_VULGAR | _COLLOQUIAL))
         sense_tags = set(sense.get("tags") or [])
+        regional = regional or bool((sense_tags | set(sense.get("raw_tags") or [])) & _GEOGRAPHIC)
         tags |= sense_tags
         topics |= set(sense.get("topics") or [])
         if _is_form(sense, gloss):
@@ -312,7 +340,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
             and "-" not in word and len(word) <= 12):
         if science or (known is not None and known > KNOWN_CURIOUS_MAX):
             return None
-        return CURIOUS
+        return LOCAL if regional else CURIOUS
     if known is not None:
         # ⚠️ **Where prevalence is known it decides, over frequency.** *inefable* is frequent
         # enough to be common by Zipf and known by 63 %; *archipiélago* is infrequent and known by

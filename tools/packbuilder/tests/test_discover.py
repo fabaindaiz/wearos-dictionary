@@ -87,10 +87,10 @@ class TierTest(unittest.TestCase):
             {"glosses": ["Dejar algo para el día siguiente."], "tags": ["outdated"]}])
         self.assertEqual(discover.CURIOUS, _tier(raw, NO_FREQUENCY))
 
-    def test_a_region_counts_as_curious(self):
+    def test_a_region_is_local(self):
         raw = _raw("cuatrerismo", synonyms=1, senses=[
             {"glosses": ["Robo de ganado, especialmente de caballos."], "tags": ["Argentina"]}])
-        self.assertEqual(discover.CURIOUS, _tier(raw, NO_FREQUENCY))
+        self.assertEqual(discover.LOCAL, _tier(raw, NO_FREQUENCY))
 
     def test_one_old_sense_among_many_does_not_make_a_word_curious(self):
         # `impresora` and `apoderarse` filled the first draw: one obsolete sense among current ones.
@@ -166,7 +166,7 @@ class PrevalenceTest(unittest.TestCase):
     def test_a_curious_word_everybody_knows_is_not_curious(self):
         raw = _raw("lesera", synonyms=1, senses=[
             {"glosses": ["Cosa sin importancia, tontería."], "tags": ["Chile"]}])
-        self.assertEqual(discover.CURIOUS, _tier(raw, NO_FREQUENCY, known=60.0))
+        self.assertEqual(discover.LOCAL, _tier(raw, NO_FREQUENCY, known=60.0))
         self.assertIsNone(_tier(raw, NO_FREQUENCY, known=96.0))
 
     def test_without_prevalence_rare_needs_a_learned_origin(self):
@@ -179,7 +179,58 @@ class PrevalenceTest(unittest.TestCase):
                                               etymology="From Latin vilipendere."))
 
     def test_the_version_moved(self):
-        self.assertEqual(3, discover.VERSION)
+        self.assertEqual(4, discover.VERSION)
+
+
+class LocalTest(unittest.TestCase):
+    """A word of one place goes to *Local*, never to *Curious* (d-a2f271-3e777c): asked by the owner."""
+
+    _GLOSS = "Cosa de uso muy poco frecuente."
+
+    def _word(self, *tags_per_sense):
+        return _raw("sodero", translations=1, senses=[
+            {"glosses": [self._GLOSS], "tags": list(tags)} for tags in tags_per_sense])
+
+    def test_a_regional_word_is_local_not_curious(self):
+        self.assertEqual(discover.LOCAL, _tier(self._word(["Chile"]), NO_FREQUENCY))
+
+    def test_an_old_word_of_one_place_is_local(self):
+        self.assertEqual(discover.LOCAL, _tier(self._word(["outdated", "Spain"]), NO_FREQUENCY))
+
+    def test_one_regional_sense_among_old_ones_is_enough(self):
+        # The card would say *Chile*, and the reader of *Curiosa* asked not to see that.
+        raw = self._word(["obsolete"], ["obsolete"], ["Chile"])
+        self.assertEqual(discover.LOCAL, _tier(raw, NO_FREQUENCY))
+
+    def test_a_region_the_source_only_writes_in_raw_tags_counts(self):
+        raw = _raw("sodero", translations=1, senses=[
+            {"glosses": [self._GLOSS], "tags": ["obsolete"], "raw_tags": ["lunfardismo"]}])
+        self.assertEqual(discover.LOCAL, _tier(raw, NO_FREQUENCY))
+
+    def test_lunfardo_is_local_and_germania_stays_curious(self):
+        self.assertEqual(discover.LOCAL, _tier(self._word(["Lunfardo"]), NO_FREQUENCY))
+        self.assertEqual(discover.CURIOUS, _tier(self._word(["Germanía"]), NO_FREQUENCY))
+
+    def test_an_old_word_of_nowhere_stays_curious(self):
+        self.assertEqual(discover.CURIOUS, _tier(self._word(["outdated"]), NO_FREQUENCY))
+
+    def test_a_country_alone_does_not_pull_a_word_out_of_common(self):
+        # Asked for: Local comes out of *Curious*. A plain word labelled only *Spain* keeps its tier.
+        raw = _raw("tanatorio", senses=[{"glosses": ["Edificio donde se vela a los difuntos."],
+                                         "tags": ["Spain"]}])
+        self.assertEqual(discover.COMMON, _tier(raw, COMMON_RANK))
+
+    def test_a_colloquial_word_of_one_place_stays_colloquial(self):
+        # The owner's choice on 2026-11-05: *pololear* stays in *Coloquial*.
+        raw = _raw("pololear", pos="verb", senses=[
+            {"glosses": ["Mantener una relación de noviazgo."], "tags": ["colloquial", "Chile"]}])
+        self.assertEqual(discover.COLLOQUIAL, _tier(raw, NO_FREQUENCY))
+
+    def test_every_region_the_card_names_is_geographic(self):
+        # What the card labels with a place cannot be missing here, or it reaches *Curiosa*.
+        from sources import kaikki
+
+        self.assertEqual(set(), set(kaikki.ETIQUETAS_DE_REGION) - discover._GEOGRAPHIC)
 
 
 class LemmaFilterTest(unittest.TestCase):
@@ -242,8 +293,8 @@ class PartOfSpeechCodeTest(unittest.TestCase):
 
     def test_codes_are_fixed(self):
         self.assertEqual({"noun": 0, "verb": 1, "adj": 2}, discover.POS_CODES)
-        self.assertEqual((0, 1, 2, 3, 4), (discover.COMMON, discover.RARE, discover.CURIOUS,
-                                            discover.COLLOQUIAL, discover.VULGAR))
+        self.assertEqual((0, 1, 2, 3, 4, 5), (discover.COMMON, discover.RARE, discover.CURIOUS,
+                                               discover.COLLOQUIAL, discover.VULGAR, discover.LOCAL))
 
 
 if __name__ == "__main__":

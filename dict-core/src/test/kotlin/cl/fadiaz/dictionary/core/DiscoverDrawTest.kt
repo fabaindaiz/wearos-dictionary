@@ -101,9 +101,9 @@ class DiscoverDrawTest {
 
     @Test
     fun theCodesAreThePacksContract() {
-        // `sources/discover.py`: COMMON, RARE, CURIOUS, COLLOQUIAL, VULGAR = 0, 1, 2, 3, 4 and
-        // noun, verb, adj = 0, 1, 2.
-        assertEquals(listOf(0, 1, 2, 3, 4), DiscoverTier.entries.map { it.code })
+        // `sources/discover.py`: COMMON, RARE, CURIOUS, COLLOQUIAL, VULGAR, LOCAL = 0, 1, 2, 3, 4, 5
+        // and noun, verb, adj = 0, 1, 2. Declared in the order the filter steps through.
+        assertEquals(listOf(0, 1, 2, 5, 3, 4), DiscoverTier.entries.map { it.code })
         assertEquals(listOf(0, 1, 2), DiscoverPos.entries.map { it.code })
     }
 }

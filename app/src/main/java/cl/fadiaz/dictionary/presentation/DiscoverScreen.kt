@@ -178,6 +178,7 @@ internal fun tierLabel(tier: DiscoverTier): Int = when (tier) {
     DiscoverTier.COMMON -> R.string.discover_tier_common
     DiscoverTier.RARE -> R.string.discover_tier_rare
     DiscoverTier.CURIOUS -> R.string.discover_tier_curious
+    DiscoverTier.LOCAL -> R.string.discover_tier_local
     DiscoverTier.COLLOQUIAL -> R.string.discover_tier_colloquial
     DiscoverTier.VULGAR -> R.string.discover_tier_vulgar
 }

@@ -147,8 +147,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **159 tests**) y el
-pipeline de packs (`tools/`, **776 tests**) están completos y en el gate, junto con los **557 JVM
-de `:app`** y **45 checks** de auditoría estructural — **1537 tests en total**. Los **54
+pipeline de packs (`tools/`, **787 tests**) están completos y en el gate, junto con los **558 JVM
+de `:app`** y **45 checks** de auditoría estructural — **1549 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -5567,7 +5567,37 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
-### Remove the *Vulgar* tier from *see more words* — **asked for 2026-10-26, for the next session** · i-a2f271-54fbf1
+### Local words, no stress type — **code done 2026-11-05, waits on a full rebuild** · i-a2f271-9f32d2
+
+The owner's two observations of 2026-11-05: d-a2f271-3e777c (*Local*, out of *Curiosa* only) and
+d-a2f271-957d01 (no stress type). The card stops showing the stress type with the next APK. *Local*
+has words only after a full rebuild; `discover.VERSION` is 4 and `verify_pack` fails an older pack
+for carrying `K` or a curious word that names a place.
+
+### What is stored and not used — **audited 2026-11-05, the owner's to pick** · i-a2f271-e96d28
+
+Asked for by the owner on 2026-11-05 (*«que los datos no solo se guarden sino que tambien se usen»*).
+Read-only audit of commit `ace306f` and the packs of 2026-10-26; nothing changed yet. MB are
+extrapolated from samples of 20,000-65,000 entries, macOS.
+
+- **Hidden forms in `F`** (`pl fem ger past ind2s ind1p ind3p`): on 36-53 % of entries, and no screen
+  draws them, by d-a2f271-0d87de. Dropping them saves 0.68 MB in es-full, 2.03 en-full, 0.70 es-en,
+  0.34 es-core; it forecloses showing them again without another rebuild.
+- **`P`** repeats `entry.pos`: its fallback never fires on these packs. 0.05-0.91 MB.
+- **`entry.uid`** is read and never used on the watch: about 1.2-7.5 MB a pack (ASSUMPTION on the
+  storage width). Reserved by D-055 for auxiliary packs; keep unless those are dropped.
+- **`meta`:** `tier` only reaches a log line, while `docs/formato-pack.md` says it is what lets a core
+  step aside (that is `subset_of`). `trans_dropped`, `lemma_coverage` and `source_date` have no reader,
+  and `fuzzy_profile` duplicates `fuzzy_profiles`. Under 1 KB.
+- **Catalog:** `description`, `license` and `entryCount` are parsed and not shown.
+- **App state:** no key written and never read. Two gaps found: a word opened from a tile does not
+  enter the history (`MainActivity.kt:355-360`), and the startup assignment at
+  `SearchViewModel.kt:410` can overwrite a word just opened.
+- **History, 25 to 1 on 2026-10-26:** only `clearHistory()` removes rows in bulk, behind a confirmation
+  with no timeout (`SettingsScreen.kt:85`). Cause not established; whether the owner cleared it is
+  still unanswered.
+
+### Remove the *Vulgar* tier from *see more words* — **cancelled 2026-11-05 by the owner** (d-a2f271-4de889) · i-a2f271-54fbf1
 
 **Asked for by the owner, in their words:** *«quiero eliminar el filtro vulgar, no quiero algo que
 solo muestre palabras vulgares, pero tampoco las quites del diccionario»* (the quote stays as said). So:

@@ -236,7 +236,7 @@ CREATE TABLE discover (
 ```
 
 The pool *see more words* draws random words to learn from (`docs/roadmap.md`
-i-a2f271-ec624b). `tier` is 0 common, 1 rare, 2 curious; `pos` is 0 noun, 1 verb, 2 adjective;
+i-a2f271-ec624b). `tier` is 0 common, 1 rare, 2 curious, 3 colloquial, 4 vulgar, 5 local; `pos` is 0 noun, 1 verb, 2 adjective;
 both codes are fixed in `sources/discover.py` and are part of this contract. `meta.discover_version`
 says which version of that policy wrote the table.
 

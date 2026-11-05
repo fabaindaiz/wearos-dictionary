@@ -4,7 +4,8 @@ import kotlin.random.Random
 
 /**
  * How rare a word to discover is. The codes are the pack's (`sources/discover.py`), and renumbering
- * one makes every installed pack draw from the wrong tier with no error.
+ * one makes every installed pack draw from the wrong tier with no error. The declaration order is
+ * the order the filter steps through.
  *
  * What each one means, and why *rare* is not just *less frequent*: `docs/roadmap.md`
  * i-a2f271-ec624b and d-a2f271-a3033f.
@@ -13,6 +14,9 @@ enum class DiscoverTier(val code: Int) {
     COMMON(0),
     RARE(1),
     CURIOUS(2),
+
+    /** After *Curious* in the filter, whose words of one place it took (d-a2f271-3e777c). */
+    LOCAL(5),
     COLLOQUIAL(3),
     VULGAR(4),
     ;

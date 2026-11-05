@@ -29,6 +29,7 @@ import normalize
 import payload as payload_codec
 from sources import discover as _discover
 from sources import frequency as _frequency
+from sources import kaikki as _kaikki
 
 import build
 
@@ -921,7 +922,7 @@ def _verify_discover(db, meta, report):
                  "the discover table declares meta.discover_version (%r)" % version)
     codigos = {codigo: pos for pos, codigo in _discover.POS_CODES.items()}
     tiers = (_discover.COMMON, _discover.RARE, _discover.CURIOUS, _discover.COLLOQUIAL,
-             _discover.VULGAR)
+             _discover.VULGAR, _discover.LOCAL)
     desconocidas = db.execute(
         "SELECT count(*) FROM discover WHERE tier NOT IN (%s) OR pos NOT IN (%s)"
         % (",".join(map(str, tiers)), ",".join(map(str, codigos)))).fetchone()[0]
@@ -937,6 +938,17 @@ def _verify_discover(db, meta, report):
         if codigos.get(codigo) != pos)
     report.check(mentidas == 0,
                  "every row's bucket is its entry's part of speech (%d are not)" % mentidas)
+    # What the owner would see: a word of *Curiosa* whose card names a place (d-a2f271-3e777c).
+    dictionary = bytes.fromhex(meta.get("payload_dict", ""))
+    lugares = set(_kaikki.ETIQUETAS_DE_REGION.values())
+    con_lugar = [
+        titulo for titulo, cuerpo in db.execute(
+            "SELECT e.headword, e.payload FROM discover d JOIN entry e ON e.id = d.entry_id"
+            " WHERE d.tier = ?", (_discover.CURIOUS,))
+        if lugares & set().union(*payload_codec.parse_labels(
+            payload_codec.decompress(cuerpo, dictionary)))]
+    report.check(not con_lugar, "no curious word's card names a place (%d do, like %s)" % (
+        len(con_lugar), con_lugar[:5]))
     agujeros = []
     for tier, pos, filas, mayor in db.execute(
             "SELECT tier, pos, count(*), max(seq) FROM discover GROUP BY tier, pos"):

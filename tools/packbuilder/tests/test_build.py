@@ -1896,6 +1896,25 @@ class DiscoverVerifyTest(BuilderTestCase):
         self.assertEqual(0, codigo, salida)
         self.assertIn("[discover]", salida)
 
+    def test_a_curious_word_whose_card_names_a_place_fails(self):
+        # d-a2f271-3e777c: *Curiosa* holds no word of one place, and the card is what would show it.
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(record("casa", part_of_speech="noun", discover=discover.COMMON))
+            builder.add(build.Record(
+                headword="sodero", part_of_speech="noun", rank=1, discover=discover.CURIOUS,
+                senses=[{"gloss": "Repartidor de soda.", "labels": ["chile"]}]))
+        codigo, salida = self._verify()
+        self.assertEqual(1, codigo, salida)
+        self.assertIn("names a place", salida)
+
+    def test_a_local_word_may_name_its_place(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(build.Record(
+                headword="sodero", part_of_speech="noun", rank=1, discover=discover.LOCAL,
+                senses=[{"gloss": "Repartidor de soda.", "labels": ["chile"]}]))
+        codigo, salida = self._verify()
+        self.assertEqual(0, codigo, salida)
+
     def test_a_hole_in_seq_fails(self):
         self._pack()
         codigo, salida = self._verify("UPDATE discover SET seq = 5 WHERE seq = 1")
