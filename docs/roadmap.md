@@ -31,6 +31,11 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-11-05.* The watch still runs `versionCode` 18. Branch `feat/local-tier-no-stress`, not
+merged: no stress type (d-a2f271-957d01) and a *Local* tier (d-a2f271-3e777c, i-a2f271-9f32d2).
+**Next:** a full rebuild, which waits on the owner choosing which items of the audit i-a2f271-e96d28
+ride along. ⚠️ Still open, the owner's to answer: did they clear the history on 2026-10-26?
+
 *Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
 (`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their
 target and ordered by use and prevalence (es-core 202610261847, 54,010 words in 41.8 MB; en-core
@@ -39,8 +44,7 @@ target and ordered by use and prevalence (es-core 202610261847, 54,010 words in 
 including the cores' extraction. ⚠️ **Open, the owner's to answer:** the stored history read
 `historial=1` (one word, `abarraz`) where it read 25 at 12:53; if the owner did not clear it, it is
 a data loss to investigate first. The session tool lives in `../wearos-debug-tool` (its stop button
-confirmed on the watch, P-16 there). **Next session:** remove the *Vulgar* tier
-(i-a2f271-54fbf1). `research/wikipedia-pack` stays local and out of `main`.
+confirmed on the watch, P-16 there). `research/wikipedia-pack` stays local and out of `main`.
 
 *Updated 2026-10-26 (afternoon).* **On the device since 2026-10-26 12:53**: APK `versionCode` 17
 (`0.10.0`), R8 (`assembleDebug -PdebugR8`), built from `1f8257e` on branch
@@ -6395,7 +6399,7 @@ series by checking each commit in a throwaway worktree (`gate` there, refuse on 
 or a `pre-commit` hook that runs the audit's count check against the **staged** tree instead of
 the working tree, ~20 lines plus the cost of running the audit (~10 s) on every commit.
 
-### A file list in a zsh variable is one word — **3 incidents, rule rewritten 2026-10-26** · i-a2f271-0f302a
+### A file list in a zsh variable is one word — **4 incidents, rule rewritten 2026-10-26** · i-a2f271-0f302a
 
 Counted in the changelog: 2026-09-19, the morning of 2026-10-26 (a resolution loop failed silently)
 and that afternoon, when copies saved with `for f in $FILES` were never written and a `git checkout`

@@ -16,6 +16,41 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-05 · s-a2f271-2a7775 — A Local tier out of Curious, no stress type, and an audit of what is stored and not used
+**What.** Two observations from the owner's use and one request. The stress type left the card and
+the pack (d-a2f271-957d01). *Rareza* gained *Local*, out of *Curiosa* only (d-a2f271-3e777c), with
+`verify_pack` failing a curious word whose card names a place. The *Vulgar* removal was cancelled by
+the owner (d-a2f271-4de889). A read-only audit of what is stored and not used went to the roadmap
+(i-a2f271-e96d28), with nothing changed from it.
+
+**Areas.** `sources/discover.py`, `payload.py`, `verify_pack.py`, `PayloadCodec.kt`, `Discover.kt`,
+`EntryScreen.kt`, strings, tests, the payload fixture, decisions, roadmap.
+
+**Why.** Asked for by the owner on 2026-11-05.
+
+**Architecture.** ⚠️ Desviación: the owner chose *Local* out of *Curiosa* only against the
+recommendation, so about 1,290 of 2,213 Spanish *Coloquial* words stay tied to a country.
+
+**Measured.** The rule applied to the curious rows of the 2026-10-26 packs, against the raw dumps
+(macOS, 2026-11-05, first record per word and part of speech): Spanish 2,383 rows -> 1,613 *Local*
+and 770 *Curiosa*; English 3,750 -> 782 and 2,968. Not a rebuild: the real counts come with it.
+
+**Seen.** On the emulator `wear_sm_l715f`, on a pack still holding `K`, the card of *japonés* reads
+`xapoˈnes · ja·po·nés`. *Local* with words has not been seen: no pack has code 5 yet.
+
+**What went wrong.** A fourth zsh incident: `A="adb -s emulator-5554"; $A ...` ran as one command
+name and every step failed in the same call, with the verify skill's rule loaded (roadmap
+i-a2f271-0f302a). Nothing was lost; `ANDROID_SERIAL` replaced it. A first gate failed on the Spanish
+prose check, because a line holding only `ja·po·nés` reads as Spanish; reworded. Two tests held the
+number of tiers by hand and failed correctly; one now reads the list's size.
+
+**Not verified.** The audit's MB are extrapolated from samples, its `entry.uid` cost assumes the
+storage width, and it ran nothing on a device. Why the history went from 25 to 1 stays open: the
+owner has not said whether they cleared it.
+
+**What was left undone.** The full rebuild, which carries *Local* and drops `K`, waits on the owner
+and on which audit items ride along. Branch `feat/local-tier-no-stress`, not merged, not on the watch.
+
 ## 2026-10-26 · s-a2f271-28e1c8 — Derived tiers sized at their target and ordered by real use, and a hook that audits what a commit holds
 **What.** Three tasks the owner picked from the pending list, and a fourth that came out of
 reading the cores. A derived tier now aims at its range's target, 40 ± 2 MB for core
