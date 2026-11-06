@@ -80,7 +80,12 @@ of the Spanish tier rows because it read a key the dump does not have; fixed, it
 **Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
 2026-11-06). The two history gaps of the audit are separate and stay open.
 
-**Not done.** Nothing merged, pushed or installed on the watch. The common tier in `en-core` holds 9,502 words where
+**On the watch.** `versionCode` 19 and the five rebuilt packs went up on the owner's word: 5 open, 0
+rejected, ready in 6,965 ms including the extraction of the cores (debuggable build). The tool reported
+the wake lock released, and the watch left the network right after, so the follow-up `status` could not
+confirm it; the question stays for the next connection.
+
+**Not done.** Nothing merged or pushed. The common tier in `en-core` holds 9,502 words where
 the simulation said 10,383; the richest-entry filter is the likely cause, not verified (see the roadmap). 10,746 `es-full` entries were not
 classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
 4,700 have only records with no gloss.
