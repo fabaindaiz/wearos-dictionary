@@ -32,7 +32,10 @@ Wikidata words known by most get a tier, and two small content defects went (d-a
 **Seen.** On the emulator `wear_sm_l715f`, opening a word, leaving and killing the process, then
 returning: `versionCode` 18 as installed reads *Esa entrada ya no está en el diccionario*, the owner's
 report reproduced; this code shows the word. A word opened by the tile's intent took the stored history
-from 23 to 24. *Local* with words, and a pack without `P`, have not been seen: they need the rebuild.
+from 23 to 24. With the rebuilt packs and the R8 APK of `versionCode` 19, on the same emulator: the
+*Local* list shows 20 words, a card from a pack without `P` shows its part of speech, and the search for
+an inflected form finds its verb. With the APK alone and the old full packs, *Local* logged 0 words,
+so an upload that skips the full packs leaves that tier empty.
 
 **Areas.** `tools/packbuilder/sources/discover.py`, its tests, `docs/fuentes.md`, `docs/decisions.md`,
 `docs/roadmap.md`.
@@ -62,6 +65,8 @@ pass `verify_pack` and `--como-la-app`, and 3,000 sampled bodies per pack hold n
 Read in real cards: the words for a clock, a library and a TV set are in the common tier; the word for
 a bear and `lioness` stay out by the technical-topic rule. Against the previous packs, 10,495 Spanish
 and 2,765 English words join the common tier, and 93 coined feminines leave `en-full`.
+First launch with all the new packs took 37,524 ms on the emulator, on a loaded host: the packs' first
+verification, and a ceiling for this build, which is debuggable and never compiled by ART.
 
 **What went wrong.** A simulation holding every English record in memory ran for half an hour with
 swap at 11.5 of 12 GB, other projects' work on the same host; killed and rewritten to stream. The
@@ -75,7 +80,7 @@ of the Spanish tier rows because it read a key the dump does not have; fixed, it
 **Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
 2026-11-06). The two history gaps of the audit are separate and stay open.
 
-**Not done.** Nothing merged, pushed or installed. The common tier in `en-core` holds 9,502 words where
+**Not done.** Nothing merged, pushed or installed on the watch. The common tier in `en-core` holds 9,502 words where
 the simulation said 10,383; the richest-entry filter is the likely cause, not verified (see the roadmap). 10,746 `es-full` entries were not
 classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
 4,700 have only records with no gloss.

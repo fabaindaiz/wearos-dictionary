@@ -35,8 +35,12 @@ rise.
 merged: no stress type (d-a2f271-957d01), a *Local* tier (d-a2f271-3e777c, i-a2f271-9f32d2), a wider
 *Común* (d-a2f271-4b1f4c, d-a2f271-7dbd81, d-a2f271-529e5f) and no `P` (d-a2f271-f001ec). Packs rebuilt
 on 2026-11-06 from `b491c67` (the previous ones kept as `dist.2026-10-26c`); all six pass `verify_pack`
-and `--como-la-app`. The next APK is `versionCode` 19 (`0.12.0`), R8, carrying es-core 202611061616 and
-en-core 202611061611. The history reading 1 on 2026-10-26 is closed: the owner cleared it.
+and `--como-la-app`. The next APK is built and not installed: `versionCode` 19 (`0.12.0`), R8
+(`assembleDebug -PdebugR8`), 71.3 MB, from `e82176a`, carrying es-core 202611061616 and en-core
+202611061611. On the emulator `wear_sm_l715f` it extracted both cores, opened 5 packs with 0 rejected, listed
+*Local* words and opened one with its part of speech, and `corriendo` found `correr`. ⚠️ **The upload needs
+the three full packs too**: the app reads *see more words* from `es-full`, and with October's pack the
+same APK logged `LOCAL/todas es-full=0`. The history reading 1 on 2026-10-26 is closed: the owner cleared it.
 
 - ⚠️ **Open, the owner's to answer:** *Local* takes a word with a geographic label on **any** sense, so
   a word that opens on a plain sense reads as *Local*: 98 of 560 in `es-core` (`halar`, `mazamorra`) and
