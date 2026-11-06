@@ -87,7 +87,7 @@ step afterwards was read from a capture first. The watch was not reachable at it
 discovery listed a port that refused, and it took the owner's new pairing code before it connected.
 
 **Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
-2026-11-06). The two history gaps of the audit are separate and stay open.
+2026-11-06). The two history gaps of the audit are separate and were fixed (d-a2f271-96f77b).
 
 **On the watch.** `versionCode` 19 and the five rebuilt packs went up on the owner's word: 5 open, 0
 rejected, ready in 6,965 ms including the extraction of the cores (debuggable build). The tool reported
@@ -111,7 +111,8 @@ only a log line tells the two apart. Local: an upload that changes tiers needs t
 §Dónde estamos); discovery can list a stale adb port, so a refusal there asks for a new pairing code
 before anything else (roadmap, *To continue*).
 
-**Not done.** Nothing merged or pushed, and this branch exists only on this machine. The common tier in `en-core` holds 9,502 words where
+**Not done.** Nothing merged into `main`: the branch is pushed and has had no review. Every pending item is
+listed in the roadmap, under the *To continue* of this session. The common tier in `en-core` holds 9,502 words where
 the simulation said 10,383; the richest-entry filter is the likely cause, not verified (see the roadmap). 10,746 `es-full` entries were not
 classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
 4,700 have only records with no gloss.

@@ -36,7 +36,7 @@ rise.
 (es-core 202611061616, en-core 202611061611, es-full 202611061609, en-full 202611061603, bilingual
 202611061611; the previous ones kept as `dist.2026-10-26c`). First launch on the watch, debuggable build:
 5 packs open, 0 rejected, ready in 6,965 ms including the cores' extraction. Branch
-`feat/local-tier-no-stress`, **not merged and not pushed**: no stress type (d-a2f271-957d01), a *Local*
+`feat/local-tier-no-stress`, **pushed, not merged into `main`**: no stress type (d-a2f271-957d01), a *Local*
 tier (d-a2f271-3e777c, i-a2f271-9f32d2), a wider common tier (d-a2f271-4b1f4c, d-a2f271-7dbd81,
 d-a2f271-529e5f) and no `P` (d-a2f271-f001ec). The app reads *see more words* from the full pack: an APK
 uploaded without it logs `LOCAL/todas es-full=0`. The history reading 1 on 2026-10-26 is closed: the owner
@@ -51,13 +51,29 @@ cleared it.
 - ⚠️ **Not explained:** *Común* in `en-core` holds 9,502 words where the simulation said 10,383. The
   richest-entry filter takes 1,105 English words and is the likely cause, not verified.
 
-**To continue, from any machine:** this whole branch is **local, not
-pushed**, so another machine sees none of it until the owner asks for a push. The data root
+**To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
+remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
 (`../wearos-dictionary-data`, outside git) holds the dumps and this rebuild's `dist/`; `../wearos-debug-tool`
 holds the session tool. To reach the watch: `adb mdns services` gives its address, `adb connect` that
 port; when it refuses, the owner reads a pairing code off the watch for `adb pair`. The first concrete
-steps: `status` for the wake lock; the owner uses the build and answers the *Local* question above, with
-P-18; then a merge and a push when asked.
+step: `status` for the wake lock. Then the list below.
+
+**Pending, as of this close:**
+
+- **The owner's to decide:** *Local* reading any sense or the first (above; another rebuild and APK if it
+  changes, so it goes with whatever the watch turns up); whether a week of daily use on R8 is what they
+  want (i-a2f271-55ddfc: the watch runs R8 since 2026-10-26); the proposed decision d-a2f271-2ccd54; which
+  of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).
+- **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
+  `benchmark` build. The wake lock, above.
+- **Before a merge into `main`:** a review of this branch, which has had none; a close does not merge
+  unreviewed work.
+- **To explain:** the common tier of `en-core`, above.
+- **Records:** D-120 and D-122 name in *Enforced in* files that are not there (`bundle.py decisions`).
+- **Proposed, not built:** the upload wrapper in §*Proceso y herramientas*, and the prose ceiling's message
+  naming its exceptions.
+- **Can wait, by the sweep of i-a2f271-e96d28:** bilingual fragments (i-a2f271-73edb1), set phrases, rhymes,
+  a level source for English, sense alignment.
 
 *Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
 (`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their
@@ -5594,14 +5610,14 @@ día si es algo que valga la pena"*. Evaluated, not decided:
 
 Research, and how far it got: `docs/references.md` §*Word rarity*.
 
-### Local words, no stress type — **code done 2026-11-05, waits on a full rebuild** · i-a2f271-9f32d2
+### Local words, no stress type — **built, on the watch since 2026-11-06** · i-a2f271-9f32d2
 
 The owner's two observations of 2026-11-05: d-a2f271-3e777c (*Local*, out of *Curiosa* only) and
-d-a2f271-957d01 (no stress type). The card stops showing the stress type with the next APK. *Local*
-has words only after a full rebuild; `discover.VERSION` is 4 and `verify_pack` fails an older pack
+d-a2f271-957d01 (no stress type). The card shows no stress type from `versionCode` 19. *Local*
+has words in the packs of 2026-11-06; `discover.VERSION` is 5 and `verify_pack` fails an older pack
 for carrying `K` or a curious word that names a place.
 
-### What is stored and not used — **audited 2026-11-05, the owner's to pick** · i-a2f271-e96d28
+### What is stored and not used — **audited 2026-11-05, `P` and the app state settled 2026-11-06; the rest open** · i-a2f271-e96d28
 
 Asked for by the owner on 2026-11-05 (*«que los datos no solo se guarden sino que tambien se usen»*).
 Read-only audit of commit `ace306f` and the packs of 2026-10-26; nothing changed yet. MB are
@@ -5632,7 +5648,7 @@ extrapolated from samples of 20,000-65,000 entries, macOS.
 - English coinages in *-ess*: built (d-a2f271-529e5f).
 - Wikidata-only words known by most, section pointers and headword citations: built (d-a2f271-c9f13c).
 - Can wait: bilingual fragments (i-a2f271-73edb1, rebuilds alone in 65 s), set phrases, rhymes, a level source for English, sense alignment.
-- The dumps are from September, and the owner chose to reuse them on 2026-11-06. The code has to be committed first, so the packs match a commit.
+- The dumps are from September, and the owner chose to reuse them on 2026-11-06. The packs of 2026-11-06 were built from them, at commit `b491c67`.
 
 **Closed by the owner on 2026-11-06:** an inflected form with an entry of its own keeps that entry first (*corriendo* above *correr*): at this level search goes by similarity, so what was typed comes first. No marking of form pages goes into the pack. Forms with no entry already reach their main word through the `form` table.
 
