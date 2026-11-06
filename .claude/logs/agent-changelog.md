@@ -16,6 +16,56 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-06 · s-a2f271-bf7fa8 — Words most people know join Common
+
+**What.** Counted the words per tier and pack, measured why most entries have no tier
+(`docs/fuentes.md`), and on the owner's word moved the 9,425 Spanish words known by over 75 % into
+*Común* (d-a2f271-4b1f4c). `discover.VERSION` is 5. Frequent words with a plain first sense join too (d-a2f271-7dbd81), and the builder
+stops writing `P`; the hidden forms stay (d-a2f271-f001ec).
+The technical-topic rule reads the first sense for *Común* and coined feminines leave *Curiosa* and
+*Rara* (d-a2f271-529e5f). A tile word joins the history, a word opened during startup is kept, and saved words have
+no cap (d-a2f271-96f77b).
+A card restored at startup waits for the packs instead of reading as gone (d-a2f271-efbfa3), reported by the
+owner from the watch.
+Wikidata words known by most get a tier, and two small content defects went (d-a2f271-c9f13c).
+
+**Seen.** On the emulator `wear_sm_l715f`, opening a word, leaving and killing the process, then
+returning: `versionCode` 18 as installed reads *Esa entrada ya no está en el diccionario*, the owner's
+report reproduced; this code shows the word. A word opened by the tile's intent took the stored history
+from 23 to 24. *Local* with words, and a pack without `P`, have not been seen: they need the rebuild.
+
+**Areas.** `tools/packbuilder/sources/discover.py`, its tests, `docs/fuentes.md`, `docs/decisions.md`,
+`docs/roadmap.md`.
+
+**Why.** Asked for by the owner on 2026-11-06: those words were too well known for *Rara* and too
+infrequent for *Común*, so they had no tier.
+
+**Architecture.** No constraint touched. The tier codes and the table are unchanged; a new policy
+version means rebuilding the packs, which is what `discover_version` records.
+
+**Measured.** Simulated on the packs of 2026-10-26 against the raw dumps (macOS, 2026-11-06), not a
+rebuild: 9,425 rows join in `es-full` and in `es-core`; the same words read by eye in a sample of 60
+were well-known words (*velocímetro*, *desdicha*, *levitar*). The real counts come with the rebuild.
+
+**What went wrong.** A simulation holding every English record in memory ran for half an hour with
+swap at 11.5 of 12 GB, other projects' work on the same host; killed and rewritten to stream. The
+first attempts at the restored card failed for three different reasons in the harness (a tap before
+the packs opened, an intent the running task ignored, a launcher intent that started another task).
+The first count of *Local* read each word from the first 400 characters of a
+line, which missed most of the English dump: 2,784 rows not found. The not-found count gave it away
+and the second run parsed every line. The first exclusion breakdown disagreed with the pack on 17 %
+of the Spanish tier rows because it read a key the dump does not have; fixed, it disagrees on 1.7 %.
+
+**Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
+2026-11-06). The two history gaps of the audit are separate and stay open.
+
+**Not done.** Nothing merged, pushed or installed. 10,746 `es-full` entries were not
+classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
+4,700 have only records with no gloss.
+
+**Corrected.** *oso* was reported to the owner as kept out by a labelled sense; it is the
+technical-topic rule (`docs/fuentes.md`).
+
 ## 2026-11-05 · s-a2f271-2a7775 — A Local tier out of Curious, no stress type, and an audit of what is stored and not used
 **What.** Two observations from the owner's use and one request. The stress type left the card and
 the pack (d-a2f271-957d01). *Rareza* gained *Local*, out of *Curiosa* only (d-a2f271-3e777c), with

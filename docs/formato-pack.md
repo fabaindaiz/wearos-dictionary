@@ -36,7 +36,6 @@ Before the tables, the shape of the thing. A pack answers four questions and not
                          └─────────────────────────────────────│───┘
                                                                ▼
                          ┌─────────────────────────────────────────┐
-                         │ P  verb                   part of speech│
                          │ S  Moverse rápidamente.   ── SENSE 1 ───│
                          │ E    Corrió hasta la esquina.   example │
                          │ Y    desplazarse                synonym │
@@ -341,7 +340,7 @@ never interpreted as FTS5 syntax.
 Delimited UTF-8 text, compressed with raw deflate and the pack's shared dictionary:
 
 ```
-P<TAB>verb                     part of speech, opcional, antes de cualquier S
+P<TAB>verb                     part of speech, only in packs built before 2026-11-06; `entry.pos` holds it
 I<TAB>korˈrer                  pronunciación de LA PALABRA, en IPA (d-a2f271-13da99)
 F<TAB>gerund:corriendo         principal part of THE WORD, display form (D-242)
 W<TAB>to race                  traducción de LA PALABRA, sin acepción (D-179)

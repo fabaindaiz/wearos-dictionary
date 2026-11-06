@@ -33,8 +33,9 @@ rise.
 
 *Updated 2026-11-05.* The watch still runs `versionCode` 18. Branch `feat/local-tier-no-stress`, not
 merged: no stress type (d-a2f271-957d01) and a *Local* tier (d-a2f271-3e777c, i-a2f271-9f32d2).
-**Next:** a full rebuild, which waits on the owner choosing which items of the audit i-a2f271-e96d28
-ride along. ⚠️ Still open, the owner's to answer: did they clear the history on 2026-10-26?
+**Next:** a full rebuild, carrying *Local*, the wider *Común* (d-a2f271-4b1f4c, d-a2f271-7dbd81, d-a2f271-529e5f) and no `P` (d-a2f271-f001ec), which
+waits on the owner's go-ahead. The history reading 1 on 2026-10-26 is
+closed: the owner cleared it.
 
 *Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
 (`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their
@@ -42,8 +43,8 @@ target and ordered by use and prevalence (es-core 202610261847, 54,010 words in 
 202610261843); the full packs on the watch are the afternoon's (es-full 202610261521, en-full
 202610261511, bilingual 202610261523). First launch: 5 packs open, 0 rejected, ready in 8,582 ms
 including the cores' extraction. ⚠️ **Open, the owner's to answer:** the stored history read
-`historial=1` (one word, `abarraz`) where it read 25 at 12:53; if the owner did not clear it, it is
-a data loss to investigate first. The session tool lives in `../wearos-debug-tool` (its stop button
+`historial=1` (one word, `abarraz`) where it read 25 at 12:53; the owner cleared it, as they said on
+2026-11-06, so it is no data loss. The session tool lives in `../wearos-debug-tool` (its stop button
 confirmed on the watch, P-16 there). `research/wikipedia-pack` stays local and out of `main`.
 
 *Updated 2026-10-26 (afternoon).* **On the device since 2026-10-26 12:53**: APK `versionCode` 17
@@ -5584,22 +5585,34 @@ Asked for by the owner on 2026-11-05 (*«que los datos no solo se guarden sino q
 Read-only audit of commit `ace306f` and the packs of 2026-10-26; nothing changed yet. MB are
 extrapolated from samples of 20,000-65,000 entries, macOS.
 
-- **Hidden forms in `F`** (`pl fem ger past ind2s ind1p ind3p`): on 36-53 % of entries, and no screen
-  draws them, by d-a2f271-0d87de. Dropping them saves 0.68 MB in es-full, 2.03 en-full, 0.70 es-en,
-  0.34 es-core; it forecloses showing them again without another rebuild.
-- **`P`** repeats `entry.pos`: its fallback never fires on these packs. 0.05-0.91 MB.
+- **Hidden forms in `F`** (`pl fem ger past ind2s ind1p ind3p`): on 36-68 % of entries, and no screen
+  draws them, by d-a2f271-0d87de. Recompressing 20,000 entries a pack on 2026-11-06, dropping them saves
+  0.34 MB in es-core, 0.68 es-full, 0.22 en-core, 0.88 en-main, 2.00 en-full, 0.69 es-en; it forecloses
+  showing them again without another rebuild.
+- **`P`** repeats `entry.pos`: identical on all 20,000 entries sampled in each pack, 0 differences.
+  0.05 MB in es-core, 0.13 es-full, 0.11 en-core, 0.32 en-main, 0.89 en-full, 0.18 es-en.
 - **`entry.uid`** is read and never used on the watch: about 1.2-7.5 MB a pack (ASSUMPTION on the
   storage width). Reserved by D-055 for auxiliary packs; keep unless those are dropped.
 - **`meta`:** `tier` only reaches a log line, while `docs/formato-pack.md` says it is what lets a core
   step aside (that is `subset_of`). `trans_dropped`, `lemma_coverage` and `source_date` have no reader,
   and `fuzzy_profile` duplicates `fuzzy_profiles`. Under 1 KB.
 - **Catalog:** `description`, `license` and `entryCount` are parsed and not shown.
-- **App state:** no key written and never read. Two gaps found: a word opened from a tile does not
-  enter the history (`MainActivity.kt:355-360`), and the startup assignment at
-  `SearchViewModel.kt:410` can overwrite a word just opened.
-- **History, 25 to 1 on 2026-10-26:** only `clearHistory()` removes rows in bulk, behind a confirmation
-  with no timeout (`SettingsScreen.kt:85`). Cause not established; whether the owner cleared it is
-  still unanswered.
+- **App state:** no key written and never read. The two history gaps and the silent cap on saved
+  words are fixed (d-a2f271-96f77b).
+- **History, 25 to 1 on 2026-10-26:** closed, the owner cleared it (said on 2026-11-06).
+
+**Decided 2026-11-06:** `P` goes and the hidden forms stay (d-a2f271-f001ec); frequent words with a plain first sense join *Común* (d-a2f271-7dbd81).
+
+**Swept 2026-11-06 for what should ride with the full rebuild**, read-only, checking each mechanism against the code:
+
+- The technical-topic rule keeps everyday words out of the tiers (`docs/fuentes.md`): the first-sense form is built (d-a2f271-529e5f).
+- `_richest_by_headword` ignores tiers: measured 176 Spanish and 1,105 English words, about half rightly out. Left as it is (d-a2f271-c9f13c).
+- English coinages in *-ess*: built (d-a2f271-529e5f).
+- Wikidata-only words known by most, section pointers and headword citations: built (d-a2f271-c9f13c).
+- Can wait: bilingual fragments (i-a2f271-73edb1, rebuilds alone in 65 s), set phrases, rhymes, a level source for English, sense alignment.
+- The dumps are from September, and the owner chose to reuse them on 2026-11-06. The code has to be committed first, so the packs match a commit.
+
+**Closed by the owner on 2026-11-06:** an inflected form with an entry of its own keeps that entry first (*corriendo* above *correr*): at this level search goes by similarity, so what was typed comes first. No marking of form pages goes into the pack. Forms with no entry already reach their main word through the `form` table.
 
 ### Remove the *Vulgar* tier from *see more words* — **cancelled 2026-11-05 by the owner** (d-a2f271-4de889) · i-a2f271-54fbf1
 
@@ -5645,8 +5658,8 @@ shows the reload above a divider and *Coloquial* draws `ñañear`, `ratonear`, `
    en-core 40.9 MB in 2, the corpus coverage unchanged (78.89 % es). The cores on the watch are
    still the 31.4 MB build until the next rebuild and `versionCode` bump. **Shipped 2026-10-26 in
    `versionCode` 18**, with the tail ordered by use and prevalence (d-a2f271-b05bcf).
-2. *See more words* could use prevalence too (*Común* = known by 90 % of speakers, Spanish). The
-   tier is written into the full pack, so it waits for a full rebuild.
+2. *See more words* uses prevalence for *Común* too, at over 75 % of speakers (d-a2f271-4b1f4c). The tier is
+   written into the full pack, so it waits for a full rebuild.
 3. Merge to main and push only when the owner asks; the watch only if asked.
 
 Asked for: alternative sources (the RAE included), extra data worth carrying, usual dictionary

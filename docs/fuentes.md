@@ -217,6 +217,29 @@ family (Chile 3,540 senses, Argentina 2,916, Mexico 2,276…) and was not folded
 - *Formal* in Spanish is thin (345). It is better merged with the existing *Rara* tier, which
   already reads the literary label, than offered on its own.
 
+### Why most entries have no tier
+
+Measured 2026-11-06 on macOS, under `discover.VERSION` 4, over the full packs of 2026-10-26 and the raw dumps, with the rules of
+`sources/discover.py` copied into a throwaway script that names the rule that rejected each entry.
+It uses the first record with a gloss per word and part of speech, and agrees with the pack on
+98.3 % of the Spanish tier rows and 97.1 % of the English ones.
+
+| Why | `es-full` | `en-full` |
+|---|---:|---:|
+| Has a tier | 17,136 (11.0 %) | 34,079 (3.6 %) |
+| Not a single word to learn: names, phrases, adverbs, capitals, function words | 44,083 (28.4 %) | 405,514 (43.1 %) |
+| A form of another word | 27,857 (17.9 %) | 83,253 (8.8 %) |
+| Noise rules: derivatives, technical topics, species, coinages, whole-pack filters | 21,924 (14.1 %) | 202,124 (21.5 %) |
+| SPALEX verdict, of which 9,425 are known by over 75 % yet infrequent | 13,724 (8.8 %) | none: no norm |
+| No signal: no frequency, usable label, prevalence or learned origin | 19,881 (12.8 %) | 216,526 (23.0 %) |
+| No record matched, not classified | 10,746 (6.9 %) | 291 (0.0 %) |
+
+The rules also catch words they were not aimed at. The technical-topic rule reads the union of a word's topics, so one tagged sense among plain ones drops the whole word: *reloj*, *biblioteca* and *cliente* have a plain first sense, *oso*, *rodilla* and *fruit* a tagged one. Measured on the records with the rule off: 1,805 `es-full` and 764 `en-full` words would be *Común*, 633 and 533 of them with a plain first sense.
+
+Of the unclassified Spanish entries, 6,015 have no word and part of speech in the dump, presumably from the Wikidata merge, which writes no tier; about 4,700 have only records with no gloss.
+
+Version 5 moves the 9,425 words known by over 75 % into *Común* (d-a2f271-4b1f4c).
+
 ---
 
 ## Traducciones ES↔EN: el barrido completo
