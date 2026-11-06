@@ -51,6 +51,7 @@ why clearing has its own action.
 
 | # | The question | The readout that answers it | What it unblocks |
 |---|---|---|---|
+| P-18 | With `versionCode` 19, does a word left open survive a slow start on the watch, and does *Local* read as words of a place? | Leave a word open, return after the process died: no *Esa entrada ya no está*. Open *see more words*, *Local*, by hand | d-a2f271-efbfa3, seen only on the emulator; the owner's answer on *Local* reading any sense or the first |
 | P-3 | Do both tiles **draw**, and with R8? | Add them to the carousel by hand —a user gesture, no `adb` for it— and `tile historial: pantalla=NNNdp filas=N` in `logcat` | **D-149** and **D-163**. The package manager resolves both `TileService`s, so R8 did not strip them; whether they **render** is what is missing |
 | P-4 | How long does a cold start really take, and a query at p99? | `am start -W` over the **`benchmark`** build, and `buscar … en N ms` with `log.tag.Dict DEBUG` | **O-1**, and the budget that replaced D-207. ⚠️ **It also gates the pack-size levers**: `detail=none` was measured at **−38 MB on the English pack** and is being held until there is a real start-up number to protect. An emulator figure does **not** count (D-043) |
 | P-5 | How much battery does a real burst of use cost? | `dumpsys batterystats` before and after, over `benchmark` | **O-4** and `docs/bateria.md`, which today holds no measured figure at all |

@@ -37,8 +37,9 @@ from 23 to 24. With the rebuilt packs and the R8 APK of `versionCode` 19, on the
 an inflected form finds its verb. With the APK alone and the old full packs, *Local* logged 0 words,
 so an upload that skips the full packs leaves that tier empty.
 
-**Areas.** `tools/packbuilder/sources/discover.py`, its tests, `docs/fuentes.md`, `docs/decisions.md`,
-`docs/roadmap.md`.
+**Areas.** `tools/packbuilder/` and its tests, the app's view model and its tests, `gradle.properties`,
+`app/bundled-cores.lock`, `docs/fuentes.md`, `docs/formato-pack.md`, `docs/decisions.md`, `docs/roadmap.md`
+and the list of questions for the watch.
 
 **Why.** Asked for by the owner on 2026-11-06: those words were too well known for *Rara* and too
 infrequent for *Común*, so they had no tier.
@@ -77,6 +78,14 @@ line, which missed most of the English dump: 2,784 rows not found. The not-found
 and the second run parsed every line. The first exclusion breakdown disagreed with the pack on 17 %
 of the Spanish tier rows because it read a key the dump does not have; fixed, it disagrees on 1.7 %.
 
+With the APK alone *Local* logged 0
+words, because the list reads the full pack and nothing says that pack predates the tier; first time, so
+it stays here. The prose ceiling failed the commit on lines that wrap a Spanish word with no English word
+beside it, at least four lines, a known trap with its row in the roadmap. On the emulator a blind tap after
+three swipes opened `baht`, because the first launch had moved the list: emulator history only, and each
+step afterwards was read from a capture first. The watch was not reachable at its first attempt: adb's
+discovery listed a port that refused, and it took the owner's new pairing code before it connected.
+
 **Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
 2026-11-06). The two history gaps of the audit are separate and stay open.
 
@@ -85,7 +94,24 @@ rejected, ready in 6,965 ms including the extraction of the cores (debuggable bu
 the wake lock released, and the watch left the network right after, so the follow-up `status` could not
 confirm it; the question stays for the next connection.
 
-**Not done.** Nothing merged or pushed. The common tier in `en-core` holds 9,502 words where
+**Review.** None, isolated or otherwise; none was asked for, and none is pending. Two findings read by
+hand before shipping, both left open: the *Local* question and the gap in the common tier below.
+
+**Cards relied on, and the checks that ran.** `a-check-must-be-seen-to-fail` (the mutation of the `-ess`
+rule survived, which is what dropped `less` and added `lioness`), `reproduce-the-checkout-not-only-the-environment`
+(`ea380b9` and `2c849fd` each passed the gate in a worktree), `a-request-accepted-is-not-an-effect` (the
+upload is believed from the `dataVersion` values in the log, not from the install's `Success`).
+
+**Rulings (decided without asking, each reversible).** `versionName` 0.12.0; the previous packs kept as
+`dist.2026-10-26c`; packs uploaded before the APK, so that one first launch shows the final state. The
+upload went ahead with *Local* as built: the owner said to upload with that question open.
+
+**Learned.** General: a tier that exists only in new data reads as an empty list against old data, and
+only a log line tells the two apart. Local: an upload that changes tiers needs the full packs too (roadmap
+§Dónde estamos); discovery can list a stale adb port, so a refusal there asks for a new pairing code
+before anything else (roadmap, *To continue*).
+
+**Not done.** Nothing merged or pushed, and this branch exists only on this machine. The common tier in `en-core` holds 9,502 words where
 the simulation said 10,383; the richest-entry filter is the likely cause, not verified (see the roadmap). 10,746 `es-full` entries were not
 classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
 4,700 have only records with no gloss.

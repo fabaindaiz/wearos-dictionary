@@ -46,8 +46,18 @@ cleared it.
   a word that opens on a plain sense reads as *Local*: 98 of 560 in `es-core` (`halar`, `mazamorra`) and
   42 of 112 in `en-core` (`solicitor`, `hostel`, `meddle`). *Común* reads the first sense. Read off the
   packs of 2026-11-06, over the labels the card stores.
+- ⚠️ **Not verified:** the tool reported the wake lock released, then the watch left the network and the
+  following `status` could not read it. First thing on the next connection: `watchsession.py status`.
 - ⚠️ **Not explained:** *Común* in `en-core` holds 9,502 words where the simulation said 10,383. The
   richest-entry filter takes 1,105 English words and is the likely cause, not verified.
+
+**To continue, from any machine:** this whole branch is **local, not
+pushed**, so another machine sees none of it until the owner asks for a push. The data root
+(`../wearos-dictionary-data`, outside git) holds the dumps and this rebuild's `dist/`; `../wearos-debug-tool`
+holds the session tool. To reach the watch: `adb mdns services` gives its address, `adb connect` that
+port; when it refuses, the owner reads a pairing code off the watch for `adb pair`. The first concrete
+steps: `status` for the wake lock; the owner uses the build and answers the *Local* question above, with
+P-18; then a merge and a push when asked.
 
 *Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
 (`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their
@@ -6361,6 +6371,15 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
+### An upload is packs, then the APK, then a guaranteed stop, and it is typed by hand · i-a2f271-d31ed4
+
+**Proposed, not built.** Two uploads carried full packs with a new APK (2026-10-26, 2026-11-06), and the
+second needed a throwaway script so that `stop` runs even when a pack fails. `deploy` takes one APK and
+knows nothing of packs; `devpack.py` knows nothing of the session. **Cost:** about 15 lines, a repeatable
+`--pack` on `deploy` in `../wearos-debug-tool`, which gains a generic file push from this repository's
+need, or a small wrapper here that keeps that tool generic. **What it closes:** an upload that skips the
+full packs, which leaves *Local* empty on the watch (`LOCAL/todas es-full=0`). Recommendation: the wrapper.
+
 ### ✅ New bundled cores under an unchanged `versionCode`: the watch keeps the old ones — **4 incidents, ENFORCED 2026-10-26** · i-a2f271-059372
 
 **Built 2026-10-26 at the owner's request**, both halves: `bundlePacks` fails the build when a
@@ -6823,6 +6842,9 @@ something that answers *before* the first word — which is what this row is for
 built. Cheapest candidate: the ratchet's failure message naming the two legitimate exceptions (UI
 strings, and a verbatim quote from the owner, which must be wrapped so the line also carries an
 English word) instead of only the ceiling.
+
+It fired again on 2026-11-06: at least four lines in one session, each a Spanish word wrapped alone, each found
+only at the commit. That cheapest candidate is still not built.
 
 ⚠️ **That rule is NOT holding, and it is now measured.** Running one ruler against the tree of
 2026-09-21 and against today's: **5,281 → 6,966 lines, +32 % in two days.** (That ruler is looser
