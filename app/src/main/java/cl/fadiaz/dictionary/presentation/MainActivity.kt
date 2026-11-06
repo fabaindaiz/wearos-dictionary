@@ -353,7 +353,7 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
             LaunchedEffect(entradaInicial, state.status) {
                 val requested = entradaInicial ?: return@LaunchedEffect
                 if (state.status != SearchState.Status.Ready) return@LaunchedEffect
-                val target = viewModel.targetOf(requested) ?: return@LaunchedEffect
+                val target = viewModel.openFromTile(requested) ?: return@LaunchedEffect
                 navController.navigate(
                     "$ROUTE_ENTRY/${Uri.encode(requested.packId)}/$target",
                 )

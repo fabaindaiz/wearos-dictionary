@@ -130,7 +130,13 @@ class FakeDictionary(
     /** The headwords this fake knows, by entryId. Empty = no entry exists. */
     var summaries: Map<Long, EntrySummary> = emptyMap()
 
-    override suspend fun summary(entryId: Long): EntrySummary? = summaries[entryId]
+    /** Runs before `summary` answers, so a test can hold a read open while something else happens. */
+    var beforeSummary: suspend () -> Unit = {}
+
+    override suspend fun summary(entryId: Long): EntrySummary? {
+        beforeSummary()
+        return summaries[entryId]
+    }
 
     /**
      * What a row would preview, by entryId. Unset = derived from this fake's own `entry`.

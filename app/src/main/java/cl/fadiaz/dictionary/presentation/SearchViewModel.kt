@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
@@ -407,8 +408,11 @@ class SearchViewModel(
             // gap in the component and it is not; the row component is shared (D-152). It is the
             // datum that was absent, and the pack has it per ENTRY even when it cannot answer for
             // itself.
-            visits = conIdioma(visits)
-            favoriteVisits = conIdioma(favoriteVisits)
+            // Applied over the lists as they are by then: a word can be opened during these reads.
+            val historyLangs = langsOf(visits)
+            val favoriteLangs = langsOf(favoriteVisits)
+            visits = visits.withLangs(historyLangs)
+            favoriteVisits = favoriteVisits.withLangs(favoriteLangs)
             _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
             DictLog.i {
                 "arranque: listo para buscar en ${(System.nanoTime() - desde) / 1_000_000} ms " +
@@ -1012,8 +1016,9 @@ class SearchViewModel(
      * back would record another word under the right headword, which is D-080's bug.
      */
     fun recordVisit(packId: String, entryId: Long) {
-        val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return
         viewModelScope.launch {
+            awaitPacks()
+            val pack = opened.firstOrNull { it.metadata.packId == packId } ?: return@launch
             val header = pack.summary(entryId) ?: return@launch
             // ⚠️ **`langOf` and not the active language.** This path is reached by tapping a
             // word inside a gloss or a translation, and a translation lands in the OTHER
@@ -1095,11 +1100,15 @@ class SearchViewModel(
      * afterwards. It does not rewrite the store -- what a watch saved is read as it stands, and a
      * row whose pack is gone simply stays untagged, which is still better than a wrong tag.
      */
-    private suspend fun conIdioma(visitas: List<Visit>): List<Visit> = visitas.map { visita ->
-        if (visita.lang != null) return@map visita
-        val fuente = opened.firstOrNull { it.metadata.packId == visita.packId }
-        val idioma: String? = runCatching { fuente?.summary(visita.entryId)?.lang }.getOrNull()
-        if (idioma == null) visita else visita.copy(lang = idioma)
+    private suspend fun langsOf(visitas: List<Visit>): Map<Pair<String, Long>, String> =
+        visitas.filter { it.lang == null }.mapNotNull { visita ->
+            val fuente = opened.firstOrNull { it.metadata.packId == visita.packId }
+            val idioma = runCatching { fuente?.summary(visita.entryId)?.lang }.getOrNull()
+            idioma?.let { (visita.packId to visita.entryId) to it }
+        }.toMap()
+
+    private fun List<Visit>.withLangs(langs: Map<Pair<String, Long>, String>): List<Visit> = map {
+        if (it.lang != null) it else it.copy(lang = langs[it.packId to it.entryId])
     }
 
     private fun visibleOnes(allSenses: List<Visit>): List<Visit> {
@@ -1367,17 +1376,16 @@ class SearchViewModel(
     /**
      * Saves a word or takes it out of the saved ones.
      *
-     * To the front and without duplicating, same as the history, but **with a far higher cap**: the
-     * history is three because it competes for the screen's rows (D-073), and the saved words live
-     * in their own list. The cap still exists because all of this ends up in a SharedPreferences
-     * String.
+     * To the front and without duplicating, same as the history, but **with no cap**: the history
+     * competes for the screen's rows (D-073), and the saved words live in their own list. Saving a
+     * word never drops another in silence.
      */
     fun toggleFavorite(visit: Visit) {
         val wasFavorite = isFavorite(visit.packId, visit.entryId)
         favoriteVisits = if (wasFavorite) {
             favoriteVisits.filterNot { it.packId == visit.packId && it.entryId == visit.entryId }
         } else {
-            (listOf(visit) + favoriteVisits).take(MAX_FAVORITES)
+            listOf(visit) + favoriteVisits
         }
         saveFavorites(favoriteVisits)
         _state.update { it.copy(favorites = favoriteVisits) }
@@ -1460,6 +1468,7 @@ class SearchViewModel(
      * the re-resolution again and the tile would go on publishing the old id.
      */
     suspend fun targetOf(visit: Visit): Long? {
+        awaitPacks()
         val source = opened.firstOrNull { it.metadata.packId == visit.packId } ?: return null
         val atId = source.summary(visit.entryId)?.headword
         val relocated = if (atId == visit.headword) {
@@ -1476,6 +1485,13 @@ class SearchViewModel(
             }
             VisitTarget.Missing -> null
         }
+    }
+
+    /** Where a word a tile hands over lands, and it counts as opened: it joins the history. */
+    suspend fun openFromTile(visit: Visit): Long? {
+        val target = targetOf(visit) ?: return null
+        recordVisit(visit.packId, target)
+        return target
     }
 
     /** Rewrites this visit's `entryId` in the history and in the saved words. */
@@ -1495,8 +1511,20 @@ class SearchViewModel(
         _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
     }
 
-    suspend fun entry(packId: String, entryId: Long): Entry? =
-        opened.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
+    suspend fun entry(packId: String, entryId: Long): Entry? {
+        awaitPacks()
+        return opened.firstOrNull { it.metadata.packId == packId }?.entry(entryId)
+    }
+
+    /**
+     * Until the packs have opened, or it is known they will not. A card restored at startup asks
+     * before they are open, and "not open yet" must not read as "that word is gone".
+     */
+    private suspend fun awaitPacks() {
+        _state.first {
+            it.status != SearchState.Status.Loading && it.status != SearchState.Status.Installing
+        }
+    }
 
     /**
      * Which words in a gloss are headwords, **in that entry's pack** and not in the active one.
@@ -1569,12 +1597,6 @@ class SearchViewModel(
          * being guarded was not showing what nobody sees, and the screen takes care of that.
          */
         const val MAX_HISTORY: Int = 25
-
-        /**
-         * Cap on saved words. Deliberately high --they do not compete for the screen like the
-         * history-- but bounded because all of this ends up in a SharedPreferences String.
-         */
-        const val MAX_FAVORITES: Int = 100
 
         /**
          * Which pack opens at startup. **Never alphabetical order**: with two packs that made a watch

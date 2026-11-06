@@ -15,6 +15,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -681,14 +683,105 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun theSavedWordsCapIsRespected() = runTest {
-        // It ends up in a SharedPreferences String: with no cap it grows without bound.
+    fun aWordOpenBeforeThePacksAreReadyWaitsForThem() = runTest {
+        // Reported from the watch: a slow start with a word open read *that entry is gone*. The
+        // restored card asked before the packs were open, and "not open yet" read as "not there".
+        val abiertos = CompletableDeferred<PackSet>()
+        val vm = SearchViewModel({ abiertos.await() })
+        advanceUntilIdle()
+        val leida = async { vm.entry("fake", 1) }
+        advanceUntilIdle()
+        assertFalse(leida.isCompleted)
+        abiertos.complete(listos(FakeDictionary()))
+        advanceUntilIdle()
+        assertEquals("entrada1", leida.await()?.headword)
+    }
+
+    @Test
+    fun aWordOpenWhenThereAreNoPacksStopsWaiting() = runTest {
+        val vm = SearchViewModel({ PackSet.NoPack })
+        val leida = async { vm.entry("fake", 1) }
+        advanceUntilIdle()
+        assertEquals(null, leida.await())
+    }
+
+    @Test
+    fun aSavedWordTappedBeforeThePacksAreReadyStillOpens() = runTest {
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "casa", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+        )
+        val abiertos = CompletableDeferred<PackSet>()
+        val vm = SearchViewModel({ abiertos.await() })
+        advanceUntilIdle()
+        val destino = async { vm.targetOf(visit("casa", 7, pack = "fake")) }
+        vm.recordVisit("fake", 7)
+        advanceUntilIdle()
+        abiertos.complete(listos(fake))
+        advanceUntilIdle()
+        assertEquals(7L, destino.await())
+        assertEquals("casa", vm.state.value.history.single().headword)
+    }
+
+    @Test
+    fun savedWordsHaveNoCap() = runTest {
+        // The owner's choice: saving a word never drops another in silence.
         val vm = SearchViewModel({ listos(FakeDictionary()) })
         advanceUntilIdle()
-        repeat(SearchViewModel.MAX_FAVORITES + 10) { i -> vm.toggleFavorite(visit("p$i", i.toLong())) }
-        assertEquals(SearchViewModel.MAX_FAVORITES, vm.state.value.favorites.size)
+        repeat(150) { i -> vm.toggleFavorite(visit("p$i", i.toLong())) }
+        assertEquals(150, vm.state.value.favorites.size)
         // The most recently saved goes first: it is the one you are most likely to revisit.
-        assertEquals("p${SearchViewModel.MAX_FAVORITES + 9}", vm.state.value.favorites.first().headword)
+        assertEquals("p149", vm.state.value.favorites.first().headword)
+        assertEquals("p0", vm.state.value.favorites.last().headword)
+    }
+
+    @Test
+    fun aWordOpenedFromATileEntersTheHistoryWithWhatThePackSays() = runTest {
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "casa", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+        )
+        val vm = SearchViewModel({ listos(fake) })
+        advanceUntilIdle()
+        // The tile's intent carries no part of speech and no language.
+        val target = vm.openFromTile(visit("casa", 7, pack = "fake").copy(partOfSpeech = null, lang = null))
+        advanceUntilIdle()
+        assertEquals(7L, target)
+        val row = vm.state.value.history.single()
+        assertEquals("casa", row.headword)
+        assertEquals("noun", row.partOfSpeech)
+    }
+
+    @Test
+    fun aTileWordThePackNoLongerHasOpensNothingAndEntersNoHistory() = runTest {
+        val vm = SearchViewModel({ listos(FakeDictionary()) })
+        advanceUntilIdle()
+        assertEquals(null, vm.openFromTile(visit("nada", 7, pack = "fake")))
+        advanceUntilIdle()
+        assertEquals(emptyList<Visit>(), vm.state.value.history)
+    }
+
+    @Test
+    fun aWordOpenedWhileStoredLanguagesAreReadIsNotLost() = runTest {
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "casa", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+        )
+        val puerta = CompletableDeferred<Unit>()
+        fake.beforeSummary = { puerta.await() }
+        val vm = SearchViewModel(
+            { listos(fake) },
+            savedHistory = { listOf(visit("casa", 7, pack = "fake").copy(lang = null)) },
+        )
+        advanceUntilIdle()
+        vm.recordVisit(visit("perro", 9, pack = "fake"))
+        puerta.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf("perro", "casa"), vm.state.value.history.map { it.headword })
+        assertEquals("es", vm.state.value.history.last().lang)
     }
 
     // --- The word of the day ------------------------------------------------------------------

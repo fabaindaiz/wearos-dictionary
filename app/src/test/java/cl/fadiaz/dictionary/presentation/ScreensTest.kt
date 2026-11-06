@@ -50,6 +50,7 @@ import cl.fadiaz.dictionary.core.MatchKind
 import cl.fadiaz.dictionary.core.Sense
 import cl.fadiaz.dictionary.core.RowPreview
 import cl.fadiaz.dictionary.core.Suggestion
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import androidx.compose.ui.text.TextStyle
@@ -384,6 +385,16 @@ class ScreensTest {
         partOfSpeech = "noun",
         senses = glosses.map { Sense(it) },
     )
+
+    @Test
+    fun aCardStillLoadingDoesNotSayTheEntryIsGone() {
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) { awaitCancellation() }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("…").assertExists()
+        compose.onNodeWithText("Esa entrada ya no está en el diccionario.").assertDoesNotExist()
+    }
 
     @Test
     fun `a word the dictionary cannot define SAYS so`() {
