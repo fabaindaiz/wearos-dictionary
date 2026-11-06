@@ -31,11 +31,19 @@ rise.
 
 ## Dónde estamos
 
-*Updated 2026-11-05.* The watch still runs `versionCode` 18. Branch `feat/local-tier-no-stress`, not
-merged: no stress type (d-a2f271-957d01) and a *Local* tier (d-a2f271-3e777c, i-a2f271-9f32d2).
-**Next:** a full rebuild, carrying *Local*, the wider *Común* (d-a2f271-4b1f4c, d-a2f271-7dbd81, d-a2f271-529e5f) and no `P` (d-a2f271-f001ec), which
-waits on the owner's go-ahead. The history reading 1 on 2026-10-26 is
-closed: the owner cleared it.
+*Updated 2026-11-06.* The watch still runs `versionCode` 18. Branch `feat/local-tier-no-stress`, not
+merged: no stress type (d-a2f271-957d01), a *Local* tier (d-a2f271-3e777c, i-a2f271-9f32d2), a wider
+*Común* (d-a2f271-4b1f4c, d-a2f271-7dbd81, d-a2f271-529e5f) and no `P` (d-a2f271-f001ec). Packs rebuilt
+on 2026-11-06 from `b491c67` (the previous ones kept as `dist.2026-10-26c`); all six pass `verify_pack`
+and `--como-la-app`. The next APK is `versionCode` 19 (`0.12.0`), R8, carrying es-core 202611061616 and
+en-core 202611061611. The history reading 1 on 2026-10-26 is closed: the owner cleared it.
+
+- ⚠️ **Open, the owner's to answer:** *Local* takes a word with a geographic label on **any** sense, so
+  a word that opens on a plain sense reads as *Local*: 98 of 560 in `es-core` (`halar`, `mazamorra`) and
+  42 of 112 in `en-core` (`solicitor`, `hostel`, `meddle`). *Común* reads the first sense. Read off the
+  packs of 2026-11-06, over the labels the card stores.
+- ⚠️ **Not explained:** *Común* in `en-core` holds 9,502 words where the simulation said 10,383. The
+  richest-entry filter takes 1,105 English words and is the likely cause, not verified.
 
 *Updated 2026-10-26 (evening).* **On the device since 2026-10-26 15:53**: APK `versionCode` 18
 (`0.11.0`), R8, from `9d3ff38`, **merged into `main` and pushed**. Its cores are sized at their

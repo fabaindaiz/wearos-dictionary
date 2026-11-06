@@ -45,7 +45,23 @@ version means rebuilding the packs, which is what `discover_version` records.
 
 **Measured.** Simulated on the packs of 2026-10-26 against the raw dumps (macOS, 2026-11-06), not a
 rebuild: 9,425 rows join in `es-full` and in `es-core`; the same words read by eye in a sample of 60
-were well-known words (*velocímetro*, *desdicha*, *levitar*). The real counts come with the rebuild.
+were all well-known words (*velocímetro*, *desdicha*, *levitar*), which is the check the count lacks.
+
+Rebuilt from `b491c67` (macOS, 2026-11-06, a host under memory pressure from other projects); all six
+pass `verify_pack` and `--como-la-app`, and 3,000 sampled bodies per pack hold no `P`.
+
+| Pack | Entries | MB | Common | Rare | Curious | Colloquial | Vulgar | Local |
+|---|---|---|---|---|---|---|---|---|
+| `es-core` | 65,211 | 41.7 | 17,950 | 2,534 | 145 | 902 | 446 | 560 |
+| `es-full` | 155,351 | 88.9 | 17,975 | 4,769 | 741 | 2,279 | 851 | 1,676 |
+| `en-core` | 66,073 | 40.9 | 9,502 | 224 | 178 | 768 | 197 | 112 |
+| `en-main` | 304,872 | 123.7 | 9,502 | 4,072 | 1,100 | 5,475 | 1,670 | 541 |
+| `en-full` | 941,787 | 313.6 | 9,502 | 9,791 | 2,859 | 10,093 | 3,692 | 814 |
+| `es-en` | 207,582 | 62.8 | no `discover` table |
+
+Read in real cards: the words for a clock, a library and a TV set are in the common tier; the word for
+a bear and `lioness` stay out by the technical-topic rule. Against the previous packs, 10,495 Spanish
+and 2,765 English words join the common tier, and 93 coined feminines leave `en-full`.
 
 **What went wrong.** A simulation holding every English record in memory ran for half an hour with
 swap at 11.5 of 12 GB, other projects' work on the same host; killed and rewritten to stream. The
@@ -59,7 +75,8 @@ of the Spanish tier rows because it read a key the dump does not have; fixed, it
 **Closed.** The history reading 1 where it read 25 on 2026-10-26: the owner cleared it (said on
 2026-11-06). The two history gaps of the audit are separate and stay open.
 
-**Not done.** Nothing merged, pushed or installed. 10,746 `es-full` entries were not
+**Not done.** Nothing merged, pushed or installed. The common tier in `en-core` holds 9,502 words where
+the simulation said 10,383; the richest-entry filter is the likely cause, not verified (see the roadmap). 10,746 `es-full` entries were not
 classified: 6,015 have no dump record, presumably from the Wikidata merge, not verified; about
 4,700 have only records with no gloss.
 
