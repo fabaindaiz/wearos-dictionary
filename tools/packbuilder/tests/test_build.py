@@ -568,6 +568,18 @@ class InvariantesExhaustivasTest(BuilderTestCase):
                                          senses=[]))
         self.assertIn("fathered", str(capturado.exception))
 
+    def test_the_body_does_not_repeat_the_part_of_speech_of_its_column(self):
+        with build.PackBuilder(self.path, dict(BASE_META)) as builder:
+            builder.add(build.Record(headword="casa", part_of_speech="noun", rank=1,
+                                     senses=[{"gloss": "una glosa"}]))
+        db = sqlite3.connect(self.path)
+        self.addCleanup(db.close)
+        pos, cuerpo = db.execute("SELECT pos, payload FROM entry").fetchone()
+        diccionario = bytes.fromhex(
+            db.execute("SELECT value FROM meta WHERE key = 'payload_dict'").fetchone()[0])
+        self.assertEqual("noun", pos)
+        self.assertEqual("S\tuna glosa", payload_codec.decompress(cuerpo, diccionario).strip())
+
     def test_las_etiquetas_y_las_silabas_son_tags_conocidos(self):
         # d-a2f271-1f80cd and d-a2f271-b4adc7. The rebuild of 2026-10-26 stopped here: the builder
         # wrote `U` and `H`, and this check still knew only the older tags.

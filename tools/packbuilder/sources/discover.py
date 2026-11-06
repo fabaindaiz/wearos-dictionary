@@ -45,7 +45,8 @@ in English, while the published lists of recherché words sit at 16-63 %. Two co
   opposite. English has no prevalence norm with an open license, and its *rare* stays the weaker of
   the two -- measured, not guessed: `docs/roadmap.md` i-a2f271-ec624b.
 
-Common was right in version 1 and is unchanged: its median word is known by 99 %.
+Common by frequency was right in version 1: its median word is known by 99 %. Since version 5 a
+word past the same filters and known by over 75 % is common too, however infrequent.
 """
 
 import re
@@ -53,7 +54,7 @@ import re
 #: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
 #: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
 #: a pack says which rules it was built under. Bump it with any change to what `tier` returns.
-VERSION = 4
+VERSION = 5
 
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.
@@ -159,6 +160,18 @@ _FORM_GLOSS = re.compile(
     r"(?i)^(gerundio|participio|forma|primera|segunda|tercera|plural|femenino de|inflexión|"
     r"alternative|obsolete form|archaic form|misspelling|plural of|present participle|"
     r"past participle|simple past|third-person|comparative|superlative)")
+
+#: A feminine in *-ess* whose card only says *a female X*: *dentistress*, *robotess*, *keeperess*.
+#: *lioness* and *baroness* end in *-ness* and are words of their own; *burgess* is no feminine, which
+#: the gloss tells.
+_COINED_FEMININE_GLOSS = re.compile(r"(?i)^an? (robot designated )?(female|woman)\b")
+
+#: The feminines in *-ess* dictionaries carry as words of their own, read by hand on 2026-11-06 over
+#: the *curious* and *rare* rows of en-full.
+_REAL_FEMININES = frozenset({
+    "ancestress", "authoress", "benefactress", "conductress", "directress", "headmistress",
+    "instructress", "manageress", "poetess", "proprietress", "sculptress",
+})
 
 #: The prefixes of a transparent English coinage: *nonharmful*, *reorderer*, *overskies*.
 _COINAGE_PREFIXES = ("non", "un", "re", "over", "under", "anti", "semi", "pseudo", "sub")
@@ -278,7 +291,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     glossed = forms = labelled = literary = colloquial = vulgar = 0
     tags, topics = set(), set()
     first_topics = None
-    first_register = regional = False
+    first_register = first_labelled = regional = False
     for sense in raw.get("senses") or []:
         gloss = _gloss_text(sense)
         if not gloss:
@@ -298,6 +311,7 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
         # the word they became: obsolete, and nothing to learn.
         if sense_tags & (_CURIOUS | _REGION) and len(gloss.split()) >= 3:
             labelled += 1
+            first_labelled = first_labelled or glossed == 1
         if sense_tags & _LITERARY:
             literary += 1
         if sense_tags & _VULGAR:
@@ -320,7 +334,11 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
         return VULGAR if vulgar * 2 >= glossed else COLLOQUIAL
     if tags & _DROP and glossed <= 2:
         return None
-    if topics and topics <= _TECHNICAL:
+    # The topics of every sense, so a word whose senses are all plain but one reads as technical.
+    # That is noise for *rare* and *curious*; *common* reads the first sense, which the card opens
+    # on: *reloj* is common with an electronics sense further down, *rodilla* opens on anatomy.
+    technical = bool(topics) and topics <= _TECHNICAL
+    if technical and first_topics:
         return None
     if _DERIVATIVE.search(first_gloss or ""):
         return None
@@ -334,11 +352,15 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     # Version 2: a recherché word has a learned origin, a literary label or a synonym to be
     # explained by; without any of them it is vocabulary of a trade or a region.
     explained = learned or synonyms >= 1
-    coined = word.startswith(_COINAGE_PREFIXES) or "-" in word
+    coined_feminine = (word.endswith("ess") and not word.endswith("ness")
+                       and word not in _REAL_FEMININES
+                       and bool(_COINED_FEMININE_GLOSS.match(gloss)))
+    coined = word.startswith(_COINAGE_PREFIXES) or "-" in word or coined_feminine
 
     if (labelled * 2 > glossed and rank >= CURIOUS_FROM and translations + synonyms >= 1
             and "-" not in word and len(word) <= 12):
-        if science or (known is not None and known > KNOWN_CURIOUS_MAX):
+        if (science or technical or coined_feminine
+                or (known is not None and known > KNOWN_CURIOUS_MAX)):
             return None
         return LOCAL if regional else CURIOUS
     if known is not None:
@@ -347,15 +369,19 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
         # 98 %. Neither verdict can come from frequency.
         if KNOWN_RARE[0] <= known <= KNOWN_RARE[1]:
             if (explained and labelled * 2 <= glossed and not science and not field
-                    and not coined):
+                    and not coined and not technical):
                 return RARE
             return None
         if known < KNOWN_RARE[0]:
             return None
     if rank < RARE_FROM:
-        return COMMON if labelled == 0 else None
+        # The card opens on the first sense: *azul* is common with a place on a later one, and a
+        # word that opens on an old or a local sense would promise otherwise.
+        return COMMON if not first_labelled else None
+    # ⚠️ **Known by most and absent from subtitles**: *ermita*, *antifaz*, *epíteto*. Too well known
+    # for *rare* and too infrequent for the band above; asked for by the owner on 2026-11-06.
     if known is not None:
-        return None
+        return COMMON
 
     # ⚠️ **Without prevalence, a learned origin carries it alone**, and only below the translation
     # count that marks a well-known word. Measured against English prevalence: 38 % of these land in
@@ -363,6 +389,6 @@ def tier(raw, first_gloss, rank, etymology=None, known=None):
     jargon = (bool((first_topics or set()) - _HUMANITIES) or bool(_JARGON_GLOSS.search(gloss))
               or bool(_JARGON_AFFIX.search(word)))
     if (learned and translations < WELL_KNOWN_TRANSLATIONS and not coined and not jargon
-            and labelled * 2 <= glossed and not science and not field):
+            and not technical and labelled * 2 <= glossed and not science and not field):
         return RARE
     return None

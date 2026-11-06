@@ -710,6 +710,9 @@ def _senses(raw, translations_to=None, perfil=None):
             # With no text there is nothing to hang it off, and keeping it anyway would leave it
             # naming the next sense's example. See `payload.parse`'s strict rule.
             cita = _recorte_de_cita(example.get("ref"), perfil)
+            # A `ref` holding only the headword names no source, though it reads like one.
+            if cita and cita.strip(" .,;:").casefold() == (raw.get("word") or "").casefold():
+                cita = None
             examples.append({"text": text, "ref": cita} if cita else text)
         index = (sense.get("sense_index") or "").strip()
         # The two shapes in which the source serves synonyms. No dump uses both, so this is not a
@@ -1358,6 +1361,11 @@ REFERENCIA_COLGADA = re.compile(
     re.IGNORECASE,
 )
 
+#: The two shapes that only point at a section, with no *see* for the pattern above to read. The rest
+#: of what names one says something too (*hence Etymology 3*), and stays.
+PUNTERO_A_SECCION = re.compile(
+    r"\s+and Etymology\s*\d+\s+for more|\s*More at Etymology\s*\d+(?:\s+(?:above|below))?\.?")
+
 
 def _sin_referencias(texto):
     """The origin with its dangling cross-references dropped, or `None` if nothing is left.
@@ -1366,7 +1374,7 @@ def _sin_referencias(texto):
     verb"*, which is the part that answers the question; keeping the pointer leaves the card
     telling the reader to look at a section of a page they are not on.
     """
-    limpio = REFERENCIA_COLGADA.sub("", texto)
+    limpio = PUNTERO_A_SECCION.sub("", REFERENCIA_COLGADA.sub("", texto))
     limpio = re.sub(r"\s{2,}", " ", limpio).strip()
     limpio = re.sub(r"\s+([.,;])", r"\1", limpio)
     return limpio or None

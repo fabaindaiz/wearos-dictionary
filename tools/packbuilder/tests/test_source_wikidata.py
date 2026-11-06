@@ -13,7 +13,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sources import wikidata  # noqa: E402
+from sources import discover, wikidata  # noqa: E402
 
 
 def _dump(*lexemas):
@@ -57,6 +57,23 @@ class WikidataTest(unittest.TestCase):
         self.paths.append(path)
         return list(wikidata.records(path, **kw))
 
+
+    def test_a_word_most_people_know_is_common(self):
+        # `activista` is in Wikidata and not in the Wiktionary dump, and SPALEX knows it.
+        got = self.records(_lex("L1", "activista", glosas=("Persona que milita en una causa.",)),
+                           prevalence={"activista": 90.0})
+        self.assertEqual(discover.COMMON, got[0].discover)
+
+    def test_a_tier_needs_a_share_of_people_above_the_rare_band(self):
+        lexema = _lex("L1", "activista", glosas=("Persona que milita en una causa.",))
+        for prevalence in (None, {}, {"activista": 40.0}):
+            with self.subTest(prevalence=prevalence):
+                self.assertIsNone(self.records(lexema, prevalence=prevalence)[0].discover)
+
+    def test_the_gloss_filters_hold_for_these_words_too(self):
+        got = self.records(_lex("L1", "empalme", glosas=("Acción y efecto de empalmar.",)),
+                           prevalence={"empalme": 96.0})
+        self.assertIsNone(got[0].discover)
 
     def test_a_locution_of_four_words_or_more_does_not_enter(self):
         # The same rule as the kaikki source (i-a2f271-e8eb96): seen in a rebuilt es-full, 20 of

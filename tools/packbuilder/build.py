@@ -412,22 +412,22 @@ class PackBuilder:
                 and _shows_without_etymology(record)):
             etymology = None
 
+        # The part of speech lives in `entry.pos`, so the body does not repeat it.
         body = payload_codec.render(
-            record.part_of_speech, record.senses, record.word_translations,
+            None, record.senses, record.word_translations,
             record.display_forms, record.pronunciation, etymology,
             syllables=record.syllables)
-        if not body:
-            # With no usable sense the entry has nothing to show.
-            return
         # ⚠️ **Nothing but the part of speech fails the build, it is not skipped.** It is a row
         # that opens onto the word `verbo`; skipping it here would leave its homograph with a uid
         # computed for two entries. The source decides what is an entry
         # (`kaikki._ensena_algo_sin_acepciones`); this checks every entry, where `verify_pack`
         # samples 200 and found 396 of them in en-full by luck (2026-10-26).
-        if not any(line and not line.startswith(payload_codec.TAG_PART_OF_SPEECH + "\t")
-                   for line in body.split("\n")):
-            raise ValueError("%r renders only its part of speech: its source admitted a record "
-                             "with nothing to show" % record.headword)
+        if not body:
+            if record.part_of_speech:
+                raise ValueError("%r renders only its part of speech: its source admitted a "
+                                 "record with nothing to show" % record.headword)
+            # With no usable sense the entry has nothing to show.
+            return
 
         # THIS entry's language decides its fuzzy profile and goes into its uid. A `Record` that
         # does not declare one belongs to the primary language, which is every monolingual pack's

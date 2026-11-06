@@ -33,7 +33,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from build import Record  # noqa: E402
-from sources import kaikki  # noqa: E402
+from sources import discover, kaikki  # noqa: E402
 
 # The Wikidata item representing the Spanish language.
 IDIOMA_ES = "Q1321"
@@ -131,7 +131,20 @@ def _contar_homografos(path, politica):
     return cuenta
 
 
-def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
+def _tier(lema, pos, senses, rank, prevalence):
+    """The tier of a lexeme, which only a share of people knowing it can give.
+
+    A lexeme has no usage labels, topics, translations or origin, so of `discover.tier`'s rules only
+    the gloss filters and *known by most* can speak. Without a share it has no verdict to reach.
+    """
+    known = (prevalence or {}).get(lema.lower())
+    if known is None:
+        return None
+    raw = {"word": lema, "pos": pos, "senses": [{"glosses": [s["gloss"]]} for s in senses]}
+    return discover.tier(raw, first_gloss=senses[0]["gloss"], rank=rank, known=known)
+
+
+def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO, prevalence=None):
     """Yields Records from the lexemes dump. See the module docstring.
 
     `politica` exists so the signature matches `sources/kaikki`'s --`build_pack` calls both the
@@ -177,11 +190,13 @@ def records(path, lang="es", politica=kaikki.POLITICA_POR_DEFECTO):
             if f and f != lema
         )
         score = PESO_ACEPCION * len(senses) + PESO_FORMA * min(len(formas), TOPE_DE_FORMAS)
+        rank = max(0, RANK_BASE - score)
         yield Record(
             headword=lema,
             senses=senses,
             part_of_speech=pos,
-            rank=max(0, RANK_BASE - score),
+            rank=rank,
+            discover=_tier(lema, pos, senses, rank, prevalence),
             forms=formas,
             translations=(),
             # ⚠️ **Only when there is a homograph, and this cost an extra pass.**

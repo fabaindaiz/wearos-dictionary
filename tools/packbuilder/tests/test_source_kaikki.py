@@ -1399,6 +1399,21 @@ class CitaEnEspanolTest(unittest.TestCase):
         got = list(kaikki.records(path, lang="es"))
         return got[0].senses[0]["examples"][0]
 
+    def test_a_pointer_to_a_section_of_the_page_goes_and_the_clause_stays(self):
+        self.assertEqual("From Latin consummātus, see -ate (verb-forming suffix).",
+                         kaikki._sin_referencias("From Latin consummātus, see -ate (verb-forming "
+                                                 "suffix) and Etymology 1 for more."))
+        self.assertEqual("Old English sund (“water, sea”).",
+                         kaikki._sin_referencias("Old English sund (“water, sea”). More at "
+                                                 "Etymology 3 above."))
+
+    def test_a_section_named_for_what_it_explains_stays(self):
+        texto = "From Old French greer, from gré (hence Etymology 3)."
+        self.assertEqual(texto, kaikki._sin_referencias(texto))
+
+    def test_a_citation_that_only_names_the_word_says_nothing(self):
+        self.assertEqual("la casa de la esquina", self._cita("Casa."))
+
     def test_se_recorta_a_autor_y_obra(self):
         # The dump's real `ref`, measured.
         self.assertEqual(

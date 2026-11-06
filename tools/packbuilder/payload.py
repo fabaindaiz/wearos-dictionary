@@ -421,6 +421,9 @@ def render(part_of_speech, senses, word_translations=(), forms=(), pronunciation
            etymology=None, syllables=None):
     """Serializes to text. `senses` is a list of dicts with gloss/examples/translations.
 
+    `part_of_speech` writes the `P` of a pack already installed, which the fixture keeps the readers
+    honest against. The builder passes None: `entry.pos` holds it.
+
     The values are sanitized here: a stray tab in a Wiktionary gloss would corrupt the whole entry
     and the symptom would only appear on the watch.
 

@@ -969,7 +969,8 @@ def main(argv):
         # hidden.** `bilingual` calls it two layers down and its own drops are a different
         # question --a gloss that is not a translation is not a lost lemma-- so threading it there
         # would put two unlike numbers under one name.
-        extra_kw = {"bajas": bajas, "prevalence": prevalencia} if reader is kaikki else {}
+        extra_kw = ({"bajas": bajas, "prevalence": prevalencia} if reader is kaikki
+                    else {"prevalence": prevalencia} if reader is wikidata else {})
         for record in reader.records(*argumentos, **extra_kw):
             if not _keep(record.headword, sample):
                 continue
@@ -995,7 +996,8 @@ def main(argv):
             # same.
             extra = READERS[sumar[0]]
             nuevos = []
-            for record in extra.records(sumar[1], _primario(sumar[0]), politica):
+            for record in extra.records(sumar[1], _primario(sumar[0]), politica,
+                                        **({"prevalence": prevalencia} if extra is wikidata else {})):
                 clave = (record.headword, record.part_of_speech)
                 if clave in vistos or not _keep(record.headword, sample):
                     continue

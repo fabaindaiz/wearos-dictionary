@@ -112,6 +112,24 @@ class SumarVocabularioTest(unittest.TestCase):
         db.close()
         return filas, meta
 
+    def test_a_merged_word_most_people_know_gets_its_tier(self):
+        wd = os.path.join(self.dir, "wd-activista.json")
+        with open(wd, "w", encoding="utf-8") as h:
+            h.write("[\n" + json.dumps({
+                "id": "L3", "language": "Q1321", "lexicalCategory": "Q1084",
+                "lemmas": {"es": {"language": "es", "value": "activista"}},
+                "senses": [{"id": "L3-S1", "glosses": {"es": {
+                    "language": "es", "value": "persona que milita en una causa"}}}],
+                "forms": []}, ensure_ascii=False) + ",\n]\n")
+        spalex = os.path.join(self.dir, "spalex.csv")
+        with open(spalex, "w", encoding="utf-8") as h:
+            h.write("spelling,percent_total\nactivista,90.0\n")
+        self._construir("--sumar", "es-wd", wd, "--prevalencia", spalex)
+        db = sqlite3.connect(self.salida)
+        self.addCleanup(db.close)
+        self.assertEqual([("activista", 0)], db.execute(
+            "SELECT e.headword, d.tier FROM discover d JOIN entry e ON e.id = d.entry_id").fetchall())
+
     def test_sin_sumar_solo_esta_la_fuente_base(self):
         filas, _ = self._construir()
         self.assertEqual([("acomodador", "noun"), ("banco", "noun")], filas)

@@ -119,6 +119,75 @@ class TierTest(unittest.TestCase):
             {"glosses": ["Que es bonito o vistoso a la vista."], "tags": ["Mexico"]}])
         self.assertIsNone(_tier(raw, COMMON_RANK))
 
+    def test_a_frequent_word_labelled_later_on_is_common(self):
+        # `azul`: the card opens on the color; the place is a later sense's.
+        raw = _raw("azul", pos="adj", senses=[
+            {"glosses": ["De color que recuerda al del cielo."]},
+            {"glosses": ["Dicho de un billete de cien pesos."], "tags": ["Mexico"]},
+            {"glosses": ["Dicho de un miembro de cierto partido."], "tags": ["Chile"]}])
+        self.assertEqual(discover.COMMON, _tier(raw, COMMON_RANK))
+
+    def test_a_frequent_word_mostly_labelled_after_a_plain_first_sense_is_common(self):
+        raw = _raw("patada", senses=[
+            {"glosses": ["Golpe dado con el pie o la pata."]},
+            {"glosses": ["Efecto fuerte de una bebida alcohólica."], "tags": ["Mexico"]},
+            {"glosses": ["Descarga breve de la corriente eléctrica."], "tags": ["Chile"]}])
+        self.assertEqual(discover.COMMON, _tier(raw, COMMON_RANK))
+
+    def test_a_frequent_word_whose_card_opens_on_a_label_is_not_common(self):
+        raw = _raw("secretario", senses=[
+            {"glosses": ["Asesor privado que guardaba los secretos."], "tags": ["historical"]},
+            {"glosses": ["Persona que redacta la correspondencia."]},
+            {"glosses": ["Ave rapaz africana de patas largas."]}])
+        self.assertIsNone(_tier(raw, COMMON_RANK))
+
+    def test_a_technical_later_sense_leaves_a_frequent_word_common(self):
+        # `reloj`: the card opens on the timepiece; the electronics is a later sense's.
+        raw = _raw("reloj", senses=[
+            {"glosses": ["Instrumento que sirve para medir el tiempo."]},
+            {"glosses": ["Circuito que sincroniza un procesador."], "topics": ["electronics"]}])
+        self.assertEqual(discover.COMMON, _tier(raw, COMMON_RANK))
+        self.assertEqual(discover.COMMON, _tier(raw, NO_FREQUENCY, known=98.0))
+
+    def test_a_technical_first_sense_stays_out_of_common(self):
+        raw = _raw("rodilla", senses=[
+            {"glosses": ["Articulación de la pierna con el muslo."], "topics": ["anatomy"]}])
+        self.assertIsNone(_tier(raw, COMMON_RANK))
+
+    def test_a_technical_later_sense_still_keeps_a_word_out_of_the_other_tiers(self):
+        plain = {"glosses": ["Pieza alargada de una estructura."]}
+        technical = {"glosses": ["Tejido fundamental de una planta."], "topics": ["botany"]}
+        # Rare, with and without prevalence.
+        raw = _raw("x", synonyms=1, senses=[plain, technical])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del griego."))
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del griego.", known=40.0))
+        # Curious.
+        raw = _raw("x", synonyms=1, senses=[
+            {"glosses": ["Pieza alargada de una estructura."], "tags": ["obsolete"]},
+            {"glosses": ["Tejido fundamental de una planta."], "tags": ["obsolete"],
+             "topics": ["botany"]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY))
+
+    def test_a_coined_feminine_is_neither_curious_nor_rare(self):
+        # `dentistress`: a word for a card to say *a female dentist*, not one to learn.
+        curious = _raw("dentistress", synonyms=1, lang="en", senses=[
+            {"glosses": ["A female dentist."], "tags": ["rare"]}])
+        self.assertIsNone(_tier(curious, NO_FREQUENCY))
+        rare = _raw("keeperess", synonyms=1, lang="en", senses=[{"glosses": ["A female keeper."]}])
+        self.assertIsNone(_tier(rare, NO_FREQUENCY, etymology="From Latin."))
+
+    def test_a_real_feminine_and_a_word_only_shaped_like_one_keep_their_tier(self):
+        for word, gloss in (("poetess", "A female poet."), ("lioness", "A female lion."),
+                            ("burgess", "An inhabitant of a borough.")):
+            with self.subTest(word=word):
+                raw = _raw(word, synonyms=1, lang="en", senses=[
+                    {"glosses": [gloss], "tags": ["dated"]}])
+                self.assertEqual(discover.CURIOUS, _tier(raw, NO_FREQUENCY))
+
+    def test_a_frequent_feminine_stays_common(self):
+        raw = _raw("waitress", lang="en", senses=[{"glosses": ["A female waiter."]}])
+        self.assertEqual(discover.COMMON, _tier(raw, COMMON_RANK))
+
     def test_curious_needs_the_dictionary_to_say_something_more(self):
         raw = _raw("thrauna", senses=[
             {"glosses": ["Cantidad de objetos que caben en el hueco de las manos."],
@@ -141,10 +210,26 @@ class PrevalenceTest(unittest.TestCase):
                    senses=[{"glosses": ["Que no se puede explicar con palabras."]}])
         self.assertEqual(discover.RARE, _tier(raw, 251, known=63.0))
 
-    def test_a_word_everybody_knows_is_not_rare_however_infrequent(self):
+    def test_a_word_everybody_knows_is_common_however_infrequent(self):
         raw = _raw("archipiélago", translations=40, synonyms=1,
                    senses=[{"glosses": ["Conjunto de islas cercanas entre sí."]}])
-        self.assertIsNone(_tier(raw, NO_FREQUENCY, etymology="Del griego.", known=98.0))
+        self.assertEqual(discover.COMMON,
+                         _tier(raw, NO_FREQUENCY, etymology="Del griego.", known=98.0))
+
+    def test_common_by_prevalence_starts_above_the_rare_band(self):
+        raw = _raw("ermita", senses=[{"glosses": ["Capilla situada fuera de una población."]}])
+        self.assertEqual(discover.COMMON, _tier(raw, NO_FREQUENCY, known=75.1))
+        self.assertIsNone(_tier(raw, NO_FREQUENCY, known=75.0))
+
+    def test_prevalence_does_not_make_a_form_or_a_derivative_common(self):
+        for gloss in ("Participio de jabonar.", "Acción y efecto de empalmar."):
+            with self.subTest(gloss=gloss):
+                raw = _raw("x", senses=[{"glosses": [gloss]}])
+                self.assertIsNone(_tier(raw, NO_FREQUENCY, known=98.0))
+
+    def test_without_prevalence_an_infrequent_word_stays_out_of_common(self):
+        raw = _raw("polygonal", lang="en", senses=[{"glosses": ["Having many sides."]}])
+        self.assertIsNone(_tier(raw, NO_FREQUENCY))
 
     def test_a_word_almost_nobody_knows_is_not_rare_either(self):
         raw = _raw("acrotera", synonyms=1, senses=[{"glosses": ["Pedestal sobre un frontón."]}])
@@ -179,7 +264,7 @@ class PrevalenceTest(unittest.TestCase):
                                               etymology="From Latin vilipendere."))
 
     def test_the_version_moved(self):
-        self.assertEqual(4, discover.VERSION)
+        self.assertEqual(5, discover.VERSION)
 
 
 class LocalTest(unittest.TestCase):
