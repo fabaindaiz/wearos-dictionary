@@ -16,6 +16,32 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-09 · s-a2f271-c38af7 — A sense's own translations, in English and on the card
+
+**What.** The four decisions on senses are built: the reader takes translations nested in an English
+sense, the cap is 12, a bilingual gloss paints the translation it says and drops the line repeating
+it, and `W` opens the card only when no sense has its own. All six packs rebuilt, `versionCode` 20.
+
+**Areas.** `tools/packbuilder/sources/kaikki.py`, `sources/bilingual.py`, `build_pack.py`, the test
+suite in `tools/packbuilder/tests/`; `EntryScreen.kt`, `GlossHeads.kt`, `ScreensTest`, `GlossHeadsTest`;
+`gradle.properties`, `app/bundled-cores.lock`, `docs/decisions.md`, `docs/formato-pack.md`.
+
+**Why.** The owner asked for it after the review of how senses are built; see the four rows of that
+date in `docs/decisions.md`.
+
+**Architecture.** No format change: `T` and `W` keep their tags. Measured on macOS, 2026-11-09:
+`en-full` 328.8 to 333.8 MB, `en-core` 16.5 % of senses with a translation (59,703 lines),
+`en-full` 6.0 %; every pack passes `verify_pack.py --como-la-app`; `brillante` finds `bright` in
+`en-core`. Each call site was mutated and its test failed.
+
+**What went wrong.** The pilot's baseline failed because a `git archive` of the builder lacks
+`tools/unicode`, so the cost was read against the packs of 2026-11-06 instead. The 1-2 MB assumption
+was low: the real cost in `en-full` is 5.0 MB. The first commit attempts failed on `bundlePacks`,
+as designed: new cores under an old `versionCode`.
+
+**Left undone.** Nothing went to the watch. A bilingual card's other gloss words still resolve in the
+entry's language, in the roadmap.
+
 ## 2026-11-09 · s-a2f271-217bde — The branch reviewed, and an upload that cannot skip the full packs
 
 **What.** The owner kept *Local* as built (any sense), asked for the two process items and for a

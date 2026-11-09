@@ -438,7 +438,7 @@ aparezca donde aparezca. Si la posición decidiera, un `W` mal ubicado se volver
 acepción — la atribución inventada que el canal existe para evitar.
 
 ⚠️ **Y se dibujan en lugares distintos**, o la separación se pierde en el último paso: `T` va
-dentro del bloque de la acepción, `W` en su propia sección debajo de todas.
+dentro del bloque de la acepción; `W` in its own section, above the senses only when none has its own translations and below them otherwise (d-a2f271-ee457b).
 
 ### ⚠️ El canal de BÚSQUEDA y el de LECTURA no llevan lo mismo
 
@@ -537,20 +537,20 @@ word level (`W`), never hung on the first sense (D-117).
 | Synonyms `Y` | top-level, `sense_index` | nested in the sense | 4 | es-full 18.9 %, en-full 13.7 % |
 | Antonyms `A` | top-level, `sense_index` | nested in the sense | 4 | 1.9 %, 1.3 % |
 | Related `R` | entry level: only on a single-sense entry | nested, and entry level on a single sense | 4 | 2.6 %, 8.2 % |
-| Translations `T` | top-level, `sense_index`, ranges expanded | **nested in the sense: not read** | 8 | 8.8 %, **0.0 %** |
-| Word translations `W` | top-level without `sense_index` | top-level | 8 | 6.2 %, 0.5 % of entries |
+| Translations `T` | top-level, `sense_index`, ranges expanded | nested in the sense | 12 | 8.8 %, 0.0 % before the 2026-11-09 rebuild; after it `en-full` 6.0 % and `en-core` 16.5 % of all senses |
+| Word translations `W` | top-level without `sense_index` | top-level | 12 | 6.2 %, 0.5 % of entries |
 
 WordNet adds synonyms (and English antonyms) only where the entry has one sense and the lemma one
 synset of its category (`sources/wordnet.py`). In the bilingual pack the gloss is itself English
 (`bank (financial institution)`) and `T` repeats its head word: 78.5 % of its senses carry one.
 
-⚠️ **The English per-sense translations are dropped, and that was believed impossible.** The pack's
-comment says its translations into Spanish carry no `sense_index`, which is true of the **9,786**
+⚠️ **The English per-sense translations were dropped until the 2026-11-09 rebuild, and that was believed impossible.** The pack's
+comment said its translations into Spanish carry no `sense_index`, which is true of the **9,786**
 top-level ones. The September dump carries **129,777** more **nested in 74,387 senses** of 60,067
-records, which `_senses` never reads: `bright` has `brillante, luminoso` on its first sense and
-`inteligente` on another, and the card shows three word-level translations from the top level.
-Reading them is the same move `_nested` made for synonyms, and it would also fill `trans`, which is
-what lets `brillante` find `bright`.
+records, which `_senses` did not read: `bright` has `brillante, luminoso` on its first sense and
+`inteligente` on another, and the card showed three word-level translations from the top level.
+Reading them is the same move `_nested` made for synonyms, and it fills `trans`, which is what lets
+`brillante` find `bright` (checked in the rebuilt `en-core`).
 
 ## Extending the format without breaking what is installed
 

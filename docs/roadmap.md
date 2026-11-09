@@ -65,11 +65,12 @@ step: `status` for the wake lock. Then the list below.
 
 **Pending, as of this close:**
 
-- **Decided on 2026-11-09 and not built** (`docs/decisions.md`, the four rows of that date; review in
-  `docs/formato-pack.md`): English per-sense translations and the cap of 12, with a rebuild of the English
-  packs and a new `versionCode`; the bilingual's tappable gloss; word-level translations below the senses
-  when a sense has its own. The comment in `build_pack.py` and the sentence on `W`'s place in
-  `docs/formato-pack.md` change with them.
+- **Built on 2026-11-09, not yet on the watch** (`docs/decisions.md`, the four rows of that date):
+  English per-sense translations, the cap of 12, the bilingual's tappable gloss and `W` below the senses
+  when a sense has its own. The packs of that date and `versionCode` 20 go up with `devpack.py upload`
+  when the owner asks. Open: in a bilingual card every other gloss word still resolves in the entry's
+  language, so an English gloss word that spells a Spanish one paints a wrong link (not touched, not
+  asked for).
 - **The owner's to decide:** whether a week of daily use on R8 is what they
   want (i-a2f271-55ddfc: the watch runs R8 since 2026-10-26); the proposed decision d-a2f271-2ccd54; which
   of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).
