@@ -16,6 +16,51 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-09 · s-a2f271-217bde — The branch reviewed, and an upload that cannot skip the full packs
+
+**What.** The owner kept *Local* as built (any sense), asked for the two process items and for a
+review only. The review ran isolated; its findings are fixed or answered below. `devpack.py upload`
+uploads session, packs, APK and stop, and refuses an APK without packs. The prose ceiling's failure
+names its exceptions. D-120 and D-122 point at files that exist. The gap in English *Común* is
+explained.
+
+**Areas.** `tools/devpack.py`, `tools/audit_dictionary.py` and their tests, the app's view model and
+its tests, `docs/decisions.md`, `docs/roadmap.md`, `tools/AGENTS.md`.
+
+**Why.** Asked for by the owner on 2026-11-09: continue the pending work, build both process items, and
+review the branch without merging it.
+
+**Architecture.** No constraint touched. `devpack.py` stays the development layer of sideloading; the
+session tool in its own repository is unchanged.
+
+**Review.** Isolated, `knowledge-reviewer`, over `main..feat/local-tier-no-stress`: no blocker. Should-fix:
+a tile word was reopened and moved back to the top on every return to `Ready` (fixed:
+`openFromTile` answers once per request); the stress tag `K` dropped from `verify_pack` (answered: it is
+d-a2f271-957d01, and failing an older pack for `K` is deliberate). Nits: saved words with no cap
+(answered with a readout, `guardadas=N` on the `arranque:` line); *Local* empty over old full packs
+(answered by the upload refusal); no test for `Failed` ending the wait (added).
+
+**Cards relied on, and the checks that ran.** `a-check-must-be-seen-to-fail`: each new test failed
+before its fix, and each fix was mutated back to see its test fail again (tile once, the wait on
+`Failed`, the refusal, the guaranteed stop, the skip after a failure).
+
+**Rulings (decided without asking, each reversible).** The upload lives in `devpack.py` and not in the
+session tool, which stays generic; `guardadas=` joins the startup line rather than a new line.
+
+**Seen.** On the emulator, `upload` met the session tool's refusal of an emulator, skipped packs and
+APK, and still ran `stop`: the failure path. The whole path needs a watch.
+
+**Measured.** English *Común* (macOS, 2026-11-09, the September dump through the build's own reader):
+11,320 headwords with a common record, 9,502 in the pack. 1,080 participles of another verb, 400 whose
+richest entry is a sibling that is not common, 176 kept in another tier, 162 not classified.
+
+**What went wrong.** The first count crashed at its end on a field name (`pos` for `part_of_speech`)
+after ten minutes, and a second run was needed to keep the list it counted. The first version of the
+tile test passed for the wrong order: a visit recorded in a coroutine had not landed yet.
+
+**Not done.** Nothing merged or pushed; the review's answer on `K` and on the 400 words are the
+owner's to read. The upload's whole path waits for a real upload.
+
 ## 2026-11-06 · s-a2f271-bf7fa8 — Words most people know join Common
 
 **What.** Counted the words per tier and pack, measured why most entries have no tier

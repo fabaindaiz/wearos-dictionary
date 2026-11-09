@@ -42,36 +42,28 @@ d-a2f271-529e5f) and no `P` (d-a2f271-f001ec). The app reads *see more words* fr
 uploaded without it logs `LOCAL/todas es-full=0`. The history reading 1 on 2026-10-26 is closed: the owner
 cleared it.
 
-- ⚠️ **Open, the owner's to answer:** *Local* takes a word with a geographic label on **any** sense, so
+- **Decided by the owner on 2026-11-09: kept as built** (d-a2f271-3e777c). *Local* takes a word with a geographic label on **any** sense, so
   a word that opens on a plain sense reads as *Local*: 98 of 560 in `es-core` (`halar`, `mazamorra`) and
   42 of 112 in `en-core` (`solicitor`, `hostel`, `meddle`). *Común* reads the first sense. Read off the
   packs of 2026-11-06, over the labels the card stores.
 - ⚠️ **Not verified:** the tool reported the wake lock released, then the watch left the network and the
   following `status` could not read it. First thing on the next connection: `watchsession.py status`.
-- ⚠️ **Not explained:** *Común* in `en-core` holds 9,502 words where the simulation said 10,383. The
-  richest-entry filter takes 1,105 English words and is the likely cause, not verified.
-
-**To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
-remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
-(`../wearos-dictionary-data`, outside git) holds the dumps and this rebuild's `dist/`; `../wearos-debug-tool`
-holds the session tool. To reach the watch: `adb mdns services` gives its address, `adb connect` that
-port; when it refuses, the owner reads a pairing code off the watch for `adb pair`. The first concrete
-step: `status` for the wake lock. Then the list below.
-
-**Pending, as of this close:**
-
-- **The owner's to decide:** *Local* reading any sense or the first (above; another rebuild and APK if it
-  changes, so it goes with whatever the watch turns up); whether a week of daily use on R8 is what they
+- **Explained 2026-11-09:** the common tier of English holds 9,502 words where the simulation said
+  10,383. Reading the dump with the build's own reader gives 11,320 headwords with a common record;
+  `_write_discover` then drops 1,080 participles of another verb (`received`, `moved`, deliberate),
+  400 whose richest entry is a sibling that is not common (`mention`, `excess`, `scam`), 176 that keep
+  another tier through a sibling (`lamp`, `hubby`), and 162 not classified (`league`, `gin`). The
+  400 are the richest-entry filter kept by d-a2f271-c9f13c; whether common words like `mention` are
+  worth lifting it for is the owner's, not decided.
+- **The owner's to decide:** whether a week of daily use on R8 is what they
   want (i-a2f271-55ddfc: the watch runs R8 since 2026-10-26); the proposed decision d-a2f271-2ccd54; which
   of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
-- **Before a merge into `main`:** a review of this branch, which has had none; a close does not merge
-  unreviewed work.
-- **To explain:** the common tier of `en-core`, above.
-- **Records:** D-120 and D-122 name in *Enforced in* files that are not there (`bundle.py decisions`).
-- **Proposed, not built:** the upload wrapper in §*Proceso y herramientas*, and the prose ceiling's message
-  naming its exceptions.
+- **Before a merge into `main`:** the review ran on 2026-11-09 (isolated, no blocker); its two
+  should-fix findings are fixed or answered, the merge waits on the owner's word.
+- **The upload command's whole path** (`devpack.py upload`) runs only against a watch: the session tool
+  refuses an emulator, which is how its failure path was seen to stop the session.
 - **Can wait, by the sweep of i-a2f271-e96d28:** bilingual fragments (i-a2f271-73edb1), set phrases, rhymes,
   a level source for English, sense alignment.
 
@@ -6387,9 +6379,10 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### An upload is packs, then the APK, then a guaranteed stop, and it is typed by hand · i-a2f271-d31ed4
+### An upload is packs, then the APK, then a guaranteed stop, **BUILT 2026-11-09** as `devpack.py upload` · i-a2f271-d31ed4
 
-**Proposed, not built.** Two uploads carried full packs with a new APK (2026-10-26, 2026-11-06), and the
+**Built on the owner's word, 2026-11-09**, as the wrapper here (`tools/AGENTS.md`). What follows is the
+proposal as it was written. Two uploads carried full packs with a new APK (2026-10-26, 2026-11-06), and the
 second needed a throwaway script so that `stop` runs even when a pack fails. `deploy` takes one APK and
 knows nothing of packs; `devpack.py` knows nothing of the session. **Cost:** about 15 lines, a repeatable
 `--pack` on `deploy` in `../wearos-debug-tool`, which gains a generic file push from this repository's
@@ -6860,7 +6853,8 @@ strings, and a verbatim quote from the owner, which must be wrapped so the line 
 English word) instead of only the ceiling.
 
 It fired again on 2026-11-06: at least four lines in one session, each a Spanish word wrapped alone, each found
-only at the commit. That cheapest candidate is still not built.
+only at the commit. **Built 2026-11-09 on the owner's word:** the failure now names both exceptions and
+the English word a quoting line needs (`tests/test_audit_prose.py`).
 
 ⚠️ **That rule is NOT holding, and it is now measured.** Running one ruler against the tree of
 2026-09-21 and against today's: **5,281 → 6,966 lines, +32 % in two days.** (That ruler is looser
