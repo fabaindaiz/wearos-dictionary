@@ -416,7 +416,7 @@ class SearchViewModel(
             _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
             DictLog.i {
                 "arranque: listo para buscar en ${(System.nanoTime() - desde) / 1_000_000} ms " +
-                    "(historial=${visits.size})"
+                    "(historial=${visits.size} guardadas=${favoriteVisits.size})"
             }
         }
         seguirDescargas()
@@ -1487,12 +1487,21 @@ class SearchViewModel(
         }
     }
 
-    /** Where a word a tile hands over lands, and it counts as opened: it joins the history. */
+    /**
+     * Where a word a tile hands over lands, and it counts as opened: it joins the history.
+     *
+     * Null the second time for the same request: the screen asks again on every return to
+     * `Ready`, and a reload would otherwise reopen the word and move it back to the top.
+     */
     suspend fun openFromTile(visit: Visit): Long? {
+        if (visit == openedFromTile) return null
         val target = targetOf(visit) ?: return null
+        openedFromTile = visit
         recordVisit(visit.packId, target)
         return target
     }
+
+    private var openedFromTile: Visit? = null
 
     /** Rewrites this visit's `entryId` in the history and in the saved words. */
     private fun fixEntryId(visit: Visit, entryId: Long) {

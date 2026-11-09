@@ -706,6 +706,15 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aWordOpenWhenThePacksCannotOpenStopsWaiting() = runTest {
+        val vm = SearchViewModel({ PackSet.Unusable("el diccionario esta dañado") })
+        val leida = async { vm.entry("fake", 1) }
+        advanceUntilIdle()
+        assertTrue(leida.isCompleted)
+        assertEquals(null, leida.await())
+    }
+
+    @Test
     fun aSavedWordTappedBeforeThePacksAreReadyStillOpens() = runTest {
         val fake = FakeDictionary()
         fake.summaries = mapOf(
@@ -752,6 +761,28 @@ class SearchViewModelTest {
         val row = vm.state.value.history.single()
         assertEquals("casa", row.headword)
         assertEquals("noun", row.partOfSpeech)
+    }
+
+    @Test
+    fun aTileWordOpensOnceEvenWhenThePacksReload() = runTest {
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "casa", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+            9L to EntrySummary(entryId = 9, headword = "perro", partOfSpeech = "noun", rank = 1,
+                lang = "es"),
+        )
+        val vm = SearchViewModel({ listos(fake) })
+        advanceUntilIdle()
+        val fromTile = visit("casa", 7, pack = "fake")
+        assertEquals(7L, vm.openFromTile(fromTile))
+        advanceUntilIdle()
+        vm.recordVisit(visit("perro", 9, pack = "fake"))
+        advanceUntilIdle()
+        // The screen asks again each time the packs come back to Ready, with the same intent.
+        assertEquals(null, vm.openFromTile(fromTile))
+        advanceUntilIdle()
+        assertEquals(listOf("perro", "casa"), vm.state.value.history.map { it.headword })
     }
 
     @Test
