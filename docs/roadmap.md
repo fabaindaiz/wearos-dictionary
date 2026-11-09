@@ -55,6 +55,21 @@ cleared it.
   another tier through a sibling (`lamp`, `hubby`), and 162 not classified (`league`, `gin`). The
   400 are the richest-entry filter kept by d-a2f271-c9f13c; whether common words like `mention` are
   worth lifting it for is the owner's, not decided.
+
+**To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
+remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
+(`../wearos-dictionary-data`, outside git) holds the dumps and this rebuild's `dist/`; `../wearos-debug-tool`
+holds the session tool. To reach the watch: `adb mdns services` gives its address, `adb connect` that
+port; when it refuses, the owner reads a pairing code off the watch for `adb pair`. The first concrete
+step: `status` for the wake lock. Then the list below.
+
+**Pending, as of this close:**
+
+- **Decided on 2026-11-09 and not built** (`docs/decisions.md`, the four rows of that date; review in
+  `docs/formato-pack.md`): English per-sense translations and the cap of 12, with a rebuild of the English
+  packs and a new `versionCode`; the bilingual's tappable gloss; word-level translations below the senses
+  when a sense has its own. The comment in `build_pack.py` and the sentence on `W`'s place in
+  `docs/formato-pack.md` change with them.
 - **The owner's to decide:** whether a week of daily use on R8 is what they
   want (i-a2f271-55ddfc: the watch runs R8 since 2026-10-26); the proposed decision d-a2f271-2ccd54; which
   of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).

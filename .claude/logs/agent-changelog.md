@@ -57,6 +57,9 @@ richest entry is a sibling that is not common, 176 kept in another tier, 162 not
 **What went wrong.** The first count crashed at its end on a field name (`pos` for `part_of_speech`)
 after ten minutes, and a second run was needed to keep the list it counted. The first version of the
 tile test passed for the wrong order: a visit recorded in a coroutine had not landed yet.
+An edit of the roadmap cut from one bullet to the next one it could find, and that was past the hand-off
+paragraph and the heading of the pending list: both went out in `f59a1ce`, and the next edit's assertion
+found it. Restored from `9ee9f0a`, with the diff against it read line by line.
 
 **Not done.** Nothing merged or pushed; the review's answer on `K` and on the 400 words are the
 owner's to read. The upload's whole path waits for a real upload.

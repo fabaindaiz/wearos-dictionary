@@ -505,6 +505,53 @@ fragments.
 and returns corrupt text. See
 [contratos-cruzados.md](contratos-cruzados.md#3-deflate-does-not-validate-its-preloaded-dictionary).
 
+## How a card's senses are built, ordered and linked — reviewed 2026-11-09
+
+Read from the code (`sources/kaikki.py` `_senses`, `sources/wordnet.py`, `EntryScreen.kt`) and checked
+against the packs of 2026-11-06 and the September dumps (macOS, 2026-11-09). Asked for by the owner.
+
+**Built.** One entry per headword **and part of speech**: `banco` is a noun and, separately, an
+interjection. Its senses are the source's, in the source's order, minus the *form of* senses and the
+ones with no gloss. Of a gloss with levels the last one is kept, the one that defines.
+
+**Ordered.** As the source orders them, and nothing reorders them. Reordering was measured safe and
+left undone for lack of a better signal (roadmap §*El orden de las acepciones dentro de una ficha*):
+`sense_code` does not take the position, so a link survives a reorder. The card draws three and
+hides the rest behind *see more* (`tuning.json` `visibleSenses`).
+
+**What lowering the labelled senses would change**, measured on the core packs of 2026-11-06 over the
+multi-sense entries (21,265 in `es-core`, 32,615 in `en-core`): every label 3.1 % and 5.3 % change their
+first sense; only place labels 1.6 % and 2.1 %; place and colloquial 2.1 % and 3.3 %; only old or
+literary 1.3 % and 2.7 %. Read in samples of seven per variant, so a direction and not a rate: a word
+whose first sense carries a place or a register is usually a word whose meaning **is** that one, and
+the next sense is rarer (`piscolabis` falls to a card-game move, `malón` to a crowd, English initialisms
+swap one expansion for another). Lowering old senses is the only variant that helps, and it is mixed:
+`amortizar` and `tuerto` improve, `rúa` and `floppy` get worse.
+
+**Linked.** Each kind of link arrives in one of two shapes, and the attribution rule is the same for
+all: a link joins a sense only when the source says which one, and is otherwise dropped or kept at
+word level (`W`), never hung on the first sense (D-117).
+
+| Link | Spanish dump | English dump | Cap per sense | Coverage (senses, 20,000 entries a pack) |
+|---|---|---|---|---|
+| Synonyms `Y` | top-level, `sense_index` | nested in the sense | 4 | es-full 18.9 %, en-full 13.7 % |
+| Antonyms `A` | top-level, `sense_index` | nested in the sense | 4 | 1.9 %, 1.3 % |
+| Related `R` | entry level: only on a single-sense entry | nested, and entry level on a single sense | 4 | 2.6 %, 8.2 % |
+| Translations `T` | top-level, `sense_index`, ranges expanded | **nested in the sense: not read** | 8 | 8.8 %, **0.0 %** |
+| Word translations `W` | top-level without `sense_index` | top-level | 8 | 6.2 %, 0.5 % of entries |
+
+WordNet adds synonyms (and English antonyms) only where the entry has one sense and the lemma one
+synset of its category (`sources/wordnet.py`). In the bilingual pack the gloss is itself English
+(`bank (financial institution)`) and `T` repeats its head word: 78.5 % of its senses carry one.
+
+⚠️ **The English per-sense translations are dropped, and that was believed impossible.** The pack's
+comment says its translations into Spanish carry no `sense_index`, which is true of the **9,786**
+top-level ones. The September dump carries **129,777** more **nested in 74,387 senses** of 60,067
+records, which `_senses` never reads: `bright` has `brillante, luminoso` on its first sense and
+`inteligente` on another, and the card shows three word-level translations from the top level.
+Reading them is the same move `_nested` made for synonyms, and it would also fill `trans`, which is
+what lets `brillante` find `bright`.
+
 ## Extending the format without breaking what is installed
 
 The question this answers: **what can be added later, and what costs every installed pack?**
