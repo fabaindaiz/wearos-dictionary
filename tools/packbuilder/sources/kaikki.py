@@ -123,7 +123,7 @@ MAX_SYNONYMS_PER_SENSE = 4
 # complement**: somebody opening an entry looking for the translation wants to see it, not four of
 # them. Measured over the Spanish dump, the median is 1 and the p90 is 2, so this cap almost never
 # bites -- it exists for the maximum of 17.
-MAX_TRADUCCIONES_POR_ACEPCION = 8
+MAX_TRADUCCIONES_POR_ACEPCION = 12
 
 # The three fields the related words come from, **in this order**, which is the order of how much
 # they say: a hypernym places the word ("guanaco -> camelido"), a hyponym gives a case, and
@@ -563,10 +563,11 @@ def _indices(index):
     return salida
 
 
-def _nested(sense, headword, clave):
+def _nested(sense, headword, clave, idioma=None):
     """The items that come INSIDE the sense. The English dump's shape.
 
-    `clave` is "synonyms" or "antonyms", same as in `_by_sense_index`.
+    `clave` is "synonyms", "antonyms" or "translations", same as in `_by_sense_index`, and `idioma`
+    filters by `code` for the same reason it does there.
 
     No `sense_index` is asked for and that is not an oversight: here the attribution is structural
     --the item already lives in its sense-- whereas in the shape above it is declared. Requiring it
@@ -583,6 +584,8 @@ def _nested(sense, headword, clave):
         # Same as in _forms() and in the shape above: a synonym identical to the lemma contributes
         # nothing. Measured: 1.9 % of the English items.
         if not word or word == headword or word in vistos:
+            continue
+        if idioma is not None and (item.get("code") or item.get("lang_code")) != idioma:
             continue
         vistos.add(word)
         out.append(word)
@@ -725,8 +728,13 @@ def _senses(raw, translations_to=None, perfil=None):
             # the list mode exists: hanging it off sense 1 gets it right sometimes and wrong other
             # times with no trace. Measured, 37.7 % of the dump's translations carry no index --
             # that data is real and its honest place is the entry-level channel, which does not yet
-            # exist (roadmap §Naming a sense from another pack).
-            "translations": traducciones.get(index, [])[:MAX_TRADUCCIONES_POR_ACEPCION],
+            # exist (roadmap §Naming a sense from another pack). Nested ones need no index: the
+            # sense that holds them is the attribution, and English serves 129,777 of them.
+            "translations": (
+                traducciones.get(index, [])
+                or (_nested(sense, headword, "translations", translations_to)
+                    if translations_to else [])
+            )[:MAX_TRADUCCIONES_POR_ACEPCION],
             "synonyms": (
                 synonyms.get(index, []) or _nested(sense, headword, "synonyms")
             )[:MAX_SYNONYMS_PER_SENSE],

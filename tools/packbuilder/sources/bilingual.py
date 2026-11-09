@@ -180,7 +180,7 @@ def translation_keys(gloss, for_search=True):
 
 # How many of the other language's equivalents a reverse entry shows.
 #
-# ⚠️ **8, the same cap as the per-sense translations, and for the same reason**: at 234 dp a longer
+# ⚠️ **8, and for screen reasons**: at 234 dp a longer
 # list stops being read and starts pushing. The equivalents are ordered by `rank`, so the 8 that
 # remain are the 8 most common and not the dump's first 8.
 MAX_EQUIVALENTES = 8

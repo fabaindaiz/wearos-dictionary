@@ -944,6 +944,52 @@ class TraduccionesTest(unittest.TestCase):
         self.assertEqual([], got.senses[0]["translations"])
         self.assertEqual([], got.senses[1]["translations"])
 
+    def test_las_traducciones_anidadas_van_a_su_acepcion(self):
+        """The English dump's shape: the item lives inside its sense, and `bright` needs both."""
+        path = _jsonl({
+            "word": "bright", "pos": "adj", "lang_code": "en", "lang": "English",
+            "pos_title": "Adjective",
+            "senses": [
+                {"glosses": ["emitting much light"], "translations": [
+                    {"word": "brillante", "code": "es"},
+                    {"word": "brillante", "code": "es"},
+                    {"word": "hell", "code": "de"},
+                ]},
+                {"glosses": ["of a colour: vivid"]},
+                {"glosses": ["intelligent"], "translations": [{"word": "inteligente", "code": "es"}]},
+            ],
+            "translations": [{"word": "vivo", "code": "es"}],
+        })
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en", translations_to="es")))
+        self.assertEqual(["brillante"], got.senses[0]["translations"])
+        self.assertEqual([], got.senses[1]["translations"])
+        self.assertEqual(["inteligente"], got.senses[2]["translations"])
+        self.assertEqual(("vivo",), got.word_translations)
+        # They fill the search channel too: it is what makes `brillante` find `bright`.
+        self.assertIn("brillante", got.translations)
+        self.assertIn("inteligente", got.translations)
+
+    def test_sin_idioma_declarado_las_anidadas_tampoco_entran(self):
+        path = _jsonl({
+            "word": "bright", "pos": "adj", "lang_code": "en", "lang": "English",
+            "pos_title": "Adjective",
+            "senses": [{"glosses": ["luminous"], "translations": [{"word": "brillante", "code": "es"}]}],
+        })
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="en")))
+        self.assertEqual([], got.senses[0]["translations"])
+
+    def test_una_acepcion_y_una_palabra_guardan_hasta_doce_traducciones(self):
+        muchas = [{"word": f"t{i}", "code": "en"} for i in range(14)]
+        path = _jsonl(_raw("vela", "noun", [_sense("luz", sense_index="1")], translations=[
+            {**item, "sense_index": "1"} for item in muchas
+        ] + [{"word": f"w{i}", "code": "en"} for i in range(14)]))
+        self.paths.append(path)
+        got = next(iter(kaikki.records(path, lang="es", translations_to="en")))
+        self.assertEqual(12, len(got.senses[0]["translations"]))
+        self.assertEqual(12, len(got.word_translations))
+
     def test_el_dump_ingles_traduce_por_el_canal_de_la_palabra(self):
         """⚠️ An earlier conclusion was too strong and this test corrects it.
 

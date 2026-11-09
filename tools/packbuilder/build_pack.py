@@ -490,12 +490,9 @@ PACKS = {
             "English definitions from Wiktionary. Includes synonyms, antonyms, "
             "related words and the source of each quoted example."
         ),
-        # ⚠️ **English DOES translate, through the word channel.** It had been concluded that it
-        # could not, by measuring that its 9,987 translations into Spanish carry **0
-        # `sense_index`** -- but that only closes the `T` channel, which demands per-sense
-        # attribution. The `W` channel exists precisely for the unattributable, so those 9,987 get
-        # in, and they fill `trans` along the way: it is what makes searching `perro` find `dog` in
-        # the English pack.
+        # English translates through two channels. Its 129,777 translations into Spanish nested in
+        # a sense go to `T`; the 9,786 at the top level carry no `sense_index`, so they go to `W`.
+        # Both fill `trans`, which is what makes searching `perro` find `dog` in the English pack.
         "translations_to": "es",
         "langs": "en",
         "fuzzy_profile": "en",
