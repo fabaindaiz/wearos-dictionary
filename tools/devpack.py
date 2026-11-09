@@ -9,6 +9,7 @@ verifies no catalogs, and knows nothing of WorkManager or D-029.
     python3 tools/devpack.py list   [-s SERIAL]
     python3 tools/devpack.py rm     <pack-id> [-s SERIAL]
     python3 tools/devpack.py devices
+    python3 tools/devpack.py upload <app.apk> <pack.db>... [-s SERIAL] [--solo-apk]
 
 WHY IT IS NOT JUST AN `adb push`
 
@@ -548,6 +549,67 @@ def _comprobar(adb, meta, esperado, tamano, salida_sha):
     return False
 
 
+#: One step of `upload`. `siempre` runs even after an earlier step failed: the session's stop.
+PasoDeSubida = namedtuple("PasoDeSubida", "nombre argv siempre")
+
+#: The session tool, cloned beside this repository (d-a2f271-ab8cd7).
+SESION = os.path.join(os.path.dirname(RAIZ), "wearos-debug-tool", "watchsession.py")
+
+
+def _exige_packs(packs, solo_apk):
+    if not packs and not solo_apk:
+        raise PackInvalido("una subida sin packs completos deja vacio lo que leen de ellos; "
+                           "pasa los .db o --solo-apk si es a proposito")
+
+
+def plan_upload(serial, apk, packs, sesion=SESION, solo_apk=False):
+    """The upload to a watch: session, packs, then the APK, and the session stopped whatever fails.
+
+    The packs go first so the APK's one launch opens the final set and its log reads it whole. An
+    APK without packs is refused unless asked for: the list of *see more words* reads the full
+    pack, so a new APK over old full packs shows a tier with no words (`LOCAL/todas es-full=0`).
+    """
+    _exige_packs(packs, solo_apk)
+    yo = [sys.executable, os.path.abspath(__file__), "-s", serial]
+    tool = [sys.executable, sesion, "-s", serial]
+    pasos = [PasoDeSubida("sesion", tool + ["start"], False)]
+    pasos += [PasoDeSubida("pack " + os.path.basename(p), yo + ["install", p, "--no-restart"], False)
+              for p in packs]
+    pasos.append(PasoDeSubida("app", tool + ["deploy", apk, "--actividad", ACTIVITY, "--tag", "Dict",
+                                             "--listo", "arranque", "--espera", "240"], False))
+    pasos.append(PasoDeSubida("cierre", tool + ["stop"], True))
+    return pasos
+
+
+def ejecutar_subida(pasos, correr):
+    """Runs the plan with `correr(argv) -> exit code`; returns the first failed step's name, or None.
+
+    After a failure only the steps marked `siempre` run.
+    """
+    fallo = None
+    for paso in pasos:
+        if fallo is not None and not paso.siempre:
+            continue
+        print("== %s" % paso.nombre)
+        if correr(paso.argv) != 0 and fallo is None:
+            fallo = paso.nombre
+    return fallo
+
+
+def cmd_upload(args):
+    _exige_packs(args.packs, args.solo_apk)
+    adb = buscar_adb()
+    serial = elegir_dispositivo(
+        subprocess.run([adb, "devices", "-l"], capture_output=True).stdout.decode("utf-8", "replace"),
+        args.device)
+    pasos = plan_upload(serial, args.apk, args.packs, args.sesion, args.solo_apk)
+    fallo = ejecutar_subida(pasos, lambda argv: subprocess.run(argv).returncode)
+    if fallo is not None:
+        print("fallo en: %s (la sesion se cerro igual)" % fallo)
+        return 1
+    return 0
+
+
 def main(argv):
     parser = argparse.ArgumentParser(
         prog="devpack", description="Instala packs de diccionario en un reloj por adb."
@@ -571,6 +633,13 @@ def main(argv):
     p_rm.add_argument("pack_id")
     p_rm.add_argument("--no-restart", action="store_true")
     p_rm.set_defaults(func=cmd_rm)
+
+    p_upload = subs.add_parser("upload", help="packs, luego el APK, y la sesion cerrada siempre")
+    p_upload.add_argument("apk")
+    p_upload.add_argument("packs", nargs="*", help="los .db completos que van con este APK")
+    p_upload.add_argument("--solo-apk", action="store_true", help="subir el APK sin packs")
+    p_upload.add_argument("--sesion", default=SESION, help="watchsession.py")
+    p_upload.set_defaults(func=cmd_upload)
 
     p_devices = subs.add_parser("devices", help="que dispositivos ve adb")
     p_devices.set_defaults(func=cmd_devices)

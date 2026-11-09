@@ -251,3 +251,65 @@ class PaqueteAusenteTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanUploadTest(unittest.TestCase):
+    """`upload`: packs first, then the APK, and the session always stopped.
+
+    Two uploads carried full packs with a new APK and both were typed by hand. An APK sent without
+    the full packs it was built against leaves *Local* empty on the watch (`LOCAL/todas es-full=0`),
+    and a session nobody stops keeps the watch's radio awake.
+    """
+
+    SESION = "/x/watchsession.py"
+
+    def _plan(self, packs=("es-full.db", "en-full.db"), apk="app-debug.apk", **kw):
+        return devpack.plan_upload("192.0.2.1:5555", apk, list(packs), self.SESION, **kw)
+
+    def test_the_packs_go_before_the_apk(self):
+        pasos = self._plan()
+        instalar = [i for i, p in enumerate(pasos) if "install" in p.argv]
+        deploy = [i for i, p in enumerate(pasos) if "deploy" in p.argv]
+        self.assertEqual(2, len(instalar))
+        self.assertEqual(1, len(deploy))
+        self.assertLess(max(instalar), deploy[0])
+
+    def test_the_packs_do_not_relaunch_the_app_the_apk_does(self):
+        for paso in self._plan():
+            if "install" in paso.argv:
+                self.assertIn("--no-restart", paso.argv)
+
+    def test_the_session_opens_first_and_stops_last(self):
+        pasos = self._plan()
+        self.assertIn("start", pasos[0].argv)
+        self.assertIn("stop", pasos[-1].argv)
+        self.assertTrue(pasos[-1].siempre)
+
+    def test_every_step_names_the_device(self):
+        for paso in self._plan():
+            self.assertIn("192.0.2.1:5555", paso.argv)
+
+    def test_an_apk_without_packs_is_refused_unless_asked_for(self):
+        with self.assertRaises(devpack.PackInvalido):
+            self._plan(packs=())
+        self.assertIn("deploy", self._plan(packs=(), solo_apk=True)[1].argv)
+
+
+class EjecutarSubidaTest(unittest.TestCase):
+
+    def test_a_failed_pack_skips_the_apk_and_still_stops_the_session(self):
+        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full.db", "en-full.db"], "/x/w.py")
+        corridos = []
+
+        def correr(argv):
+            corridos.append(argv)
+            return 1 if "es-full.db" in argv else 0
+
+        self.assertEqual("pack es-full.db", devpack.ejecutar_subida(pasos, correr))
+        self.assertFalse(any("deploy" in a for a in corridos))
+        self.assertFalse(any("en-full.db" in a for a in corridos))
+        self.assertIn("stop", corridos[-1])
+
+    def test_a_clean_upload_reports_nothing(self):
+        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full.db"], "/x/w.py")
+        self.assertIsNone(devpack.ejecutar_subida(pasos, lambda argv: 0))

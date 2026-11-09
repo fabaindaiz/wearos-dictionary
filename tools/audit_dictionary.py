@@ -1609,6 +1609,9 @@ def check_spanish_prose_budget(report):
                 "la prosa en espanol crecio en %s: %d lineas contra un techo de %d"
                 % (prefijo, total, techo),
                 "lo que se escriba de ahora en adelante va en ingles (CLAUDE.md, Working style). "
+                "Two exceptions do not count against it: a UI string, and English prose quoting a "
+                "Spanish word, as long as each line also carries an English word (a word wrapped "
+                "alone onto its own line counts as Spanish). "
                 "Si tradujiste algo, baja el techo en TECHO_ESPANOL en el mismo commit",
             )
         elif total < techo:

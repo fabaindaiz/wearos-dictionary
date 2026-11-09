@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 807 tests
+hatch run test              # the 816 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -58,7 +58,13 @@ before renaming. A half-copied `.db` opens without error and returns fewer words
 D-082.
 
 It lives in `tools/` and not in `packbuilder/` because it neither builds nor validates packs: it
-talks to the device. Its pure logic — assembling the command plan, picking a device, comparing
+talks to the device.
+
+`devpack.py upload <app.apk> <pack.db>...` is the whole upload to a watch: the session tool's
+`start`, each pack, then `deploy` of the APK, and `stop` **even when a step failed**. The packs go
+first so the APK's one launch reads the final set. It refuses an APK with no packs unless
+`--solo-apk` says so: *see more words* reads the full pack, and a new APK over old full packs logged
+`LOCAL/todas es-full=0`. Its pure logic — assembling the command plan, picking a device, comparing
 hashes — enters the gate through `:tools:pythonTest`; running adb needs a watch and **does not**.
 
 ## `packserver.py`: the download path, without deciding where the catalogue lives
