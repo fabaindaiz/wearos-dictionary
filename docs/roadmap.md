@@ -76,8 +76,10 @@ step: `status` for the wake lock. Then the list below.
   of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
-- **Before a merge into `main`:** the review ran on 2026-11-09 (isolated, no blocker); its two
-  should-fix findings are fixed or answered, the merge waits on the owner's word.
+- **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
+  the tile fix, and its two should-fix findings are fixed or answered. The two feature commits on senses
+  came after it and **no review has read them**; a review of those comes before the merge, which waits on
+  the owner's word.
 - **The upload command's whole path** (`devpack.py upload`) runs only against a watch: the session tool
   refuses an emulator, which is how its failure path was seen to stop the session.
 - **Can wait, by the sweep of i-a2f271-e96d28:** bilingual fragments (i-a2f271-73edb1), set phrases, rhymes,
@@ -6394,6 +6396,13 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 ---
 
 ## Proceso y herramientas
+
+### Waiting on a build by matching its name also matches the waiting shell — 2 incidents, proposed · i-a2f271-d2f826
+
+2026-10 (`pgrep -f build_packs.py` matched the waiting shells, twenty minutes misread) and 2026-11-09
+(`ps | grep -c` counted the shell whose text named the script). **Cost:** about 5 lines, `build_packs.py`
+writes `<root>/build.done` with its exit code, and a wait reads that file. **What it closes:** a finished
+or dead build read as running. Recommendation: build it with the next change to that script. Not executed.
 
 ### An upload is packs, then the APK, then a guaranteed stop, **BUILT 2026-11-09** as `devpack.py upload` · i-a2f271-d31ed4
 

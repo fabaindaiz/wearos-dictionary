@@ -39,8 +39,29 @@ date in `docs/decisions.md`.
 was low: the real cost in `en-full` is 5.0 MB. The first commit attempts failed on `bundlePacks`,
 as designed: new cores under an old `versionCode`.
 
+The emulator (booted to look at two cards) and the gate together starved this memory-tight host: a
+gate ran past 500 s and two commands timed out, so the emulator was shut down. Two mistakes in shell
+filters: `grep dictionary` picked `userdictionary`, then `grep fadiaz` another app, whose `force-stop`
+on the emulator was harmless; and `grep` for `verify_pack`'s verdict matched nothing and read as empty,
+so the verdict was re-read by exit code.
+
 **Left undone.** Nothing went to the watch. A bilingual card's other gloss words still resolve in the
-entry's language, in the roadmap.
+entry's language, in the roadmap. `to run` was seen only in the screen test, not on the emulator.
+
+**Review.** None on the three commits of this entry (`258d31d`, `183749a`, `f1b40b8`), so the roadmap
+asks for one before a merge. The owner asked for the changes, the commits and the push, not for a review.
+
+**Cards relied on.** `.agents/knowledge/INDEX.md` was consulted only at this close, not before the
+design, against the memory that says to read it first. `derived-copy-goes-stale-silently` applies to
+the cores: its check is `bundlePacks` and `check_bundled_cores`, which ran and fired.
+
+**Rulings.** Decided alone, each reversible: the cap of the bilingual's reverse entries stays 8; a head
+drops `to` only from a term of two words or more; the other gloss words of a bilingual card are left
+as they were; `0.13.0` as the `versionName`.
+
+**Learned.** General: a filter that prints nothing is not a verdict, read the exit code. Local: a
+waiting shell matches its own target (second incident, roadmap §*Proceso y herramientas*); do not run the
+gate with the emulator up on this host (first incident, here).
 
 ## 2026-11-09 · s-a2f271-217bde — The branch reviewed, and an upload that cannot skip the full packs
 

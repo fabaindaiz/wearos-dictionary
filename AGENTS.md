@@ -181,7 +181,7 @@ its own format, and why, at its end.
   commit messages are English; technical terms stay untranslated either way (gate, covering index,
   payload, rung). The UI strings the user reads are the exception: they belong to the
   localization, not to a translation pass.
-- **Trade-offs and concepts before code dumps.** Explain what is gained and what is lost.
+- **Trade-offs and concepts before code dumps.** Explain what is gained and what is lost. A format or query also says what interaction it opens or closes: the UI is decided last.
 - **Clarifying questions before detailed solutions.** A wrong assumption costs more than a
   question.
 - **Primary sources.** Official documentation or the artifact repository, not a summary. Mark
