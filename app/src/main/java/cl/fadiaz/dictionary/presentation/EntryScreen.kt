@@ -151,8 +151,8 @@ fun EntryScreen(
     /**
      * The kind of pack this entry comes from, or `null` when it is not known.
      *
-     * ⚠️ **It is here only to decide whether the missing definition gets said**, and `null` stays
-     * SILENT on purpose. Saying *"this dictionary has no definition"* over a bidirectional pack's
+     * It decides how a bilingual gloss draws its translations ([GlossHeads]) and whether the
+     * missing definition gets said, and for that one `null` stays SILENT on purpose. Saying *"this dictionary has no definition"* over a bidirectional pack's
      * reverse entry would call its whole purpose a defect on 164,249 rows (D-196), so when the
      * kind is unknown the card says nothing rather than risking that. See [lacksDefinition].
      */
@@ -232,8 +232,14 @@ fun EntryScreen(
             .map { TextNormalizer.norm(it) }
             .filterNot { it.isEmpty() }
             .toSet()
+        // A head's key is not the term's when the term is an infinitive: `to run` opens `run`.
+        val cabezas = if (packKind == PackKind.BILINGUAL) {
+            loaded.senses.flatMap { GlossHeads.find(it.gloss, it.translations) }.map { it.key }
+        } else {
+            emptyList()
+        }
         val deLasTraducciones = (loaded.senses.flatMap { it.translations } +
-            loaded.wordTranslations)
+            loaded.wordTranslations + cabezas)
             .map { TextNormalizer.norm(it) }
             .filterNot { it.isEmpty() }
             .toSet()
@@ -345,24 +351,6 @@ fun EntryScreen(
                 }
             }
 
-            // ⚠️ **The WORD's translations go here, outside `SenseBlock`, and that placement is
-            // half the design.** A list drawn under a sense **asserts** that it belongs to it, and
-            // what lands here is precisely what the source could not attribute: merging them would
-            // undo on screen what the format separated (D-117), and the error would read
-            // perfectly plausible.
-            //
-            // ⚠️ **They go BEFORE the senses, and that reverses what this comment used to say.**
-            // They were after, on the reasoning that "the definitions are what the reader came
-            // for". The measurement that was already right here disproves it: **48.6 %** of the
-            // entries with a translation have **only** these, so for half the cases the section
-            // that went last was the whole answer, and it sat below a `See more (12)` you have to
-            // tap to reach. Asked for: *"that the per-word translation, when available with no
-            // senses, appear at the start"*.
-            //
-            // Only 3.0 % shows both sections at once, so the cost of pushing the senses down is
-            // paid by one entry in thirty.
-            //
-            // With `prominent`: it hangs off no sense, so it is not drawn subordinate to one.
             // ⚠️ **Forms come BEFORE the translations and carry a sense's weight**, which was
             // the request. The order is not cosmetic: *how this word is spelled* is a question
             // about the word itself, and it is answered before *how it is said in another
@@ -394,22 +382,24 @@ fun EntryScreen(
                 }
             }
 
+            val allSenses = current?.senses.orEmpty()
+
+            // ⚠️ **The WORD's translations stay outside `SenseBlock`, and that placement is half
+            // the design.** A list drawn under a sense **asserts** that it belongs to it, and what
+            // lands here is precisely what the source could not attribute (D-117).
+            //
+            // They open the card only when no sense has its own (d-a2f271-ee457b): then they are
+            // the whole answer, and they must not sit below a `See more` (D-192). Otherwise a sense's
+            // translation is the more precise one, and `bright` would open on `expresivo, vívido,
+            // vivo`. A hidden sense counts: the rule is about the word, not about what fits.
             val wordTranslations = current?.wordTranslations.orEmpty()
-            if (wordTranslations.isNotEmpty()) {
+            val aSenseHasItsOwn = allSenses.any { it.translations.isNotEmpty() }
+            if (wordTranslations.isNotEmpty() && !aSenseHasItsOwn) {
                 item(key = "traducciones-palabra") {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        TermList(
-                            R.string.entry_word_translations_title,
-                            wordTranslations,
-                            links,
-                            onOpenWord,
-                            prominent = true,
-                        )
-                    }
+                    WordTranslations(wordTranslations, links, onOpenWord)
                 }
             }
 
-            val allSenses = current?.senses.orEmpty()
             val visibleOnes =
                 if (expanded) allSenses else allSenses.take(ajustes.visibleSenses)
             val hidden = allSenses.size - visibleOnes.size
@@ -428,6 +418,7 @@ fun EntryScreen(
                         sense = sense,
                         links = links,
                         onOpenWord = onOpenWord,
+                        bilingual = packKind == PackKind.BILINGUAL,
                     )
                 }
             }
@@ -459,6 +450,12 @@ fun EntryScreen(
                         margin = 24.dp,
                         onClick = { expanded = true },
                     )
+                }
+            }
+
+            if (wordTranslations.isNotEmpty() && aSenseHasItsOwn) {
+                item(key = "traducciones-palabra") {
+                    WordTranslations(wordTranslations, links, onOpenWord)
                 }
             }
 
@@ -678,7 +675,10 @@ private fun SenseBlock(
     sense: Sense,
     links: Map<String, WordLink>,
     onOpenWord: (WordLink) -> Unit,
+    bilingual: Boolean,
 ) {
+    val cabezas = if (bilingual) GlossHeads.find(sense.gloss, sense.translations) else emptyList()
+    val traducciones = sense.translations - cabezas.map { it.term }.toSet()
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         // The usage labels go on the number's line, above the gloss (d-a2f271-1f80cd), so a
         // regional or vulgar sense is marked before it is read.
@@ -690,7 +690,12 @@ private fun SenseBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        val glosa = annotatedGloss(if (etiquetas.isEmpty()) "$number. " else "", sense.gloss, links)
+        val glosa = annotatedGloss(
+            if (etiquetas.isEmpty()) "$number. " else "",
+            sense.gloss,
+            links,
+            cabezas,
+        )
         LinkedText(
             text = glosa.text,
             targets = glosa.targets,
@@ -735,7 +740,7 @@ private fun SenseBlock(
         // language never resolved. Now the destination says which dictionary it goes to, so
         // `house` can lead to the English pack's entry -- and if that pack is not installed, it
         // does not resolve and is shown unpainted, which is the same promise as always (D-084).
-        TermList(R.string.entry_translations_title, sense.translations, links, onOpenWord)
+        TermList(R.string.entry_translations_title, traducciones, links, onOpenWord)
         TermList(R.string.entry_synonyms_title, sense.synonyms, links, onOpenWord)
         // The antonyms, below and with the same visual weight (D-126). ⚠️ **The category is not
         // optional**: the three lists look identical, and the only thing separating "another way
@@ -746,6 +751,24 @@ private fun SenseBlock(
         // entries --one sense, no example-- which are 70.4 % of the Spanish pack, so in practice
         // this list is the only thing under the gloss (D-132).
         TermList(R.string.entry_related_title, sense.related, links, onOpenWord)
+    }
+}
+
+/** The translations that belong to the word and not to a sense, at a sense's weight. */
+@Composable
+private fun WordTranslations(
+    terms: List<String>,
+    links: Map<String, WordLink>,
+    onOpenWord: (WordLink) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        TermList(
+            R.string.entry_word_translations_title,
+            terms,
+            links,
+            onOpenWord,
+            prominent = true,
+        )
     }
 }
 
@@ -1092,22 +1115,26 @@ private fun annotatedGloss(
     prefijo: String,
     gloss: String,
     links: Map<String, WordLink>,
+    cabezas: List<GlossHead>,
 ): LinkedContent {
     val color = MaterialTheme.colorScheme.primary
-    return remember(prefijo, gloss, links, color) {
+    return remember(prefijo, gloss, links, cabezas, color) {
         val targets = mutableListOf<Pair<IntRange, WordLink>>()
         val text = buildAnnotatedString {
             append(prefijo)
             var cursor = 0
             for (word in GlossTokenizer.tokenize(gloss)) {
-                val target = links[word.norm] ?: continue
+                if (word.start < cursor) continue
+                val cabeza = cabezas.firstOrNull { it.start == word.start && it.key in links }
+                val target = links[cabeza?.key ?: word.norm] ?: continue
+                val fin = cabeza?.end ?: word.end
                 if (word.start > cursor) append(gloss.substring(cursor, word.start))
                 val desde = length
                 withStyle(SpanStyle(color = color)) {
-                    append(gloss.substring(word.start, word.end))
+                    append(gloss.substring(word.start, fin))
                 }
                 targets += (desde until length) to target
-                cursor = word.end
+                cursor = fin
             }
             if (cursor < gloss.length) append(gloss.substring(cursor))
         }

@@ -917,6 +917,72 @@ class ScreensTest {
     }
 
     @Test
+    fun wordTranslationsGoBelowTheSensesWhenASenseHasItsOwn() {
+        // A hidden sense counts: `visibleSenses` is what the screen draws, not what the word has.
+        val senses = List(3) { Sense("acepción $it") } +
+            Sense("acepción oculta", translations = listOf("bright"))
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}) {
+                entry().copy(senses = senses, wordTranslations = listOf("vivid"))
+            }
+        }
+        val traduccion = compose.onNodeWithText("Traducciones de la palabra")
+            .fetchSemanticsNode().positionInRoot.y
+        val acepcion = compose.onNodeWithText("acepción 2", substring = true)
+            .fetchSemanticsNode().positionInRoot.y
+        assertTrue("traducción y=$traduccion, acepción y=$acepcion", traduccion > acepcion)
+    }
+
+    @Test
+    fun aBilingualGlossHeadIsALinkAndItsLineGoes() {
+        compose.setContent {
+            EntryScreen(
+                1,
+                onOpenWord = {},
+                packKind = PackKind.BILINGUAL,
+                resolveIn = { norms, _, origen ->
+                    if (origen == TermSource.TRANSLATION) {
+                        norms.filter { it == "bank" || it == "run" }
+                            .associateWith { WordLink("en-core", 7L) }
+                    } else {
+                        emptyMap()
+                    }
+                },
+            ) {
+                entry().copy(
+                    senses = listOf(
+                        Sense(
+                            "bank (financial institution), to run",
+                            translations = listOf("bank", "depository", "to run"),
+                        ),
+                    ),
+                )
+            }
+        }
+        compose.waitForIdle()
+        // What the gloss does not say keeps its line.
+        // Exact: were `bank` still on the line, the node's text would be the two joined.
+        compose.onNodeWithText("depository").assertExists()
+        val glosa = compose.onNodeWithText("financial", substring = true).fetchSemanticsNode()
+            .config[SemanticsProperties.Text].single()
+        // Pinned on the painted span: the colour is the promise that the word leads somewhere.
+        assertEquals(
+            listOf("bank", "run"),
+            glosa.spanStyles.map { glosa.text.substring(it.start, it.end) },
+        )
+    }
+
+    @Test
+    fun aMonolingualCardKeepsTheTranslationLineItsGlossRepeats() {
+        compose.setContent {
+            EntryScreen(1, onOpenWord = {}, packKind = PackKind.MONOLINGUAL) {
+                entry().copy(senses = listOf(Sense("house of wood", translations = listOf("house"))))
+            }
+        }
+        compose.onNodeWithText("Traducción").assertExists()
+    }
+
+    @Test
     fun aTranslationResolvedInTheOtherPackIsTappable() {
         // ⚠️ **It is what forced a link to carry a `packId` and not only an `entryId`.** Until
         // here the map was `norm -> entryId` and `onOpenWord` navigated within the SAME pack, on
