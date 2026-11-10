@@ -53,8 +53,8 @@ cleared it.
   `_write_discover` then drops 1,080 participles of another verb (`received`, `moved`, deliberate),
   400 whose richest entry is a sibling that is not common (`mention`, `excess`, `scam`), 176 that keep
   another tier through a sibling (`lamp`, `hubby`), and 162 not classified (`league`, `gin`). The
-  400 are the richest-entry filter kept by d-a2f271-c9f13c; whether common words like `mention` are
-  worth lifting it for is the owner's, not decided.
+  400 are the richest-entry filter kept by d-a2f271-c9f13c; lifted for them on 2026-11-10
+  (d-a2f271-0b57d9), not built.
 
 **To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
 remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
@@ -69,11 +69,14 @@ step: `status` for the wake lock. Then the list below.
   English per-sense translations, the cap of 12, the bilingual's tappable gloss and `W` below the senses
   when a sense has its own. The packs of that date and `versionCode` 20 go up with `devpack.py upload`
   when the owner asks. Open: in a bilingual card every other gloss word still resolves in the entry's
-  language, so an English gloss word that spells a Spanish one paints a wrong link (not touched, not
-  asked for).
-- **The owner's to decide:** whether a week of daily use on R8 is what they
-  want (i-a2f271-55ddfc: the watch runs R8 since 2026-10-26); the proposed decision d-a2f271-2ccd54; which
-  of i-a2f271-e96d28's remainders go (`entry.uid`, the `meta` keys with no reader, the catalog fields).
+  language, so an English gloss word that spells a Spanish one paints a wrong link (decided
+  2026-11-10, d-a2f271-8f03e3).
+- **Decided on 2026-11-10 and not built** (`docs/decisions.md`, the rows of that date): the startup
+  profile on the emulator (d-a2f271-2ccd54); a non-debuggable watch build whose packs arrive by download
+  (d-a2f271-d49033, closes i-a2f271-55ddfc); `uid` in a saved word (d-a2f271-acd6e1); the entry count in
+  the catalog (d-a2f271-296b77); a word in a tier when any entry is (d-a2f271-0b57d9, a core rebuild);
+  a bilingual gloss resolved in English (d-a2f271-8f03e3); `build.done` (d-a2f271-4b78a1, closes
+  i-a2f271-d2f826). i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
 - **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
@@ -152,7 +155,7 @@ their figures are stale; the session log is the current record.
   the full rebuild that day (identity read back from the device, 5 packs open, 0 rejected).
 - **Not yet seen on a screen**: the *no definition* notice, and the result row's definition preview
   against the rebuilt packs. Both are emulator checks by this repo's rule.
-- ⚠️ **An owner request still open** (2026-09-29, `i-a2f271-55ddfc`): R8 was believed to be running
+- ✅ **Closed 2026-11-10 by d-a2f271-d49033** — an owner request (2026-09-29, `i-a2f271-55ddfc`): R8 was believed to be running
   on the device, and if not, the next upload should be an R8 build to be used for a week. Every
   upload since was a plain debug build. **Recommendation, not decided**: the next upload is
   `assembleDebug -PdebugR8` (it shrinks without optimising, see `app/build.gradle.kts`), and the
@@ -6397,7 +6400,7 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### Waiting on a build by matching its name also matches the waiting shell — 2 incidents, proposed · i-a2f271-d2f826
+### Waiting on a build by matching its name also matches the waiting shell — 2 incidents, accepted 2026-11-10 as d-a2f271-4b78a1 · i-a2f271-d2f826
 
 2026-10 (`pgrep -f build_packs.py` matched the waiting shells, twenty minutes misread) and 2026-11-09
 (`ps | grep -c` counted the shell whose text named the script). **Cost:** about 5 lines, `build_packs.py`

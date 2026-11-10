@@ -145,7 +145,7 @@ Everything the app needs to know before querying. It is read whole, once, on ope
 | `kind` | `bilingual` or `monolingual` |
 | `langs` | The pack's languages, **as peers**: `es` or `es,en`. A bilingual one declares two and neither is the principal |
 | `fuzzy_profiles` | One folding profile per language, **positional against `langs`** |
-| `tier` | `full` or `core`. Declared, so a core can step aside without the app guessing from the name |
+| `tier` | `full`, `main` or `core`. Read only by a log line; what lets a core step aside is `subset_of` |
 | `rank_signal_boundary` | Where `rank`'s frequency-signal band ends, when `rank_basis` is frequency. Declared so the app does not copy the builder's constant |
 | `fuzzy_profile` | Phonetic folding profile: `es`, `en`, `de`, `generic` |
 | `payload_codec` | `deflate-v2`. **Different → reject the pack** (`PackFile.open` compares with `!=`). See D-119 |
