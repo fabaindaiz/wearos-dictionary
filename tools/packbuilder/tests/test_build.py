@@ -1863,7 +1863,21 @@ class DiscoverTableTest(BuilderTestCase):
             build.Record(headword="mention", part_of_speech="verb", rank=120,
                          discover=discover.COMMON, senses=[{"gloss": "to refer to"}]),
         ], metadata=meta)
-        self.assertEqual([(0, 1, 0, "mention"), (1, 0, 0, "mention")], self._rows(db))
+        # And Common wins: the rare noun does not put a word everybody knows in *Rare*.
+        self.assertEqual([(0, 1, 0, "mention")], self._rows(db))
+
+    def test_a_common_word_stays_out_of_the_other_tiers(self):
+        # Seen in the rebuild of 2026-11-10: with every tier allowed, *Colloquial* nearly doubled
+        # with words like `chat`, whose noun carries a slang sense.
+        db = self.build([
+            build.Record(headword="chat", part_of_speech="verb", rank=900,
+                         discover=discover.COMMON, senses=[{"gloss": "to talk"}]),
+            build.Record(headword="chat", part_of_speech="noun", rank=900,
+                         discover=discover.COLLOQUIAL, senses=[{"gloss": "a talk"}]),
+            build.Record(headword="chuzo", part_of_speech="adj", rank=900,
+                         discover=discover.COLLOQUIAL, senses=[{"gloss": "x"}]),
+        ])
+        self.assertEqual([(0, 1, 0, "chat"), (3, 2, 0, "chuzo")], self._rows(db))
 
     def test_without_a_frequency_boundary_no_part_of_speech_is_preferred(self):
         db = self.build([

@@ -54,8 +54,9 @@ import re
 #: The version of this policy, written to `meta.discover_version` by the builder. A tier is a
 #: verdict the pack stores, so changing a rule here means rebuilding the packs; the version is how
 #: a pack says which rules it was built under. Bump it with any change to what `tier` returns, or
-#: to which entries the builder keeps per tier (6: a word joins every tier one entry belongs to).
-VERSION = 6
+#: to which entries the builder keeps per tier (6: a word joins every tier one entry belongs to;
+#: 7: a word with a common entry shows only in Common).
+VERSION = 7
 
 #: The tiers, as the `discover` table stores them and the app reads them. Part of the pack's
 #: contract: renumbering one makes every installed pack draw from the wrong tier, with no error.

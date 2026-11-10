@@ -760,6 +760,8 @@ class PackBuilder:
           a word still joins every tier one of its entries belongs to, so the common verb
           *mention* is not lost behind its richer noun (d-a2f271-0b57d9). Without a declared
           `rank_signal_boundary` there is no band and nothing is preferred.
+        - **Common wins.** A word with a common entry shows only in *Common*: allowing every tier
+          nearly doubled English *Colloquial* with words like *chat*, whose noun has a slang sense.
 
         `seq` is dense from 0 per `(tier, pos)`, in entry order: the app reads a bucket's size as
         `max(seq) + 1` and draws a `seq`, so a hole would be a draw that reads nothing.
@@ -769,6 +771,8 @@ class PackBuilder:
             " WHERE discover IS NOT NULL ORDER BY id").fetchall()
         if not self.discover_as_given:
             filas = [f for f in filas if not self._is_kept_participle(f)]
+            comunes = {f[1] for f in filas if f[5] == discover_policy.COMMON}
+            filas = [f for f in filas if f[1] not in comunes or f[5] == discover_policy.COMMON]
             frontera = self.metadata.get("rank_signal_boundary")
             if frontera is not None:
                 mas_rico = self._richest_by_headword_and_tier()
