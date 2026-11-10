@@ -80,6 +80,8 @@ META_FIELDS = {
     "schema_version": int,
     "norm_version": int,
     "license": str,
+    # Which pack this one is a subset of, so the catalog can say a core is already covered.
+    "subset_of": str,
 }
 # ⚠️ `attribution` is NOT published, on purpose: it is ~600 characters per pack --the Spanish core
 # cites five sources-- and **the pack already carries it inside**, so the app reads it after

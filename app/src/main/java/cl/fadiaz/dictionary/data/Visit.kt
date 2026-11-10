@@ -49,6 +49,11 @@ data class Visit(
      * the same rule that governs a gloss's links -- no tag beats the wrong one.
      */
     val lang: String? = null,
+    /**
+     * The entry's `entry.uid` (D-055), so a rebuild that moves ids cannot swap a saved word for
+     * its homograph (d-a2f271-acd6e1). Null in rows written before it, which relocate by headword.
+     */
+    val uid: Long? = null,
 )
 
 /**
@@ -75,6 +80,7 @@ internal fun serializeVisits(visits: List<Visit>): String =
             // `payload.sanitize()` takes with the tab.
             visit.gloss?.replace('\n', ' ')?.replace(SEPARATOR, " ").orEmpty(),
             visit.lang.orEmpty(),
+            visit.uid?.toString().orEmpty(),
         ).joinToString(SEPARATOR)
     }
 
@@ -103,6 +109,7 @@ internal fun parseVisits(text: String): List<Visit> =
                 // Absent in everything written before this field: those rows stay untagged,
                 // which is the migration. Inventing a language for them would be D-080's family.
                 lang = fields.getOrNull(5)?.ifEmpty { null },
+                uid = fields.getOrNull(6)?.toLongOrNull(),
             )
         }
         .toList()
@@ -141,6 +148,8 @@ internal fun visitTarget(
     saved: Visit,
     headwordAtId: String?,
     relocated: Long?,
+    /** The `uid` at `saved.entryId` today; it only overrules a headword match when both are known. */
+    uidAtId: Long? = null,
 ): VisitTarget = when {
     // With no headword there is nothing to fix by: the only question left is whether that id
     // exists. This happens with a tile deep link, which builds the visit from the intent extras.
@@ -148,7 +157,8 @@ internal fun visitTarget(
         if (headwordAtId != null) VisitTarget.Direct(saved.entryId) else VisitTarget.Missing
     // The normal case: the pack was not rebuilt. It costs the read that has to happen anyway to
     // show the entry, and NO extra query.
-    headwordAtId == saved.headword -> VisitTarget.Direct(saved.entryId)
+    headwordAtId == saved.headword && sameUid(saved.uid, uidAtId) ->
+        VisitTarget.Direct(saved.entryId)
     // The id shifted --or the pack shrank--. The headword is all that survives, and it goes
     // through an index. Precision is lost between homographs of the SAME pos (3,024 pairs in
     // Spanish, the ones `sense_key` separates in `entry.uid`): the best ranked one opens. That is
@@ -157,3 +167,6 @@ internal fun visitTarget(
     // The word is gone. The row is lost instead of opening some other word.
     else -> VisitTarget.Missing
 }
+
+/** Whether two identities agree, where an unknown one --an old row, an old pack-- never disagrees. */
+internal fun sameUid(saved: Long?, atId: Long?): Boolean = saved == null || atId == null || saved == atId

@@ -250,8 +250,13 @@ fun EntryScreen(
         // `MAX_PALABRAS_POR_CONSULTA` is 64 and glosses already average 39.9 keys in Spanish and
         // 58.8 in English, so merging them would overflow and **trim in silence**. Each cost a
         // measured 0.18 ms.
+        // A bilingual gloss is written in the OTHER language (`bank (financial institution)` under
+        // `banco`), so its words resolve there: as the entry's language, `once` and `pie` opened
+        // Spanish words (d-a2f271-8f03e3).
+        val origenDeLaGlosa =
+            if (packKind == PackKind.BILINGUAL) TermSource.TRANSLATION else TermSource.GLOSS
         links = runCatching {
-            resolveIn(deLaGlosa, loaded.lang, TermSource.GLOSS) +
+            resolveIn(deLaGlosa, loaded.lang, origenDeLaGlosa) +
                 resolveIn(propios, loaded.lang, TermSource.GLOSS) +
                 resolveIn(deLasTraducciones, loaded.lang, TermSource.TRANSLATION)
         }

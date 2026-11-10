@@ -84,6 +84,15 @@ interface DictionarySource {
     suspend fun summary(entryId: Long): EntrySummary?
 
     /**
+     * The entry with key [norm] and logical identity [uid], or `null` if there is none.
+     *
+     * It is what relocates a saved word after a rebuild without guessing between homographs
+     * (d-a2f271-acd6e1). It goes through the `norm` index and filters the handful of rows a key
+     * has, so `uid` needs no index of its own (D-056).
+     */
+    suspend fun entryIdOf(norm: String, uid: Long): Long?
+
+    /**
      * What each of these entries can say under its headword in a result list.
      *
      * ⚠️ **A batch and not one call per row**, because this runs on every keystroke over the whole

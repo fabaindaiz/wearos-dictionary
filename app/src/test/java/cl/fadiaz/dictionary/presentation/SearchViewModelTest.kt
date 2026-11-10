@@ -734,6 +734,38 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aSavedHomographIsFoundByItsUidAfterARebuild() = runTest {
+        // d-a2f271-acd6e1. After a rebuild the saved id 7 holds the other `vela`; the headword
+        // alone would open the best ranked one (9), the uid opens the saved one (12).
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "vela", partOfSpeech = "noun", rank = 1,
+                lang = "es", uid = 2),
+        )
+        fake.knownHeadwords = mapOf("vela" to 9L)
+        fake.byUid = mapOf(("vela" to 1L) to 12L)
+        val vm = SearchViewModel({ listos(fake) })
+        advanceUntilIdle()
+        vm.toggleFavorite(visit("vela", 7, pack = "fake").copy(uid = 1))
+        assertEquals(12L, vm.targetOf(visit("vela", 7, pack = "fake").copy(uid = 1)))
+        assertEquals(12L, vm.state.value.favorites.single().entryId)
+    }
+
+    @Test
+    fun aRecordedVisitLearnsItsUid() = runTest {
+        val fake = FakeDictionary()
+        fake.summaries = mapOf(
+            7L to EntrySummary(entryId = 7, headword = "vela", partOfSpeech = "noun", rank = 1,
+                lang = "es", uid = 5),
+        )
+        val vm = SearchViewModel({ listos(fake) })
+        advanceUntilIdle()
+        vm.recordVisit(visit("vela", 7, pack = "fake"))
+        advanceUntilIdle()
+        assertEquals(5L, vm.state.value.history.single().uid)
+    }
+
+    @Test
     fun savedWordsHaveNoCap() = runTest {
         // The owner's choice: saving a word never drops another in silence.
         val vm = SearchViewModel({ listos(FakeDictionary()) })

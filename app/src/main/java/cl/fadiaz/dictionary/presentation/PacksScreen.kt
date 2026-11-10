@@ -1,5 +1,7 @@
 package cl.fadiaz.dictionary.presentation
 
+import androidx.compose.ui.platform.LocalConfiguration
+import android.icu.text.CompactDecimalFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -252,7 +254,11 @@ fun PacksScreen(
                                 val bajando = downloads[oferta.pack.packId]
                                 PackRow(
                                     name = oferta.pack.name,
-                                    detail = detalleDeOferta(oferta, bajando),
+                                    detail = detalleDeOferta(
+                                        oferta,
+                                        bajando,
+                                        oferta.pack.subsetOf?.let { nombrePorId[it] },
+                                    ),
                                     // ⚠️ **The same button that deletes, cancelling.** It is not
                                     // laziness: to the user they are the same action --*"get this
                                     // off me"*-- and at 234 dp the row has no room for a third
@@ -497,7 +503,12 @@ private fun Aviso(text: String) {
  * whatever it likes-- the row keeps just the size, which is the datum that is never missing.
  */
 @Composable
-private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): String {
+private fun detalleDeOferta(
+    oferta: CatalogOffer,
+    bajando: PackDownload?,
+    /** The installed pack this offer is a subset of, by name, or null (d-a2f271-296b77). */
+    cubiertoPor: String?,
+): String {
     val tamano = asHumanSize(oferta.pack.bytes)
     // While it downloads, the download's state REPLACES the date: what the user wants to know at
     // that moment is whether something is happening, not when the pack is from.
@@ -517,9 +528,17 @@ private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): Strin
         DownloadPhase.CANCELLED -> Unit
         null -> Unit
     }
-    val fecha = Catalog.dataVersionDate(oferta.pack.dataVersion)
-        ?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
-    val base = if (fecha != null) "$tamano · $fecha" else tamano
+    // Still tappable, and it says so plainly: the full one installed already holds every entry.
+    if (cubiertoPor != null) return stringResource(R.string.packs_included_in, cubiertoPor)
+    // A new pack says how many entries its size buys, which is what tells core, main and full
+    // apart; an update says when it is from, since the entries are the ones already installed.
+    val base = if (oferta.status == CatalogStatus.DOWNLOAD && oferta.pack.entryCount > 0) {
+        stringResource(R.string.packs_entries, compactCount(oferta.pack.entryCount)) + " · $tamano"
+    } else {
+        val fecha = Catalog.dataVersionDate(oferta.pack.dataVersion)
+            ?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+        if (fecha != null) "$tamano · $fecha" else tamano
+    }
     // ⚠️ It says the row is tappable. A tappable row that does not look it is a feature nobody
     // finds, and on a watch there is no hover and no cursor to hint at it.
     return stringResource(R.string.packs_dl_tap, base)
@@ -533,3 +552,12 @@ private fun detalleDeOferta(oferta: CatalogOffer, bajando: PackDownload?): Strin
  * ViewModel, which is the only thing holding both lists.
  */
 private data class Borrable(val id: String, val label: String, val bytes: Long)
+
+/** `155 mil` / `155K`: a count read at a glance, in the locale's own short form. */
+@Composable
+private fun compactCount(n: Int): String {
+    val locale = LocalConfiguration.current.locales[0]
+    return remember(n, locale) {
+        CompactDecimalFormat.getInstance(locale, CompactDecimalFormat.CompactStyle.SHORT).format(n)
+    }
+}

@@ -37,6 +37,8 @@ data class CatalogPack(
     val sha256: String,
     val dbBytes: Long,
     val dbSha256: String,
+    /** The pack this one is a subset of (`meta.subset_of`): a core names its full pack. */
+    val subsetOf: String? = null,
 )
 
 /** Which bucket a catalog pack falls into when compared with what is installed. */
@@ -250,6 +252,7 @@ object Catalog {
                 sha256 = sha,
                 dbBytes = o.optLong("db_bytes"),
                 dbSha256 = dbSha,
+                subsetOf = o.optString("subset_of").takeIf { it.isNotEmpty() },
             )
         }
         return out

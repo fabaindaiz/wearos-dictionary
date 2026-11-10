@@ -161,6 +161,41 @@ class VisitTargetTest {
     }
 
     @Test
+    fun aHomographUnderTheSameIdIsNotTakenForTheSavedOne() {
+        // d-a2f271-acd6e1: a rebuild can put the OTHER `vela` at the saved id. The headword
+        // matches and only the uid tells them apart.
+        val guardada = visit.copy(uid = 10)
+        assertEquals(
+            VisitTarget.Relocated(777),
+            visitTarget(guardada, headwordAtId = "perro", relocated = 777, uidAtId = 11),
+        )
+        assertEquals(
+            VisitTarget.Direct(42),
+            visitTarget(guardada, headwordAtId = "perro", relocated = 777, uidAtId = 10),
+        )
+    }
+
+    @Test
+    fun aVisitWithoutUidOpensByHeadwordAsBefore() {
+        assertEquals(
+            VisitTarget.Direct(42),
+            visitTarget(visit, headwordAtId = "perro", relocated = 777, uidAtId = 11),
+        )
+    }
+
+    @Test
+    fun aVisitCarriesItsUidThereAndBack() {
+        val con = Visit("es-full", 7, "vela", "noun", lang = "es", uid = 123456789012345L)
+        assertEquals(listOf(con), parseVisits(serializeVisits(listOf(con))))
+    }
+
+    @Test
+    fun aVisitWrittenBeforeTheUidFieldHasNone() {
+        val vieja = "es-full${SEPARATOR}7${SEPARATOR}vela${SEPARATOR}noun${SEPARATOR}${SEPARATOR}es"
+        assertEquals(null, parseVisits(vieja).single().uid)
+    }
+
+    @Test
     fun aVisitCarriesItsOwnLanguageThereAndBack() {
         // D-265. The language is a property of the VISIT: `atizar` and `stoke` both come out of
         // the bidirectional pack, so the pack cannot tell them apart and the row could not either.

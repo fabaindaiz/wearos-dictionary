@@ -151,6 +151,13 @@ class TestCatalogo(unittest.TestCase):
                 "payload_dict", meta, "el diccionario de compresion no va al catalogo"
             )
 
+    def test_un_nucleo_publica_de_que_pack_es_subconjunto(self):
+        # d-a2f271-296b77: the catalog row says a core is included in the full one installed.
+        with tempfile.TemporaryDirectory() as d:
+            db = os.path.join(d, "en-core.db")
+            un_pack(db, subset_of="en-full", tier="core")
+            self.assertEqual("en-full", packserver.pack_metadata(db)["subset_of"])
+
     def test_el_indice_lleva_DOS_hashes_distintos(self):
         # One of the .gz that travels and one of the .db that stays. It is verified at two moments.
         with tempfile.TemporaryDirectory() as d:

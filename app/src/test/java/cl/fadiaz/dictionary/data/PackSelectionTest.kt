@@ -293,6 +293,7 @@ private class SoloMetadata(override val metadata: PackMetadata) :
     override suspend fun entry(entryId: Long): cl.fadiaz.dictionary.core.Entry? = null
     override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): cl.fadiaz.dictionary.core.EntrySummary? = null
+    override suspend fun entryIdOf(norm: String, uid: Long): Long? = null
     // No payload behind this double, so there is nothing to preview.
     override suspend fun previews(entryIds: List<Long>):
         Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()

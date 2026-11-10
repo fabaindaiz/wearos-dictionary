@@ -62,6 +62,7 @@ class SearchRepositoryTest {
         override suspend fun entry(entryId: Long): Entry? = null
         override suspend fun resolveHeadwords(norms: Set<String>, lang: String?): Map<String, Long> = emptyMap()
         override suspend fun summary(entryId: Long): EntrySummary? = null
+        override suspend fun entryIdOf(norm: String, uid: Long): Long? = null
         // This file tests the MERGE, which never previews. Empty here is honest: there is no
         // payload behind these fakes to preview.
         override suspend fun previews(entryIds: List<Long>) = emptyMap<Long, RowPreview>()

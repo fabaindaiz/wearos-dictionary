@@ -181,6 +181,11 @@ class FakeDictionary(
                 )
             }
 
+    /** What `entryIdOf` finds, by `(norm, uid)`. */
+    var byUid: Map<Pair<String, Long>, Long> = emptyMap()
+
+    override suspend fun entryIdOf(norm: String, uid: Long): Long? = byUid[norm to uid]
+
     /** What this fake can resolve: the words named by `knownHeadwords`. */
     var knownHeadwords: Map<String, Long> = emptyMap()
 

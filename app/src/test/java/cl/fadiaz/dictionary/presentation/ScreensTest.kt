@@ -973,6 +973,31 @@ class ScreensTest {
     }
 
     @Test
+    fun aBilingualGlossResolvesItsWordsInTheOtherLanguage() {
+        // `once` is a Spanish word too; under `banco` it is English and must not open `once`.
+        compose.setContent {
+            EntryScreen(
+                1,
+                onOpenWord = {},
+                packKind = PackKind.BILINGUAL,
+                resolveIn = { norms, _, origen ->
+                    val enEseIdioma = if (origen == TermSource.TRANSLATION) "financial" else "once"
+                    norms.filter { it == enEseIdioma }.associateWith { WordLink("x", 3L) }
+                },
+            ) {
+                entry().copy(senses = listOf(Sense("financial, once")))
+            }
+        }
+        compose.waitForIdle()
+        val glosa = compose.onNodeWithText("financial", substring = true).fetchSemanticsNode()
+            .config[SemanticsProperties.Text].single()
+        assertEquals(
+            listOf("financial"),
+            glosa.spanStyles.map { glosa.text.substring(it.start, it.end) },
+        )
+    }
+
+    @Test
     fun aMonolingualCardKeepsTheTranslationLineItsGlossRepeats() {
         compose.setContent {
             EntryScreen(1, onOpenWord = {}, packKind = PackKind.MONOLINGUAL) {
@@ -1485,12 +1510,14 @@ class ScreensTest {
         bytes: Long = 37_000_000,
         instalada: Long? = null,
         version: Long = 202609211912L,
+        entradas: Int = 1,
+        subconjuntoDe: String? = null,
     ) = CatalogOffer(
         pack = CatalogPack(
-            packId = id, name = id, description = null, langs = listOf("es"), entryCount = 1,
+            packId = id, name = id, description = null, langs = listOf("es"), entryCount = entradas,
             dataVersion = version, schemaVersion = 4, normVersion = 2, license = null,
             url = "packs/$id.db.gz", bytes = bytes, sha256 = "a", dbBytes = bytes * 2,
-            dbSha256 = "b",
+            dbSha256 = "b", subsetOf = subconjuntoDe,
         ),
         status = estado,
         installedVersion = instalada,
@@ -1796,6 +1823,42 @@ class ScreensTest {
             compose.onAllNodes(hasText("cable", substring = true)).fetchSemanticsNodes().size,
         )
         compose.onNodeWithText("Toca", substring = true).assertExists()
+    }
+
+    @Test
+    fun unaOfertaNuevaDiceCuantasEntradasTraeJuntoAlTamano() {
+        // d-a2f271-296b77: what decides between core, main and full is how many more entries
+        // those megabytes buy.
+        compose.setContent {
+            PacksScreen(
+                packs = emptyList(),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    listOf(oferta("es-full", CatalogStatus.DOWNLOAD, entradas = 155_351)),
+                ),
+            )
+        }
+        // ICU joins number and unit with a no-break space, so the figure never wraps alone.
+        compose.onNodeWithText("155\u00a0mil entradas", substring = true).assertExists()
+    }
+
+    @Test
+    fun unNucleoCubiertoPorElFullInstaladoLoDiceYSigueDescargable() {
+        var pedidas = 0
+        compose.setContent {
+            PacksScreen(
+                packs = listOf(openPack("en-full", "English (full)", 330_000_000, lang = "en")),
+                onDelete = {},
+                catalog = CatalogState.Ready(
+                    listOf(oferta("en-core", CatalogStatus.DOWNLOAD, entradas = 61_840,
+                        subconjuntoDe = "en-full")),
+                ),
+                onDownload = { pedidas++ },
+            )
+        }
+        compose.onNodeWithText("Incluido en English (full)", substring = true).assertExists()
+            .performClick()
+        assertEquals(1, pedidas)
     }
 
     @Test
@@ -3330,6 +3393,7 @@ private class FakeSource(override val metadata: PackMetadata) : DictionarySource
     override suspend fun searchDefinitions(query: String, limit: Int, lang: String?) = emptyList<Suggestion>()
     override suspend fun resolveHeadwords(norms: Set<String>, lang: String?) = emptyMap<String, Long>()
     override suspend fun summary(entryId: Long): EntrySummary? = null
+    override suspend fun entryIdOf(norm: String, uid: Long): Long? = null
     // No payload behind this double, so there is nothing to preview.
     override suspend fun previews(entryIds: List<Long>):
         Map<Long, cl.fadiaz.dictionary.core.RowPreview> = emptyMap()

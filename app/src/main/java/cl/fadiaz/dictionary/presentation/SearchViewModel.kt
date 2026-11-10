@@ -36,6 +36,7 @@ import cl.fadiaz.dictionary.data.WordOfTheDay
 import cl.fadiaz.dictionary.tile.TileContents
 import cl.fadiaz.dictionary.data.VisitTarget
 import cl.fadiaz.dictionary.data.Visit
+import cl.fadiaz.dictionary.data.sameUid
 import cl.fadiaz.dictionary.data.visitTarget
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -1029,7 +1030,7 @@ class SearchViewModel(
             recordVisit(
                 Visit(
                     packId, header.entryId, header.headword, header.partOfSpeech,
-                    lang = langOf(packId),
+                    lang = langOf(packId), uid = header.uid,
                 ),
             )
         }
@@ -1044,6 +1045,34 @@ class SearchViewModel(
         saveTileHistory(visibleOnes(visits))
         _state.update { it.copy(history = visibleOnes(visits)) }
         notifyTiles()
+        learnUid(visit)
+    }
+
+    /**
+     * Fills a visit's `uid` from its pack when whoever recorded it did not have it: a search
+     * result carries no uid. One row by rowid, off the recording path.
+     */
+    private fun learnUid(visit: Visit) {
+        if (visit.uid != null) return
+        viewModelScope.launch {
+            awaitPacks()
+            val pack = opened.firstOrNull { it.metadata.packId == visit.packId } ?: return@launch
+            val header = pack.summary(visit.entryId) ?: return@launch
+            if (header.headword != visit.headword) return@launch
+            val uid = header.uid ?: return@launch
+            fun fill(list: List<Visit>) = list.map {
+                if (it.packId == visit.packId && it.entryId == visit.entryId && it.uid == null) {
+                    it.copy(uid = uid)
+                } else {
+                    it
+                }
+            }
+            visits = fill(visits)
+            favoriteVisits = fill(favoriteVisits)
+            saveHistory(visits)
+            saveFavorites(favoriteVisits)
+            _state.update { it.copy(history = visibleOnes(visits), favorites = favoriteVisits) }
+        }
     }
 
     /**
@@ -1390,6 +1419,7 @@ class SearchViewModel(
         saveFavorites(favoriteVisits)
         _state.update { it.copy(favorites = favoriteVisits) }
         notifyTiles()
+        if (!wasFavorite) learnUid(visit)
     }
 
     /**
@@ -1470,14 +1500,17 @@ class SearchViewModel(
     suspend fun targetOf(visit: Visit): Long? {
         awaitPacks()
         val source = opened.firstOrNull { it.metadata.packId == visit.packId } ?: return null
-        val atId = source.summary(visit.entryId)?.headword
-        val relocated = if (atId == visit.headword) {
+        val header = source.summary(visit.entryId)
+        val atId = header?.headword
+        val relocated = if (atId == visit.headword && sameUid(visit.uid, header.uid)) {
             null
         } else {
             val key = TextNormalizer.norm(visit.headword)
-            source.resolveHeadwords(setOf(key), null)[key]
+            // The uid first: by headword alone a homograph's best ranked entry opens.
+            visit.uid?.let { source.entryIdOf(key, it) }
+                ?: source.resolveHeadwords(setOf(key), null)[key]
         }
-        return when (val target = visitTarget(visit, atId, relocated)) {
+        return when (val target = visitTarget(visit, atId, relocated, header?.uid)) {
             is VisitTarget.Direct -> target.entryId
             is VisitTarget.Relocated -> {
                 fixEntryId(visit, target.entryId)

@@ -406,6 +406,8 @@ data class EntrySummary(
      * question the row actually has. It is a column of `entry`, so it costs the query nothing.
      */
     val lang: String? = null,
+    /** The entry's logical identity (D-055), so a stored visit can tell homographs apart. */
+    val uid: Long? = null,
 )
 
 /**

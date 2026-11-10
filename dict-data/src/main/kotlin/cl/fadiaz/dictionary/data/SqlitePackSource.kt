@@ -472,7 +472,7 @@ class SqlitePackSource(
 
     override suspend fun summary(entryId: Long): EntrySummary? = withContext(dispatcher) {
         pack.connection().prepare(
-            "SELECT headword, pos, rank, lang FROM entry WHERE id = ?",
+            "SELECT headword, pos, rank, lang, uid FROM entry WHERE id = ?",
         ).use { statement ->
             statement.bindLong(1, entryId)
             if (!statement.step()) return@withContext null
@@ -482,7 +482,18 @@ class SqlitePackSource(
                 partOfSpeech = statement.getTextOrNull(1),
                 rank = statement.getInt(2),
                 lang = statement.getTextOrNull(3),
+                uid = statement.getLong(4),
             )
+        }
+    }
+
+    override suspend fun entryIdOf(norm: String, uid: Long): Long? = withContext(dispatcher) {
+        pack.connection().prepare(
+            "SELECT id FROM entry WHERE norm = ? AND uid = ? LIMIT 1",
+        ).use { statement ->
+            statement.bindText(1, norm)
+            statement.bindLong(2, uid)
+            if (statement.step()) statement.getLong(0) else null
         }
     }
 

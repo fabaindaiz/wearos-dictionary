@@ -213,6 +213,8 @@
     <string name="packs_dl_done">Instalado</string>
     <string name="packs_dl_failed">Falló \u2014 se reintentará</string>
     <string name="packs_dl_tap">%1$s \u00b7 toca para descargar</string>
+    <string name="packs_entries">%1$s entradas</string>
+    <string name="packs_included_in">Incluido en %1$s</string>
     <string name="word_orphaned">su diccionario no está instalado</string>
     <!-- A sense's usage labels: the key comes from the pack (tools/packbuilder/sources/kaikki.py ETIQUETAS). -->
     <string name="label_colloquial">coloq.</string>
