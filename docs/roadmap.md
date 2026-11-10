@@ -75,8 +75,7 @@ step: `status` for the wake lock. Then the list below.
   profile on the emulator (d-a2f271-2ccd54); a non-debuggable watch build whose packs arrive by download
   (d-a2f271-d49033, closes i-a2f271-55ddfc); `uid` in a saved word (d-a2f271-acd6e1); the entry count in
   the catalog (d-a2f271-296b77); a word in a tier when any entry is (d-a2f271-0b57d9, a core rebuild);
-  a bilingual gloss resolved in English (d-a2f271-8f03e3); `build.done` (d-a2f271-4b78a1, closes
-  i-a2f271-d2f826). i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
+  a bilingual gloss resolved in English (d-a2f271-8f03e3); `build.done` (d-a2f271-4b78a1, built the same day). i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
 - **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
@@ -203,8 +202,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **159 tests**) y el
-pipeline de packs (`tools/`, **819 tests**) están completos y en el gate, junto con los **577 JVM
-de `:app`** y **45 checks** de auditoría estructural — **1600 tests en total**. Los **54
+pipeline de packs (`tools/`, **823 tests**) están completos y en el gate, junto con los **577 JVM
+de `:app`** y **45 checks** de auditoría estructural — **1604 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -6400,7 +6399,7 @@ falta el reloj físico, y sin él no hay ni un número de latencia ni de baterí
 
 ## Proceso y herramientas
 
-### Waiting on a build by matching its name also matches the waiting shell — 2 incidents, accepted 2026-11-10 as d-a2f271-4b78a1 · i-a2f271-d2f826
+### Waiting on a build by matching its name also matches the waiting shell — 2 incidents, BUILT 2026-11-10 as d-a2f271-4b78a1 · i-a2f271-d2f826
 
 2026-10 (`pgrep -f build_packs.py` matched the waiting shells, twenty minutes misread) and 2026-11-09
 (`ps | grep -c` counted the shell whose text named the script). **Cost:** about 5 lines, `build_packs.py`

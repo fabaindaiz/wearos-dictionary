@@ -229,7 +229,32 @@ def tamano_mb(path):
     return os.path.getsize(path) / 1048576 if os.path.exists(path) else None
 
 
+#: What a wait reads (d-a2f271-4b78a1): the exit code, written however the run ends. Waiting on a
+#: process name also matched the waiting shell, whose command line names this script.
+BUILD_DONE = "build.done"
+
+
 def main(argv=None):
+    """`_main`, with `<root>/build.done` removed on entry and written on any exit."""
+    raiz = None
+    codigo = 1
+    try:
+        argumentos = list(sys.argv[1:] if argv is None else argv)
+        posicionales = [a for a in argumentos if not a.startswith("-")]
+        if posicionales and "--dry-run" not in argumentos:
+            raiz = os.path.abspath(posicionales[0])
+            hecho = os.path.join(raiz, BUILD_DONE)
+            if os.path.exists(hecho):
+                os.remove(hecho)
+        codigo = _main(argv)
+        return codigo
+    finally:
+        if raiz is not None and os.path.isdir(raiz):
+            with open(os.path.join(raiz, BUILD_DONE), "w", encoding="utf-8") as f:
+                f.write("%d\n" % codigo)
+
+
+def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("raiz", help="el directorio de datos, FUERA del repo")
     parser.add_argument("--dry-run", action="store_true", help="imprime el plan y no corre nada")

@@ -22,7 +22,7 @@ plain `python3`, so a clean clone works without installing anything. Hatch is th
 layer.
 
 ```sh
-hatch run test              # the 819 tests
+hatch run test              # the 823 tests
 hatch run audit             # the structural audit
 python3 tools/audit_dictionary.py --fix   # rewrites the test counts it finds wrong
 hatch run all               # both
@@ -212,6 +212,9 @@ python3 tools/build_packs.py ../wearos-dictionary-data --dry-run   # the plan, t
 python3 tools/build_packs.py ../wearos-dictionary-data             # and running it
 python3 tools/build_packs.py ../wearos-dictionary-data --solo es
 ```
+
+To wait on a run, read `<root>/build.done`: it holds the exit code once the run ends, however it
+ends. Never wait on the process name, which also matches the waiting shell (d-a2f271-4b78a1).
 
 It ends by writing `dist/index.json`, only when every pack passed `verify_pack` (i-a2f271-2690f9);
 `packserver.py --index-only` is no longer a step. While it runs, `dist/` mixes old and new packs, so

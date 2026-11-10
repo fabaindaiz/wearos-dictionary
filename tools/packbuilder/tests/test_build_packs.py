@@ -534,3 +534,49 @@ class OrdenDeLosNivelesTest(unittest.TestCase):
     def test_only_spanish_has_a_prevalence_norm(self):
         self.assertIn("--prevalencia", self._comando("es-core"))
         self.assertNotIn("--prevalencia", self._comando("en-core"))
+
+
+class BuildDoneTest(unittest.TestCase):
+    """A wait reads `<root>/build.done`, never a process name (d-a2f271-4b78a1).
+
+    Matching `build_packs.py` among the processes also matched the waiting shell, whose command
+    line names the script: twice a dead or finished build read as still running.
+    """
+
+    def _correr(self, llamada, raiz=None):
+        raiz = raiz or tempfile.mkdtemp()
+        paso = {"nombre": "x", "comando": ["true"], "salida": "x.db", "verifica": False}
+        with mock.patch.object(build_packs, "plan", return_value=[paso]), \
+                mock.patch.object(build_packs, "debe_saltarse", return_value=False), \
+                mock.patch.object(build_packs.subprocess, "call", side_effect=llamada), \
+                mock.patch.object(build_packs, "escribir_indice"):
+            codigo = build_packs.main([raiz])
+        with open(os.path.join(raiz, "build.done"), encoding="utf-8") as f:
+            return codigo, f.read().strip()
+
+    def test_un_build_que_falla_lo_deja_escrito(self):
+        self.assertEqual((1, "1"), self._correr(lambda *a, **k: 1))
+
+    def test_un_build_que_termina_lo_deja_escrito(self):
+        self.assertEqual((0, "0"), self._correr(lambda *a, **k: 0))
+
+    def test_un_build_que_revienta_tambien(self):
+        def revienta(*a, **k):
+            raise OSError("sin disco")
+        raiz = tempfile.mkdtemp()
+        with self.assertRaises(OSError):
+            self._correr(revienta, raiz)
+        with open(os.path.join(raiz, "build.done"), encoding="utf-8") as f:
+            self.assertEqual("1", f.read().strip())
+
+    def test_un_build_que_empieza_borra_el_de_la_vez_anterior(self):
+        raiz = tempfile.mkdtemp()
+        with open(os.path.join(raiz, "build.done"), "w", encoding="utf-8") as f:
+            f.write("0\n")
+        visto = []
+
+        def mira(*a, **k):
+            visto.append(os.path.exists(os.path.join(raiz, "build.done")))
+            return 0
+        self._correr(mira, raiz)
+        self.assertEqual([False], visto)
