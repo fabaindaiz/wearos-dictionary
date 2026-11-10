@@ -53,6 +53,7 @@ import cl.fadiaz.dictionary.data.PackDownload
 import cl.fadiaz.dictionary.data.PackHandle
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 import cl.fadiaz.dictionary.data.asHumanSize
 
 /**
@@ -553,10 +554,15 @@ private fun detalleDeOferta(
  */
 private data class Borrable(val id: String, val label: String, val bytes: Long)
 
-/** `155 mil` / `155K`: a count read at a glance, in the locale's own short form. */
+/**
+ * `155 mil` / `155K`: a count read at a glance, in the language's short form. Every Spanish
+ * region formats as root Spanish, because CLDR gives es-419 and its children (the watch's es-CL)
+ * `155 k`, which reads as jargon.
+ */
 @Composable
 private fun compactCount(n: Int): String {
-    val locale = LocalConfiguration.current.locales[0]
+    val configured = LocalConfiguration.current.locales[0]
+    val locale = if (configured.language == "es") Locale.forLanguageTag("es") else configured
     return remember(n, locale) {
         CompactDecimalFormat.getInstance(locale, CompactDecimalFormat.CompactStyle.SHORT).format(n)
     }

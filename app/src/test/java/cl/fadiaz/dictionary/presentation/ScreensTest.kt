@@ -1826,9 +1826,10 @@ class ScreensTest {
     }
 
     @Test
+    @Config(qualifiers = "es-rCL")
     fun unaOfertaNuevaDiceCuantasEntradasTraeJuntoAlTamano() {
         // d-a2f271-296b77: what decides between core, main and full is how many more entries
-        // those megabytes buy.
+        // those megabytes buy. es-CL is the watch's locale, where ICU alone would write "155 k".
         compose.setContent {
             PacksScreen(
                 packs = emptyList(),
