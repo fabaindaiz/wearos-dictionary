@@ -1852,6 +1852,19 @@ class DiscoverTableTest(BuilderTestCase):
         self.assertEqual([(0, 2, 0, "ridiculo"), (1, 0, 0, "vetusto"), (1, 2, 0, "vetusto")],
                          self._rows(db))
 
+    def test_a_word_joins_every_tier_one_of_its_entries_belongs_to(self):
+        # d-a2f271-0b57d9: `mention`'s richest entry is a noun that is not common, and the common
+        # verb was dropped with it, so a word anybody knows was missing from *Common*.
+        meta = dict(BASE_META, rank_signal_boundary="500")
+        db = self.build([
+            build.Record(headword="mention", part_of_speech="noun", rank=120,
+                         discover=discover.RARE,
+                         senses=[{"gloss": "a brief reference"}, {"gloss": "a citation"}]),
+            build.Record(headword="mention", part_of_speech="verb", rank=120,
+                         discover=discover.COMMON, senses=[{"gloss": "to refer to"}]),
+        ], metadata=meta)
+        self.assertEqual([(0, 1, 0, "mention"), (1, 0, 0, "mention")], self._rows(db))
+
     def test_without_a_frequency_boundary_no_part_of_speech_is_preferred(self):
         db = self.build([
             build.Record(headword="ridiculo", part_of_speech="adj", rank=166,

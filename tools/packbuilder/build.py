@@ -756,8 +756,10 @@ class PackBuilder:
           with frequency were *girando, mintiendo, saqueado*.
         - **A frequency belongs to one part of speech.** `rank` comes from the surface form, so in
           the band with frequency the noun *ridículo* (a handbag) inherited the adjective's. Of a
-          headword's entries there, only the one with the most content keeps its tier. Without a
-          declared `rank_signal_boundary` there is no band and nothing is preferred.
+          headword's entries there that share a tier, only the one with the most content keeps it;
+          a word still joins every tier one of its entries belongs to, so the common verb
+          *mention* is not lost behind its richer noun (d-a2f271-0b57d9). Without a declared
+          `rank_signal_boundary` there is no band and nothing is preferred.
 
         `seq` is dense from 0 per `(tier, pos)`, in entry order: the app reads a bucket's size as
         `max(seq) + 1` and draws a `seq`, so a hole would be a draw that reads nothing.
@@ -769,9 +771,9 @@ class PackBuilder:
             filas = [f for f in filas if not self._is_kept_participle(f)]
             frontera = self.metadata.get("rank_signal_boundary")
             if frontera is not None:
-                mas_rico = self._richest_by_headword()
+                mas_rico = self._richest_by_headword_and_tier()
                 filas = [f for f in filas
-                         if f[4] >= int(frontera) or mas_rico.get(f[1]) == f[0]]
+                         if f[4] >= int(frontera) or mas_rico.get((f[1], f[5])) == f[0]]
         if not filas:
             return 0
         self.connection.execute(
@@ -799,14 +801,16 @@ class PackBuilder:
             " WHERE f.norm = ? AND s.id <> ? AND s.pos = 'verb' LIMIT 1",
             (norm_key, entry_id)).fetchone() is not None
 
-    def _richest_by_headword(self):
+    def _richest_by_headword_and_tier(self):
         mejor = {}
-        for entry_id, headword, largo in self.connection.execute(
-                "SELECT id, headword, length(body) FROM staging WHERE pos IN (%s) ORDER BY id"
+        for entry_id, headword, tier, largo in self.connection.execute(
+                "SELECT id, headword, discover, length(body) FROM staging"
+                " WHERE pos IN (%s) AND discover IS NOT NULL ORDER BY id"
                 % ",".join("'%s'" % p for p in discover_policy.POS_CODES)):
-            if headword not in mejor or largo > mejor[headword][1]:
-                mejor[headword] = (entry_id, largo)
-        return {h: entry_id for h, (entry_id, _) in mejor.items()}
+            clave = (headword, tier)
+            if clave not in mejor or largo > mejor[clave][1]:
+                mejor[clave] = (entry_id, largo)
+        return {clave: entry_id for clave, (entry_id, _) in mejor.items()}
 
     def _write_metadata(self, dictionary, dropped_translations=0, discovered=0):
         values = dict(self.metadata)

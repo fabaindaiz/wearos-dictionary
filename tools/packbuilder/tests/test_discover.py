@@ -264,7 +264,7 @@ class PrevalenceTest(unittest.TestCase):
                                               etymology="From Latin vilipendere."))
 
     def test_the_version_moved(self):
-        self.assertEqual(5, discover.VERSION)
+        self.assertEqual(6, discover.VERSION)
 
 
 class LocalTest(unittest.TestCase):
