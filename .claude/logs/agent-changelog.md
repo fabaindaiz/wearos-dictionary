@@ -55,9 +55,18 @@ probe with `implementation(...)` in its place still fails it. The debug intents 
 measure, and the measurement said it buys nothing there. Kept out by `.gitignore` until P-4 reads the
 watch with and without it; the question is in the roadmap with a recommendation.
 
-**Not verified.** Nothing reached the watch: the download path, the `benchmark` build's clear text and
-the profile are seen on the emulator only. `devpack upload`'s watch path (with the session tool) is
-unexercised since packs go by download.
+**On the watch, asked for by the owner on 2026-11-11.** `benchmark` `versionCode` 21 from `4675ec9`,
+installed over the debug `versionCode` 19 with its history and saved words kept; the cores from the APK,
+en-full and es-full by download over `adb reverse`, the bilingual by `run-as` through a debug build
+installed over and `benchmark` again. Last launch: 5 open, 0 rejected, ready in 438 ms. Every setting the
+upload touched read back as restored (battery, `adb reverse`, the catalog override, the wake lock). Two
+findings to the roadmap: a manual download dropped behind a stale unique work (i-a2f271-91b743) and the
+debug receiver registered more than once (i-a2f271-3d8d2e). The owner reported voice search opening the
+keyboard (i-a2f271-44fa50), for the next session.
+
+**Not verified.** Whether the startup profile pays on the watch: one reading with it (438 ms), none
+without; P-4 stays open. The download path is seen on the emulator and, for two of three packs, on the
+watch.
 
 **What went wrong.** ICU's short form for the watch's es-CL is *942 k*, not *942 mil*: the screen test
 ran under plain `es` and described a device that is not the watch; seen on the emulator, fixed
@@ -74,9 +83,18 @@ emulator's test history is lost) until `leaveApksInstalledAfterRun`; the generat
 obfuscated because AGP 9's `optimization` block overrides the plugin's `isMinifyEnabled` (fixed in
 `finalizeDsl`, checked by the dex growing from 3.1 to 31.5 MB); and a rerun reused the stale
 obfuscated output as up to date. Macrobenchmark refuses an emulator; suppressed, citing the decision.
+On the watch: the watch left the network three times; `devpack upload` runs its download step after the
+session's `stop`, so without the Wi-Fi lock. I told the owner the bilingual was held by a charger-gated
+download the new app had queued; the code has no queued origin, and the job was the old build's,
+corrected in the next message. Two forcing attempts failed: `cmd jobscheduler run -f` needs the
+`-n androidx.work.systemjobscheduler` namespace, and once run WorkManager defers it to its own backoff;
+a script kept `adb -s …` in one variable, which zsh does not split, so none of its adb calls ran (its
+`echo` still printed "simulo cargador"). I reported the history going 25 to 2 as a possible data loss;
+the owner had cleared it, as on 2026-10-26.
 
-**What was left undone.** The roadmap's open question on keeping the profile; P-4 on the watch. A
-review of the commits since 2026-11-09 before any merge into `main`. In the catalog row the hint
+**What was left undone.** The roadmap's open question on keeping the profile; P-4 on the watch. The
+review's deferred findings and the three of the watch (i-a2f271-91b743, i-a2f271-3d8d2e,
+i-a2f271-44fa50), in the roadmap. In the catalog row the hint
 *toca para descargar* is cut with an ellipsis, as it was before this work. The emulator AVD's core
 count was changed by hand to 4; `avd_como_el_reloj.py` now sets it for a new one.
 
@@ -84,7 +102,16 @@ count was changed by hand to 4; `avd_como_el_reloj.py` now sets it for a new one
 `ReportDrawnWhen` when the status leaves loading; the emulator at 4 cores; the profile out of git; the
 `verify` skill points at `README.md` for counts instead of copying them.
 
-**Cards relied on.** `.agents/knowledge/INDEX.md` was not opened this session; the checks that ran are
+**Review.** Isolated, `knowledge-reviewer`, over `aafcdf5..HEAD` (everything past the review of
+2026-11-09), asked for by the owner before the merge. No blocker. Should-fix, fixed: `build_packs.py`
+took the first bare argument as the root, so `--solo es <root>` kept the old `build.done` (test first,
+red before the fix). Should-fix, deferred to the roadmap: `entryIdOf` and `summary().uid` tested only
+through the fake. Minor: two comments made false, fixed; `DEBUG_DELETE` with several ids, and the uid
+fallback to a homograph, deferred.
+
+**Cards relied on.** The reviewer's: refusal-must-not-read-like-an-answer (failed on `build.done`,
+fixed), derived-copy-goes-stale-silently (the local profile, minor), no-simultaneous-deploy (holds),
+test-double-fidelity (not met, deferred). I did not open `.agents/knowledge/INDEX.md` myself; the checks that ran are
 the repo's own: mutation probes on every test that passed first (`onDebugDownload` twice, the devpack
 parsers three times, the launch state, the audit rule), and a validity rule written before reading
 the benchmark.
