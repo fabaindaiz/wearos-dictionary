@@ -65,10 +65,9 @@ class VisitTest {
  * failure mode is NOT a crash: it is opening *another word* with the right headword written in
  * the list, which is the class of bug this repo cannot see from the code.
  *
- * Why `entry.uid` is not backed up, even though it IS stable: it has no index (D-056), so
- * resolving it costs a scan of 114,619 rows in Spanish and 794,355 in English **per tap**, and
- * the app is forbidden from computing it (D-057). The headword, by contrast, goes through
- * `idx_entry_norm`.
+ * `entry.uid` is stored beside the headword (d-a2f271-acd6e1) but never looked up alone: it has
+ * no index (D-056), so the headword goes through `idx_entry_norm` first and the uid only picks
+ * among that headword's rows. A row written before the uid existed reads it as null.
  */
 class VisitTargetTest {
 

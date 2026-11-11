@@ -229,9 +229,9 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                                 CatalogClient.fetchIndex(catalogoEnUso(context), etag)
                             },
                             startDownload = { pack ->
-                                // MANUAL: this lambda is only reachable from a press on the
-                                // dictionary manager, so somebody is watching the progress bar.
-                                // That is what lets it skip the charger (D-263).
+                                // MANUAL: this lambda is reached from a press on the dictionary
+                                // manager or from `DEBUG_DOWNLOAD`, both asked for by somebody
+                                // present. That is what lets it skip the charger (D-263).
                                 DownloadPackWorker.enqueue(
                                     context, catalogoEnUso(context), pack, DownloadOrigin.MANUAL,
                                 )
