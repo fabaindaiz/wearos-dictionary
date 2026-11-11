@@ -260,6 +260,42 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun unaDescargaPedidaPorAdbConsultaElCatalogoYEncolaSoloLosQueExisten() = runTest {
+        // d-a2f271-d49033: the watch's packs arrive by download, asked for from adb. The
+        // catalog is fetched whole (no ETag) because the ids are looked up in it, and an id it
+        // does not hold queues nothing.
+        val etags = mutableListOf<String?>()
+        val encoladas = mutableListOf<String>()
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def", dataVersion = 200L)) },
+            fetchCatalog = { etag ->
+                etags += etag
+                CatalogFetch.Fresh(listOf(ofrecido("es-def", 300L), ofrecido("otro", 100L)), "\"e1\"")
+            },
+            startDownload = { encoladas += it.packId },
+        )
+        advanceUntilIdle()
+        vm.onCheckCatalog(); advanceUntilIdle()
+        vm.onDebugDownload(listOf("otro", "no-existe")); advanceUntilIdle()
+        assertEquals(listOf("otro"), encoladas)
+        assertEquals(listOf<String?>(null, null), etags)
+        assertTrue(vm.state.value.catalog is CatalogState.Ready)
+    }
+
+    @Test
+    fun unaDescargaPorAdbSinCatalogoNoEncolaNada() = runTest {
+        val encoladas = mutableListOf<String>()
+        val vm = SearchViewModel(
+            { listos(FakeDictionary("es-def")) },
+            fetchCatalog = { CatalogFetch.Failed("Connection refused") },
+            startDownload = { encoladas += it.packId },
+        )
+        advanceUntilIdle()
+        vm.onDebugDownload(listOf("es-def")); advanceUntilIdle()
+        assertEquals(emptyList(), encoladas)
+    }
+
+    @Test
     fun consultarClasificaContraLoInstalado() = runTest {
         val vm = SearchViewModel(
             { listos(FakeDictionary("es-def", dataVersion = 200L)) },

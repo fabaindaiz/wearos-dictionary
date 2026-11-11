@@ -624,6 +624,31 @@ class SearchViewModel(
         }
     }
 
+    /**
+     * Queues the catalog packs named by [packIds], from `adb` (d-a2f271-d49033): how packs reach a
+     * watch whose build `run-as` cannot enter.
+     *
+     * ⚠️ **The catalog is fetched whole, with no ETag**, because the ids are looked up in it and a
+     * `304` would leave nothing to look them up in on a launch that never queried. Each pack goes
+     * through [onDownload], the tap's own door, so it is a manual download: no charger (D-263).
+     */
+    fun onDebugDownload(packIds: List<String>) {
+        viewModelScope.launch {
+            val r = fetchCatalog(null)
+            if (r !is CatalogFetch.Fresh) {
+                DictLog.w { "debug: descarga sin catalogo (${(r as? CatalogFetch.Failed)?.reason ?: r})" }
+                return@launch
+            }
+            catalogPacks = r.packs
+            catalogEtag = r.etag
+            publicar(opened.map { it.metadata })
+            val porId = r.packs.associateBy { it.packId }
+            packIds.forEach { id ->
+                porId[id]?.let(::onDownload) ?: DictLog.w { "debug: $id no esta en el catalogo" }
+            }
+        }
+    }
+
     /** Queues the download of a catalog pack. */
     fun onDownload(pack: CatalogPack) {
         DictLog.i { "descarga pedida: ${pack.packId} (${pack.bytes / 1_048_576} MB)" }

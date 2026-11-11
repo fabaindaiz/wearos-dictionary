@@ -74,17 +74,18 @@ step: `status` for the wake lock. Then the list below.
 - **Decided on 2026-11-10** (`docs/decisions.md`, the rows of that date). **Built the same day:**
   `uid` in a saved word (d-a2f271-acd6e1), the entry count and *included in* note in the catalog
   (d-a2f271-296b77), a word in a tier when any entry is (d-a2f271-0b57d9), a bilingual gloss resolved
-  in English (d-a2f271-8f03e3), `build.done` (d-a2f271-4b78a1). **Not built:** the startup profile on
-  the emulator (d-a2f271-2ccd54) and a non-debuggable watch build whose packs arrive by download
-  (d-a2f271-d49033, closes i-a2f271-55ddfc); the `benchmark` build type already is that build. i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
+  in English (d-a2f271-8f03e3), `build.done` (d-a2f271-4b78a1). **Built 2026-11-11:** the watch's
+  packs arrive by download into the non-debuggable `benchmark` build (d-a2f271-d49033, closes
+  i-a2f271-55ddfc), seen on the emulator; the next upload to the watch goes that way, when the owner
+  asks. **Not built:** the startup profile on the emulator (d-a2f271-2ccd54). i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
 - **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
   the tile fix, and its two should-fix findings are fixed or answered. The two feature commits on senses
   came after it and **no review has read them**; a review of those comes before the merge, which waits on
   the owner's word.
-- **The upload command's whole path** (`devpack.py upload`) runs only against a watch: the session tool
-  refuses an emulator, which is how its failure path was seen to stop the session.
+- **The upload command's watch path** (`devpack.py upload` with the session tool) is unexercised since
+  packs go by download: on an emulator it skips the session, and that path is what was seen.
 - **Can wait, by the sweep of i-a2f271-e96d28:** bilingual fragments (i-a2f271-73edb1), set phrases, rhymes,
   a level source for English, sense alignment.
 
@@ -203,8 +204,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **159 tests**) y el
-pipeline de packs (`tools/`, **826 tests**) están completos y en el gate, junto con los **586 JVM
-de `:app`** y **45 checks** de auditoría estructural — **1616 tests en total**. Los **54
+pipeline de packs (`tools/`, **838 tests**) están completos y en el gate, junto con los **589 JVM
+de `:app`** y **45 checks** de auditoría estructural — **1631 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.

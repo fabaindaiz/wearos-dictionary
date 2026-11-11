@@ -1,15 +1,23 @@
-"""Sideloading dictionary packs over adb, for development.
+"""Getting dictionary packs onto a device over adb, for development.
 
-The pack installer is blocked on a product decision --where the catalog is hosted
-(docs/roadmap.md)-- so the only real way to get a dictionary onto a watch is still adb, and will
-be for a while. This is that development layer, and it is NOT the installer: it downloads nothing,
-verifies no catalogs, and knows nothing of WorkManager or D-029.
-
-    python3 tools/devpack.py install <pack.db> [-s SERIAL] [--no-restart] [--verify] [--dry-run]
-    python3 tools/devpack.py list   [-s SERIAL]
-    python3 tools/devpack.py rm     <pack-id> [-s SERIAL]
+    python3 tools/devpack.py upload   <app.apk> <pack-id>... [-s SERIAL] [--solo-apk]
+    python3 tools/devpack.py download <pack-id>... [-s SERIAL] [--espera S]
+    python3 tools/devpack.py list     [-s SERIAL]
+    python3 tools/devpack.py rm       <pack-id> [-s SERIAL]
+    python3 tools/devpack.py install  <pack.db> [-s SERIAL] [--no-restart] [--verify] [--dry-run]
     python3 tools/devpack.py devices
-    python3 tools/devpack.py upload <app.apk> <pack.db>... [-s SERIAL] [--solo-apk]
+
+THE WATCH GETS ITS PACKS BY DOWNLOAD (d-a2f271-d49033)
+
+The watch runs the `benchmark` build: not debuggable, so ART compiles it and it measures what a
+user would run, and so `run-as` cannot enter it. `upload`, `download`, `list` and `rm` therefore
+go through the app's debug intents (`DebugIntents.kt`) and read its `Dict` log: `packserver.py`
+serves the packs on this computer, `adb reverse` puts it at 127.0.0.1 on the device, and the app
+downloads them through WorkManager as a manual download -- the path a user takes. Start the server
+first: `python3 tools/packserver.py ../wearos-dictionary-data/dist --no-compress`.
+
+`install` is the other road, kept for a debug build on an emulator: it writes the file with
+`run-as`, needs no server, and is what the rest of this header is about.
 
 WHY IT IS NOT JUST AN `adb push`
 
@@ -51,11 +59,14 @@ flags and doing it by hand comes out unreadable. It is stdlib: D-045 holds.
 import argparse
 import hashlib
 import os
+import json
 import re
 import shutil
 import sqlite3
 import subprocess
 import sys
+import time
+import urllib.request
 from collections import namedtuple
 
 PAQUETE = "cl.fadiaz.dictionary"
@@ -426,44 +437,26 @@ def cmd_devices(args):
 
 def cmd_list(args):
     adb = _adb_base(args)
-    remotos = packs_remotos(adb)
-    if not remotos:
-        print("No hay ningun pack en %s/%s" % (PAQUETE, DIR_PACKS))
-        return 0
-    tamanos = correr(
-        Paso("ls", adb + ["shell", "run-as %s ls -l %s" % (PAQUETE, DIR_PACKS)], None),
-        silencioso=True,
-    )
-    print(tamanos.strip())
-    print()
-    for nombre in sorted(remotos):
-        meta = remotos[nombre]
-        if meta is None:
-            print("  %-24s (sin sqlite3 en el device: no se puede leer su meta)" % nombre)
-        else:
-            print(
-                "  %-24s %s  v%s  %s entradas"
-                % (
-                    nombre,
-                    meta.get("pack_id", "?"),
-                    meta.get("data_version", "?"),
-                    meta.get("entry_count", "?"),
-                )
-            )
+    _app_escuchando(adb)
+    for linea in _volcado(adb):
+        print(linea)
     return 0
 
 
 def cmd_rm(args):
+    pack_id = _id_de_pack(args.pack_id)
     adb = _adb_base(args)
-    nombre = args.pack_id if args.pack_id.endswith(".db") else args.pack_id + ".db"
-    correr(Paso("force-stop", adb + ["shell", "am force-stop %s" % PAQUETE], None))
-    correr(
-        Paso("rm", adb + ["shell", "run-as %s rm -f %s/%s" % (PAQUETE, DIR_PACKS, nombre)], None)
-    )
-    print("borrado: %s" % nombre)
-    if not args.no_restart:
-        correr(Paso("relanzar", adb + ["shell", "am start -n %s" % ACTIVITY], None))
-    return 0
+    _app_escuchando(adb)
+    _difundir(adb, "DELETE", "-e packs %s" % pack_id)
+    # The deletion closes and reopens every pack on its own coroutine: the dump is asked again
+    # until it stops listing the pack, rather than trusting the first one.
+    for _ in range(10):
+        if pack_id not in abiertos(_volcado(adb)):
+            print("borrado: %s" % pack_id)
+            return 0
+        time.sleep(1)
+    print("%s sigue abierto: no estaba instalado, o viene en el APK y no se borra" % pack_id)
+    return 1
 
 
 def cmd_install(args):
@@ -556,27 +549,55 @@ PasoDeSubida = namedtuple("PasoDeSubida", "nombre argv siempre")
 SESION = os.path.join(os.path.dirname(RAIZ), "wearos-debug-tool", "watchsession.py")
 
 
+#: Where `packserver.py` listens on this computer, and where the device reaches it through
+#: `adb reverse`: the same address on an emulator and on a watch over Wi-Fi adb, and the only host
+#: the `benchmark` build talks to in clear text (`network_security_config.xml`).
+PUERTO = 8765
+CATALOGO_LOCAL = "http://127.0.0.1:%d" % PUERTO
+
+#: The app's debug intents (`DebugIntents.kt`), which read and change its packs without `run-as`.
+ACCION = PAQUETE + ".DEBUG_"
+
+
+def _id_de_pack(arg):
+    """`es-full`, `es-full.db` or a path to it: the pack id a catalog knows."""
+    nombre = os.path.basename(arg)
+    for sufijo in (".db.gz", ".db"):
+        if nombre.endswith(sufijo):
+            nombre = nombre[: -len(sufijo)]
+    if not PACK_ID_VALIDO.match(nombre):
+        raise PackInvalido("pack id invalido: %r" % arg)
+    return nombre
+
+
 def _exige_packs(packs, solo_apk):
     if not packs and not solo_apk:
         raise PackInvalido("una subida sin packs completos deja vacio lo que leen de ellos; "
-                           "pasa los .db o --solo-apk si es a proposito")
+                           "pasa los pack ids o --solo-apk si es a proposito")
 
 
-def plan_upload(serial, apk, packs, sesion=SESION, solo_apk=False):
-    """The upload to a watch: session, packs, then the APK, and the session stopped whatever fails.
+def plan_upload(serial, apk, packs, sesion=SESION, solo_apk=False, adb="adb"):
+    """The upload: the APK, then its packs by download, and on a watch the session stopped whatever fails.
 
-    The packs go first so the APK's one launch opens the final set and its log reads it whole. An
-    APK without packs is refused unless asked for: the list of *see more words* reads the full
-    pack, so a new APK over old full packs shows a tier with no words (`LOCAL/todas es-full=0`).
+    The APK goes first because asking for a download needs its receiver, and the app reloads on each
+    finished one. An APK without packs is refused unless asked for: the list of *see more words*
+    reads the full pack, so a new APK over old full packs shows a tier with no words
+    (`LOCAL/todas es-full=0`). An emulator needs no session: nothing there turns its radio off.
     """
     _exige_packs(packs, solo_apk)
+    ids = [_id_de_pack(p) for p in packs]
     yo = [sys.executable, os.path.abspath(__file__), "-s", serial]
+    bajar = [PasoDeSubida("packs", yo + ["download"] + ids, False)] if ids else []
+    if serial.startswith("emulator-"):
+        return [
+            PasoDeSubida("app", [adb, "-s", serial, "install", "-r", apk], False),
+            PasoDeSubida("arranque", [adb, "-s", serial, "shell", "am start -W -n " + ACTIVITY], False),
+        ] + bajar
     tool = [sys.executable, sesion, "-s", serial]
     pasos = [PasoDeSubida("sesion", tool + ["start"], False)]
-    pasos += [PasoDeSubida("pack " + os.path.basename(p), yo + ["install", p, "--no-restart"], False)
-              for p in packs]
     pasos.append(PasoDeSubida("app", tool + ["deploy", apk, "--actividad", ACTIVITY, "--tag", "Dict",
                                              "--listo", "arranque", "--espera", "240"], False))
+    pasos += bajar
     pasos.append(PasoDeSubida("cierre", tool + ["stop"], True))
     return pasos
 
@@ -596,16 +617,161 @@ def ejecutar_subida(pasos, correr):
     return fallo
 
 
+_INSTALADO = re.compile(r"worker: (\S+) instalado$")
+_FALLO = re.compile(r"worker: (\S+) (fallo .*)$")
+_FUERA = re.compile(r"debug: (\S+) no esta en el catalogo$")
+_SIN_CATALOGO = "debug: descarga sin catalogo"
+#: The states that end the wait. A failure does not: the worker retries it.
+FINALES = ("instalado", "no esta en el catalogo", "sin catalogo")
+
+
+def estado_descargas(lineas, ids):
+    """What the `Dict` log says of each pack id asked for; an id it has not named is absent."""
+    estado = {}
+    for linea in lineas:
+        linea = linea.strip()
+        if _SIN_CATALOGO in linea:
+            estado.update({i: "sin catalogo" for i in ids if estado.get(i) != "instalado"})
+            continue
+        m = _INSTALADO.search(linea)
+        if m and m.group(1) in ids:
+            estado[m.group(1)] = "instalado"
+            continue
+        m = _FALLO.search(linea)
+        if m and m.group(1) in ids:
+            estado[m.group(1)] = m.group(2)
+            continue
+        m = _FUERA.search(linea)
+        if m and m.group(1) in ids:
+            estado[m.group(1)] = "no esta en el catalogo"
+    return estado
+
+
+def leer_volcado(lineas):
+    """The lines of the LAST dump in the log, or None when it is cut before its end."""
+    lineas = [l.strip() for l in lineas]
+    inicios = [i for i, l in enumerate(lineas) if l.endswith("--- volcado ---")]
+    if not inicios:
+        return None
+    resto = lineas[inicios[-1] + 1:]
+    fin = next((i for i, l in enumerate(resto) if l.endswith("--- fin ---")), None)
+    return None if fin is None else resto[:fin]
+
+
+def abiertos(volcado):
+    """The pack ids a dump says are open: `abiertos=2: es-core@1, en-full@20260910`."""
+    for linea in volcado:
+        if linea.startswith("abiertos="):
+            _, _, lista = linea.partition(": ")
+            return {p.split("@")[0].strip() for p in lista.split(",") if p.strip()}
+    return set()
+
+
+def _difundir(adb, accion, extras=""):
+    return correr(Paso("broadcast " + accion, adb + [
+        "shell", ("am broadcast -p %s -a %s%s %s" % (PAQUETE, ACCION, accion, extras)).strip()], None))
+
+
+def _hora_del_device(adb):
+    return correr(Paso("date", adb + ["shell", "date +'%m-%d %H:%M:%S.000'"], None), silencioso=True).strip()
+
+
+def _leer_log(adb, desde, basta, espera):
+    """Reads `Dict` from `desde` until `basta(lineas)` or `espera` seconds; returns (lineas, basto).
+
+    It polls `logcat -d` once a second rather than streaming: a streaming logcat into a pipe holds
+    a few short lines back until a block fills, so a dump of ten lines never arrived while a
+    download's hundreds did. `adb logcat` takes its arguments without a shell, unlike
+    `adb shell`, so the time goes unquoted.
+    """
+    lineas = []
+    fin = time.time() + espera
+    while True:
+        r = subprocess.run(adb + ["logcat", "-d", "-v", "raw", "-s", "Dict:V", "-T", desde],
+                           capture_output=True)
+        if r.returncode != 0:
+            raise FalloRemoto("logcat fallo: %s" % r.stderr.decode("utf-8", "replace").strip())
+        lineas = [l.rstrip() for l in r.stdout.decode("utf-8", "replace").splitlines()]
+        if basta(lineas):
+            return lineas, True
+        if time.time() >= fin:
+            return lineas, False
+        time.sleep(1)
+
+
+def receiver_recien_creado(salida_am_start):
+    """Whether `am start -W` created the Activity, and with it the debug receiver: COLD or WARM.
+
+    The receiver is registered by the Activity, not the process: a process a tile woke up answers
+    `pidof` and listens to nothing, so a broadcast sent to it is lost without a word.
+    """
+    m = re.search(r"LaunchState: (\w+)", salida_am_start)
+    return bool(m) and m.group(1) in ("COLD", "WARM")
+
+
+def _app_escuchando(adb):
+    """Brings the Activity up and, when that created it, waits for its receiver to register."""
+    desde = _hora_del_device(adb)
+    salida = correr(Paso("arrancar", adb + ["shell", "am start -W -n %s" % ACTIVITY], None), silencioso=True)
+    if not receiver_recien_creado(salida):
+        return
+    _, listo = _leer_log(adb, desde, lambda ls: any("debug intents ACTIVE" in l for l in ls), 60)
+    if not listo:
+        raise FalloRemoto("la app no registro los debug intents en 60 s: es un build release?")
+
+
+def _volcado(adb, espera=20):
+    desde = _hora_del_device(adb)
+    _difundir(adb, "DUMP")
+    lineas, _ = _leer_log(adb, desde, lambda ls: leer_volcado(ls) is not None, espera)
+    volcado = leer_volcado(lineas)
+    if volcado is None:
+        raise FalloRemoto("la app no volco su estado en %d s" % espera)
+    return volcado
+
+
+def _indice_local():
+    try:
+        with urllib.request.urlopen(CATALOGO_LOCAL + "/index.json", timeout=5) as r:
+            return json.load(r)
+    except OSError as error:
+        raise FalloRemoto("packserver no responde en %s (%s). Levantalo:\n"
+                          "  python3 tools/packserver.py <dist> --no-compress" % (CATALOGO_LOCAL, error))
+
+
+def cmd_download(args):
+    ids = [_id_de_pack(p) for p in args.packs]
+    servidos = {p.get("pack_id") for p in _indice_local().get("packs", [])}
+    faltan = [i for i in ids if i not in servidos]
+    if faltan:
+        raise PackInvalido("packserver no sirve %s; sirve: %s"
+                           % (", ".join(faltan), ", ".join(sorted(s for s in servidos if s))))
+    adb = _adb_base(args)
+    correr(Paso("reverse", adb + ["reverse", "tcp:%d" % PUERTO, "tcp:%d" % PUERTO], None), silencioso=True)
+    _app_escuchando(adb)
+    desde = _hora_del_device(adb)
+    _difundir(adb, "SET", "-e catalog %s" % CATALOGO_LOCAL)
+    _difundir(adb, "DOWNLOAD", "-e packs %s" % ",".join(ids))
+    lineas, _ = _leer_log(
+        adb, desde,
+        lambda ls: all(estado_descargas(ls, ids).get(i, "").startswith(FINALES) for i in ids),
+        args.espera)
+    estado = estado_descargas(lineas, ids)
+    for i in ids:
+        print("  %-20s %s" % (i, estado.get(i, "sin noticias en %d s" % args.espera)))
+    return 0 if all(estado.get(i) == "instalado" for i in ids) else 1
+
+
 def cmd_upload(args):
     _exige_packs(args.packs, args.solo_apk)
     adb = buscar_adb()
     serial = elegir_dispositivo(
         subprocess.run([adb, "devices", "-l"], capture_output=True).stdout.decode("utf-8", "replace"),
         args.device)
-    pasos = plan_upload(serial, args.apk, args.packs, args.sesion, args.solo_apk)
+    pasos = plan_upload(serial, args.apk, args.packs, args.sesion, args.solo_apk, adb)
     fallo = ejecutar_subida(pasos, lambda argv: subprocess.run(argv).returncode)
     if fallo is not None:
-        print("fallo en: %s (la sesion se cerro igual)" % fallo)
+        print("fallo en: %s%s" % (fallo, "" if serial.startswith("emulator-") else " (la sesion se cerro igual)"))
         return 1
     return 0
 
@@ -626,17 +792,21 @@ def main(argv):
     p_install.add_argument("--dry-run", action="store_true", help="imprimir el plan y salir")
     p_install.set_defaults(func=cmd_install)
 
-    p_list = subs.add_parser("list", help="que packs hay instalados")
+    p_list = subs.add_parser("list", help="que packs tiene abiertos la app (su volcado)")
     p_list.set_defaults(func=cmd_list)
 
-    p_rm = subs.add_parser("rm", help="borra un pack del reloj")
+    p_rm = subs.add_parser("rm", help="borra un pack, por la misma puerta que Ajustes")
     p_rm.add_argument("pack_id")
-    p_rm.add_argument("--no-restart", action="store_true")
     p_rm.set_defaults(func=cmd_rm)
 
-    p_upload = subs.add_parser("upload", help="packs, luego el APK, y la sesion cerrada siempre")
+    p_download = subs.add_parser("download", help="la app baja packs de packserver, como un usuario")
+    p_download.add_argument("packs", nargs="+", help="pack ids que sirve packserver")
+    p_download.add_argument("--espera", type=int, default=900, help="segundos para que terminen")
+    p_download.set_defaults(func=cmd_download)
+
+    p_upload = subs.add_parser("upload", help="el APK, luego sus packs por descarga, y la sesion cerrada")
     p_upload.add_argument("apk")
-    p_upload.add_argument("packs", nargs="*", help="los .db completos que van con este APK")
+    p_upload.add_argument("packs", nargs="*", help="pack ids que van con este APK (packserver los sirve)")
     p_upload.add_argument("--solo-apk", action="store_true", help="subir el APK sin packs")
     p_upload.add_argument("--sesion", default=SESION, help="watchsession.py")
     p_upload.set_defaults(func=cmd_upload)

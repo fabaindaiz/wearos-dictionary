@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Clear-text HTTP for `benchmark`, and only to 127.0.0.1.
+
+  The watch runs this build (d-a2f271-d49033) and gets its packs from tools/packserver.py, which
+  speaks `http://`; `tools/devpack.py` puts that server at 127.0.0.1 on the device through
+  `adb reverse`. Debug allows clear text to any host (src/debug/AndroidManifest.xml); this build
+  inherits from release and is measured as one, so it opens the loopback address alone and
+  nothing a network could reach.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

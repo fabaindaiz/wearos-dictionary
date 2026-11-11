@@ -35,6 +35,12 @@ import cl.fadiaz.dictionary.BuildConfig
  * # Dump the state to logcat: which packs opened, which is active, and the verification memo:
  * adb shell am broadcast -p cl.fadiaz.dictionary -a cl.fadiaz.dictionary.DEBUG_DUMP
  * adb logcat -s Dict:V
+ *
+ * # Download catalog packs, or delete installed ones (what `tools/devpack.py` drives):
+ * adb shell am broadcast -p cl.fadiaz.dictionary \
+ *     -a cl.fadiaz.dictionary.DEBUG_DOWNLOAD -e packs en-full,es-full
+ * adb shell am broadcast -p cl.fadiaz.dictionary \
+ *     -a cl.fadiaz.dictionary.DEBUG_DELETE -e packs en-full
  * ```
  *
  * The dump is item 3 of the roadmap's tooling table, and what it closes is that
@@ -95,8 +101,24 @@ object DebugIntents {
      */
     const val ACTION_SET = "cl.fadiaz.dictionary.DEBUG_SET"
 
+    /**
+     * Download the catalog packs named in [EXTRA_PACKS], as a tap would (d-a2f271-d49033): the
+     * watch runs a build `run-as` cannot enter, so its packs arrive the way a user's do.
+     */
+    const val ACTION_DOWNLOAD = "cl.fadiaz.dictionary.DEBUG_DOWNLOAD"
+
+    /** Delete the installed packs named in [EXTRA_PACKS], through Settings' own path. */
+    const val ACTION_DELETE = "cl.fadiaz.dictionary.DEBUG_DELETE"
+
     /** The extra carrying the text to search for. */
     const val EXTRA_QUERY = "q"
+
+    /** The extra carrying pack ids, separated by commas. */
+    const val EXTRA_PACKS = "packs"
+
+    /** The ids in a [EXTRA_PACKS] extra: trimmed, blanks and repeats dropped, order kept. */
+    fun packIds(extra: String?): List<String> =
+        extra.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     private const val PREFS = "debug"
     private const val KEY_BY = "escrito_por"
@@ -154,6 +176,8 @@ object DebugIntents {
         context: Context,
         onSearch: (String) -> Unit,
         onDump: () -> Unit,
+        onDownload: (List<String>) -> Unit,
+        onDelete: (List<String>) -> Unit,
     ): (() -> Unit)? {
         if (!BuildConfig.DEBUG_INTENTS) return null
         val receiver = object : BroadcastReceiver() {
@@ -170,6 +194,16 @@ object DebugIntents {
                     }
                     ACTION_SET -> onSet(context, intent)
                     ACTION_DUMP -> onDump()
+                    ACTION_DOWNLOAD -> {
+                        val ids = packIds(intent.getStringExtra(EXTRA_PACKS))
+                        DictLog.i { "debug: descargar ${ids.joinToString()}" }
+                        onDownload(ids)
+                    }
+                    ACTION_DELETE -> {
+                        val ids = packIds(intent.getStringExtra(EXTRA_PACKS))
+                        DictLog.i { "debug: borrar ${ids.joinToString()}" }
+                        onDelete(ids)
+                    }
                 }
             }
         }
@@ -178,13 +212,16 @@ object DebugIntents {
             addAction(ACTION_CLEAR)
             addAction(ACTION_DUMP)
             addAction(ACTION_SET)
+            addAction(ACTION_DOWNLOAD)
+            addAction(ACTION_DELETE)
         }
         // No compatibility branch: `minSdk` is 33 and the flag exists from 33, so asking about
         // `SDK_INT` would be dead code -- lint caught it, and lint breaks the build here
         // (ObsoleteSdkInt).
         context.registerReceiver(receiver, filtro, Context.RECEIVER_EXPORTED)
         DictLog.i {
-            "debug: debug intents ACTIVE ($ACTION_SEARCH, $ACTION_DUMP, $ACTION_SET)"
+            "debug: debug intents ACTIVE ($ACTION_SEARCH, $ACTION_DUMP, $ACTION_SET, " +
+                "$ACTION_DOWNLOAD, $ACTION_DELETE)"
         }
         // The url in force goes out at startup, not only on a dump: a download that 404s is read
         // as "the server is wrong" far more often than as "the app is pointing somewhere else".

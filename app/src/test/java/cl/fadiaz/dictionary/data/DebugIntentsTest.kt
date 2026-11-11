@@ -92,4 +92,12 @@ class DebugIntentsTest {
         assertEquals("--- volcado ---", lineas.first())
         assertEquals("--- fin ---", lineas.last())
     }
+
+    @Test
+    fun `los packs pedidos se leen separados por coma, sin blancos ni repetidos`() {
+        // `adb shell` eats an empty extra (see ACTION_CLEAR), so a stray comma or space must
+        // not turn into a pack id nobody asked for.
+        assertEquals(listOf("en-full", "es-core"), DebugIntents.packIds(" en-full, es-core,,en-full "))
+        assertEquals(emptyList<String>(), DebugIntents.packIds(null))
+    }
 }

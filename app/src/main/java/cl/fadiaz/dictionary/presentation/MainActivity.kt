@@ -299,6 +299,8 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
                             },
                         ).forEach { linea -> DictLog.i { linea } }
                     },
+                    onDownload = viewModel::onDebugDownload,
+                    onDelete = { ids -> ids.forEach(viewModel::deletePack) },
                 )
                 onDispose { baja?.invoke() }
             }

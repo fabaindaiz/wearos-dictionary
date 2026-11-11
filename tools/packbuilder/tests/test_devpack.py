@@ -254,30 +254,32 @@ if __name__ == "__main__":
 
 
 class PlanUploadTest(unittest.TestCase):
-    """`upload`: packs first, then the APK, and the session always stopped.
+    """`upload`: the APK first, then its packs by download, and the session always stopped.
 
-    Two uploads carried full packs with a new APK and both were typed by hand. An APK sent without
-    the full packs it was built against leaves *Local* empty on the watch (`LOCAL/todas es-full=0`),
-    and a session nobody stops keeps the watch's radio awake.
+    The packs arrive the way a user's do (d-a2f271-d49033): the watch runs a build `run-as` cannot
+    enter, and asking for them needs the APK's receiver, so the APK goes first and the app reloads
+    on each finished download. An APK sent without the full packs it was built against leaves
+    *Local* empty on the watch (`LOCAL/todas es-full=0`), and a session nobody stops keeps the
+    watch's radio awake.
     """
 
     SESION = "/x/watchsession.py"
+    RELOJ = "192.0.2.1:5555"
 
-    def _plan(self, packs=("es-full.db", "en-full.db"), apk="app-debug.apk", **kw):
-        return devpack.plan_upload("192.0.2.1:5555", apk, list(packs), self.SESION, **kw)
+    def _plan(self, packs=("es-full", "en-full"), apk="app-benchmark.apk", serial=RELOJ, **kw):
+        return devpack.plan_upload(serial, apk, list(packs), self.SESION, **kw)
 
-    def test_the_packs_go_before_the_apk(self):
+    def test_the_apk_goes_before_the_packs(self):
         pasos = self._plan()
-        instalar = [i for i, p in enumerate(pasos) if "install" in p.argv]
         deploy = [i for i, p in enumerate(pasos) if "deploy" in p.argv]
-        self.assertEqual(2, len(instalar))
+        bajar = [i for i, p in enumerate(pasos) if "download" in p.argv]
         self.assertEqual(1, len(deploy))
-        self.assertLess(max(instalar), deploy[0])
+        self.assertEqual(1, len(bajar))
+        self.assertLess(deploy[0], bajar[0])
 
-    def test_the_packs_do_not_relaunch_the_app_the_apk_does(self):
-        for paso in self._plan():
-            if "install" in paso.argv:
-                self.assertIn("--no-restart", paso.argv)
+    def test_one_download_step_asks_for_every_pack_by_id(self):
+        bajar = [p for p in self._plan(packs=("es-full.db", "en-full")) if "download" in p.argv][0]
+        self.assertEqual(["es-full", "en-full"], bajar.argv[-2:])
 
     def test_the_session_opens_first_and_stops_last(self):
         pasos = self._plan()
@@ -285,31 +287,103 @@ class PlanUploadTest(unittest.TestCase):
         self.assertIn("stop", pasos[-1].argv)
         self.assertTrue(pasos[-1].siempre)
 
+    def test_an_emulator_needs_no_session(self):
+        pasos = self._plan(serial="emulator-5554")
+        self.assertFalse(any(self.SESION in p.argv for p in pasos))
+        self.assertIn("install", pasos[0].argv)
+        self.assertIn("download", pasos[-1].argv)
+
     def test_every_step_names_the_device(self):
-        for paso in self._plan():
-            self.assertIn("192.0.2.1:5555", paso.argv)
+        for serial in (self.RELOJ, "emulator-5554"):
+            for paso in self._plan(serial=serial):
+                self.assertIn(serial, paso.argv)
 
     def test_an_apk_without_packs_is_refused_unless_asked_for(self):
         with self.assertRaises(devpack.PackInvalido):
             self._plan(packs=())
-        self.assertIn("deploy", self._plan(packs=(), solo_apk=True)[1].argv)
+        pasos = self._plan(packs=(), solo_apk=True)
+        self.assertIn("deploy", pasos[1].argv)
+        self.assertFalse(any("download" in p.argv for p in pasos))
 
 
 class EjecutarSubidaTest(unittest.TestCase):
 
-    def test_a_failed_pack_skips_the_apk_and_still_stops_the_session(self):
-        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full.db", "en-full.db"], "/x/w.py")
+    def test_a_failed_apk_skips_the_packs_and_still_stops_the_session(self):
+        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full", "en-full"], "/x/w.py")
         corridos = []
 
         def correr(argv):
             corridos.append(argv)
-            return 1 if "es-full.db" in argv else 0
+            return 1 if "deploy" in argv else 0
 
-        self.assertEqual("pack es-full.db", devpack.ejecutar_subida(pasos, correr))
-        self.assertFalse(any("deploy" in a for a in corridos))
-        self.assertFalse(any("en-full.db" in a for a in corridos))
+        self.assertEqual("app", devpack.ejecutar_subida(pasos, correr))
+        self.assertFalse(any("download" in a for a in corridos))
         self.assertIn("stop", corridos[-1])
 
     def test_a_clean_upload_reports_nothing(self):
-        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full.db"], "/x/w.py")
+        pasos = devpack.plan_upload("192.0.2.1:5555", "app.apk", ["es-full"], "/x/w.py")
         self.assertIsNone(devpack.ejecutar_subida(pasos, lambda argv: 0))
+
+
+class EstadoDescargasTest(unittest.TestCase):
+    """What the `Dict` log says about each pack asked for: the readout that replaced `run-as`."""
+
+    def test_each_pack_is_done_when_its_worker_says_installed(self):
+        lineas = ["debug: descargar es-full, en-full", "worker: empieza es-full",
+                  "worker: es-full instalado"]
+        self.assertEqual({"es-full": "instalado"},
+                         devpack.estado_descargas(lineas, ["es-full", "en-full"]))
+
+    def test_an_id_outside_the_catalog_is_named(self):
+        estado = devpack.estado_descargas(["debug: xx no esta en el catalogo"], ["xx"])
+        self.assertEqual({"xx": "no esta en el catalogo"}, estado)
+
+    def test_a_worker_failure_is_kept_until_it_installs(self):
+        lineas = ["worker: es-full fallo (HTTP 404), se reintentara"]
+        self.assertEqual({"es-full": "fallo (HTTP 404), se reintentara"},
+                         devpack.estado_descargas(lineas, ["es-full"]))
+        lineas.append("worker: es-full instalado")
+        self.assertEqual({"es-full": "instalado"}, devpack.estado_descargas(lineas, ["es-full"]))
+
+    def test_a_missing_catalog_fails_every_pack(self):
+        estado = devpack.estado_descargas(["debug: descarga sin catalogo (timeout)"], ["a", "b"])
+        self.assertEqual({"a": "sin catalogo", "b": "sin catalogo"}, estado)
+
+    def test_a_prefix_of_another_id_is_not_that_id(self):
+        self.assertEqual({}, devpack.estado_descargas(["worker: es-full instalado"], ["es"]))
+
+
+class VolcadoTest(unittest.TestCase):
+    """`list` and `rm` read the app's dump instead of the pack directory."""
+
+    LOG = ["otra cosa", "--- volcado ---", "abiertos=1: es-core@1", "--- fin ---",
+           "--- volcado ---", "app versionCode=21", "abiertos=2: es-core@1, en-full@20260910",
+           "rechazados=0", "--- fin ---", "despues"]
+
+    def test_the_last_whole_dump_is_read(self):
+        volcado = devpack.leer_volcado(self.LOG)
+        self.assertEqual("app versionCode=21", volcado[0])
+        self.assertEqual("rechazados=0", volcado[-1])
+
+    def test_a_dump_cut_before_its_end_is_not_read_nor_an_older_one(self):
+        # An older whole dump describes a state the app already left.
+        self.assertIsNone(devpack.leer_volcado(self.LOG[:4] + ["--- volcado ---", "abiertos=0"]))
+
+    def test_the_open_packs_are_the_ids_before_the_version(self):
+        self.assertEqual({"es-core", "en-full"}, devpack.abiertos(devpack.leer_volcado(self.LOG)))
+
+    def test_no_open_pack_is_an_empty_set(self):
+        self.assertEqual(set(), devpack.abiertos(["abiertos=0"]))
+
+
+class ArranqueTest(unittest.TestCase):
+    """The receiver lives in the Activity: a process a tile woke up has none."""
+
+    def test_a_cold_or_warm_launch_registers_the_receiver_anew(self):
+        for estado in ("COLD", "WARM"):
+            salida = "Status: ok\nLaunchState: %s\nTotalTime: 812\n" % estado
+            self.assertTrue(devpack.receiver_recien_creado(salida))
+
+    def test_an_activity_already_alive_already_listens(self):
+        self.assertFalse(devpack.receiver_recien_creado("Status: ok\nLaunchState: UNKNOWN (0)\n"))
+        self.assertFalse(devpack.receiver_recien_creado("Status: ok\nLaunchState: HOT\n"))

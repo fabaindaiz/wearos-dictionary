@@ -86,7 +86,7 @@ packs went with it** — ~450 MB to push again. The watch's IME also reorders th
 ZERO tests.** An empty green. Read the **count**, never the colour.
 
 ```sh
-./gradlew :app:testDebugUnitTest         # 586 JVM tests, screens included
+./gradlew :app:testDebugUnitTest         # 589 JVM tests, screens included
 ./gradlew :app:connectedDebugAndroidTest # 7 tests that really do need a device -- UNINSTALLS the app
 ./gradlew :app:releasePrecheck           # is there a keystore to sign with? says what is missing
 ./gradlew :app:assembleRelease           # 35 MB; with no keystore it comes out UNSIGNED, it does not break
@@ -355,20 +355,21 @@ Exclude the packs from backup with `android:dataExtractionRules`. With `minSdk 3
 ## The packs do not travel in the APK
 
 The APK carries only a 53 KB **demo pack** (D-081). The real dictionaries live in
-`filesDir/packs/` and arrive through `tools/devpack.py`; once the installer exists it will write
-into that same directory and the app will not notice the difference.
+`filesDir/packs/`. **On the watch they arrive by download** (d-a2f271-d49033): it runs the
+`benchmark` build, which `run-as` cannot enter, so `tools/devpack.py` asks the app through its
+debug intents and `packserver.py` serves the packs at 127.0.0.1 through `adb reverse`, the one host
+`benchmark` talks to in clear text.
 
 ```sh
-python3 tools/packbuilder/build_pack.py es <kaikki-es.jsonl> es-def-wikc.db
-# El bilingue NECESITA --flexiones, o la direccion inversa se pierde en silencio (D-184):
-python3 tools/packbuilder/build_pack.py es-en <es-en-wikt.jsonl> es-tr-enwikt.db \
-        --flexiones en-def-wikt.db
-python3 tools/devpack.py install es-def-wikc.db   # or: hatch run push es-def-wikc.db
-python3 tools/devpack.py list                     # what ended up on the watch
-python3 tools/devpack.py rm es-def-wikc           # to test the degradation
+python3 tools/packserver.py ../wearos-dictionary-data/dist --no-compress   # in another terminal
+python3 tools/devpack.py upload app-benchmark.apk es-full en-full   # the APK, then its packs
+python3 tools/devpack.py download es-full     # packs only; waits on the worker's log line
+python3 tools/devpack.py list                 # the app's dump: what it opened
+python3 tools/devpack.py rm es-full           # through Settings' own path
+python3 tools/devpack.py install es-def-wikc.db   # debug build on an emulator only: run-as
 ```
 
-**Do not do it with `adb push` by hand.** Copying straight onto the `.db` is not atomic: if the
+**`install`, and never `adb push` by hand.** Copying straight onto the `.db` is not atomic: if the
 push is cut short a truncated pack is left, and a truncated pack **opens without error and returns
 fewer words than it holds**. `devpack.py` writes to `.part`, compares the sha256 on both sides and
 only then renames — the same thing `installAtomically` does for the APK's packs (D-082).
