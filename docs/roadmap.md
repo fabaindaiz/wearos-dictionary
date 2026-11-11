@@ -31,6 +31,41 @@ rise.
 
 ## Dónde estamos
 
+*Updated 2026-11-11.* **On the device since 2026-11-11 13:31**: APK `versionCode` 21, the non-debuggable
+`benchmark` build (d-a2f271-d49033), 61.8 MB, from `4675ec9`, carrying the startup profile generated on the
+emulator (its files are out of git, so a clean checkout builds it without one). All five packs are the
+rebuild of 2026-11-10 (es-core 202611101609, en-core 202611101607, es-full 202611101605, en-full
+202611101600, bilingual 202611101606). Last launch: 5 packs open, 0 rejected, ready in 438 ms. The
+cores came out of the APK; en-full and es-full by `devpack download` over `adb reverse`, en-full resuming
+from its partial after the watch left the network. The bilingual could not arrive by download (below):
+it went by `run-as` through a debug build installed over, then `benchmark` again, both on the debug key,
+so the data stayed. The history reading 2 is the owner's: they cleared it. `en-main` is not on the watch,
+as before. The settings the upload touched are back: battery state reset after a simulated charger, no
+`adb reverse`, no catalog override, wake lock released; the keep-alive app's doze exemption is the
+session tool's own and stays by design.
+
+- **A manual download is dropped behind a stale one** · i-a2f271-91b743. `DownloadPackWorker.enqueue`
+  uses `enqueueUniqueWork(workName(packId), KEEP, …)`. A bilingual download left by the `versionCode` 19
+  build (charger required, from before D-263; WorkManager's backoff already at 5 h) survived the APK
+  upgrade, and every manual request for that pack after it was logged `worker: encolado` and dropped:
+  `dumpsys jobscheduler` showed the old job alone, `Unsatisfied constraints: CHARGING`. Neither
+  `cmd jobscheduler run -f` nor a simulated charger ran it: WorkManager defers a run that comes before
+  its own backoff. The same happens to a tap in Settings. A manual request has to replace a pending work
+  whose constraints are stricter than its own, without restarting one that is running (the reason
+  `KEEP` was chosen). Recommended: `REPLACE` when the existing work is not running, else `KEEP`; reproduce
+  on the emulator first, test-first.
+- **The debug receiver is registered more than once** · i-a2f271-3d8d2e. On the watch every `Dict` line
+  came twice, then three times, from different threads, the packs opened once per copy and one
+  `DEBUG_DOWNLOAD` was received three times. It grew with each `devpack` call, which brings the Activity
+  up with `am start -W`. `KEEP` absorbed the repeats this time. To reproduce on the emulator with repeated
+  `devpack list`.
+- **Voice search opens the keyboard and does not search by voice** · i-a2f271-44fa50. Reported by the
+  owner on 2026-11-11 from the watch, `benchmark` build, `versionCode` 21; **for the next session**. The
+  input goes through `ACTION_REMOTE_INPUT` (`SearchScreen.kt`, the comment above the voice action), which
+  opens the system's input picker; what it shows first on this watch, and whether the voice choice is
+  offered at all, is unread. First step: reproduce on the emulator; whether it is new with
+  `benchmark` (R8 optimizing) or older is the first thing to tell apart.
+
 *Updated 2026-11-06.* **On the device since 2026-11-06 14:00**: APK `versionCode` 19 (`0.12.0`), R8
 (`assembleDebug -PdebugR8`), 71.3 MB, from `e82176a`, with all five packs of the rebuild from `b491c67`
 (es-core 202611061616, en-core 202611061611, es-full 202611061609, en-full 202611061603, bilingual
@@ -56,8 +91,10 @@ cleared it.
   400 are the richest-entry filter kept by d-a2f271-c9f13c; lifted for them on 2026-11-10
   (d-a2f271-0b57d9), built the same day.
 
-**To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
-remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
+**To continue, from any machine:** `main` holds this work (merged 2026-11-11). The startup profile is
+not in git: regenerate it with `./gradlew :app:generateBaselineProfile` on the emulator if a build needs
+it. To upload to the watch, `packserver.py` must run and `devpack.py upload` takes the `benchmark` APK.
+The first concrete step: the voice-search report (i-a2f271-44fa50), on the emulator. The data root
 (`../wearos-dictionary-data`, outside git) holds the dumps and this rebuild's `dist/`; `../wearos-debug-tool`
 holds the session tool. To reach the watch: `adb mdns services` gives its address, `adb connect` that
 port; when it refuses, the owner reads a pairing code off the watch for `adb pair`. The first concrete
@@ -65,10 +102,9 @@ step: `status` for the wake lock. Then the list below.
 
 **Pending, as of this close:**
 
-- **Built on 2026-11-09, not yet on the watch** (`docs/decisions.md`, the four rows of that date):
+- **Built on 2026-11-09, on the watch since 2026-11-11** (`docs/decisions.md`, the four rows of that date):
   English per-sense translations, the cap of 12, the bilingual's tappable gloss and `W` below the senses
-  when a sense has its own. The packs of that date and `versionCode` 20 go up with `devpack.py upload`
-  when the owner asks. Open: in a bilingual card every other gloss word still resolves in the entry's
+  when a sense has its own. Open: in a bilingual card every other gloss word still resolves in the entry's
   language, so an English gloss word that spells a Spanish one paints a wrong link (decided
   2026-11-10, d-a2f271-8f03e3).
 - **Decided on 2026-11-10** (`docs/decisions.md`, the rows of that date). **Built the same day:**
@@ -76,19 +112,26 @@ step: `status` for the wake lock. Then the list below.
   (d-a2f271-296b77), a word in a tier when any entry is (d-a2f271-0b57d9), a bilingual gloss resolved
   in English (d-a2f271-8f03e3), `build.done` (d-a2f271-4b78a1). **Built 2026-11-11:** the watch's
   packs arrive by download into the non-debuggable `benchmark` build (d-a2f271-d49033, closes
-  i-a2f271-55ddfc), seen on the emulator; the next upload to the watch goes that way, when the owner
-  asks. **Built 2026-11-11:** the startup profile on the emulator (d-a2f271-2ccd54); measured, it does not
+  i-a2f271-55ddfc), seen on the emulator and on the watch on 2026-11-11 (above). **Built 2026-11-11:** the startup profile on the emulator (d-a2f271-2ccd54); measured, it does not
   move the median cold start there, so its files stay out of git. **Open for the owner:** keep the profile in
   the repository? Recommended: no, until `arranque: listo para buscar` read on the watch with and without it
   says it pays — a log-only reading, when the owner asks. i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
-- **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
-  the tile fix, and its two should-fix findings are fixed or answered. The two feature commits on senses
-  came after it and **no review has read them**; a review of those comes before the merge, which waits on
-  the owner's word.
-- **The upload command's watch path** (`devpack.py upload` with the session tool) is unexercised since
-  packs go by download: on an emulator it skips the session, and that path is what was seen.
+- **Merged into `main` on 2026-11-11**, after an isolated review of everything past the tile fix
+  (`aafcdf5..HEAD`, `knowledge-reviewer`): no blocker. Fixed before the merge: `build_packs.py` read the
+  root as the first bare argument, so `--solo es <root>` left the old `build.done` as this run's (test
+  first), and two comments the diff made false. **Deferred, should-fix:** `entryIdOf(norm, uid)` and
+  `summary().uid` are tested only through `FakeDictionary`, never over a real pack's SQL
+  (`SqlitePackSource`), so a test against the toy pack in `:dict-data`'s device tests. **Minor:**
+  `DEBUG_DELETE` with several ids starts one delete per id, and each reloads the packs, so one can close
+  what another just opened (only `devpack` reaches it, with one id); a saved word whose uid is gone falls
+  back to the best-ranked homograph by headword, which is what the uid was added to stop, so the branch
+  that drops the row is never reached.
+- **The upload command's watch path** (`devpack.py upload` with the session tool) ran on the watch on
+  2026-11-11: install and launch read back, then the watch left the network during the download step,
+  which runs **after** the session's `stop` and so without its Wi-Fi lock. Open: run the download inside
+  the session.
 - **Can wait, by the sweep of i-a2f271-e96d28:** bilingual fragments (i-a2f271-73edb1), set phrases, rhymes,
   a level source for English, sense alignment.
 
@@ -207,8 +250,8 @@ Los cinco packs pasan `verify_pack.py` entero y declaran `rank_basis=frequency-z
 - Las flexiones del idioma destino cierran la dirección inversa.
 
 **Hecho y verificado en escritorio.** El motor de búsqueda (`:dict-core`, **159 tests**) y el
-pipeline de packs (`tools/`, **838 tests**) están completos y en el gate, junto con los **589 JVM
-de `:app`** y **45 checks** de auditoría estructural — **1631 tests en total**. Los **54
+pipeline de packs (`tools/`, **839 tests**) están completos y en el gate, junto con los **589 JVM
+de `:app`** y **45 checks** de auditoría estructural — **1632 tests en total**. Los **54
 instrumentados** (34 de `:dict-data` y 7 de `:app`) el gate no los corre: necesitan dispositivo, y
 son los únicos que cierran las asunciones sobre Android. El pack de juguete pasa todas las
 invariantes de `verify_pack.py`, incluido que el prefijo use `COVERING INDEX`.
@@ -6486,7 +6529,22 @@ series by checking each commit in a throwaway worktree (`gate` there, refuse on 
 or a `pre-commit` hook that runs the audit's count check against the **staged** tree instead of
 the working tree, ~20 lines plus the cost of running the audit (~10 s) on every commit.
 
-### A file list in a zsh variable is one word — **4 incidents, rule rewritten 2026-10-26** · i-a2f271-0f302a
+### A history the owner cleared reads as a data loss in the startup log — **2 incidents** · i-a2f271-64256c
+
+Counted in the changelog: 2026-10-26 (`historial=1` where it read 25, raised as a possible data loss) and
+2026-11-11 (`historial=2` where it read 25, raised the same way). Both times the owner had cleared it.
+The startup line gives a count and nothing about how it got there, so a cleared history and a lost one
+read the same. **Proposed, not built:** clearing the history logs it (`historial: borrado por el usuario,
+N entradas`, INFO, D-212's readout), one `DictLog` line and its test, ~10 lines; a drop with no such line
+since the last launch is then the finding, and one with it is not.
+
+### A file list in a zsh variable is one word — **5 incidents, rule rewritten 2026-10-26** · i-a2f271-0f302a
+
+The fifth, 2026-11-11: `A="adb -s <serial>"; $A shell …` on the watch ran as one command name, so none of a
+script's adb calls ran, and its `echo` still reported the step as done. Prose loaded did not hold a second
+time since the rewrite, which is the signal to raise the rung: **proposed, not built,** a `PreToolUse` hook
+that refuses a Bash command whose line starts with an unquoted `$VAR` as the command name, ~15 lines, the
+fix it would name being a function (`a(){ adb -s "$S" "$@"; }`).
 
 Counted in the changelog: 2026-09-19, the morning of 2026-10-26 (a resolution loop failed silently)
 and that afternoon, when copies saved with `for f in $FILES` were never written and a `git checkout`

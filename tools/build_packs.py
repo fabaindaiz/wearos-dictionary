@@ -239,10 +239,9 @@ def main(argv=None):
     raiz = None
     codigo = 1
     try:
-        argumentos = list(sys.argv[1:] if argv is None else argv)
-        posicionales = [a for a in argumentos if not a.startswith("-")]
-        if posicionales and "--dry-run" not in argumentos:
-            raiz = os.path.abspath(posicionales[0])
+        args, _ = _parser().parse_known_args(sys.argv[1:] if argv is None else argv)
+        if not args.dry_run:
+            raiz = os.path.abspath(args.raiz)
             hecho = os.path.join(raiz, BUILD_DONE)
             if os.path.exists(hecho):
                 os.remove(hecho)
@@ -254,12 +253,16 @@ def main(argv=None):
                 f.write("%d\n" % codigo)
 
 
-def _main(argv=None):
+def _parser():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("raiz", help="el directorio de datos, FUERA del repo")
     parser.add_argument("--dry-run", action="store_true", help="imprime el plan y no corre nada")
     parser.add_argument("--solo", choices=("es", "en"), help="un solo idioma")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def _main(argv=None):
+    args = _parser().parse_args(argv)
 
     raiz = os.path.abspath(args.raiz)
     for sub in (DUMPS, BUILD, DIST):

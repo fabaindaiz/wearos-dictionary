@@ -543,14 +543,14 @@ class BuildDoneTest(unittest.TestCase):
     line names the script: twice a dead or finished build read as still running.
     """
 
-    def _correr(self, llamada, raiz=None):
+    def _correr(self, llamada, raiz=None, antes=()):
         raiz = raiz or tempfile.mkdtemp()
         paso = {"nombre": "x", "comando": ["true"], "salida": "x.db", "verifica": False}
         with mock.patch.object(build_packs, "plan", return_value=[paso]), \
                 mock.patch.object(build_packs, "debe_saltarse", return_value=False), \
                 mock.patch.object(build_packs.subprocess, "call", side_effect=llamada), \
                 mock.patch.object(build_packs, "escribir_indice"):
-            codigo = build_packs.main([raiz])
+            codigo = build_packs.main(list(antes) + [raiz])
         with open(os.path.join(raiz, "build.done"), encoding="utf-8") as f:
             return codigo, f.read().strip()
 
@@ -579,4 +579,17 @@ class BuildDoneTest(unittest.TestCase):
             visto.append(os.path.exists(os.path.join(raiz, "build.done")))
             return 0
         self._correr(mira, raiz)
+        self.assertEqual([False], visto)
+
+    def test_una_opcion_antes_del_directorio_no_lo_tapa(self):
+        """`--solo es <root>`: the option's value is not the root, or the old file is read as this run's."""
+        raiz = tempfile.mkdtemp()
+        with open(os.path.join(raiz, "build.done"), "w", encoding="utf-8") as f:
+            f.write("0\n")
+        visto = []
+
+        def mira(*a, **k):
+            visto.append(os.path.exists(os.path.join(raiz, "build.done")))
+            return 1
+        self.assertEqual((1, "1"), self._correr(mira, raiz, antes=("--solo", "es")))
         self.assertEqual([False], visto)
