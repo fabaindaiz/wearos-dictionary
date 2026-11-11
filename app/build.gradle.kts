@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.baselineprofile)
 }
 
 /**
@@ -769,7 +770,26 @@ tasks.register("releasePrecheck") {
     }
 }
 
+// The profile plugin generates over `nonMinified*` build types made with `initWith(release)`, and
+// switches R8 off through the old `isMinifyEnabled`, which `optimization` overrides: the profile
+// came out in obfuscated names that match no other build. Off here, after the plugin's own
+// `finalizeDsl`, which is what runs before this one (d-a2f271-2ccd54).
+androidComponents {
+    finalizeDsl { android ->
+        android.buildTypes.matching { it.name.startsWith("nonMinified") }.configureEach {
+            optimization { enable = false }
+        }
+    }
+}
+
+// One profile for every variant, in `src/main`: the watch runs `benchmark`, which never reads
+// `src/release`, and a debuggable build ignores it anyway.
+baselineProfile {
+    mergeIntoMain = true
+}
+
 dependencies {
+    baselineProfile(project(":baselineprofile"))
     implementation(project(":dict-data"))
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)

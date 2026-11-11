@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.LocaleList
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.ReportDrawnWhen
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -261,6 +262,13 @@ fun DictionaryApp(entradaInicial: Visit? = null, abrirInput: Boolean = false) {
             )
             val state by viewModel.state.collectAsStateWithLifecycle()
             val discover by viewModel.discover.state.collectAsStateWithLifecycle()
+
+            // Fully drawn when a search can run: the packs are open, or there are none to open.
+            // Macrobenchmark reads it as the startup's real end (d-a2f271-2ccd54); the first frame
+            // is only a spinner over packs still opening.
+            ReportDrawnWhen {
+                state.status !is SearchState.Status.Loading && state.status !is SearchState.Status.Installing
+            }
 
             // The debug intents. `install` returns null in release --the constant is `false` and
             // R8 takes the class away-- so there is nothing to ask here. See [DebugIntents].

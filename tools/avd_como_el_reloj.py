@@ -39,6 +39,9 @@ RELOJ = {
     "hw.lcd.circular": "yes",
     # The English pack is 315 MB and the app opens it at startup; with the default it shows.
     "hw.ramSize": "1536",
+    # The Wear image pins `dalvik.vm.dex2oat-cpu-set` to CPUs 2,3: with the default 3 cores dex2oat
+    # refuses the set and ART compiles nothing, so no startup profile can be generated or measured.
+    "hw.cpu.ncore": "4",
 }
 
 # The base profile. It gives 454x454, which gets overwritten -- but it brings the rest of a

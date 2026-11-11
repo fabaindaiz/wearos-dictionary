@@ -28,6 +28,11 @@ local.properties
 # copia de los vectores seria una segunda fuente de verdad del contrato mas importante del repo.
 dict-data/src/androidTest/assets/
 
+# The startup profile `./gradlew :app:generateBaselineProfile` writes (d-a2f271-2ccd54). Not
+# committed while it buys nothing measured: 4.3 MB of text rewritten on every regeneration, for no
+# change in the median cold start on the emulator. A local one still ships in a local build.
+app/src/main/generated/baselineProfiles/
+
 # Cache de bytecode de Python del pipeline de packs
 __pycache__/
 *.py[cod]

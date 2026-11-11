@@ -20,6 +20,7 @@
 :app            Wear Compose screens, ViewModel, where packs come from   ✔
 :dict-data      opens packs, implements the queries                      ✔
 :dict-core      pure Kotlin: normalization, keys, payload                 ✔
+:baselineprofile  startup profile and its benchmark, emulator only         ✔  (no code in :app)
 tools/          Python builder + Unicode repertoire                       ✔  (outside Gradle)
 
 The glanceable surface is two dictionary tiles -- last words and word of the

@@ -484,7 +484,10 @@ def check_module_direction(report):
         if not os.path.isfile(os.path.join(ROOT, relativo)):
             report.failure("falta %s" % relativo, "si el modulo se renombro, mover este check")
             continue
-        usados = set(re.findall(r'project\("(:[a-z-]+)"\)', read(relativo)))
+        # `baselineProfile(...)` consumes the startup profile a test module generates; it puts no
+        # code on the classpath, so it is not a dependency in this rule's sense.
+        texto = re.sub(r'baselineProfile\(project\("[^"]+"\)\)', "", read(relativo))
+        usados = set(re.findall(r'project\("(:[a-z-]+)"\)', texto))
         prohibidos = usados - puede
         if prohibidos:
             report.failure(
