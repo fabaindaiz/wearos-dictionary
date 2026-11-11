@@ -54,7 +54,7 @@ cleared it.
   400 whose richest entry is a sibling that is not common (`mention`, `excess`, `scam`), 176 that keep
   another tier through a sibling (`lamp`, `hubby`), and 162 not classified (`league`, `gin`). The
   400 are the richest-entry filter kept by d-a2f271-c9f13c; lifted for them on 2026-11-10
-  (d-a2f271-0b57d9), not built.
+  (d-a2f271-0b57d9), built the same day.
 
 **To continue, from any machine:** the branch `feat/local-tier-no-stress` is **on the
 remote and not merged**: a new machine checks it out, and `main` does not hold this work yet. The data root
@@ -77,7 +77,10 @@ step: `status` for the wake lock. Then the list below.
   in English (d-a2f271-8f03e3), `build.done` (d-a2f271-4b78a1). **Built 2026-11-11:** the watch's
   packs arrive by download into the non-debuggable `benchmark` build (d-a2f271-d49033, closes
   i-a2f271-55ddfc), seen on the emulator; the next upload to the watch goes that way, when the owner
-  asks. **Not built:** the startup profile on the emulator (d-a2f271-2ccd54). i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
+  asks. **Built 2026-11-11:** the startup profile on the emulator (d-a2f271-2ccd54); measured, it does not
+  move the median cold start there, so its files stay out of git. **Open for the owner:** keep the profile in
+  the repository? Recommended: no, until `arranque: listo para buscar` read on the watch with and without it
+  says it pays — a log-only reading, when the owner asks. i-a2f271-e96d28's remainders are all settled. What to build first is the owner's.
 - **On the wrist:** P-18 by the owner's use; P-3 and P-17 by the log, when asked. P-4 and P-5 need a
   `benchmark` build. The wake lock, above.
 - **Before a merge into `main`:** the review of 2026-11-09 (isolated, no blocker) read the branch up to
@@ -3020,7 +3023,7 @@ tres que no se construyeron esa sesión):
    presentación, no capacidad nueva. Lo que falta decidir es el costo en filas: una categoría en
    su propia línea más las palabras debajo pasa de 1 fila a 2 por lista, y con las tres listas y
    varias acepciones eso empuja mucho hacia abajo en 234 dp.
-3. **El caché del tile sigue siendo por pack** (ver §Varios packs por idioma, punto 2).
+3. ✅ ~~**El caché del tile sigue siendo por pack**~~ (ver §Varios packs por idioma, punto 2): built.
 
 **Lo que falta, y por qué no se puede cerrar desde acá:**
 
@@ -3191,6 +3194,8 @@ sabés que querés buscar por significado, tenés que escribir algo que no exist
 ### Historial de entradas abiertas
 
 **Estado.** **Hecho** (2026-09-17). Tres entradas, en el estado vacío (D-085).
+
+✅ **Built since:** Settings clears the whole history, with a confirmation (`SearchViewModel.clearHistory`). One entry at a time is still not possible.
 
 **Qué sigue faltando.** No se puede borrar el historial desde la app, ni una entrada ni todo.
 Con tres y move-to-front se recicla solo, pero una palabra que no querés volver a ver se queda
@@ -3405,7 +3410,7 @@ El modelo mental que ordena todo, y que costó tres decisiones descubrir:
    vio en el reloj: buscar *aquatic* devolvía la entrada del pack viejo, sin los antónimos nuevos.
    Toca D-138, D-070 y el instalador. **Es una decisión de producto y está fuera de lo que un
    agente puede resolver midiendo.**
-2. **El caché del tile sigue siendo por pack.** Menos grave que la palabra del día de la pantalla
+2. ✅ ~~**El caché del tile sigue siendo por pack.**~~ **Built since:** `cacheWeekForTile` caches one pack per language (`representativesForTheDay`). Menos grave que la palabra del día de la pantalla
    —el tile muestra **uno solo**, el del activo— así que no duplica nada; pero comparte la causa.
    Se arregla usando `representativePacks` en `cacheWeekForTile`, y requiere tocar el formato de
    lo que se cachea, que hoy guarda `packId`.
@@ -3907,7 +3912,7 @@ ranura del carrusel en Wear OS 7+. O sea: migrar no es tirar lo que hay.
 densidad: un widget es *glanceable*, no una pantalla llena. La guía dice explícitamente **no
 portar un tile uno a uno**.
 
-#### Mejoras propuestas, ninguna construida
+#### Mejoras propuestas — #3 and #4 built since (`TileRender`: the word card with its gloss, `EXTRA_OPEN_INPUT` in the bottom slot)
 
 | # | qué | por qué, y qué cuesta |
 |---|---|---|
@@ -4449,7 +4454,7 @@ language. Closing it means `entry.lang` reaching `EntrySummary`, which is a `:di
 | **B** | Derive it from the entry when the row is drawn | a read per row, on a list that scrolls | ⚠️ Puts a pack read on the home's scroll path, which D-106's reasoning rules out for the tile and is uncomfortable here |
 | **C** | Tag it with the **active** language | 0 | ⚠️ **Wrong, and the KDoc already refused it**: a history row can be from another language than the active one, and asserting otherwise is D-080's family |
 
-### `full` and `main` of the same origin installed together — 2 of 3 BUILT, the catalogue warning open
+### `full` and `main` of the same origin installed together — BUILT, the catalogue warning on 2026-11-10 (d-a2f271-296b77)
 
 **Status.** **Better than expected, and the gap is not where it looks.** Asked for: handle
 explicitly what happens when a `full` pack is installed and then the `main` of the same origin
@@ -4987,10 +4992,10 @@ cae la cola.
 que es lo que alguien pregunta **después** de saber qué significa. Empujar la definición hacia
 abajo por la etimología invierte el orden en que se lee un diccionario.
 
-### Siete observaciones de uso — 2026-09-26, **ninguna construida** · i-a2f271-ba2093
+### Siete observaciones de uso — 2026-09-26, **#1–#4 built, #5–#7 open** · i-a2f271-ba2093
 
 From using the build of 2026-09-26 on the watch. Written down as they were reported, with what is
-already known about each, so none of it has to be re-derived. **Nothing here is built.**
+already known about each, so none of it has to be re-derived. **#1–#4 are built since (see the table); #5–#7 are not.**
 
 | # | What was seen | What is known about it |
 |---|---|---|
@@ -5153,7 +5158,7 @@ a manual escape hatch, which is its own roadmap item with four priced options �
 in it went unnoticed for three days precisely because this section described behaviour the app no
 longer had.
 
-#### Las palabras del día son demasiado raras — ⚠️ **measured again 2026-09-23, still open**
+#### Las palabras del día son demasiado raras — ✅ **closed by i-a2f271-96caa4** (`WordOfTheDay.pickInTier`, the Común tier by default)
 
 ⚠️ **P-10 answered on the emulator and the answer is narrower than it looks.** With the CORE
 packs the words of the day read `polvo` (Español core) and `anywhere` (English core), against the
@@ -5354,7 +5359,7 @@ por acertar contra una verdad igualmente plegada. Se eligió el número peor por
 ### Result ordering: document it, then improve it
 
 **Status.** Asked for on 2026-09-21: *«documentar y mejorar los filtros sobre el orden en que
-poner las palabras en los resultados»*. **Nothing built.**
+poner las palabras en los resultados»*. **Point 1 written (`docs/orden-de-resultados.md`); points 2 and 3 not built.**
 
 **The ordering exists and is scattered.** It is assembled across three places, and nobody can see
 the whole of it without reading all three:
@@ -7232,7 +7237,7 @@ written*. **What would close it:** a short section in that skill.
 
 ### The verify skill states test counts nobody checks · i-a2f271-a58967
 
-**Proposed, not built.** Its gate section still says 77 / 233 / 250 tests and 28 checks (the builder
+✅ **Built 2026-11-11:** the skill no longer copies the counts and points to `README.md`, which `--fix` keeps true. Was: its gate section still says 77 / 233 / 250 tests and 28 checks (the builder
 alone is at 662 and the audit at 40). `check_test_counts` watches `README.md`, the area `CLAUDE.md`
 files and the roadmap, **not the skills**, so the document that teaches how to verify carries the
 unverified numbers. Found 2026-09-25 and still true. Either the count check reads the skills too, or
@@ -7254,7 +7259,7 @@ selection by what the commit touches.
 
 ### The audit walks .claude/worktrees and reports a stale copy's state as failures · i-a2f271-a3b903
 
-**Proposed, not built.** 2026-09-25: the first audit after a merge reported 46 failures, all from a
+✅ **Built since:** `audit_dictionary.py` prunes `worktrees` from every walk. 2026-09-25: the first audit after a merge reported 46 failures, all from a
 worktree copy left under `.claude/worktrees/` at an older state; `git worktree remove` cleared them.
 Recorded once then as a first hit; it fires for any session that leaves a worktree there, and the
 failures read as real ones. **What would close it:** skip that folder in the audit's walk.

@@ -18,9 +18,9 @@ months later. The gate is the only thing that catches them before that happens.
 ./gradlew check
 ```
 
-It runs compilation, Android Lint, the **77 of `:dict-core`**, the **233 JVM of `:app`** (screens
-included, under Robolectric), the **250 of the Python builder** and the structural audit
-(**28 checks**). **Measured: ~1m07s cold.**
+It runs compilation, Android Lint, the tests of `:dict-core`, the JVM tests of `:app` (screens
+included, under Robolectric), the Python builder's and the structural audit; the counts live in
+`README.md`, where `audit_dictionary.py --fix` keeps them true.
 
 ## If you touched `norm()`, `fuzzy()` or the Unicode repertoire
 

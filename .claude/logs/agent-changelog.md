@@ -16,6 +16,79 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-11 · s-a2f271-0c5d1b — Catalog count in mil, packs by download, startup profile
+
+**What.** Two days, since the entry of 2026-11-09. On 2026-11-10 the owner ruled on the pending
+proposals one by one (the rows of that date in `docs/decisions.md`), and four were built: `uid` in a
+saved word, the entry count and *included in* note in the catalog, a word in every tier one of its
+entries belongs to with *Común* winning, a bilingual gloss resolved in English, and `build.done`; the
+packs were rebuilt twice, `versionCode` 21. On 2026-11-11: the catalog count reads *mil* in every
+Spanish region; the watch's packs arrive by download (`DEBUG_DOWNLOAD`, `DEBUG_DELETE`, `devpack`
+without `run-as`, clear text to 127.0.0.1 in `benchmark`); the startup profile was built and measured
+on the emulator; eleven roadmap items read as open were found built and marked.
+
+**Areas.** `PacksScreen.kt`, `ScreensTest`; `DebugIntents.kt`, `MainActivity.kt`, `SearchViewModel.kt`
+and their tests; `tools/devpack.py`, `test_devpack.py`; `app/src/benchmark/`; `baselineprofile/`,
+`app/build.gradle.kts`, `build.gradle.kts`, `gradle/libs.versions.toml`, `settings.gradle.kts`,
+`.gitignore`; `tools/avd_como_el_reloj.py`; `tools/audit_dictionary.py`; `docs/decisions.md`,
+`docs/roadmap.md`, `docs/architecture.md`, `docs/preguntas-del-reloj.md`, `app/AGENTS.md`, the
+`verify` skill.
+
+**Why.** The owner asked to review the pending proposals one by one, then to build A, the covered
+note, and B + C, and on 2026-11-11 to continue everything pending.
+
+**Architecture.** ✅ Complies. `:baselineprofile` is a test module `:app` reads a profile from, not
+code: the audit's direction rule now ignores the `baselineProfile(...)` configuration alone, and a
+probe with `implementation(...)` in its place still fails it. The debug intents stay behind
+`DEBUG_INTENTS`, off in release.
+
+**Measured.** 2026-11-11, emulator `wear_sm_l715f` (now 4 cores), packs installed:
+- Cold start, `benchmarkRelease`, 10 runs each, time to full display min/median/max: 2272/3314/7001 ms
+  uncompiled, 2756/3380/4248 ms with the startup profile. The validity rule was written before
+  reading: ranges overlapping almost whole mean no measurable difference, and they do. The worst run
+  drops from 7.0 to 4.2 s. APK cost +1 KB (`baseline.prof` 8.0 to 9.0 KB); the profile text is 4.3 MB.
+- `devpack upload` of the `benchmark` APK and `en-main` (97 MB): 40.5 s. Three packs (468 MB) by
+  `download` over `adb reverse`: 12.2 s, the worker's own lines read back.
+- `uid`, 2026-11-10: about 9.4 bytes per entry, 0.59 MB on `en-core` to 8.88 MB on `en-full`.
+
+**Deviation from the plan.** The profile's files are not committed: the decision said generate and
+measure, and the measurement said it buys nothing there. Kept out by `.gitignore` until P-4 reads the
+watch with and without it; the question is in the roadmap with a recommendation.
+
+**Not verified.** Nothing reached the watch: the download path, the `benchmark` build's clear text and
+the profile are seen on the emulator only. `devpack upload`'s watch path (with the session tool) is
+unexercised since packs go by download.
+
+**What went wrong.** ICU's short form for the watch's es-CL is *942 k*, not *942 mil*: the screen test
+ran under plain `es` and described a device that is not the watch; seen on the emulator, fixed
+test-first under `es-rCL`. `devpack`'s first readout of the log failed three ways before it worked: a
+tile-woken process answered `pidof` with no receiver registered; quotes around `logcat -T`'s time
+arrive literally because `adb logcat` takes no shell, and `stderr` sent to `DEVNULL` hid it as a
+timeout; and a streaming `logcat` into a pipe held a ten-line dump back while a download's hundreds of
+lines arrived, so it polls `logcat -d` now. A mutation probe's backup went to a path that did not
+exist and left the mutation in place; caught by the next run and restored by hand. `benchmark` could
+not talk to `packserver` at all (clear text was debug-only), found before the first try. The profile
+took four tries: the emulator's 3 cores made `dex2oat` refuse its CPU set and compile nothing; AGP's
+connected-test task **uninstalled the app with its data and packs** (restored by download; the
+emulator's test history is lost) until `leaveApksInstalledAfterRun`; the generation variant came out
+obfuscated because AGP 9's `optimization` block overrides the plugin's `isMinifyEnabled` (fixed in
+`finalizeDsl`, checked by the dex growing from 3.1 to 31.5 MB); and a rerun reused the stale
+obfuscated output as up to date. Macrobenchmark refuses an emulator; suppressed, citing the decision.
+
+**What was left undone.** The roadmap's open question on keeping the profile; P-4 on the watch. A
+review of the commits since 2026-11-09 before any merge into `main`. In the catalog row the hint
+*toca para descargar* is cut with an ellipsis, as it was before this work. The emulator AVD's core
+count was changed by hand to 4; `avd_como_el_reloj.py` now sets it for a new one.
+
+**Rulings.** Clear text in `benchmark` to 127.0.0.1 alone, reached through `adb reverse`;
+`ReportDrawnWhen` when the status leaves loading; the emulator at 4 cores; the profile out of git; the
+`verify` skill points at `README.md` for counts instead of copying them.
+
+**Cards relied on.** `.agents/knowledge/INDEX.md` was not opened this session; the checks that ran are
+the repo's own: mutation probes on every test that passed first (`onDebugDownload` twice, the devpack
+parsers three times, the launch state, the audit rule), and a validity rule written before reading
+the benchmark.
+
 ## 2026-11-09 · s-a2f271-c38af7 — A sense's own translations, in English and on the card
 
 **What.** The four decisions on senses are built: the reader takes translations nested in an English
