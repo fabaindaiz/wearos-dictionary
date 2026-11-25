@@ -65,6 +65,11 @@ builds do not exist (that is bootstrap in repair mode, not an update).
 **2. List the deltas.** Run `python3 .agents/tools/bundle.py changelog --since
 <our version> .agents/incoming/release`. One line per item of its Changed, Added,
 Deprecated, Removed, Fixed and Security lists: what is new, not a diff of prose.
+It exits non-zero, saying so, when our version is older than the oldest section
+the release still carries: the list it printed is then incomplete, and what lies
+between the two versions is recorded nowhere this repository can read. That is
+not a failure of the step — go on with the list it gave, and say in the update's
+report that the delta starts later than our version does.
 
 **3. Triage each delta against THIS repository.** Read `adapted` and `declined`
 in `carrier.toml` **first**: an adaptation is not re-proposed, and a refusal is
@@ -194,6 +199,14 @@ What a home is and how a release reaches a carrier: [`meta.md`](meta.md), read o
   scripts other than `tools/bundle.py`, is not triaged. `SHA256SUMS` proves the
   copy is whole, not who made it: take releases from the upstream in
   `carrier.toml`.
+  **Where that upstream is not on this machine**, the newest copy present may
+  belong to a sibling carrier. Taking it is sound and must be said: compare the
+  release's own `home` and `parent` fields, in its `README.md` frontmatter,
+  against this carrier's `upstream` before reading anything, prove the copy with
+  `verify --release`, and report in the entry that the release came from a
+  sibling and which tag it followed. The export copies only the files the
+  checksum list names, so a sibling's carrier file, proposals and reports do not
+  travel. Seen once, on a carrier five releases behind.
 - **A delta that changes this procedure is read before the procedure is followed.**
   The copy you are following predates every delta you are about to apply, so a
   release that adds a step, an agent to copy or a carrier field does not appear in

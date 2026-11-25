@@ -28,7 +28,7 @@ The environment has its own quiet forms. Two environments on one machine — a s
 ## When it does NOT apply
 
 - **A hermetic build system already does this**, by declaring every input and sandboxing every action (see *Literature*). Where the tool guarantees that the host and the tree cannot leak in, reproducing the checkout by hand is repeating work that is already done.
-- **When the artefact under test is the working tree** — a formatter over uncommitted work, a check on staged changes, a pre-commit hook. The tree is the subject, not the contamination.
+- **When the artefact under test is the working tree** — a formatter over uncommitted work. The tree is the subject, not the contamination. A check on staged changes or a pre-commit hook is not this case: its subject is the staged snapshot, and the checker it runs is part of that snapshot, so a hook that reads the disk, or runs the working tree's copy of the checker, is a replica of the commit (occurrences in *Evidence*, 2026-11-24, one owner's repositories).
 - **When the input is committed, or fetched by a pinned digest** — then it is part of the commit, and the export carries it.
 - **When the untracked file is the point**: reproducing someone's local state to debug their failure. Then the export is the wrong direction, and what is worth writing down is which file made the difference.
 

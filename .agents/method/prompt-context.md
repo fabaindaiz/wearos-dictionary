@@ -135,6 +135,37 @@ explain it. Repeating it louder changes nothing: a documented trap was broken tw
 session by the agent that had just read it. A safe command beside an unsafe one
 that still runs unguarded is half a raise, and the half left is where it recurs.
 
+**This ladder is the hierarchy of controls, applied to a repository.** Safety
+engineering ranks elimination, substitution and engineering controls above
+*administrative controls* — written work practices — for the reason that names
+rungs 0 to 2 exactly: the lower rungs "require significant and ongoing effort"
+from the people following them, while the upper ones work without human
+interaction (NIOSH, *Hierarchy of Controls*). Reason's system approach lists
+"writing another procedure" among the weak responses to error, beside retraining
+and exhortation. In software the clearest worked case is Google's: warnings
+developers were observed to ignore were promoted to compile errors once the
+codebase was clean, under explicit criteria — understandable, actionable, no
+effective false positives, correctness and not style — with review-time checks
+held to a ceiling of about one in ten findings judged unhelpful and disabled
+above it (Sadowski et al., CACM 2018). **What this method adds is the trigger**:
+a repeat violation by an actor that had the rule loaded. Counted in one owner's
+repositories, a rule about a particular shell construct was broken five times
+with the rule in context — twice with real damage, a script that executed
+nothing while reporting success and a discard that threw away uncommitted work —
+and rewriting the rule did not prevent the next one. No source we found names
+how many repeats justify building the mechanism.
+
+**Four narrowings, all from those sources.** A rung-1 or rung-2 rule is *less
+reliable*, not useless: NIOSH keeps administrative controls as a legitimate
+interim measure while a higher control is built. A mechanism with false
+positives gets ignored or switched off, so a raise is only worth it if the check
+is good, and it needs a retirement path. **Rung 4 beats rung 3**: before writing
+a hook, ask whether the construct can be removed or defaulted away, which is
+elimination rather than an engineering control. And a mechanism the actor can
+bypass — a hook it may edit, a flag it may set — is weaker than its rung
+suggests. Reason's first question also stands: ask *why* the rule failed, since
+a mechanism may be treating a symptom.
+
 **A rule acts only in the output the action already reads at the moment it
 applies.** A rule or a readout placed in a step nobody runs before the risky
 action does not act, however loaded it is: a closing step skipped when a push
@@ -168,7 +199,8 @@ mode you cannot picture will not survive contact with a deadline. The first
 thirteen are about the repository; 14 to 17 are about the session and the
 process it runs in; 18 and 19 are about how code is written and how the method
 enters a repository that already has its own way of doing things; 20 is about
-what may leave a repository at all.
+what may leave a repository at all; 21 names the four stages the work passes
+through and the failure each one has.
 
 ### 1. Every rule names its consequence and its enforcer
 
@@ -240,6 +272,23 @@ Per stack: `ruff`/`import-linter`/`pytest` plugins (Python), ESLint
 NetArchTest (C#), `golangci-lint` with `depguard` (Go), `cargo deny` + clippy
 (Rust), custom tree-walking script (always available, and often the fastest way
 to express a rule specific to your repo).
+
+**Two ways a gate stops being the thing that was run.** First, a deferred or
+slow gate fails in a small number of recurring classes, each already known and
+each costing a full slow run to rediscover: promote those classes to a fast
+check at the front, so the slow gate is no longer where a known failure is
+first met. Second, **a step that mutates its own environment cannot be the gate
+a verifying session runs** — a type-checking step written to install what it
+misses may reach the network, so a session without network access, or unwilling
+to let a verification step write outside the repository, cannot run the gate at
+all and instead runs its steps one by one against a recorded baseline: the gate
+minus its own composition, and minus any guarantee that the steps run were the
+steps the gate would have run. Compose the gate from steps that only read, and
+keep the installing form as a separate, explicitly invoked step. Counted in one
+owner's repositories, which is one source: four consecutive sessions ran the
+checker without its installing flag, two of them recording that the gate itself
+was therefore not run. The mechanical check — no gate step installs anything —
+is not implemented anywhere yet.
 
 **Prevents:** documented architecture that nobody can tell has already eroded.
 
@@ -425,6 +474,18 @@ problem from being reintroduced by a well-read agent.**
 Close the file with a triage table: *if you are about to touch X, read Y, and
 watch out for Z.*
 
+**A research phase delegated with only search summaries is a first pass, not a
+result.** It needs a second pass against primary sources before anything is
+written: in one owner's repositories three of six first passes came back with no
+primary source, one asset was produced from a source whose licence did not cover
+the use and had to be redone, and a numeric example taken from a first
+specification did not hold. A page the fetch tool cannot open stays marked as an
+assumption rather than quietly becoming a fact, and a citation taken from memory
+says so until it is checked against the source. Dated research notes carry a
+column crossing each proposed practice against the decisions already recorded,
+and a section naming what is not adopted and why, so a second pass does not
+propose what was already rejected.
+
 **Prevents:** re-litigating solved problems, and cargo-culting a recipe written
 for a different platform.
 
@@ -485,6 +546,12 @@ from what the writer *can* see — the repository and the record's own text:
 `<kind>-<repo6>-<content6>`, minted by `bundle.py id` (*Workspaces* has the
 scheme). Numbers stay only for what a single writer, the release, produces:
 principles, artifacts, phases and versions.
+
+**An id is minted and defined before it is cited, and the citation travels on
+the branch that holds the definition.** The check runs where the citation lands,
+not where it was written, so an id cited from a branch whose record lives on
+another fails there — seen repeatedly in one owner's repositories, together with
+the sibling case of an id written out before it was minted.
 
 **Prevents:** silent concurrent divergence, and changes whose reasoning is lost
 the moment the session ends.
@@ -940,6 +1007,80 @@ so none is silent.
 **Prevents:** a private codebase, its customers or the people behind it being
 found by anyone who reads a public copy of the bundle — the one mistake in this
 method that cannot be reverted.
+
+---
+
+### 21. The work has four stages, and each one fails in its own way
+
+**Plan, settle the questions, build, review.** Most repositories already work
+this way without naming it, and the cost of not naming it is that each stage's
+characteristic failure is rediscovered every time. This principle is the
+skeleton: what each stage owes the next, and the one failure that is worth
+checking for. It is written from counted frictions in a set of repositories
+under one owner, so **treat the counts as one source**, and see the notes it
+points at for the evidence.
+
+**1. Plan — a plan that does not name its collisions is a plan for one branch.**
+A change that reshapes something every module reads lists, before it starts,
+every live branch and file it will collide with and the order the merges must
+take; where the shape itself changes, the plan carries a step in which both
+shapes are valid, so one task does not turn the whole branch red. The plan's
+estimates are in hours with a measured cost per task, and the estimate is kept
+beside what was actually spent — an estimate nobody compares afterwards never
+calibrates, and estimating in *sessions* stops meaning anything once agents run
+in parallel. **Check:** the plan names the branches it collides with, or says
+there are none.
+
+**2. Settle the questions — an approval is not a confirmation.**
+Decisions the agent reasoned on its own stay marked unconfirmed until the human
+touches each one; approving a design as a whole is given against its shape, not
+against each row, and rows approved in a block are replaced later often enough
+to be worth the marker. Put the decisions one per turn, each with a
+recommendation, and expect the human to accept the recommendation nearly every
+time: that is what *appropriate reliance* looks like when the recommendations
+are good, so a high acceptance rate is **not** evidence that each row was
+examined. The corrections arrive through the human's free text and through facts
+that a later pass brings back, which is why the free text outranks the chosen
+option. Describe every option from the source and not from memory; an answer
+given against a description that turns out to be false is marked superseded and
+the question is put again. Where two of the human's answers contradict each
+other, ask a third question built from the case where they disagree instead of
+choosing. **Check:** every decision row says whose reasoning it is, and no row
+states the human's position without the human's words.
+
+**3. Build — the environment is part of the change.**
+An isolated working copy is not the working checkout: it lacks everything
+version control ignores, a delegate created in one starts from the branch it was
+cut from and not the one being worked on, and checks run inside it walk paths
+that only exist there. A gate runs against the index or a clean copy, never
+against the dirty tree, and a merge is chained to the gate exactly as a commit
+is. Work that was never run in its real environment is marked unverified in the
+first line of the report and goes into a batch with a named owner, because it
+fails almost entirely on its first real run and always for the same handful of
+reasons. Two written rules of one repository can contradict each other and the
+agent will obey one of them without saying which: when a prohibition is added,
+reconcile the rule it collides with in the same change. **Check:** the gate
+passes from a clean copy of the index, not only from the working tree.
+
+**4. Review — a review per task does not see what breaks between tasks.**
+Defects whose evidence lies outside the piece under review are the hardest to
+find, so the final review of the whole branch is not skipped however many tasks
+were approved one by one. A reviewer who did not write the code is independent
+of the author's assumptions and poorer in context: say which context it is
+given. A cap on re-review rounds assumes the target is fixed — when the human
+revises the rule between rounds the cap restarts, because the rounds are the
+target moving and not the reviewer failing to converge. **Check:** the branch
+has one review that read it whole, and the report says what it was given.
+
+**Where it is already written:** principle 15 holds how to ask; principle 17 how
+to price a process change; principle 18 the order of the test; principle 2 the
+ladder from a rule to a check. This principle only says which stage each belongs
+to, and what each stage owes the next.
+
+**Prevents:** a stage's known failure being met again as a surprise — a plan
+that collides at merge time, a decision nobody confirmed, a gate that passed on
+a tree nobody will commit, and a branch declared ready by reviews that never saw
+it whole.
 
 ---
 

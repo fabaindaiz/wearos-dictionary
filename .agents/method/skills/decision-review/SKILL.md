@@ -40,6 +40,11 @@ one that others depend on comes first. Tag each:
 Show the inventory whole, with how many are theirs, and ask whether to proceed or re-tag. The human
 may say "decide the minor ones"; they become yours, listed.
 
+**A batch larger than this review's own cap is split, not squeezed.** A run of thirty decisions put
+through a tool that holds fifteen had to be broken in two; the batch was the wrong size, not the cap.
+Survey work finds answers get shorter and more uniform late in a long instrument, and nothing has been
+measured for decisions an agent puts to a person, so the cap is held rather than argued with.
+
 ## 3. The walk: one decision per turn
 
 Each turn has the same shape (a theme of up to four related decisions only if the human asks for
@@ -61,7 +66,19 @@ assistant's question tool when there is one, with previews for visual options.
 
 - Say what the answer settled, reopened or created further down the inventory.
 - An answer that contradicts an earlier one is named once, with both.
-- After a long run of accepted recommendations, name the riskiest of them for a second look.
+- After a long run of accepted recommendations, name the riskiest of them for a second look. **Expect that
+  run.** Counted over five rounds in one owner's repositories, the human took the recommended option in
+  all but about two of some fifty decisions, and every correction arrived through their free text or
+  through a fact a later clean-context pass brought back — never by choosing another option. A high
+  acceptance rate is **not** evidence that each row was examined, and it is **not** evidence that it was
+  not: accepting a correct recommendation is what appropriate reliance looks like. So the remedy is not
+  to ask less. It is to make the recommendation cheap to check — the concrete case at the same fidelity,
+  the price, what it forecloses — and to force a second look where being wrong is expensive. The
+  established finding is that people form a general heuristic about whether to follow a machine's
+  suggestion rather than evaluating each one, and that forcing engagement reduces that, while
+  explanations alone do not (Bucinca et al., CSCW 2021; Vasconcelos et al., 2023, who add that reliance
+  falls as the cost of checking falls). Whether this owner's acceptance rate reflects a well-calibrated
+  recommender has not been measured here.
 - Change a recommendation only for a new fact, and name the fact; never because of the human's mood.
 
 ## 5. Stop, and record

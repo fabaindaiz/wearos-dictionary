@@ -16,6 +16,36 @@ siguiente por ese desvío.
 
 ---
 
+## 2026-11-25 · s-a2f271-9278a7 — Update agent-guides from 0.0.32 to 0.0.34
+**What.** The bundle moves from **0.0.32 to 0.0.34** (0.0.33 and 0.0.34 at once) with the home's
+`release.py splice`, 130 files, nothing removed. `install-skills` reinstalled `close` and
+`decision-review`: the close now tells a pause asked with time (finish the step, write the hand-off)
+from an immediate one (write only what would be lost, stop). `proposals --prune` removed the 14
+proposals the release lists as received. Two of this repository's files were made true for it:
+`bundle.py decisions` now reads a legacy id split with a letter, and found D-161b with an empty
+Status, which it had skipped in silence; it reads `accepted recorded 2026-09-20`, the date of the
+commit that wrote it (0656a04), as the rows around it do. And the release ships 53 notes, so
+`AGENTS.md`'s phase-guide count went from 52 to 53, which the audit's count check asked for.
+
+**Areas.** `.agents/`, `.claude/skills/{close,decision-review}/`, `docs/decisions.md` (one Status
+cell), `AGENTS.md` (one number), this log.
+
+**Why.** Asked for by the owner in the meta-session; the harvest of 2026-11-24 was taken in by 0.0.34.
+
+**Architecture.** ✅ Complies.
+
+**Measured.** `./gradlew check` in the worktree, the whole gate: BUILD SUCCESSFUL, the builder's 839
+tests OK, the structural audit with warnings only (all there before). The worktree has no
+`local.properties`; the SDK was named by `ANDROID_HOME` for the run, from the machine's installed
+SDK, so nothing ignored was copied in.
+
+**What went wrong.** The first two gate runs failed, one finding each: the D-161b row, then the note
+count. Both came from the release, not from a change here, and `verify` was green throughout.
+
+**What was left undone.** Nothing.
+
+**Not verified.** Nothing the watch runs changed; no device or emulator run.
+
 ## 2026-11-11 · s-a2f271-0c5d1b — Catalog count in mil, packs by download, startup profile
 
 **What.** Two days, since the entry of 2026-11-09. On 2026-11-10 the owner ruled on the pending

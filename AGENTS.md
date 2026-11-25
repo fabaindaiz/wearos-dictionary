@@ -141,7 +141,7 @@ not counting rows. See the `pack-workflow` skill.
 
 **The heuristics are not in this repo and they are not optional.** When a change touches state, a
 contract, data, security or verification, look it up **before the design decision** in
-`.agents/knowledge/INDEX.md`, a phase guide over 52 notes, and open only the cards it links: decide
+`.agents/knowledge/INDEX.md`, a phase guide over 53 notes, and open only the cards it links: decide
 each from its *Applies if* and *Not when*, run its check before claiming done and say which ran,
 and open a full note only when a card's boundary is unclear here. Where an invariant above contradicts a
 note, this repo wins and says so. A review in a fresh context goes to the `knowledge-reviewer`

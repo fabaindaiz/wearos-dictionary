@@ -7,6 +7,136 @@ Every release of the agent-guides bundle, newest first. The format follows
 release may change the format a carrier depends on (SemVer §4); a carrier reads what changed since the
 version it holds with `bundle.py changelog --since <its version>`.
 
+## [0.0.34] - 2026-11-25
+
+**What a carrier runs at this update: nothing new, and one check now stops.** The build no longer reads a note's
+`cues` against a list of public product names, and the list is gone from the home. If your own audit or a hook
+called that check, or copied its list, remove the call: nothing replaces it. Generality stays a person's
+judgement when a note is admitted, and a leak of a private name stays the privacy check's.
+
+**What this release is.** A harvest patch with six tool fixes the harvest itself asked for. 90 proposals were
+taken in from the home and the carriers one machine holds: 15 entered the queue as new candidates, 3 were
+experiment runs, and 72 were occurrences of something already written: 52 added to 41 queued candidates, 17
+to 11 notes, and 3 to rows already answered in the history.
+Every carrier here belongs to one owner, so the counts are one source; where a rule written by a second person
+of a shared repository arrived, its row says so and nothing was admitted on it.
+
+### Removed
+
+- **The product-noun check over a note's `cues`, and its list.** Twenty-one names seeded by hand let any
+  unlisted product through without a word, so it read as a gate and acted as a sieve; three of its entries were
+  ordinary English the method uses, and it broke a build on a correct cue. One confirmed catch in its life. The
+  cues it made rewritten stay rewritten.
+
+### Changed
+
+- **`reproduce-the-checkout-not-only-the-environment` narrows a boundary.** A pre-commit hook is no longer an
+  example of "the working tree is the subject": its subject is the staged snapshot, so a hook that reads the disk,
+  or runs the working tree's copy of the checker, has to reproduce the commit like any other gate. Four offers
+  from one owner's repositories, two of them contradicting the old bullet.
+- **`harvested_gaps` can name what was not read.** A span read from some sources and not others is written
+  `2026-10-15..2026-11-24: transcripts`; a span with nothing after it was not read at all, and `verify` now
+  refuses one that reaches `harvested_through`, because the frontier would then claim days nobody read. A gap
+  already written without a name and ending before the frontier stays valid.
+- **The close skill tells two pauses apart.** A pause asked with time finishes the step under way and writes
+  what the next session needs; an immediate pause writes only what would be lost and stops. Neither merges or
+  starts new work.
+- **`prompt-harvest.md` drops the quote an `overlaps` proposal carried.** Every candidate in `OPEN.md` has a
+  slug, so `--action overlaps --target <slug>` joins the two; the quote joined nothing more and was the privacy
+  check's most common warning on a proposal.
+- **A worktree builds its own environment where that is cheap and reproducible**, and its result is then
+  proven; where it is not, the main copy's environment is used and the result is reported unproven. The report
+  names which (`prompt-bootstrap.md` §4).
+- **`bundle.py changelog --since` exits non-zero** when the version given is older than the oldest section the
+  changelog keeps, because the list it printed is then incomplete; `prompt-update.md` says to go on and report
+  it.
+- **`bundle.py decisions` counts what it means.** A superseded or deprecated row's `unconfirmed:` reason is no
+  longer waiting on anyone, and an agent's own rows are counted apart.
+
+### Fixed
+
+- **`bundle.py turns` redacts credential shapes**, in the human's turns and in the `--context` lines: a harvest
+  copies what it prints into scratch files a delegate reads, and once a live token was copied that way.
+- **`bundle.py turns` shows a `!` command as one the human ran in the shell, and drops its output**, which it
+  printed as a second human turn, and which can name a remote or a path.
+- **`bundle.py decisions` reads a legacy id split with a letter** (`D-022b`). About a twentieth of one log's
+  rows were skipped in silence, their status and supersession never checked.
+- **`bundle.py usage` leaves a `.gitignore` holding `*` beside its state folder**, so a home folder kept as a
+  working tree cannot commit the usage data.
+
+## [0.0.33] - 2026-11-24
+
+**What a carrier runs at this update: nothing.** This release adds no field, removes no format and changes no
+tool. Every change here is read, not run. The one thing worth doing afterwards is the check that the new note
+names: run your own gate once in a fresh clone or worktree with nothing copied in, and count what it reports
+that your working checkout does not.
+
+**What this release is.** A harvest patch, and the largest so far: 213 proposals offered by 23 carriers, against
+90 at the previous release. Of those, 122 entered the queue as new candidates, 6 were experiment runs, and 44 were
+occurrences of something already written and were folded into the note, the method section or the queued row they
+belonged to. One candidate was admitted as a note. Two learnings were folded into method text that already held
+the rule but not its grounding. Five rows were refused a fold by the sessions doing it, on the ground that they
+said something different from the note they were offered to, and became candidates of their own — which is the
+intended outcome and is recorded as such.
+
+**Every carrier in this release belongs to one owner**, so its counts are one source and not twenty-three. Where
+a learning is held back for that reason, the queue row says so.
+
+### Added
+
+- **Principle 21, *The work has four stages, and each one fails in its own way*.** Plan, settle the questions,
+  build, review — with the characteristic failure of each stage and one check per stage. It is a skeleton that
+  names which existing principle owns what, not a replacement for any of them: principle 15 still holds how to
+  ask, 17 how to price a process change, 18 the order of the test, 2 the ladder from a rule to a check. It is
+  written from counted frictions in one owner's repositories and says so in its first paragraph.
+- **A note, `an-isolated-copy-is-not-the-working-checkout`.** A worktree, container or fresh clone holds only
+  what version control tracks, so a hand-off to one states which ignored files it carries, which revision it
+  starts from, and which paths its checks must not walk. Measured as counted incidents in four repositories of
+  one owner. Its literature section is explicit that the mechanism is the known problem of non-hermetic builds,
+  that what we add is the procedure, and that the hermetic answer — remove the dependency rather than carry it —
+  is better where it is affordable, so the note is the fallback and says so.
+
+### Changed
+
+- **The enforcement ladder is grounded, and narrowed four ways.** It already said that a rule the agent had
+  loaded and broke anyway is the signal to raise its rung. It now says why: the ladder is the hierarchy of
+  controls applied to a repository, where written work practices rank below controls that need no ongoing human
+  effort, and Reason's system approach lists writing another procedure among the weak responses to error; the
+  clearest software case is warnings promoted to compile errors under explicit criteria, with a ceiling on
+  unhelpful findings above which the check is disabled. **What the method adds is the trigger**, a repeat
+  violation by an actor that had the rule loaded, and no source we found names how many repeats justify the
+  mechanism. The four narrowings: a low rung is less reliable, not useless, and is a legitimate interim measure;
+  a mechanism with false positives gets switched off, so a raise is only worth a good check and needs a
+  retirement path; rung 4 beats rung 3, so ask first whether the construct can be removed; and a mechanism the
+  actor can bypass is weaker than its rung suggests.
+- **The decision review says what a run of accepted recommendations means, and the answer moved against us.**
+  Counted over five rounds in one owner's repositories, the recommended option was taken in all but about two of
+  some fifty decisions, and every correction arrived through free text or through a fact a later clean-context
+  pass brought back. The conclusion first drawn from that — decide the minor things alone and ask less — is not
+  what the literature supports: accepting a correct recommendation is appropriate reliance, so a high acceptance
+  rate is evidence neither way, and the established remedy is to force engagement or lower the cost of checking,
+  not to reduce the asking. The skill now says that, and keeps the second look it already asked for. A batch
+  larger than the review's own cap is split rather than squeezed.
+- **Principle 2 gains two ways a gate stops being the thing that was run**: a deferred gate that fails in a
+  handful of known classes, which belong in a fast check at the front; and a gate step that mutates its own
+  environment, which a session without network access cannot run at all, leaving it to run the steps one by one
+  against a baseline — the gate minus its own composition. The mechanical check is named and is implemented
+  nowhere yet.
+- **Principle 8 says a delegated research phase with only search summaries is a first pass, not a result.** It
+  needs a second pass against primary sources; a page the fetch tool cannot open stays an assumption; a citation
+  from memory says so until checked. This release is its own occurrence: four literature searches were run for
+  four candidates, one of them reversed the conclusion the candidate was about to assert, and a slug written from
+  memory into the history table had to be corrected because it did not exist.
+- **Principle 11 says an id is minted and defined before it is cited**, and the citation travels on the branch
+  that holds the definition, because the check runs where the citation lands.
+- **`prompt-update.md` covers an upstream that is not on this machine.** The newest copy present may belong to a
+  sibling carrier; taking it is sound and must be said, by comparing the release's own `home` and `parent` fields
+  against this carrier's `upstream`, proving the copy with `verify --release`, and reporting the provenance.
+
+### Fixed
+
+- Nothing in the tools. No tool changed in this release.
+
 ## [0.0.32] - 2026-10-15
 
 **What a carrier runs at this update.** Follow `prompt-update.md` as it now reads, and read its new paragraph

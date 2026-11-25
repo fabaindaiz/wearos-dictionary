@@ -201,9 +201,11 @@ session without being told: the uncommitted diff is their work.
 5. **Extend before adding — as a candidate.** Check `knowledge/OPEN.md` and the index first. A new
    occurrence, number or boundary of an existing note, or of a candidate `OPEN.md` lists, is the most
    valuable thing a harvest produces, and it is *still* not written into the note here: the proposal
-   names what it extends (`--action extends --target <slug>`) and carries the evidence. A candidate
-   `OPEN.md` lists without a slug is extended with `--action overlaps`, a slug of your own, and its first
-   words quoted in the claim, so the home can join the two. A claim a
+   names what it extends (`--action extends --target <slug>`) and carries the evidence. A learning that
+   is near a listed candidate without being the same one is offered with `--action overlaps --target <its
+   slug>`, saying in the claim where the two part; every candidate carries a slug, so the slug joins them
+   and no quote of the candidate's words is needed (0.0.34: the quotes were the privacy check's most common
+   warning on a proposal, and joined nothing the slug did not). A claim a
    measurement here contradicts is a proposal of kind `experiment` with the verdict — *confirms*,
    *moves the boundary* or *falsifies*.
 6. **Run the cheap queued experiments** from `knowledge/OPEN.md` that this repository can answer, and
@@ -217,7 +219,12 @@ session without being told: the uncommitted diff is their work.
    method candidate.
 8. **Check and commit**: set `harvested_through` in `carrier.toml` to the last date read, **and when the
    human narrowed the period, write the span you did not read in `harvested_gaps`** (`YYYY-MM-DD..YYYY-MM-DD`,
-   earliest first). A single frontier cannot say "read to here, except that" — moving it discards the gap in
+   earliest first). **Where a span was read from some sources and not others** — the records read, the
+   session transcripts not on this machine — write it with the sources missing after a colon
+   (`2026-10-15..2026-11-24: transcripts`), so the next machine that holds them knows what it owes and a reader
+   does not take the whole span for unread. A span with no such name was not read at all, and `verify` refuses
+   one that reaches `harvested_through`: move the frontier back to the last day read instead. A single frontier
+   cannot say "read to here, except that" — moving it discards the gap in
    silence, leaving it reads the recent work again — and a note in the repository's own roadmap is the one
    place the next harvest is not sent. The next harvest reads the gaps before fixing its period, and the
    home's `gather` reports them. Then

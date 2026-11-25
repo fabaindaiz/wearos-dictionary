@@ -754,10 +754,14 @@ def quotes_bundle(quote: str, text: str) -> bool:
     return bool(span) and span in text
 
 
-def harvest_gap_problems(gaps: object) -> list[str]:
+def harvest_gap_problems(gaps: object, through: object = None) -> list[str]:
     """What is wrong with a carrier's `harvested_gaps`: the spans before its harvest frontier that no harvest
     has read (0.0.32). Each is `YYYY-MM-DD..YYYY-MM-DD` with real dates, the earlier one first, and the spans
     themselves run earliest first. A value that is not a list is one problem, not one per character of it.
+
+    A span may name, after a colon, the sources it did not read (`..: transcripts`): the harvest read the rest,
+    so the frontier passed it on purpose (0.0.34). A span with no such name was not read at all, and cannot
+    reach `through`, the frontier: the frontier would then claim days nobody read, so it moves back instead.
     """
     where = f"{CARRIER_FILE}: `harvested_gaps`"
     if gaps is None:
@@ -769,7 +773,8 @@ def harvest_gap_problems(gaps: object) -> list[str]:
         if not isinstance(span, str) or not HARVEST_SPAN.match(span):
             problems.append(f"{where} holds {span!r}; each is `YYYY-MM-DD..YYYY-MM-DD`, the unread span")
             continue
-        start, _, end = span.partition("..")
+        match = HARVEST_SPAN.match(span)
+        start, _, end = match["span"].partition("..")
         try:
             first, second = datetime.date.fromisoformat(start), datetime.date.fromisoformat(end)
         except ValueError:
@@ -779,6 +784,9 @@ def harvest_gap_problems(gaps: object) -> list[str]:
             problems.append(f"{where} holds {span!r} backwards; a span runs from its earlier date to its later one")
         elif last and first < last:
             problems.append(f"{where} holds {span!r} after a later span; the spans run earliest first")
+        if not match["unread"] and through and str(through) <= end:
+            problems.append(f"{where} holds {span!r}, which reaches `harvested_through` ({through}) with nothing read; "
+                            "move the frontier back to the last day read, or name the source not read (`..: transcripts`)")
         last = max(last, second) if last else second
     return problems
 
@@ -1372,7 +1380,7 @@ def record_id_check(files: list[Path], carrier: str | None) -> tuple[list[str], 
     return errors, warnings, counts
 
 
-_DECISION_ID = r"(?:d-[0-9a-f]{6}-[0-9a-f]{3,6}|D-\d{3,4})"
+_DECISION_ID = r"(?:d-[0-9a-f]{6}-[0-9a-f]{3,6}|D-\d{3,4}[a-z]?)"
 DECISION_STATUS = re.compile(
     rf"^(?P<state>proposed|accepted|declined|deprecated|superseded by (?P<by>{_DECISION_ID}))"
     r"\s+(?P<recorded>recorded\s+)?(?P<date>\d{4}-\d{2}-\d{2})"
@@ -1485,12 +1493,14 @@ def decision_check(files: list[Path], today: datetime.date | None = None) -> tup
     a name cited enforces nothing.
 
     Returns:
-        (errors, warnings, counts: rows, proposed, unconfirmed, debt).
+        (errors, warnings, counts: rows, proposed, unconfirmed, unconfirmed_agent, debt). `unconfirmed` counts
+        live rows a person accepted whose reason no person gave; superseded and deprecated rows are skipped, and
+        an agent's own rows are counted apart in `unconfirmed_agent`.
     """
     today = today or datetime.date.today()
     errors: list[str] = []
     warnings: list[str] = []
-    counts = {"rows": 0, "proposed": 0, "unconfirmed": 0, "debt": 0}
+    counts = {"rows": 0, "proposed": 0, "unconfirmed": 0, "unconfirmed_agent": 0, "debt": 0}
     for path in files:
         if not path.is_file():
             raise RefusedError(f"{path}: no such file; give the decisions log this repository keeps (its root file's map names it)")
@@ -1533,9 +1543,13 @@ def decision_check(files: list[Path], today: datetime.date | None = None) -> tup
                     counts["proposed"] += 1
                     warnings.append(f"{where}: {row.id}: proposed since {decided} ({(today - decided).days} days); "
                                     f"only a person accepts it; waits on {status.group('decides') or 'a person'}")
-                if re.sub(r"^[\s*_`]+", "", row.why).lower().startswith("unconfirmed:"):
-                    counts["unconfirmed"] += 1
-                    warnings.append(f"{where}: {row.id}: why unconfirmed; a person confirms it or gives the reason")
+                if (re.sub(r"^[\s*_`]+", "", row.why).lower().startswith("unconfirmed:")
+                        and not row.state.startswith(("superseded", "deprecated"))):
+                    if (status.group("decider") or "").startswith("agent"):
+                        counts["unconfirmed_agent"] += 1
+                    else:
+                        counts["unconfirmed"] += 1
+                        warnings.append(f"{where}: {row.id}: why unconfirmed; a person confirms it or gives the reason")
                 for token in re.findall(r"`([^`\s]+)`", row.enforced):
                     if any(c in token for c in "*?[") or not _PATHLIKE.match(token):
                         continue
@@ -1918,7 +1932,7 @@ CARRIER_TABLES = ("skills",)
 CARRIER_KEYS = ("carrier", "adopted", "upstream", "log", "skills", "surfaces", "harvested_through", "harvested_gaps",
                "adapted", "declined", "visibility", "private_folder", "lineage")
 VISIBILITIES = ("public", "private")
-HARVEST_SPAN = re.compile(r"^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$")
+HARVEST_SPAN = re.compile(r"^(?P<span>\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2})(?::\s*(?P<unread>\S.*))?$")
 
 
 def _toml_str(value: str) -> str:
@@ -2513,6 +2527,15 @@ def changelog_since(tree: Path, since: str) -> str:
     return "\n".join(out)
 
 
+def changelog_oldest(tree: Path) -> str | None:
+    """The oldest released version the changelog still keeps a section for, or None when it keeps none."""
+    path = tree / CHANGELOG
+    if not path.is_file():
+        return None
+    kept = [m.group(1) for m in CHANGELOG_SECTION.finditer(path.read_text(encoding="utf-8")) if m.group(1) != "Unreleased"]
+    return min(kept, key=semver_key) if kept else None
+
+
 def bundle_version(tree: Path) -> str | None:
     """The version a bundle declares in its README frontmatter, or None (a legacy or broken README)."""
     readme = tree / "README.md"
@@ -2868,7 +2891,7 @@ def verify_problems(tree: Path, privacy: PrivacyReport | None = None, release: b
         problems += [f"{CARRIER_FILE}: unknown key `{k}`" for k in carrier if k not in CARRIER_KEYS]
         problems += [f"{CARRIER_FILE}: `{k}` must be a list of strings" for k in ("adapted", "declined", "harvested_gaps")
                      if k in carrier and not isinstance(carrier[k], list)]
-        problems += harvest_gap_problems(carrier.get("harvested_gaps"))
+        problems += harvest_gap_problems(carrier.get("harvested_gaps"), carrier.get("harvested_through"))
         if not str(carrier.get("upstream") or "").strip() and not (tree.parent / "sources/bundle").is_dir():
             problems.append(f"{CARRIER_FILE}: `upstream` is empty, which marks the home repository; set it to the id of "
                             "the repository this one takes releases from (the release names it as `home` in README.md)")
@@ -4333,8 +4356,25 @@ def _content_text(content: object) -> str:
     return "\n".join(p for p in parts if p.strip() and not p.lstrip().startswith(TRANSCRIPT_NOISE))
 
 
+CREDENTIAL_SHAPES = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)"
+    r"|\b(?:sk|pk|rk)-[A-Za-z0-9_-]{20,}"
+    r"|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})"
+    r"|\bxox[abprs]-[A-Za-z0-9-]{10,}"
+    r"|\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"
+    r"|\bAIza[0-9A-Za-z_-]{35}"
+    r"|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"
+    r"|(?i:\b[\w.-]*(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[\w.-]*\s*[:=]\s*)[\"']?[^\s\"',;]{8,}",
+    re.DOTALL)
+
+
+def redact_credentials(text: str) -> str:
+    """The text with every credential-shaped run replaced by `[redacted]`."""
+    return CREDENTIAL_SHAPES.sub("[redacted]", text)
+
+
 def _short(text: str, limit: int = TURN_LIMIT) -> str:
-    text = text.strip()
+    text = redact_credentials(text.strip())
     return text if len(text) <= limit else text[:limit] + f" [... {len(text) - limit} more characters]"
 
 
@@ -4397,6 +4437,11 @@ def read_turns(path: Path, since: str = "", context: bool = False) -> list[tuple
                     found.append(f"- {stamp} command: {command.group(1)}" + (f" {_short(args.group(1))}" if args and args.group(1).strip() else ""))
                 elif text.startswith("[Request interrupted"):
                     found.append(f"- {stamp} interrupted the assistant")
+                elif text.startswith("<bash-input>"):
+                    shell = re.search(r"<bash-input>(.*?)</bash-input>", text, re.DOTALL)
+                    found.append(f"- {stamp} ran in the shell: {_short(shell.group(1) if shell else text)}")
+                elif text.startswith(("<bash-stdout>", "<bash-stderr>")):
+                    pass
                 elif text and not text.startswith(TRANSCRIPT_NOISE):
                     if context and last:
                         found.append(f"  (after the assistant said: {_short(last, 300)!r})")
@@ -4493,7 +4538,9 @@ def _usage_warn(path):
 
 
 def _usage_write(path, text, append=False):
-    """Writes outside every repository but one at the home folder (warned). A rewrite can lose an append made
+    """Writes outside every repository but one at the home folder (warned), and leaves a `.gitignore` holding `*`
+    in the tool's own folder, so a repository rooted at the home folder cannot commit what is kept there
+    (d-5ed7e8-011bc5). A rewrite can lose an append made
     at the same instant: a single-user local tool accepts that."""
     resolved, home = path.expanduser().resolve(), Path.home().resolve()
     tops = [p for p in resolved.parents if (p / ".git").exists()]
@@ -4502,6 +4549,12 @@ def _usage_write(path, text, append=False):
     if tops:
         _usage_warn(str(resolved))
     resolved.parent.mkdir(parents=True, exist_ok=True)
+    folder = next((p for p in path.expanduser().absolute().parents if p.name == "agent-guides"), None)
+    if folder is not None:
+        ignore = folder / ".gitignore"
+        if not ignore.exists():
+            folder.mkdir(parents=True, exist_ok=True)
+            ignore.write_text("*\n", encoding="utf-8")
     with resolved.open("a" if append else "w", encoding="utf-8") as out:
         out.write(text)
 
@@ -5067,6 +5120,9 @@ def _run(args: argparse.Namespace) -> int:
         print(f"decisions in {len(files)} files: {counts['rows']} rows, {counts['proposed']} proposed, "
               f"{counts['unconfirmed']} unconfirmed, {counts['debt']} known-debt rows; "
               f"{len(errors)} errors, {len(warnings)} warnings")
+        if counts["unconfirmed_agent"]:
+            print(f"  of the agent's own: {counts['unconfirmed_agent']} rows an agent decided say `unconfirmed:`; "
+                  "their reason is an agent's by definition, so none is waiting on a person")
         return 1 if errors else 0
     if args.command == "privacy":
         if args.tracked:
@@ -5130,6 +5186,11 @@ def _run(args: argparse.Namespace) -> int:
         return 0
     if args.command == "changelog":
         print(changelog_since(Path(args.tree), args.since), end="")
+        oldest = changelog_oldest(Path(args.tree))
+        if oldest is not None and semver_key(args.since) < semver_key(oldest):
+            print(f"  x --since {args.since} is older than the oldest section this changelog keeps ({oldest}); "
+                  f"what changed between them is not recorded here, so the answer above may be incomplete", file=sys.stderr)
+            return 1
         return 0
     if args.command == "home":
         print("\n".join(home_report(Path(args.tree))))

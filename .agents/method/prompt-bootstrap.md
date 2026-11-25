@@ -594,8 +594,10 @@ Two habits that carry the reasoning forward:
 
 Before claiming done, run the check of every card this change relied on (its
 *Check* line, in `.agents/knowledge/cards/`), and say in the report which ran.
-In a git worktree, run a check from an environment bound to that worktree, or
-read its result as unproven.
+In a git worktree, build an environment for the worktree where that is
+cheap and reproducible, and its result is proven; where it is not, run the
+check from the main working copy's environment and read its result as
+unproven. Either way the report names which of the two it was.
 
 **A document that tells a reader what to run is verified by running it.** When
 the change alters what a procedure, a runbook, an invocation, a checklist or a

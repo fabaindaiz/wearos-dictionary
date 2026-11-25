@@ -21,9 +21,18 @@ when the human declines the process, and goes in with the session's next commit 
 
 ## 0. Pause is not close
 
-"Pause", "leave it paused", "no commits": stop where you are. No commits, no merge, no record that a
-step was skipped, until the human says to resume. **A close never skips a review**, and never merges
-work a review has not read: if one is pending, say so and stop there.
+A pause is not a close, and it comes in two kinds; which one is the human's words, not your guess (the
+owner's ruling, 0.0.34):
+
+- **A pause asked with time** ("pause when you can", "leave it there for today"): finish the step under way,
+  start nothing new, and stop. Write what the next session needs to resume — where the work stands and what
+  comes next — where it would be read, committed only where the human allows commits.
+- **An immediate pause** ("stop", "pause now"): write only what is urgent — what would be lost, or what
+  another reader would take for finished — and stop.
+
+Either way, no merge and no new work until the human says to resume, and "no commits" in their words means
+none. **A close never skips a review**, and never merges work a review has not read: if one is pending, say so
+and stop there.
 
 **A push or a deploy is not a close either.** When one is about to end a plan and no close has run in
 this session, offer the close in one question first: the counts, the deferred findings, the device

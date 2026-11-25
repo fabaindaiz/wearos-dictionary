@@ -29,6 +29,8 @@ Fields required by the schema at write time. That is the real fix (make absence 
 
 It does **not** stop at fields. A reference whose target has gone is a third state between "present" and "empty by choice", and collapsing it into either lies: shown as empty it hides what was lost, dropped silently it cannot be seen or removed. Keep with each reference the last label seen for its target, so a dangling one can still be displayed and taken out.
 
+**Derived and authoritative records answer differently (2026-11-20, one repository of the same owner).** The rule that unreadable is not absent has a limit set by what the record is. An unreadable stored record that is only a cache counts as none and is rewritten, while a malformed stored notice refuses, because one is derived and the other is a message. The same rule gives opposite answers: a derived record can be rebuilt and an authoritative one cannot.
+
 ## What it costs
 
 Optional or tri-state types wherever a value crosses a boundary; writing `false` explicitly; backfilling existing records so query filters and code agree. One schema or explicit type check per optional key, and an operator who never quoted a value now meets a refusal at boot.
